@@ -1,8 +1,8 @@
 Makefile.backup
 *.dbg
 *.out
-temp*
-spin*
+temp.*
+spin.*
 *.o
 *.mod
 *.html
