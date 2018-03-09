@@ -1,0 +1,27 @@
+--------------------------------------------------------------------------------
+The Uppsala Atomistic Spin Dynamics (UppASD) project was initially conceived and
+developed at the Division of Materials Theory at Uppsala University. The UppASD
+project has been funded by a grant from the European Research Council (ERC), the
+Swedish Research Council, the Knut and Alice Wallenberg Foundation and eSSENCE.
+
+The team behind this effort are (listed alphabetically)
+
+Anders Bergman, Uppsala University <anders.bergman@physics.uu.se>
+Lars Bergqvist, KTH Royal Institute of Technology (email <lbergqv@kth.se>)
+Jonathan Chico, Forschungzentrum Julich (email <j.chico@fz-juelich.de>)
+Anna Delin, KTH Royal Institute of Technology
+Olle Eriksson, Uppsala University
+Johan Hellsvik, KTH Royal Institute of Technology (email <hellsvik@kth.se>)
+Johan Mentink, Raadboud University
+Lars Nordström, Uppsala University
+Manuel Pereiro, Uppsala University
+Björn Skubic, formerly Uppsala University (now at Ericsson Research)
+
+--------------------------------------------------------------------------------
+
+The UppASD code also includes additional routines from other 
+authors/software
+- Profiling routines from BigDFT (http://bigdft.org)
+- Mersenne-Twister RNG (http://www.math.keio.ac.jp/matumoto/emt.htm)
+- Ziggurat RNG (http://people.sc.fsu.edu/~jburkardt/f_src/ziggurat/ziggurat.html)
+--------------------------------------------------------------------------------

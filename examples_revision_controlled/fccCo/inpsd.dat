@@ -1,0 +1,32 @@
+simid CoCu_001
+ncell     20        20        20
+BC        P         P         P                 Boundary conditions (0=vacuum,P=periodic)
+cell 1.000000000000    0.000000000000    0.000000000000
+     0.000000000000    1.000000000000    0.000000000000
+     0.000000000000    0.000000000000    1.000000000000
+Sym       1                                     Symmetry of lattice (0 for no, and 1 for cubic)
+
+posfile  ./posfile
+exchange ./jfile     
+momfile  ./momfile
+do_prnstruct 1
+
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode M
+ip_temp 001.000
+ip_mcnstep 5000 
+
+mode      S                                     M for MC and S for SD
+Temp      001.000          K                    Temperature of the system
+
+damping   0.0003
+Nstep     40000                                 Number of time-steps
+timestep  1.000e-16        s                    The time step-size for the SDE-solver
+
+do_sc     Q                                     Measure spin-correlation
+do_sc_proj Q
+sc_step   20                                    time step length
+sc_nstep  3000                                  integration time (in time steps)
+qpoints C
+#file     ./qBZ20X

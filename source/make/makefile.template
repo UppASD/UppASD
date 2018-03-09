@@ -1,0 +1,242 @@
+#
+#                                  Maintain SD
+#
+SHELL = /bin/sh
+
+# Note: twice Recursive makefile if writing make <profilename>
+
+# Add file types to the known list of suffixes (file extensions)
+.SUFFIXES: .f .f90 .F90
+
+# Program name
+PROG = sd
+
+# Directories used in Makefile
+MDIR   = mod
+GPUDIR = gpu_files
+
+# Name of log file
+MAKELOG = make.log
+
+# File to store information on current build profile
+CURRENT = .profile
+
+# List of available building configs (found in make/default-profiles/systemname.make)
+DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90
+LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//'))
+#LOCAL_SYSTEMS := $(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//')
+SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
+#SYSTEMS += $(filter-out $(DEFAULT_SYSTEMS),$(LOCAL_SYSTEMS))
+
+# Check if current profile is set (stored in $(CURRENT)
+ifndef PROFILE
+CPROFILE := $(shell cat $(CURRENT) 2>/dev/null)
+ifneq (,$(filter $(CPROFILE),$(SYSTEMS)))
+PROFILE := $(CPROFILE)
+endif
+endif
+
+# Checking if there is a given environment variable for a building config set
+ifndef PROFILE
+ifeq ($(origin UPPASD_MAKE_PROFILE),environment)
+ifneq (,$(filter $(UPPASD_MAKE_PROFILE),$(SYSTEMS)))
+PROFILE=$(UPPASD_MAKE_PROFILE)
+else
+$(error Invalid value $(UPPASD_MAKE_PROFILE) of UPPASD_MAKE_PROFILE. Choose one from [$(SYSTEMS)])
+endif
+endif
+endif
+
+# Checking if makefile has been run with a profile = buidling configuration argument
+# If so, include that profile as well as the CUDA specific make file
+ifdef PROFILE
+ifneq (,$(filter $(PROFILE),$(SYSTEMS)))
+makeprofile = make/user_profiles/$(PROFILE).make
+
+# If file does not exists copy from system folder and send a warning
+ifeq ("$(wildcard $(makeprofile))","")
+.DEFAULT_GOAL=copyprofile 
+
+else
+
+ifdef COMPILENOW
+include $(makeprofile)
+#Check if c/cuda files should be added
+ifneq ($(USE_CUDA),NO) 
+include make/makefileCUDA 
+endif
+.DEFAULT_GOAL = $(PROG)
+else
+.DEFAULT_GOAL = nocopyprofile
+endif
+
+endif
+
+else
+$(error Invalid value $(PROFILE) of PROFILE. Must be one of [$(SYSTEMS)])
+endif
+
+endif
+
+.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal $(MDIR) $(SYSTEMS)
+
+# Including the help files
+include make/makefileHELP 
+include make/makefileHELPDEFAULTS 
+
+PRINT:
+	@echo $@ 
+
+deps:
+	@./make/generateDependencies.py
+
+probe:
+	@./make/suggestProfiles.py
+
+docs:
+	@cd ../docs; doxygen Doxyfile; pdflatex UppASDmanual.tex
+
+regression-test:
+	@cd ../codeTester; python -u ./bergtest.py --file regression799.yaml | tee regression-tests.log
+
+tests:
+	@cd ../codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
+
+# Clean all .mod and .o files as well as mod and obj folders
+clean:
+	rm -f $(PROG) *.o */*.o *.mod */*.mod make.config.bak
+
+
+# Copy file if user tried to make with a profile that only exists in default-profiles
+copyprofile:
+	$(shell cp ./make/default-profiles/$(PROFILE).make ./$(makeprofile))
+	@echo "WARNING: Could not locate user profile:  " $(makeprofile) 
+	@echo "WARNING: Copying corresponding file from: " make/default-profiles/$(PROFILE).make
+	@$(MAKE) PROFILE=$(PROFILE) $(PROG) COMPILENOW=T -j 4 --no-print-directory
+
+
+nocopyprofile:
+	@echo "Building target $(PROG) using profile $(PROFILE) "
+	@$(MAKE) PROFILE=$(PROFILE) $(PROG) COMPILENOW=T -j 4 --no-print-directory
+
+# Run same make file but with proper profile syntax and parallel make and print to log file
+$(SYSTEMS):
+	@echo "FILE CREATED:\n $(shell date)\n" > $(MAKELOG)
+	@echo "MAKE:\n $(MAKE) PROFILE=$@ -j 4 \n" >> $(MAKELOG)
+	@echo "$@" > $(CURRENT)
+	@$(MAKE) PROFILE=$@ --no-print-directory 
+
+
+
+# Setting up and executing the Rules	
+ifdef COMPILENOW
+
+# Including external generated rules. Basically dependency between all fortran .o and .mod files.
+# Check if CUDA support will be used, in that case add the proper preprocessing flag
+include make/dependencies.make
+include make/objs.make
+ifeq ($(USE_CUDA),YES) 
+#CUDA support activated  ----------------------------------------
+include make/dependencies_c.make
+include make/objs_c.make
+CUDAPP := -DCUDA
+OBJS_T := $(OBJS)
+OBJS := $(filter-out nocuda.o,$(OBJS_T))
+
+# Add GPU and C/C++ files to the fortran objs
+OBJS += $(COBJS)
+
+# Include mod, obj and gpu folder in search path
+VPATH := $(GPUDIR)
+
+# Sort out true and false settings for CUDA/C/C++
+CCU_FLAGS  := $(shell awk '{if($$2=="=" && $$3=="T") print "-"$$1}' $(makeprofile))
+
+# Grouping flags common to CUDA C and C++ 
+CCU_FLAGS += $(CUDA_INC) $(C_FCFLAG)
+
+else
+#CUDA support not activated  ------------------------------------
+CUDAPP := 
+OBJS_T := $(OBJS)
+OBJS := $(filter-out chelper.o,$(OBJS_T))
+endif
+
+#Check if Intel Vector Statistical Library will be used for RNG
+ifeq ($(USE_VSL),YES) 
+   VSLPP := -DVSL
+else
+   VSLPP := 
+endif
+
+# Fortran link and compiler flags
+#FFLAGS     := $(FCFLAGS) $(FCDEBUG) $(FCMODFLAG) $(MDIR) $(FCOMPFLAGS) -cpp $(CUDAPP) $(VSLPP)
+FFLAGS     := $(FCFLAGS) $(FCDEBUG) $(FCMODFLAG) $(MDIR) $(FCOMPFLAGS) $(PREPROC) $(CUDAPP) $(VSLPP)
+FLINKFLAGS := $(FCOMPFLAG) $(FLIBFLAGS) $(FFLAGS)
+
+# Link flags
+LFLAGS     := $(CUDA_LIB) $(CCLIBFLAGS) $(CXXLIBFLAGS) $(FLINKFLAGS) 
+
+# Linking grouped
+LINKG      := $(FC) #$(LFLAGS) # Libflags needed after objects in linking phase for gfortran 
+
+# The different compiler flags and compiler grouped
+FORTRANCF  := $(FC) $(FFLAGS) 
+CCF        := $(CC) $(CCU_FLAGS) $(CCFLAGS) $(CCLIBFLAGS) 
+CPPCF      := $(CXX) $(CCU_FLAGS) $(CXXFLAGS) $(CXXLIBFLAGS)
+CUDACF     := $(CUDA) $(CCU_FLAGS) $(NVCCFLAGS) $(GENCODE_ARCH) $(CUDA_FLAGS) 
+
+# Rule to make entire program and prints to log file
+$(PROG): $(OBJS)
+	-$(LINKG) $(OBJS) -o $@ $(LFLAGS)
+	@echo "FORTRAN:\n" $(FORTRANCF) "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
+	@echo "C:\n"       $(CCF)       "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
+	@echo "CPP:\n"     $(CPPCF)     "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
+	@echo "CUDA:\n"    $(CUDACF)    "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
+	@echo "LINK:\n"    $(LINKG)     "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
+
+# Fortran compilation
+%.mod : %.f90 
+	$(FORTRANCF) -c $< -o $@
+ 
+%.o : %.f90  | $(MDIR)
+	$(FORTRANCF) -c $< -o $@
+ 
+# C compilation
+%.o : %.c 
+	$(CCF)       -c $< -o $@
+
+# C++ compilation
+%.o : %.cpp 
+	$(CPPCF)     -c $< -o $@
+
+# CUDA compilation
+%.o : %.cu 
+	$(CUDACF)    -c $< -o $@
+
+$(MDIR):
+	@if [ ! -d mod ]; then echo "Creating directory $(MDIR)" ;  mkdir -p $@; fi
+
+else
+
+$(PROG)   : help 
+%.o       : help
+%.mod     : help
+
+# Generate an compressed archive
+dist:
+	@echo "Packaging source, examples, documentation, and tests to ../UppASD_dist.tar.gz"
+	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
+	@cd .. ; tar cf ./UppASD_dist.tar \
+	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
+	./examples_revision_controlled ./docs/Doxyfile ./docs/*.pdf \
+	./codeTester/ ; \
+	gzip --best -f ./UppASD_dist.tar
+
+dist_minimal:
+	@echo "Packaging source to ../UppASD_src.tar.gz"
+	@cd .. ; tar cf ./UppASD_src.tar \
+	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ ;\
+	gzip --best -f ./UppASD_src.tar
+
+endif

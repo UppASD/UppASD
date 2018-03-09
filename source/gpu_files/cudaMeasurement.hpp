@@ -1,0 +1,91 @@
+#ifndef __CUDA_MEASUREMENT_HPP__
+#define __CUDA_MEASUREMENT_HPP__
+
+#include "real_type.h"
+
+#include <cuda.h>
+
+#include "cudaParallelizationHelper.hpp"
+
+#include "cudaMatrix.hpp"
+#include "hostMatrix.hpp"
+
+#include "stopwatch.hpp"
+#include "stopwatchDeviceSync.hpp"
+
+#include "measurementQueue.hpp"
+#include "cudaEventPool.hpp"
+
+#if defined (USE_FAST_COPY)
+	#define DEFAULT_FAST_COPY true
+#else
+	#define DEFAULT_FAST_COPY false
+#endif
+
+class CudaMeasurement {
+	// Queue callback data struct
+	struct queue_callback_data {
+		queue_callback_data(CudaMeasurement * m, size_t s) : me(m), step(s) {}
+		CudaMeasurement * me;
+		size_t step;
+	};
+
+	// Queue callback
+	static void queue_callback(cudaStream_t, cudaError_t, void * data);
+
+
+	// Temporary device storage vectors
+	cudaMatrix<real,3,3> tmp_emomM;
+	cudaMatrix<real,3,3> tmp_emom;
+	cudaMatrix<real,2>   tmp_mmom;
+
+	// Temporary host storage (pinned memory)
+	real * pinned_emomM;
+	real * pinned_emom;
+	real * pinned_mmom;
+
+	// Vectors to copy
+	const cudaMatrix<real,3,3> &emomM;
+	const cudaMatrix<real,3,3> &emom;
+	const cudaMatrix<real,2>   &mmom;
+
+	// Event stack
+	CudaEventPool eventPool;
+
+	// Measure queue
+	MeasurementQueue measurementQueue;
+
+	// Timer
+	StopwatchDeviceSync stopwatch;
+
+	// Parallelization helper
+	CudaParallelizationHelper &parallel;
+
+	// Control flags
+	bool alwaysCopy;
+	bool fastCopy;
+
+	// Helpers
+	void queueMeasurement(size_t mstep);
+	void copyQueueFast(size_t mstep);
+	void copyQueueSlow(size_t mstep);
+
+public:
+
+	// Constructor / deconstructor
+	// TODO add flag for fast_copy
+	CudaMeasurement(
+		const cudaMatrix<real,3,3> &emomM,
+		const cudaMatrix<real,3,3> &emom,
+		const cudaMatrix<real,2>   &mmom,
+		bool fastCopy = DEFAULT_FAST_COPY, bool alwaysCopy = false);
+	~CudaMeasurement();
+
+	// Access methods
+	void measure(size_t mstep);
+	void flushMeasurements(size_t mstep);
+
+};
+
+#endif
+

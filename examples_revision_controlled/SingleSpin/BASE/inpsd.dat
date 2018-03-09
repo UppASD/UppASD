@@ -1,0 +1,36 @@
+simid     SingleSP 
+ncell     1         1         1                 System size
+BC        0         0         0                 Boundary conditions (0=vacuum,P=periodic)
+cell      0.00000   0.00000   0.00000
+          0.00000   0.00000   0.00000
+          0.00000   0.00000   0.00000
+Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile    ./posfile
+exchange   ./jfile
+momfile    ./momfile
+anisotropy ./kfile
+do_prnstruct 1                                  Print lattice structure (0=no, 1=yes)
+
+Mensemble 1                                     Number of samples in ensemble averaging
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+roteul    1
+rotang    0.0 60.0 90.0
+
+ip_mode   N                                     Initial phase parameters
+
+mode      S                                     S=SD, M=MC
+temp      TEMPE                                 Measurement phase parameters
+damping   GILBERT                               --
+Nstep     100000                                --
+timestep  1.000e-14                             --
+
+do_avrg   Y                                     Measure averages
+avrg_step 100 
+
+do_tottraj Y                                    Measure moments
+tottraj_step       10000
+tottraj_buff       10                           time step, buffer size
+
+do_cumu Y
+

@@ -1,0 +1,44 @@
+################################################################################
+## CUDA
+################################################################################
+
+
+# add command line parameters so we can target multiple architectures
+#TODO include all these for portability
+GENCODE_ARCH    ?= -gencode=arch=compute_35,code=\"sm_35,compute_35\" 
+
+# cuda path
+ifdef cuda-install
+        CUDA_INSTALL_PATH ?= $(cuda-install)
+endif
+CUDA_INSTALL_PATH ?= /usr/lib/nvidia-cuda-toolkit
+CUDA_LIBRARY_PATH ?= $(CUDA_INSTALL_PATH)/include
+#CUDA_INSTALL_PATH ?= /usr/local/cuda
+#CUDA_INSTALL_PATH ?= /opt/cuda
+
+
+# Detect 32-bit or 64-bit platform
+HP_64 = $(shell uname -m | grep 64)
+
+# Cuda libs
+ifeq "$(strip $(HP_64))" ""
+  ifeq ($(x86_64),1)
+     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
+  else
+     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
+  endif
+else
+  ifeq ($(i386),1)
+     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
+  else
+     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
+  endif
+endif
+
+
+# Cuda includes
+CUDA_INC := -I$(CUDA_INCLUDE_PATH)
+CUDA_LIB += -L$(CUDA_LIBRARY_PATH)
+
+
+

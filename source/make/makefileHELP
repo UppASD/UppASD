@@ -1,0 +1,37 @@
+help:
+#@echo DEFAULT_GOAL $(.DEFAULT_GOAL)
+#@echo "PROFILE="$(PROFILE)
+	@echo "-----------------------------------------------------------------------------------------------------"
+	@echo "  "
+	@echo "  Welcome to the Uppsala Atomistic Spin Dynamics, UppASD, program"
+	@echo "  "
+	@echo "  To build, a profile must be set. Either by specifying one on the command line"
+	@echo "      e.g:	make PROFILE=ifort"
+	@echo "  or by setting the environment variable UPPASD_MAKE_PROFILE".
+	@echo "  "
+	@echo "  The most common profiles are:"
+	@echo "      ifort	gfortran"
+	@echo "  "
+	@echo "  Examples:"
+	@echo "     make gfortran                           (makes $(PROG) with profile gfortran)"
+	@echo "     make PROG=sd                            (with UPPASD_MAKE_PROFILE set)"
+	@echo "     make PROFILE=gfortran PROG=target       (makes target with profile 'gfortran')"
+	@echo "     make                                    (makes $(PROG) with the last used profile)"
+	@echo "  "
+	@echo "  "
+	@echo "  There are also quick-targets available that will build '$(PROG)' using the specified profile."
+	@echo "      Ex:    make gfortran"
+	@echo "      Ex:    make ifort"
+	@echo "  "
+	@echo "  'make help' will display this help message"
+	@echo "  'make help_defaults' will display extended information about the default profiles"
+	@echo "  'make clean' will remove all object and module files from previous builds"
+	@echo "  'make deps' will reconfigure all source file dependencies"
+	@echo "  'make probe' will perform a basic scan of the system and suggest suitable system-specific profiles"
+	@echo "  "
+	@echo "  To configure your own profile, use one of the default profiles in make/default-profiles/ as template"
+	@echo "  and put the new profile in make/user_profiles."
+	@echo "  "
+	@echo "Available default profiles: " $(DEFAULT_SYSTEMS)
+	@echo "Available local profiles: " $(LOCAL_SYSTEMS)
+	@echo "-----------------------------------------------------------------------------------------------------"

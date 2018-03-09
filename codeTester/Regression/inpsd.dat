@@ -1,0 +1,117 @@
+####SYSTEM DATA#####
+simid         megaTest
+ncell         4 4 4
+BC            P         P         P                 
+cell          1.00000   0.00000   0.00000 
+              0.00000   1.00000   0.00000
+              0.00000   0.00000   1.00000
+
+
+posfile               ./posfile
+momfile               ./momfile
+
+alat                   1.0d-9
+aunits                 N , Y                        !< Atomic units to simulate model Hamiltonians (Y/N)
+
+####EXCHANGE DATA#####
+exchange              ./jfile
+#dm                    ./dmfile
+###anisotropy            ./kfile
+#pd                    ./pdfile
+##biqdm                 ./biqdmfile
+#bq                    ./bqfile
+##do_ewald    Y          N , Y                        !< Perform Ewald summation
+
+do_prnstruct   1       0 , 1 , 2                    !< Print Hamiltonian information (0/1)
+maptype     2          1 , 2                        !< Format for input data (1=direct format,2=bgfm style)
+sym    1               0 , 1 , 2 , 3 , 4            !< Assumed symmetry of the system
+
+
+####SIMULATION DATA#####
+sdealgh        1 , 2 , 3 , 4 , 5 , 11 , 21 , 22     !< Solver for equations of motion (1-5)
+#restartfile            ./restartfile
+initmag           3    1 , 2 , 3 , 4            !< Mode of initialization of magnetic moments (1-4)
+
+use_vsl                F , T                        !< Use Intel Vector Statistics Library (VSL) (T/F) (also need preprocessing flag VSL)
+
+mode                   S , M , H , P , C            !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD)
+temp                   0.00
+hfield                 0 0.05 0                     !< Applied magnetic field
+
+damping                0.300 
+Nstep                  11000
+timestep               1.000d-16 , 1.0d-3           !< Timestep (in seconds or exchange)
+
+####PREPROCESS DATA####
+do_ams                 Y , N
+do_magdos              Y
+#do_stiffness           Y , N
+#do_dm_stiffness        Y , N
+#eta_min                 6
+#eta_max                15
+
+####STT DATA####
+stt                    N , A , F                     !< Treat spin transfer torque? (Y/N)
+jvec                   100 0 0
+adibeta                0.1
+
+####CORRELATION DATA#####
+do_sc                  Q , C                    !< Perform spin-correlation sampling (Y/N/C)
+do_sc_bimag            N                        !< Perform spin-correlation sampling of bi-magnons (Y/N)
+do_sc_local_axis       Y                        !< Perform SQW along local quantization axis (Y/N)
+do_sc_proj_axis        Y                        !< Perform projected SQW along local quantization axis (Y/N)
+do_sc_dosonly          N                        !< Do not print s(q,w), only Magnon DOS (Y/N)
+do_sc_complex          Y                        !< Print complex valued SQW
+sc_window_fun          1 , 2 , 3 , 4 , 5        !< Window function for s(q,t) to s(q,w) transform. (1=box, 2=Hann, 3=Hamming...)
+sc_local_axis_mix      0.0d0                    !< Amount of updating the local quantization axis used for do_sc_proj_axis
+do_sc_proj             Q , C , N                !< Measure sublattice projection of S(q,w) (Y/N/C)
+do_sc_projch           N , C                    !< Measure chemical sublattice projection of S(q,w) (Y/N/C)
+do_connected           N                        !< Perform the connected part S(q,w)
+do_qt_traj             Y                        !< Measure time trajectory of S(q,t) (Y/N)
+qpoints                F , A , C , D            !< Flag for q-point generation (F=file,A=automatic,C=full cell)
+qfile                  ./qfile
+sc_step                50
+sc_nstep               100
+
+do_bls                 Y , C , Q , L , N        !< Perform frequency based spin-correlation sampling (Y/N/C)
+do_bls_local_axis      N , Y                    !< Perform BLS along local quantization axis (Y/N)
+bls_step                50                      !< Separation between sampling steps
+bls_nstep               100                     !< Number of steps to sample
+
+
+
+####MEASUREMENT DATA#####
+do_avrg                Y                        !< Measure average magnetization (Y/N)
+do_proj_avrg           A , Y                    !< Measure projected averages (Y/A/N)
+#do_projch_avrg         Y                         !< Measure chemically projected averages (Y/N)
+avrg_step              100
+avrg_buff              1
+
+do_tottraj             Y                        !< Measure magnetic moments
+tottraj_step           1000
+tottraj_buff           1
+
+
+do_cumu                Y                         !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
+do_cumu_proj           Y                         !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
+do_autocorr            Y                         !< Perform autocorrelation (Y/N) !< Perform autocorrelation (Y/N)
+acfile                 ./twfile
+
+do_currents            Y
+do_pol                 Y                         !< Do polarization
+do_loc_pol             Y                         !< Measure polarization vector locally
+do_chiral              Y                         !< Measure polarization vector locally
+do_proj_skyno          Y                         !< Perform skyrmion number measurement
+max_pol_nn             6
+do_sortcoup            N
+
+plotenergy    1        0 , 1                     !< Calculate and plot energy (0/1)
+
+####PRINT FIELD DATA#####
+do_prn_beff            Y                         !< Flag governing file output of total effective fields (Y/N)
+do_prn_binteff         Y                         !< Flag governing file output of internal effective fields (Y/N)
+do_prn_torques         Y                         !< Flag governing file output of resulting torques (Y/N)
+do_thermfield          Y                         !< Thermal fields trajectory
+do_larmor_loc          Y                         !< Calculate local precession frequencies from local field (Y/N)
+do_larmor_dos          Y                         !< Calculate average precession frequencies from local field (Y/N)
+

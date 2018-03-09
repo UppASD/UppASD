@@ -1,0 +1,87 @@
+#
+#                                  Maintain SD
+#
+SHELL = /bin/sh
+# 
+# Add file types to the known list of suffixes (file extensions)
+.SUFFIXES: .f .f90 .F90
+
+# Program name
+PROG = sd
+
+# Processor architecture 
+CHIP = 
+
+# Debug option
+DEBUG= 
+#DEBUG= -g -p -traceback -CB
+#DEBUG= -g -pg -traceback 
+
+# Parallel option set to '-DMPI' for using MPI , '-DOMP' for OpenMP, otherwise program is serial
+PARALLEL= 
+#PARALLEL= -DMPI
+#PARALLEL= -DOMP
+#PARALLEL= -DMPI -DOMP
+
+# The fortran compiler and its options
+#FC = ifort -fast -xHost -ip -qopenmp -fpp -DVSL
+#FC = ifort -O3 -xHost -qopenmp  -openmp -ip -fpp -DVSL #-g -traceback -pg
+#FC = ifort -O3 -xHost -qopenmp -qopenmp-simd -openmp -ip -fpp  #-g -traceback -qopt-report-phase=vec,loop
+#FC = ifort -O3 -xHost -openmp -openmp-simd -ip -fpp -DVSL -DNO_CUDA -Nmkl #-g -traceback -qopt-report-phase=vec,loop
+FC = ifort -O3 -xHost -qopenmp -qopenmp-simd -ip -fpp -DVSL -g -traceback #-qopt-report-phase=vec,loop
+
+# MPI related flags (usually -lfmpich -lmpich -lpthread if needed)
+MPIFLAGS = 
+#MPIFLAGS =  -L/pdc/vol/mkl/7.2.1-003/lib/em64t -lguide -pthread -L/opt/scali/lib64 -lfmpi -lmpi 
+#MPIFLAGS = -lfmpich -lmpich -lpthread
+
+# Other flags
+FFLAGS =   $(CHIP) $(DEBUG) 
+
+# Link flags
+LIBFLAGS =  $(FFLAGS) -mkl=sequential 
+#LIBFLAGS = -lblas -llapack $(FFLAGS)
+#LIBFLAGS = -L/opt/absinthe/Intel/mkl/lib/32 -lmkl  $(FFLAGS)
+
+# Define object file names
+OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o randomnumbers.o sorting.o fileparser.o microwavefield.o \
+	momentdata.o fielddata.o simulationdata.o systemdata.o spintorques.o topology.o \
+	chemicaldata.o hamiltoniandata.o restart.o polarization.o mc_wolff.o ewaldmom.o bls.o \
+        autocorrelation.o gradients.o prn_averages.o  prn_currents.o  prn_fields.o  prn_microwaves.o  prn_topology.o  prn_trajectories.o \
+	fieldpulse.o demagfield.o spinicedata.o spinice.o prn_spinice.o lsf.o montecarlo.o correlation.o  measurements.o depondt.o energy_barriers.o \
+	heun_single.o heun_proper.o midpoint.o sphmidpoint.o llgi.o magnetizationinit.o neighbourmap.o geometry.o printhamiltonian.o \
+        latticedata.o latticeinputdata.o latticehamiltoniandata.o ErrorHandling.o stiffness.o diamag.o ams.o setupspinice.o nocuda.o \
+	latticerestart.o prn_latticetrajectories.o prn_latticeaverages.o prn_latticefields.o latticemeasurements.o \
+	latticecorrelation.o temperature.o inputhandler.o latticeinputhandler.o adaptivetimestepping.o \
+	latticeinit.o latticeprinthamiltonian.o latticehamiltonianinit.o latticefielddata.o \
+	latticehamiltonianactions.o latticespectra.o verlet.o \
+	optimizationroutines.o hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
+	damping.o printinput.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o 0sd.o 
+
+
+$(PROG): $(OBJS) 
+	-$(FC) $(OBJS) $(LIBFLAGS) -o $(PROG)
+
+
+%.o : %.f
+	$(FC) $(FFLAGS) -c $^
+
+%.o : %.f90
+	$(FC) $(FFLAGS) -c $^
+
+%.f90 : %.F90
+	cpp $(PARALLEL) -P -C $^ $@
+
+distfull:
+	tar cf ../UppASD_dist.tar ../source/Makefile.legacy \
+	../source/*.f90 ../examples_revision_controlled/ ../docs/Doxyfile ../docs/*.tex
+	gzip --best ../UppASD_dist.tar
+
+distsmall:
+	tar cf ../UppASD_src.tar ../source/Makefile* \
+	../source/*.f90 ../docs/Doxyfile ../docs/*.tex
+	gzip --best ../UppASD_src.tar
+
+clean:
+	rm *.o *.mod
+
