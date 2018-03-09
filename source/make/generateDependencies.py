@@ -4,9 +4,9 @@
 # Modified, debugged and extended by Thomas Nystrand
 # Extended further by Anders Bergman
 #####################################################
+from __future__ import print_function
 
 from os import listdir, walk,system,environ, path
-#import os.path as path
 import subprocess as sub
 from glob import glob
 import re
@@ -60,18 +60,18 @@ gpu_folder     = source_folder+"/gpu_files"
 
 # Start of Program #
 def main():
-    print "-----------UppASD-dependencies-tool--------------"
-    print "    __  __          ___   _______    ____  ___   "
-    print "   / / / /__  ___  / _ | / __/ _ \  / __/ / _ \  "
-    print "  / /_/ / _ \/ _ \/ __ |_\ \/ // / /__ \_/ // /  "
-    print "  \____/ .__/ .__/_/ |_/___/____/ /____(_)___/   "
-    print "      /_/  /_/                                   "
-    print "------------------------------------------------"
+    print("-----------UppASD-dependencies-tool--------------")
+    print("    __  __          ___   _______    ____  ___   ")
+    print("   / / / /__  ___  / _ | / __/ _ \  / __/ / _ \  ")
+    print("  / /_/ / _ \/ _ \/ __ |_\ \/ // / /__ \_/ // /  ")
+    print("  \____/ .__/ .__/_/ |_/___/____/ /____(_)___/   ")
+    print("      /_/  /_/                                   ")
+    print("------------------------------------------------")
     createMakefileBackup()              # Makefiles are defined in templates which overwrites the old.
     createProgramObjsDepsFile()         # List all objs. Needed for linking.
     createDependencyFile()              # Gnerate all rules needed for Makefile.
     createDependencyDotFile()           # Output files for graphical overview of dependencies.
-    print "------------------------------------------------"
+    print("------------------------------------------------")
 
 
 
@@ -91,18 +91,18 @@ def createDependencyFile():
     writeDependencyFileCCCC(fg, dependenciesCCCC)
 
 
-    #print "------------------------------------------------"
-    
+    #print("------------------------------------------------")
+
     #if len(external_modules) > 0:
-    #    print "The following modules were removed from dependencies \n" + \
-    #          "because they are specified as external:"
+    #    print("The following modules were removed from dependencies \n" + \
+    #          "because they are specified as external:")
     #    for mod in external_modules:
-    #        print mod
+    #        print (mod)
 
     #    for mod in external_CCCC:
-    #        print mod
-    print "------------------------------------------------"
-    print "Module dependencies written to dependencies.make"
+    #        print (mod)
+    print("------------------------------------------------")
+    print("Module dependencies written to dependencies.make")
 
 
 
@@ -122,18 +122,18 @@ def createBackup(scriptlocation,source_folder,scriptname,destname):
     shutil.copy(template_path,dest)
 
 
-# Creates a file which contains all obj files that Makefile will need before linking 
+# Creates a file which contains all obj files that Makefile will need before linking
 # TODO: gpu_folder should be located automatically? All subfolders for instance.
 def createProgramObjsDepsFile():
     mainFile = findMainFile(source_folder)
-    
+
     sourcefilesFORT = findFORTSourcefiles(source_folder)
     #sourcefilesCCCC = findCUDAandCPPSourcefiles(gpu_folder)
     sourcefilesCCCC = findCUDAandCPPSourcefiles(source_folder)
-    
+
     dependenciesFORT = readDependenciesFORT(source_folder, sourcefilesFORT, "use ")
     implicitFORT = calculateImplicitDependencies(dependenciesFORT, mainFile)
-    
+
     f = path.join(scriptlocation, "objs.make")
     ofp = open(f, "w")
     ofp.write("OBJS = \\\n")
@@ -153,17 +153,17 @@ def createProgramObjsDepsFile():
     for src in sorted(sourcefilesCCCC):
         s = "       " + (path.splitext(src)[0]+".o").ljust(maxLen)+"  \\\n"
         ofgp.write(s)
-        
-    print "Objects written to objs.make and objs_c.make"
+
+    print("Objects written to objs.make and objs_c.make")
 
 
 
-# Create the file iwsed 
+# Create the file iwsed
 def createDependencyDotFile():
     sourcefiles = findFORTSourcefiles(source_folder)
     dependencies = readDependenciesFORT(source_folder, sourcefiles,"use ")
     writeDotGraphFile(scriptlocation+"/dependencies.dot", dependencies)
-    print "Direct dependencies written to dependencies.dot"
+    print("Direct dependencies written to dependencies.dot")
 
 def maxStringLengthInSet(setOfStrings):
     length = 0
@@ -204,25 +204,27 @@ def findCUDAandCPPSourcefiles(folder):
 
 def readDependenciesFORT(folder, files, keyword):
     dependencies = {}
+
     for f in files:
+        print(f)
         fil = path.join(folder, f)
         fp = open(fil)
         deps = set()
         for line in fp:
             if keyword in line and line.strip().startswith(keyword):
                 package = line.split()[1].split(',')[0]
-        	# deps.add(package)
-		# Obtaining the Correct case version 
-		# E.g. file is called uppASD.f90
-		# and fortran uses UpPaSd => uppASD is saved	
-		for ff in files:
-                        fff = ff.split('/')[len(ff.split('/'))-1]
-			if package.lower()==fff[:-4].lower():
-			#if package.lower()==ff[:-4].lower():
-        	        	deps.add(ff[:-4])
-				break
+                # deps.add(package)
+                # Obtaining the Correct case version
+                # E.g. file is called uppASD.f90
+                # and fortran uses UpPaSd => uppASD is saved
+                for ff in files:
+                    fff = ff.split('/')[len(ff.split('/'))-1]
+                    if package.lower()==fff[:-4].lower():
+                    #if package.lower()==ff[:-4].lower():
+                        deps.add(ff[:-4])
+                        break
+        print(deps)
         dependencies[f] = deps
-
     removeExternalDependencies(dependencies, external_modules)
     return dependencies
 
@@ -235,7 +237,7 @@ def readDependenciesCCCC(folder,files):
     for f in files:
         fil = path.join(folder, f)
         deps = set()
-	recursiveAddDepsCCCC(fil,deps)
+        recursiveAddDepsCCCC(fil,deps)
         dependencies[f] = deps
     #removeExternalDependencies(dependencies, external_modules)
     return dependencies
@@ -249,14 +251,14 @@ def recursiveAddDepsCCCC(fil,deps):
             package = line.split()[1]
             if not (package in external_CCCC):
                 if "<" in package and ">" in package:
-                   print "ERROR: C/CUDA/C++ depedencies not written"
-                   print "       Add "+package+" to list of excluded libs"
+                   print("ERROR: C/CUDA/C++ depedencies not written")
+                   print("       Add "+package+" to list of excluded libs")
                    sys.exit()
-                if not (package in deps): 
+                if not (package in deps):
                    depsstring = gpu_folder+"/"+package.replace('"','')
                    deps.add(depsstring)
-                   nfile = path.join(path,"/"+depsstring)
-                   recursiveAddDepsCCCC(nfile,deps)
+                   #nfile = path.join(source_folder,"/"+depsstring)
+                   #recursiveAddDepsCCCC(nfile,deps)
     fp.close()
     return deps
 
@@ -265,8 +267,8 @@ def recursiveAddDepsCCCC(fil,deps):
 # Removes all external used libraries that are listed in ext_libs
 # from the current set of dependencies
 def removeExternalDependencies(dependencies, ext_libs):
-    for f, deps in dependencies.iteritems():
-        for lib in ext_libs:    
+    for f, deps in dependencies.items():
+        for lib in ext_libs:
             deps.discard(lib)
 
 
@@ -283,7 +285,7 @@ def findMainFile(folder):
                 programs.append(f)
 
     if len(programs) != 1:
-        print "WARNING: Found more than one program statement.", programs
+        print("WARNING: Found more than one program statement.", programs)
     return programs[0]
 
 
@@ -300,7 +302,7 @@ def writeDotGraphFile(f, dependencies):
     fp.write('     margin=0\n')
 
 
-    for f, deps in sorted(dependencies.iteritems()):
+    for f, deps in sorted(dependencies.items()):
         f = f[:-4].lower()
         for dep in sorted(deps):
             # New order
@@ -316,7 +318,7 @@ def writeDotGraphFile(f, dependencies):
 # Fortran compilers always outputs lower case mod files for some reason...
 def writeDependencyFile(f, dependencies):
     ofp = open(f, "w")
-    for f, deps in sorted(dependencies.iteritems()):
+    for f, deps in sorted(dependencies.items()):
         if len(deps) > 0:
             target = f[:-4]+".o " + f[:-4]+".mod"
             #target = f[:-4]+".o " + f[:-4]+".o"
@@ -330,7 +332,7 @@ def writeDependencyFile(f, dependencies):
 # Generate the rules needed for Makefile
 def writeDependencyFileCCCC(f, dependencies):
     ofp = open(f, "w")
-    for f, deps in sorted(dependencies.iteritems()):
+    for f, deps in sorted(dependencies.items()):
         if len(deps) > 0:
             target = f.split('.')[0]+".o "
             ofp.write(target+":")
@@ -345,12 +347,12 @@ def printDependencies(srcFiles, dependencies):
     for f in srcFiles:
         deps = dependencies[f]
         if len(deps) > 0:
-            print f+":"
+            print( f+":")
             for dep in sorted(deps):
-                print "    " + dep
+                print("    " + dep)
         else:
-            print f + " has no dependendcies."
-        print
+            print( f + " has no dependencies.")
+        print()
 
 
 def removeLeadingDigits(s):
