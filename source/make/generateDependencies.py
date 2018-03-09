@@ -128,6 +128,7 @@ def createProgramObjsDepsFile():
     mainFile = findMainFile(source_folder)
 
     sourcefilesFORT = findFORTSourcefiles(source_folder)
+    print(sourcefilesFORT)
     #sourcefilesCCCC = findCUDAandCPPSourcefiles(gpu_folder)
     sourcefilesCCCC = findCUDAandCPPSourcefiles(source_folder)
 
@@ -206,7 +207,6 @@ def readDependenciesFORT(folder, files, keyword):
     dependencies = {}
 
     for f in files:
-        print(f)
         fil = path.join(folder, f)
         fp = open(fil)
         deps = set()
@@ -223,7 +223,6 @@ def readDependenciesFORT(folder, files, keyword):
                     #if package.lower()==ff[:-4].lower():
                         deps.add(ff[:-4])
                         break
-        print(deps)
         dependencies[f] = deps
     removeExternalDependencies(dependencies, external_modules)
     return dependencies

@@ -39,7 +39,7 @@ IFORTVER := $(shell $(FC) --version | sed 's/\./ /;s/ //;s/[^ ]* *//;s/ .*//;q')
 ifneq ($(shell test $(IFORTVER) -gt 14; echo $$?),0)
 FCOMPFLAGS = -openmp -openmp-simd
 else
-FCOMPFLAGS = -qopenmp -qopenmp-simd
+FCOMPFLAGS = -qopenmp -qno-openmp-simd
 endif
 
 # Library flags
