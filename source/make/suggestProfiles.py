@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python -B
 ##############UppASD#profile#tool##################
 # Written by Anders Bergman
 #####################################################
@@ -37,13 +37,14 @@ def guessEnvironmentSettings():
         have_gfortran=True
         p = sub.Popen(['gfortran', '-v'],stdout=sub.PIPE,stderr=sub.PIPE)
         gfortranver, errors = p.communicate()
-        sta=errors.find(b'gcc version ')+12
-        sto=errors[sta:].find(b' ')+sta
+        errors=str(errors)
+        sta=errors.find('gcc version ')+12
+        sto=errors[sta:].find(' ')+sta
         gv=errors[sta:sto]
         print ("   GNU Fortran compiler found, version",gv)
         #print ("    FC = gfortran")
-        gvmaj=int(gv[:gv.find(b'.')])
-        gvmin=float(gv[gv.find(b'.')+1:])
+        gvmaj=int(gv[:gv.find('.')])
+        gvmin=float(gv[gv.find('.')+1:])
         gsimd=(gvmaj>=4)and(gvmin>=9.1)
         #if(gsimd):
         #    print ("    FCOMPFLAGS = -fopenmp -fopenmp-simd")
@@ -59,13 +60,14 @@ def guessEnvironmentSettings():
         have_ifort=True
         p = sub.Popen(['ifort', '-v'],stdout=sub.PIPE,stderr=sub.PIPE)
         ifortver, errors = p.communicate()
-        sta=errors.find(b'ifort version ')+14
+        errors = str(errors)
+        sta=errors.find('ifort version ')+14
         iv=errors[sta:-1]
         #print ("                                  ")
         print ("   Intel Fortran compiler found, version",iv)
         #print ("    FC = ifort")
-        ivmaj=int(iv[:iv.find(b'.')])
-        ivmin=float(iv[iv.find(b'.')+1:])
+        ivmaj=int(iv[:iv.find('.')])
+        ivmin=float(iv[iv.find('.')+1:])
         #if(ivmaj>=16):
         #    print ("    FCOMPFLAGS = -qopenmp ")
         #elif(ivmaj==13 and ivmin==3):

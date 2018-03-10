@@ -741,7 +741,7 @@ contains
                 rvec(1)=cvec(1)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
                 rvec(2)=cvec(2)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
                 rvec(3)=cvec(3)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
-                if(do_hoc_debug==1) write(*,'(a,3f10.6)'), 'rvec  ',rvec(:)
+                if(do_hoc_debug==1) write(*,'(a,3f10.6)')  'rvec  ',rvec(:)
 
                 ! loop through atoms in cell to find match
                 do ia=1,NA

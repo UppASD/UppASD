@@ -22,20 +22,21 @@ PRINT:
 
 deps:
 	@if [ ! -d source/make/user_profiles ] ; then mkdir source/make/user_profiles ; fi
-	@python ./source/make/generateDependencies.py
+	@python -B ./source/make/generateDependencies.py
 
 probe:
-	@python ./source/make/suggestProfiles.py
+	@python -B ./source/make/suggestProfiles.py
 
 docs:
 	@if [ ! -d source/make/user_profiles ] ; then mkdir source/make/user_profiles ; fi
 	@cd ./docs; doxygen Doxyfile; pdflatex UppASDmanual.tex ; pdflatex UppASDmanual.tex
 
 regression-test:
-	@cd ./codeTester; python -u ./bergtest.py --file regression799.yaml | tee regression-tests.log
+	@cd ./codeTester; python -B -u ./bergtest.py --file regression799.yaml | tee regression-tests.log ; \
+	./cleanAll.sh
 
 tests:
-	@cd ./codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ./codeTester; python -B -u ./bergtest.py --file regulartests.yaml | tee tests.log ; ./cleanAll.sh
 
 # Clean all .mod and .o files as well as mod and obj folders
 clean:
@@ -51,15 +52,15 @@ $(SYSTEMS):
 dist:
 	@echo "Packaging source, examples, documentation, and tests to ./UppASD_dist.tar.gz"
 	@cd codeTester ; ./cleanAll.sh ; cd ..
-	@tar cf ./UppASD_dist.tar Makefile setup_UppASD.sh \
-	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
+	@tar cf ./UppASD_dist.tar Makefile setup_UppASD.sh LICENSE AUTHORS README.md \
+	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ \
 	./examples_revision_controlled ./docs/Doxyfile ./docs/*.pdf \
 	./codeTester/ ; \
 	gzip --best -f ./UppASD_dist.tar
 
 dist_minimal:
 	@echo "Packaging source to ./UppASD_src.tar.gz"
-	@tar cf ./UppASD_src.tar Makefile setup_UppASD.sh \
-	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ ;\
+	@tar cf ./UppASD_src.tar Makefile setup_UppASD.sh LICENSE AUTHORS README.md \
+	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/  ;\
 	gzip --best -f ./UppASD_src.tar
 

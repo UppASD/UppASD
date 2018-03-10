@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python -B
 ##############UppASD#configure#tool##################
 # Written by Jonathan Werpers
 # Modified, debugged and extended by Thomas Nystrand
@@ -128,7 +128,6 @@ def createProgramObjsDepsFile():
     mainFile = findMainFile(source_folder)
 
     sourcefilesFORT = findFORTSourcefiles(source_folder)
-    print(sourcefilesFORT)
     #sourcefilesCCCC = findCUDAandCPPSourcefiles(gpu_folder)
     sourcefilesCCCC = findCUDAandCPPSourcefiles(source_folder)
 

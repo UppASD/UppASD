@@ -97,10 +97,11 @@ docs:
 	@cd ../docs; doxygen Doxyfile; pdflatex UppASDmanual.tex
 
 regression-test:
-	@cd ../codeTester; python -u ./bergtest.py --file regression799.yaml | tee regression-tests.log
+	@cd ../codeTester; python -B -u ./bergtest.py --file regression799.yaml | tee regression-tests.log ; \
+	./cleanAll.sh
 
 tests:
-	@cd ../codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ../codeTester; python -B -u ./bergtest.py --file regulartests.yaml | tee tests.log ; ./cleanAll.sh
 
 # Clean all .mod and .o files as well as mod and obj folders
 clean:
@@ -227,16 +228,16 @@ $(PROG)   : help
 dist:
 	@echo "Packaging source, examples, documentation, and tests to ../UppASD_dist.tar.gz"
 	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
-	@cd .. ; tar cf ./UppASD_dist.tar \
-	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
+	@cd .. ; tar cf ./UppASD_dist.tar LICENSE AUTHORS README.md \
+	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/  \
 	./examples_revision_controlled ./docs/Doxyfile ./docs/*.pdf \
 	./codeTester/ ; \
 	gzip --best -f ./UppASD_dist.tar
 
 dist_minimal:
 	@echo "Packaging source to ../UppASD_src.tar.gz"
-	@cd .. ; tar cf ./UppASD_src.tar \
-	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ ;\
+	@cd .. ; tar cf ./UppASD_src.tar LICENSE AUTHORS README.md \
+	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/  ;\
 	gzip --best -f ./UppASD_src.tar
 
 endif
