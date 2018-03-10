@@ -7,7 +7,6 @@ spin.*
 *.mod
 *.html
 *.js
-*.pdf
 *.out
 *.aux
 *.log
