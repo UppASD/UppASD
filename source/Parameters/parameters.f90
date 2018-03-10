@@ -25,7 +25,7 @@ module Parameters
    integer :: block_size = 1
 
    public
-!!#ifdef ( __PATHSCALE__
+   !!#ifdef ( __PATHSCALE__
 #if (defined __PATHSCALE__) || (defined __PGIF90__ ) || ( defined __GFORTRAN__ )
 contains
 

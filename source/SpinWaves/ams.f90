@@ -137,7 +137,7 @@ contains
             end if
          end do
       end if
-!
+      !
       do i=1,na
          mtmp=0.d0
          do j=1,nlistsize(i+countstart)
@@ -188,7 +188,7 @@ contains
       ! The realness of A has been questioned.
       !According to Essenberger et. al PRB 84, 174425 (2011) Eqn. 22 it is correctly so.
       do iq=1,nq
-        A(:,:,iq)=real(A(:,:,iq))
+         A(:,:,iq)=real(A(:,:,iq))
       end do
       call eigenvalue_calculation_lapack(A,wres,eigv,na,nq)
 
@@ -256,7 +256,7 @@ contains
             dist(:)=coord(1:3,mutemp)-coord(1:3,nlist(j,mutemp))
             mdot=sum(emom(1:3,mutemp,1)*emom(1:3,nlist(j,mutemp),1))
             calc_j = calc_j+ncoup(j,mutemp,gsconf_num)*exp(i* &
-            (q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
+               (q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
          end if
       end do
       if(do_dm==1) then
@@ -338,12 +338,12 @@ contains
          mineig(iq)=minval(wres(1:NA,iq))
       end do
 
-       if(maxval(mineig)<1.0e-6_dblprec) then
-          wres=abs(wres)
-       else
-          wres=wres-minval(mineig)
-          wres=abs(wres)
-       end if
+      if(maxval(mineig)<1.0e-6_dblprec) then
+         wres=abs(wres)
+      else
+         wres=wres-minval(mineig)
+         wres=abs(wres)
+      end if
 
       deallocate(work)
       deallocate(rwork)

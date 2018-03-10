@@ -4,7 +4,7 @@
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
 #ifdef VSL
 include 'mkl_vsl.f90'
@@ -35,7 +35,7 @@ module RandomNumbers
 #ifdef VSL
    !VSL RNG parameters
    TYPE (VSL_STREAM_STATE) :: stream(0:272)
-!   !$omp threadprivate(stream)
+   !   !$omp threadprivate(stream)
 #endif
 
    !Work arrays for ziggurat
@@ -148,50 +148,50 @@ contains
       integer :: iproc,id,local_len,start_idx,stop_idx
 
 #ifdef VSL
-       if(use_vsl) then
-          !$omp parallel do default(shared) schedule(static,1) &
-          !$omp private(errcode,iproc,id,local_len,start_idx,stop_idx)
-          do iproc=1,omp_get_num_threads()
-             id=omp_get_thread_num()
-             local_len=len/omp_get_num_threads()
-             start_idx=id*local_len+1
-             stop_idx=min(len,(id+1)*local_len)
-             if (id==(omp_get_num_threads()-1)) stop_idx=len
-             local_len=stop_idx-start_idx+1
-             errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(id), local_len, out(start_idx:stop_idx), 0.d0, 1.d0)
-          end do
-          !$omp end parallel do
-       else
-          !$omp parallel do default(shared) schedule(static,1) &
-          !$omp private(i,iproc,id,local_len,start_idx,stop_idx)
-          do iproc=1,omp_get_num_threads()
-             id=omp_get_thread_num()
-             local_len=len/omp_get_num_threads()
-             start_idx=id*local_len+1
-             stop_idx=min(len,(id+1)*local_len)
-             if (id==(omp_get_num_threads()-1)) stop_idx=len
-             local_len=stop_idx-start_idx+1
-             do i=start_idx,stop_idx
-                out(i)= mtprng_rand_real2(state_c)
-             enddo
-          end do
-          !$omp end parallel do
-       endif
+      if(use_vsl) then
+         !$omp parallel do default(shared) schedule(static,1) &
+         !$omp private(errcode,iproc,id,local_len,start_idx,stop_idx)
+         do iproc=1,omp_get_num_threads()
+            id=omp_get_thread_num()
+            local_len=len/omp_get_num_threads()
+            start_idx=id*local_len+1
+            stop_idx=min(len,(id+1)*local_len)
+            if (id==(omp_get_num_threads()-1)) stop_idx=len
+            local_len=stop_idx-start_idx+1
+            errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(id), local_len, out(start_idx:stop_idx), 0.d0, 1.d0)
+         end do
+         !$omp end parallel do
+      else
+         !$omp parallel do default(shared) schedule(static,1) &
+         !$omp private(i,iproc,id,local_len,start_idx,stop_idx)
+         do iproc=1,omp_get_num_threads()
+            id=omp_get_thread_num()
+            local_len=len/omp_get_num_threads()
+            start_idx=id*local_len+1
+            stop_idx=min(len,(id+1)*local_len)
+            if (id==(omp_get_num_threads()-1)) stop_idx=len
+            local_len=stop_idx-start_idx+1
+            do i=start_idx,stop_idx
+               out(i)= mtprng_rand_real2(state_c)
+            enddo
+         end do
+         !$omp end parallel do
+      endif
 #else
-       !$omp parallel do default(shared) schedule(static,1) &
-       !$omp private(i,iproc,id,local_len,start_idx,stop_idx)
-       do iproc=1,omp_get_num_threads()
-          id=omp_get_thread_num()
-          local_len=len/omp_get_num_threads()
-          start_idx=id*local_len+1
-          stop_idx=min(len,(id+1)*local_len)
-          if (id==(omp_get_num_threads()-1)) stop_idx=len
-          local_len=stop_idx-start_idx+1
-          do i=start_idx,stop_idx
-             out(i)= mtprng_rand_real2(state_c)
-          enddo
-       end do
-       !$omp end parallel do
+      !$omp parallel do default(shared) schedule(static,1) &
+      !$omp private(i,iproc,id,local_len,start_idx,stop_idx)
+      do iproc=1,omp_get_num_threads()
+         id=omp_get_thread_num()
+         local_len=len/omp_get_num_threads()
+         start_idx=id*local_len+1
+         stop_idx=min(len,(id+1)*local_len)
+         if (id==(omp_get_num_threads()-1)) stop_idx=len
+         local_len=stop_idx-start_idx+1
+         do i=start_idx,stop_idx
+            out(i)= mtprng_rand_real2(state_c)
+         enddo
+      end do
+      !$omp end parallel do
 #endif
    end subroutine rng_uniformP
 
@@ -227,24 +227,24 @@ contains
       integer :: iproc,id,local_len,start_idx,stop_idx
 
 #ifdef VSL
-       if(use_vsl) then
-          !$omp parallel do default(shared) schedule(static,1) &
-          !$omp private(errcode,iproc,id,local_len,start_idx,stop_idx)
-          do iproc=1,omp_get_num_threads()
-             id=omp_get_thread_num()
-             local_len=len/omp_get_num_threads()
-             start_idx=id*local_len+1
-             stop_idx=min(len,(id+1)*local_len)
-             if (id==(omp_get_num_threads()-1)) stop_idx=len
-             local_len=stop_idx-start_idx+1
-             errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(id),local_len, out(start_idx:stop_idx), 0.d0, sigma)
-          end do
-          !$omp end parallel do
-       else
+      if(use_vsl) then
+         !$omp parallel do default(shared) schedule(static,1) &
+         !$omp private(errcode,iproc,id,local_len,start_idx,stop_idx)
+         do iproc=1,omp_get_num_threads()
+            id=omp_get_thread_num()
+            local_len=len/omp_get_num_threads()
+            start_idx=id*local_len+1
+            stop_idx=min(len,(id+1)*local_len)
+            if (id==(omp_get_num_threads()-1)) stop_idx=len
+            local_len=stop_idx-start_idx+1
+            errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(id),local_len, out(start_idx:stop_idx), 0.d0, sigma)
+         end do
+         !$omp end parallel do
+      else
          call fill_rngarray(out,len)
-       endif
+      endif
 #else
-       call fill_rngarray(out,len)
+      call fill_rngarray(out,len)
 #endif
    end subroutine rng_gaussianP
 
@@ -705,7 +705,7 @@ contains
       if(.not.para_rng) then
 #ifdef VSL
          if(use_vsl) then
-!            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
+            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
             call rng_gaussianP(ranv,3*Natom*Mensemble,1.d0)
          else
             call fill_rngarray(ranv,3*Natom*Mensemble)
@@ -716,7 +716,7 @@ contains
       else
 #ifdef VSL
          if(use_vsl) then
-!            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
+            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
             call rng_gaussianP(ranv,3*Natom*Mensemble,1.d0)
          else
             call fill_rngarray_para(ranv,3*Natom*Mensemble)

@@ -1,11 +1,14 @@
+!-------------------------------------------------------------------------------
+! MODULE: ADAPTIVETIMESTEPPING
 !>  Data and routines for adaptive time stepping
 !> @author
 !> A. Bergman, T. Nystrand etc
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!-------------------------------------------------------------------------------
 module adaptivetimestepping
 
    use Parameters
@@ -20,17 +23,17 @@ module adaptivetimestepping
 
    public :: calculate_timestep, calculate_omegainit
 
-   contains
+contains
 
-  !--------------------------------------------------------------------------
-  !
-  ! DESCRIPTION
-  !> @brief
-  !> Main driver for adaptive time stepping based on .....
-  !---------------------------------------------------------------------------------
+   !--------------------------------------------------------------------------
+   !
+   ! DESCRIPTION
+   !> @brief
+   !> Main driver for adaptive time stepping based on .....
+   !---------------------------------------------------------------------------------
    subroutine adapt_time_step(Natom,Mensemble,beff,omega_max,larmor_numrev,larmor_thr,rstep,mstep,nstep,totalsimtime,&
-                              therm_fields,do_sc,sc_step,sc_tidx,sd_phaseflag,adapt_time_interval,&
-                              adapt_step,adaptive_time_flag,deltat_correction_flag,delta_t)
+         therm_fields,do_sc,sc_step,sc_tidx,sd_phaseflag,adapt_time_interval,&
+         adapt_step,adaptive_time_flag,deltat_correction_flag,delta_t)
 
       implicit none
 
@@ -56,13 +59,13 @@ module adaptivetimestepping
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: therm_fields !< Thermal stochastic field
       real(dblprec) :: totalsimtime                                           !< Total simulation time
 
-              call ErrorHandling_missing('Adaptive time')
+      call ErrorHandling_missing('Adaptive time')
 
    end subroutine adapt_time_step
 
-!> Calculate new timestep
+   !> Calculate new timestep
    subroutine calculate_timestep(Natom, Mensemble, beff, omega_max, larmor_numrev, larmor_thr, mstep, nstep, totalsimtime, &
-                                 therm_fields, sc_step, sc_tidx, sd_phaseflag,delta_t)
+         therm_fields, sc_step, sc_tidx, sd_phaseflag,delta_t)
 
       implicit none
 
@@ -91,11 +94,11 @@ module adaptivetimestepping
       integer :: ik, i, k, timestep_frac                    !< Elapsed time of the simuation
       integer :: int_frac
 
-        call ErrorHandling_missing('Adaptive time')
-  
+      call ErrorHandling_missing('Adaptive time')
+
    end subroutine calculate_timestep
 
-!> Maximum angular frequency
+   !> Maximum angular frequency
    subroutine calculate_omegainit(omega_max, larmor_numrev, delta_t)
       implicit none
 
@@ -105,9 +108,9 @@ module adaptivetimestepping
 
       real(dblprec) :: pi
 
-        omega_max=0.0d0
-        call ErrorHandling_missing('Adaptive time')
-  
+      omega_max=0.0d0
+      call ErrorHandling_missing('Adaptive time')
+
    end subroutine calculate_omegainit
 
 end module adaptivetimestepping

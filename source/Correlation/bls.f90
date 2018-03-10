@@ -1,11 +1,14 @@
-!> Data and routines for calculate frequency based spin correlation functions S(w)
+!-------------------------------------------------------------------------------
+! MODULE: BLS
+!> Data and routines for calculate frequency based spin correlation functions \f$\mathbf{S}\left(\omega\right)\f$
 !> @author
 !> A. Bergman
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!-------------------------------------------------------------------------------
 module BLS
    use Parameters
    use Profiling
@@ -45,12 +48,12 @@ module BLS
    ! public subroutines
 
 contains
+
    !--------------------------------------------------------------------------
-   !
-   ! DESCRIPTION
+   ! SUBROUTINE: setup_bls
    !> @brief
-   !> Main driver for frequency based correlation function S(w) similar to
-   !! Brillouin light scattering (BLS) in experiments.
+   !> Main driver for frequency based correlation function \f$\mathbf{S}\left(\omega\right)\f$ similar to
+   !> Brillouin light scattering (BLS) in experiments.
    !---------------------------------------------------------------------------------
    subroutine setup_bls()
 

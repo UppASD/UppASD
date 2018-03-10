@@ -193,26 +193,26 @@ contains
             if(SDEalgh<=20) then
 
                ! Perform first (predictor) step of SDE solver
-            call timing(0,'Initial       ','OF')
-            call timing(0,'Evolution     ','ON')
+               call timing(0,'Initial       ','OF')
+               call timing(0,'Evolution     ','ON')
                call evolve_first(Natom, Mensemble, Landeg, llg, SDEalgh, bn, iplambda1_array(i,:), iplambda2_array(i,:), NA, &
                   compensate_drift, ipdelta_t(i), relaxtime,ipTemp_array(:,i),temprescale, beff, b2eff, thermal_field,beff2, &
                   btorque, field1, field2, emom, emom2, emomM, mmom, mmomi ,'N', do_site_ip_damping,&
                   nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
-                  constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,'N',she_btorque) 
+                  constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,'N',she_btorque)
 
                if(SDEalgh==1.or.SDEalgh==4.or.SDEalgh==5.or.SDEalgh==6.or.SDEalgh==7.or.SDEalgh==11) then
 
                   ! Apply Hamiltonian to obtain effective field
-            call timing(0,'Evolution     ','OF')
-            call timing(0,'Hamiltonian   ','ON')
+                  call timing(0,'Evolution     ','OF')
+                  call timing(0,'Hamiltonian   ','ON')
                   call effective_field(Natom, Mensemble, 1, Natom, &
                      do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
                      do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
                      OPT_flag, max_no_constellations, maxNoConstl, &
                      unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis,denergy)
-            call timing(0,'Hamiltonian   ','OF')
-            call timing(0,'Evolution     ','ON')
+                  call timing(0,'Hamiltonian   ','OF')
+                  call timing(0,'Evolution     ','ON')
 
                endif
 
@@ -247,15 +247,15 @@ contains
                   write(*,*) 'Fix point iteration nr: ', imp_count
                   if (converged) exit
                   imp_count = imp_count + 1
-            call timing(0,'Evolution     ','OF')
-            call timing(0,'Hamiltonian   ','ON')
+                  call timing(0,'Evolution     ','OF')
+                  call timing(0,'Hamiltonian   ','ON')
                   call effective_field(Natom, Mensemble, 1, Natom, &
                      do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
                      do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
                      OPT_flag, max_no_constellations, maxNoConstl, &
                      unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis,denergy)
-            call timing(0,'Hamiltonian   ','OF')
-            call timing(0,'Evolution     ','ON')
+                  call timing(0,'Hamiltonian   ','OF')
+                  call timing(0,'Evolution     ','ON')
                end do
                write(*,*) 'Fix point iteration nr: ', imp_count, ' converged.'
 
@@ -369,7 +369,7 @@ contains
 
       if (do_pol=='Y') then
          call init_polarization(Natom, Mensemble, max_no_neigh, &
-              nlist, coord, 1)
+            nlist, coord, 1)
       end if
 
       ! Calculate the external static fields, the can be calculated once and it does not needs to be calculated again
@@ -419,20 +419,20 @@ contains
 
             ! Calculate the total time dependent fields
             call calc_external_time_fields(Natom, Mensemble, time_external_field, &
-                 do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss, mov_gauss, mwf_mov_gauss, &
-                 bpulsefield, demagfld, mwffield,gauss_mwffield,site_mwffield,&
-                 gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,mov_gauss_spatial,mwf_mov_gauss_spatial,&
-                 mov_circle,mwf_mov_circle,mov_circle_spatial,mwf_mov_circle_spatial,mov_square,&
-                 mwf_mov_square,mov_square_spatial,mwf_mov_square_spatial)
+               do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss, mov_gauss, mwf_mov_gauss, &
+               bpulsefield, demagfld, mwffield,gauss_mwffield,site_mwffield,&
+               gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,mov_gauss_spatial,mwf_mov_gauss_spatial,&
+               mov_circle,mwf_mov_circle,mov_circle_spatial,mwf_mov_circle_spatial,mov_square,&
+               mwf_mov_square,mov_square_spatial,mwf_mov_square_spatial)
          else
             time_external_field=0.0D0
          endif
 
          ! Measure averages and trajectories
          call measure(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mstep, emom, emomM, mmom, &
-              Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype, plotenergy, Temp, &
-              real_time_measure,delta_t,logsamp, max_no_neigh, nlist, ncoup,nlistsize,&
-              thermal_field,beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
+            Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype, plotenergy, Temp, &
+            real_time_measure,delta_t,logsamp, max_no_neigh, nlist, ncoup,nlistsize,&
+            thermal_field,beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
 
          ! Calculate total and term resolved energies
          if(plotenergy>0) then
@@ -441,16 +441,16 @@ contains
             if (mod(mstep-1,avrg_step)==0) then
                tenergy=0.0d0
                call calc_energy(Natom, Nchmax,Mensemble, conf_num,emom, emomM, mmom,simid, plotenergy, &
-                    mstep, external_field,time_external_field,tenergy, eenergy, lsfenergy, totene, &
-                    max_no_neigh, nlistsize, nlist, ncoup, ncoupD,exc_inter, &
-                    do_dm, max_no_dmneigh, dmlistsize, dmlist, dm_vect, &
-                    do_pd, nn_pd_tot, pdlistsize, pdlist, pd_vect, &
-                    do_biqdm, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, &
-                    do_bq, nn_bq_tot, bqlistsize, bqlist, j_bq, &
-                    do_dip, qdip,taniso, eaniso, kaniso,sb,&
-                    mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
-                    delta_t,real_time_measure,&
-                    do_lsf,fs_nlist,fs_nlistsize,nind,lsf_interpolate,lsf_field,Temp)
+                  mstep, external_field,time_external_field,tenergy, eenergy, lsfenergy, totene, &
+                  max_no_neigh, nlistsize, nlist, ncoup, ncoupD,exc_inter, &
+                  do_dm, max_no_dmneigh, dmlistsize, dmlist, dm_vect, &
+                  do_pd, nn_pd_tot, pdlistsize, pdlist, pd_vect, &
+                  do_biqdm, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, &
+                  do_bq, nn_bq_tot, bqlistsize, bqlist, j_bq, &
+                  do_dip, qdip,taniso, eaniso, kaniso,sb,&
+                  mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
+                  delta_t,real_time_measure,&
+                  do_lsf,fs_nlist,fs_nlistsize,nind,lsf_interpolate,lsf_field,Temp)
             end if
             call timing(0,'Energy        ','OF')
             call timing(0,'Measurement   ','ON')
@@ -524,10 +524,10 @@ contains
 
          ! Apply Hamiltonian to obtain effective field
          call effective_field(Natom, Mensemble, 1, Natom, &
-              do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
-              do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
-              OPT_flag, max_no_constellations, maxNoConstl, &
-              unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis,denergy)
+            do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
+            do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
+            OPT_flag, max_no_constellations, maxNoConstl, &
+            unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis,denergy)
 
          call timing(0,'Hamiltonian   ','OF')
          call timing(0,'Evolution     ','ON')
@@ -540,10 +540,10 @@ contains
             ! Check if this changes
             thermal_field=0.0D0
             call evolve_first(Natom, Mensemble, Landeg, llg, SDEalgh, bn, lambda1_array, lambda2_array, NA, &
-                 compensate_drift, delta_t, relaxtime, Temp_array, temprescale, beff, b2eff, thermal_field, &
-                 beff2, btorque, field1, field2, emom, emom2, emomM, mmom, mmomi, stt, do_site_damping,&
-                 nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
-                 constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque) !!!,&
+               compensate_drift, delta_t, relaxtime, Temp_array, temprescale, beff, b2eff, thermal_field, &
+               beff2, btorque, field1, field2, emom, emom2, emomM, mmom, mmomi, stt, do_site_damping,&
+               nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
+               constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque) !!!,&
             call timing(0,'Evolution     ','OF')
             call timing(0,'Hamiltonian   ','ON')
 
@@ -555,21 +555,21 @@ contains
 
                   ! Calculate the total time dependent fields
                   call calc_external_time_fields(Natom, Mensemble, time_external_field, &
-                       do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss, mov_gauss, mwf_mov_gauss, &
-                       bpulsefield, demagfld, mwffield,gauss_mwffield,site_mwffield,&
-                       gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,mov_gauss_spatial,mwf_mov_gauss_spatial,&
-                       mov_circle,mwf_mov_circle,mov_circle_spatial,mwf_mov_circle_spatial,mov_square,&
-                       mwf_mov_square,mov_square_spatial,mwf_mov_square_spatial)
+                     do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss, mov_gauss, mwf_mov_gauss, &
+                     bpulsefield, demagfld, mwffield,gauss_mwffield,site_mwffield,&
+                     gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,mov_gauss_spatial,mwf_mov_gauss_spatial,&
+                     mov_circle,mwf_mov_circle,mov_circle_spatial,mwf_mov_circle_spatial,mov_square,&
+                     mwf_mov_square,mov_square_spatial,mwf_mov_square_spatial)
                else
                   time_external_field=0.0D0
                endif
 
                ! Apply Hamiltonian to obtain effective field
                call effective_field(Natom, Mensemble, 1, Natom, &
-                    do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
-                    do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
-                    OPT_flag, max_no_constellations, maxNoConstl, &
-                    unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis, denergy)
+                  do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
+                  do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
+                  OPT_flag, max_no_constellations, maxNoConstl, &
+                  unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis, denergy)
 
             end if
             call timing(0,'Hamiltonian   ','OF')
@@ -583,9 +583,9 @@ contains
 
             ! Perform second (corrector) step of SDE solver
             call evolve_second(Natom, Mensemble, Landeg, llg, SDEalgh, bn, lambda1_array, &
-                 delta_t, relaxtime, beff, beff2,b2eff, btorque, emom, emom2, stt, &
-                 nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
-                 constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque)
+               delta_t, relaxtime, beff, beff2,b2eff, btorque, emom, emom2, stt, &
+               nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
+               constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque)
 
             ! Implicit solvers
          else
@@ -605,18 +605,18 @@ contains
 
             do
                call evolve_imp(Natom, Mensemble, Landeg, llg, SDEalgh, bn, lambda1_array, lambda2_array, NA, &
-                    compensate_drift, delta_t, relaxtime, Temp_array, temprescale, beff, b2eff, thermal_field, &
-                    beff2, btorque, field1, field2, emom, emom2, emomM, mmom, mmomi, stt, do_site_damping,&
-                    nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
-                    constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque, converged)
+                  compensate_drift, delta_t, relaxtime, Temp_array, temprescale, beff, b2eff, thermal_field, &
+                  beff2, btorque, field1, field2, emom, emom2, emomM, mmom, mmomi, stt, do_site_damping,&
+                  nlist,nlistsize,constellationsUnitVec,constellationsUnitVec2,constellationsMag, &
+                  constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque, converged)
                write(*,*) 'Fix point iteration nr: ', imp_count
                if (converged) exit
                imp_count = imp_count + 1
                call effective_field(Natom, Mensemble, 1, Natom, &
-                    do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
-                    do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
-                    OPT_flag, max_no_constellations, maxNoConstl, &
-                    unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis, denergy)
+                  do_jtensor, exc_inter, do_dm, do_pd, do_biqdm, do_bq, &
+                  do_dip,emomM, mmom, external_field,time_external_field, beff, beff1, beff2, &
+                  OPT_flag, max_no_constellations, maxNoConstl, &
+                  unitCellType, constlNCoup, constellations, constellationsNeighType, mult_axis, denergy)
             end do
             write(*,*) 'Fix point iteration nr: ', imp_count, ' converged.'
          end if
@@ -658,19 +658,19 @@ contains
 
       ! Measure averages and trajectories
       call measure(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mstep,emom, emomM, mmom, &
-           Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype, plotenergy, Temp, &
-           real_time_measure,delta_t,logsamp,max_no_neigh, nlist,ncoup,nlistsize, &
-           thermal_field,beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
+         Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype, plotenergy, Temp, &
+         real_time_measure,delta_t,logsamp,max_no_neigh, nlist,ncoup,nlistsize, &
+         thermal_field,beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
 
       ! Print remaining measurements
       call flush_measurements(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mstep,emom, mmom, &
-           Nchmax,atype,real_time_measure,rstep+nstep,do_ralloy,Natom_full,atype_ch,ind_mom)
+         Nchmax,atype,real_time_measure,rstep+nstep,do_ralloy,Natom_full,atype_ch,ind_mom)
 
 
       ! Print final polarization, chirality and local polarization
       if (do_pol=='Y') then
          call init_polarization(Natom, Mensemble, max_no_neigh, &
-              nlist, coord, -1)
+            nlist, coord, -1)
       end if
 
       if (do_spintemp=='Y') then

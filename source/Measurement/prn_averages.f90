@@ -2,7 +2,7 @@
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
 module prn_averages
 
@@ -436,7 +436,7 @@ contains
 #if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
          !$omp parallel do default(shared) private(i,k,j) reduction(+:m,autocorr) collapse(2) schedule(static)
 #endif
-          do i=1, Natom
+         do i=1, Natom
             do k=1,Mensemble
                m(:,k) = m(:,k) + emomM(:,i,k)
             end do
@@ -997,7 +997,6 @@ contains
 #if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
          !$omp end parallel do
 #endif
-
 
          avrgme = sqrt(m(1)**2+m(2)**2+m(3)**2)/Natom
          avrgm2 = avrgme**2

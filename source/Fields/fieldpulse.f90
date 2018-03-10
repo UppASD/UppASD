@@ -1,9 +1,12 @@
-!> Data and routines for calculating time dependent field pulses
+!-------------------------------------------------------------------------------
+! MODULE: FieldPulse
+!> @brief Data and routines for calculating time dependent field pulses
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!-------------------------------------------------------------------------------
 module FieldPulse
    use Parameters
    use Profiling
@@ -28,8 +31,10 @@ module FieldPulse
 
 contains
 
-
-   !> Evaluate field pulse at time t=tin
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: bpulse
+   !> @brief Evaluate field pulse at time t=tin
+   !-----------------------------------------------------------------------------
    subroutine bpulse(do_bpulse,tin)
 
       !.. Implicit declarations
@@ -39,20 +44,20 @@ contains
       real(dblprec),intent(in) :: tin  !< Current time
 
       !.. Local arrays
-      real(dblprec), dimension(3) :: befftemp 
+      real(dblprec), dimension(3) :: befftemp
       real(dblprec) :: tpulse
 
       !.. Executable statements
 
       if (do_bpulse == 1) then
          call exppulse(tin,tpulse)
-      else if (do_bpulse == 2) then   
+      else if (do_bpulse == 2) then
          call gaussianpulse(tin,tpulse)
       else if (do_bpulse == 3) then
          call polexppulse(tin,tpulse)
       else if (do_bpulse == 4) then
          call squarepulse(tin,tpulse)
-      else 
+      else
          tpulse=0.0_dblprec
       end if
 
@@ -66,8 +71,10 @@ contains
 
    end subroutine bpulse
 
-
-   !> A square pulse
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: squarepulse
+   !> @brief A square pulse
+   !-----------------------------------------------------------------------------
    subroutine squarepulse (t,tpulse)
       real(dblprec) :: t
       real(dblprec) :: tpulse
@@ -80,8 +87,10 @@ contains
       end if
    end subroutine squarepulse
 
-
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: exppulse
    !> An almost square pulse with exponential head and tail
+   !-----------------------------------------------------------------------------
    subroutine exppulse (t,tpulse)
       real(dblprec) :: t
       real(dblprec) :: tpulse
@@ -94,30 +103,37 @@ contains
       end if
    end subroutine exppulse
 
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: gaussianpulse
    !> A Gaussian shaped pulse
+   !-----------------------------------------------------------------------------
    subroutine gaussianpulse(t,tpulse)
       real(dblprec) :: t
       real(dblprec) :: tpulse
       tpulse = bpulse_par(6)*ba*exp(bb*(t-bpulse_par(2))**2)
    end subroutine gaussianpulse
 
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: polexppulse
    !> An exponentially decaying pulse
+   !-----------------------------------------------------------------------------
    subroutine polexppulse(t,tpulse)
-      real(dblprec) :: t  
+      real(dblprec) :: t
       real(dblprec) :: tpulse
       tpulse = bpulse_par(6)*bb*(t-bpulse_par(1))**bpulse_par(3)*exp(-ba*t)
    end subroutine polexppulse
 
-
-
-   !> Print header of magnetic pulse field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_bpulse0
+   !> @brief Print header of magnetic pulse field
+   !-----------------------------------------------------------------------------
    subroutine prn_bpulse0(simid,mstep)
       !
 
       !.. Implicit declarations
       implicit none
 
-      character(len=8), intent(in) :: simid !< Name of simulation 
+      character(len=8), intent(in) :: simid !< Name of simulation
       integer, intent(in) :: mstep !< Current simulation step
 
       character(len=30) :: filn
@@ -135,15 +151,17 @@ contains
 
    end subroutine prn_bpulse0
 
-
-   !> Print shape of magnetic pulse field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_bpulse
+   !> @brief Print shape of magnetic pulse field
+   !-----------------------------------------------------------------------------
    subroutine prn_bpulse(simid, mstep)
       !
 
       !.. Implicit declarations
       implicit none
 
-      character(len=8), intent(in) :: simid !< Name of simulation 
+      character(len=8), intent(in) :: simid !< Name of simulation
       integer, intent(in) :: mstep !< Current simulation step
 
       !integer :: mstep !< Current simulation step
@@ -162,7 +180,10 @@ contains
 
    end subroutine prn_bpulse
 
-   !> Read in field pulse from file
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: read_bpulse
+   !> @brief Read in field pulse from file
+   !-----------------------------------------------------------------------------
    subroutine read_bpulse(do_bpulse, bpulsefile)
 
       implicit none

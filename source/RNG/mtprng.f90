@@ -98,259 +98,259 @@
 !-----------------------------------------------------------------------
 module mtprng
 
-    use stdtypes
+   use stdtypes
 
-    implicit none
+   implicit none
 
-    !------------------------------------------------------------------------------
-    ! Everything is private unless explicitly made public
-    private
+   !------------------------------------------------------------------------------
+   ! Everything is private unless explicitly made public
+   private
 
-    public :: mtprng_state, &
-              mtprng_init, mtprng_init_by_array, &
-              mtprng_rand64, mtprng_rand, mtprng_rand_range, &
-              mtprng_rand_real1, mtprng_rand_real2, mtprng_rand_real3
+   public :: mtprng_state, &
+      mtprng_init, mtprng_init_by_array, &
+      mtprng_rand64, mtprng_rand, mtprng_rand_range, &
+      mtprng_rand_real1, mtprng_rand_real2, mtprng_rand_real3
 
-    !------------------------------------------------------------------------------
-    ! Constants
-    integer(INT32), parameter :: N = 624_INT32
-    integer(INT32), parameter :: M = 397_INT32
+   !------------------------------------------------------------------------------
+   ! Constants
+   integer(INT32), parameter :: N = 624_INT32
+   integer(INT32), parameter :: M = 397_INT32
 
-    !------------------------------------------------------------------------------
-    ! types
-    type mtprng_state
-        integer(INT32)                   :: mti = -1
-        integer(INT64), dimension(0:N-1) :: mt
-    end type 
+   !------------------------------------------------------------------------------
+   ! types
+   type mtprng_state
+      integer(INT32)                   :: mti = -1
+      integer(INT64), dimension(0:N-1) :: mt
+   end type 
 
 contains
-    !--------------------------------------------------------------------------
-    !>  Initializes the generator with "seed"
-    subroutine mtprng_init(seed, state)
-    
-        ! arguments
-        integer(INT32),     intent(in)  :: seed
-        type(mtprng_state), intent(out) :: state
-        
-        ! working storage
-        integer :: i
+   !--------------------------------------------------------------------------
+   !>  Initializes the generator with "seed"
+   subroutine mtprng_init(seed, state)
 
-        ! save seed        
-        state%mt(0) = seed
-        
-        ! Set the seed using values suggested by Matsumoto & Nishimura, using
-        !   a generator by Knuth. See original source for details.
-        do i = 1, N - 1
-            state%mt(i) = iand(4294967295_INT64,1812433253_INT64 * ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64)) + i)
-        end do
-        
-        state%mti = N
+      ! arguments
+      integer(INT32),     intent(in)  :: seed
+      type(mtprng_state), intent(out) :: state
 
-    end subroutine mtprng_init
-    
-    !--------------------------------------------------------------------------
-    !> Initialize with an array of seeds
-    subroutine mtprng_init_by_array(init_key, state)
-    
-        ! arguments
-        integer(INT32), dimension(:), intent(in) :: init_key
-        type(mtprng_state), intent(out) :: state
-        
-        ! working storage
-        integer :: key_length
-        integer :: i
-        integer :: j
-        integer :: k
-        
-        call mtprng_init(19650218_INT32,state)
-        
-        i = 1
-        j = 0
-        key_length = size(init_key)
-        
-        do k = max(N,key_length), 0, -1
-            state%mt(i) = ieor(state%mt(i),(ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64) * 1664525_INT64))) + init_key(j) + j
-            
-            i = i + 1
-            j = j + 1
-            
-            if (i >= N) then
-                state%mt(0) = state%mt(N-1)
-                i = 1
-            end if
-            
-            if (j >= key_length) j = 0
-        end do
-        
-        do k = N-1, 0, -1
-            state%mt(i) = ieor(state%mt(i),(ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64) * 1566083941_INT64))) - i
-            
-            i = i + 1
-            
-            if (i>=N) then
-                state%mt(0) = state%mt(N-1)
-                i = 1
-            end if
-        end do
+      ! working storage
+      integer :: i
 
-        state%mt(0) = 1073741824_INT64 ! 0x40000000, assuring non-zero initial array 
-        
-    end subroutine mtprng_init_by_array
-    
-    !--------------------------------------------------------------------------
-    !>   Obtain the next 32-bit integer in the psuedo-random sequence
-    function mtprng_rand64(state) result(r)
-    
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-    
-        !return type
-        integer(INT64) :: r
+      ! save seed        
+      state%mt(0) = seed
 
-        ! internal constants
-        integer(INT64), dimension(0:1), parameter :: mag01 = (/ 0_INT64, -1727483681_INT64 /)
+      ! Set the seed using values suggested by Matsumoto & Nishimura, using
+      !   a generator by Knuth. See original source for details.
+      do i = 1, N - 1
+         state%mt(i) = iand(4294967295_INT64,1812433253_INT64 * ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64)) + i)
+      end do
 
-        ! Period parameters
-        integer(INT64), parameter :: UPPER_MASK =  2147483648_INT64
-        integer(INT64), parameter :: LOWER_MASK =  2147483647_INT64
+      state%mti = N
 
-        ! Tempering parameters
-        integer(INT64), parameter :: TEMPERING_B = -1658038656_INT64
-        integer(INT64), parameter :: TEMPERING_C =  -272236544_INT64
-        
-        ! Note: variable names match those in original example
-        integer(INT32) :: kk
-        
-        ! Generate N words at a time
-        if (state%mti >= N) then
-            ! The value -1 acts as a flag saying that the seed has not been set.
-            if (state%mti == -1) call mtprng_init(4357_INT32,state)
-            
-            ! Fill the mt array
-            do kk = 0, N - M - 1
-                r = ior(iand(state%mt(kk),UPPER_MASK),iand(state%mt(kk+1),LOWER_MASK))
-                state%mt(kk) = ieor(ieor(state%mt(kk + M),ishft(r,-1_INT64)),mag01(iand(r,1_INT64)))
-            end do
-            
-            do kk = N - M, N - 2
-                r = ior(iand(state%mt(kk),UPPER_MASK),iand(state%mt(kk+1),LOWER_MASK))
-                state%mt(kk) = ieor(ieor(state%mt(kk + (M - N)),ishft(r,-1_INT64)),mag01(iand(r,1_INT64)))
-            end do
-            
-            r = ior(iand(state%mt(N-1),UPPER_MASK),iand(state%mt(0),LOWER_MASK))
-            state%mt(N-1) = ieor(ieor(state%mt(M-1),ishft(r,-1)),mag01(iand(r,1_INT64)))
-            
-            ! Start using the array from first element
-            state%mti = 0
-        end if
-        
-        ! Here is where we actually calculate the number with a series of
-        !   transformations 
-        r = state%mt(state%mti)
-        state%mti = state%mti + 1
-        
-        r = ieor(r,ishft(r,-11))
-        r = iand(4294967295_INT64,ieor(r,iand(ishft(r, 7),TEMPERING_B)))
-        r = iand(4294967295_INT64,ieor(r,iand(ishft(r,15),TEMPERING_C)))
-        r = ieor(r,ishft(r,-18))
-        
-    end function mtprng_rand64
-    
-    !--------------------------------------------------------------------------
-    !>   Obtain the next 32-bit integer in the psuedo-random sequence
-    function mtprng_rand(state) result(r)
-    
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-    
-        !return type
-        integer(INT32) :: r
-        
-        ! working storage
-        integer(INT64) :: x
-        
-        ! done
-        x = mtprng_rand64(state)
-        
-        if (x > 2147483647_INT64) then
-            r = int(x - 4294967296_INT64)
-        else
-            r = int(x)
-        end if
-        
-    end function mtprng_rand
-    
-    !---------------------------------------------------------------------------
-    !>   Obtain a psuedorandom integer in the range [lo,hi]
-    function mtprng_rand_range(state, lo, hi) result(r)
+   end subroutine mtprng_init
 
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-        integer, intent(in) :: lo
-        integer, intent(in) :: hi
-        
-        ! return type
-        integer(INT32) :: r
-        
-        ! Use real value to caluclate range
-        r = lo + floor((hi - lo + 1.0_IEEE64) * mtprng_rand_real2(state))
-        
-    end function mtprng_rand_range
+   !--------------------------------------------------------------------------
+   !> Initialize with an array of seeds
+   subroutine mtprng_init_by_array(init_key, state)
 
-    !--------------------------------------------------------------------------
-    !>   Obtain a psuedorandom real number in the range [0,1], i.e., a number
-    !!   greater than or equal to 0 and less than or equal to 1.
-    function mtprng_rand_real1(state) result(r)
+      ! arguments
+      integer(INT32), dimension(:), intent(in) :: init_key
+      type(mtprng_state), intent(out) :: state
 
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-    
-        ! return type
-        real(IEEE64) :: r
-        
-        ! Local constant; precalculated to avoid division below
-        real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967295.0_IEEE64
-        
-        ! compute
-        r = real(mtprng_rand64(state),IEEE64) * factor
-        
-    end function mtprng_rand_real1
+      ! working storage
+      integer :: key_length
+      integer :: i
+      integer :: j
+      integer :: k
 
-    !--------------------------------------------------------------------------
-    !>  Obtain a psuedorandom real number in the range [0,1), i.e., a number
-    !!  greater than or equal to 0 and less than 1.
-    function mtprng_rand_real2(state) result(r)
+      call mtprng_init(19650218_INT32,state)
 
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-    
-        ! return type
-        real(IEEE64) :: r
-        
-        ! Local constant; precalculated to avoid division below
-        real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967296.0_IEEE64
-        
-        ! compute
-        r = real(mtprng_rand64(state),IEEE64) * factor
-        
-    end function mtprng_rand_real2
+      i = 1
+      j = 0
+      key_length = size(init_key)
 
-    !--------------------------------------------------------------------------
-    !>  Obtain a psuedorandom real number in the range (0,1), i.e., a number
-    !!  greater than 0 and less than 1.
-    function mtprng_rand_real3(state) result(r)
+      do k = max(N,key_length), 0, -1
+         state%mt(i) = ieor(state%mt(i),(ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64) * 1664525_INT64))) + init_key(j) + j
 
-        ! arguments
-        type(mtprng_state), intent(inout) :: state
-    
-        ! return type
-        real(IEEE64) :: r
-        
-        ! Local constant; precalculated to avoid division below
-        real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967296.0_IEEE64
-        
-        r = (real(mtprng_rand64(state),IEEE64) + 0.5_IEEE64) * factor
-        
-    end function mtprng_rand_real3
+         i = i + 1
+         j = j + 1
+
+         if (i >= N) then
+            state%mt(0) = state%mt(N-1)
+            i = 1
+         end if
+
+         if (j >= key_length) j = 0
+      end do
+
+      do k = N-1, 0, -1
+         state%mt(i) = ieor(state%mt(i),(ieor(state%mt(i-1),ishft(state%mt(i-1),-30_INT64) * 1566083941_INT64))) - i
+
+         i = i + 1
+
+         if (i>=N) then
+            state%mt(0) = state%mt(N-1)
+            i = 1
+         end if
+      end do
+
+      state%mt(0) = 1073741824_INT64 ! 0x40000000, assuring non-zero initial array 
+
+   end subroutine mtprng_init_by_array
+
+   !--------------------------------------------------------------------------
+   !>   Obtain the next 32-bit integer in the psuedo-random sequence
+   function mtprng_rand64(state) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+
+      !return type
+      integer(INT64) :: r
+
+      ! internal constants
+      integer(INT64), dimension(0:1), parameter :: mag01 = (/ 0_INT64, -1727483681_INT64 /)
+
+      ! Period parameters
+      integer(INT64), parameter :: UPPER_MASK =  2147483648_INT64
+      integer(INT64), parameter :: LOWER_MASK =  2147483647_INT64
+
+      ! Tempering parameters
+      integer(INT64), parameter :: TEMPERING_B = -1658038656_INT64
+      integer(INT64), parameter :: TEMPERING_C =  -272236544_INT64
+
+      ! Note: variable names match those in original example
+      integer(INT32) :: kk
+
+      ! Generate N words at a time
+      if (state%mti >= N) then
+         ! The value -1 acts as a flag saying that the seed has not been set.
+         if (state%mti == -1) call mtprng_init(4357_INT32,state)
+
+         ! Fill the mt array
+         do kk = 0, N - M - 1
+            r = ior(iand(state%mt(kk),UPPER_MASK),iand(state%mt(kk+1),LOWER_MASK))
+            state%mt(kk) = ieor(ieor(state%mt(kk + M),ishft(r,-1_INT64)),mag01(iand(r,1_INT64)))
+         end do
+
+         do kk = N - M, N - 2
+            r = ior(iand(state%mt(kk),UPPER_MASK),iand(state%mt(kk+1),LOWER_MASK))
+            state%mt(kk) = ieor(ieor(state%mt(kk + (M - N)),ishft(r,-1_INT64)),mag01(iand(r,1_INT64)))
+         end do
+
+         r = ior(iand(state%mt(N-1),UPPER_MASK),iand(state%mt(0),LOWER_MASK))
+         state%mt(N-1) = ieor(ieor(state%mt(M-1),ishft(r,-1)),mag01(iand(r,1_INT64)))
+
+         ! Start using the array from first element
+         state%mti = 0
+      end if
+
+      ! Here is where we actually calculate the number with a series of
+      !   transformations 
+      r = state%mt(state%mti)
+      state%mti = state%mti + 1
+
+      r = ieor(r,ishft(r,-11))
+      r = iand(4294967295_INT64,ieor(r,iand(ishft(r, 7),TEMPERING_B)))
+      r = iand(4294967295_INT64,ieor(r,iand(ishft(r,15),TEMPERING_C)))
+      r = ieor(r,ishft(r,-18))
+
+   end function mtprng_rand64
+
+   !--------------------------------------------------------------------------
+   !>   Obtain the next 32-bit integer in the psuedo-random sequence
+   function mtprng_rand(state) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+
+      !return type
+      integer(INT32) :: r
+
+      ! working storage
+      integer(INT64) :: x
+
+      ! done
+      x = mtprng_rand64(state)
+
+      if (x > 2147483647_INT64) then
+         r = int(x - 4294967296_INT64)
+      else
+         r = int(x)
+      end if
+
+   end function mtprng_rand
+
+   !---------------------------------------------------------------------------
+   !>   Obtain a psuedorandom integer in the range [lo,hi]
+   function mtprng_rand_range(state, lo, hi) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+      integer, intent(in) :: lo
+      integer, intent(in) :: hi
+
+      ! return type
+      integer(INT32) :: r
+
+      ! Use real value to caluclate range
+      r = lo + floor((hi - lo + 1.0_IEEE64) * mtprng_rand_real2(state))
+
+   end function mtprng_rand_range
+
+   !--------------------------------------------------------------------------
+   !>   Obtain a psuedorandom real number in the range [0,1], i.e., a number
+   !!   greater than or equal to 0 and less than or equal to 1.
+   function mtprng_rand_real1(state) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+
+      ! return type
+      real(IEEE64) :: r
+
+      ! Local constant; precalculated to avoid division below
+      real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967295.0_IEEE64
+
+      ! compute
+      r = real(mtprng_rand64(state),IEEE64) * factor
+
+   end function mtprng_rand_real1
+
+   !--------------------------------------------------------------------------
+   !>  Obtain a psuedorandom real number in the range [0,1), i.e., a number
+   !!  greater than or equal to 0 and less than 1.
+   function mtprng_rand_real2(state) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+
+      ! return type
+      real(IEEE64) :: r
+
+      ! Local constant; precalculated to avoid division below
+      real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967296.0_IEEE64
+
+      ! compute
+      r = real(mtprng_rand64(state),IEEE64) * factor
+
+   end function mtprng_rand_real2
+
+   !--------------------------------------------------------------------------
+   !>  Obtain a psuedorandom real number in the range (0,1), i.e., a number
+   !!  greater than 0 and less than 1.
+   function mtprng_rand_real3(state) result(r)
+
+      ! arguments
+      type(mtprng_state), intent(inout) :: state
+
+      ! return type
+      real(IEEE64) :: r
+
+      ! Local constant; precalculated to avoid division below
+      real(IEEE64), parameter :: factor = 1.0_IEEE64 / 4294967296.0_IEEE64
+
+      r = (real(mtprng_rand64(state),IEEE64) + 0.5_IEEE64) * factor
+
+   end function mtprng_rand_real3
 
 end module mtprng

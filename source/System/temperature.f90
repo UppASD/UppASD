@@ -623,438 +623,438 @@ contains
 
    end subroutine set_temperature_defaults
 
-  subroutine Lparray(Tarray,Natom,coord,Temp,simid,printme)
-    !< Subroutine to create a site dependant temperature that follows the laplace equation for a time independet configuration
-    
-    real(dblprec), intent(in) :: Temp  !< Temperature
-    integer, intent(in) :: Natom !< Array size
-    real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the crystal
-    real(dblprec), dimension(Natom), intent(out) :: Tarray !< Temperature array
-    character(len=8), intent(in) :: simid  !< Name of simulation
-    logical, intent(in) :: printme  !< Flag to determine printing of temperature file
+   subroutine Lparray(Tarray,Natom,coord,Temp,simid,printme)
+      !< Subroutine to create a site dependant temperature that follows the laplace equation for a time independet configuration
 
-    integer :: i,n
-    character(len=30) :: filn
-    
-    n=1
+      real(dblprec), intent(in) :: Temp  !< Temperature
+      integer, intent(in) :: Natom !< Array size
+      real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the crystal
+      real(dblprec), dimension(Natom), intent(out) :: Tarray !< Temperature array
+      character(len=8), intent(in) :: simid  !< Name of simulation
+      logical, intent(in) :: printme  !< Flag to determine printing of temperature file
 
-    print '(4f10.4)',Temp_low_y,Temp_high_y,Temp_low_x,Temp_high_x
-    do i=1, Natom
-       ! Fill up the array with the results of the chosen function given by the boundary conditions
+      integer :: i,n
+      character(len=30) :: filn
 
-       Tarray(i) = lpfunction(Temp_low_y,Temp_high_y,Temp_low_x,Temp_high_x,coord,Natom,i,n,grad,bounds,Temp)
+      n=1
 
-    end do
+      print '(4f10.4)',Temp_low_y,Temp_high_y,Temp_low_x,Temp_high_x
+      do i=1, Natom
+         ! Fill up the array with the results of the chosen function given by the boundary conditions
 
-    ! PRINTING THE FINAL TEMPERATURE FILE AND FOR COMPARISON THE INTIAL TEMPERATURE FILE
-    IF (printme) then
-       WRITE(filn,'(''temperature.'',a8,''.out'')') simid
-       OPEN(45,FILE=filn)
-       do I=1, NATOM
-          WRITE(45,'(i8,3f16.8,f16.8)') I, COORD(1:3,I),Tarray(I)
-       ENDDO
-       CLOSE(45)
-    ENDIF
+         Tarray(i) = lpfunction(Temp_low_y,Temp_high_y,Temp_low_x,Temp_high_x,coord,Natom,i,n,grad,bounds,Temp)
+
+      end do
+
+      ! PRINTING THE FINAL TEMPERATURE FILE AND FOR COMPARISON THE INTIAL TEMPERATURE FILE
+      IF (printme) then
+         WRITE(filn,'(''temperature.'',a8,''.out'')') simid
+         OPEN(45,FILE=filn)
+         do I=1, NATOM
+            WRITE(45,'(i8,3f16.8,f16.8)') I, COORD(1:3,I),Tarray(I)
+         ENDDO
+         CLOSE(45)
+      ENDIF
 
 
- end subroutine Lparray
+   end subroutine Lparray
 
-  function linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i) !< This creates a linear function to fill up a 1D lattice
-    
-    real(dblprec), intent(in) :: Temp_high_x, Temp_low_x ! Boundaries
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates of the  atoms in the lattice
-    real(dblprec) :: linear_1D
-    integer, intent(in) :: Natom
-    integer :: i, x_size
-    
-    x_size = maxval(coord(1,:)) ! This works only if the person puts the direction along x maybe put in a logical variable to check
-    
-    linear_1D = Temp_low_x + (Temp_high_x-Temp_low_x)*coord(1,i)/x_size
-    
-    
-  end function linear_1D
-  
-  ! Function to include a step function for a 1D array
-  function step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
-    
-    real(dblprec), intent(in) :: Temp_high_x, Temp_low_x ! Temperatures for the step
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! coordinates of the atoms in the lattice
-    real(dblprec) :: step_x
-    integer, intent(in) :: Natom, barr_size ! Number of atoms and size of the hot part of the lattice
-    integer :: i
-    
-    if(int(coord(1,i)).le.barr_size) then
-       
-       step_x = Temp_high_x
-       
-    else
-       
-       step_x = Temp_low_x
-       
-    end if
-    
-  end function step_x
-  
-  ! this deals with the boundary condition f(x,ysize)=Tymax
-  function cts_2D_x_max(Ty_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Ty_max ! Boundary condition
-    real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates of the atoms in the lattice
-    real(dblprec) :: cts_2D_x_max
-    real(dblprec) x_size, pi, arg_x, y_size, x , y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! To define the size of the integration region in the y direction
-    x_size = maxval(coord(1,:)) ! To define the size of the integration region in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_x=n*pi/y_size
-    
-    cts_2D_x_max = 2*Ty_max*(1-(-1)**n)*sinh(arg_x*x)*sin(arg_x*y)
-    cts_2D_x_max = cts_2D_x_max/(n*pi*sinh(arg_x*x_size))
-    
-  end function cts_2D_x_max
-  
-  ! this deals with the boundary condition f(x,ysize)=Tymin
-  function cts_2D_x_min(Ty_min,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Ty_min ! Boundary condition
-    real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: cts_2D_x_min
-    real(dblprec) x_size, pi, arg_x, y_size, x, y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_x=n*pi/y_size
-    
-    cts_2D_x_min = -2*Ty_min*(1-(-1)**n)*sinh(arg_x*(x-x_size))*sin(arg_x*y)
-    cts_2D_x_min = cts_2D_x_min/(n*pi*sinh(arg_x*x_size))
-    
-  end function cts_2D_x_min
+   function linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i) !< This creates a linear function to fill up a 1D lattice
 
-  ! this deals with the boundary condition f(x,ysize)=Txmax
-  function cts_2D_y_max(Tx_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_max ! Boundary condition
-    real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates of the atoms in the lattice
-    real(dblprec) :: cts_2D_y_max
-    real(dblprec) x_size, pi, arg_y, y_size, x ,y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_y=n*pi/x_size
-    
-    cts_2D_y_max = 2*Tx_max*(1-(-1)**n)*sinh(arg_y*y)*sin(arg_y*x)
-    cts_2D_y_max = cts_2D_y_max/(n*pi*sinh(arg_y*y_size))
-    
-  end function cts_2D_y_max
-  
-  !! this deals with the boundary condition f(x,ysize)=Txmin
-  function cts_2D_y_min(Tx_min,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_min ! Boundary condition
-    real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: cts_2D_y_min
-    real(dblprec) x_size, pi, arg_y, y_size,x ,y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_y=n*pi/x_size
-    
-    ! f_y_min, deals with f(x,0)=Tx_min and all the other boundary conditions set to zero
-    cts_2D_y_min = -2*Tx_min*(1-(-1)**n)*sinh(arg_y*(y-y_size))*sin(arg_y*x)
-    cts_2D_y_min = cts_2D_y_min/(n*pi*sinh(arg_y*y_size))
-    
-  end function cts_2D_y_min
-  
-  ! This deals with the boundary condition f(x,ymax)= x(Txmax-Txmin)/xsize + Txmin
-  function linear_2D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: linear_2D_y_max
-    real(dblprec) :: pi, arg_y, x_size, y_size, x, y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_y=n*pi/x_size
-    
-    linear_2D_y_max = 2*(Tx_min*(1-2*(-1)**n)-Tx_max*(-1)**n)
-    linear_2D_y_max = linear_2D_y_max*sinh(arg_y*y)*sin(arg_y*x)
-    linear_2D_y_max = linear_2D_y_max/(n*pi*sinh(arg_y*y_size))
-    
-  end function linear_2D_y_max
-  
-  ! This deals with the boundary condition f(x,0)= x(Txmax-Txmin)/xsize + Txmin
-  function linear_2D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: linear_2D_y_min
-    real(dblprec) :: pi, arg_y, x_size, y_size, x, y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_y=n*pi/x_size
-    
-    linear_2D_y_min = -2*(Tx_min*(1-2*(-1)**n)-Tx_max*(-1)**n)
-    linear_2D_y_min = linear_2D_y_min*sinh(arg_y*(y-y_size))*sin(arg_y*x)
-    linear_2D_y_min = linear_2D_y_min/(n*pi*sinh(arg_y*y_size))
-    
-  end function linear_2D_y_min
-  
-  ! This deals with the boundary condition f(0,y)= y(Tymax-Tymin)/ysize + Tymin
-  function linear_2D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: linear_2D_x_min
-    real(dblprec) :: pi, arg_x, x_size, y_size, x, y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_x=n*pi/y_size
-    
-    linear_2D_x_min = -2*(Ty_min*(1-2*(-1)**n)-Ty_max*(-1)**n)
-    linear_2D_x_min = linear_2D_x_min*sinh(arg_x*(x-x_size))*sin(arg_x*y)
-    linear_2D_x_min = linear_2D_x_min/(n*pi*sinh(arg_x*x_size))
-    
-  end function linear_2D_x_min
-  
-  ! This deals with the boundary condition f(x_max,y)= y(Tymax-Tymin)/ysize + Tymin
-  function linear_2D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-    
-    integer, intent(in) :: n, i, Natom
-    real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: linear_2D_x_max
-    real(dblprec) :: pi, arg_x, x_size, y_size, x, y
-    
-    parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
-    
-    y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
-    x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
-    
-    x = coord(1,i)
-    y = coord(2,i)
-    
-    arg_x=n*pi/y_size
-    
-    linear_2D_x_max = 2*(Ty_min*(1-2*(-1)**n)-Ty_max*(-1)**n)
-    linear_2D_x_max = linear_2D_x_max*sinh(arg_x*x)*sin(arg_x*y)
-    linear_2D_x_max = linear_2D_x_max/(n*pi*sinh(arg_x*x_size))
-    
-  end function linear_2D_x_max
-  
-  ! Subroutine to choose the function which will fill up the lattice
-  function lpfunction(Ty_min,Ty_max,Tx_min,Tx_max,coord,Natom,i,n,grad,bounds,Temp)
-    
-    integer, intent(in) :: n, i, Natom
-    integer ::  dimn, j
-    real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max, Temp ! Boundary conditions
-    real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
-    real(dblprec) :: f_x_max, f_x_min, f_y_min, f_y_max, f_z_min, f_z_max, lpfunction ! Functions relating to each of the 6 boundary conditions
-    character(len=1) :: grad ! Varibale for the gradient of the system
-    character(len=20), dimension(6), intent(in) :: bounds ! Array that states the boundary conditions of the sample
-    
-    ! If there is no gradient the function is just a constant
-    if(grad.eq.'N') then
-       
-       lpfunction = Temp
-       
-       ! If there is a gradient the value of the function will be given by the values stored at the bounds array
-    else
-       
-       do j=1,6
-          
-          ! Counting how many boundaries are 'on' N states that the boudary is off therefore indicating the dimension of the system
-          if(bounds(j).ne.'N') dimn=dimn+1
-          
-       end do
-       
-       ! If there are two or less values of boundaries different from N 1D solutions are chosen
-       if(dimn.le.2) then
-          
-          if(bounds(1).eq.'constant') then
-             f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-          else if(bounds(2).eq.'constant') then
-             f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-          else if((bounds(1).eq.'constant').and.(bounds(2).eq.'constant')) then
-             f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-          else if(bounds(1).eq.'step') then
-             f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-          else if(bounds(2).eq.'step') then
-             f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-          else if((bounds(1).eq.'step').and.(bounds(2).eq.'step')) then
-             f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
-             
-             f_x_max = 0.D0
-             f_y_min = 0.D0
-             f_y_max = 0.D0
-             f_z_max = 0.D0
-             f_z_min = 0.D0
-             
-          end if
-          
-       end if
-       
-       ! If there are only two values of bounds which values equal to N then the temperature array is for 2D systems
-       if(dimn.eq.4) then
-          
-          select case(bounds(1))
-             
-          case('constant')
-             f_x_min = cts_2D_x_min(Ty_min,n,coord,Natom,i)
-          case('linear')
-             f_x_min = linear_2D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-             
-          end select
-          
-          select case(bounds(2))
-             
-          case('constant')
-             f_x_max =  cts_2D_x_max(Ty_max,n,coord,Natom,i)
-          case('linear')
-             f_x_max = linear_2D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-             
-          end select
-          
-          select case(bounds(3))
-             
-          case('constant')
-             f_y_min = cts_2D_y_min(Tx_min,n,coord,Natom,i)
-          case('linear')
-             f_y_min = linear_2D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-             
-          end select
-          
-          select case(bounds(4))
-             
-          case('constant')
-             f_y_max = cts_2D_y_max(Tx_max,n,coord,Natom,i)
-          case('linear')
-             f_y_max = linear_2D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-             
-          end select
-          
-          f_z_max = 0.D0
-          f_z_min = 0.D0
-          
-       end if
-       
-       ! If all the boundaries are different from N the temperature array will be filled with solutions of the 3D laplace equation
-       !	if(dimn.eq.6)
-       !
-       !		select case(bounds(1))
-       !
-       !		case('constant')
-       !			f_x_min = cts_3D_x_min(Ty_min,n,coord,Natom,i)
-       !		case('linear')
-       !			f_x_min = linear_3D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !		select case(bounds(2))
-       !
-       !		case('constant')
-       !			f_x_max =  cts_3D_x_max(Ty_max,n,coord,Natom,i)
-       !		case('linear')
-       !			f_x_max = linear_3D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !		select case(bounds(3))
-       !
-       !		case('constant')
-       !			f_y_min = cts_3D_y_min(Tx_min,n,coord,Natom,i)
-       !		case('linear')
-       !			f_y_min = linear_3D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !		select case(bounds(4))
-       !
-       !		case('constant')
-       !			f_y_max = cts_3D_y_max(Tx_max,n,coord,Natom,i)
-       !		case('linear')
-       !			f_y_max = linear_3D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !		select case(bounds(5))
-       !
-       !		case('constant')
-       !			f_z_min = cts_3D_z_min(Tx_max,n,coord,Natom,i)
-       !		case('linear')
-       !			f_z_min = linear_3D_z_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !		select case(bounds(6))
-       !
-       !		case('constant')
-       !			f_z_max = cts_3D_z_max(Tx_max,n,coord,Natom,i)
-       !		case('linear')
-       !			f_z_max = linear_3D_z_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
-       !
-       !		end select case
-       !
-       !	end if
-       lpfunction = f_x_max + f_x_min + f_y_max + f_y_min + f_z_min + f_z_max
-       
-    end if
-    
-  end function lpfunction
-  
+      real(dblprec), intent(in) :: Temp_high_x, Temp_low_x ! Boundaries
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates of the  atoms in the lattice
+      real(dblprec) :: linear_1D
+      integer, intent(in) :: Natom
+      integer :: i, x_size
+
+      x_size = maxval(coord(1,:)) ! This works only if the person puts the direction along x maybe put in a logical variable to check
+
+      linear_1D = Temp_low_x + (Temp_high_x-Temp_low_x)*coord(1,i)/x_size
+
+
+   end function linear_1D
+
+   ! Function to include a step function for a 1D array
+   function step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
+
+      real(dblprec), intent(in) :: Temp_high_x, Temp_low_x ! Temperatures for the step
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! coordinates of the atoms in the lattice
+      real(dblprec) :: step_x
+      integer, intent(in) :: Natom, barr_size ! Number of atoms and size of the hot part of the lattice
+      integer :: i
+
+      if(int(coord(1,i)).le.barr_size) then
+
+         step_x = Temp_high_x
+
+      else
+
+         step_x = Temp_low_x
+
+      end if
+
+   end function step_x
+
+   ! this deals with the boundary condition f(x,ysize)=Tymax
+   function cts_2D_x_max(Ty_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Ty_max ! Boundary condition
+      real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates of the atoms in the lattice
+      real(dblprec) :: cts_2D_x_max
+      real(dblprec) x_size, pi, arg_x, y_size, x , y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! To define the size of the integration region in the y direction
+      x_size = maxval(coord(1,:)) ! To define the size of the integration region in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_x=n*pi/y_size
+
+      cts_2D_x_max = 2*Ty_max*(1-(-1)**n)*sinh(arg_x*x)*sin(arg_x*y)
+      cts_2D_x_max = cts_2D_x_max/(n*pi*sinh(arg_x*x_size))
+
+   end function cts_2D_x_max
+
+   ! this deals with the boundary condition f(x,ysize)=Tymin
+   function cts_2D_x_min(Ty_min,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Ty_min ! Boundary condition
+      real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: cts_2D_x_min
+      real(dblprec) x_size, pi, arg_x, y_size, x, y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_x=n*pi/y_size
+
+      cts_2D_x_min = -2*Ty_min*(1-(-1)**n)*sinh(arg_x*(x-x_size))*sin(arg_x*y)
+      cts_2D_x_min = cts_2D_x_min/(n*pi*sinh(arg_x*x_size))
+
+   end function cts_2D_x_min
+
+   ! this deals with the boundary condition f(x,ysize)=Txmax
+   function cts_2D_y_max(Tx_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_max ! Boundary condition
+      real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates of the atoms in the lattice
+      real(dblprec) :: cts_2D_y_max
+      real(dblprec) x_size, pi, arg_y, y_size, x ,y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_y=n*pi/x_size
+
+      cts_2D_y_max = 2*Tx_max*(1-(-1)**n)*sinh(arg_y*y)*sin(arg_y*x)
+      cts_2D_y_max = cts_2D_y_max/(n*pi*sinh(arg_y*y_size))
+
+   end function cts_2D_y_max
+
+   !! this deals with the boundary condition f(x,ysize)=Txmin
+   function cts_2D_y_min(Tx_min,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_min ! Boundary condition
+      real(dblprec), dimension(3,Natom),intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: cts_2D_y_min
+      real(dblprec) x_size, pi, arg_y, y_size,x ,y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_y=n*pi/x_size
+
+      ! f_y_min, deals with f(x,0)=Tx_min and all the other boundary conditions set to zero
+      cts_2D_y_min = -2*Tx_min*(1-(-1)**n)*sinh(arg_y*(y-y_size))*sin(arg_y*x)
+      cts_2D_y_min = cts_2D_y_min/(n*pi*sinh(arg_y*y_size))
+
+   end function cts_2D_y_min
+
+   ! This deals with the boundary condition f(x,ymax)= x(Txmax-Txmin)/xsize + Txmin
+   function linear_2D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: linear_2D_y_max
+      real(dblprec) :: pi, arg_y, x_size, y_size, x, y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_y=n*pi/x_size
+
+      linear_2D_y_max = 2*(Tx_min*(1-2*(-1)**n)-Tx_max*(-1)**n)
+      linear_2D_y_max = linear_2D_y_max*sinh(arg_y*y)*sin(arg_y*x)
+      linear_2D_y_max = linear_2D_y_max/(n*pi*sinh(arg_y*y_size))
+
+   end function linear_2D_y_max
+
+   ! This deals with the boundary condition f(x,0)= x(Txmax-Txmin)/xsize + Txmin
+   function linear_2D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: linear_2D_y_min
+      real(dblprec) :: pi, arg_y, x_size, y_size, x, y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_y=n*pi/x_size
+
+      linear_2D_y_min = -2*(Tx_min*(1-2*(-1)**n)-Tx_max*(-1)**n)
+      linear_2D_y_min = linear_2D_y_min*sinh(arg_y*(y-y_size))*sin(arg_y*x)
+      linear_2D_y_min = linear_2D_y_min/(n*pi*sinh(arg_y*y_size))
+
+   end function linear_2D_y_min
+
+   ! This deals with the boundary condition f(0,y)= y(Tymax-Tymin)/ysize + Tymin
+   function linear_2D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: linear_2D_x_min
+      real(dblprec) :: pi, arg_x, x_size, y_size, x, y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_x=n*pi/y_size
+
+      linear_2D_x_min = -2*(Ty_min*(1-2*(-1)**n)-Ty_max*(-1)**n)
+      linear_2D_x_min = linear_2D_x_min*sinh(arg_x*(x-x_size))*sin(arg_x*y)
+      linear_2D_x_min = linear_2D_x_min/(n*pi*sinh(arg_x*x_size))
+
+   end function linear_2D_x_min
+
+   ! This deals with the boundary condition f(x_max,y)= y(Tymax-Tymin)/ysize + Tymin
+   function linear_2D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+      integer, intent(in) :: n, i, Natom
+      real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max ! Boundary conditions
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: linear_2D_x_max
+      real(dblprec) :: pi, arg_x, x_size, y_size, x, y
+
+      parameter(pi=4.D0*DATAN(1.D0)) ! The best way to define pi
+
+      y_size = maxval(coord(2,:)) ! Size of the lattice in the y direction
+      x_size = maxval(coord(1,:)) ! Size of the lattice in the x direction
+
+      x = coord(1,i)
+      y = coord(2,i)
+
+      arg_x=n*pi/y_size
+
+      linear_2D_x_max = 2*(Ty_min*(1-2*(-1)**n)-Ty_max*(-1)**n)
+      linear_2D_x_max = linear_2D_x_max*sinh(arg_x*x)*sin(arg_x*y)
+      linear_2D_x_max = linear_2D_x_max/(n*pi*sinh(arg_x*x_size))
+
+   end function linear_2D_x_max
+
+   ! Subroutine to choose the function which will fill up the lattice
+   function lpfunction(Ty_min,Ty_max,Tx_min,Tx_max,coord,Natom,i,n,grad,bounds,Temp)
+
+      integer, intent(in) :: n, i, Natom
+      integer ::  dimn, j
+      real(dblprec), intent(in) :: Tx_min, Tx_max, Ty_min, Ty_max, Temp ! Boundary conditions
+      real(dblprec), dimension(3,Natom), intent(in) :: coord ! Coordinates for the atoms in the lattice
+      real(dblprec) :: f_x_max, f_x_min, f_y_min, f_y_max, f_z_min, f_z_max, lpfunction ! Functions relating to each of the 6 boundary conditions
+      character(len=1) :: grad ! Varibale for the gradient of the system
+      character(len=20), dimension(6), intent(in) :: bounds ! Array that states the boundary conditions of the sample
+
+      ! If there is no gradient the function is just a constant
+      if(grad.eq.'N') then
+
+         lpfunction = Temp
+
+         ! If there is a gradient the value of the function will be given by the values stored at the bounds array
+      else
+
+         do j=1,6
+
+            ! Counting how many boundaries are 'on' N states that the boudary is off therefore indicating the dimension of the system
+            if(bounds(j).ne.'N') dimn=dimn+1
+
+         end do
+
+         ! If there are two or less values of boundaries different from N 1D solutions are chosen
+         if(dimn.le.2) then
+
+            if(bounds(1).eq.'constant') then
+               f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
+
+            else if(bounds(2).eq.'constant') then
+               f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
+
+            else if((bounds(1).eq.'constant').and.(bounds(2).eq.'constant')) then
+               f_x_min = linear_1D(Natom,Temp_high_x,Temp_low_x,coord,i)
+
+            else if(bounds(1).eq.'step') then
+               f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
+
+            else if(bounds(2).eq.'step') then
+               f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
+
+            else if((bounds(1).eq.'step').and.(bounds(2).eq.'step')) then
+               f_x_min = step_x(barr_size,Natom,Temp_high_x,Temp_low_x,coord,i)
+
+               f_x_max = 0.D0
+               f_y_min = 0.D0
+               f_y_max = 0.D0
+               f_z_max = 0.D0
+               f_z_min = 0.D0
+
+            end if
+
+         end if
+
+         ! If there are only two values of bounds which values equal to N then the temperature array is for 2D systems
+         if(dimn.eq.4) then
+
+            select case(bounds(1))
+
+            case('constant')
+               f_x_min = cts_2D_x_min(Ty_min,n,coord,Natom,i)
+            case('linear')
+               f_x_min = linear_2D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+            end select
+
+            select case(bounds(2))
+
+            case('constant')
+               f_x_max =  cts_2D_x_max(Ty_max,n,coord,Natom,i)
+            case('linear')
+               f_x_max = linear_2D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+            end select
+
+            select case(bounds(3))
+
+            case('constant')
+               f_y_min = cts_2D_y_min(Tx_min,n,coord,Natom,i)
+            case('linear')
+               f_y_min = linear_2D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+            end select
+
+            select case(bounds(4))
+
+            case('constant')
+               f_y_max = cts_2D_y_max(Tx_max,n,coord,Natom,i)
+            case('linear')
+               f_y_max = linear_2D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+
+            end select
+
+            f_z_max = 0.D0
+            f_z_min = 0.D0
+
+         end if
+
+         ! If all the boundaries are different from N the temperature array will be filled with solutions of the 3D laplace equation
+         !	if(dimn.eq.6)
+         !
+         !		select case(bounds(1))
+         !
+         !		case('constant')
+         !			f_x_min = cts_3D_x_min(Ty_min,n,coord,Natom,i)
+         !		case('linear')
+         !			f_x_min = linear_3D_x_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !		select case(bounds(2))
+         !
+         !		case('constant')
+         !			f_x_max =  cts_3D_x_max(Ty_max,n,coord,Natom,i)
+         !		case('linear')
+         !			f_x_max = linear_3D_x_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !		select case(bounds(3))
+         !
+         !		case('constant')
+         !			f_y_min = cts_3D_y_min(Tx_min,n,coord,Natom,i)
+         !		case('linear')
+         !			f_y_min = linear_3D_y_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !		select case(bounds(4))
+         !
+         !		case('constant')
+         !			f_y_max = cts_3D_y_max(Tx_max,n,coord,Natom,i)
+         !		case('linear')
+         !			f_y_max = linear_3D_y_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !		select case(bounds(5))
+         !
+         !		case('constant')
+         !			f_z_min = cts_3D_z_min(Tx_max,n,coord,Natom,i)
+         !		case('linear')
+         !			f_z_min = linear_3D_z_min(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !		select case(bounds(6))
+         !
+         !		case('constant')
+         !			f_z_max = cts_3D_z_max(Tx_max,n,coord,Natom,i)
+         !		case('linear')
+         !			f_z_max = linear_3D_z_max(Tx_min,Tx_max,Ty_min,Ty_max,n,coord,Natom,i)
+         !
+         !		end select case
+         !
+         !	end if
+         lpfunction = f_x_max + f_x_min + f_y_max + f_y_min + f_z_min + f_z_max
+
+      end if
+
+   end function lpfunction
+
 end module temperature

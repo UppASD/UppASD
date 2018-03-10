@@ -115,12 +115,12 @@ contains
          do ipmcstep=1,ipmcnstep(i)
             ! Perform metropolis algorithm
             call mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,ipTemp(i),temprescale,&
-                 ipmode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
-                 lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
-                 dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
-                 biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
-                 eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
-                 ind_nlist,ind_mom,sus_ind,ind_mom_flag,iphfield(1:3),do_dip,Qdip)
+               ipmode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
+               lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
+               dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
+               biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
+               eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
+               ind_nlist,ind_mom,sus_ind,ind_mom_flag,iphfield(1:3),do_dip,Qdip)
 
             ! Sample m, m2, m4 for second half of run (every tenth step)
             if(ipmcstep>ipmcnstep(i)/2.and.mod(ipmcstep-1,10)==0) then
@@ -265,12 +265,12 @@ contains
 
       if (do_pol=='Y') then
          call init_polarization(Natom, Mensemble, max_no_neigh, &
-              nlist, coord, 1)
+            nlist, coord, 1)
       end if
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
       call calc_external_fields(Natom, Mensemble, NA, hfield, anumb, external_field, &
-           do_bpulse,sitefld,sitenatomfld)
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Perform MC sweeps
       do mcmstep=1,mcnstep
@@ -280,9 +280,9 @@ contains
 
          ! Measure averages and trajectories
          call measure(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mcmstep, emom, emomM, mmom, &
-              Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype,  plotenergy, Temp, &
-              'N',1.0d0, logsamp, max_no_neigh, nlist, ncoup,nlistsize,thermal_field, &
-              beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
+            Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype,  plotenergy, Temp, &
+            'N',1.0d0, logsamp, max_no_neigh, nlist, ncoup,nlistsize,thermal_field, &
+            beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
 
          ! Calculate total and term resolved energies
          if(plotenergy>0.and.mod(mcmstep-1,cumu_step)==0) then
@@ -312,13 +312,13 @@ contains
 
          ! Metropolis sweeps
 
-        call mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,Temp,temprescale,&
-             mode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
-             lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
-             dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
-             biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
-             eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
-             ind_nlist,ind_mom,sus_ind,ind_mom_flag,hfield,do_dip,Qdip)
+         call mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,Temp,temprescale,&
+            mode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
+            lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
+            dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
+            biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
+            eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
+            ind_nlist,ind_mom,sus_ind,ind_mom_flag,hfield,do_dip,Qdip)
 
          ! Calculate and print m_avg
          if(mcnstep>20) then
@@ -363,7 +363,7 @@ contains
 
       if (do_pol=='Y') then
          call init_polarization(Natom, Mensemble, max_no_neigh, &
-              nlist, coord, -1)
+            nlist, coord, -1)
       end if
 
       ! Deallocate work arrays

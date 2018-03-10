@@ -14,7 +14,7 @@
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
 !---------------------------------------------------------------------------
 module InputHandler
@@ -242,7 +242,7 @@ contains
             call memocc(i_stat,product(shape(jfile))*kind(jfile),'jfile','inputhandler')
             if (conf_num==1) then
                jfile=adjustl(trim(cache))
-            ! For the LSF method there are several jfiles that must be read, depending on the number of configurations
+               ! For the LSF method there are several jfiles that must be read, depending on the number of configurations
             else
                pre_jfile=adjustl(trim(cache))
                i=len_trim(pre_jfile)-1
@@ -293,7 +293,7 @@ contains
          case('exc_inter')
             read(ifile,*,iostat=i_err) exc_inter
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-        ! Type of maptype 1 for cartesian bonding vectors, 2 for units of repetitions of the lattice vectors
+            ! Type of maptype 1 for cartesian bonding vectors, 2 for units of repetitions of the lattice vectors
          case('maptype')
             read(ifile,*,iostat=i_err) maptype
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -301,7 +301,7 @@ contains
          case('map_multiple')
             read(ifile,*,iostat=i_err) map_multiple
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-         ! Symmetry of the exchange interactions, turned off by default when DMI is considered
+            ! Symmetry of the exchange interactions, turned off by default when DMI is considered
          case('sym')
             read(ifile,*,iostat=i_err) sym
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -657,6 +657,7 @@ contains
             read(ifile,*,iostat=i_err) ntraj
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             if(ntraj>0) then
+               if (ntraj>99) write(*,'(a)') "More than 99 trabjectories selected, possible errors in file printing"
                allocate(traj_atom(ntraj),stat=i_stat)
                call memocc(i_stat,product(shape(traj_atom))*kind(traj_atom),'traj_atom','read_parameters')
                allocate(traj_step(ntraj),stat=i_stat)
@@ -994,10 +995,10 @@ contains
             bpulsefile=trim(adjustl(cache))
 
 
-        !!!!!!!!!!!!!!!!!!!!! END OF VARIABLES FOR TIME DEPENDENT FIELDS !!!!!!!!!!!!!!!!!!!!!!!!
+            !!!!!!!!!!!!!!!!!!!!! END OF VARIABLES FOR TIME DEPENDENT FIELDS !!!!!!!!!!!!!!!!!!!!!!!!
 
 
-        !!!!!!!!!!!!!!!!!!!! START OF VARIABLES FOR STIFFNESS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !!!!!!!!!!!!!!!!!!!! START OF VARIABLES FOR STIFFNESS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          case('eta_max') ! Maximum convergency parameter for the exchange stiffness
             read(ifile,*,iostat=i_err) eta_max
@@ -1019,9 +1020,9 @@ contains
             read(ifile,*,iostat=i_err) prn_J0_matrix
             if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
-        !!!!!!!!!!!!!!!!!!!! END OF VARIABLES FOR STIFFNESS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !!!!!!!!!!!!!!!!!!!! END OF VARIABLES FOR STIFFNESS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        !!!!!!!!!!!!!!!!!!!!! START OF VARIABLES FOR EWALD SUMMATION !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !!!!!!!!!!!!!!!!!!!!! START OF VARIABLES FOR EWALD SUMMATION !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          case('do_ewald')
             read(ifile,'(a)',iostat=i_err) do_ewald
@@ -1312,15 +1313,15 @@ subroutine read_moments(Landeg_global)
       if (do_lsf=='N') then
          if (ind_mom_flag=='Y') then
             do while(i_err==0)
-              read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1),&
-              aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1),ind_mom(isite,ichem)
-              aemom_tmp=sqrt(aemom_inp(1,isite,ichem,1)**2+aemom_inp(2,isite,ichem,1)**2+aemom_inp(3,isite,ichem,1)**2)
-              aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
+               read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1),&
+                  aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1),ind_mom(isite,ichem)
+               aemom_tmp=sqrt(aemom_inp(1,isite,ichem,1)**2+aemom_inp(2,isite,ichem,1)**2+aemom_inp(3,isite,ichem,1)**2)
+               aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
             end do
          else
             do while(i_err==0)
                read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-               aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1)
+                  aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1)
                aemom_tmp=sqrt(aemom_inp(1,isite,ichem,1)**2+aemom_inp(2,isite,ichem,1)**2+aemom_inp(3,isite,ichem,1)**2)
                aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
             end do
@@ -1329,7 +1330,7 @@ subroutine read_moments(Landeg_global)
          ! For LSF modified momfile requires configuration number as first column
          do while(i_err==0)
             read(ifileno,*,iostat=i_err) iconf, isite, ichem, ammom_inp(isite,ichem,iconf), &
-            aemom_inp(1:3,isite,ichem,iconf), Landeg_ch(isite,ichem,iconf)
+               aemom_inp(1:3,isite,ichem,iconf), Landeg_ch(isite,ichem,iconf)
             aemom_tmp=sqrt(aemom_inp(1,isite,ichem,iconf)**2+aemom_inp(2,isite,ichem,iconf)**2+aemom_inp(3,isite,ichem,iconf)**2)
             aemom_inp(:,isite,ichem,iconf)=aemom_inp(:,isite,ichem,iconf)/aemom_tmp
          end do
@@ -1341,14 +1342,14 @@ subroutine read_moments(Landeg_global)
             ! If the induced magnetic moments flag is on one must read whether a certain moment is induced or not
             do while(i_err==0)
                read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-               aemom_inp(1:3,isite,ichem,1), ind_mom(isite,ichem)
+                  aemom_inp(1:3,isite,ichem,1), ind_mom(isite,ichem)
                aemom_tmp=sqrt(aemom_inp(1,isite,ichem,1)**2+aemom_inp(2,isite,ichem,1)**2+aemom_inp(3,isite,ichem,1)**2)
                aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
             end do
          else
             do while(i_err==0)
                read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-               aemom_inp(1:3,isite,ichem,1)
+                  aemom_inp(1:3,isite,ichem,1)
                aemom_tmp=sqrt(aemom_inp(1,isite,ichem,1)**2+aemom_inp(2,isite,ichem,1)**2+aemom_inp(3,isite,ichem,1)**2)
                aemom_inp(1:3,isite,ichem,1)=aemom_inp(1:3,isite,ichem,1)/aemom_tmp
             end do
@@ -1356,7 +1357,7 @@ subroutine read_moments(Landeg_global)
       else   ! LSF
          do while(i_err==0)
             read(ifileno,*,iostat=i_err) iconf, isite, ichem, ammom_inp(isite,ichem,iconf), &
-            aemom_inp(1:3,isite,ichem,iconf)
+               aemom_inp(1:3,isite,ichem,iconf)
             aemom_tmp=sqrt(aemom_inp(1,isite,ichem,iconf)**2+aemom_inp(2,isite,ichem,iconf)**2+aemom_inp(3,isite,ichem,iconf)**2)
             aemom_inp(:,isite,ichem,iconf)=aemom_inp(:,isite,ichem,iconf)/aemom_tmp
          end do
@@ -1406,8 +1407,8 @@ subroutine read_exchange()
       open(ifileno, file=trim(jfile(ii))) ! Number of shells same for different LSF configuration
       if (exc_inter=='Y') open(ifileno2, file=trim(jfileD(ii))) ! Number of shells same for different LSF configuration
       if (ii==1) then
-        call read_exchange_getMaxNoShells(no_shells,flines,jfile(1))
-        call allocate_hamiltonianinput(no_shells,1)
+         call read_exchange_getMaxNoShells(no_shells,flines,jfile(1))
+         call allocate_hamiltonianinput(no_shells,1)
 
       endif
       redcoord = 0.0_dblprec
@@ -1898,7 +1899,7 @@ end subroutine read_anisotropy
 
 subroutine read_dmdata()
    !
-!!!   use clusters
+   !!!   use clusters
    implicit none
    !
    integer :: flines, isite, i_stat, jsite

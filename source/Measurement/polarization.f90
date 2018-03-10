@@ -40,7 +40,7 @@ contains
    !> Allocate counters for sampling
    !> Allocate arrays for sampling data
    subroutine init_polarization(Natom, Mensemble, max_no_neigh, &
-              nlist, coord, flag)
+         nlist, coord, flag)
 
       implicit none
 

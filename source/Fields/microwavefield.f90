@@ -1,9 +1,13 @@
-!> Data and routines for calculating applied microwave field
+!-------------------------------------------------------------------------------
+! MODULE: MicroWaveField
+!> @brief Data and routines for calculating applied microwave field
+!> @author Jonathan Chico, Anders Bergman, Manuel Pereiro
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!-------------------------------------------------------------------------------
 module MicroWaveField
    use Parameters
    use Profiling
@@ -176,8 +180,12 @@ module MicroWaveField
 
 contains
 
-   !> Wrapper routine to calculate all the microwave related fields (and the gaussian shaped pulsed field)
-   ! All the fields present in the routine can be used at the same time, independently from each other
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calculate_mwf_fields
+   !> @brief Wrapper routine to calculate all the microwave related fields (and the gaussian shaped pulsed field)
+   !> @details All the fields present in the routine can be used at the same time, independently from each other
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calculate_mwf_fields(Natom,time,maxtime,delta_t,coord,flag)
 
       implicit none
@@ -309,7 +317,12 @@ contains
 
    end subroutine calculate_mwf_fields
 
-   !>  Calculate monochormatic global microwave field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_mwf
+   !> @brief Calculate monochormatic global microwave field
+   !> @details The field is given by the expression \f$\mathbf{B}=B_0 \sin\left(\omega t\right)\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_mwf(mwfampl, mwfdir, mwffreq, delta_t,time,mwf_pulse_time,mwf)
       !
 
@@ -352,8 +365,13 @@ contains
 
    end subroutine calc_mwf
 
-
-   !> Calculate frequency broadened global microwave field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE calc_gaussian_mwf
+   !> @brief Calculate frequency broadened global microwave field
+   !> @details The field applied here is described the equation
+   !> \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)e^{\frac{-t^2}{2\sigma_t^2}}\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_gaussian_mwf(mwf_gauss_ampl,mwf_gauss_freq,delta_t,mwf_gauss_time_sigma,&
          mwf_gauss_dir,time,maxtime,mwf_gauss_pulse_time,mwf_gauss)
 
@@ -396,7 +414,12 @@ contains
 
    end subroutine calc_gaussian_mwf
 
-   !> Calculate site dependent monochromatic microwave field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE calc_site_mwf
+   !> @brief Calculate site dependent monochromatic microwave field
+   !> @details The time dependent field is given by \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)\f$ for any atom \f$i\f$ in the interest region, and 0 for everything outside of it
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_site_mwf(Natom, mwfampl, mwffreq, delta_t, time, mwf_pulse_time, mwf)
       !
 
@@ -438,8 +461,13 @@ contains
 
    end subroutine calc_site_mwf
 
-   ! Site and time dependent gaussian magnetic field
-   ! This function is a time dependent gaussian that only acts in a certain part of the sample, the shape of the volume where the field is acting is detemined by the input file
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_site_mwf_gaus
+   !> @brief Site and time dependent gaussian magnetic field
+   !> @details This function is a time dependent gaussian that only acts in a certain part of the sample, the shape of the volume where the field is acting is determined by the input file.
+   !> The time dependent field is given by \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)e^{\frac{-t^2}{2\sigma_t^2}}\f$ for any atom \f$i\f$ in the interest region, and 0 for everything outside of it
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_site_mwf_gauss(Natom,mwf_gauss_ampl, mwf_gauss_freq, delta_t, time, maxtime,mwf_gauss_pulse_time,&
          mwf_gauss_time_sigma,mwf_gauss)
       !
@@ -491,9 +519,14 @@ contains
    end subroutine calc_site_mwf_gauss
 
 
-   ! The one can calculate a time dependent, position dependent gaussian magnetic pulse
-   ! In the input file the atom number for the center of the guassian is given, as well as the direction of the magnetic field
-   ! The gaussian distribution only affects the intensity it does not affect the direction of the magnetization
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_spatial_mwf_site_gauss
+   !> @brief This routine calculates a time dependent, position dependent gaussian magnetic pulse
+   !> @details In the input file the atom number for the center of the guassian is given, as well as the direction of the magnetic field
+   !> The gaussian distribution only affects the intensity it does not affect the direction of the field.
+   !> The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r},t\right)=B_0\sin(\omega t)e^{\frac{-t^2}{2\sigma_t^2}}e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_spatial_mwf_site_gauss(Natom,coord,mwf_gauss_spatial,mwf_gauss_spatial_freq,delta_t, &
          time,maxtime,mwf_gauss_spatial_pulse_time,mwf_gauss_spatial_time_sigma,mwf_gauss_spatial_space_sigma,mwf_gauss_spatial_ampl)
 
@@ -583,7 +616,12 @@ contains
 
    end subroutine calc_spatial_mwf_site_gauss
 
-   !> Calculate a static gaussian shaped field
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_spatial_gauss
+   !> @brief Calculate a static gaussian shaped field
+   !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_spatial_gauss(Natom,time,gauss_spatial_sigma,coord,gauss_spatial_ampl,delta_t,do_gauss,gauss_pulse_time)
 
       implicit none
@@ -663,7 +701,12 @@ contains
 
    end subroutine calc_spatial_gauss
 
-   !> Calculate a moving gaussian shaped static field which follows a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_gauss
+   !> @brief Calculate a moving gaussian shaped static field which follows a predetermined trajectory
+   !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_gauss(Natom,coord,mov_gauss_ampl,time,mov_gauss_pulse_time,&
          centering,mov_gauss_space_sigma,mov_gauss)
       !
@@ -735,7 +778,12 @@ contains
 
    end subroutine calc_moving_gauss
 
-   !> Calculate moving gaussian shaped gaussian frequency broadened microwave field through a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_gauss_mwf
+   !> @brief Calculate moving gaussian shaped gaussian frequency broadened microwave field through a predetermined trajectory
+   !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0\sin(\omega t)e^{\frac{-t^2}{2\sigma_t^2}}e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_gauss_mwf(Natom,coord,mwf_mov_gauss_ampl,mwf_mov_gauss_freq,mwf_mov_gauss_time_sigma,&
          time,maxtime,delta_t,mwf_mov_gauss_pulse_time,mwf_centering,mwf_mov_gauss_space_sigma,mwf_mov_gauss)
 
@@ -819,7 +867,11 @@ contains
 
    end subroutine calc_moving_gauss_mwf
 
-   !> Calculate a spherical shaped static field which follows a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_circle
+   !> @brief Calculate a spherical shaped static field which follows a predetermined trajectory
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_circle(Natom,coord,mov_circle_ampl,time,mov_circle_pulse_time,&
          centering,mov_circle_radius,mov_circle)
       !
@@ -879,7 +931,11 @@ contains
 
    end subroutine calc_moving_circle
 
-   !> Calculate a spherical shaped microwavefield field which follows a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_circle_mwf
+   !> @brief Calculate a spherical shaped microwavefield field which follows a predetermined trajectory
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_circle_mwf(Natom,coord,mwf_mov_circle_ampl,mwf_mov_circle_freq,mwf_mov_circle_time_sigma,&
          time,maxtime,delta_t,mwf_mov_circle_pulse_time,mwf_mov_circle_radius,mwf_mov_circle)
       !
@@ -948,7 +1004,11 @@ contains
 
    end subroutine calc_moving_circle_mwf
 
-   !> Calculate a cubic shaped static field which follows a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_square
+   !> @brief Calculate a cubic shaped static field which follows a predetermined trajectory
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_square(Natom,coord,mov_square_ampl,time,mov_square_pulse_time,&
          centering,mov_square_dimensions,mov_square)
       !
@@ -1012,7 +1072,11 @@ contains
 
    end subroutine calc_moving_square
 
-   !> Calculate a cubic shaped microwavefield field which follows a predetermined trajectory
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: calc_moving_square_mwf
+   !> @brief Calculate a cubic shaped microwavefield field which follows a predetermined trajectory
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine calc_moving_square_mwf(Natom,coord,mwf_mov_square_ampl,mwf_mov_square_freq,mwf_mov_square_time_sigma,&
          time,maxtime,delta_t,mwf_mov_square_pulse_time,mwf_mov_square_dimensions,mwf_mov_square)
       !
@@ -1085,7 +1149,11 @@ contains
 
    end subroutine calc_moving_square_mwf
 
-   !> Routine to setup all the microwave fields, allocate arrays and read the relevant data
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE setup_mwf_fields
+   !> @brief Routine to setup all the microwave fields, allocate arrays and read the relevant data
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine setup_mwf_fields(Natom,status_flag)
 
       implicit none
@@ -1344,7 +1412,11 @@ contains
 
    end subroutine setup_mwf_fields
 
-   !> Subroutine to read the site dependent microwave fields
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE read_local_mwf_fields
+   !> @brief Subroutine to read the site dependent microwave fields
+   !> @author Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine read_local_mwf_fields(Natom,mwf,mwf_gauss,mwf_gauss_spatial,mwf_mov_gauss,mov_gauss,&
          do_gauss,mwf_site_file,mwf_gauss_site_file,mwf_gauss_spatial_site_file,mov_gauss_file,&
          mwf_mov_gauss_file,gauss_site_file,mwf_mov_circle_file,mov_circle_file,mwf_mov_circle,&
@@ -1749,426 +1821,426 @@ contains
             ! Parse keyword
             keyword=trim(keyword)
             select case(keyword)
-         case('mwf')  ! Flag for the monochormatic microwave field
-            read(ifile,*,iostat=i_err) mwf
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwfdir')  ! Direction of the monochormatic microwave field
-            read(ifile,*,iostat=i_err) mwfdir
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwfampl')  ! Amplitude of the monochormatic microwave field
-            read(ifile,*,iostat=i_err) mwfampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwffreq') ! Frequency of the monochormatic microwave field
-            read(ifile,*,iostat=i_err) mwffreq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_pulse_time') ! Number of time steps in which the monochormatic microwave field is on
-            read(ifile,*,iostat=i_err) mwf_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_site_file') ! Site dependent monochromatic microwave field
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_site_file=adjustl(trim(cache))
-
-         case('site_phase') ! Flag for site dependent phase
-            read(ifile,*,iostat=i_err) site_phase
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('site_phase_file') ! Site dependent phase for the monochromatic microwave field
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            site_phase_file=adjustl(trim(cache))
-
-         case('prn_mwf') ! Flag for printing the monochromatic microwave field
-            read(ifile,*,iostat=i_err) prn_mwf
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_step') ! Interval for sampling the monochromatic microwave field
-            read(ifile,*,iostat=i_err) mwf_step
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_buff') ! Buffer size for the monochromatic microwave field
-            read(ifile,*,iostat=i_err) mwf_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss') ! Flag for the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_dir') ! Direction of the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_dir
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_ampl') ! Amplitude of the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_freq') ! Frequency of the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_freq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_time_sigma') ! Frequency sigma parameter for the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_time_sigma
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_gauss_pulse_time') ! Number of time steps in which the frequency broadened  microwave field is on
-            read(ifile,*,iostat=i_err) mwf_gauss_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_site_file') ! Site dependent frequency broadended microwave field
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_gauss_site_file=adjustl(trim(cache))
-
-         case('prn_mwf_gauss') ! Flag for printing the static gaussian shaped field
-            read(ifile,*,iostat=i_err) prn_mwf_gauss
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_step') ! Interval for sampling the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_step
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_buff') ! Buffer size for the frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial') ! Flag for the frequency broadened gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_ampl') ! Amplitude for the frequency broadened gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_freq') ! Frequency for the frequency broadened gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_freq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_pulse_time') ! Number of time steps in which the frequency broadened gaussian shaped microwave field is on
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_time_sigma') ! Frequency sigma parameter for the frequency broadened gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_time_sigma
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_gauss_spatial_space_sigma') ! Spatial sigma parameter for the frequency broadened gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_space_sigma(1), mwf_gauss_spatial_space_sigma(2), mwf_gauss_spatial_space_sigma(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_gauss_spatial_site_file') ! Site dependent gaussian shaped gaussian broadened microwave field
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_gauss_spatial_site_file=adjustl(trim(cache))
-
-         case('prn_mwf_gauss_spatial') ! Flag for printing the gaussian shaped frequency broadened microwave field
-            read(ifile,*,iostat=i_err) prn_mwf_gauss_spatial
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_step') ! Interval for sampling the gaussian shaped frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_step
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_gauss_spatial_buff') ! Buffer size for the gaussian shaped frequency broadened microwave field
-            read(ifile,*,iostat=i_err) mwf_gauss_spatial_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_gauss') ! Flag for the moving static gaussian shaped pulse
-            read(ifile,*,iostat=i_err) mov_gauss
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_gauss_step') ! Number of time steps in which the positions of the moving static gaussian shaped pulse is updated
-            read(ifile,*,iostat=i_err) mov_gauss_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_gauss_ampl') ! Amplitude of the moving static gaussian shaped pulse
-            read(ifile,*,iostat=i_err) mov_gauss_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_gauss_pulse_time') ! Number of time steps in which the moving static gaussian shaped pulse is on
-            read(ifile,*,iostat=i_err) mov_gauss_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_gauss_space_sigma') ! Sigma parameter for the moving gaussian shaped static field
-            read(ifile,*,iostat=i_err) mov_gauss_space_sigma(1), mov_gauss_space_sigma(2), mov_gauss_space_sigma(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mov_gauss_file') ! Moving static gaussian shaped field trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mov_gauss_file=adjustl(trim(cache))
-
-         case('prn_mov_gauss') ! Flag for printing the moving gaussian shaped static field
-            read(ifile,*,iostat=i_err) prn_mov_gauss
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_gauss_pstep') !  Interval for sampling the moving gaussian shaped static field
-            read(ifile,*,iostat=i_err) mov_gauss_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_gauss_buff') ! Buffer size for the moving gaussian shaped static field
-            read(ifile,*,iostat=i_err) mov_gauss_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_circle') ! Flag for the moving static circular shaped pulse
-            read(ifile,*,iostat=i_err) mov_circle
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_circle_step') ! Number of time steps in which the positions of the moving static circular shaped pulse is updated
-            read(ifile,*,iostat=i_err) mov_circle_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_circle_ampl') ! Amplitude of the moving static circular shaped pulse
-            read(ifile,*,iostat=i_err) mov_circle_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_circle_pulse_time') ! Number of time steps in which the moving static circular shaped pulse is on
-            read(ifile,*,iostat=i_err) mov_circle_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_circle_radius') ! Radius for the moving circular shaped static field
-            read(ifile,*,iostat=i_err) mov_circle_radius
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mov_circle_file') ! Moving static circular shaped field trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mov_circle_file=adjustl(trim(cache))
-
-         case('prn_mov_circle') ! Flag for printing the moving gaussian shaped static field
-            read(ifile,*,iostat=i_err) prn_mov_circle
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_circle_pstep') !  Interval for sampling the moving circular shaped static field
-            read(ifile,*,iostat=i_err) mov_circle_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_circle_buff') ! Buffer size for the moving circular shaped static field
-            read(ifile,*,iostat=i_err) mov_circle_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_square') ! Flag for the moving static cubic shaped pulse
-            read(ifile,*,iostat=i_err) mov_square
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_square_step') ! Number of time steps in which the positions of the moving static cubic shaped pulse is updated
-            read(ifile,*,iostat=i_err) mov_square_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_square_ampl') ! Amplitude of the moving static cubic shaped pulse
-            read(ifile,*,iostat=i_err) mov_square_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mov_square_pulse_time') ! Number of time steps in which the moving static cubic shaped pulse is on
-            read(ifile,*,iostat=i_err) mov_square_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_square_dimensions') ! Dimensions for the moving cubic shaped static field
-            read(ifile,*,iostat=i_err) mov_square_dimensions(1), mov_square_dimensions(2), mov_square_dimensions(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mov_square_file') ! Moving static cubic shaped field trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mov_square_file=adjustl(trim(cache))
-
-         case('prn_mov_square') ! Flag for printing the moving cubic shaped static field
-            read(ifile,*,iostat=i_err) prn_mov_square
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_square_pstep') !  Interval for sampling the moving cubic shaped static field
-            read(ifile,*,iostat=i_err) mov_square_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mov_square_buff') ! Buffer size for the moving cubic shaped static field
-            read(ifile,*,iostat=i_err) mov_square_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss') ! Flag for the moving microwave gaussian shaped field
-            read(ifile,*,iostat=i_err) mwf_mov_gauss
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_step') ! Number of time steps in which the positions of the moving microwave gaussian shaped pulse is updated
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_ampl') ! Amplitude of the moving microwave gaussian shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_freq') ! Frequency of the moving microwave gaussian shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_freq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_pulse_time') ! Number of time steps in which the moving microwave gaussian shaped pulse is on
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_space_sigma') ! Sigma parameter for the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_space_sigma(1), mwf_mov_gauss_space_sigma(2), mwf_mov_gauss_space_sigma(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_gauss_time_sigma') ! Sigma parameter for frequency gaussian in the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_time_sigma
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_gauss_file') ! Moving frequency broadened gaussian shaped microwave filed trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_mov_circle_file=adjustl(trim(cache))
-
-         case('prn_mwf_mov_gauss') ! Flag for printing the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) prn_mwf_mov_gauss
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_pstep') !  Interval for sampling the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_gauss_buff') ! Buffer size for the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_circle') ! Flag for the moving microwave circular shaped field
-            read(ifile,*,iostat=i_err) mwf_mov_circle
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_step') ! Number of time steps in which the positions of the moving microwave circle shaped pulse is updated
-            read(ifile,*,iostat=i_err) mwf_mov_circle_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_ampl') ! Amplitude of the moving microwave circular shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_circle_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_freq') ! Frequency of the moving microwave circular shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_circle_freq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_pulse_time') ! Number of time steps in which the moving microwave gaussian shaped pulse is on
-            read(ifile,*,iostat=i_err) mwf_mov_gauss_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_radius') ! Radius for the moving circle shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_circle_radius
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_circle_time_sigma') ! Sigma parameter for frequency circle in the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_circle_time_sigma
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_circle_file') ! Moving frequency broadened circular shaped microwave filed trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_mov_gauss_file=adjustl(trim(cache))
-
-         case('prn_mwf_mov_circle') ! Flag for printing the moving circular shaped microwave field
-            read(ifile,*,iostat=i_err) prn_mwf_mov_circle
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_pstep') !  Interval for sampling the moving circular shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_circle_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_circle_buff') ! Buffer size for the moving circular shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_circle_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_square') ! Flag for the moving microwave cubic shaped field
-            read(ifile,*,iostat=i_err) mwf_mov_square
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_square_step') ! Number of time steps in which the positions of the moving microwave square shaped pulse is updated
-            read(ifile,*,iostat=i_err) mwf_mov_square_step
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_square_ampl') ! Amplitude of the moving microwave cubic shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_square_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_square_freq') ! Frequency of the moving microwave cubic shaped pulse
-            read(ifile,*,iostat=i_err) mwf_mov_square_freq
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('mwf_mov_square_pulse_time') ! Number of time steps in which the moving microwave cubic shaped pulse is on
-            read(ifile,*,iostat=i_err) mwf_mov_square_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_square_dimensions') ! Dimensions for the moving cubic shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_square_dimensions(1), mwf_mov_square_dimensions(2),mwf_mov_square_dimensions(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_square_time_sigma') ! Sigma parameter for frequency cubic in the moving gaussian shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_square_time_sigma
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('mwf_mov_square_file') ! Moving frequency broadened cubic shaped microwave filed trajectory file
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            mwf_mov_square_file=adjustl(trim(cache))
-
-         case('prn_mwf_mov_square') ! Flag for printing the moving cubic shaped microwave field
-            read(ifile,*,iostat=i_err) prn_mwf_mov_square
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_square_pstep') !  Interval for sampling the moving square shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_square_pstep
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('mwf_mov_square_buff') ! Buffer size for the moving cubic shaped microwave field
-            read(ifile,*,iostat=i_err) mwf_mov_square_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('do_gauss') ! Static gaussian shaped field
-            read(ifile,*,iostat=i_err) do_gauss
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('gauss_spatial_ampl') ! Amplitude of the gaussian shaped static field
-            read(ifile,*,iostat=i_err) gauss_spatial_ampl
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-         case('gauss_spatial_sigma') ! Sigma parameter for the gaussian shaped static field
-            read(ifile,*,iostat=i_err) gauss_spatial_sigma(1), gauss_spatial_sigma(2), gauss_spatial_sigma(3)
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
-
-         case('gauss_pulse_time') ! Number of time steps in which the static gaussian shaped pulse is on
-            read(ifile,*,iostat=i_err) gauss_pulse_time
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('gauss_site_file') ! Static gaussian shaped field
-            read(ifile,'(a)',iostat=i_err) cache
-            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-            gauss_site_file=adjustl(trim(cache))
-
-         case('prn_gauss') ! Print gaussian shaped static field
-            read(ifile,*,iostat=i_err) prn_gauss
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('gauss_step') ! Time interval to measure the microwave field
-            read(ifile,*,iostat=i_err) gauss_step
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         case('gauss_buff') ! Buffer size for the static gaussian shaped field
-            read(ifile,*,iostat=i_err) gauss_buff
-            if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
-
-         end select
-      end if
-
-      ! End of file
-      if (i_errb==20) goto 20
-      ! End of row
-      if (i_errb==10) goto 10
-   end do
-
-   20  continue
-
-   rewind(ifile)
-   return
-end subroutine read_parameters_mwf
+            case('mwf')  ! Flag for the monochormatic microwave field
+               read(ifile,*,iostat=i_err) mwf
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwfdir')  ! Direction of the monochormatic microwave field
+               read(ifile,*,iostat=i_err) mwfdir
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwfampl')  ! Amplitude of the monochormatic microwave field
+               read(ifile,*,iostat=i_err) mwfampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwffreq') ! Frequency of the monochormatic microwave field
+               read(ifile,*,iostat=i_err) mwffreq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_pulse_time') ! Number of time steps in which the monochormatic microwave field is on
+               read(ifile,*,iostat=i_err) mwf_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_site_file') ! Site dependent monochromatic microwave field
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_site_file=adjustl(trim(cache))
+
+            case('site_phase') ! Flag for site dependent phase
+               read(ifile,*,iostat=i_err) site_phase
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('site_phase_file') ! Site dependent phase for the monochromatic microwave field
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               site_phase_file=adjustl(trim(cache))
+
+            case('prn_mwf') ! Flag for printing the monochromatic microwave field
+               read(ifile,*,iostat=i_err) prn_mwf
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_step') ! Interval for sampling the monochromatic microwave field
+               read(ifile,*,iostat=i_err) mwf_step
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_buff') ! Buffer size for the monochromatic microwave field
+               read(ifile,*,iostat=i_err) mwf_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss') ! Flag for the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_dir') ! Direction of the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_dir
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_ampl') ! Amplitude of the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_freq') ! Frequency of the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_freq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_time_sigma') ! Frequency sigma parameter for the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_time_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_gauss_pulse_time') ! Number of time steps in which the frequency broadened  microwave field is on
+               read(ifile,*,iostat=i_err) mwf_gauss_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_site_file') ! Site dependent frequency broadended microwave field
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_gauss_site_file=adjustl(trim(cache))
+
+            case('prn_mwf_gauss') ! Flag for printing the static gaussian shaped field
+               read(ifile,*,iostat=i_err) prn_mwf_gauss
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_step') ! Interval for sampling the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_step
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_buff') ! Buffer size for the frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial') ! Flag for the frequency broadened gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_ampl') ! Amplitude for the frequency broadened gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_freq') ! Frequency for the frequency broadened gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_freq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_pulse_time') ! Number of time steps in which the frequency broadened gaussian shaped microwave field is on
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_time_sigma') ! Frequency sigma parameter for the frequency broadened gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_time_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_gauss_spatial_space_sigma') ! Spatial sigma parameter for the frequency broadened gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_space_sigma(1), mwf_gauss_spatial_space_sigma(2), mwf_gauss_spatial_space_sigma(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_gauss_spatial_site_file') ! Site dependent gaussian shaped gaussian broadened microwave field
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_gauss_spatial_site_file=adjustl(trim(cache))
+
+            case('prn_mwf_gauss_spatial') ! Flag for printing the gaussian shaped frequency broadened microwave field
+               read(ifile,*,iostat=i_err) prn_mwf_gauss_spatial
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_step') ! Interval for sampling the gaussian shaped frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_step
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_gauss_spatial_buff') ! Buffer size for the gaussian shaped frequency broadened microwave field
+               read(ifile,*,iostat=i_err) mwf_gauss_spatial_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_gauss') ! Flag for the moving static gaussian shaped pulse
+               read(ifile,*,iostat=i_err) mov_gauss
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_gauss_step') ! Number of time steps in which the positions of the moving static gaussian shaped pulse is updated
+               read(ifile,*,iostat=i_err) mov_gauss_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_gauss_ampl') ! Amplitude of the moving static gaussian shaped pulse
+               read(ifile,*,iostat=i_err) mov_gauss_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_gauss_pulse_time') ! Number of time steps in which the moving static gaussian shaped pulse is on
+               read(ifile,*,iostat=i_err) mov_gauss_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_gauss_space_sigma') ! Sigma parameter for the moving gaussian shaped static field
+               read(ifile,*,iostat=i_err) mov_gauss_space_sigma(1), mov_gauss_space_sigma(2), mov_gauss_space_sigma(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mov_gauss_file') ! Moving static gaussian shaped field trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mov_gauss_file=adjustl(trim(cache))
+
+            case('prn_mov_gauss') ! Flag for printing the moving gaussian shaped static field
+               read(ifile,*,iostat=i_err) prn_mov_gauss
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_gauss_pstep') !  Interval for sampling the moving gaussian shaped static field
+               read(ifile,*,iostat=i_err) mov_gauss_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_gauss_buff') ! Buffer size for the moving gaussian shaped static field
+               read(ifile,*,iostat=i_err) mov_gauss_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_circle') ! Flag for the moving static circular shaped pulse
+               read(ifile,*,iostat=i_err) mov_circle
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_circle_step') ! Number of time steps in which the positions of the moving static circular shaped pulse is updated
+               read(ifile,*,iostat=i_err) mov_circle_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_circle_ampl') ! Amplitude of the moving static circular shaped pulse
+               read(ifile,*,iostat=i_err) mov_circle_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_circle_pulse_time') ! Number of time steps in which the moving static circular shaped pulse is on
+               read(ifile,*,iostat=i_err) mov_circle_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_circle_radius') ! Radius for the moving circular shaped static field
+               read(ifile,*,iostat=i_err) mov_circle_radius
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mov_circle_file') ! Moving static circular shaped field trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mov_circle_file=adjustl(trim(cache))
+
+            case('prn_mov_circle') ! Flag for printing the moving gaussian shaped static field
+               read(ifile,*,iostat=i_err) prn_mov_circle
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_circle_pstep') !  Interval for sampling the moving circular shaped static field
+               read(ifile,*,iostat=i_err) mov_circle_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_circle_buff') ! Buffer size for the moving circular shaped static field
+               read(ifile,*,iostat=i_err) mov_circle_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_square') ! Flag for the moving static cubic shaped pulse
+               read(ifile,*,iostat=i_err) mov_square
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_square_step') ! Number of time steps in which the positions of the moving static cubic shaped pulse is updated
+               read(ifile,*,iostat=i_err) mov_square_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_square_ampl') ! Amplitude of the moving static cubic shaped pulse
+               read(ifile,*,iostat=i_err) mov_square_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mov_square_pulse_time') ! Number of time steps in which the moving static cubic shaped pulse is on
+               read(ifile,*,iostat=i_err) mov_square_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_square_dimensions') ! Dimensions for the moving cubic shaped static field
+               read(ifile,*,iostat=i_err) mov_square_dimensions(1), mov_square_dimensions(2), mov_square_dimensions(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mov_square_file') ! Moving static cubic shaped field trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mov_square_file=adjustl(trim(cache))
+
+            case('prn_mov_square') ! Flag for printing the moving cubic shaped static field
+               read(ifile,*,iostat=i_err) prn_mov_square
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_square_pstep') !  Interval for sampling the moving cubic shaped static field
+               read(ifile,*,iostat=i_err) mov_square_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mov_square_buff') ! Buffer size for the moving cubic shaped static field
+               read(ifile,*,iostat=i_err) mov_square_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss') ! Flag for the moving microwave gaussian shaped field
+               read(ifile,*,iostat=i_err) mwf_mov_gauss
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_step') ! Number of time steps in which the positions of the moving microwave gaussian shaped pulse is updated
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_ampl') ! Amplitude of the moving microwave gaussian shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_freq') ! Frequency of the moving microwave gaussian shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_freq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_pulse_time') ! Number of time steps in which the moving microwave gaussian shaped pulse is on
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_space_sigma') ! Sigma parameter for the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_space_sigma(1), mwf_mov_gauss_space_sigma(2), mwf_mov_gauss_space_sigma(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_gauss_time_sigma') ! Sigma parameter for frequency gaussian in the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_time_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_gauss_file') ! Moving frequency broadened gaussian shaped microwave filed trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_mov_circle_file=adjustl(trim(cache))
+
+            case('prn_mwf_mov_gauss') ! Flag for printing the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) prn_mwf_mov_gauss
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_pstep') !  Interval for sampling the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_gauss_buff') ! Buffer size for the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_circle') ! Flag for the moving microwave circular shaped field
+               read(ifile,*,iostat=i_err) mwf_mov_circle
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_step') ! Number of time steps in which the positions of the moving microwave circle shaped pulse is updated
+               read(ifile,*,iostat=i_err) mwf_mov_circle_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_ampl') ! Amplitude of the moving microwave circular shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_circle_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_freq') ! Frequency of the moving microwave circular shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_circle_freq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_pulse_time') ! Number of time steps in which the moving microwave gaussian shaped pulse is on
+               read(ifile,*,iostat=i_err) mwf_mov_gauss_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_radius') ! Radius for the moving circle shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_circle_radius
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_circle_time_sigma') ! Sigma parameter for frequency circle in the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_circle_time_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_circle_file') ! Moving frequency broadened circular shaped microwave filed trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_mov_gauss_file=adjustl(trim(cache))
+
+            case('prn_mwf_mov_circle') ! Flag for printing the moving circular shaped microwave field
+               read(ifile,*,iostat=i_err) prn_mwf_mov_circle
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_pstep') !  Interval for sampling the moving circular shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_circle_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_circle_buff') ! Buffer size for the moving circular shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_circle_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_square') ! Flag for the moving microwave cubic shaped field
+               read(ifile,*,iostat=i_err) mwf_mov_square
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_square_step') ! Number of time steps in which the positions of the moving microwave square shaped pulse is updated
+               read(ifile,*,iostat=i_err) mwf_mov_square_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_square_ampl') ! Amplitude of the moving microwave cubic shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_square_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_square_freq') ! Frequency of the moving microwave cubic shaped pulse
+               read(ifile,*,iostat=i_err) mwf_mov_square_freq
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('mwf_mov_square_pulse_time') ! Number of time steps in which the moving microwave cubic shaped pulse is on
+               read(ifile,*,iostat=i_err) mwf_mov_square_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_square_dimensions') ! Dimensions for the moving cubic shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_square_dimensions(1), mwf_mov_square_dimensions(2),mwf_mov_square_dimensions(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_square_time_sigma') ! Sigma parameter for frequency cubic in the moving gaussian shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_square_time_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('mwf_mov_square_file') ! Moving frequency broadened cubic shaped microwave filed trajectory file
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               mwf_mov_square_file=adjustl(trim(cache))
+
+            case('prn_mwf_mov_square') ! Flag for printing the moving cubic shaped microwave field
+               read(ifile,*,iostat=i_err) prn_mwf_mov_square
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_square_pstep') !  Interval for sampling the moving square shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_square_pstep
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('mwf_mov_square_buff') ! Buffer size for the moving cubic shaped microwave field
+               read(ifile,*,iostat=i_err) mwf_mov_square_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('do_gauss') ! Static gaussian shaped field
+               read(ifile,*,iostat=i_err) do_gauss
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('gauss_spatial_ampl') ! Amplitude of the gaussian shaped static field
+               read(ifile,*,iostat=i_err) gauss_spatial_ampl
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gauss_spatial_sigma') ! Sigma parameter for the gaussian shaped static field
+               read(ifile,*,iostat=i_err) gauss_spatial_sigma(1), gauss_spatial_sigma(2), gauss_spatial_sigma(3)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword), ' data',i_err
+
+            case('gauss_pulse_time') ! Number of time steps in which the static gaussian shaped pulse is on
+               read(ifile,*,iostat=i_err) gauss_pulse_time
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('gauss_site_file') ! Static gaussian shaped field
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               gauss_site_file=adjustl(trim(cache))
+
+            case('prn_gauss') ! Print gaussian shaped static field
+               read(ifile,*,iostat=i_err) prn_gauss
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('gauss_step') ! Time interval to measure the microwave field
+               read(ifile,*,iostat=i_err) gauss_step
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            case('gauss_buff') ! Buffer size for the static gaussian shaped field
+               read(ifile,*,iostat=i_err) gauss_buff
+               if(i_err/=0) write(*,*) 'ERROR:  Reading ', trim(keyword),' data',i_err
+
+            end select
+         end if
+
+         ! End of file
+         if (i_errb==20) goto 20
+         ! End of row
+         if (i_errb==10) goto 10
+      end do
+
+      20  continue
+
+      rewind(ifile)
+      return
+   end subroutine read_parameters_mwf
 
 end module MicroWaveField

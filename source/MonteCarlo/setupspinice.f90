@@ -15,79 +15,79 @@ module SetupSpinIce
    use prn_SpinIce
    use ErrorHandling
 
-  implicit none
+   implicit none
 
-  integer, dimension(:,:), allocatable :: nm_ver_ver
-  integer, dimension(:,:), allocatable :: nm_ver_atom
-  integer, dimension(:), allocatable :: nmdim_ver_ver ! Dimension of neighbour map
-  integer, dimension(:), allocatable :: nmdim_ver_atom
+   integer, dimension(:,:), allocatable :: nm_ver_ver
+   integer, dimension(:,:), allocatable :: nm_ver_atom
+   integer, dimension(:), allocatable :: nmdim_ver_ver ! Dimension of neighbour map
+   integer, dimension(:), allocatable :: nmdim_ver_atom
 
-  private
+   private
 
-  public :: setup_ice_neighbours,setup_vertex_geometry
-  public :: read_parameters_spinice, spin_ice_init, read_vertices
+   public :: setup_ice_neighbours,setup_vertex_geometry
+   public :: read_parameters_spinice, spin_ice_init, read_vertices
 
-  contains
+contains
 
-!> setup system
-subroutine setup_ice_neighbours(Natom, Mensemble,NT,NA, N1, N2, N3, BC1, BC2, BC3, atype, Bas, sym, simid,coord)
+   !> setup system
+   subroutine setup_ice_neighbours(Natom, Mensemble,NT,NA, N1, N2, N3, BC1, BC2, BC3, atype, Bas, sym, simid,coord)
 
-! use Geometry, only : coord_vertices
+      ! use Geometry, only : coord_vertices
 
-    !.. Implicit declarations
-    implicit none
+      !.. Implicit declarations
+      implicit none
 
-    integer, intent(inout) :: Natom ! Number of atoms in system
-    integer, intent(in) :: NT ! Number of types of atoms
-    integer, intent(in) :: NA  ! Number of atoms in one cell
-    integer, intent(in) :: N1  ! Number of cell repetitions in x direction
-    integer, intent(in) :: N2  ! Number of cell repetitions in y direction
-    integer, intent(in) :: N3  ! Number of cell repetitions in z direction
-    integer, intent(in) :: Mensemble
-    character(len=1), intent(in) :: BC1 ! Boundary conditions in x-direction
-    character(len=1), intent(in) :: BC2 ! Boundary conditions in y-direction
-    character(len=1), intent(in) :: BC3 ! Boundary conditions in z-direction
-    integer, dimension(Natom), intent(inout) :: atype
-    real(dblprec), dimension(3,NA), intent(inout) :: Bas !< Coordinates for basis atoms
-    integer, intent(in) :: sym ! Symmetry of system (0-3)
-    real(dblprec), dimension(3,Natom), intent(in) :: coord
-    character(len=8) :: simid ! Name of simulation
-
-
-    character(len=1) :: neigh_type
-
-    call ErrorHandling_missing('Spin-ice')
+      integer, intent(inout) :: Natom ! Number of atoms in system
+      integer, intent(in) :: NT ! Number of types of atoms
+      integer, intent(in) :: NA  ! Number of atoms in one cell
+      integer, intent(in) :: N1  ! Number of cell repetitions in x direction
+      integer, intent(in) :: N2  ! Number of cell repetitions in y direction
+      integer, intent(in) :: N3  ! Number of cell repetitions in z direction
+      integer, intent(in) :: Mensemble
+      character(len=1), intent(in) :: BC1 ! Boundary conditions in x-direction
+      character(len=1), intent(in) :: BC2 ! Boundary conditions in y-direction
+      character(len=1), intent(in) :: BC3 ! Boundary conditions in z-direction
+      integer, dimension(Natom), intent(inout) :: atype
+      real(dblprec), dimension(3,NA), intent(inout) :: Bas !< Coordinates for basis atoms
+      integer, intent(in) :: sym ! Symmetry of system (0-3)
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      character(len=8) :: simid ! Name of simulation
 
 
-end subroutine setup_ice_neighbours
+      character(len=1) :: neigh_type
 
-!> deallocation of arrays
-subroutine deallocate_nm_spin_ice()
+      call ErrorHandling_missing('Spin-ice')
 
-    implicit none
 
-    integer :: i_stat, i_all
+   end subroutine setup_ice_neighbours
 
-    call ErrorHandling_missing('Spin-ice')
-
-end subroutine deallocate_nm_spin_ice
-
-  !> Initialization of the variables needed for the Spin-Ice measurements
-  subroutine spin_ice_init()
+   !> deallocation of arrays
+   subroutine deallocate_nm_spin_ice()
 
       implicit none
 
-    real(dblprec) :: one=1.0_dblprec
-    real(dblprec) :: zero=0.0_dblprec
+      integer :: i_stat, i_all
 
-     !Vertices
-     NA_ver  = 0
-     NT_ver  = 0
-     ver_sym = 0
-     C1_ver  = (/one,zero,zero/)
-     C2_ver  = (/zero,one,zero/)
-     C3_ver  = (/zero,zero,one/)
-     vertex  = 'vertexfile'
+      call ErrorHandling_missing('Spin-ice')
+
+   end subroutine deallocate_nm_spin_ice
+
+   !> Initialization of the variables needed for the Spin-Ice measurements
+   subroutine spin_ice_init()
+
+      implicit none
+
+      real(dblprec) :: one=1.0_dblprec
+      real(dblprec) :: zero=0.0_dblprec
+
+      !Vertices
+      NA_ver  = 0
+      NT_ver  = 0
+      ver_sym = 0
+      C1_ver  = (/one,zero,zero/)
+      C2_ver  = (/zero,one,zero/)
+      C3_ver  = (/zero,zero,one/)
+      vertex  = 'vertexfile'
 
       ver_no          = 0
       mchits          = 0
@@ -97,88 +97,88 @@ end subroutine deallocate_nm_spin_ice
       loop_ave_len    = 0.0d0
       mchits_spin_ice = 0
 
-  end subroutine spin_ice_init
+   end subroutine spin_ice_init
 
-  !> Setup vertices to first supercell.
-  subroutine setup_globvertices(Nvertex, NA_ver, Bas_ver, C1_ver, C2_ver, C3_ver, N1, N2, N3, atype_ver, anumb_ver, do_prnstruct, simid,coord_vertices)
-    !
-    !
-    implicit none
-    !
-    integer, intent(inout) :: Nvertex !< Number of atoms in system
-    integer, intent(in) :: NA_ver  !< Number of atoms in one cell
-    real(dblprec), dimension(3,NA_ver) , intent(inout) :: Bas_ver !< Coordinates for basis atoms
-    real(dblprec), dimension(3) , intent(in) :: C1_ver !< First lattice vector
-    real(dblprec), dimension(3) , intent(in) :: C2_ver !< Second lattice vector
-    real(dblprec), dimension(3) , intent(in) :: C3_ver !< Third lattice vector
-    real(dblprec), dimension(:,:),allocatable,intent(inout) :: coord_vertices !< Coordinates of atoms
-    integer, intent(in) :: N1  !< Number of cell repetitions in x direction
-    integer, intent(in) :: N2  !< Number of cell repetitions in y direction
-    integer, intent(in) :: N3  !< Number of cell repetitions in z direction
-    integer, dimension(Nvertex), intent(in) :: atype_ver !< Type of atom
-    integer, dimension(Nvertex), intent(in) :: anumb_ver !< Atom number in cell
-    integer, intent(in) :: do_prnstruct !< Print Hamiltonian information (0/1)
-    character(len=8) :: simid !< Name of simulation
+   !> Setup vertices to first supercell.
+   subroutine setup_globvertices(Nvertex, NA_ver, Bas_ver, C1_ver, C2_ver, C3_ver, N1, N2, N3, atype_ver, anumb_ver, do_prnstruct, simid,coord_vertices)
+      !
+      !
+      implicit none
+      !
+      integer, intent(inout) :: Nvertex !< Number of atoms in system
+      integer, intent(in) :: NA_ver  !< Number of atoms in one cell
+      real(dblprec), dimension(3,NA_ver) , intent(inout) :: Bas_ver !< Coordinates for basis atoms
+      real(dblprec), dimension(3) , intent(in) :: C1_ver !< First lattice vector
+      real(dblprec), dimension(3) , intent(in) :: C2_ver !< Second lattice vector
+      real(dblprec), dimension(3) , intent(in) :: C3_ver !< Third lattice vector
+      real(dblprec), dimension(:,:),allocatable,intent(inout) :: coord_vertices !< Coordinates of atoms
+      integer, intent(in) :: N1  !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2  !< Number of cell repetitions in y direction
+      integer, intent(in) :: N3  !< Number of cell repetitions in z direction
+      integer, dimension(Nvertex), intent(in) :: atype_ver !< Type of atom
+      integer, dimension(Nvertex), intent(in) :: anumb_ver !< Atom number in cell
+      integer, intent(in) :: do_prnstruct !< Print Hamiltonian information (0/1)
+      character(len=8) :: simid !< Name of simulation
 
-    integer :: i,i_stat
-    integer :: I0, i1, i2, i3
-    integer :: iatom
-    character(len=20) :: filn
-    real(dblprec) :: detmatrix
-    real(dblprec), dimension(3) :: icvec, bsf
-    real(dblprec), dimension(3,3) :: invmatrix
-    !
+      integer :: i,i_stat
+      integer :: I0, i1, i2, i3
+      integer :: iatom
+      character(len=20) :: filn
+      real(dblprec) :: detmatrix
+      real(dblprec), dimension(3) :: icvec, bsf
+      real(dblprec), dimension(3,3) :: invmatrix
+      !
 
-    call ErrorHandling_missing('Spin-ice')
+      call ErrorHandling_missing('Spin-ice')
 
-  end subroutine setup_globvertices
+   end subroutine setup_globvertices
 
-  !> Sets up the type of vertices in the system
-  subroutine setup_vertex_type_and_numb(Nvertex, NA_ver, N1, N2, N3, atype_ver, anumb_ver, atype_inp_ver, anumb_inp_ver)
-    !
-    !
-    implicit none
+   !> Sets up the type of vertices in the system
+   subroutine setup_vertex_type_and_numb(Nvertex, NA_ver, N1, N2, N3, atype_ver, anumb_ver, atype_inp_ver, anumb_inp_ver)
+      !
+      !
+      implicit none
 
-    integer, intent(in) :: Nvertex ! Number of atoms in system
-    integer, intent(in) :: NA_ver  ! Number of atoms in one cell
-    integer, intent(in) :: N1  ! Number of cell repetitions in x direction
-    integer, intent(in) :: N2  ! Number of cell repetitions in y direction
-    integer, intent(in) :: N3  ! Number of cell repetitions in z direction
-    integer, dimension(Nvertex), intent(inout) :: atype_ver ! Type of atom
-    integer, dimension(Nvertex), intent(inout) :: anumb_ver ! Atom number in cell
-    integer, dimension(NA_ver), intent(inout) :: atype_inp_ver  ! Type of atom from input
-    integer, dimension(NA_ver), intent(inout) :: anumb_inp_ver ! Atom number in cell from input
-    !
-    integer :: A1
-    integer :: i0, i1, i2, i3
-    !
-    !
-    call ErrorHandling_missing('Spin-ice')
+      integer, intent(in) :: Nvertex ! Number of atoms in system
+      integer, intent(in) :: NA_ver  ! Number of atoms in one cell
+      integer, intent(in) :: N1  ! Number of cell repetitions in x direction
+      integer, intent(in) :: N2  ! Number of cell repetitions in y direction
+      integer, intent(in) :: N3  ! Number of cell repetitions in z direction
+      integer, dimension(Nvertex), intent(inout) :: atype_ver ! Type of atom
+      integer, dimension(Nvertex), intent(inout) :: anumb_ver ! Atom number in cell
+      integer, dimension(NA_ver), intent(inout) :: atype_inp_ver  ! Type of atom from input
+      integer, dimension(NA_ver), intent(inout) :: anumb_inp_ver ! Atom number in cell from input
+      !
+      integer :: A1
+      integer :: i0, i1, i2, i3
+      !
+      !
+      call ErrorHandling_missing('Spin-ice')
 
-  end subroutine setup_vertex_type_and_numb
+   end subroutine setup_vertex_type_and_numb
 
- !> Wrapper routine for setting up structural and chemical information about the system
-  subroutine setup_vertex_geometry( N1, N2, N3, do_prnstruct, simid)
-
-
-    !
-    implicit none
-
-    integer, intent(in) :: N1  ! Number of cell repetitions in x direction
-    integer, intent(in) :: N2  ! Number of cell repetitions in y direction
-    integer, intent(in) :: N3  ! Number of cell repetitions in z direction
-    integer, intent(in) :: do_prnstruct !< Print Hamiltonian information (0/1)
-    character(len=8), intent(in) :: simid !< Name of simulation
-    !
-    integer :: i_stat
-    !
-    call ErrorHandling_missing('Spin-ice')
-
-  end subroutine setup_vertex_geometry
+   !> Wrapper routine for setting up structural and chemical information about the system
+   subroutine setup_vertex_geometry( N1, N2, N3, do_prnstruct, simid)
 
 
-  subroutine GEOMETRICAL_ICE(Natom,Nvertex,nlistsize_ver_atom,nlist_ver_atom,max_no_equiv_ver_atom,coord,coord_vertices,vert_ice_coord,simid, &
-             BC1,BC2,BC3,ver_atom_dist_coord,NT_ver,atype_ver)
+      !
+      implicit none
+
+      integer, intent(in) :: N1  ! Number of cell repetitions in x direction
+      integer, intent(in) :: N2  ! Number of cell repetitions in y direction
+      integer, intent(in) :: N3  ! Number of cell repetitions in z direction
+      integer, intent(in) :: do_prnstruct !< Print Hamiltonian information (0/1)
+      character(len=8), intent(in) :: simid !< Name of simulation
+      !
+      integer :: i_stat
+      !
+      call ErrorHandling_missing('Spin-ice')
+
+   end subroutine setup_vertex_geometry
+
+
+   subroutine GEOMETRICAL_ICE(Natom,Nvertex,nlistsize_ver_atom,nlist_ver_atom,max_no_equiv_ver_atom,coord,coord_vertices,vert_ice_coord,simid, &
+         BC1,BC2,BC3,ver_atom_dist_coord,NT_ver,atype_ver)
 
       implicit none
 
@@ -208,9 +208,9 @@ end subroutine deallocate_nm_spin_ice
       character(len=30) :: filn
 
       vert_ice_coord=0.0d0
-    call ErrorHandling_missing('Spin-ice')
+      call ErrorHandling_missing('Spin-ice')
 
-  end subroutine GEOMETRICAL_ICE
+   end subroutine GEOMETRICAL_ICE
 
 
    !---------------------------------------------------------------------------
@@ -234,22 +234,22 @@ end subroutine deallocate_nm_spin_ice
       logical :: comment
 
 
-    call ErrorHandling_missing('Spin-ice')
+      call ErrorHandling_missing('Spin-ice')
 
-end subroutine read_parameters_spinice
+   end subroutine read_parameters_spinice
 
-  subroutine read_vertices()
-  use FileParser
+   subroutine read_vertices()
+      use FileParser
 
-   implicit none
+      implicit none
 
-   integer :: i_err,rd_len,i_errb, iat,i_stat
-   character(len=50) :: keyword
-   logical :: comment
+      integer :: i_err,rd_len,i_errb, iat,i_stat
+      character(len=50) :: keyword
+      logical :: comment
 
-    call ErrorHandling_missing('Spin-ice')
+      call ErrorHandling_missing('Spin-ice')
 
-  end subroutine read_vertices
+   end subroutine read_vertices
 
 
 end module SetupSpinIce

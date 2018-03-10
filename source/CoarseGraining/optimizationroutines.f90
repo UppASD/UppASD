@@ -1,11 +1,14 @@
-!> Optimiztion stuff ....
+!-------------------------------------------------------------------------------
+! MODULE: OPTIMIZATIONROUTINES
+!> @brief Routines to perform optimization based in a cluster algorithm
 !> @author
 !! Johan Venemalm, Thomas Nystrand, Anders Bergman
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!-------------------------------------------------------------------------------
 module optimizationRoutines
    use Parameters
    use Profiling
@@ -107,8 +110,8 @@ contains
       integer :: i_all,i_stat                                                ! Profiling related
       integer, dimension(Mensemble) :: nOfCoresFound
 
-        call ErrorHandling_missing('Coarse-graining')
-  
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine buildOptimizationRegions
 
 
@@ -127,8 +130,8 @@ contains
       ! Local optimization variables
       integer :: temp_index,k
 
-        call ErrorHandling_missing('Coarse-graining')
-  
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine invalidationCheck
 
    ! Allocation is not done for unitCellType since this must
@@ -220,9 +223,9 @@ contains
       ! Local variables
       integer :: i
 
-        cellPosNumNeigh=0
-        call ErrorHandling_missing('Coarse-graining')
-  
+      cellPosNumNeigh=0
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine getCellPosNumNeigh
 
    ! First evolve step for constellations
@@ -265,8 +268,8 @@ contains
       integer :: i, j, ij
       !
 
-        call ErrorHandling_missing('Coarse-graining')
-  
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine smodeulermpt_constl
 
 
@@ -310,8 +313,8 @@ contains
       ! ... Local variables ...
       integer :: i, j, ij
       !
-        call ErrorHandling_missing('Coarse-graining')
-  
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine modeulermpf_constl
 
 
@@ -338,8 +341,8 @@ contains
 
       character(len=1) :: OPT_flag_str, adapt_flag_str, ip_adapt_flag_str, OPT_printcores_flag_str
 
-        call ErrorHandling_missing('Coarse-graining')
-  
+      call ErrorHandling_missing('Coarse-graining')
+
    end subroutine read_parameters_opt
 
    subroutine set_opt_defaults(delta_t)

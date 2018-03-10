@@ -42,7 +42,7 @@ contains
       integer :: k
 
       mdos=0.d0 ; edos=0.d0
-!      beta=1.d0/3.d0                       !beta critical exponent (3D)
+      !      beta=1.d0/3.d0                       !beta critical exponent (3D)
       beta=0.365d0                      !beta critical exponent (3D)
       emin=minval(magdos(:,1))
       emax=maxval(magdos(:,1))
@@ -81,12 +81,12 @@ contains
                qhb=sum(qint(:)*mdos(:))*deltae*fac
                temprescale=qhb/chb
             else
-! Enforce classical statistics at Tdebye with additional renormalization
+               ! Enforce classical statistics at Tdebye with additional renormalization
                qint=magdos(:,1)/(exp(magdos(:,1)/emax)-1.d0)
                qint(1)=emax
                cfac=(sum(qint(:)*magdos(:,2))*deltae)/emax
                mdos=magdos(:,2)/fac/cfac
-!--------
+               !--------
                edos=magdos(:,1)*fac
                qint=edos(:)/(exp(edos(:)/chb)-1.d0)
                qint(1)=chb

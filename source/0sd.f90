@@ -41,15 +41,15 @@
 !
 !------------------------------------------------------------------------------
 program SD
-    !
-    use Parameters
-    use ErrorHandling
-    use Profiling
-    use omp_lib
-    use InputData, only: Nstep
-    !
-    use SD_driver
-    use MC_driver
+   !
+   use Parameters
+   use ErrorHandling
+   use Profiling
+   use omp_lib
+   use InputData, only: Nstep
+   !
+   use SD_driver
+   use MC_driver
 
    !.. Implicit declarations
    implicit none
@@ -150,143 +150,143 @@ contains
    end function number_of_active_processors
 
 
-    !---------------------------------------------------------------------------
-    !> @brief
-    !> Initialize simulation by setting up Hamiltonian and magnetic moments
-    !> * Read input file
-    !> * Print input data
-    !> * Initialize random number generator
-    !> * Set up Hamiltonian
-    !> * Initialize magnetic moments
-    !
-    !> @author
-    !> Anders Bergman
-    !
-    !> @date 11/08/2014 - Thomas Nystrand
-    !> - Moved to separate function
-    !---------------------------------------------------------------------------
-    subroutine run_initial_phase()
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Initialize simulation by setting up Hamiltonian and magnetic moments
+   !> * Read input file
+   !> * Print input data
+   !> * Initialize random number generator
+   !> * Set up Hamiltonian
+   !> * Initialize magnetic moments
+   !
+   !> @author
+   !> Anders Bergman
+   !
+   !> @date 11/08/2014 - Thomas Nystrand
+   !> - Moved to separate function
+   !---------------------------------------------------------------------------
+   subroutine run_initial_phase()
 
-       use OptimizationRoutines
-       use SystemData
-       use InputData
-       use HamiltonianData
-       use MomentData
-       use QMinimizer
+      use OptimizationRoutines
+      use SystemData
+      use InputData
+      use HamiltonianData
+      use MomentData
+      use QMinimizer
 
-       implicit none
+      implicit none
 
-       write (*,'(1x,a)') "Enter initial phase:"
+      write (*,'(1x,a)') "Enter initial phase:"
 
-       if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
-          ! Monte Carlo initial phase
-          call mc_iphase()
-       elseif (ipmode=='S') then
-          ! Spin dynamics initial phase
-          call sd_iphase()
-       elseif (ipmode=='Q') then
-          ! Spin spiral minimization initial phase
-                      call ErrorHandling_missing('Q-minimization')
+      if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
+         ! Monte Carlo initial phase
+         call mc_iphase()
+      elseif (ipmode=='S') then
+         ! Spin dynamics initial phase
+         call sd_iphase()
+      elseif (ipmode=='Q') then
+         ! Spin spiral minimization initial phase
+         call ErrorHandling_missing('Q-minimization')
 
-       elseif (ipmode=='G') then
+      elseif (ipmode=='G') then
          call ErrorHandling_missing('VPO-minimization')
-       endif
-    end subroutine run_initial_phase
+      endif
+   end subroutine run_initial_phase
 
 
 
-    !---------------------------------------------------------------------------
-    !> @brief
-    !> Run the main simulation loop and obtain measurements
-    !> * Spin correlation
-    !> * Magnetic averages
-    !> * Spin transfer torque
-    !
-    !> @author
-    !> Anders Bergman
-    !
-    !> @date 11/08/2014 - Thomas Nystrand
-    !> - Moved to separate function
-    !---------------------------------------------------------------------------
-    subroutine run_measurement_phase()
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Run the main simulation loop and obtain measurements
+   !> * Spin correlation
+   !> * Magnetic averages
+   !> * Spin transfer torque
+   !
+   !> @author
+   !> Anders Bergman
+   !
+   !> @date 11/08/2014 - Thomas Nystrand
+   !> - Moved to separate function
+   !---------------------------------------------------------------------------
+   subroutine run_measurement_phase()
 
-       use BLS,               only: calc_bls, deallocate_bls_data
-       use Correlation,       only: correlation_wrapper, sc_nstep
-       use AutoCorrelation,   only: do_autocorr, allocate_autocorr, autocorr_init
-       use OptimizationRoutines
-       use SystemData
-       use InputData
-       use HamiltonianData
-       use MomentData
-       use ChemicalData
-       use SimulationData
-       use QMinimizer
-       use Restart
+      use BLS,               only: calc_bls, deallocate_bls_data
+      use Correlation,       only: correlation_wrapper, sc_nstep
+      use AutoCorrelation,   only: do_autocorr, allocate_autocorr, autocorr_init
+      use OptimizationRoutines
+      use SystemData
+      use InputData
+      use HamiltonianData
+      use MomentData
+      use ChemicalData
+      use SimulationData
+      use QMinimizer
+      use Restart
 
-       integer :: cflag, cflag_p
-
-
-       write (*,'(1x,a)') "Enter measurement phase:"
-       ! Allocate and initialize spin arrays for autocorrelation
-       call timing(0,'SpinCorr      ','ON')
-       if(do_autocorr=='Y') call allocate_autocorr(Natom)
-       if(do_autocorr=='Y') call autocorr_init(Natom, Mensemble, simid, rstep, initmag, emom)
-       call timing(0,'SpinCorr      ','OF')
+      integer :: cflag, cflag_p
 
 
-       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
-          call mc_mphase() ! Monte Carlo measurement phase
-
-       elseif (mode=='S') then
-          call print_siminfo()
-          if (gpu_mode==0) then !FORTRAN
-             call sd_mphase() ! Spin Dynamics measurement phase
-          else ! C++ or CUDA
-             call sd_mphaseCUDA()
-          endif
-
-       elseif (mode=='Q') then
-             call ErrorHandling_missing('Q-minimization')
+      write (*,'(1x,a)') "Enter measurement phase:"
+      ! Allocate and initialize spin arrays for autocorrelation
+      call timing(0,'SpinCorr      ','ON')
+      if(do_autocorr=='Y') call allocate_autocorr(Natom)
+      if(do_autocorr=='Y') call autocorr_init(Natom, Mensemble, simid, rstep, initmag, emom)
+      call timing(0,'SpinCorr      ','OF')
 
 
-       elseif (mode=='G') then
-             call ErrorHandling_missing('GNEB')
+      if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
+         call mc_mphase() ! Monte Carlo measurement phase
 
-       endif
+      elseif (mode=='S') then
+         call print_siminfo()
+         if (gpu_mode==0) then !FORTRAN
+            call sd_mphase() ! Spin Dynamics measurement phase
+         else ! C++ or CUDA
+            call sd_mphaseCUDA()
+         endif
 
-       ! Save moment information from final simulation step
-       mstep = mstep-1
-       call timing(0,'PrintRestart  ','ON')
-       call prnrestart(Natom, Mensemble, simid, mstep, emom, mmom)
-       call timing(0,'PrintRestart  ','OF')
-
-       call timing(0,'SpinCorr      ','ON')
-       cflag = 2 ; cflag_p = 2
-
-       ! Spin-correlation
-       call correlation_wrapper(Natom, Mensemble, coord, simid, emomM, mstep, delta_t, NT, atype, Nchmax, achtype, cflag, cflag_p)
-
-       ! Lattice-correlation
-       call calc_bls(N1,N2,N3,C1,C2,C3,Natom, Mensemble, simid,coord, emomM, mstep,delta_t, cflag)
-       call deallocate_bls_data()
-
-       call timing(0,'SpinCorr      ','OF')
-
-    end subroutine run_measurement_phase
+      elseif (mode=='Q') then
+         call ErrorHandling_missing('Q-minimization')
 
 
+      elseif (mode=='G') then
+         call ErrorHandling_missing('GNEB')
 
-    !---------------------------------------------------------------------------
-    !> @brief
-    !> Finish simulation and deallocate leftovers
-    !
-    !> @author
-    !> Anders Bergman
-    !
-    !> @date 11/08/2014 - Thomas Nystrand
-    !> - Moved to separate function
-    !---------------------------------------------------------------------------
-    subroutine cleanup_simulation()
+      endif
+
+      ! Save moment information from final simulation step
+      mstep = mstep-1
+      call timing(0,'PrintRestart  ','ON')
+      call prnrestart(Natom, Mensemble, simid, mstep, emom, mmom)
+      call timing(0,'PrintRestart  ','OF')
+
+      call timing(0,'SpinCorr      ','ON')
+      cflag = 2 ; cflag_p = 2
+
+      ! Spin-correlation
+      call correlation_wrapper(Natom, Mensemble, coord, simid, emomM, mstep, delta_t, NT, atype, Nchmax, achtype, cflag, cflag_p)
+
+      ! Lattice-correlation
+      call calc_bls(N1,N2,N3,C1,C2,C3,Natom, Mensemble, simid,coord, emomM, mstep,delta_t, cflag)
+      call deallocate_bls_data()
+
+      call timing(0,'SpinCorr      ','OF')
+
+   end subroutine run_measurement_phase
+
+
+
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Finish simulation and deallocate leftovers
+   !
+   !> @author
+   !> Anders Bergman
+   !
+   !> @date 11/08/2014 - Thomas Nystrand
+   !> - Moved to separate function
+   !---------------------------------------------------------------------------
+   subroutine cleanup_simulation()
       use Correlation
       use SpinIceData, only : allocate_spinice_data, allocate_vertex_data
       use InputData
@@ -322,8 +322,8 @@ contains
       call allocate_deltatcorr(.false.)
 
       if (mode=='L') then
-        call allocate_spinice_data(Natom,Mensemble,-1)
-        call allocate_vertex_data(-1)
+         call allocate_spinice_data(Natom,Mensemble,-1)
+         call allocate_vertex_data(-1)
       end if
 
       ! Deallocate dampings
@@ -338,7 +338,7 @@ contains
       if(OPT_ON) then
          call allocateOptimizationStuff(na,natom,Mensemble,.false.)
       end if
-    end subroutine cleanup_simulation
+   end subroutine cleanup_simulation
 
 
    !---------------------------------------------------------------------------
@@ -481,10 +481,10 @@ contains
 
       ! Read LSF related items
       if (do_lsf == 'Y') then
-            call ErrorHandling_missing('Local spin fluctuations')
-     else
-            mconf=1
-     endif
+         call ErrorHandling_missing('Local spin fluctuations')
+      else
+         mconf=1
+      endif
 
       ! Site dependent damping for the initial phase
       if (ipmode=='S'.and.do_site_ip_damping=='Y') then
@@ -566,18 +566,18 @@ contains
 
       ! Set up geometry containing chemical data
       call setup_geometry(Natom, NA, N1, N2, N3, Bas, C1, C2, C3,&
-           coord, atype, anumb, atype_inp, anumb_inp, do_prnstruct, &
-           tseed, simid, do_ralloy, Natom_full, Nchmax, Nch, acellnumb, acellnumbrev, achtype, &
-           chconc, atype_ch, asite_ch, achem_ch)
+         coord, atype, anumb, atype_inp, anumb_inp, do_prnstruct, &
+         tseed, simid, do_ralloy, Natom_full, Nchmax, Nch, acellnumb, acellnumbrev, achtype, &
+         chconc, atype_ch, asite_ch, achem_ch)
 
       ! Allocating the damping arrays
       call allocate_damping(Natom,ipnphase,0)
 
       write(*,'(1x,a)') ' Setup up damping'
       call setup_damping(NA,Natom,Natom_full,ipmode,mode,ipnphase,&
-           do_ralloy,asite_ch,achem_ch,do_site_damping,&
-           do_site_ip_damping,iplambda1,iplambda2,mplambda1,mplambda2,&
-           iplambda1_array,iplambda2_array,lambda1_array,lambda2_array)
+         do_ralloy,asite_ch,achem_ch,do_site_damping,&
+         do_site_ip_damping,iplambda1,iplambda2,mplambda1,mplambda2,&
+         iplambda1_array,iplambda2_array,lambda1_array,lambda2_array)
 
       write(*,'(1x,a)') ' done'
 
@@ -591,7 +591,7 @@ contains
       write(*,'(1x,a)') ' Setup up temperature'
       if (ipnphase.ge.1) then
          do i=1, ipnphase
-            if(grad=='Y') then 
+            if(grad=='Y') then
                !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
                !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
                !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,iptemp_array(:,i))
@@ -616,7 +616,7 @@ contains
       print *,iptemp,TEMP
 
       if (mode=='L') then
-            call ErrorHandling_missing('Spin-ice')
+         call ErrorHandling_missing('Spin-ice')
 
       endif
 
@@ -645,18 +645,18 @@ contains
       ! Set up Hamiltonian, containing exchange, anisotropy, and optional terms
       ! like DM and dipolar interactions.
       call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Natom,acellnumb,acellnumbrev,&
-           achtype,atype_ch,asite_ch,achem_ch,atype,anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,&
-           sym,do_jtensor,max_no_neigh,max_no_shells,nn,nlistsize,nlist,redcoord,jc,jcD,jc_tens,ncoup,&
-           ncoupD,j_tens,do_dm,max_no_dmshells,max_no_dmneigh,dm_nn,dmlistsize,dmlist,dm_vect,dm_redcoord,&
-           dm_inpvect,do_anisotropy,taniso,taniso_diff,random_anisotropy_density,anisotropytype,&
-           anisotropytype_diff,anisotropy,anisotropy_diff,sb,sb_diff,eaniso,eaniso_diff,kaniso,&
-           kaniso_diff,random_anisotropy,mult_axis,mconf,conf_num,fs_nlistsize,fs_nlist,nind,&
-           map_multiple,do_lsf,lsf_field,exc_inter,do_bq,nn_bq_tot,max_no_bqshells,bq_nn,bqlistsize,&
-           bqlist,bq_redcoord,jc_bq,j_bq,do_biqdm,nn_biqdm_tot,max_no_biqdmshells,biqdm_nn,&
-           biqdmlistsize,biqdmlist,biqdm_redcoord,biqdm_inpvect,biqdm_vect,do_pd,nn_pd_tot,&
-           max_no_pdshells,pd_nn,pdlistsize,pdlist,pd_redcoord,pd_inpvect,pd_vect,do_dip,qdip,&
-           ind_mom,ind_nlistsize,ind_nlist,ind_tol,ind_mom_flag,&
-           do_prnstruct,do_sortcoup,simid)
+         achtype,atype_ch,asite_ch,achem_ch,atype,anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,&
+         sym,do_jtensor,max_no_neigh,max_no_shells,nn,nlistsize,nlist,redcoord,jc,jcD,jc_tens,ncoup,&
+         ncoupD,j_tens,do_dm,max_no_dmshells,max_no_dmneigh,dm_nn,dmlistsize,dmlist,dm_vect,dm_redcoord,&
+         dm_inpvect,do_anisotropy,taniso,taniso_diff,random_anisotropy_density,anisotropytype,&
+         anisotropytype_diff,anisotropy,anisotropy_diff,sb,sb_diff,eaniso,eaniso_diff,kaniso,&
+         kaniso_diff,random_anisotropy,mult_axis,mconf,conf_num,fs_nlistsize,fs_nlist,nind,&
+         map_multiple,do_lsf,lsf_field,exc_inter,do_bq,nn_bq_tot,max_no_bqshells,bq_nn,bqlistsize,&
+         bqlist,bq_redcoord,jc_bq,j_bq,do_biqdm,nn_biqdm_tot,max_no_biqdmshells,biqdm_nn,&
+         biqdmlistsize,biqdmlist,biqdm_redcoord,biqdm_inpvect,biqdm_vect,do_pd,nn_pd_tot,&
+         max_no_pdshells,pd_nn,pdlistsize,pdlist,pd_redcoord,pd_inpvect,pd_vect,do_dip,qdip,&
+         ind_mom,ind_nlistsize,ind_nlist,ind_tol,ind_mom_flag,&
+         do_prnstruct,do_sortcoup,simid)
 
       ! Allocate arrays for simulation and measurement
       call allocate_general(1)
@@ -669,12 +669,12 @@ contains
 
       ! Fill arrays with magnetic moment magnitudes from input
       call setup_moment(Natom, conf_num, Mensemble, NA, N1, N2, N3, Nchmax, ammom_inp, Landeg_ch, Landeg, mmom, mmom0, mmomi,&
-           do_ralloy, Natom_full, achtype, acellnumb,mconf)
+         do_ralloy, Natom_full, achtype, acellnumb,mconf)
 
       ! Set up magnetic moment vectors
       call magninit(Natom, conf_num, Mensemble, NA, N1, N2, N3, initmag, Nchmax, aemom_inp, anumb, do_ralloy, &
-           Natom_full, achtype, acellnumb, emom, emom2, emomM, mmom, rstep, theta0, phi0, restartfile, &
-           initrotang, initpropvec, initrotvec, coord, C1, C2, C3)!!!,do_fixed_mom,Nred,red_atom_list)
+         Natom_full, achtype, acellnumb, emom, emom2, emomM, mmom, rstep, theta0, phi0, restartfile, &
+         initrotang, initpropvec, initrotvec, coord, C1, C2, C3)!!!,do_fixed_mom,Nred,red_atom_list)
 
       ! Rotation of the initial spin configuration
       if (roteul >= 1) then
@@ -687,12 +687,12 @@ contains
       if (initexc == 'I') then
          write(*,'(1x,a,f10.4,a)',advance='no') 'Introduces ', initconc*100, '% vacancies'
          call setinitexc(Natom, Mensemble, emom, emomM, mmom, mmom2, emom2, &
-              initexc, initconc, initneigh, initimp, max_no_neigh, nlist, mseed)
+            initexc, initconc, initneigh, initimp, max_no_neigh, nlist, mseed)
          write (*,'(a)') ' done.'
       else if (initexc == 'R') then
          write(*,'(1x,a,f10.4,a)',advance='no') 'Introduces ', initconc*100, '% two-magnon Raman spin flips'
          call setinitexc(Natom, Mensemble, emom, emomM, mmom, mmom2, emom2, &
-              initexc, initconc, initneigh, initimp, max_no_neigh, nlist, mseed)
+            initexc, initconc, initneigh, initimp, max_no_neigh, nlist, mseed)
          write (*,'(a)') ' done.'
       end if
 
@@ -712,9 +712,9 @@ contains
       end if
 
       if (mode=='W') then
-            call ErrorHandling_missing('Wolff algorithm')
+         call ErrorHandling_missing('Wolff algorithm')
 
-         endif
+      endif
 
       call setup_mwf_fields(Natom,1)
 
@@ -737,10 +737,10 @@ contains
 
       ! Check if the micromagnetic information is calculated
       if (do_stiffness =='Y') then
-        call stiffness_wrapper(NT,NA,N1,N2,N3,1,mconf,Natom,Nchmax,conf_num,do_ralloy,&
-             Natom_full,max_no_neigh,Nch,anumb,atype,nlistsize,atype_ch,asite_ch,&
-             achem_ch,nlist,alat,C1,C2,C3,coord,chconc,ammom_inp,ncoup,max_no_dmneigh,&
-             dmlistsize,dmlist,dm_vect,do_anisotropy,anisotropy,simid)
+         call stiffness_wrapper(NT,NA,N1,N2,N3,1,mconf,Natom,Nchmax,conf_num,do_ralloy,&
+            Natom_full,max_no_neigh,Nch,anumb,atype,nlistsize,atype_ch,asite_ch,&
+            achem_ch,nlist,alat,C1,C2,C3,coord,chconc,ammom_inp,ncoup,max_no_dmneigh,&
+            dmlistsize,dmlist,dm_vect,do_anisotropy,anisotropy,simid)
       end if
 
       ! Deallocate input data for Heisenberg Hamiltonian
@@ -787,55 +787,55 @@ contains
    end subroutine sd_timing
 
 
-    !---------------------------------------------------------------------------
-    !> @brief
-    !> Allocate arrays needed for the simulations
-    !
-    !> @author
-    !> Anders Bergman
-    !---------------------------------------------------------------------------
-    subroutine allocate_general(flag)
-       !
-       use LLGI,          only : allocate_llgifields
-       use Depondt,       only : allocate_depondtfields
-       use InputData
-       use FieldData,     only : allocate_fields, read_local_field, allocation_field_time
-       use MonteCarlo,    only : mcmavg_buff, indxb_mcavrg
-       use Measurements,  only : allocate_measurementdata
-       use RandomNumbers, only : allocate_randomwork
-       !
-       implicit none
-       !
-       integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Allocate arrays needed for the simulations
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------
+   subroutine allocate_general(flag)
+      !
+      use LLGI,          only : allocate_llgifields
+      use Depondt,       only : allocate_depondtfields
+      use InputData
+      use FieldData,     only : allocate_fields, read_local_field, allocation_field_time
+      use MonteCarlo,    only : mcmavg_buff, indxb_mcavrg
+      use Measurements,  only : allocate_measurementdata
+      use RandomNumbers, only : allocate_randomwork
+      !
+      implicit none
+      !
+      integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
 
-       integer :: i_stat
+      integer :: i_stat
 
-       !
-       call allocate_fields(Natom,Mensemble,flag)
+      !
+      call allocate_fields(Natom,Mensemble,flag)
 
-       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
-       if(SDEalgh==5) then
-          call allocate_depondtfields(Natom, Mensemble,flag)
-       elseif(SDEalgh==11) then
-          call allocate_llgifields(Natom, Mensemble,flag)
-       end if
+      if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
+      if(SDEalgh==5) then
+         call allocate_depondtfields(Natom, Mensemble,flag)
+      elseif(SDEalgh==11) then
+         call allocate_llgifields(Natom, Mensemble,flag)
+      end if
 
-       if(SDEalgh>=1.and.SDEalgh<=4.or.SDEalgh==6.or.SDEalgh==7.or.SDEalgh==21.or.SDEalgh==22) &
-          call allocate_randomwork(Natom,Mensemble,flag,'N')
+      if(SDEalgh>=1.and.SDEalgh<=4.or.SDEalgh==6.or.SDEalgh==7.or.SDEalgh==21.or.SDEalgh==22) &
+         call allocate_randomwork(Natom,Mensemble,flag,'N')
 
-       call allocate_measurementdata(NA,NT,Natom,Mensemble,Nchmax,plotenergy,flag)
+      call allocate_measurementdata(NA,NT,Natom,Mensemble,Nchmax,plotenergy,flag)
 
-       if(allocated(mcmavg_buff)) then
-          allocate(mcmavg_buff(3,mcavrg_buff),stat=i_stat)
-          call memocc(i_stat,product(shape(mcmavg_buff))*kind(mcmavg_buff),'mcmavg_buff','allocate_general')
-       end if
+      if(allocated(mcmavg_buff)) then
+         allocate(mcmavg_buff(3,mcavrg_buff),stat=i_stat)
+         call memocc(i_stat,product(shape(mcmavg_buff))*kind(mcmavg_buff),'mcmavg_buff','allocate_general')
+      end if
 
-       if(allocated(indxb_mcavrg)) then
-          allocate(indxb_mcavrg(mcavrg_buff),stat=i_stat)
-          call memocc(i_stat,product(shape(indxb_mcavrg))*kind(indxb_mcavrg),'indxb_mcavrg','allocate_general')
-       end if
+      if(allocated(indxb_mcavrg)) then
+         allocate(indxb_mcavrg(mcavrg_buff),stat=i_stat)
+         call memocc(i_stat,product(shape(indxb_mcavrg))*kind(indxb_mcavrg),'indxb_mcavrg','allocate_general')
+      end if
 
-    end subroutine allocate_general
+   end subroutine allocate_general
 
 
    !---------------------------------------------------------------------------

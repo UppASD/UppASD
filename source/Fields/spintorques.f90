@@ -1,20 +1,20 @@
-!====================================================================!
-!> @brief
-!> Routines for calculating dm/dr. Needed for generalized spin-torque term (m x (m x dm/dx))
-!> \details For calculating the spin transfer torques, we use the standard adiabatic and non-adiabatic terms as introduced in the LLG equation by Zhang & Li. PRL 93, 127204 (2004).
+!-------------------------------------------------------------------------------
+! MODULE: SpinTorques
+!> @brief Routines for calculating \f$\frac{\partial\mathbf{m}}{\partial\mathbf{r}}\f$. Needed for generalized spin-torque term \f$\left(\mathbf{m} \times \left(\mathbf{m} \times \frac{\partial\mathbf{m}}{\partial \mathbf{r}}\right)\right)\f$
+!> @details For calculating the spin transfer torques, we use the standard adiabatic and non-adiabatic terms as introduced in the LLG equation by Zhang & Li. PRL 93, 127204 (2004).
 !> The terms are rewritten to suit the LL equations used in UppASD and here we use the same formulas as Schieback et. al, Eur. Phys. J. B 59, 429, (2007)
-!> Currently the torques are only calculated as their respective fields (i.e. missing the preceeding "m x ") since that is taken care of in the Depondt solver
-!> \todo Strenght of prefactors still not controlled
-!
+!> Currently the torques are only calculated as their respective fields (i.e. missing the preceeding \f$\mathbf{m} \times\f$) since that is taken care of in the Depondt solver
 !> @author
 !> Anders Bergman
-!> J. Chico ---> Added the SHE torque and the calculation of the current density
+!> @notes
+!> J. Chico
+!> - Added the SHE torque and the calculation of the current density
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
-!====================================================================!
+!-------------------------------------------------------------------------------
 
 module SpinTorques
 
@@ -71,17 +71,17 @@ contains
       !
       if(stt=='A') then
          call differentiate_moments(Natom, Mensemble,emom, dmomdr, sitenatomjvec)
-            !$omp parallel do default(shared) private(j,k)
-            do j=1, Natom
-               do k=1, Mensemble
-                  btorque(1,j,k)=(lambda1_array(j)-adibeta)*dmomdr(1,j,k)
-                  btorque(2,j,k)=(lambda1_array(j)-adibeta)*dmomdr(2,j,k)
-                  btorque(3,j,k)=(lambda1_array(j)-adibeta)*dmomdr(3,j,k)
-                  stt_prefac(j)=-(1.0d0+adibeta*lambda1_array(j))
-               enddo
+         !$omp parallel do default(shared) private(j,k)
+         do j=1, Natom
+            do k=1, Mensemble
+               btorque(1,j,k)=(lambda1_array(j)-adibeta)*dmomdr(1,j,k)
+               btorque(2,j,k)=(lambda1_array(j)-adibeta)*dmomdr(2,j,k)
+               btorque(3,j,k)=(lambda1_array(j)-adibeta)*dmomdr(3,j,k)
+               stt_prefac(j)=-(1.0d0+adibeta*lambda1_array(j))
             enddo
-            !$omp end parallel do
-        ! Calculates the m x (j*d/dr) m term
+         enddo
+         !$omp end parallel do
+         ! Calculates the m x (j*d/dr) m term
          call mom_cross_dmomdr(Natom, Mensemble,emom)
 
          ! external_field=external_field+btorque
@@ -99,7 +99,7 @@ contains
 
    !---------------------------------------------------------------------------
    !> @brief
-   !> Calculate ( m x (j * d/dr) m ) (which then ends up as one part of the spin transfer torque) for atomic damping dependence
+   !> Calculate \f$\left( \mathbf{m}\times  \left(\mathbf{u}\cdot \frac{\partial}{\partial\mathbf{r}}\right) \mathbf{m} \right)\f$ (which then ends up as one part of the spin transfer torque) for atomic damping dependence
    !
    !> @author
    !> Anders Bergman
@@ -195,13 +195,13 @@ contains
 
    end subroutine SHE_torque
 
-   !---------------------------------------------------------------------------$
-   !> @brief$
-   !> Allocation and deallocation of the
-   !$
-   !> @author$
-   !> Jonathan Chico$
-   !---------------------------------------------------------------------------$
+   !----------------------------------------------------------------------------
+   !> @brief
+   !> Allocation and deallocation of the arrays for the STT calculation
+   !
+   !> @author
+   !> Jonathan Chico
+   !----------------------------------------------------------------------------
    subroutine allocate_stt_data(Natom,Mensemble,flag)
 
       implicit none
@@ -360,6 +360,10 @@ contains
       return
    end subroutine read_parameters_stt
 
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: init_stt
+   !> @brief Set default values for STT calculations
+   !-----------------------------------------------------------------------------
    subroutine init_stt()
       !
       implicit none
@@ -447,58 +451,58 @@ contains
    !---------------------------------------------------------------------------
    subroutine print_curr_density(NA,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec,ammom_inp)
 
-     use Constants
+      use Constants
 
-     implicit none
+      implicit none
 
-     ! .. Input variables
-     integer, intent(in) :: NA  !< Number of atoms in one cell
-     integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
-     integer, intent(in) :: conf_num !< Number of LSF configurations
-     real(dblprec), intent(inout) :: alat !< Lattice parameter
-     real(dblprec), intent(inout) :: spin_pol  !< Spin polarization of the current
-     real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
-     real(dblprec), dimension(3), intent(in) :: C2 !< Second lattice vector
-     real(dblprec), dimension(3), intent(in) :: C3 !< Third lattice vector
-     real(dblprec), dimension(3), intent(in) :: jvec !< Input spin polarized current
-     real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp !< Magnetic moment directions from input (for alloys)
+      ! .. Input variables
+      integer, intent(in) :: NA  !< Number of atoms in one cell
+      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
+      integer, intent(in) :: conf_num !< Number of LSF configurations
+      real(dblprec), intent(inout) :: alat !< Lattice parameter
+      real(dblprec), intent(inout) :: spin_pol  !< Spin polarization of the current
+      real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
+      real(dblprec), dimension(3), intent(in) :: C2 !< Second lattice vector
+      real(dblprec), dimension(3), intent(in) :: C3 !< Third lattice vector
+      real(dblprec), dimension(3), intent(in) :: jvec !< Input spin polarized current
+      real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp !< Magnetic moment directions from input (for alloys)
 
-     ! .. Local variables
-     real(dblprec) :: cell_vol  !< Volume of the unit cell
-     real(dblprec) :: total_mom !< Total magnetization of the unit cell
-     real(dblprec), dimension(3) :: curr_den !< Current density in A/m^2
+      ! .. Local variables
+      real(dblprec) :: cell_vol  !< Volume of the unit cell
+      real(dblprec) :: total_mom !< Total magnetization of the unit cell
+      real(dblprec), dimension(3) :: curr_den !< Current density in A/m^2
 
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     ! Calculation of the current density in the sample
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Calculation of the current density in the sample
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        ! If alat is not defined set it to BCC Fe
-        if (alat.eq.1.d0) then
-           alat=2.856e-10
-           write(*,'(1x,a,2x,G14.6,a)') 'No lattice constant given, assuming BCC Fe lattice constant: ',alat,'m'
-         endif
+      ! If alat is not defined set it to BCC Fe
+      if (alat.eq.1.d0) then
+         alat=2.856e-10
+         write(*,'(1x,a,2x,G14.6,a)') 'No lattice constant given, assuming BCC Fe lattice constant: ',alat,'m'
+      endif
 
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! Calculate the volume of the cell in meters
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        cell_vol=(C1(1)*C2(2)*C3(3)-C1(1)*C2(3)*C3(2)+&
-              C1(2)*C2(3)*C3(1)-C1(2)*C2(1)*C3(3)+&
-              C1(3)*C2(1)*C3(2)-C1(3)*C2(2)*C3(1))*alat**3
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Calculate the volume of the cell in meters
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      cell_vol=(C1(1)*C2(2)*C3(3)-C1(1)*C2(3)*C3(2)+&
+         C1(2)*C2(3)*C3(1)-C1(2)*C2(1)*C3(3)+&
+         C1(3)*C2(1)*C3(2)-C1(3)*C2(2)*C3(1))*alat**3
 
-       total_mom=sum(ammom_inp(:,1,1))
+      total_mom=sum(ammom_inp(:,1,1))
 
       ! If the spin polarization is not set set it to one
-       if (spin_pol.eq.0) then
-           spin_pol=1
-           write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100%: ',spin_pol
-       endif
+      if (spin_pol.eq.0) then
+         spin_pol=1
+         write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100%: ',spin_pol
+      endif
       ! Calculate the current density
-       curr_den(1:3)=ev*total_mom*gama*alat*jvec(1:3)/(cell_vol*spin_pol)
-       write(*,'(a)',advance='no') 'Current density vector: '
-       write(*,'(2x,G14.6,2x,G14.6,2x,G14.6,1x,a)') curr_den(1),curr_den(2),curr_den(3),'A/m^2'
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     ! End of calculation of the current density in the sample
-     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      curr_den(1:3)=ev*total_mom*gama*alat*jvec(1:3)/(cell_vol*spin_pol)
+      write(*,'(a)',advance='no') 'Current density vector: '
+      write(*,'(2x,G14.6,2x,G14.6,2x,G14.6,1x,a)') curr_den(1),curr_den(2),curr_den(3),'A/m^2'
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! End of calculation of the current density in the sample
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    end subroutine print_curr_density
 
 end module SpinTorques

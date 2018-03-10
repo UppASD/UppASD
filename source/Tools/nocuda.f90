@@ -14,7 +14,7 @@ module nocuda
    public
 
 
-  contains
+contains
    subroutine fortrandata_setconstants()
       implicit none
       return
