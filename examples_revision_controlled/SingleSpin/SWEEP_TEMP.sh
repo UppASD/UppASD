@@ -17,12 +17,12 @@ do
  
       # Modify the files for the actual calculation
       # Setting the damping
-      sed -i '' "s/GILBERT/$damping/g" inpsd.dat
+      sed -i'' "s/GILBERT/$damping/g" inpsd.dat
 
       # Setting the temperature
-      sed -i '' "s/TEMPE/$TEMP/g" inpsd.dat
+      sed -i'' "s/TEMPE/$TEMP/g" inpsd.dat
       # Set the spin along the z-axis
-      sed -i '' "s/roteul    1/roteul    0/g" inpsd.dat
+      sed -i'' "s/roteul    1/roteul    0/g" inpsd.dat
 
       # Changing the number of replicas or ensembles that are performed
       for ENS in 200
@@ -34,7 +34,7 @@ do
 
          cd EN$ENS
   
-            sed -i '' "s/Mensemble 1/Mensemble $ENS/g" inpsd.dat
+            sed -i'' "s/Mensemble 1/Mensemble $ENS/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and $ENS emsembles"
             # Running the ASD simulation
             ../../../../source/sd > out.out
@@ -54,9 +54,9 @@ do
         cd EN1
 
 
-            sed -i '' "s/Nstep     100000/Nstep     1000000/g" inpsd.dat
-            sed -i '' "s/timestep  1.000e-14/timestep  1.000e-16/g" inpsd.dat
-            sed -i '' "s/Mensemble 1/Mensemble 1/g" inpsd.dat
+            sed -i'' "s/Nstep     100000/Nstep     1000000/g" inpsd.dat
+            sed -i'' "s/timestep  1.000e-14/timestep  1.000e-16/g" inpsd.dat
+            sed -i'' "s/Mensemble 1/Mensemble 1/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and 1 emsembles"
             # Running the ASD simulation
             ../../../../source/sd > out.out
