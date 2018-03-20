@@ -1,7 +1,7 @@
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License. 
+!! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
 module tools
 
@@ -106,6 +106,11 @@ contains
          deallocate(iplambda2,stat=i_stat)
          call memocc(i_stat,i_all,'iplambda2','deallocate_rest')
       end if
+      if(allocated(sitenatomfld)) then
+         i_all=-product(shape(sitenatomfld))*kind(sitenatomfld)
+         deallocate(sitenatomfld,stat=i_stat)
+         call memocc(i_stat,i_all,'sitenatomfld','deallocate_rest')
+      endif
 
       call deallocate_temp()
       call deallocate_gradient_lists()

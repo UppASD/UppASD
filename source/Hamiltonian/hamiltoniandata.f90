@@ -364,7 +364,7 @@ contains
    subroutine allocate_dipole(Natom,flag)
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, optional, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
 
       integer :: i_all, i_stat

@@ -312,6 +312,7 @@ contains
       if(do_bq==1) call allocate_bqhamiltoniandata(flag=-1)
       call allocate_mmoms(flag=-1)
       call allocate_general(flag=-1)
+      if(do_dip==1) call allocate_dipole(flag=-1)
       if(do_ralloy==1.or.oldformat) call allocate_chemicaldata(flag=-1)
       if(do_ralloy==1.or.oldformat) call allocate_chemicalinput(flag=-1)
       if(do_lsf=='Y') call allocate_lsfdata(NA,Nchmax,conf_num,flag=-1)
