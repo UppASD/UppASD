@@ -12,7 +12,6 @@ import vtk
 import time
 import numpy as np
 import ASDVTKReading
-from PyQt4 import QtCore, QtGui
 
 class ASDMomActors():
 
@@ -70,7 +69,7 @@ class ASDMomActors():
 
 			self.transfer_func = vtk.vtkColorTransferFunction()
 			self.transfer_func.SetColorSpaceToDiverging()
-			self.transfer_func.AddRGBPoint(-1, 0.230, 0.299, 0.754)
+			self.transfer_func.AddRGBPoint(-0, 0.230, 0.299, 0.754)
 			self.transfer_func.AddRGBPoint( 1, 0.706, 0.016, 0.150)
 
 	        for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
@@ -131,6 +130,7 @@ class ASDMomActors():
 			MagDensMethod = vtk.vtkDelaunay2D()
 			MagDensMethod.SetInputData(ASDMomActors.src)
 			MagDensMethod.BoundingTriangulationOff()
+			MagDensMethod.SetTolerance(0.005)
 			# Time the execution of the delaunay tessellation
 			SM_timer = vtk.vtkExecutionTimer()
 			SM_timer.SetFilter(MagDensMethod)
@@ -190,13 +190,13 @@ class ASDMomActors():
 			volumeGradientOpacity.AddPoint(1.0,1.0)
 
 			# Properties of the volume to be rendered
-			self.volumeProperty = vtk.vtkVolumeProperty()
-			self.volumeProperty.SetInterpolationType(1)
-			self.volumeProperty.SetColor(self.transfer_func)
-			self.volumeProperty.SetAmbient(0.6)
-			self.volumeProperty.SetDiffuse(0.6)
-			self.volumeProperty.SetSpecular(0.1)
-			self.volumeProperty.SetGradientOpacity(volumeGradientOpacity)
+			ASDMomActors.volumeProperty = vtk.vtkVolumeProperty()
+			ASDMomActors.volumeProperty.SetInterpolationType(1)
+			ASDMomActors.volumeProperty.SetColor(self.transfer_func)
+			ASDMomActors.volumeProperty.SetAmbient(0.6)
+			ASDMomActors.volumeProperty.SetDiffuse(0.6)
+			ASDMomActors.volumeProperty.SetSpecular(0.1)
+			ASDMomActors.volumeProperty.SetGradientOpacity(volumeGradientOpacity)
 			#volumeProperty.ShadeOn()
 
 			# Volume actor, this works in a different way than LOD actors
@@ -259,6 +259,7 @@ class ASDMomActors():
 		ASDMomActors.contActor.SetMapper(contMapper)
 		ASDMomActors.contActor.GetProperty().SetColor(0, 0, 0)
 		ASDMomActors.contActor.GetProperty().SetLineWidth(1.0)
+		ASDMomActors.contActor.VisibilityOff()
 
 	    ########################################################################
 	    # Data structures for the impurity cluster
@@ -279,6 +280,7 @@ class ASDMomActors():
 			atomSource = vtk.vtkDelaunay2D()
 			atomSource.SetInputData(src_clus)
 			atomSource.BoundingTriangulationOff()
+			atomSource.SetTolerance(0.05)
 			atomSource.Update()
 
  			smoothFilter =vtk.vtkSmoothPolyDataFilter()
@@ -334,8 +336,8 @@ class ASDMomActors():
 		arrow = vtk.vtkArrowSource()
 		arrow.SetTipRadius(0.20)
 		arrow.SetShaftRadius(0.10)
-		arrow.SetTipResolution(10)
-		arrow.SetShaftResolution(10)
+		arrow.SetTipResolution(20)
+		arrow.SetShaftResolution(20)
 
 		# Create the mapper for the spins
 		arrowMapper = vtk.vtkGlyph3DMapper()
@@ -363,8 +365,8 @@ class ASDMomActors():
 		ASDMomActors.spinarrow = vtk.vtkArrowSource()
 		ASDMomActors.spinarrow.SetTipRadius(0.20)
 		ASDMomActors.spinarrow.SetShaftRadius(0.10)
-		ASDMomActors.spinarrow.SetTipResolution(10)
-		ASDMomActors.spinarrow.SetShaftResolution(10)
+		ASDMomActors.spinarrow.SetTipResolution(20)
+		ASDMomActors.spinarrow.SetShaftResolution(20)
 
 		# Create the mapper for the spins
 		ASDMomActors.SpinMapper = vtk.vtkGlyph3DMapper()
@@ -426,8 +428,8 @@ class ASDMomActors():
 			########################################################################
 			# Setting data structures for the KMC particle visualization
 			########################################################################
-			self.KMC_src=vtk.vtkPolyData()
-			self.KMC_src.SetPoints(ASD_data.coord_KMC)
+			ASDMomActors.KMC_src=vtk.vtkPolyData()
+			ASDMomActors.KMC_src.SetPoints(ASD_data.coord_KMC)
 
 			# Atom sphere
 			KMC_part = vtk.vtkSphereSource()
@@ -436,7 +438,7 @@ class ASDMomActors():
 			KMC_part.SetPhiResolution(40)
 			# Atom glyph
 			KMC_part_mapper = vtk.vtkGlyph3DMapper()
-			KMC_part_mapper.SetInputData(self.KMC_src)
+			KMC_part_mapper.SetInputData(ASDMomActors.KMC_src)
 			KMC_part_mapper.SetSourceConnection(KMC_part.GetOutputPort())
 			KMC_part_mapper.SetScaleFactor(0.5)
 			KMC_part_mapper.ClampingOn()

@@ -6,20 +6,22 @@
 # This is the main routine to run the ASD Visualizer a vtk/python visualiztion GUI
 # and tool that allows the user to visualize several quantities obtained from the
 # UppASD spin dynamics software package.
+# @todo Fix the setting of the camera as it seems to be broken right now
+# @todo Check about a DM mode?
+# @todo Create a neighbour pannel?
 ################################################################################
 import vtk
 import sys
 import time
-import glob
 import os.path
 import ASDQTMenu
 import ASDQTDocket
 import ASDVTKReading
 import ASDMomVTKActors
 import ASDNeighVTKActors
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtGui import QApplication
-from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QApplication
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 ################################################################################
 # The class for the creation of the main window where the rendering will take place
@@ -31,10 +33,11 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1480, 860)
-        self.centralWidget = QtGui.QWidget(MainWindow)
-        self.gridlayout = QtGui.QGridLayout(self.centralWidget)
+        self.centralWidget = QtWidgets.QWidget(MainWindow)
+        self.gridlayout = QtWidgets.QGridLayout(self.centralWidget)
         self.vtkWidget = QVTKRenderWindowInteractor(self.centralWidget)
-        self.gridlayout.addWidget(self.vtkWidget, 0, 0, 1, 1)
+        self.gridlayout.addWidget(self.vtkWidget, 0, 0)
+        self.centralWidget.setLayout(self.gridlayout)
         MainWindow.setCentralWidget(self.centralWidget)
 
         return
@@ -42,7 +45,7 @@ class Ui_MainWindow(object):
 ################################################################################
 # Class where the majority of the actions are actually defined
 ################################################################################
-class ASD_Viewer(QtGui.QMainWindow):
+class ASD_Viewer(QtWidgets.QMainWindow):
     """ Class where the visualization options, actors and widgets are actually
     defined. The majority  of the work performed in the ASD_visualizer is performed here.
     This is the class that should be modified when one wishes to add a new visualization mode,
@@ -54,7 +57,7 @@ class ASD_Viewer(QtGui.QMainWindow):
         dock widget.
         Several variables key for the visualization that are required for other
         functions are also defined here."""
-        QtGui.QMainWindow.__init__(self,parent)
+        QtWidgets.QMainWindow.__init__(self,parent)
         self.timer_count=0
         self.number_of_screenshots=0
         # Set the name of the window
@@ -139,7 +142,7 @@ class ASD_Viewer(QtGui.QMainWindow):
         ########################################################################
         # End of docket definitions
         ########################################################################
-        return;
+        return
 
     ############################################################################
     # Wrapper function that takes care of adding the necessary actors and the
@@ -152,7 +155,7 @@ class ASD_Viewer(QtGui.QMainWindow):
         # This takes care of setting up the options for the visualization of the
         # magnetic moments obtained from the restart file
         ########################################################################
-        if self.ASDMenu.restart.isChecked():
+        if self.sender() == self.ASDMenu.restart and self.ASDMenu.restart.isChecked():
             self.mode=1
             self.viz_type='M'
             self.ASDQT.MomentBox.setCheckable(True)
@@ -167,14 +170,14 @@ class ASD_Viewer(QtGui.QMainWindow):
             if self.MomActors.cluster_disp:
                 self.ASDQT.cluster_check.setVisible(True)
             self.ASDQT.update_dock_info()
-            print 'Visualization of magnetic moments mode chosen'
-            print 'Viewing the restart file'
+            print('Visualization of magnetic moments mode chosen')
+            print('Viewing the restart file')
 
         ########################################################################
         # This takes care of setting up the options for the visualization of the
         # magnetic moments obtained form the moment file
         ########################################################################
-        if self.ASDMenu.moments.isChecked():
+        if self.sender() == self.ASDMenu.moments and self.ASDMenu.moments.isChecked():
             self.mode=2
             self.viz_type='M'
             self.ASDQT.MomentBox.setCheckable(True)
@@ -189,13 +192,13 @@ class ASD_Viewer(QtGui.QMainWindow):
             if self.MomActors.cluster_disp:
                 self.ASDQT.cluster_check.setVisible(True)
             self.ASDQT.update_dock_info()
-            print 'Visualization of magnetic moments mode chosen'
-            print 'Viewing the moment file'
+            print('Visualization of magnetic moments mode chosen')
+            print('Viewing the moment file')
 
         ########################################################################
         # This takes care of setting up the options for the Neighbour visualization
         ########################################################################
-        if self.ASDMenu.neighbours.isChecked():
+        if self.sender() == self.ASDMenu.neighbours and self.ASDMenu.neighbours.isChecked():
             self.mode=1
             self.viz_type='N'
             self.ASDMenu.restart.setChecked(False)
@@ -205,7 +208,7 @@ class ASD_Viewer(QtGui.QMainWindow):
             self.NeighActors=ASDNeighVTKActors.ASDNeighActors()
             self.NeighActors.AddASDNeigh_actors(ren=self.ren,renWin=self.renWin,\
             mode=self.mode,viz_type=self.viz_type,iren=self.iren)
-            print 'Visualization of the neighbour map mode chosen'
+            print('Visualization of the neighbour map mode chosen')
             self.ASDQT.NeighSL.setMaximum(self.NeighActors.SLMax-1)
             self.ASDQT.NeighSL.Nlabel.setText('Number of neighbours={:}'.format(self.NeighActors.NumNeigh-1))
         return
@@ -219,7 +222,7 @@ class ASD_Viewer(QtGui.QMainWindow):
         png_mode=self.ASDMenu.png_snap.isChecked(),pov_mode=self.ASDMenu.pov_snap.isChecked())
         self.number_of_screenshots=self.number_of_screenshots+1
 
-        return;
+        return
 
     ############################################################################
     # Set the conenctor to the play button
@@ -256,21 +259,14 @@ class ASD_Viewer(QtGui.QMainWindow):
             if ASD_data.kmc_flag:
                 (ASD_data.coord_KMC,ASD_data.nrKMCpar)=\
                 ASD_data.readKMCData(ASD_data.KMCFile,self.timer_count,ASD_data.nrKMCpar)
-                self.KMC_src.SetPoints(ASD_data.coord_KMC)
+                self.MomActors.KMC_src.SetPoints(ASD_data.coord_KMC)
 
-            # If the data is 2D do the appropiate prunning
-            if self.MomActors.glob_flag_2D:
-                (ASD_data.selected_points,ASD_data.selected_vectors,ASD_data.selected_colors_x,\
-                ASD_data.selected_colors_y,ASD_data.selected_colors_z,ASD_data.reduced_nrAtoms)=\
-                ASD_data.create2Dsystem(ASD_data.rest_mom,ASD_data.colors_x,ASD_data.colors_y,ASD_data.colors_z,\
-                ASD_data.coord,ASD_data.nrAtoms)
-            else:
-                ASD_data.selected_points=ASD_data.coord
-                ASD_data.selected_vectors=ASD_data.rest_mom
-                ASD_data.selected_colors_x=ASD_data.colors_x
-                ASD_data.selected_colors_y=ASD_data.colors_y
-                ASD_data.selected_colors_z=ASD_data.colors_z
-                ASD_data.reduced_nrAtoms=ASD_data.nrAtoms
+            ASD_data.selected_points=ASD_data.coord
+            ASD_data.selected_vectors=ASD_data.rest_mom
+            ASD_data.selected_colors_x=ASD_data.colors_x
+            ASD_data.selected_colors_y=ASD_data.colors_y
+            ASD_data.selected_colors_z=ASD_data.colors_z
+            ASD_data.reduced_nrAtoms=ASD_data.nrAtoms
 
                 # Check for the type of data needed
             if self.ASDQT.dens_x.isChecked():
@@ -369,6 +365,7 @@ class ASD_Viewer(QtGui.QMainWindow):
                 self.MomActors=ASDMomVTKActors.ASDMomActors()
                 self.MomActors.ChangeSpinGlyph(renWin=self.renWin,keyword='Cones')
 
+        return
 
     ############################################################################
     # Function that takes care of updating the renderer and the Dock and Menu

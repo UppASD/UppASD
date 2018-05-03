@@ -8,7 +8,6 @@
 ################################################################################
 import vtk
 import ASDVTKReading
-from PyQt4 import QtCore, QtGui
 
 class ASDNeighActors():
 

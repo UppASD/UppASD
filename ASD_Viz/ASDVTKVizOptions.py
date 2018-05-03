@@ -7,7 +7,6 @@
 import vtk
 import ASDMomVTKActors
 import ASDNeighVTKActors
-from PyQt4 import QtCore, QtGui
 
 class ASDVizOptions():
 
@@ -92,7 +91,7 @@ class ASDVizOptions():
 					ASDVizOptions.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
 				ASDVizOptions.lut.Build()
 				ASDVizOptions.MomActors.volumeProperty.SetColor(ASDVizOptions.transfer_func)
-				ASDVizOptions.MomActors.calar_bar.SetLookupTable(ASDVizOptions.transfer_func)
+				ASDVizOptions.MomActors.scalar_bar.SetLookupTable(ASDVizOptions.transfer_func)
 				ASDVizOptions.MomActors.SpinMapper.SetLookupTable(ASDVizOptions.transfer_func)
 				ASDVizOptions.MomActors.clipperMapper.SetLookupTable(ASDVizOptions.transfer_func)
 	############################################################################
