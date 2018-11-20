@@ -43,7 +43,38 @@ Examples are provided in `./examples_revision_controlled/`
 
 The manual is found at `./docs/UppASDmanual.pdf` 
 
-A GUI for VTK-based visualization of output data is available at `./ASD_Viz/ASD_Visualizer.py`
+<h2>User Graphic Interface</h2>
+
+---
+
+A `python` based `QT` GUI for the code is also available at `./ASD_GUI/ASD_GUI.py`. 
+This allows for:
+- Visualization of outputs via `VTK`.
+- Plotting of several quantities via integrated `matplotlib` functionalities.
+- Automatic generation of input files for `UppASD`.
+
+***Requirements***
+- `Qt5`.
+- `python2.7` or higher.
+   - `pandas`
+   - `numpy`
+   - `PYYaml`
+   - `matplotlib`
+   - `Enum`
+- `VTK7.0` or higher.
+
+***Installation Guide***
+A simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
+
+After installing anaconda one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+
+```
+conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas
+source activate ASD_GUI_env
+conda install -c menpo enum 
+conda install -c qt5 pyqt5
+```
+This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
 
 ---
 (C) 2008-2018 [UppASD group][2]
@@ -63,4 +94,4 @@ A GUI for VTK-based visualization of output data is available at `./ASD_Viz/ASD_
 [13]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.94.214410
 [14]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.094411
 [15]:https://www.nature.com/articles/ncomms5815
-[logo]:./docs/uppasd_rot.png
+[logo]:../docs/uppasd_rot.png
