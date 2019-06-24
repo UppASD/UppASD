@@ -793,9 +793,9 @@ class ASDInputGen():
             del ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']
         if ASDInputGen.UppASDKeywords['Mag']['relaxed_if']=='N':
             del ASDInputGen.UppASDKeywords['Mag']['relaxed_if']
-        for name in ASDInputGen.UppASDKeywords:
-            if len(ASDInputGen.UppASDKeywords[name])==0:
-                del ASDInputGen.UppASDKeywords[name]
+        #for name in ASDInputGen.UppASDKeywords:
+        #    if len(ASDInputGen.UppASDKeywords[name])==0:
+        #        del ASDInputGen.UppASDKeywords[name]
         return
     ############################################################################
     ## @brief Function to write a standard inpsd.dat and a inpsd.yaml file
