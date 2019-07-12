@@ -1,10 +1,10 @@
-!< Module to implement different temperature profiles in the sample
-!@TODO generaliza to all kind of system shapes
+!-------------------------------------------------------------------------------
+! MODULE: damping
+!> @brief Module to have site dependent damping
+!> @author Manuel Pereiro, Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!-------------------------------------------------------------------------------
 module Damping
    use Parameters
    use Profiling
@@ -23,7 +23,11 @@ module Damping
 
 contains
 
-   !> Allocate the dampings arrays for the site dependent damping
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: allocate_damping
+   !> @brief Allocate the dampings arrays for the site dependent damping
+   !> @author Jonathan Chico, Manuel Pereiro
+   !-----------------------------------------------------------------------------
    subroutine allocate_damping(Natom,ipnphase,flag)
 
       implicit none
@@ -46,10 +50,10 @@ contains
          if(ipnphase>0) then
             allocate(iplambda1_array(ipnphase,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(iplambda1_array))*kind(iplambda1_array),'iplambda1_array','allocate_damping')
-            iplambda1_array=0.0d0
+            iplambda1_array=0.0_dblprec
             allocate(iplambda2_array(ipnphase,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(iplambda2_array))*kind(iplambda2_array),'iplambda2_array','allocate_damping')
-            iplambda2_array=0.0d0
+            iplambda2_array=0.0_dblprec
          end if
       else
          ! Deallocating the damping parameter for the measurement phase
@@ -74,9 +78,14 @@ contains
 
    end subroutine allocate_damping
 
-   !> Filling up the damping arrays
-   subroutine setup_damping(NA,Natom,Natom_full,ip_mode,mode,ipnphase,do_ralloy,asite_ch,achem_ch,do_site_damping,&
-         do_site_ip_damping,iplambda1,iplambda2,mplambda1,mplambda2,iplambda1_array,iplambda2_array,lambda1_array,lambda2_array)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: setup_damping
+   !> @brief Filling up the damping arrays
+   !> @author Manuel Pereiro, Jonathan Chico
+   !-----------------------------------------------------------------------------
+   subroutine setup_damping(NA,Natom,Natom_full,ip_mode,mode,ipnphase,do_ralloy,asite_ch,achem_ch,&
+         do_site_damping,do_site_ip_damping,iplambda1,iplambda2,mplambda1,mplambda2,iplambda1_array,&
+         iplambda2_array,lambda1_array,lambda2_array)
 
       implicit none
 
@@ -137,7 +146,8 @@ contains
             end do
          endif
          ! If there is no site dependent damping
-      elseif (ip_mode=='H' .or. ip_mode=='M'.or.ip_mode=='I'.or.ip_mode=='D'.or.ip_mode=='R'.or.ip_mode=='L') then
+      elseif (ip_mode=='H' .or. ip_mode=='M'.or.ip_mode=='I'.or.ip_mode=='D'&
+         .or.ip_mode=='R'.or.ip_mode=='L'.or.ip_mode=='Z') then
          do i=1, ipnphase
             iplambda1_array(i,:)=iplambda1(i)
             iplambda2_array(i,:)=iplambda2(1)
@@ -147,6 +157,8 @@ contains
       elseif (ip_mode=='G') then
       elseif (ip_mode=='B') then
       elseif (ip_mode=='Q') then
+      elseif (ip_mode=='E') then
+      elseif (ip_mode=='X') then
       else
          call ErrorHandling_ERROR('Unrecognized ip_mode: '//ip_mode)
       endif

@@ -13,6 +13,7 @@ set pm3d map
 #set zrange [0.00:1]
 set zrange [-0:1]
 set cbrange [-0:1]
+set autoscale fix
 #splot "sqw.mat" matrix w pm3d
 splot "sqw.mat" matrix using ($1*2*pi/3.16/20):($2*YSCALE):($3) w pm3d
 pause -1

@@ -20,7 +20,7 @@ Mensemble 1
 
 ip_mode   MODE                                  Initial phase parameters
 ip_temp   500.0
-ip_mcNstep     2000                            --
+ip_Nstep     2000                            --
 ip_nphase 1
 2000 500.0  1.0d-16 0.5
 ip_mcanneal 1
@@ -30,7 +30,6 @@ mode      MODE                                  S=SD, M=MC
 temp      500.0
 damping 0.5
 Nstep   3000 
-mcNstep   3000 
 
 do_avrg   Y                                     Measure averages
 avrg_step 100

@@ -1,14 +1,14 @@
-simid     HeisWire 
-ncell     1         1         100               System size
+simid     HeisWire                              System name
+ncell     1         1         100               System size (in terms of unit cells)
 BC        0         0         P                 Boundary conditions (0=vacuum,P=periodic)
 cell      1.00000   0.00000   0.00000
           0.00000   1.00000   0.00000
           0.00000   0.00000   1.00000
 Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
 
-posfile   ./posfile
-exchange  ./jfile
-momfile   ./momfile
+posfile   ./posfile                             Position file
+exchange  ./jfile                               Exchange file
+momfile   ./momfile                             Moment file
 do_prnstruct 1                                  Print lattice structure (0=no, 1=yes)
 
 Mensemble 1                                     Number of samples in ensemble averaging
@@ -16,13 +16,13 @@ Initmag   3                                     (1=random, 2=cone, 3=spec., 4=fi
 
 ip_mode   S                                     Initial phase parameters
 ip_nphase 1
-20000 0.1 1e-16 4.0
+20000 1.0e-3 1e-16 4.0
 
 mode      S                                     S=SD, M=MC
-temp      0000.100                              Measurement phase parameters
-damping   0.000503                              --
-Nstep     150005                                 --
-timestep  1.000e-16                             --
+temp      1.0e-3                                Measurement phase parameters
+damping   0.0010                                --
+Nstep     20000                                 --
+timestep  1.000e-15                             --
 
 do_avrg   Y                                     Measure averages
 avrg_step 100 
@@ -32,16 +32,19 @@ tottraj_step       100
 tottraj_buff       10                           time step, buffer size
 
 do_sc Q                                         Measure spin correlation
-sc_mode 2                                       0=mem., 1=scratch file, 2="on the fly"
-sc_nstep 10000                                  Number of steps to sample
-sc_step 30                                      Number of time steps between each sampling
-sc_navrg 1                                      Number of measurements to average over
-sc_sep 100                                      Number of time steps between the start of subsequent sc measurements
-sc_volume 1  1  100                             Sub-volume of system to sample the corr function in
+sc_window_fun  2                                Choice of FFT window function (1=box, 2=Hann, 3=Hamming, 4=Blackman-Harris)
+do_sc_local_axis N                              Perform SQW along local quantization axis (Y/N)
+sc_local_axis_mix  0.0                          Mixing parameter for updating the local quantization axis. Rec. value: 0.0-0.1
+
+sc_nstep 2000                                   Number of steps to sample
+sc_step 10                                      Number of time steps between each sampling
+
 qpoints F                                       Flag for q-point generation (F=file,A=automatic,C=full cell)
 qfile   ./qfile
 
+do_ams Y
+do_magdos Y
+
+plotenergy 1
 do_cumu Y
-
-
 

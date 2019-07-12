@@ -3,10 +3,7 @@
 !> @brief Data and routines for calculating applied microwave field
 !> @author Jonathan Chico, Anders Bergman, Manuel Pereiro
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module MicroWaveField
    use Parameters
@@ -204,28 +201,30 @@ contains
       ! Calculate microwave field
       if(mwf=='Y'.or.mwf=='P'.or.mwf=='I') then
          ! Global monochromatic microwave field
-         call calc_mwf(mwfampl, mwfdir, mwffreq, delta_t, time, mwf_pulse_time, mwf)
+         call calc_mwf(mwfampl,mwfdir,mwffreq,delta_t,time,mwf_pulse_time,mwf)
       else if (mwf=='S'.or.mwf=='W') then
          ! Site dependent monochromatic microwave field
-         call calc_site_mwf(Natom,mwfampl, mwffreq, delta_t, time, mwf_pulse_time, mwf)
+         call calc_site_mwf(Natom,mwfampl,mwffreq,delta_t,time,mwf_pulse_time,mwf)
       endif
 
       ! Caculate a gaussian microwave field
       if (mwf_gauss=='Y'.or.mwf_gauss=='P') then
          ! Global frequency broadened microwave field
-         call calc_gaussian_mwf(mwf_gauss_ampl,mwf_gauss_freq,delta_t,&
-            mwf_gauss_time_sigma,mwf_gauss_dir,time,maxtime,mwf_gauss_pulse_time,mwf_gauss)
+         call calc_gaussian_mwf(mwf_gauss_ampl,mwf_gauss_freq,delta_t,              &
+            mwf_gauss_time_sigma,mwf_gauss_dir,time,maxtime,mwf_gauss_pulse_time,   &
+            mwf_gauss)
       else if (mwf_gauss=='S'.or.mwf_gauss=='W') then
          ! Site dependent frequency broadened microwave field
-         call calc_site_mwf_gauss(Natom,mwf_gauss_ampl, mwf_gauss_freq, delta_t, time, maxtime,&
-            mwf_gauss_pulse_time,mwf_gauss_time_sigma,mwf_gauss)
+         call calc_site_mwf_gauss(Natom,mwf_gauss_ampl,mwf_gauss_freq,delta_t,time, &
+            maxtime,mwf_gauss_pulse_time,mwf_gauss_time_sigma,mwf_gauss)
       endif
 
       ! Calculate a microwave gaussian field and a gaussian spatial distribution
       if (mwf_gauss_spatial=='Y'.or.mwf_gauss_spatial=='P') then
          ! Frequency broadened gaussian shaped microwave field
-         call calc_spatial_mwf_site_gauss(Natom,coord,mwf_gauss_spatial,mwf_gauss_spatial_freq,&
-            delta_t,time,maxtime,mwf_gauss_spatial_pulse_time,mwf_gauss_spatial_time_sigma,&
+         call calc_spatial_mwf_site_gauss(Natom,coord,mwf_gauss_spatial,            &
+            mwf_gauss_spatial_freq,delta_t,time,maxtime,                            &
+            mwf_gauss_spatial_pulse_time,mwf_gauss_spatial_time_sigma,              &
             mwf_gauss_spatial_space_sigma,mwf_gauss_spatial_ampl)
       endif
 
@@ -238,8 +237,8 @@ contains
             endif
          endif
          ! Moving static gaussian shaped field
-         call calc_moving_gauss(Natom,coord,mov_gauss_ampl,time,mov_gauss_pulse_time,centering,&
-            mov_gauss_space_sigma,mov_gauss)
+         call calc_moving_gauss(Natom,coord,mov_gauss_ampl,time,                    &
+            mov_gauss_pulse_time,centering,mov_gauss_space_sigma,mov_gauss)
       endif
 
       ! Calculate a moving time dependent spatially resolved gaussian magnetic pulse
@@ -251,8 +250,10 @@ contains
             endif
          endif
          ! Moving gaussian shaped microwave field
-         call calc_moving_gauss_mwf(Natom,coord,mwf_mov_gauss_ampl,mwf_mov_gauss_freq,mwf_mov_gauss_time_sigma,&
-            time,maxtime,delta_t,mwf_mov_gauss_pulse_time,mwf_centering,mwf_mov_gauss_space_sigma,mwf_mov_gauss)
+         call calc_moving_gauss_mwf(Natom,coord,mwf_mov_gauss_ampl,                 &
+            mwf_mov_gauss_freq,mwf_mov_gauss_time_sigma,time,maxtime,delta_t,       &
+            mwf_mov_gauss_pulse_time,mwf_centering,mwf_mov_gauss_space_sigma,       &
+            mwf_mov_gauss)
       endif
 
       ! Calculate a moving static spatially resolved circular magnetic pulse
@@ -264,9 +265,8 @@ contains
             endif
          endif
          ! Moving static gaussian shaped field
-         call calc_moving_circle(Natom,coord,mov_circle_ampl,time,mov_circle_pulse_time,centering,&
-            mov_circle_radius,mov_circle)
-
+         call calc_moving_circle(Natom,coord,mov_circle_ampl,time,                  &
+            mov_circle_pulse_time,centering,mov_circle_radius,mov_circle)
       endif
 
       ! Calculate a moving time dependent spatially resolved ciruclar magnetic pulse
@@ -278,8 +278,9 @@ contains
             endif
          endif
          ! Moving gaussian shaped microwave field
-         call calc_moving_circle_mwf(Natom,coord,mwf_mov_circle_ampl,mwf_mov_circle_freq,mwf_mov_circle_time_sigma,&
-            time,maxtime,delta_t,mwf_mov_circle_pulse_time,mwf_mov_circle_radius,mwf_mov_circle)
+         call calc_moving_circle_mwf(Natom,coord,mwf_mov_circle_ampl,               &
+            mwf_mov_circle_freq,mwf_mov_circle_time_sigma,time,maxtime,delta_t,     &
+            mwf_mov_circle_pulse_time,mwf_mov_circle_radius,mwf_mov_circle)
       endif
 
       ! Calculate a moving static spatially resolved cubic magnetic pulse
@@ -291,9 +292,8 @@ contains
             endif
          endif
          ! Moving static gaussian shaped field
-         call calc_moving_square(Natom,coord,mov_square_ampl,time,mov_square_pulse_time,centering,&
-            mov_square_dimensions,mov_square)
-
+         call calc_moving_square(Natom,coord,mov_square_ampl,time,                  &
+            mov_square_pulse_time,centering,mov_square_dimensions,mov_square)
       endif
 
       ! Calculate a moving time dependent spatially resolved cubic magnetic pulse
@@ -305,14 +305,16 @@ contains
             endif
          endif
          ! Moving gaussian shaped microwave field
-         call calc_moving_square_mwf(Natom,coord,mwf_mov_square_ampl,mwf_mov_square_freq,mwf_mov_square_time_sigma,&
-            time,maxtime,delta_t,mwf_mov_square_pulse_time,mwf_mov_square_dimensions,mwf_mov_square)
+         call calc_moving_square_mwf(Natom,coord,mwf_mov_square_ampl,               &
+            mwf_mov_square_freq,mwf_mov_square_time_sigma,time,maxtime,delta_t,     &
+            mwf_mov_square_pulse_time,mwf_mov_square_dimensions,mwf_mov_square)
       endif
 
       ! Calculate the static gaussian shaped field
       if (do_gauss=='Y'.or.do_gauss=='P') then
          ! Gaussian shaped static field
-         call calc_spatial_gauss(Natom,time,gauss_spatial_sigma,coord,gauss_spatial_ampl,delta_t,do_gauss,gauss_pulse_time)
+         call calc_spatial_gauss(Natom,time,gauss_spatial_sigma,coord,              &
+            gauss_spatial_ampl,delta_t,do_gauss,gauss_pulse_time)
       endif
 
    end subroutine calculate_mwf_fields
@@ -323,8 +325,7 @@ contains
    !> @details The field is given by the expression \f$\mathbf{B}=B_0 \sin\left(\omega t\right)\f$
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_mwf(mwfampl, mwfdir, mwffreq, delta_t,time,mwf_pulse_time,mwf)
-      !
+   subroutine calc_mwf(mwfampl,mwfdir,mwffreq,delta_t,time,mwf_pulse_time,mwf)
 
       !.. Implicit declatrations
       implicit none
@@ -343,23 +344,20 @@ contains
          mwffield(2)=mwfampl*mwfdir(2)*sin(mwffreq*mwftime*2*pi)
          mwffield(3)=mwfampl*mwfdir(3)*sin(mwffreq*mwftime*2*pi)
       else if (mwf=='P') then
-
          if(time<=mwf_pulse_time) then
             mwffield(1)=mwfampl*mwfdir(1)*sin(mwffreq*mwftime*2*pi)
             mwffield(2)=mwfampl*mwfdir(2)*sin(mwffreq*mwftime*2*pi)
             mwffield(3)=mwfampl*mwfdir(3)*sin(mwffreq*mwftime*2*pi)
          else
-            mwffield=0.d0
+            mwffield=0.0_dblprec
          endif
-
       else if (mwf=='I') then
-
          if(time<=mwf_pulse_time) then
             mwffield(1)=mwfampl*mwfdir(1)*sin(mwffreq*mwftime*2*pi)**2
             mwffield(2)=mwfampl*mwfdir(2)*sin(mwffreq*mwftime*2*pi)**2
             mwffield(3)=mwfampl*mwfdir(3)*sin(mwffreq*mwftime*2*pi)**2
          else
-            mwffield=0.d0
+            mwffield=0.0_dblprec
          endif
       end if
 
@@ -372,8 +370,8 @@ contains
    !> \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)e^{\frac{-t^2}{2\sigma_t^2}}\f$
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_gaussian_mwf(mwf_gauss_ampl,mwf_gauss_freq,delta_t,mwf_gauss_time_sigma,&
-         mwf_gauss_dir,time,maxtime,mwf_gauss_pulse_time,mwf_gauss)
+   subroutine calc_gaussian_mwf(mwf_gauss_ampl,mwf_gauss_freq,delta_t,              &
+      mwf_gauss_time_sigma,mwf_gauss_dir,time,maxtime,mwf_gauss_pulse_time,mwf_gauss)
 
       implicit none
 
@@ -407,7 +405,7 @@ contains
             gauss_mwffield(3)=mwf_gauss_ampl*mwf_gauss_dir(3)*sin(mwf_gauss_freq*mwftime*2*pi)&
                *exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_gauss_time_sigma)**2))
          else
-            gauss_mwffield=0.d0
+            gauss_mwffield=0.0_dblprec
          endif
 
       endif
@@ -420,8 +418,7 @@ contains
    !> @details The time dependent field is given by \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)\f$ for any atom \f$i\f$ in the interest region, and 0 for everything outside of it
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_site_mwf(Natom, mwfampl, mwffreq, delta_t, time, mwf_pulse_time, mwf)
-      !
+   subroutine calc_site_mwf(Natom,mwfampl,mwffreq,delta_t,time,mwf_pulse_time,mwf)
 
       !.. Implicit declatrations
       implicit none
@@ -454,7 +451,7 @@ contains
                site_mwffield(3,i)=mwfampl*mwffield_sites(3,i)*sin(mwffreq*mwftime*2*pi+field_site_phase(i))
             enddo
          else
-            site_mwffield=0.d0
+            site_mwffield=0.0_dblprec
          endif
 
       end if
@@ -468,9 +465,8 @@ contains
    !> The time dependent field is given by \f$ \mathbf{B}\left(t\right)=B_0\sin\left(\omega t\right)e^{\frac{-t^2}{2\sigma_t^2}}\f$ for any atom \f$i\f$ in the interest region, and 0 for everything outside of it
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_site_mwf_gauss(Natom,mwf_gauss_ampl, mwf_gauss_freq, delta_t, time, maxtime,mwf_gauss_pulse_time,&
-         mwf_gauss_time_sigma,mwf_gauss)
-      !
+   subroutine calc_site_mwf_gauss(Natom,mwf_gauss_ampl,mwf_gauss_freq,delta_t,time, &
+      maxtime,mwf_gauss_pulse_time,mwf_gauss_time_sigma,mwf_gauss)
 
       !.. Implicit declatrations
       implicit none
@@ -483,7 +479,7 @@ contains
       real(dblprec), intent(in) :: mwf_gauss_ampl !< Amplitude of microwave field
       real(dblprec), intent(in) :: mwf_gauss_freq !< Frequency of microwave field
       real(dblprec), intent(in) :: mwf_gauss_time_sigma !< Frequency sigma parameter for the frequency broadened microwave field
-      character(len=1), intent(in) :: mwf_gauss         !< Add frequency broadened microwave field (Y/P/S/W/N)
+      character(len=1), intent(in) :: mwf_gauss !< Add frequency broadened microwave field (Y/P/S/W/N)
 
       !.. Local variables
       integer :: i
@@ -511,24 +507,25 @@ contains
                   *exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_gauss_time_sigma)**2))
             enddo
          else
-            gauss_site_mwffield=0.d0
+            gauss_site_mwffield=0.0_dblprec
          endif
 
       end if
 
    end subroutine calc_site_mwf_gauss
 
-
-   !-----------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: calc_spatial_mwf_site_gauss
    !> @brief This routine calculates a time dependent, position dependent gaussian magnetic pulse
    !> @details In the input file the atom number for the center of the guassian is given, as well as the direction of the magnetic field
    !> The gaussian distribution only affects the intensity it does not affect the direction of the field.
    !> The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r},t\right)=B_0\sin(\omega t)e^{\frac{-t^2}{2\sigma_t^2}}e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
    !> @author Jonathan Chico
-   !-----------------------------------------------------------------------------
-   subroutine calc_spatial_mwf_site_gauss(Natom,coord,mwf_gauss_spatial,mwf_gauss_spatial_freq,delta_t, &
-         time,maxtime,mwf_gauss_spatial_pulse_time,mwf_gauss_spatial_time_sigma,mwf_gauss_spatial_space_sigma,mwf_gauss_spatial_ampl)
+   !----------------------------------------------------------------------------
+   subroutine calc_spatial_mwf_site_gauss(Natom,coord,mwf_gauss_spatial,            &
+      mwf_gauss_spatial_freq,delta_t,time,maxtime,mwf_gauss_spatial_pulse_time,     &
+      mwf_gauss_spatial_time_sigma,mwf_gauss_spatial_space_sigma,                   &
+      mwf_gauss_spatial_ampl)
 
       implicit none
 
@@ -542,7 +539,7 @@ contains
       real(dblprec), intent(in) :: mwf_gauss_spatial_time_sigma !< Frequency sigma parameter for the frequency broadened gaussian shaped microwave field
       real(dblprec), dimension(3), intent(in) :: mwf_gauss_spatial_space_sigma !< Spatial sigma parameter for the frequency broadened gaussian shaped microwave field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
-      character(len=1), intent(in) :: mwf_gauss_spatial      !< Add the frequency broadened gaussian shaped microwave field (Y/P/N)
+      character(len=1), intent(in) :: mwf_gauss_spatial !< Add the frequency broadened gaussian shaped microwave field (Y/P/N)
 
       ! .. Local variables
       real(dblprec), dimension(3) :: Gauss_factor_R
@@ -550,7 +547,7 @@ contains
       real(dblprec) :: xmax,ymax, zmax
       integer :: centers, j
 
-      gauss_spatial_site_mwffield=0.0d0
+      gauss_spatial_site_mwffield=0.0_dblprec
 
       xmax=maxval(coord(1,:))
       ymax=maxval(coord(2,:))
@@ -565,11 +562,11 @@ contains
                ! The following definitions allows us to have a gaussian function with different spreading in the three dimensions
                ! The definitions take into account the fact that one might have a 2D system
                Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mwf_gauss_spatial_space_sigma(1)**2)
-               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mwf_gauss_spatial_space_sigma(2)**2)
-               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mwf_gauss_spatial_space_sigma(3)**2)
-               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
                ! The gaussian magnetic field equation is A*sin(wt)*exp(-(t**2)/2*sigma_t**2)*exp(-[(Rx-x)**2/2*sigma_x**2]-[(Ry-y)**2/2*sigma_y**2]-[(Rz-z)**2/2*sigma_z**2])
                gauss_spatial_site_mwffield(1,j)=gauss_spatial_site_mwffield(1,j)+mwf_gauss_spatial_ampl*gauss_spatial_mwffield_sites(1,centers)*&
@@ -591,11 +588,11 @@ contains
                   ! The following definitions allows us to have a gaussian function with different spreading in the three dimensions
                   ! The definitions take into account the fact that one might have a 2D system
                   Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mwf_gauss_spatial_space_sigma(1)**2)
-                  if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+                  if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                   Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mwf_gauss_spatial_space_sigma(2)**2)
-                  if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+                  if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                   Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mwf_gauss_spatial_space_sigma(3)**2)
-                  if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+                  if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
                   ! The gaussian magnetic field equation is A*sin(wt)*exp(-(t**2)/2*sigma_t**2)*exp(-[(Rx-x)**2/2*sigma_x**2]-[(Ry-y)**2/2*sigma_y**2]-[(Rz-z)**2/2*sigma_z**2])
                   gauss_spatial_site_mwffield(1,j)=gauss_spatial_site_mwffield(1,j)+mwf_gauss_spatial_ampl*gauss_spatial_mwffield_sites(1,centers)*&
@@ -610,7 +607,7 @@ contains
                enddo
             enddo
          else
-            gauss_spatial_site_mwffield=0.0d0
+            gauss_spatial_site_mwffield=0.0_dblprec
          endif
       endif
 
@@ -622,7 +619,8 @@ contains
    !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_spatial_gauss(Natom,time,gauss_spatial_sigma,coord,gauss_spatial_ampl,delta_t,do_gauss,gauss_pulse_time)
+   subroutine calc_spatial_gauss(Natom,time,gauss_spatial_sigma,coord,              &
+      gauss_spatial_ampl,delta_t,do_gauss,gauss_pulse_time)
 
       implicit none
 
@@ -632,8 +630,8 @@ contains
       real(dblprec), intent(in) :: delta_t    !< Current time step
       real(dblprec), intent(in) :: gauss_spatial_ampl !< Amplitude of the gaussian shaped static field
       real(dblprec), dimension(3), intent(in) :: gauss_spatial_sigma !< Sigma parameter for the gaussian shaped static field
-      real(dblprec), dimension(3,Natom) , intent(in) :: coord        !< Coordinates od the atoms in the system
-      character(len=1), intent(in) :: do_gauss                       !< Add the Static gaussian shaped field
+      real(dblprec), dimension(3,Natom) , intent(in) :: coord !< Coordinates od the atoms in the system
+      character(len=1), intent(in) :: do_gauss !< Add the Static gaussian shaped field
 
       ! .. Local variables
       real(dblprec), dimension(3) :: Gauss_factor_R
@@ -643,7 +641,7 @@ contains
 
       mwftime=(time-1)*delta_t
 
-      gauss_spatial=0.0d0
+      gauss_spatial=0.0_dblprec
 
       xmax=maxval(coord(1,:))
       ymax=maxval(coord(2,:))
@@ -657,11 +655,11 @@ contains
                ! The following definitions allows us to have a gaussian function with different spreading in the three dimensions
                ! The definitions take into account the fact that one might have a 2D system
                Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*gauss_spatial_sigma(1)**2)
-               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*gauss_spatial_sigma(2)**2)
-               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*gauss_spatial_sigma(3)**2)
-               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
                gauss_spatial(1,j)=gauss_spatial(1,j)+gauss_sites(1,centers)*gauss_spatial_ampl&
                   *exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))
@@ -680,11 +678,11 @@ contains
                   ! The following definitions allows us to have a gaussian function with different spreading in the three dimensions
                   ! The definitions take into account the fact that one might have a 2D system
                   Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*gauss_spatial_sigma(1)**2)
-                  if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+                  if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                   Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*gauss_spatial_sigma(2)**2)
-                  if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+                  if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                   Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*gauss_spatial_sigma(3)**2)
-                  if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+                  if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
                   gauss_spatial(1,j)=gauss_spatial(1,j)+gauss_sites(1,centers)*gauss_spatial_ampl&
                      *exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))
@@ -695,7 +693,7 @@ contains
                enddo
             enddo
          else
-            gauss_spatial=0.0d0
+            gauss_spatial=0.0_dblprec
          endif
       endif
 
@@ -707,8 +705,8 @@ contains
    !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_moving_gauss(Natom,coord,mov_gauss_ampl,time,mov_gauss_pulse_time,&
-         centering,mov_gauss_space_sigma,mov_gauss)
+   subroutine calc_moving_gauss(Natom,coord,mov_gauss_ampl,time,                    &
+      mov_gauss_pulse_time,centering,mov_gauss_space_sigma,mov_gauss)
       !
       !.. Implicit declatrations
       implicit none
@@ -719,8 +717,8 @@ contains
       integer, intent(in) :: mov_gauss_pulse_time  !< Number of time steps in which the moving static gaussian shaped pulse is on
       real(dblprec), intent(in) :: mov_gauss_ampl  !< Amplitude of microwave field
       real(dblprec), dimension(3), intent(in) :: mov_gauss_space_sigma !< Sigma parameter for the moving gaussian shaped static field
-      real(dblprec), dimension(3,Natom), intent(in) :: coord           !< Coordinates of the atoms in the system
-      character(len=1), intent(in) :: mov_gauss                        !< Add the moving static gaussian shaped field (Y/P/N)
+      real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
+      character(len=1), intent(in) :: mov_gauss !< Add the moving static gaussian shaped field (Y/P/N)
 
       !.. Local variables
       real(dblprec) :: xmax,ymax,zmax
@@ -738,11 +736,11 @@ contains
          R_center(1:3)=coord(1:3,mov_site_center(centering))
          do j=1, Natom
             Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mov_gauss_space_sigma(1)**2)
-            if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+            if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
             Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mov_gauss_space_sigma(2)**2)
-            if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+            if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
             Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mov_gauss_space_sigma(3)**2)
-            if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+            if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
             mov_gauss_spatial(1,j)=mov_gauss_sites(1,centering)*mov_gauss_ampl&
                *exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))
@@ -758,11 +756,11 @@ contains
             R_center(1:3)=coord(1:3,mov_site_center(centering))
             do j=1, Natom
                Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mov_gauss_space_sigma(1)**2)
-               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mov_gauss_space_sigma(2)**2)
-               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mov_gauss_space_sigma(3)**2)
-               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0d0
+               if (abs(zmax)<dbl_tolerance) Gauss_factor_R(3)=0.0_dblprec
 
                mov_gauss_spatial(1,j)=mov_gauss_sites(1,centering)*mov_gauss_ampl&
                   *exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))
@@ -772,20 +770,21 @@ contains
                   *exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))
             enddo
          else
-            mov_gauss_spatial=0.0d0
+            mov_gauss_spatial=0.0_dblprec
          endif
       end if
 
    end subroutine calc_moving_gauss
 
-   !-----------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: calc_moving_gauss_mwf
    !> @brief Calculate moving gaussian shaped gaussian frequency broadened microwave field through a predetermined trajectory
    !> @details The gaussian magnetic field equation is \f$ \mathbf{B}\left(\mathbf{r}\right)= B_0\sin(\omega t)e^{\frac{-t^2}{2\sigma_t^2}}e^{\left(-\left[\frac{(R_x-x)^2}{2\sigma_x^2}\right]-\left[\frac{(R_y-y)^2}{2\sigma_y^2}\right]-\left[\frac{(R_z-z)^2}{2\sigma_z^2}\right]\right)}\f$
    !> @author Jonathan Chico
-   !-----------------------------------------------------------------------------
-   subroutine calc_moving_gauss_mwf(Natom,coord,mwf_mov_gauss_ampl,mwf_mov_gauss_freq,mwf_mov_gauss_time_sigma,&
-         time,maxtime,delta_t,mwf_mov_gauss_pulse_time,mwf_centering,mwf_mov_gauss_space_sigma,mwf_mov_gauss)
+   !----------------------------------------------------------------------------
+   subroutine calc_moving_gauss_mwf(Natom,coord,mwf_mov_gauss_ampl,                 &
+      mwf_mov_gauss_freq,mwf_mov_gauss_time_sigma,time,maxtime,delta_t,             &
+      mwf_mov_gauss_pulse_time,mwf_centering,mwf_mov_gauss_space_sigma,mwf_mov_gauss)
 
       !.. Implicit declatrations
       implicit none
@@ -795,13 +794,13 @@ contains
       integer, intent(in) :: maxtime        !< Total number of simulation steps
       integer, intent(in) :: mwf_centering  !< Current position of the center of the field
       integer, intent(in) :: mwf_mov_gauss_pulse_time  !< Number of time steps in which the moving microwave gaussian shaped pulse is on
-      real(dblprec), intent(in) :: delta_t             !< Current time step
-      real(dblprec), intent(in) :: mwf_mov_gauss_ampl       !< Amplitude of the moving microwave gaussian shaped pulse
-      real(dblprec), intent(in) :: mwf_mov_gauss_freq       !< Frequency of the moving microwave gaussian shaped pulse
+      real(dblprec), intent(in) :: delta_t !< Current time step
+      real(dblprec), intent(in) :: mwf_mov_gauss_ampl !< Amplitude of the moving microwave gaussian shaped pulse
+      real(dblprec), intent(in) :: mwf_mov_gauss_freq !< Frequency of the moving microwave gaussian shaped pulse
       real(dblprec), intent(in) :: mwf_mov_gauss_time_sigma !< Sigma parameter for frequency gaussian in the moving gaussian shaped microwave field
       real(dblprec), dimension(3), intent(in) :: mwf_mov_gauss_space_sigma !< Sigma parameter for the moving gaussian shaped microwave field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
-      character(len=1), intent(in) :: mwf_mov_gauss          !< Add the moving microwave gaussian shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_gauss !< Add the moving microwave gaussian shaped field (Y/P/N)
 
       !.. Local variables
       real(dblprec) :: xmax,ymax,zmax
@@ -821,11 +820,11 @@ contains
          R_center(1:3)=coord(1:3,mwf_mov_site_center(mwf_centering))
          do j=1, Natom
             Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mwf_mov_gauss_space_sigma(1)**2)
-            if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+            if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
             Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mwf_mov_gauss_space_sigma(2)**2)
-            if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+            if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
             Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mwf_mov_gauss_space_sigma(3)**2)
-            if (abs(zmax)<dbl_tolerance)Gauss_factor_R(3)=0.0d0
+            if (abs(zmax)<dbl_tolerance)Gauss_factor_R(3)=0.0_dblprec
 
             mwf_mov_gauss_spatial(1,j)=mov_gauss_mwffield_sites(1,mwf_centering)*mwf_mov_gauss_ampl*sin(mwf_mov_gauss_freq*mwftime*2*pi)*&
                exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))*&
@@ -843,11 +842,11 @@ contains
             R_center(1:3)=coord(1:3,mwf_mov_site_center(mwf_centering))
             do j=1, Natom
                Gauss_factor_R(1)=((coord(1,j)-R_center(1))**2)/(2*xmax*mwf_mov_gauss_space_sigma(1)**2)
-               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0d0
+               if (abs(xmax)<dbl_tolerance) Gauss_factor_R(1)=0.0_dblprec
                Gauss_factor_R(2)=((coord(2,j)-R_center(2))**2)/(2*ymax*mwf_mov_gauss_space_sigma(2)**2)
-               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0d0
+               if (abs(ymax)<dbl_tolerance) Gauss_factor_R(2)=0.0_dblprec
                Gauss_factor_R(3)=((coord(3,j)-R_center(3))**2)/(2*zmax*mwf_mov_gauss_space_sigma(3)**2)
-               if (abs(zmax)<dbl_tolerance)Gauss_factor_R(3)=0.0d0
+               if (abs(zmax)<dbl_tolerance)Gauss_factor_R(3)=0.0_dblprec
 
                mwf_mov_gauss_spatial(1,j)=mov_gauss_mwffield_sites(1,mwf_centering)*mwf_mov_gauss_ampl*sin(mwf_mov_gauss_freq*mwftime*2*pi)*&
                   exp(-(Gauss_factor_R(1)+Gauss_factor_R(2)+Gauss_factor_R(3)))*&
@@ -860,20 +859,19 @@ contains
                   exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_gauss_time_sigma)**2))
             enddo
          else
-            mwf_mov_gauss_spatial=0.0d0
+            mwf_mov_gauss_spatial=0.0_dblprec
          endif
       end if
 
-
    end subroutine calc_moving_gauss_mwf
 
-   !-----------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: calc_moving_circle
    !> @brief Calculate a spherical shaped static field which follows a predetermined trajectory
    !> @author Jonathan Chico
-   !-----------------------------------------------------------------------------
-   subroutine calc_moving_circle(Natom,coord,mov_circle_ampl,time,mov_circle_pulse_time,&
-         centering,mov_circle_radius,mov_circle)
+   !----------------------------------------------------------------------------
+   subroutine calc_moving_circle(Natom,coord,mov_circle_ampl,time,                  &
+      mov_circle_pulse_time,centering,mov_circle_radius,mov_circle)
       !
       !.. Implicit declatrations
       implicit none
@@ -885,7 +883,7 @@ contains
       real(dblprec), intent(in) :: mov_circle_ampl   !< Amplitude of microwave field
       real(dblprec), intent(in) :: mov_circle_radius !< Radius for the spherical field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
-      character(len=1), intent(in) :: mov_circle             !< Add the moving static circular shaped field (Y/P/N)
+      character(len=1), intent(in) :: mov_circle !< Add the moving static circular shaped field (Y/P/N)
 
       !.. Local variables
       real(dblprec) :: R_fac2
@@ -903,9 +901,9 @@ contains
                mov_circle_spatial(2,j)=mov_circle_sites(2,centering)*mov_circle_ampl
                mov_circle_spatial(3,j)=mov_circle_sites(3,centering)*mov_circle_ampl
             else
-               mov_circle_spatial(1,j)=0.0D0
-               mov_circle_spatial(2,j)=0.0D0
-               mov_circle_spatial(3,j)=0.0D0
+               mov_circle_spatial(1,j)=0.0_dblprec
+               mov_circle_spatial(2,j)=0.0_dblprec
+               mov_circle_spatial(3,j)=0.0_dblprec
             endif
          enddo
          ! This is a "pulsed field" that is after a certain time it is set to zero
@@ -919,13 +917,13 @@ contains
                   mov_circle_spatial(2,j)=mov_circle_sites(2,centering)*mov_circle_ampl
                   mov_circle_spatial(3,j)=mov_circle_sites(3,centering)*mov_circle_ampl
                else
-                  mov_circle_spatial(1,j)=0.0D0
-                  mov_circle_spatial(2,j)=0.0D0
-                  mov_circle_spatial(3,j)=0.0D0
+                  mov_circle_spatial(1,j)=0.0_dblprec
+                  mov_circle_spatial(2,j)=0.0_dblprec
+                  mov_circle_spatial(3,j)=0.0_dblprec
                endif
             enddo
          else
-            mov_circle_spatial=0.0d0
+            mov_circle_spatial=0.0_dblprec
          endif
       end if
 
@@ -936,8 +934,9 @@ contains
    !> @brief Calculate a spherical shaped microwavefield field which follows a predetermined trajectory
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_moving_circle_mwf(Natom,coord,mwf_mov_circle_ampl,mwf_mov_circle_freq,mwf_mov_circle_time_sigma,&
-         time,maxtime,delta_t,mwf_mov_circle_pulse_time,mwf_mov_circle_radius,mwf_mov_circle)
+   subroutine calc_moving_circle_mwf(Natom,coord,mwf_mov_circle_ampl,               &
+      mwf_mov_circle_freq,mwf_mov_circle_time_sigma,time,maxtime,delta_t,           &
+      mwf_mov_circle_pulse_time,mwf_mov_circle_radius,mwf_mov_circle)
       !
       !.. Implicit declatrations
       implicit none
@@ -946,11 +945,11 @@ contains
       integer, intent(in) :: Natom          !< Number of atoms in the system
       integer, intent(in) :: maxtime        !< Total number of simulation steps
       integer, intent(in) :: mwf_mov_circle_pulse_time !< Number of time steps in which the moving microwave circular shaped pulse is on
-      real(dblprec), intent(in) :: delta_t             !< Current time step
-      real(dblprec), intent(in) :: mwf_mov_circle_ampl       !< Amplitude of the moving microwave circular shaped pulse
-      real(dblprec), intent(in) :: mwf_mov_circle_freq       !< Frequency of the moving microwave circular shaped pulse
+      real(dblprec), intent(in) :: delta_t !< Current time step
+      real(dblprec), intent(in) :: mwf_mov_circle_ampl !< Amplitude of the moving microwave circular shaped pulse
+      real(dblprec), intent(in) :: mwf_mov_circle_freq !< Frequency of the moving microwave circular shaped pulse
       real(dblprec), intent(in) :: mwf_mov_circle_time_sigma !< Sigma parameter for frequency circular shaped moving microwave field
-      real(dblprec), intent(in) :: mwf_mov_circle_radius     !< Radius for the moving circular shaped microwave field
+      real(dblprec), intent(in) :: mwf_mov_circle_radius !< Radius for the moving circular shaped microwave field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
       character(len=1), intent(in) :: mwf_mov_circle
 
@@ -973,9 +972,9 @@ contains
                mwf_mov_circle_spatial(3,j)=mov_circle_mwffield_sites(3,centering)*mwf_mov_circle_ampl*&
                   sin(mwf_mov_circle_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_circle_time_sigma)**2))
             else
-               mwf_mov_circle_spatial(1,j)=0.0D0
-               mwf_mov_circle_spatial(2,j)=0.0D0
-               mwf_mov_circle_spatial(3,j)=0.0D0
+               mwf_mov_circle_spatial(1,j)=0.0_dblprec
+               mwf_mov_circle_spatial(2,j)=0.0_dblprec
+               mwf_mov_circle_spatial(3,j)=0.0_dblprec
             endif
          enddo
          ! This is a "pulsed field" that is after a certain time it is set to zero
@@ -992,13 +991,13 @@ contains
                   mwf_mov_circle_spatial(3,j)=mov_circle_mwffield_sites(3,centering)*mwf_mov_circle_ampl*&
                      sin(mwf_mov_circle_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_circle_time_sigma)**2))
                else
-                  mwf_mov_circle_spatial(1,j)=0.0D0
-                  mwf_mov_circle_spatial(2,j)=0.0D0
-                  mwf_mov_circle_spatial(3,j)=0.0D0
+                  mwf_mov_circle_spatial(1,j)=0.0_dblprec
+                  mwf_mov_circle_spatial(2,j)=0.0_dblprec
+                  mwf_mov_circle_spatial(3,j)=0.0_dblprec
                endif
             enddo
          else
-            mwf_mov_circle_spatial=0.0d0
+            mwf_mov_circle_spatial=0.0_dblprec
          endif
       end if
 
@@ -1009,8 +1008,8 @@ contains
    !> @brief Calculate a cubic shaped static field which follows a predetermined trajectory
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_moving_square(Natom,coord,mov_square_ampl,time,mov_square_pulse_time,&
-         centering,mov_square_dimensions,mov_square)
+   subroutine calc_moving_square(Natom,coord,mov_square_ampl,time,                  &
+      mov_square_pulse_time,centering,mov_square_dimensions,mov_square)
       !
       !.. Implicit declatrations
       implicit none
@@ -1022,7 +1021,7 @@ contains
       real(dblprec), intent(in) :: mov_square_ampl   !< Amplitude of microwave field
       real(dblprec), dimension(3), intent(in) :: mov_square_dimensions !< Dimensions for the cubic field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
-      character(len=1), intent(in) :: mov_square             !< Add the moving static cubic shaped field (Y/P/N)
+      character(len=1), intent(in) :: mov_square !< Add the moving static cubic shaped field (Y/P/N)
 
       !.. Local variables
       real(dblprec) :: xtemp,ytemp,ztemp
@@ -1037,14 +1036,15 @@ contains
             xtemp=abs(coord(1,j)-R_center(1))
             ytemp=abs(coord(2,j)-R_center(2))
             ztemp=abs(coord(3,j)-R_center(3))
-            if ((xtemp<=mov_square_dimensions(1)).and.(ytemp<=mov_square_dimensions(2)).and.(ztemp<=mov_square_dimensions(3)))then
+            if ((xtemp<=mov_square_dimensions(1)).and.(ytemp<=mov_square_dimensions(2))&
+               .and.(ztemp<=mov_square_dimensions(3)))then
                mov_square_spatial(1,j)=mov_square_sites(1,centering)*mov_square_ampl
                mov_square_spatial(2,j)=mov_square_sites(2,centering)*mov_square_ampl
                mov_square_spatial(3,j)=mov_square_sites(3,centering)*mov_square_ampl
             else
-               mov_square_spatial(1,j)=0.0D0
-               mov_square_spatial(2,j)=0.0D0
-               mov_square_spatial(3,j)=0.0D0
+               mov_square_spatial(1,j)=0.0_dblprec
+               mov_square_spatial(2,j)=0.0_dblprec
+               mov_square_spatial(3,j)=0.0_dblprec
             endif
          enddo
          ! This is a "pulsed field" that is after a certain time it is set to zero
@@ -1055,18 +1055,19 @@ contains
                xtemp=abs(coord(1,j)-R_center(1))
                ytemp=abs(coord(2,j)-R_center(2))
                ztemp=abs(coord(3,j)-R_center(3))
-               if ( (xtemp<=mov_square_dimensions(1)).and.(ytemp<=mov_square_dimensions(2)).and.(ztemp<=mov_square_dimensions(3)))then
+               if ( (xtemp<=mov_square_dimensions(1)).and.(ytemp<=mov_square_dimensions(2))&
+                  .and.(ztemp<=mov_square_dimensions(3)))then
                   mov_square_spatial(1,j)=mov_square_sites(1,centering)*mov_square_ampl
                   mov_square_spatial(2,j)=mov_square_sites(2,centering)*mov_square_ampl
                   mov_square_spatial(3,j)=mov_square_sites(3,centering)*mov_square_ampl
                else
-                  mov_square_spatial(1,j)=0.0D0
-                  mov_square_spatial(2,j)=0.0D0
-                  mov_square_spatial(3,j)=0.0D0
+                  mov_square_spatial(1,j)=0.0_dblprec
+                  mov_square_spatial(2,j)=0.0_dblprec
+                  mov_square_spatial(3,j)=0.0_dblprec
                endif
             enddo
          else
-            mov_square_spatial=0.0d0
+            mov_square_spatial=0.0_dblprec
          endif
       end if
 
@@ -1077,8 +1078,9 @@ contains
    !> @brief Calculate a cubic shaped microwavefield field which follows a predetermined trajectory
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_moving_square_mwf(Natom,coord,mwf_mov_square_ampl,mwf_mov_square_freq,mwf_mov_square_time_sigma,&
-         time,maxtime,delta_t,mwf_mov_square_pulse_time,mwf_mov_square_dimensions,mwf_mov_square)
+   subroutine calc_moving_square_mwf(Natom,coord,mwf_mov_square_ampl,               &
+      mwf_mov_square_freq,mwf_mov_square_time_sigma,time,maxtime,delta_t,           &
+      mwf_mov_square_pulse_time,mwf_mov_square_dimensions,mwf_mov_square)
       !
       !.. Implicit declatrations
       implicit none
@@ -1088,8 +1090,8 @@ contains
       integer, intent(in) :: maxtime        !< Total number of simulation steps
       integer, intent(in) :: mwf_mov_square_pulse_time !< Number of time steps in which the moving microwave circular shaped pulse is on
       real(dblprec), intent(in) :: delta_t             !< Current time step
-      real(dblprec), intent(in) :: mwf_mov_square_ampl       !< Amplitude of the moving microwave circular shaped pulse
-      real(dblprec), intent(in) :: mwf_mov_square_freq       !< Frequency of the moving microwave circular shaped pulse
+      real(dblprec), intent(in) :: mwf_mov_square_ampl !< Amplitude of the moving microwave circular shaped pulse
+      real(dblprec), intent(in) :: mwf_mov_square_freq !< Frequency of the moving microwave circular shaped pulse
       real(dblprec), intent(in) :: mwf_mov_square_time_sigma !< Sigma parameter for frequency circular shaped moving microwave field
       real(dblprec), dimension(3), intent(in) :: mwf_mov_square_dimensions !< Dimensions for the moving circular shaped microwave field
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of the atoms in the system
@@ -1108,7 +1110,8 @@ contains
             xtemp=abs(coord(1,j)-R_center(1))
             ytemp=abs(coord(2,j)-R_center(2))
             ztemp=abs(coord(3,j)-R_center(3))
-            if ( (xtemp<=mwf_mov_square_dimensions(1)).and.(ytemp<=mwf_mov_square_dimensions(2)).and.(ztemp<=mwf_mov_square_dimensions(3)))then
+            if ( (xtemp<=mwf_mov_square_dimensions(1)).and.(ytemp<=mwf_mov_square_dimensions(2))&
+               .and.(ztemp<=mwf_mov_square_dimensions(3)))then
                mwf_mov_square_spatial(1,j)=mov_square_mwffield_sites(1,centering)*mwf_mov_square_ampl*&
                   sin(mwf_mov_square_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_square_time_sigma)**2))
                mwf_mov_square_spatial(2,j)=mov_square_mwffield_sites(2,centering)*mwf_mov_square_ampl*&
@@ -1116,9 +1119,9 @@ contains
                mwf_mov_square_spatial(3,j)=mov_square_mwffield_sites(3,centering)*mwf_mov_square_ampl*&
                   sin(mwf_mov_square_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_square_time_sigma)**2))
             else
-               mwf_mov_square_spatial(1,j)=0.0D0
-               mwf_mov_square_spatial(2,j)=0.0D0
-               mwf_mov_square_spatial(3,j)=0.0D0
+               mwf_mov_square_spatial(1,j)=0.0_dblprec
+               mwf_mov_square_spatial(2,j)=0.0_dblprec
+               mwf_mov_square_spatial(3,j)=0.0_dblprec
             endif
          enddo
          ! This is a "pulsed field" that is after a certain time it is set to zero
@@ -1129,7 +1132,8 @@ contains
                xtemp=abs(coord(1,j)-R_center(1))
                ytemp=abs(coord(2,j)-R_center(2))
                ztemp=abs(coord(3,j)-R_center(3))
-               if ( (xtemp<=mwf_mov_square_dimensions(1)).and.(ytemp<=mwf_mov_square_dimensions(2)).and.(ztemp<=mwf_mov_square_dimensions(3)))then
+               if ( (xtemp<=mwf_mov_square_dimensions(1)).and.(ytemp<=mwf_mov_square_dimensions(2))&
+                  .and.(ztemp<=mwf_mov_square_dimensions(3)))then
                   mwf_mov_square_spatial(1,j)=mov_square_mwffield_sites(1,centering)*mwf_mov_square_ampl*&
                      sin(mwf_mov_square_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_square_time_sigma)**2))
                   mwf_mov_square_spatial(2,j)=mov_square_mwffield_sites(2,centering)*mwf_mov_square_ampl*&
@@ -1137,13 +1141,13 @@ contains
                   mwf_mov_square_spatial(3,j)=mov_square_mwffield_sites(3,centering)*mwf_mov_square_ampl*&
                      sin(mwf_mov_square_freq*mwftime*2*pi)*exp((-mwftime**2)/(2*(maxtime*delta_t*mwf_mov_square_time_sigma)**2))
                else
-                  mwf_mov_square_spatial(1,j)=0.0D0
-                  mwf_mov_square_spatial(2,j)=0.0D0
-                  mwf_mov_square_spatial(3,j)=0.0D0
+                  mwf_mov_square_spatial(1,j)=0.0_dblprec
+                  mwf_mov_square_spatial(2,j)=0.0_dblprec
+                  mwf_mov_square_spatial(3,j)=0.0_dblprec
                endif
             enddo
          else
-            mwf_mov_square_spatial=0.0d0
+            mwf_mov_square_spatial=0.0_dblprec
          endif
       end if
 
@@ -1158,8 +1162,8 @@ contains
 
       implicit none
 
-      integer, intent(in) :: Natom         !< Number of atoms in the system
-      integer, intent(in) :: status_flag   !< Flag to see wether the arrays must be allocated or deallocated
+      integer, intent(in) :: Natom !< Number of atoms in the system
+      integer, intent(in) :: status_flag !< Flag to see wether the arrays must be allocated or deallocated
 
       !.. Local variables
       integer :: i_stat,i_all
@@ -1168,44 +1172,46 @@ contains
       if (status_flag==1) then
 
          ! Reading the information for all the possible time dependent fields which are "on"
-         call read_local_mwf_fields(Natom,mwf,mwf_gauss,mwf_gauss_spatial,mwf_mov_gauss,mov_gauss,&
-            do_gauss,mwf_site_file,mwf_gauss_site_file,mwf_gauss_spatial_site_file,mov_gauss_file,&
-            mwf_mov_gauss_file,gauss_site_file,mwf_mov_circle_file,mov_circle_file,mwf_mov_circle,mov_circle,&
-            mwf_mov_square,mov_square,mov_square_file,mwf_mov_square_file,site_phase,site_phase_file)
+         call read_local_mwf_fields(Natom,mwf,mwf_gauss,mwf_gauss_spatial,          &
+            mwf_mov_gauss,mov_gauss,do_gauss,mwf_site_file,mwf_gauss_site_file,     &
+            mwf_gauss_spatial_site_file,mov_gauss_file,mwf_mov_gauss_file,          &
+            gauss_site_file,mwf_mov_circle_file,mov_circle_file,mwf_mov_circle,     &
+            mov_circle,mwf_mov_square,mov_square,mov_square_file,                   &
+            mwf_mov_square_file,site_phase,site_phase_file)
 
          ! Allocating the site dependent single frequency magnetic field
          if(mwf=='S'.or.mwf=='W') then
             allocate(site_mwffield(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(site_mwffield))*kind(site_mwffield),'site_mwffield','setup_mwf_fields')
-            site_mwffield=0.0D0
+            site_mwffield=0.0_dblprec
          endif
 
          ! Allocating the site dependent gaussian magnetic field
          if(mwf_gauss=='S'.or.mwf_gauss=='W') then
             allocate(gauss_site_mwffield(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(gauss_site_mwffield))*kind(gauss_site_mwffield),'gauss_site_mwffield','setup_mwf_fields')
-            gauss_site_mwffield=0.0D0
+            gauss_site_mwffield=0.0_dblprec
          endif
 
          ! Allocate the site depending static gaussian magnetic field
          if(do_gauss=='Y'.or.do_gauss=='P') then
             allocate(gauss_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(gauss_spatial))*kind(gauss_spatial),'gauss_spatial','setup_mwf_fields')
-            gauss_spatial=0.0D0
+            gauss_spatial=0.0_dblprec
          endif
 
          ! Allocate the site depending time dependent gaussian magnetic field
          if(mwf_gauss_spatial=='Y'.or.mwf_gauss_spatial=='P') then
             allocate(gauss_spatial_site_mwffield(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(gauss_spatial_site_mwffield))*kind(gauss_spatial_site_mwffield),'gauss_spatial_site_mwffield','setup_mwf_fields')
-            gauss_spatial_site_mwffield=0.0D0
+            gauss_spatial_site_mwffield=0.0_dblprec
          endif
 
          ! Allocate the static spatially resolved moving gaussian field
          if(mov_gauss=='Y'.or.mov_gauss=='P') then
             allocate(mov_gauss_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mov_gauss_spatial))*kind(mov_gauss_spatial),'mov_gauss_spatial','setup_mwf_fields')
-            mov_gauss_spatial=0.0D0
+            mov_gauss_spatial=0.0_dblprec
             centering=1
          endif
 
@@ -1213,7 +1219,7 @@ contains
          if(mwf_mov_gauss=='Y'.or.mwf_mov_gauss=='P') then
             allocate(mwf_mov_gauss_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mwf_mov_gauss_spatial))*kind(mwf_mov_gauss_spatial),'mwf_mov_gauss_spatial','setup_mwf_fields')
-            mwf_mov_gauss_spatial=0.0D0
+            mwf_mov_gauss_spatial=0.0_dblprec
             mwf_centering=1
          endif
 
@@ -1221,7 +1227,7 @@ contains
          if(mov_circle=='Y'.or.mov_circle=='P') then
             allocate(mov_circle_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mov_circle_spatial))*kind(mov_circle_spatial),'mov_circle_spatial','setup_mwf_fields')
-            mov_circle_spatial=0.0D0
+            mov_circle_spatial=0.0_dblprec
             centering=1
          endif
 
@@ -1229,7 +1235,7 @@ contains
          if(mwf_mov_circle=='Y'.or.mwf_mov_circle=='P') then
             allocate(mwf_mov_circle_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mwf_mov_circle_spatial))*kind(mwf_mov_circle_spatial),'mwf_mov_circle_spatial','setup_mwf_fields')
-            mwf_mov_circle_spatial=0.0D0
+            mwf_mov_circle_spatial=0.0_dblprec
             mwf_centering=1
          endif
 
@@ -1237,7 +1243,7 @@ contains
          if(mov_square=='Y'.or.mov_square=='P') then
             allocate(mov_square_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mov_square_spatial))*kind(mov_square_spatial),'mov_square_spatial','setup_mwf_fields')
-            mov_square_spatial=0.0D0
+            mov_square_spatial=0.0_dblprec
             centering=1
          endif
 
@@ -1245,7 +1251,7 @@ contains
          if(mwf_mov_square=='Y'.or.mwf_mov_square=='P') then
             allocate(mwf_mov_square_spatial(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(mwf_mov_square_spatial))*kind(mwf_mov_square_spatial),'mwf_mov_square_spatial','setup_mwf_fields')
-            mwf_mov_square_spatial=0.0D0
+            mwf_mov_square_spatial=0.0_dblprec
             mwf_centering=1
          endif
 
@@ -1412,144 +1418,138 @@ contains
 
    end subroutine setup_mwf_fields
 
-   !-----------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    ! SUBROUTINE read_local_mwf_fields
    !> @brief Subroutine to read the site dependent microwave fields
    !> @author Jonathan Chico
-   !-----------------------------------------------------------------------------
-   subroutine read_local_mwf_fields(Natom,mwf,mwf_gauss,mwf_gauss_spatial,mwf_mov_gauss,mov_gauss,&
-         do_gauss,mwf_site_file,mwf_gauss_site_file,mwf_gauss_spatial_site_file,mov_gauss_file,&
-         mwf_mov_gauss_file,gauss_site_file,mwf_mov_circle_file,mov_circle_file,mwf_mov_circle,&
-         mov_circle,mwf_mov_square,mov_square,mov_square_file,mwf_mov_square_file,site_phase, &
-         site_phase_file)
+   !----------------------------------------------------------------------------
+   subroutine read_local_mwf_fields(Natom,mwf,mwf_gauss,mwf_gauss_spatial,          &
+      mwf_mov_gauss,mov_gauss,do_gauss,mwf_site_file,mwf_gauss_site_file,           &
+      mwf_gauss_spatial_site_file,mov_gauss_file,mwf_mov_gauss_file,gauss_site_file,&
+      mwf_mov_circle_file,mov_circle_file,mwf_mov_circle,mov_circle,mwf_mov_square, &
+      mov_square,mov_square_file,mwf_mov_square_file,site_phase,site_phase_file)
 
       implicit none
 
       integer, intent(in) :: Natom !< Number of atoms in the system
-      character(len=1), intent(in) :: mwf                !< Add monochromatic microwave field (Y/P/S/W/N)
-      character(len=1), intent(in) :: do_gauss           !< Add the Static gaussian shaped field
-      character(len=1), intent(in) :: mwf_gauss          !< Add frequency broadened microwave field (Y/P/S/W/N)
-      character(len=1), intent(in) :: mov_gauss          !< Add the moving static gaussian shaped field (Y/P/N)
-      character(len=1), intent(in) :: site_phase         !< Add the site dependent phase (Y/N)
-      character(len=1), intent(in) :: mov_circle         !< Add the moving static circular shaped field (Y/P/N)
-      character(len=1), intent(in) :: mov_square         !< Add the moving static cubic shaped field (Y/P/N)
-      character(len=1), intent(in) :: mwf_mov_gauss      !< Add the moving microwave gaussian shaped field (Y/P/N)
-      character(len=1), intent(in) :: mwf_mov_circle     !< Add the moving microwave circular shaped field (Y/P/N)
-      character(len=1), intent(in) :: mwf_mov_square     !< Add the moving microwave cubic shaped field (Y/P/N)
-      character(len=1), intent(in) :: mwf_gauss_spatial  !< Add the frequency broadened gaussian shaped microwave field (Y/P/N)
-      character(len=35), intent(in) :: mwf_site_file    !< File name for the site dependent monochromatic micorwave field
-      character(len=35), intent(in) :: mov_gauss_file   !< Moving static gaussian shaped field trajectory file
-      character(len=35), intent(in) :: site_phase_file  !< File for site dependent phase for the microwavefield
-      character(len=35), intent(in) :: mov_circle_file  !< Moving static circular shaped field trajectory file
-      character(len=35), intent(in) :: mov_square_file  !< Moving static cubic shaped field trajectory file
-      character(len=35), intent(in) :: gauss_site_file  !< File name for the site dependent static gaussian shaped field
+      character(len=1), intent(in) :: mwf            !< Add monochromatic microwave field (Y/P/S/W/N)
+      character(len=1), intent(in) :: do_gauss       !< Add the Static gaussian shaped field
+      character(len=1), intent(in) :: mwf_gauss      !< Add frequency broadened microwave field (Y/P/S/W/N)
+      character(len=1), intent(in) :: mov_gauss      !< Add the moving static gaussian shaped field (Y/P/N)
+      character(len=1), intent(in) :: site_phase     !< Add the site dependent phase (Y/N)
+      character(len=1), intent(in) :: mov_circle     !< Add the moving static circular shaped field (Y/P/N)
+      character(len=1), intent(in) :: mov_square     !< Add the moving static cubic shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_gauss  !< Add the moving microwave gaussian shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_circle !< Add the moving microwave circular shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_square !< Add the moving microwave cubic shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_gauss_spatial !< Add the frequency broadened gaussian shaped microwave field (Y/P/N)
+      character(len=35), intent(in) :: mwf_site_file !< File name for the site dependent monochromatic micorwave field
+      character(len=35), intent(in) :: mov_gauss_file  !< Moving static gaussian shaped field trajectory file
+      character(len=35), intent(in) :: site_phase_file !< File for site dependent phase for the microwavefield
+      character(len=35), intent(in) :: mov_circle_file !< Moving static circular shaped field trajectory file
+      character(len=35), intent(in) :: mov_square_file !< Moving static cubic shaped field trajectory file
+      character(len=35), intent(in) :: gauss_site_file !< File name for the site dependent static gaussian shaped field
       character(len=35), intent(in) :: mwf_mov_gauss_file !< Moving frequency broadened gaussian shaped microwave filed trajectory file
       character(len=35), intent(in) :: mwf_mov_circle_file !< Moving frequency broadened circular shaped microwave filed trajectory file
       character(len=35), intent(in) :: mwf_mov_square_file !< Moving frequency broadened cubic shaped microwave filed trajectory file
       character(len=35), intent(in) :: mwf_gauss_site_file !< File name for the site dependent frequency broadened microwave field
       character(len=35), intent(in) :: mwf_gauss_spatial_site_file !< File name for the site dependent gaussian shaped gaussian broadened microwave field
 
-
       !.. Local variables
       integer :: i, flines, isite, i_stat
 
       ! Read the file for the monochormatic site dependent microwave field
       if (mwf=='S'.or.mwf=='W') then
-
-         open  (ofileno, file=trim(mwf_site_file))
+         open(ofileno, file=trim(mwf_site_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(222,*,end=200)  isite
+            read(ofileno,*,end=200)  isite
             flines=flines+1
          end do
          200 continue
-         rewind(222)
+         rewind(ofileno)
 
          ! If the size of the file is NATOM then there is no problem
          if (flines.ne.Natom) write(*,'(2x,a)') 'WARNING: Size of the MWFFIELD_SITES is not NATOM'
          ! Allocate the site-dependent field
          allocate(mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mwffield_sites))*kind(mwffield_sites),'mwffield_sites','read_local_mwf_fields')
-         mwffield_sites=0.0D0
+         mwffield_sites=0.0_dblprec
 
          allocate(field_site_phase(flines),stat=i_stat)
          call memocc(i_stat,product(shape(field_site_phase))*kind(field_site_phase),'field_site_phase','read_local_mwf_fields')
-         field_site_phase=0.0D0
+         field_site_phase=0.0_dblprec
 
          do i=1, flines
-            read(222,*) isite, mwffield_sites(1,isite), mwffield_sites(2,isite), mwffield_sites(3,isite)
+            read(ofileno,*) isite, mwffield_sites(1,isite), mwffield_sites(2,isite), mwffield_sites(3,isite)
          end do
-
-         close (ofileno)
-
-
+         close(ofileno)
 
          if (site_phase=='Y') then
-            open  (ofileno,file=trim(site_phase_file))
+            open(ofileno,file=trim(site_phase_file))
             flines=0
             do
-               read(458,*,end=250) isite
+               read(ofileno,*,end=250) isite
                flines=flines+1
             end do
             250 continue
-            rewind(458)
+            rewind(ofileno)
             if (flines.ne.Natom) write(*,'(2x,a)') 'WARNING: Size of the MWFFIELD_SITES is not NATOM'
 
             do i=1, flines
-               read(458,*) isite, field_site_phase(isite)
+               read(ofileno,*) isite, field_site_phase(isite)
             end do
+            close(ofileno)
          endif
       endif
 
       ! Read the file for the frequency broadened site dependent microwave field
       if (mwf_gauss=='S'.or.mwf_gauss=='W') then
 
-         open  (ofileno, file=trim(mwf_gauss_site_file))
+         open(ofileno, file=trim(mwf_gauss_site_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(223,*,end=400)  isite
+            read(ofileno,*,end=400)  isite
             flines=flines+1
          end do
          400 continue
-         rewind(223)
+         rewind(ofileno)
 
          ! If the size of the file is NATOM then there is no problem
          if (flines.ne.Natom) write(*,'(2x,a)') 'WARNING: Size of the GAUSS_MWFFIELD_SITES is not NATOM'
          ! Allocate the site-dependent field
          allocate(gauss_mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(gauss_mwffield_sites))*kind(gauss_mwffield_sites),'gauss_mwffield_sites','read_local_mwf_fields')
-         gauss_mwffield_sites=0.0D0
+         gauss_mwffield_sites=0.0_dblprec
 
          do i=1, flines
-            read(223,*) isite, gauss_mwffield_sites(1,isite), gauss_mwffield_sites(2,isite), gauss_mwffield_sites(3,isite)
+            read(ofileno,*) isite, gauss_mwffield_sites(1,isite), gauss_mwffield_sites(2,isite), gauss_mwffield_sites(3,isite)
          end do
 
          close (ofileno)
-
       endif
 
       ! Read the file for the frequency broadened, gaussian shaped site dependent microwave field
       if (mwf_gauss_spatial=='Y'.or.mwf_gauss_spatial=='P') then
-
-         open  (ofileno, file=trim(mwf_gauss_spatial_site_file))
+         open(ofileno, file=trim(mwf_gauss_spatial_site_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(224,*,end=600)  isite
+            read(ofileno,*,end=600)  isite
             flines=flines+1
          end do
          600 continue
-         rewind(224)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(gauss_spatial_mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(gauss_spatial_mwffield_sites))*kind(gauss_spatial_mwffield_sites),'gauss_spatial_mwffield_sites','read_local_mwf_fields')
-         gauss_spatial_mwffield_sites=0.0D0
+         gauss_spatial_mwffield_sites=0.0_dblprec
 
          allocate(mwf_gauss_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mwf_gauss_site_center))*kind(mwf_gauss_site_center),'mwf_gauss_site_center','read_local_mwf_fields')
@@ -1557,30 +1557,29 @@ contains
 
          Num_mwf_gauss_centers=flines
          do i=1, flines
-            read(224,*) mwf_gauss_site_center(i), gauss_spatial_mwffield_sites(1,i), gauss_spatial_mwffield_sites(2,i), gauss_spatial_mwffield_sites(3,i)
+            read(ofileno,*) mwf_gauss_site_center(i), gauss_spatial_mwffield_sites(1,i), gauss_spatial_mwffield_sites(2,i), gauss_spatial_mwffield_sites(3,i)
          end do
 
-         close (ofileno)
-
+         close(ofileno)
       endif
 
       ! Read the file for the moving gaussian shape microwave field
       if (mwf_mov_gauss=='Y'.or.mwf_mov_gauss=='P') then
-         open  (ofileno, file=trim(mwf_mov_gauss_file))
+         open(ofileno, file=trim(mwf_mov_gauss_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(225,*,end=800)  isite
+            read(ofileno,*,end=800)  isite
             flines=flines+1
          end do
          800 continue
-         rewind(225)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_gauss_mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_gauss_mwffield_sites))*kind(mov_gauss_mwffield_sites),'mov_gauss_mwffield_sites','read_local_mwf_fields')
-         mov_gauss_mwffield_sites=0.0D0
+         mov_gauss_mwffield_sites=0.0_dblprec
 
          allocate(mwf_mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mwf_mov_site_center))*kind(mwf_mov_site_center),'mwf_mov_site_center','read_local_mwf_fields')
@@ -1588,30 +1587,29 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mwf_mov_centers=flines
          do i=1, flines
-            read(225,*) mwf_mov_site_center(i), mov_gauss_mwffield_sites(1,i), mov_gauss_mwffield_sites(2,i), mov_gauss_mwffield_sites(3,i)
+            read(ofileno,*) mwf_mov_site_center(i), mov_gauss_mwffield_sites(1,i), mov_gauss_mwffield_sites(2,i), mov_gauss_mwffield_sites(3,i)
          end do
 
-         close (ofileno)
-
+         close(ofileno)
       endif
 
       ! Read the file for the moving circular shape microwave field
       if (mwf_mov_circle=='Y'.or.mwf_mov_circle=='P') then
-         open  (ofileno, file=trim(mwf_mov_circle_file))
+         open(ofileno, file=trim(mwf_mov_circle_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(265,*,end=880)  isite
+            read(ofileno,*,end=880)  isite
             flines=flines+1
          end do
          880 continue
-         rewind(265)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_circle_mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_circle_mwffield_sites))*kind(mov_circle_mwffield_sites),'mov_circle_mwffield_sites','read_local_mwf_fields')
-         mov_circle_mwffield_sites=0.0D0
+         mov_circle_mwffield_sites=0.0_dblprec
 
          allocate(mwf_mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mwf_mov_site_center))*kind(mwf_mov_site_center),'mwf_mov_site_center','read_local_mwf_fields')
@@ -1619,30 +1617,29 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mwf_mov_centers=flines
          do i=1, flines
-            read(265,*) mwf_mov_site_center(i), mov_circle_mwffield_sites(1,i), mov_circle_mwffield_sites(2,i), mov_circle_mwffield_sites(3,i)
+            read(ofileno,*) mwf_mov_site_center(i), mov_circle_mwffield_sites(1,i), mov_circle_mwffield_sites(2,i), mov_circle_mwffield_sites(3,i)
          end do
 
-         close (ofileno)
-
+         close(ofileno)
       endif
 
       ! Read the file for the moving cubic shape microwave field
       if (mwf_mov_square=='Y'.or.mwf_mov_square=='P') then
-         open  (ofileno, file=trim(mwf_mov_square_file))
+         open(ofileno, file=trim(mwf_mov_square_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(265,*,end=890)  isite
+            read(ofileno,*,end=890)  isite
             flines=flines+1
          end do
          890 continue
-         rewind(265)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_square_mwffield_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_square_mwffield_sites))*kind(mov_square_mwffield_sites),'mov_square_mwffield_sites','read_local_mwf_fields')
-         mov_square_mwffield_sites=0.0D0
+         mov_square_mwffield_sites=0.0_dblprec
 
          allocate(mwf_mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mwf_mov_site_center))*kind(mwf_mov_site_center),'mwf_mov_site_center','read_local_mwf_fields')
@@ -1650,30 +1647,29 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mwf_mov_centers=flines
          do i=1, flines
-            read(265,*) mwf_mov_site_center(i), mov_square_mwffield_sites(1,i), mov_square_mwffield_sites(2,i), mov_square_mwffield_sites(3,i)
+            read(ofileno,*) mwf_mov_site_center(i), mov_square_mwffield_sites(1,i), mov_square_mwffield_sites(2,i), mov_square_mwffield_sites(3,i)
          end do
 
          close (ofileno)
-
       endif
 
       ! Read the file for the moving gaussian shape static field
       if (mov_gauss=='Y'.or.mov_gauss=='P') then
-         open  (ofileno, file=trim(mov_gauss_file))
+         open(ofileno, file=trim(mov_gauss_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(226,*,end=500)  isite
+            read(ofileno,*,end=500)  isite
             flines=flines+1
          end do
          500 continue
-         rewind(226)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_gauss_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_gauss_sites))*kind(mov_gauss_sites),'mov_gauss_sites','read_local_mwf_fields')
-         mov_gauss_sites=0.0D0
+         mov_gauss_sites=0.0_dblprec
 
          allocate(mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_site_center))*kind(mov_site_center),'mov_site_center','read_local_mwf_fields')
@@ -1681,29 +1677,28 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mov_centers=flines
          do i=1, flines
-            read(226,*) mov_site_center(i), mov_gauss_sites(1,i), mov_gauss_sites(2,i), mov_gauss_sites(3,i)
+            read(ofileno,*) mov_site_center(i), mov_gauss_sites(1,i), mov_gauss_sites(2,i), mov_gauss_sites(3,i)
          end do
 
          close (ofileno)
-
       endif
 
       ! Read the file for the moving circular shape static field
       if (mov_circle=='Y'.or.mov_circle=='P') then
-         open  (ofileno, file=trim(mov_circle_file))
+         open(ofileno, file=trim(mov_circle_file))
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(266,*,end=700)  isite
+            read(ofileno,*,end=700)  isite
             flines=flines+1
          end do
          700 continue
-         rewind(266)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_circle_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_circle_sites))*kind(mov_circle_sites),'mov_circle_sites','read_local_mwf_fields')
-         mov_circle_sites=0.0D0
+         mov_circle_sites=0.0_dblprec
 
          allocate(mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_site_center))*kind(mov_site_center),'mov_site_center','read_local_mwf_fields')
@@ -1711,29 +1706,28 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mov_centers=flines
          do i=1, flines
-            read(266,*) mov_site_center(i), mov_circle_sites(1,i), mov_circle_sites(2,i), mov_circle_sites(3,i)
+            read(ofileno,*) mov_site_center(i), mov_circle_sites(1,i), mov_circle_sites(2,i), mov_circle_sites(3,i)
          end do
 
-         close (ofileno)
-
+         close(ofileno)
       endif
 
       ! Read the file for the moving cubic shape static field
       if (mov_square=='Y'.or.mov_square=='P') then
-         open  (ofileno, file=trim(mov_square_file))
+         open(ofileno, file=trim(mov_square_file))
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(266,*,end=750)  isite
+            read(ofileno,*,end=750)  isite
             flines=flines+1
          end do
          750 continue
-         rewind(266)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(mov_square_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_square_sites))*kind(mov_square_sites),'mov_square_sites','read_local_mwf_fields')
-         mov_square_sites=0.0D0
+         mov_square_sites=0.0_dblprec
 
          allocate(mov_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(mov_site_center))*kind(mov_site_center),'mov_site_center','read_local_mwf_fields')
@@ -1741,30 +1735,29 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_mov_centers=flines
          do i=1, flines
-            read(266,*) mov_site_center(i), mov_square_sites(1,i), mov_square_sites(2,i), mov_square_sites(3,i)
+            read(ofileno,*) mov_site_center(i), mov_square_sites(1,i), mov_square_sites(2,i), mov_square_sites(3,i)
          end do
 
-         close (ofileno)
-
+         close(ofileno)
       endif
 
       ! Read the file for the static gaussian shaped field
       if (do_gauss=='Y'.or.do_gauss=='P') then
-         open  (ofileno, file=trim(gauss_site_file))
+         open(ofileno, file=trim(gauss_site_file))
 
          flines=0
          ! Pre-read file to get number of lines
          do
-            read(227,*,end=100)  isite
+            read(ofileno,*,end=100)  isite
             flines=flines+1
          end do
          100 continue
-         rewind(227)
+         rewind(ofileno)
 
          ! Allocate the site-dependent field
          allocate(gauss_sites(3,flines),stat=i_stat)
          call memocc(i_stat,product(shape(gauss_sites))*kind(gauss_sites),'gauss_sites','read_local_mwf_fields')
-         gauss_sites=0.0D0
+         gauss_sites=0.0_dblprec
 
          allocate(gauss_site_center(flines),stat=i_stat)
          call memocc(i_stat,product(shape(gauss_site_center))*kind(gauss_site_center),'gauss_site_center','read_local_mwf_fields')
@@ -1772,22 +1765,21 @@ contains
          ! If the size of the field is not NATOM there will be a problem
          Num_gauss_centers=flines
          do i=1, flines
-            read(227,*) gauss_site_center(i), gauss_sites(1,i), gauss_sites(2,i), gauss_sites(3,i)
+            read(ofileno,*) gauss_site_center(i), gauss_sites(1,i), gauss_sites(2,i), gauss_sites(3,i)
          end do
 
          close (ofileno)
-
       endif
 
    end subroutine read_local_mwf_fields
 
-   !---------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    !> @brief
    !> Read input parameters.
    !
    !> @author
    !> Anders Bergman
-   !---------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    subroutine read_parameters_mwf(ifile)
       use FileParser
 

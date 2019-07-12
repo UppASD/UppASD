@@ -1,17 +1,17 @@
-!-----------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------
 ! MODULE: MonteCarlo
-!> @brief Data and routines for MonteCarlo simulations of either Ising or Heisenberg models
+!> @brief
+!> Data and routines for MonteCarlo simulations of either Ising or Heisenberg models
 !> @author
 !> A. Bergman, L. Bergqvist, Fan Pan, Jonathan Chico, J. Hellsvik + ...
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
-!-----------------------------------------------------------------------------------
+!> GNU Public License.
+!> -----------------------------------------------------------------------------
 module MonteCarlo
    use Parameters
    use Profiling
+   use ErrorHandling
+   use HamiltonianData, only : ham
    implicit none
 
 
@@ -21,7 +21,6 @@ module MonteCarlo
    !
    integer, dimension(:), allocatable :: iflip_a !< Array of atoms to flip spins for
    !
-
    private
 
    public :: indxb_mcavrg, mcmavg_buff ,iflip_a
@@ -32,48 +31,51 @@ module MonteCarlo
 contains
 
    !--------------------------------------------------------------------------
+   ! SUBROUTINE: mc_evolve
    ! DESCRIPTION
    !> @brief
    !> Main driver for Monte Carlo simulations using various implementations.
-   !! For Heisenberg spin systems the options are either Metropolis,Heat bath or Wolff cluster.
-   !! Based on the Hamiltonian \f$H=-\frac{1}{2} \sum_{ij} J_{ij} \mathbf{m}_i \cdot \mathbf{m}_j \f$.
-   !! Ising model and spin-ice models implemented in Metropolis or Loop Algorithm.
+   !> For Heisenberg spin systems the options are either Metropolis,Heat bath or Wolff cluster.
+   !> Based on the Hamiltonian \f$H=-\frac{1}{2} \sum_{ij} J_{ij} \mathbf{m}_i \cdot \mathbf{m}_j \f$.
+   !> Ising model and spin-ice models implemented in Metropolis or Loop Algorithm.
+   !> @author
+   !> Lars Bergqvist
    !---------------------------------------------------------------------------------
-   subroutine mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,temperature,temprescale,&
-         mode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
-         lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
-         dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
-         biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
-         eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
-         ind_nlist,ind_mom,sus_ind,ind_mom_flag,extfield,do_dip,Qdip)
+
+   subroutine mc_evolve(Natom,Nchmax,Mensemble,nHam,temperature,temprescale,&
+         mode,conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,&
+         lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,&
+         mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,&
+         extfield,do_dip,Num_macro,max_num_atom_macro_cell,&
+         cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,do_anisotropy)
       !
-      use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian, use_vsl
-      use LSF, only : mc_update_LSF
+      use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian, rng_gaussianP, use_vsl
       use SpinIce , only: mc_update_spinice
       use montecarlo_common
-      use InducedMoments, only : mc_update_ind_mom
-      !
+      use Constants, only : mub,k_bolt
+      use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
+         external_field,field1,field2,time_external_field,allocation_field_time,    &
+         thermal_field
+      use InputData, only : NA,N1,N2,N3
+      use OptimizationRoutines
+      use AdaptiveTimeStepping
+      use HamiltonianActions, only : effective_field
+
+            !
       implicit none
 
       !.. Input variables
       ! System variables
-      integer, intent(in) :: NA
       integer, intent(in) :: Natom     !< Number of atoms in system
-      integer, intent(in) :: Nchmax    !< Number of chemical type
+      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: do_ralloy
-      integer, intent(in) :: Natom_full
-      integer, dimension(Natom), intent(in) :: atype !< Type of atom
-      integer, dimension(Natom_full), intent(in) :: atype_ch !< Actual site of atom for dilute system
+      integer, intent(in) :: nHam      !< Number of atoms in Hamiltonian
       real(dblprec), intent(in) :: temperature !< Temperature
       real(dblprec), intent(in) :: temprescale !< Temperature rescaling according to QHB
       character(len=1) :: mode !< Simulation mode (M=MC, H=MC Heat Bath,D=MC Glauber)
       ! LSF variables
       integer, intent(in) :: conf_num  !< number of configurations for LSF
       integer, intent(in) :: lsf_metric !< LSF metric in phase space integration (1=Murata-Doniach,2=Jacobian)
-      integer, dimension(:), intent(in) :: fs_nlistsize  !< Size of first shell neighbouring list for centered atom
-      integer, dimension(:,:), intent(in) :: nind        !< index of firstshell-neighbour-list corresponds to neighbour-list
-      integer, dimension(:,:), intent(in) :: fs_nlist    !< First shell Neighbouring list for centered atom
       real(dblprec),intent(in) :: lsf_window             !< Range of moment variation in LSF
       character(len=1), intent(in)  ::  do_lsf           !< Including LSF energy
       character(len=1), intent(in)  ::  lsf_field        !< LSF field contribution (Local/Total)
@@ -81,108 +83,81 @@ contains
       character(len=1), intent(in)  ::  lsf_interpolate  !< Interpolate LSF or not
       ! Heisenberg exchange variables
       integer, intent(in) ::  do_jtensor  !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(Natom),intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoup !< Heisenberg exchange couplings
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoupD !< Heisenberg exchange couplings (DLM)
-      real(dblprec), dimension(3,3,max_no_neigh,Natom), intent(in) :: j_tens !< Tensorial exchange couplings (SKKR)
       ! DMI variables
       integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_dmneigh !< Calculated number of neighbours with DM interactions
-      integer, dimension(Natom),intent(in) :: dmlistsize !< Size of neighbour list for DM
-      integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist   !< List of neighbours for DM
-      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
       ! PD variables
       integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_pd_tot !< Calculated number of neighbours with PD interactions
-      integer, dimension(Natom),intent(in) :: pdlistsize !< Size of neighbour list for PD
-      integer, dimension(nn_pd_tot,Natom), intent(in) :: pdlist   !< List of neighbours for PD
-      real(dblprec), dimension(6,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
+      !integer, intent(in) :: nn_pd_tot !< Calculated number of neighbours with PD interactions
       ! BIQDM variables
       integer, intent(in) :: do_biqdm   !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_biqdm_tot !< Calculated number of neighbours with BIQDM interactions
-      integer, dimension(Natom),intent(in) :: biqdmlistsize !< Size of neighbour list for BIQDM
-      integer, dimension(nn_biqdm_tot,Natom), intent(in) :: biqdmlist   !< List of neighbours for BIQDM
-      real(dblprec), dimension(1,nn_biqdm_tot,Natom), intent(in) :: biqdm_vect !< BIQDM exchange coupling
       ! BQ variables
       integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_bq_tot !< Calculated number of neighbours with BQ interactions
-      integer, dimension(Natom),intent(in) :: bqlistsize !< Size of neighbour list for BQ
-      integer, dimension(nn_bq_tot,Natom), intent(in) :: bqlist   !< List of neighbours for BQ
-      real(dblprec), dimension(nn_bq_tot,Natom), intent(in) :: j_bq !< Biquadratic exchange couplings
+      ! CHIR variables
+      integer, intent(in) :: do_chir   !< Add scalar chirality term (CHIR) to Hamiltonian (0/1)
       ! Anisotropy variables
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      integer, dimension(Natom),intent(in) :: taniso_diff !< Type of anisotropy (0-2)
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso_diff !< Unit anisotropy vector
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso !< Anisotropy constant
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso_diff !< Anisotropy constant
-      real(dblprec), dimension(Natom), intent(in) :: sb !< Ratio between anisotropy constants
-      real(dblprec), dimension(Natom), intent(in) :: sb_diff !< Ratio between anisotropy constants
-      character(len=1), intent(in) :: mult_axis
+      integer, intent(in) :: do_anisotropy
+      character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       ! Moments variables
       integer, dimension(Natom),intent(in) :: iflip_a !< Flipping pattern
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       ! Induced moments variables
-      integer, dimension(Natom),intent(in) :: ind_nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(NA,Nchmax), intent(in) :: ind_mom !< Indication of whether a given moment is induced (1) or fixed (0)
-      integer, dimension(max_no_neigh,Natom), intent(in) :: ind_nlist !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(Natom), intent(in) :: sus_ind
       character(len=1), intent(in) :: ind_mom_flag
       ! External fields variables
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       ! Dipolar interactions variables
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      real(dblprec), dimension(3,3,Natom,Natom), intent(in), optional :: Qdip !< Matrix for dipole-dipole interaction
-
+      integer, intent(in) :: do_dip  !< Calculate dipole-dipole contribution (0=Off, 1=Brute Force, 2=macrocell)
+      integer, intent(in) :: Num_macro !< Number of macrocells in the system
+      integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
+      integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emomM_macro !< The full vector of the macrocell magnetic moment
+      real(dblprec), dimension(Num_macro,Mensemble), intent(inout) :: mmom_macro !< Magnitude of the macrocell magnetic moments
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emom_macro !< Unit vector of the macrocell magnetic moment
       !.. Local variables
-      integer :: i, k, ip
+      integer :: i, k, ip,icell
 
       real(dblprec) :: de !< Energy difference
-      real(dblprec) :: cluster_size
+      real(dblprec) :: henergy !< Energy from effective field
+      real(dblprec) :: cluster_size,macro_mag_trial,delta
       !.. Local arrays
       integer, dimension(Natom) :: visited_atoms
       real(dblprec), dimension(3) :: newmom !< New trial moment
+      real(dblprec), dimension(3) :: macro_trial
       real(dblprec), dimension(3) :: totfield  !<Total effective field acting on each moment
-      real(dblprec),dimension(natom,mensemble) :: flipprob_a ,newmmom_a
-      real(dblprec),dimension(3,natom,mensemble) :: newmom_a
+      real(dblprec),dimension(natom,mensemble) :: flipprob_a ,newmmom_a,mflip
+      real(dblprec),dimension(3,natom,mensemble) :: newmom_a,flipprob_g,flipprob_m
 
       integer, external :: omp_get_thread_num
 
-      cluster_size=0.0D0
+      cluster_size=0.0_dblprec
       visited_atoms=0
+      delta=(2.0/25.0)*(k_bolt*temperature/mub)**(0.20_dblprec)
 
       if (do_lsf=='Y') then
-         call mc_update_LSF(Natom,Nchmax,Mensemble,max_no_neigh, conf_num, ncoup, ncoupD,do_lsf, nlist, nlistsize , &
-            taniso, eaniso, kaniso,sb,emomM, emom, mmom, temperature, temprescale, extfield, &
-            mult_axis, taniso_diff, eaniso_diff, kaniso_diff,sb_diff,mode,fs_nlist, fs_nlistsize, &
-            nind,lsf_interpolate,lsf_field,lsf_window,lsf_metric,exc_inter,iflip_a,ind_nlistsize,&
-            ind_nlist,sus_ind,ind_mom_flag)
+         call ErrorHandling_missing('Local Spin Fluctuations')
 
+      ! Evolution of induced moments as described by Polesya et al.
       else if (ind_mom_flag=='Y') then
-         call mc_update_ind_mom(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,iflip_a,atype,atype_ch,&
-            temperature,temprescale,mode,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,conf_num,exc_inter,&
-            do_dm,max_no_dmneigh,dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,&
-            pdlist,pd_vect,do_biqdm,nn_biqdm_tot,biqdmlistsize,biqdmlist,biqdm_vect,&
-            do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,eaniso,eaniso_diff,kaniso,&
-            kaniso_diff,sb,sb_diff,mult_axis,mmom,emomM,emom,extfield,do_dip,Qdip,&
-            ind_nlistsize,ind_nlist,ind_mom,sus_ind,do_lsf,lsf_metric,ind_mom_flag)
-
+         call ErrorHandling_missing('Induced moments')
       else
          ! Set up trial directions of magnetic moments
          if (mode=='L') then
-            call mc_update_spinice(Natom, Mensemble, max_no_neigh, conf_num, ncoup, ncoupD, nlist, nlistsize, &
-               do_dm, max_no_dmneigh, dm_vect, dmlist, dmlistsize, do_pd, nn_pd_tot, pd_vect, pdlist, pdlistsize, &
-               do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-               taniso, eaniso, kaniso,sb,emomM, emom, mmom, iflip_a, extfield, &
-               mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff, &
-               do_dip, Qdip,exc_inter,temperature,temprescale,ind_nlistsize,ind_nlist,sus_ind,ind_mom_flag)
+            call mc_update_spinice(Natom, Mensemble, nHam, ham%max_no_neigh, conf_num, ham%ncoup, ham%ncoupD, ham%nlist, ham%nlistsize, ham%aham, &
+               do_dm, ham%max_no_dmneigh, ham%dm_vect, ham%dmlist, ham%dmlistsize, do_pd, ham%nn_pd_tot, ham%pd_vect, ham%pdlist, ham%pdlistsize, &
+               do_biqdm, ham%nn_biqdm_tot, ham%biqdm_vect, ham%biqdmlist, ham%biqdmlistsize, do_bq, ham%nn_bq_tot, ham%j_bq, ham%bqlist, ham%bqlistsize, &
+               do_chir, ham%nn_chir_tot, ham%chir_coup, ham%chirlist, ham%chirlistsize, &
+               ham%taniso, ham%eaniso, ham%kaniso,ham%sb,emomM, emom, mmom, iflip_a, extfield, &
+               mult_axis,ham%taniso_diff, ham%eaniso_diff, ham%kaniso_diff,ham%sb_diff, &
+               do_dip, ham%Qdip,exc_inter,temperature,temprescale,ham%ind_nlistsize,ham%ind_nlist,ham%sus_ind,ind_mom_flag,ham%ind_list_full,ham%max_no_neigh_ind,&
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,&
+               mmom_macro,emom_macro,emomM_macro,ham%Qdip_macro,do_anisotropy)
          else
             if (mode=='M'.or.mode=='H'.or.mode=='D') then
-               call rng_uniformP(flipprob_a(:,:),natom*mensemble)
+               call rng_uniformP(flipprob_m(:,:,:),3*natom*mensemble)
+               call rng_gaussianP(flipprob_g(:,:,:),3*natom*mensemble,1.0_dblprec)
 
                if(use_vsl) then
 #ifdef VSL
@@ -190,7 +165,7 @@ contains
 #endif
                   do i=1,Natom
                      do k=1,mensemble
-                        call choose_random_flip(emom,newmom,Natom,Mensemble,i,k,temperature,flipprob_a(i,k))
+                        call choose_random_flip(emom,newmom,Natom,Mensemble,i,k,delta,flipprob_m(:,i,k),flipprob_g(:,i,k))
                         newmom_a(1:3,i,k)=newmom(1:3)
                      enddo
                   enddo
@@ -200,18 +175,19 @@ contains
                else
                   do i=1,Natom
                      do k=1,mensemble
-                        call choose_random_flip(emom,newmom,Natom,Mensemble,i,k,temperature,flipprob_a(i,k))
+                        call choose_random_flip(emom,newmom,Natom,Mensemble,i,k,delta,flipprob_m(:,i,k),flipprob_g(:,i,k))
                         newmom_a(1:3,i,k)=newmom(1:3)
                      enddo
                   enddo
                end if
+               if(mode=='H') call rng_uniformP(mflip(:,:),natom*mensemble)
             else if (mode=='I') then
                ! First Ising random atom
                !$omp parallel do default(shared),private(i,k,newmom),schedule(auto),collapse(2)
                do i=1,Natom
                   do k=1,mensemble
                      call Ising_random_flip(emom,newmom,iflip_a(i),k,Natom,Mensemble)
-                     newmom_a(:,i,k)=newmom(:)
+                     newmom_a(:,iflip_a(i),k)=newmom(:)
                   enddo
                enddo
                !$omp end parallel do
@@ -224,55 +200,59 @@ contains
             do i=1, Natom
                do k=1,mensemble
                   if(do_jtensor==1) then
-                     call calculate_efield_tensor(Natom, Mensemble, max_no_neigh, j_tens, nlist, nlistsize, &
-                        do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-                        taniso, eaniso, kaniso,sb,emomM, iflip_a(i),extfield,k, totfield, do_dip, Qdip)
+                     call calculate_efield_tensor(Natom, Mensemble, &
+                        do_biqdm, do_bq, emomM, iflip_a(i),extfield,k, totfield, do_dip,do_anisotropy)
 
                      call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k),mmom(iflip_a(i),k),iflip_a(i), &
-                        temperature,temprescale,k,flipprob_a(i,k),totfield)
+                        temperature,temprescale,k,flipprob_a(i,k),totfield,mflip(i,k))
                   else
                      if (mode=='H') then
                         ! Heat bath algorithm
-                        call calculate_efield(Natom, Mensemble, max_no_neigh, conf_num, ncoup, ncoupD, nlist, nlistsize, &
-                           do_dm, max_no_dmneigh, dm_vect, dmlist, dmlistsize, &
-                           do_pd, nn_pd_tot, pd_vect, pdlist, pdlistsize, &
-                           do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, &
-                           do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-                           taniso, eaniso, kaniso,sb,emomM, emom, &
-                           mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
-                           iflip_a(i),extfield, do_lsf, k, totfield,exc_inter)
+                        !call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, do_bq, do_chir, &
+                        !   emomM, emom, mult_axis, iflip_a(i),extfield, do_lsf, k, totfield,exc_inter,do_anisotropy)
+                        !call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),do_jtensor,      &
+                        !      do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
+                        !      external_field,time_external_field,beff,beff1,beff2,OPT_flag,                 &
+                        !      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+                        !      constellationsNeighType,mult_axis,henergy,Num_macro,cell_index,emomM_macro, &
+                        !      macro_nlistsize,NA,N1,N2,N3)
+                        !   totfield=beff(:,iflip_a(i),k)
+                           call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, &
+                           do_bq, do_chir, emomM, emom, mult_axis, iflip_a(i),extfield, do_lsf, k, &
+                           totfield,exc_inter,do_anisotropy)
+
+
                         !
                         call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k), mmom(iflip_a(i),k), &
-                           iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield)
+                           iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield,mflip(i,k))
                      else
                         ! Metropolis algorithm, either in Ising or Loop Algorithm form
-                        call calculate_energy(Natom, Mensemble, max_no_neigh, conf_num, ncoup, ncoupD, nlist, nlistsize, &
-                           do_dm, max_no_dmneigh, dm_vect, dmlist, dmlistsize, do_pd, nn_pd_tot, pd_vect, pdlist, pdlistsize, &
-                           do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-                           taniso, eaniso, kaniso,sb,emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
-                           mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff, &
-                           do_dip, Qdip,exc_inter)
+                        call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_chir,&
+                           emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
+                           mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
+                           macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy)
+
                         if(mode=='D') then
                            call flip_g(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k), &
-                              de,temperature,temprescale,do_lsf,k,flipprob_a(i,k),lsf_metric,ind_nlistsize,&
-                              ind_nlist,ind_mom_flag,max_no_neigh,sus_ind)
+                              de,temperature,temprescale,do_lsf,k,flipprob_a(i,k),lsf_metric,ham%ind_nlistsize,&
+                              ham%ind_nlist,ind_mom_flag,ham%max_no_neigh,ham%sus_ind,&
+                              do_dip,Num_macro,icell,macro_mag_trial,macro_trial,mmom_macro,emom_macro,emomM_macro)
                         else
                            call flip_a(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k), &
-                              de,temperature,temprescale,do_lsf,k,flipprob_a(i,k),lsf_metric,ind_nlistsize,&
-                              ind_nlist,ind_mom_flag,max_no_neigh,sus_ind)
+                              de,temperature,temprescale,do_lsf,k,flipprob_a(i,k),lsf_metric,ham%ind_nlistsize,&
+                              ham%ind_nlist,ind_mom_flag,ham%max_no_neigh_ind,ham%sus_ind,ham%ind_list_full,&
+                              do_dip,Num_macro,icell,macro_mag_trial,macro_trial,mmom_macro,emom_macro,emomM_macro)
                         endif
                      endif
                   endif   !jtensor
                enddo    !ensemble
             enddo     !atom
             !$omp end parallel do
-            !           enddo    !ensemble
          endif       !mode
       endif         !lsf
       return
 
    end subroutine mc_evolve
-
 
 
    !> Sets up an array with moments for trial spin flips
@@ -300,204 +280,114 @@ contains
          iflip_a(mod(ishift,Natom)+1)=itmp
       end do
 
-
    end subroutine choose_random_atom_x
 
-
-
-   !> Calculate total field for a single spin
-   subroutine calculate_efield(Natom, Mensemble, max_no_neigh, conf_num, ncoup, ncoupD, nlist, nlistsize, &
-         do_dm, max_no_dmneigh, dm_vect, dmlist, dmlistsize, &
-         do_pd, nn_pd_tot, pd_vect, pdlist, pdlistsize, &
-         do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, &
-         do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-         taniso, eaniso, kaniso,sb,emomM, emom, &
-         mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
-         iflip,extfield, do_lsf, k, totfield,exc_inter)
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: calculate_efield
+   !> @brief
+   !> Calculate total field for a single spin, used in the Heatbath algorithm
+   !> @author
+   !> Lars Bergqvist
+   !---------------------------------------------------------------------------------
+   subroutine calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, do_bq, do_chir, &
+         emomM, emom, mult_axis, iflip,extfield, do_lsf, k, totfield, exc_inter,do_anisotropy)
 
       !.. Implicit declarations
       implicit none
 
+      integer, intent(in) :: k !< Current ensemble
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
       integer, intent(in) :: conf_num    !< Number of configurations for LSF
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoup !< Heisenberg exchange couplings
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoupD !< Heisenberg exchange couplings (DLM)
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom),intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
       integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_dmneigh !< Calculated number of neighbours with DM interactions
-      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
-      integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist   !< List of neighbours for DM
-      integer, dimension(Natom),intent(in) :: dmlistsize !< Size of neighbour list for DM
       integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_pd_tot !< Calculated number of neighbours with PD interactions
-      real(dblprec), dimension(6,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
-      integer, dimension(nn_pd_tot,Natom), intent(in) :: pdlist   !< List of neighbours for PD
-      integer, dimension(Natom),intent(in) :: pdlistsize !< Size of neighbour list for PD
       integer, intent(in) :: do_biqdm   !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_biqdm_tot !< Calculated number of neighbours with BIQDM interactions
-      real(dblprec), dimension(1,nn_biqdm_tot,Natom), intent(in) :: biqdm_vect !< BIQDM exchange coupling
-      integer, dimension(nn_biqdm_tot,Natom), intent(in) :: biqdmlist   !< List of neighbours for BIQDM
-      integer, dimension(Natom),intent(in) :: biqdmlistsize !< Size of neighbour list for BIQDM
       integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_bq_tot !< Calculated number of neighbours with BQ interactions
-      real(dblprec), dimension(nn_bq_tot,Natom), intent(in) :: j_bq !< Biquadratic exchange couplings
-      integer, dimension(nn_bq_tot,Natom), intent(in) :: bqlist   !< List of neighbours for BQ
-      integer, dimension(Natom),intent(in) :: bqlistsize !< Size of neighbour list for BQ
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      integer, dimension(Natom),intent(in) :: taniso_diff !< Type of anisotropy (0-2)
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso_diff !< Unit anisotropy vector
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso !< Anisotropy constant
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso_diff !< Anisotropy constant
-      real(dblprec), dimension(Natom), intent(in) :: sb!< Ratio between the Anisotropy constants
-      real(dblprec), dimension(Natom), intent(in) :: sb_diff!< Ratio between the Anisotropy constants
+      integer, intent(in) :: do_chir !< Add scalar chirality exchange to Hamiltonian (0/1)
+      integer, intent(in) :: do_anisotropy
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       character(len=1), intent(in)  ::  do_lsf     !< Including LSF energy
-      integer, intent(in) :: k !< Current ensemble
       real(dblprec), dimension(3),intent(out) :: totfield  !<Total effective field
-      character(len=1), intent(in) :: mult_axis
-      character(len=1), intent(in) :: exc_inter !> Interpolation of Jij between FM/DLM (Y/N)
+      character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
+      character(len=1), intent(in) :: exc_inter !< Interpolation of Jij between FM/DLM (Y/N)
 
       !.. Local scalars
-      integer :: j
+      integer :: j, iflip_ham
       real(dblprec) :: tta, aw1,aw2
       real(dblprec) :: bqmdot,excscale
       real(dblprec) :: sxy, syz, szx
+      integer :: im1,im2,ip1,ip2
 
       !.. Executable statements
 
       ! First calculate effective field
-      totfield(:) = 0.d0
+      totfield(:) = 0.0_dblprec
+      iflip_ham=ham%aham(iflip)
 
       if (exc_inter=='N') then
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
+#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
          !$omp simd reduction(+:totfield)
 #endif
-         do j=1,nlistsize(iflip)
-            totfield(:) = totfield(:)+ ncoup(j,iflip,1)*emomM(:,nlist(j,iflip),k)
+         do j=1,ham%nlistsize(iflip_ham)
+            totfield(:) = totfield(:)+ ham%ncoup(j,iflip_ham,1)*emomM(:,ham%nlist(j,iflip),k)
          end do
       else
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
-         !$omp simd reduction(+:totfield)
+         totfield=0.0_dblprec
+#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
+         !$omp simd private(excscale) reduction(+:totfield)
 #endif
-         do j=1,nlistsize(iflip)
-            totfield=totfield+emom(:,nlist(j,iflip),k)
-         enddo
-         excscale=sqrt(totfield(1)**2+totfield(2)**2+totfield(3)**2)/nlistsize(iflip)
-         totfield=0.d0
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
-         !$omp simd reduction(+:totfield)
-#endif
-         do j=1,nlistsize(iflip)
-            totfield(:)=totfield(:)+((excscale*ncoup(j,iflip,1)+(1.d0-excscale)*ncoupD(j,iflip,1)))*emomM(:,nlist(j,iflip),k)
+         do j=1,ham%nlistsize(iflip_ham)
+            excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
+            totfield(:)=totfield(:)+((excscale*ham%ncoup(j,iflip_ham,1)+(1.0_dblprec-excscale)*ham%ncoupD(j,iflip_ham,1)))*emomM(:,ham%nlist(j,iflip),k)
          end do
       endif
 
-      ! Anisotropy
-      ! Uniaxial anisotropy  scaled down to match heatbath
-      if (taniso(iflip)==1) then
-         tta=sum(emomM(:,iflip,k)*eaniso(:,iflip))
-
-         ! K1*(sin theta)^2
-         totfield(1:3) = totfield(1:3)  &
-            - 1.0d0*kaniso(1,iflip)*tta*eaniso(1:3,iflip) &
-            ! K2*(sin theta)^4
-         - 1.0d0*kaniso(2,iflip)*(tta**2)*tta*eaniso(1:3,iflip)
-         ! Cubic anisotropy
-      elseif (taniso(iflip)==2) then
-         ! K1*(sin theta)^2
-         totfield(1) = totfield(1) &
-            + 2*kaniso(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-            + 2*kaniso(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
-
-         totfield(2) = totfield(2) &
-            + 2*kaniso(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-            + 2*kaniso(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
-
-         totfield(3) = totfield(3) &
-            + 2*kaniso(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-            + 2*kaniso(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
-
-      endif
-      ! When both Cubic and Uniaxial are switched on
-      if (taniso(iflip)==7) then
-
-         ! Uniaxial anisotropy
-         tta=sum(emomM(:,iflip,k)*eaniso(:,iflip))
-
-         ! K1*(sin theta)^2
-         totfield(1:3) = totfield(1:3)  &
-            - 1.0d0*kaniso(1,iflip)*tta*eaniso(1:3,iflip) &
-            ! K2*(sin theta)^4
-         - 1.0d0*kaniso(2,iflip)*(tta**2)*tta*eaniso(1:3,iflip)
-         ! Cubic anisotropy
-         ! K1*(sin theta)^2
-         aw1=kaniso(1,iflip)*sb(iflip)
-         aw2=kaniso(2,iflip)*sb(iflip)
-         totfield(1) = totfield(1) &
-            + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-            + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
-
-         totfield(2) = totfield(2) &
-            + 2*aw1*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-            + 2*aw2+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
-
-         totfield(3) = totfield(3) &
-            + 2*aw1*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-            + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
-      endif
-
-
-      if (mult_axis=='Y') then
-         ! Uniaxial anisotropy
-         if (taniso_diff(iflip)==1) then
-            tta=sum(emomM(:,iflip,k)*eaniso_diff(:,iflip))
-
+      if (do_anisotropy==1) then
+         ! Anisotropy
+         ! Uniaxial anisotropy  scaled down to match heatbath
+         if (ham%taniso(iflip)==1) then
+            tta=sum(emomM(:,iflip,k)*ham%eaniso(:,iflip))
             ! K1*(sin theta)^2
             totfield(1:3) = totfield(1:3)  &
-               - 2.0d0*kaniso_diff(1,iflip)*tta*eaniso_diff(1:3,iflip) &
+               - 1.0_dblprec*ham%kaniso(1,iflip)*tta*ham%eaniso(1:3,iflip) &
                ! K2*(sin theta)^4
-            - 4.0d0*kaniso_diff(2,iflip)*(tta**2)*tta*eaniso_diff(1:3,iflip)
-            ! Cubic anisotropy
-         elseif (taniso_diff(iflip)==2) then
+               - 1.0_dblprec*ham%kaniso(2,iflip)*(tta**2)*tta*ham%eaniso(1:3,iflip)
+               ! Cubic anisotropy
+         elseif (ham%taniso(iflip)==2) then
             ! K1*(sin theta)^2
             totfield(1) = totfield(1) &
-               + 2*kaniso_diff(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-               + 2*kaniso_diff(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+            + 2*ham%kaniso(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+            + 2*ham%kaniso(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
 
             totfield(2) = totfield(2) &
-               + 2*kaniso_diff(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-               + 2*kaniso_diff(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+               + 2*ham%kaniso(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+               + 2*ham%kaniso(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
 
-            totfield(3) = totfield(3) &
-               + 2*kaniso_diff(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-               + 2*kaniso_diff(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
-
+               totfield(3) = totfield(3) &
+               + 2*ham%kaniso(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+               + 2*ham%kaniso(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
          endif
          ! When both Cubic and Uniaxial are switched on
-         if (taniso_diff(iflip)==7) then
+         if (ham%taniso(iflip)==7) then
 
             ! Uniaxial anisotropy
-            tta=sum(emomM(:,iflip,k)*eaniso_diff(:,iflip))
+            tta=sum(emomM(:,iflip,k)*ham%eaniso(:,iflip))
 
             ! K1*(sin theta)^2
             totfield(1:3) = totfield(1:3)  &
-               - 2.0d0*kaniso_diff(1,iflip)*tta*eaniso_diff(1:3,iflip) &
+               - 1.0_dblprec*ham%kaniso(1,iflip)*tta*ham%eaniso(1:3,iflip) &
                ! K2*(sin theta)^4
-            - 4.0d0*kaniso_diff(2,iflip)*(tta**2)*tta*eaniso_diff(1:3,iflip)
+               - 1.0_dblprec*ham%kaniso(2,iflip)*(tta**2)*tta*ham%eaniso(1:3,iflip)
             ! Cubic anisotropy
             ! K1*(sin theta)^2
-            aw1=kaniso_diff(1,iflip)*sb_diff(iflip)
-            aw2=kaniso_diff(2,iflip)*sb_diff(iflip)
+            aw1=ham%kaniso(1,iflip)*ham%sb(iflip)
+            aw2=ham%kaniso(2,iflip)*ham%sb(iflip)
             totfield(1) = totfield(1) &
-               + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-               + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+            + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+            + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
 
             totfield(2) = totfield(2) &
                + 2*aw1*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
@@ -508,65 +398,148 @@ contains
                + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
          endif
 
-      endif
+         if (mult_axis=='Y') then
+            ! Uniaxial anisotropy
+            if (ham%taniso_diff(iflip)==1) then
+               tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
 
+               ! K1*(sin theta)^2
+               totfield(1:3) = totfield(1:3)  &
+                  - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
+                  ! K2*(sin theta)^4
+                  - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
+            ! Cubic anisotropy
+            elseif (ham%taniso_diff(iflip)==2) then
+               ! K1*(sin theta)^2
+               totfield(1) = totfield(1) &
+                  + 2*ham%kaniso_diff(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+                  + 2*ham%kaniso_diff(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+
+               totfield(2) = totfield(2) &
+               + 2*ham%kaniso_diff(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+               + 2*ham%kaniso_diff(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+
+               totfield(3) = totfield(3) &
+                  + 2*ham%kaniso_diff(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+                  + 2*ham%kaniso_diff(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
+
+            endif
+            ! When both Cubic and Uniaxial are switched on
+            if (ham%taniso_diff(iflip)==7) then
+               ! Uniaxial anisotropy
+               tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
+
+               ! K1*(sin theta)^2
+               totfield(1:3) = totfield(1:3)  &
+                  - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
+                  ! K2*(sin theta)^4
+                  - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
+               ! Cubic anisotropy
+               ! K1*(sin theta)^2
+               aw1=ham%kaniso_diff(1,iflip)*ham%sb_diff(iflip)
+               aw2=ham%kaniso_diff(2,iflip)*ham%sb_diff(iflip)
+               totfield(1) = totfield(1) &
+               + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+               + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+
+               totfield(2) = totfield(2) &
+                  + 2*aw1*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+                  + 2*aw2+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+
+               totfield(3) = totfield(3) &
+                  + 2*aw1*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+                  + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
+            endif
+         endif
+      endif
       ! DM interaction
       if(do_dm==1) then
-         do j=1,dmlistsize(iflip)
-            totfield(1) = totfield(1) - dm_vect(3,j,iflip)*emomM(2,dmlist(j,iflip),k) +&
-               dm_vect(2,j,iflip)*emomM(3,dmlist(j,iflip),k)
-            totfield(2) = totfield(2) - dm_vect(1,j,iflip)*emomM(3,dmlist(j,iflip),k) +&
-               dm_vect(3,j,iflip)*emomM(1,dmlist(j,iflip),k)
-            totfield(3) = totfield(3) - dm_vect(2,j,iflip)*emomM(1,dmlist(j,iflip),k) +&
-               dm_vect(1,j,iflip)*emomM(2,dmlist(j,iflip),k)
+         do j=1,ham%dmlistsize(iflip_ham)
+            totfield(1) = totfield(1) - ham%dm_vect(3,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k) +&
+               ham%dm_vect(2,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k)
+            totfield(2) = totfield(2) - ham%dm_vect(1,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k) +&
+               ham%dm_vect(3,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k)
+            totfield(3) = totfield(3) - ham%dm_vect(2,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k) +&
+               ham%dm_vect(1,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k)
          end do
       end if
 
       ! PD interaction
       if(do_pd==1) then
-         do j=1,pdlistsize(iflip)
-            totfield(1) = totfield(1) + pd_vect(1,j,iflip)*emomM(1,pdlist(j,iflip),k) +&
-               pd_vect(4,j,iflip)*emomM(2,pdlist(j,iflip),k) +&
-               pd_vect(5,j,iflip)*emomM(3,pdlist(j,iflip),k)
-            totfield(2) = totfield(2) + pd_vect(4,j,iflip)*emomM(1,pdlist(j,iflip),k) +&
-               pd_vect(2,j,iflip)*emomM(2,pdlist(j,iflip),k) +&
-               pd_vect(6,j,iflip)*emomM(3,pdlist(j,iflip),k)
-            totfield(3) = totfield(3) + pd_vect(5,j,iflip)*emomM(1,pdlist(j,iflip),k) +&
-               pd_vect(6,j,iflip)*emomM(2,pdlist(j,iflip),k) +&
-               pd_vect(3,j,iflip)*emomM(3,pdlist(j,iflip),k)
+         do j=1,ham%pdlistsize(iflip_ham)
+            totfield(1) = totfield(1) + ham%pd_vect(1,j,iflip_ham)*emomM(1,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(4,j,iflip_ham)*emomM(2,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(5,j,iflip_ham)*emomM(3,ham%pdlist(j,iflip),k)
+            totfield(2) = totfield(2) + ham%pd_vect(4,j,iflip_ham)*emomM(1,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(2,j,iflip_ham)*emomM(2,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(6,j,iflip_ham)*emomM(3,ham%pdlist(j,iflip),k)
+            totfield(3) = totfield(3) + ham%pd_vect(5,j,iflip_ham)*emomM(1,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(6,j,iflip_ham)*emomM(2,ham%pdlist(j,iflip),k) +&
+               ham%pd_vect(3,j,iflip_ham)*emomM(3,ham%pdlist(j,iflip),k)
          end do
       end if
 
       ! BIQDM interaction
       if(do_biqdm==1) then
-         do j=1,biqdmlistsize(iflip)
-            sxy = emomM(1,iflip,k)*emomM(2,biqdmlist(j,iflip),k)-&
-               emomM(2,iflip,k)*emomM(1,biqdmlist(j,iflip),k)
-            syz = emomM(2,iflip,k)*emomM(3,biqdmlist(j,iflip),k)-&
-               emomM(3,iflip,k)*emomM(2,biqdmlist(j,iflip),k)
-            szx = emomM(3,iflip,k)*emomM(1,biqdmlist(j,iflip),k)-&
-               emomM(1,iflip,k)*emomM(3,biqdmlist(j,iflip),k)
-            totfield(1) = totfield(1) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               szx*emomM(3,biqdmlist(j,iflip),k)-&
-               sxy*emomM(2,biqdmlist(j,iflip),k))
-            totfield(2) = totfield(2) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               sxy*emomM(1,biqdmlist(j,iflip),k)-&
-               syz*emomM(3,biqdmlist(j,iflip),k))
-            totfield(3) = totfield(3) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               syz*emomM(2,biqdmlist(j,iflip),k)-&
-               szx*emomM(1,biqdmlist(j,iflip),k))
+         do j=1,ham%biqdmlistsize(iflip_ham)
+            sxy = emomM(1,iflip,k)*emomM(2,ham%biqdmlist(j,iflip),k)-&
+               emomM(2,iflip,k)*emomM(1,ham%biqdmlist(j,iflip),k)
+            syz = emomM(2,iflip,k)*emomM(3,ham%biqdmlist(j,iflip),k)-&
+               emomM(3,iflip,k)*emomM(2,ham%biqdmlist(j,iflip),k)
+            szx = emomM(3,iflip,k)*emomM(1,ham%biqdmlist(j,iflip),k)-&
+               emomM(1,iflip,k)*emomM(3,ham%biqdmlist(j,iflip),k)
+            totfield(1) = totfield(1) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip_ham)*(&
+               szx*emomM(3,ham%biqdmlist(j,iflip),k)-&
+               sxy*emomM(2,ham%biqdmlist(j,iflip),k))
+            totfield(2) = totfield(2) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip_ham)*(&
+               sxy*emomM(1,ham%biqdmlist(j,iflip),k)-&
+               syz*emomM(3,ham%biqdmlist(j,iflip),k))
+            totfield(3) = totfield(3) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip_ham)*(&
+               syz*emomM(2,ham%biqdmlist(j,iflip),k)-&
+               szx*emomM(1,ham%biqdmlist(j,iflip),k))
          end do
       end if
 
       ! BQ interaction scaled down to match Heatbath
       if(do_bq==1) then
-         do j=1,bqlistsize(iflip)
+         do j=1,ham%bqlistsize(iflip_ham)
             ! current spin
             !!!!!++ Lars changed the last emom to emomM
-            bqmdot=emomM(1,bqlist(j,iflip),k)*emomM(1,iflip,k)+&
-               emomM(2,bqlist(j,iflip),k)*emomM(2,iflip,k)+&
-               emomM(3,bqlist(j,iflip),k)*emomM(3,iflip,k)
-            totfield(:) = totfield(:) + 1.0d0*j_bq(j,iflip)*bqmdot*emomM(:,bqlist(j,iflip),k)
+            bqmdot=emomM(1,ham%bqlist(j,iflip),k)*emomM(1,iflip,k)+&
+                   emomM(2,ham%bqlist(j,iflip),k)*emomM(2,iflip,k)+&
+                   emomM(3,ham%bqlist(j,iflip),k)*emomM(3,iflip,k)
+
+!           bqmdot=emomM(1,ham%bqlist(j,iflip_ham),k)*emomM(1,iflip,k)+&
+!              emomM(2,ham%bqlist(j,iflip_ham),k)*emomM(2,iflip,k)+&
+!              emomM(3,ham%bqlist(j,iflip_ham),k)*emomM(3,iflip,k)
+            totfield(:) = totfield(:) - 2.0_dblprec*ham%j_bq(j,iflip_ham)*bqmdot*emomM(:,ham%bqlist(j,iflip),k)
+         end do
+      end if
+
+      ! "Chiral interaction term"
+      if(do_chir==1) then
+         do j=1,ham%chirlistsize(iflip_ham)
+            im1=ham%chirlist(2,j,iflip)
+            ip1=ham%chirlist(1,j,iflip)
+            im2=ham%chirlist(2,j,im1)
+            if(im2==0) im2=im1
+            ip2=ham%chirlist(1,j,ip1)
+            if(ip2==0) ip2=ip1
+            !print '(2x,a,2i4,5x,5i4)','->  ', i,j,im2,im1,i,ip1,ip2
+            totfield(1) = totfield(1)  &
+               - ham%chir_coup(j,iflip_ham)*emomM(2,ip1,k)*emomM(3,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(3,ip1,k)*emomM(2,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(2,im2,k)*emomM(3,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(3,im2,k)*emomM(2,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(2,ip1,k)*emomM(3,ip2,k) + ham%chir_coup(j,iflip_ham)*emomM(3,ip1,k)*emomM(2,ip2,k)
+
+            totfield(2) = totfield(2)  &
+               - ham%chir_coup(j,iflip_ham)*emomM(3,ip1,k)*emomM(1,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(1,ip1,k)*emomM(3,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(3,im2,k)*emomM(1,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(1,im2,k)*emomM(3,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(3,ip1,k)*emomM(1,ip2,k) + ham%chir_coup(j,iflip_ham)*emomM(1,ip1,k)*emomM(3,ip2,k)
+
+            totfield(3) = totfield(3)  &
+               - ham%chir_coup(j,iflip_ham)*emomM(1,ip1,k)*emomM(2,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(2,ip1,k)*emomM(1,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(1,im2,k)*emomM(2,im1,k) + ham%chir_coup(j,iflip_ham)*emomM(2,im2,k)*emomM(1,im1,k) &
+               - ham%chir_coup(j,iflip_ham)*emomM(1,ip1,k)*emomM(2,ip2,k) + ham%chir_coup(j,iflip_ham)*emomM(2,ip1,k)*emomM(1,ip2,k)
          end do
       end if
 
@@ -575,35 +548,21 @@ contains
       !
    end subroutine calculate_efield
 
-
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: calculate_efield_tensor
+   !> @brief
    !> Calculate total field of a single spin of tensorial exchange
-   subroutine calculate_efield_tensor(Natom, Mensemble, max_no_neigh, j_tens, nlist, nlistsize, &
-         do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, do_bq, nn_bq_tot, j_bq, bqlist, bqlistsize, &
-         taniso, eaniso, kaniso,sb,emomM, iflip,extfield,k, totfield, do_dip, Qdip)
+   !---------------------------------------------------------------------------------
+   subroutine calculate_efield_tensor(Natom, Mensemble, &
+         do_biqdm, do_bq, emomM, iflip,extfield,k, totfield, do_dip,do_anisotropy)
 
       !.. Implicit declarations
       implicit none
 
       integer, intent(in) :: Natom      !< Number of atoms in system
       integer, intent(in) :: Mensemble  !< Number of ensembles
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      real(dblprec), dimension(3,3,max_no_neigh,Natom), intent(in) :: j_tens !< Tensor exchange couplings (SKKR)
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom),intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
       integer, intent(in) :: do_biqdm     !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_biqdm_tot !< Calculated number of neighbours with BIQDM interactions
-      real(dblprec), dimension(1,nn_biqdm_tot,Natom), intent(in) :: biqdm_vect !< BIQDM exchange coupling
-      integer, dimension(nn_biqdm_tot,Natom), intent(in) :: biqdmlist   !< List of neighbours for BIQDM
-      integer, dimension(Natom),intent(in) :: biqdmlistsize !< Size of neighbour list for BIQDM
       integer, intent(in) :: do_bq     !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: nn_bq_tot !< Calculated number of neighbours with BQ interactions
-      real(dblprec), dimension(nn_bq_tot,Natom), intent(in) :: j_bq !< Biquadratic exchange couplings
-      integer, dimension(nn_bq_tot,Natom), intent(in) :: bqlist   !< List of neighbours for BQ
-      integer, dimension(Natom),intent(in) :: bqlistsize !< Size of neighbour list for BQ
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso !< Anisotropy constant
-      real(dblprec), dimension(Natom), intent(in) :: sb !< Ratio between anisotropy constants
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
@@ -611,8 +570,7 @@ contains
       real(dblprec), dimension(3), intent(out) :: totfield !< Total effective field
       real(dblprec) :: aw1,aw2
       integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      real(dblprec), dimension(3,3,Natom,Natom), intent(in), optional :: Qdip !< Matrix for dipole-dipole interaction
-
+      integer, intent(in) :: do_anisotropy
       !.. Local scalars
       integer :: j
       real(dblprec) :: tta
@@ -624,109 +582,106 @@ contains
 
       !.. Executable statements
 
-
       ! First calculate effective field
-      befftemp(1) = 0d0
-      befftemp(2) = 0d0
-      befftemp(3) = 0d0
+      befftemp(1) = 0.0_dblprec
+      befftemp(2) = 0.0_dblprec
+      befftemp(3) = 0.0_dblprec
 
       ! Exchange
-      do j=1,nlistsize(iflip)
-         befftemp(1) = befftemp(1)+ j_tens(1,1,j,iflip)*emomM(1,nlist(j,iflip),k) + &
-            j_tens(1,2,j,iflip)*emomM(2,nlist(j,iflip),k) + j_tens(1,3,j,iflip)*emomM(3,nlist(j,iflip),k)
-         befftemp(2) = befftemp(2)+ j_tens(2,1,j,iflip)*emomM(1,nlist(j,iflip),k) + &
-            j_tens(2,2,j,iflip)*emomM(2,nlist(j,iflip),k) + j_tens(2,3,j,iflip)*emomM(3,nlist(j,iflip),k)
-         befftemp(3) = befftemp(3)+ j_tens(3,1,j,iflip)*emomM(1,nlist(j,iflip),k) + &
-            j_tens(3,2,j,iflip)*emomM(2,nlist(j,iflip),k) + j_tens(3,3,j,iflip)*emomM(3,nlist(j,iflip),k)
+      do j=1,ham%nlistsize(iflip)
+         befftemp(1) = befftemp(1)+ ham%j_tens(1,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
+            ham%j_tens(1,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k) + ham%j_tens(1,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
+         befftemp(2) = befftemp(2)+ ham%j_tens(2,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
+            ham%j_tens(2,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k) + ham%j_tens(2,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
+         befftemp(3) = befftemp(3)+ ham%j_tens(3,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
+            ham%j_tens(3,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k) + ham%j_tens(3,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
       end do
 
       ! BIQDM interaction
       if(do_biqdm==1) then
-         do j=1,biqdmlistsize(iflip)
-            sxy = emomM(1,iflip,k)*emomM(2,biqdmlist(j,iflip),k)-&
-               emomM(2,iflip,k)*emomM(1,biqdmlist(j,iflip),k)
-            syz = emomM(2,iflip,k)*emomM(3,biqdmlist(j,iflip),k)-&
-               emomM(3,iflip,k)*emomM(2,biqdmlist(j,iflip),k)
-            szx = emomM(3,iflip,k)*emomM(1,biqdmlist(j,iflip),k)-&
-               emomM(1,iflip,k)*emomM(3,biqdmlist(j,iflip),k)
-            befftemp(1) = befftemp(1) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               szx*emomM(3,biqdmlist(j,iflip),k)-&
-               sxy*emomM(2,biqdmlist(j,iflip),k))
-            befftemp(2) = befftemp(2) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               sxy*emomM(1,biqdmlist(j,iflip),k)-&
-               syz*emomM(3,biqdmlist(j,iflip),k))
-            befftemp(3) = befftemp(3) + 2.0d0*biqdm_vect(1,j,iflip)*(&
-               syz*emomM(2,biqdmlist(j,iflip),k)-&
-               szx*emomM(1,biqdmlist(j,iflip),k))
+         do j=1,ham%biqdmlistsize(iflip)
+            sxy = emomM(1,iflip,k)*emomM(2,ham%biqdmlist(j,iflip),k)-&
+               emomM(2,iflip,k)*emomM(1,ham%biqdmlist(j,iflip),k)
+            syz = emomM(2,iflip,k)*emomM(3,ham%biqdmlist(j,iflip),k)-&
+               emomM(3,iflip,k)*emomM(2,ham%biqdmlist(j,iflip),k)
+            szx = emomM(3,iflip,k)*emomM(1,ham%biqdmlist(j,iflip),k)-&
+               emomM(1,iflip,k)*emomM(3,ham%biqdmlist(j,iflip),k)
+            befftemp(1) = befftemp(1) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip)*(&
+               szx*emomM(3,ham%biqdmlist(j,iflip),k)-&
+               sxy*emomM(2,ham%biqdmlist(j,iflip),k))
+            befftemp(2) = befftemp(2) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip)*(&
+               sxy*emomM(1,ham%biqdmlist(j,iflip),k)-&
+               syz*emomM(3,ham%biqdmlist(j,iflip),k))
+            befftemp(3) = befftemp(3) + 2.0_dblprec*ham%biqdm_vect(1,j,iflip)*(&
+               syz*emomM(2,ham%biqdmlist(j,iflip),k)-&
+               szx*emomM(1,ham%biqdmlist(j,iflip),k))
          end do
       end if
 
       ! BQ interaction
       if(do_bq==1) then
-         do j=1,bqlistsize(iflip)
-            bqmdot=emomM(1,bqlist(j,iflip),k)*emomM(1,iflip,k)+&
-               emomM(2,bqlist(j,iflip),k)*emomM(2,iflip,k)+&
-               emomM(3,bqlist(j,iflip),k)*emomM(3,iflip,k)
+         do j=1,ham%bqlistsize(iflip)
+            bqmdot=emomM(1,ham%bqlist(j,iflip),k)*emomM(1,iflip,k)+&
+               emomM(2,ham%bqlist(j,iflip),k)*emomM(2,iflip,k)+&
+               emomM(3,ham%bqlist(j,iflip),k)*emomM(3,iflip,k)
 
             !!!!!++ Jonathan used + instead of original -
             !!!!!++ Lars rescaled the 2.0 to 1.0
-            befftemp(1) = befftemp(1)- 1.0d0*j_bq(j,iflip)*bqmdot*emomM(1,bqlist(j,iflip),k)
-            befftemp(2) = befftemp(2)- 1.0d0*j_bq(j,iflip)*bqmdot*emomM(2,bqlist(j,iflip),k)
-            befftemp(3) = befftemp(3)- 1.0d0*j_bq(j,iflip)*bqmdot*emomM(3,bqlist(j,iflip),k)
+            befftemp(1) = befftemp(1)- 1.0_dblprec*ham%j_bq(j,iflip)*bqmdot*emomM(1,ham%bqlist(j,iflip),k)
+            befftemp(2) = befftemp(2)- 1.0_dblprec*ham%j_bq(j,iflip)*bqmdot*emomM(2,ham%bqlist(j,iflip),k)
+            befftemp(3) = befftemp(3)- 1.0_dblprec*ham%j_bq(j,iflip)*bqmdot*emomM(3,ham%bqlist(j,iflip),k)
          end do
       end if
 
       ! Anisotropy
-      ! Uniaxial anisotropy
-      if (taniso(iflip)==1) then
-         tta=(emomM(1,iflip,k)*eaniso(1,iflip)+emomM(2,iflip,k)*eaniso(2,iflip)+emomM(3,iflip,k)*eaniso(3,iflip))
+      if (do_anisotropy==1) then
+         ! Uniaxial anisotropy
+         if (ham%taniso(iflip)==1) then
+            tta=(emomM(1,iflip,k)*ham%eaniso(1,iflip)+emomM(2,iflip,k)*ham%eaniso(2,iflip)+emomM(3,iflip,k)*ham%eaniso(3,iflip))
 
-         !!!!!++ Lars rescaled 2.0 and 4.0 to 1.0
-         ! K1*(sin theta)^2
-         befftemp(1:3) = befftemp(1:3)  &
-            - 1.0d0*kaniso(1,iflip)*&
-            tta&
-            *eaniso(1:3,iflip) &
+            !!!!!++ Lars rescaled 2.0 and 4.0 to 1.0
+            ! K1*(sin theta)^2
+            befftemp(1:3) = befftemp(1:3) - 1.0_dblprec*ham%kaniso(1,iflip)*&
+               tta*ham%eaniso(1:3,iflip) &
 
-            ! K2*(sin theta)^4
-            - 1.0d0*kaniso(2,iflip)*&
-               (tta**2)*tta*eaniso(1:3,iflip)
+               ! K2*(sin theta)^4
+               - 1.0_dblprec*ham%kaniso(2,iflip)*(tta**2)*tta*ham%eaniso(1:3,iflip)
 
             ! Cubic anisotropy
-         elseif (taniso(iflip)==2) then
+         elseif (ham%taniso(iflip)==2) then
             ! K1*(sin theta)^2
             befftemp(1) = befftemp(1) &
-               + 2*kaniso(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-               + 2*kaniso(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+               + 2*ham%kaniso(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+               + 2*ham%kaniso(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
 
             befftemp(2) = befftemp(2) &
-               + 2*kaniso(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-               + 2*kaniso(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+               + 2*ham%kaniso(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+               + 2*ham%kaniso(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
 
             befftemp(3) = befftemp(3) &
-               + 2*kaniso(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-               + 2*kaniso(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
+               + 2*ham%kaniso(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+               + 2*ham%kaniso(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
 
          endif
 
          ! When both Cubic and Uniaxial are switched on
-         if (taniso(iflip)==7) then
+         if (ham%taniso(iflip)==7) then
 
             ! Uniaxial anisotropy
-            tta=(emomM(1,iflip,k)*eaniso(1,iflip)+emomM(2,iflip,k)*eaniso(2,iflip)+emomM(3,iflip,k)*eaniso(3,iflip))
+            tta=(emomM(1,iflip,k)*ham%eaniso(1,iflip)+emomM(2,iflip,k)*ham%eaniso(2,iflip)+emomM(3,iflip,k)*ham%eaniso(3,iflip))
             ! K1*(sin theta)^2
             befftemp(1:3) = befftemp(1:3)  &
-               - 2.0d0*kaniso(1,iflip)*&
+               - 2.00_dblprec*ham%kaniso(1,iflip)*&
                tta&
-               *eaniso(1:3,iflip) &
+               *ham%eaniso(1:3,iflip) &
                ! K2*(sin theta)^4
-            -4.0d0*kaniso(2,iflip)*&
-               (tta**2)*tta*eaniso(1:3,iflip)
+            -4.00_dblprec*ham%kaniso(2,iflip)*&
+               (tta**2)*tta*ham%eaniso(1:3,iflip)
 
             ! Cubic anisotropy
             ! K1*(sin theta)^2
-            aw1=kaniso(1,iflip)*sb(iflip)
-            aw2=kaniso(2,iflip)*sb(iflip)
+            aw1=ham%kaniso(1,iflip)*ham%sb(iflip)
+            aw2=ham%kaniso(2,iflip)*ham%sb(iflip)
             befftemp(1) = befftemp(1) &
                + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
                + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
@@ -740,19 +695,19 @@ contains
                + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
 
          endif
-
+      endif
          ! Dipolar Interaction Jonathan 19-07-2012
-         if(present(Qdip)) then
+!        if(present(ham%Qdip)) then
             if(do_dip==1) then
                do j=1,Natom
                   !          do k=1,Mensemble
-                  befftemp(1) = befftemp(1) + Qdip(1,1,j,iflip)*emomM(1,j,k) + Qdip(2,1,j,iflip)*emomM(2,j,k) + Qdip(3,1,j,iflip)*emomM(3,j,k)
-                  befftemp(2) = befftemp(2) + Qdip(1,2,j,iflip)*emomM(1,j,k) + Qdip(2,2,j,iflip)*emomM(2,j,k) + Qdip(3,2,j,iflip)*emomM(3,j,k)
-                  befftemp(3) = befftemp(3) + Qdip(1,3,j,iflip)*emomM(1,j,k) + Qdip(2,3,j,iflip)*emomM(2,j,k) + Qdip(3,3,j,iflip)*emomM(3,j,k)
+                  befftemp(1) = befftemp(1) + ham%Qdip(1,1,j,iflip)*emomM(1,j,k) + ham%Qdip(2,1,j,iflip)*emomM(2,j,k) + ham%Qdip(3,1,j,iflip)*emomM(3,j,k)
+                  befftemp(2) = befftemp(2) + ham%Qdip(1,2,j,iflip)*emomM(1,j,k) + ham%Qdip(2,2,j,iflip)*emomM(2,j,k) + ham%Qdip(3,2,j,iflip)*emomM(3,j,k)
+                  befftemp(3) = befftemp(3) + ham%Qdip(1,3,j,iflip)*emomM(1,j,k) + ham%Qdip(2,3,j,iflip)*emomM(2,j,k) + ham%Qdip(3,3,j,iflip)*emomM(3,j,k)
                   !          end do
                end do
             end if
-         end if
+!        end if
 
          !-----------------------------------------------------------------------------------------------------------------------
 
@@ -760,8 +715,6 @@ contains
          totfield(1:3) = befftemp(1:3)+extfield(1:3)
 
       end subroutine calculate_efield_tensor
-
-
 
       !> Print out spin configuration of MC run
       subroutine prn_mcmoments(Natom,Mensemble,simid,emom)

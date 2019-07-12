@@ -1,11 +1,10 @@
-!> Data and routines for measuring polarization vector
+!------------------------------------------------------------------------------------
+!> @brief Data and routines for measuring polarization vector
 !> @author
-!> Anders Bergman, Johan Hellsvik, Jonathan Chico
+!> Anders Bergman, Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!------------------------------------------------------------------------------------
 module Polarization
    use Parameters
    use Profiling
@@ -13,34 +12,32 @@ module Polarization
    implicit none
    !
    ! Variables from input
-   integer :: pol_buff        !< Buffer size for the polarization
-   integer :: pol_step        !< Interval for sampling the polarization
-   character(len=1) :: do_pol !< Do polarization
-   character(len=1) :: do_loc_pol !< Measure polarization vector locally
-   character(len=1) :: do_chiral !< Measure polarization vector locally
-   real(dblprec), dimension(:,:,:), allocatable :: eij !< Normalized neighbour distances
-   real(dblprec), dimension(:,:,:), allocatable :: local_pol !< Data for local polarization vector
-   real(dblprec), dimension(:,:,:), allocatable :: s_cross_s !< Data for local polarization vector
+   integer :: pol_buff        		!< Buffer size for the polarization
+   integer :: pol_step        		!< Interval for sampling the polarization
+   character(len=1) :: do_pol 		!< Do polarization
+   character(len=1) :: do_chiral    !< Measure polarization vector locally
+   character(len=1) :: do_loc_pol   !< Measure polarization vector locally
+   real(dblprec), dimension(:,:,:), allocatable :: eij            !< Normalized neighbour distances
+   real(dblprec), dimension(:,:,:), allocatable :: local_pol      !< Data for local polarization vector
+   real(dblprec), dimension(:,:,:), allocatable :: s_cross_s      !< Data for local polarization vector
    !
-   integer :: max_pol_nn                               !< Maximum number of polarization neighbours
-   integer, dimension(:), allocatable :: pollistsize     !< Size of neighbour list for polarization calculations
+   integer :: max_pol_nn										!< Maximum number of polarization neighbours
+   integer, dimension(:), allocatable :: pollistsize	!< Size of neighbour list for polarization calculations
 
    ! Variables needed for printing
    integer :: bcount_pol     !< Counter of buffer for for polarization
-   real(dblprec), dimension(:), allocatable :: indxb_pol     !< Step counter for polarization vector
-   real(dblprec), dimension(:,:,:), allocatable :: spol_buff  !< Buffer data for polarization vector
+   real(dblprec), dimension(:), allocatable :: indxb_pol     	!< Step counter for polarization vector
+   real(dblprec), dimension(:,:,:), allocatable :: spol_buff	!< Buffer data for polarization vector
 
    private :: indxb_pol,spol_buff,bcount_pol
 
 contains
 
-
-
-   !!!!---------------init_polarization----------------!!!!!
-   !> Allocate counters for sampling
-   !> Allocate arrays for sampling data
-   subroutine init_polarization(Natom, Mensemble, max_no_neigh, &
-         nlist, coord, flag)
+   !---------------------------------------------------------------------------------
+	! SUBROUTINE: init_polarization
+	!> @brief Allocate counters for sampling. Allocate arrays for sampling data
+   !---------------------------------------------------------------------------------
+   subroutine init_polarization(Natom, Mensemble, max_no_neigh,nlist, coord, flag)
 
       implicit none
 
@@ -50,9 +47,7 @@ contains
 
       integer, intent(in) :: max_no_neigh  !< Calculated maximum of neighbours for exchange
       integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(3,Natom) :: coord !< Coordinates for atoms
-      !real(dblprec), dimension(nt,max_no_shells,3) :: redcoord !< Coordinates for Heisenberg exchange couplings
-
+      real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates for atoms
 
       integer :: i,j,n, i_stat, i_all
       real(dblprec) :: dx, dy, dz, dnorm
@@ -60,18 +55,20 @@ contains
       if(flag>0) then
          allocate(eij(3,max_no_neigh,Natom),stat=i_stat)
          call memocc(i_stat,product(shape(eij))*kind(eij),'eij','init_polarization')
-         eij=0.0d0
+         eij=0.0_dblprec
 
          if(do_loc_pol=='Y') then
             allocate(local_pol(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(local_pol))*kind(local_pol),'local_pol','init_polarization')
+				call memocc(i_stat,product(shape(local_pol))*kind(local_pol),'local_pol','init_polarization')
+				local_pol=0.0_dblprec
          end if
          if(do_chiral=='Y') then
             allocate(s_cross_s(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(s_cross_s))*kind(s_cross_s),'s_cross_s','init_polarization')
+				call memocc(i_stat,product(shape(s_cross_s))*kind(s_cross_s),'s_cross_s','init_polarization')
+				s_cross_s=0.0_dblprec
          end if
          allocate(pollistsize(Natom),stat=i_stat)
-         call memocc(i_stat,product(shape(pollistsize))*kind(pollistsize),'pollistsize','allocate_hamiltoniandata')
+			call memocc(i_stat,product(shape(pollistsize))*kind(pollistsize),'pollistsize','init_polarization')
          pollistsize=max_pol_nn
          ! Set up normalized neighbour vectors
          do i=1,Natom
@@ -102,15 +99,15 @@ contains
             call memocc(i_stat,i_all,'s_cross_s','init_polarization')
          end if
          deallocate(pollistsize,stat=i_stat)
-         call memocc(i_stat,i_all,'pollistsize','allocate_hamiltoniandata')
+         call memocc(i_stat,i_all,'pollistsize','init_polarization')
       end if
 
    end subroutine init_polarization
 
-
-
-   !!!!---------------allocate_prn_pol----------------!!!!!
-   !> Allocation and initialization of the necesary arrays for printing
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: allocate_prn_pol
+   !> @brief Allocation and initialization of the necesary arrays for printing
+   !---------------------------------------------------------------------------------
    subroutine allocate_prn_pol(Mensemble,flag)
 
       implicit none
@@ -126,9 +123,11 @@ contains
 
          if (do_pol=='Y') then
             allocate(spol_buff(3,pol_buff,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(spol_buff))*kind(spol_buff),'spol_buff','allocate_prn_pol')
+				call memocc(i_stat,product(shape(spol_buff))*kind(spol_buff),'spol_buff','allocate_prn_pol')
+				spol_buff=0.0_dblprec
             allocate(indxb_pol(pol_buff),stat=i_stat)
-            call memocc(i_stat,product(shape(indxb_pol))*kind(indxb_pol),'indxb_pol','allocate_prn_pol')
+				call memocc(i_stat,product(shape(indxb_pol))*kind(indxb_pol),'indxb_pol','allocate_prn_pol')
+				indxb_pol=0
          endif
 
       else
@@ -146,10 +145,10 @@ contains
 
    end subroutine allocate_prn_pol
 
-
-
-   !!!!---------------prin_pol_init----------------!!!!!
-   !> Initialization of the default variables for the polarization printing
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: prn_pol_init
+   !> @brief Initialization of the default variables for the polarization printing
+	!---------------------------------------------------------------------------------
    subroutine prn_pol_init()
 
       implicit none
@@ -163,12 +162,12 @@ contains
 
    end subroutine prn_pol_init
 
-
-
-   !!!!---------------print_pol----------------!!!!!
-   !> Wrapper subroutine for the polarization printing
-   subroutine print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,&
-         emomM,delta_t,simid,real_time_measure)
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: print_pol
+   !> @brief Wrapper subroutine for the polarization printing
+	!---------------------------------------------------------------------------------
+   subroutine print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,   &
+      emomM,delta_t,simid,real_time_measure)
 
       implicit none
 
@@ -177,28 +176,39 @@ contains
       integer, intent(in) :: Natom                                !< Number of atoms in the system
       integer, intent(in) :: Mensemble                            !< Number of ensembles
       integer, intent(in) :: max_no_neigh                         !< Maximum number of neighbours for the neighbour lists
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom),intent(in) :: nlistsize           !< Size of neighbour list for Heisenberg exchange couplings
       real(dblprec), intent(in) :: delta_t                        !< Time step for real time measurement
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM   !< Current magnetic moment vector
       character(len=8), intent(in) :: simid                       !< Name of simulation
       character(len=1), intent(in) :: real_time_measure           !< Measurements displayed in real time
+      integer, dimension(Natom),intent(in) :: nlistsize           !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM   !< Current magnetic moment vector
 
       ! Polarization
       if (do_pol=='Y') then
          if ( mod(sstep-1,pol_step)==0) then
 
             ! Write step to buffer
-            call buffer_pol(Natom, Mensemble,mstep-1, emomM, max_no_neigh, nlist, delta_t,real_time_measure)
+            call buffer_pol(Natom,Mensemble,mstep-1,emomM,max_no_neigh,nlist,       &
+               delta_t,real_time_measure)
 
-            if (do_loc_pol=='Y') call measure_local_pol(Natom, Mensemble, emomM, max_no_neigh, nlist, nlistsize)
-            if (do_chiral=='Y')  call measure_chirality(Natom, Mensemble, emomM, max_no_neigh, nlist, nlistsize)
+            if (do_loc_pol=='Y') then 
+               call measure_local_pol(Natom,Mensemble,emomM,max_no_neigh,nlist,     &
+                  nlistsize)
+            endif
+            if (do_chiral=='Y')  then 
+               call measure_chirality(Natom,Mensemble,emomM,max_no_neigh,nlist,     &
+                  nlistsize)
+            endif
 
             if (bcount_pol==pol_buff) then
                ! Write buffer to file
                call prn_pol(Natom, Mensemble, simid,real_time_measure)
-               if (do_loc_pol=='Y') call print_local_polarity_chirality(Natom, Mensemble, mstep, simid,'P')
-               if (do_chiral=='Y')  call print_local_polarity_chirality(Natom, Mensemble, mstep, simid,'C')
+               if (do_loc_pol=='Y') then 
+                  call print_local_polarity_chirality(Natom,Mensemble,mstep,simid,'P')
+               endif
+               if (do_chiral=='Y')  then 
+                  call print_local_polarity_chirality(Natom,Mensemble,mstep,simid,'C')
+               endif
 
                ! Reset statistics buffer
                bcount_pol=1
@@ -211,10 +221,10 @@ contains
 
    end subroutine print_pol
 
-
-
-   !!!!---------------flush_polarization----------------!!!!!
-   !> Flush the polarization measurements, i.e. print to file the polarization
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: flush_polarization
+   !> @brief Flush the polarization measurements, i.e. print to file the polarization
+	!---------------------------------------------------------------------------------
    subroutine flush_polarization(mstep,Natom,Mensemble,simid,real_time_measure)
 
       implicit none
@@ -238,12 +248,12 @@ contains
 
    end subroutine flush_polarization
 
-
-
-
-   !!!!---------------buffer_pol----------------!!!!!
-   !> Buffer average magnetization
-   subroutine buffer_pol(Natom, Mensemble, mstep, emomM, max_no_neigh, nlist, delta_t,real_time_measure)
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: buffer_pol
+   !> @brief Buffer average magnetization
+	!---------------------------------------------------------------------------------
+   subroutine buffer_pol(Natom,Mensemble,mstep,emomM,max_no_neigh,nlist,delta_t,    &
+      real_time_measure)
       !
       !.. Implicit declarations
       implicit none
@@ -252,10 +262,10 @@ contains
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       real(dblprec), intent(in) :: delta_t !< Current time step
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
 
       !.. Scalar variables
       integer :: i,j,k,n
@@ -265,9 +275,9 @@ contains
       real(dblprec) ::  tx, ty, tz
 
       !.. Executable statements
-      px(:)=0.0d0
-      py(:)=0.0d0
-      pz(:)=0.0d0
+      px(:)=0.0_dblprec
+      py(:)=0.0_dblprec
+      pz(:)=0.0_dblprec
 
       !.. Sum over moments
       do k=1,Mensemble
@@ -299,20 +309,21 @@ contains
 
    end subroutine buffer_pol
 
-
-
-   !!!!---------------measure_local_pol---------------!!!!!
-   subroutine measure_local_pol(Natom, Mensemble, emomM, max_no_neigh, nlist, nlistsize)
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: measure_local_pol
+   !> @brief Measurement of the local polarization
+   !---------------------------------------------------------------------------------
+   subroutine measure_local_pol(Natom,Mensemble,emomM,max_no_neigh,nlist,nlistsize)
       !
       !.. Implicit declarations
       implicit none
 
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       integer, dimension(Natom),intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
 
       !.. Scalar variables
       integer :: i,j,k,n
@@ -320,7 +331,7 @@ contains
       !.. Local arrays
       real(dblprec) ::  tx, ty, tz
 
-      local_pol=0.0d0
+      local_pol=0.0_dblprec
       !.. Sum over moments
       do k=1,Mensemble
          do i=1, Natom
@@ -338,25 +349,26 @@ contains
 
    end subroutine measure_local_pol
 
-
-
-   !!!!---------------measure_chirality----------------!!!!!
-   subroutine measure_chirality(Natom, Mensemble, emomM,  max_no_neigh, nlist, nlistsize)
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: measure_chirality
+   !> @brief Measurement of the chirality
+   !---------------------------------------------------------------------------------
+   subroutine measure_chirality(Natom,Mensemble,emomM, max_no_neigh,nlist,nlistsize)
       !
       !.. Implicit declarations
       implicit none
 
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       integer, dimension(Natom),intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
 
       !.. Scalar variables
       integer :: i,j,k,n
 
-      s_cross_s=0.0d0
+      s_cross_s=0.0_dblprec
       !.. Sum over moments
       do k=1,Mensemble
          do i=1, Natom
@@ -371,11 +383,10 @@ contains
 
    end subroutine measure_chirality
 
-
-
-
-   !!!!---------------prn_pol----------------!!!!!
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: prn_pol
    !> Print polarization vector
+	!---------------------------------------------------------------------------------
    subroutine prn_pol(Natom, Mensemble, simid,real_time_measure)
       !
       use Constants
@@ -398,13 +409,20 @@ contains
       real(dblprec) :: avrgpxm, avrgpym, avrgpzm, avrgpm
       real(dblprec) :: avrgps
 
+      ! Set the arrays to zero
+      avrgp=0.0_dblprec;avrgpx=0.0_dblprec;avrgpy=0.0_dblprec;avrgpz=0.0_dblprec
+
       !.. Executable statements
       write (filn,'(''polarization.'',a8,''.out'')') simid
       open(ofileno, file=filn, position="append")
 
       ! Write header to output files for first iteration
       if(abs(indxb_pol(1))<dbl_tolerance) then
-         write(ofileno,'(a)') "# Iter.     P_avg_x           P_avg_y         P_avg_z         P_avg  "
+         if (real_time_measure=='Y') then
+            write(ofileno,10007)"Time[s]","<P>_x","<P>_y","<P>_z","<P>"
+         else
+            write(ofileno,10006)"#Iter","<P>_x","<P>_y","<P>_z","<P>"
+         endif
       end if
 
       do i=1, bcount_pol
@@ -420,13 +438,13 @@ contains
          end do
 
          ! mean polarizations
-         avrgpxm=0d0
-         avrgpym=0d0
-         avrgpzm=0d0
-         avrgpm=0d0
+         avrgpxm=0_dblprec
+         avrgpym=0_dblprec
+         avrgpzm=0_dblprec
+         avrgpm=0_dblprec
 
          !stdev polarization
-         avrgps=0d0
+         avrgps=0_dblprec
 
          do k=1,Mensemble
             avrgpxm = avrgpxm + avrgpx(k)
@@ -457,15 +475,17 @@ contains
       write (*,*) "Error writing the polarization file"
 
       10004 format (i8,6es16.8)
-      10005 format (es16.4,6es16.8)
+      10005 format (es16.8,6es16.8)
+      10006 format (a8,6a16)
+      10007 format (a16,6a16)
 
    end subroutine prn_pol
 
-
-
-   !!!!---------------print_local_polarity_chirality----------------!!!!!
-   !> Prints magnetic moment to restart file
-   subroutine print_local_polarity_chirality(Natom, Mensemble, mstep, simid, printType)
+	!---------------------------------------------------------------------------------
+	! SUBROUTINE: print_local_polarity_chirality
+   !> @brief Prints magnetic moment to restart file
+	!---------------------------------------------------------------------------------
+   subroutine print_local_polarity_chirality(Natom,Mensemble,mstep,simid,printType)
       implicit none
 
       integer, intent(in) :: Natom      !< Number of atoms in system
@@ -487,8 +507,9 @@ contains
          open(ofileno, file=filn)
          do k=1,Mensemble
             do i=1, Natom
-               tz=sum(s_cross_s(1:3,i,k)**2)**0.5d0+1.0d-12
-               write (ofileno,10004) mstep, i, s_cross_s(1:3,i,k)/tz, sum(s_cross_s(1:3,i,k)**2)**0.5d0
+               tz=0.0_dblprec
+               tz=sum(s_cross_s(1:3,i,k)**2)**0.5_dblprec+1.0d-12
+               write (ofileno,10004) mstep, i, s_cross_s(1:3,i,k)/tz, sum(s_cross_s(1:3,i,k)**2)**0.5_dblprec
             end do
          end do
       else if (printType=='P') then   ! Print local polarity
@@ -496,7 +517,7 @@ contains
          open(ofileno, file=filn)
          do k=1,Mensemble
             do i=1, Natom
-               write (ofileno,10004) mstep, i, local_pol(1:3,i,k), sum(local_pol(1:3,i,k)**2)**0.5d0
+               write (ofileno,10004) mstep, i, local_pol(1:3,i,k), sum(local_pol(1:3,i,k)**2)**0.5_dblprec
             end do
          end do
       else

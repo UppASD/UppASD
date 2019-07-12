@@ -1,10 +1,10 @@
-#############################################
-## Makefile Settings for gfortran profile  ##
-#############################################
+#####################################################################################
+## Makefile Settings for ifort profile  														  ##
+#####################################################################################
 
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 # The different compilers
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 
 # Fortran compiler
 FC = gfortran
@@ -17,73 +17,74 @@ CXX = g++
 
 # CUDA compiler
 CUDA = nvcc
-
-
-#------------------------------------------------#
-# Flags for FORTRAN compilation 
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
+# Flags for FORTRAN compilation
+#------------------------------------------------------------------------------------
 # Basic optimization settings explained
-# -O3                      Optimization, faster exeuction, slower make times
-# -ffree-line-length-200   Allow long lines
-FCFLAGS = -O3 -ffree-line-length-0
+# -ip         Inline function, substantioal speed up
+# -O3         Optimization, faster execution, slow make times
+# -ipo        Inline between files
+# -xP         Intel processor specific optimizations
+# -fast       Uses -ipo -O3 -xP  -static
+FCFLAGS =  -O3 -ffree-line-length-0
 
 # Basic debug settings explained
-# -pedantic
-# -p
-# -pg
-# -fbacktrace
-# -Wall
-# -Wextra
-# -fbounds-check
-# -fprofile-arcs
-# -ftest-coverage
-#FCDEBUG = -g -fbacktrace -Wall
-FCDEBUG = 
-
-# OpenMp related flags (-mp on PGI, -openmp on ifort)
-FCOMPFLAGS = -fopenmp -fopenmp-simd
-
-# Link flags
-# -llapack_atlas lf77blas 
-# -lcblas
-# -lf77blas
-# -latlas
-# -lblas
-# -llapack
-# -lmkl
-FLIBFLAGS = -lblas -llapack 
-
-# gfortran mod flag (used to put .mods in separate files)
-FCMODFLAG = -J
-
+# -g           Debug with gdb
+# -CB          Array bound checks (same as check)
+# -traceback   Gdb traceback
+# -p           Function profiling with gprof
+# -warn all    Show all warning messages
+# -check all   Check all
+# -xT          Optimization for intel(R) core(TM)2 Duo
+#FCDEBUG = -g -traceback
+FCDEBUG =
+#------------------------------------------------------------------------------------
+# Flags for C compilation
+#------------------------------------------------------------------------------------
+CCFLAGS = -O3 -g -pthread
+CCLIBFLAGS =-fopenmp 
 # Declare what fortran compiler is used (for C/C++/CUDA code)
 C_FCFLAG = -D__GFORTRAN__
-
-
-#------------------------------------------------#
-# Flags for C compilation 
-#------------------------------------------------#
-CCFLAGS = -O3 -g -pthread
-CCLIBFLAGS = -lstdc++ -fopenmp
-
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 # Flags for C++ compilation
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
+# Define the path for the GCC
+#------------------------------------------------------------------------------------
+GCCPATH :=$(shell $(which) g++ | awk '{print substr($0,1, length($0)-7)}')
 CXXFLAGS = -O3 -g -pthread
-CXXLIBFLAGS = -fopenmp 
+CXXLIBFLAGS = -L${GCCPATH}/lib -lstdc++ -fopenmp 
+# OpenMp related flags (-mp on PGI, -openmp on ifort)
+FCOMPFLAGS = -fopenmp -fopenmp-simd
+#------------------------------------------------------------------------------------
+# Library flags
+#------------------------------------------------------------------------------------
+# -lblas       Basic Linear Algebra Subprograms
+# -llapack     Linear Algebra Package (for eigenvalue, cholesky etc...)
+# -lmkl        Includes lapack and blas
+FLIBFLAGS = -lblas -llapack
+# ifort mod folder flag (used to put .mods in separate files)
+FCMODFLAG = -J
 
-#------------------------------------------------#
+PREPROC = -cpp
+
+# Enable FFTW Support
+USE_FFTW = NO
+# Enable MKL FFT Support
+USE_MKL_FFT = NO 
+
+#------------------------------------------------------------------------------------
 # Flags for CUDA compilation
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 # -g	Debug with cuda-gdb
 # -G	Debug with cuda-gdb
-NVCCFLAGS = -O3 
+NVCCFLAGS = -O3
 
 # Sepcific setting for each NIVIDA graphic card
 # Other common alternatives:
 #  - gencode=arch=compute_30,code=\"sm_30,compute_30\"
 #  - gencode=arch=compute_20,code=\"sm_20,compute_220\"
-GENCODE_ARCH  = -gencode=arch=compute_20,code=\"sm_20,compute_20\" 
+GENCODE_ARCH  = -gencode=arch=compute_20,code=\"sm_20,compute_20\"
 
 # CUDA install, include and library paths is not matching default
 # This is computer specific. Change if needed.
@@ -94,10 +95,8 @@ CUDA_INSTALL_PATH = /opt/cuda-7.5
 CUDA_INCLUDE_PATH = /opt/cuda-7.5/include
 CUDA_LIBRARY_PATH = /opt/cuda-7.5/lib64
 
-
 # Extra libraries needed for compilation
-# Other common libraries
-#  - lcublas
+#  - lcublas         BLAS for CUDA
 #  - use_fast_math
 CUDA_LIB = -lcudart -lcuda -lcurand -lnvToolsExt
 
@@ -105,11 +104,11 @@ CUDA_LIB = -lcudart -lcuda -lcurand -lnvToolsExt
 USE_CUDA = YES
 
 # Enable Intel Vector Statistical Library support for RNG
-USE_VSL = NO
+USE_VSL = NO 
 
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 # Common parameters for C/C++/CUDA code (T/F)
-#------------------------------------------------#
+#------------------------------------------------------------------------------------
 
 # Enable error checking in matrix.hpp
 DDEBUG                   = F

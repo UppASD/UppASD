@@ -2,38 +2,36 @@
 ! MODULE: CalculateFields
 !> @brief Routines for calculate external and average fields
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module CalculateFields
-   use Parameters
+
    use Profiling
+   use Parameters
+
    implicit none
 
    public
 
-
 contains
 
-   !-------------------------------------------------------------------------------
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: calc_external_fields
-   !> Calculate external field, containing static fields
-   !-------------------------------------------------------------------------------
-   subroutine calc_external_fields(Natom, Mensemble, NA, hfield, anumb, external_fields, &
-         do_bpulse,sitefld,sitenatomfld)
+   !> @brief Calculate the total static external field, including global and site
+   !> dependent contributions
+   !----------------------------------------------------------------------------
+   subroutine calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_fields, &
+      do_bpulse,sitefld,sitenatomfld)
       !
       implicit none
 
+      integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      real(dblprec), dimension(3), intent(in) :: hfield !< Applied magnetic field
-      integer, dimension(Natom), intent(in) :: anumb !< Atom number in cell
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: external_fields !< External magnetic field
       integer, intent(in) :: do_bpulse  !< Add magnetic field pulse (0=no, 1-4 for different shapes)
-
+      integer, dimension(Natom), intent(in) :: anumb !< Atom number in cell
+      real(dblprec), dimension(3), intent(in) :: hfield !< Applied magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: external_fields !< External magnetic field
       real(dblprec), dimension(:,:), intent(in), optional :: sitefld !< Site dependent applied field
       real(dblprec), dimension(:,:), intent(in), optional :: sitenatomfld !< Site dependent applied field for Natom
 
@@ -42,8 +40,8 @@ contains
       real(dblprec), dimension(3,Mensemble) :: global_field
       !
       ! Initialize global field
-      global_field=0.0d0
-      external_fields=0.0d0
+      global_field=0.0_dblprec
+      external_fields=0.0_dblprec
       !
       ! First find global contribution to external field
       !
@@ -85,15 +83,20 @@ contains
    end subroutine calc_external_fields
 
    !-----------------------------------------------------------------------------
-   ! SUBROUTINE: calc_external_fields
+   ! SUBROUTINE: calc_external_time_fields
    !> @brief Performs the calculation of the time-dependent fields
+   !> @details This wrapper includes all time dependent fields acting over the sample
+   !> it deals with both frequency dependent fields and with fields that traverse
+   !> the sample.
+   !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine calc_external_time_fields(Natom, Mensemble, time_external_fields, &
-         do_bpulse,demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss, mov_gauss, mwf_mov_gauss, &
-         bpulsefield, demagfld, mwffield,gauss_mwffield,site_mwffield,&
-         gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,mov_gauss_spatial,mwf_mov_gauss_spatial,&
-         mov_circle,mwf_mov_circle,mov_circle_spatial,mwf_mov_circle_spatial,&
-         mov_square,mwf_mov_square,mov_square_spatial,mwf_mov_square_spatial)
+   subroutine calc_external_time_fields(Natom,Mensemble,time_external_fields,       &
+      do_bpulse,demag,mwf,mwf_gauss_spatial,do_gauss,mwf_gauss,mov_gauss,           &
+      mwf_mov_gauss,bpulsefield,demagfld,mwffield,gauss_mwffield,site_mwffield,     &
+      gauss_spatial_site_mwffield,gauss_spatial,gauss_site_mwffield,                &
+      mov_gauss_spatial,mwf_mov_gauss_spatial,mov_circle,mwf_mov_circle,            &
+      mov_circle_spatial,mwf_mov_circle_spatial,mov_square,mwf_mov_square,          &
+      mov_square_spatial,mwf_mov_square_spatial)
 
       implicit none
 
@@ -101,32 +104,32 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: do_bpulse  !< Add magnetic field pulse (0=no, 1-4 for different shapes)
 
-      character(len=1), intent(in) :: demag !< Model demagnetization field (Y/N)
-      character(len=1), intent(in) :: mwf
-      character(len=1), intent(in) :: do_gauss
-      character(len=1), intent(in) :: mwf_gauss
-      character(len=1), intent(in) :: mov_gauss
-      character(len=1), intent(in) :: mov_circle
-      character(len=1), intent(in) :: mov_square
-      character(len=1), intent(in) :: mwf_mov_gauss
-      character(len=1), intent(in) :: mwf_mov_circle
-      character(len=1), intent(in) :: mwf_mov_square
-      character(len=1), intent(in) :: mwf_gauss_spatial
+      character(len=1), intent(in) :: mwf       !< Add monochromatic microwave field (Y/P/S/W/N)
+      character(len=1), intent(in) :: demag     !< Model demagnetization field (Y/N)
+      character(len=1), intent(in) :: do_gauss  !< Add the Static gaussian shaped field
+      character(len=1), intent(in) :: mwf_gauss !< Add frequency broadened microwave field (Y/P/S/W/N)
+      character(len=1), intent(in) :: mov_gauss !< Add the moving static gaussian shaped field (Y/P/N)
+      character(len=1), intent(in) :: mov_circle   !< Add the moving static circular shaped field (Y/P/N)
+      character(len=1), intent(in) :: mov_square   !< Add the moving static cubic shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_gauss      !< Add the moving microwave gaussian shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_circle     !< Add the moving microwave circular shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_mov_square     !< Add the moving microwave cubic shaped field (Y/P/N)
+      character(len=1), intent(in) :: mwf_gauss_spatial  !< Add the frequency broadened gaussian shaped microwave field (Y/P/N)
 
-      real(dblprec), dimension(3), intent(in) :: bpulsefield !< Current applied magnetic field from pulse
-      real(dblprec), dimension(3), intent(in) :: mwffield !< Current microwave field
-      real(dblprec), dimension(3), intent(in) :: gauss_mwffield
-      real(dblprec), dimension(3,Natom), intent(in) :: site_mwffield !< Site and time dependent applied field for Natom
-      real(dblprec), dimension(3,Natom), intent(in) :: gauss_spatial_site_mwffield
-      real(dblprec), dimension(3,Natom), intent(in) :: gauss_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: gauss_site_mwffield
-      real(dblprec), dimension(3,Natom), intent(in) :: mov_gauss_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: mov_square_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: mov_circle_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: mwf_mov_gauss_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: mwf_mov_square_spatial
-      real(dblprec), dimension(3,Natom), intent(in) :: mwf_mov_circle_spatial
-      real(dblprec), dimension(3,Mensemble), intent(in) ::  demagfld !< Demagnetization field
+      real(dblprec), dimension(3), intent(in) :: mwffield         !< Current microwave field
+      real(dblprec), dimension(3), intent(in) :: bpulsefield      !< Current applied magnetic field from pulse
+      real(dblprec), dimension(3), intent(in) :: gauss_mwffield   !< Current gaussian broadened microwave field
+      real(dblprec), dimension(3,Mensemble), intent(in)  ::  demagfld      !< Demagnetization field
+      real(dblprec), dimension(3,Natom), intent(in)      :: site_mwffield  !< Site and time dependent applied field for Natom
+      real(dblprec), dimension(3,Natom), intent(in)      :: gauss_spatial  !< Array with the static gaussian shaped field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mov_gauss_spatial    !< Array with the moving gaussian shaped static field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mov_square_spatial   !< Array with the moving cubic shaped static field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mov_circle_spatial   !< Array with the moving circular shaped static field
+      real(dblprec), dimension(3,Natom), intent(in)      :: gauss_site_mwffield  !< Array with the gaussian broadened microwave field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mwf_mov_gauss_spatial   !< Array with the moving microwave gaussian shaped field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mwf_mov_square_spatial  !< Array with the moving microwave cubic shaped field
+      real(dblprec), dimension(3,Natom), intent(in)      :: mwf_mov_circle_spatial  !< Array with the moving microwave circular shaped field
+      real(dblprec), dimension(3,Natom), intent(in)      :: gauss_spatial_site_mwffield   !< Array with the gaussian broadened spatially gaussian microwave field
 
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: time_external_fields !< External magnetic field
 
@@ -134,8 +137,8 @@ contains
       real(dblprec), dimension(3,Mensemble) :: global_field
       !
       ! Initialize global field
-      global_field=0.0d0
-      time_external_fields=0.0d0
+      global_field=0.0_dblprec
+      time_external_fields=0.0_dblprec
 
       ! Pulsed field
       if (do_bpulse>0.and.do_bpulse<5) then
@@ -277,7 +280,6 @@ contains
          end do
       endif
 
-
       ! Add the fields
       do k=1,Mensemble
          do i=1,Natom
@@ -286,7 +288,6 @@ contains
             time_external_fields(3,i,k) = time_external_fields(3,i,k) + global_field(3,k)
          end do
       end do
-
 
    end subroutine calc_external_time_fields
 
@@ -314,12 +315,12 @@ contains
       !$omp parallel do default(shared) &
       !$omp  private(i,j)
       do j=1, Mensemble
-         field1(1,j)=0d0
-         field1(2,j)=0d0
-         field1(3,j)=0d0
-         field2(1,j)=0d0
-         field2(2,j)=0d0
-         field2(3,j)=0d0
+         field1(1,j)=0.0_dblprec
+         field1(2,j)=0.0_dblprec
+         field1(3,j)=0.0_dblprec
+         field2(1,j)=0.0_dblprec
+         field2(2,j)=0.0_dblprec
+         field2(3,j)=0.0_dblprec
          do i=1, Natom
             field1(1:3,j)=field1(1:3,j)+beff1(1:3,i,j)
             field2(1:3,j)=field2(1:3,j)+beff2(1:3,i,j)
@@ -329,6 +330,5 @@ contains
       end do
       !$omp end parallel do
    end subroutine calc_averagefield
-
 
 end module calculatefields

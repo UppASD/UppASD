@@ -40,34 +40,34 @@ contains
       if(flag>0) then
          allocate(beff(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(beff))*kind(beff),'beff','allocate_fields')
-         beff=0.0D0
+         beff=0.0_dblprec
          allocate(beff1(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(beff1))*kind(beff1),'beff1','allocate_fields')
-         beff1=0.0D0
+         beff1=0.0_dblprec
          allocate(beff2(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(beff2))*kind(beff2),'beff2','allocate_fields')
-         beff2=0.0D0
+         beff2=0.0_dblprec
          allocate(beff3(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(beff3))*kind(beff3),'beff3','allocate_fields')
-         beff3=0.0D0
+         beff3=0.0_dblprec
          allocate(b2eff(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(b2eff))*kind(b2eff),'b2eff','allocate_fields')
-         b2eff=0.0D0
+         b2eff=0.0_dblprec
          allocate(external_field(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(external_field))*kind(external_field),'external_field','allocate_fields')
-         external_field=0.0D0
+         external_field=0.0_dblprec
          allocate(field1(3,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(field1))*kind(field1),'field1','allocate_fields')
-         field1=0.0D0
+         field1=0.0_dblprec
          allocate(field2(3,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(field2))*kind(field2),'field2','allocate_fields')
-         field2=0.0D0
+         field2=0.0_dblprec
          allocate(time_external_field(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(time_external_field))*kind(time_external_field),'time_external_field','allocate_fields')
-         time_external_field=0.0D0
+         time_external_field=0.0_dblprec
          allocate(thermal_field(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(thermal_field))*kind(thermal_field),'thermal_field','allocate_fields')
-         thermal_field=0.0D0
+         thermal_field=0.0_dblprec
       else
          ! Otherwise deallocate arrays
          i_all=-product(shape(beff))*kind(beff)
@@ -118,9 +118,9 @@ contains
       integer, intent(in) :: NA  !< Number of atoms in one cell
       character(LEN=35), intent(in) :: locfieldfile !< File name for local applied field info
       !
-      integer :: i, j, i_stat, i_all
+      integer :: i, j, i_stat, i_all, idum
       !
-      print *,'-->', locfieldfile
+      !print *,'-->', locfieldfile
       open(ifileno,file=locfieldfile)
       if(NA>0) then
          allocate(sitefld(3,NA),stat=i_stat)
@@ -132,7 +132,7 @@ contains
          return
       end if
       do i=1,NA
-         read(ifileno,*) (sitefld(j,i),j=1,3)
+         read(ifileno,*) idum, (sitefld(j,i),j=1,3)
       end do
       close(ifileno)
       return

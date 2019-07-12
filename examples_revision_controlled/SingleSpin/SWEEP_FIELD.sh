@@ -18,10 +18,10 @@ do
  
       # Modify the files for the actual calculation
       # Setting the damping
-      sed -i'' "s/GILBERT/$damping/g" inpsd.dat
+      sed -i "s/GILBERT/$damping/g" inpsd.dat
 
       # The temperature is set to zero for simplicity
-      sed -i'' "s/TEMPE/0.0000/g" inpsd.dat
+      sed -i "s/TEMPE/0.0000/g" inpsd.dat
 
       # Add the external magnetic field
       echo -e "hfield 0.00  0.00  -$bfield" >> inpsd.dat

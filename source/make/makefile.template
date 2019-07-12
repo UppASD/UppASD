@@ -10,6 +10,10 @@ SHELL = /bin/sh
 
 # Program name
 PROG = sd
+LIBNAME = libuppasd.a
+PYNAME = uppasd
+
+PY_SUFFIX := $(shell python3-config --extension-suffix)
 
 # Directories used in Makefile
 MDIR   = mod
@@ -22,7 +26,7 @@ MAKELOG = make.log
 CURRENT = .profile
 
 # List of available building configs (found in make/default-profiles/systemname.make)
-DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 gfortran-win64
+DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx gfortran-win64 ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca
 LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//'))
 #LOCAL_SYSTEMS := $(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//')
 SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
@@ -47,23 +51,27 @@ endif
 endif
 endif
 
+################################################################################
 # Checking if makefile has been run with a profile = buidling configuration argument
 # If so, include that profile as well as the CUDA specific make file
+################################################################################
 ifdef PROFILE
 ifneq (,$(filter $(PROFILE),$(SYSTEMS)))
 makeprofile = make/user_profiles/$(PROFILE).make
 
 # If file does not exists copy from system folder and send a warning
 ifeq ("$(wildcard $(makeprofile))","")
-.DEFAULT_GOAL=copyprofile 
+.DEFAULT_GOAL=copyprofile
 
 else
 
 ifdef COMPILENOW
 include $(makeprofile)
+################################################################################
 #Check if c/cuda files should be added
-ifneq ($(USE_CUDA),NO) 
-include make/makefileCUDA 
+################################################################################
+ifneq ($(USE_CUDA),NO)
+include make/makefileCUDA
 endif
 .DEFAULT_GOAL = $(PROG)
 else
@@ -78,14 +86,14 @@ endif
 
 endif
 
-.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal $(MDIR) $(SYSTEMS)
+.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal gneb-tests lib python f2py  $(MDIR) $(SYSTEMS)
 
 # Including the help files
-include make/makefileHELP 
-include make/makefileHELPDEFAULTS 
+include make/makefileHELP
+include make/makefileHELPDEFAULTS
 
 PRINT:
-	@echo $@ 
+	@echo $@
 
 deps:
 	@./make/generateDependencies.py
@@ -97,24 +105,38 @@ docs:
 	@cd ../docs; doxygen Doxyfile; pdflatex UppASDmanual.tex
 
 regression-test:
-	@cd ../codeTester; python -B -u ./bergtest.py --file regression799.yaml | tee regression-tests.log ; \
-	./cleanAll.sh
+	@cd ../codeTester; python -u ./bergtest.py --file regressionIceland.yaml | tee regression-tests.log
+	@cd ../codeTester; python -u ./bergtest.py --clean
 
 tests:
-	@cd ../codeTester; python -B -u ./bergtest.py --file regulartests.yaml | tee tests.log ; ./cleanAll.sh
+	@cd ../codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ../codeTester; python -u ./bergtest.py --clean
+
+gneb-tests:
+	@cd ../codeTester; python -u ./bergtest.py --file regressionIcelandGNEB.yaml | tee tests.log
+
+
+python: lib f2py
+
+lib:
+	@$(MAKE) PROFILE=$(PROFILE) $(PROG) COMPILENOW=T -j 4 --no-print-directory
+	@echo 'Building static fortran library'
+	@$(MAKE) PROFILE=$(PROFILE) $(LIBNAME) COMPILENOW=T -j 4 --no-print-directory
+
+f2py:
+	@echo 'Building f2py python library'
+	@$(MAKE) PROFILE=$(PROFILE) $(PYNAME)$(PY_SUFFIX) COMPILENOW=T -j 4 --no-print-directory
 
 # Clean all .mod and .o files as well as mod and obj folders
 clean:
-	rm -f $(PROG) *.o */*.o *.mod */*.mod make.config.bak
-
+	rm -f $(PROG) *.o */*.o *.mod */*.mod make.config.bak */*/*.o */*/*/*.o *.so *.a *.pyf
 
 # Copy file if user tried to make with a profile that only exists in default-profiles
 copyprofile:
 	$(shell cp ./make/default-profiles/$(PROFILE).make ./$(makeprofile))
-	@echo "WARNING: Could not locate user profile:  " $(makeprofile) 
+	@echo "WARNING: Could not locate user profile:  " $(makeprofile)
 	@echo "WARNING: Copying corresponding file from: " make/default-profiles/$(PROFILE).make
 	@$(MAKE) PROFILE=$(PROFILE) $(PROG) COMPILENOW=T -j 4 --no-print-directory
-
 
 nocopyprofile:
 	@echo "Building target $(PROG) using profile $(PROFILE) "
@@ -125,69 +147,131 @@ $(SYSTEMS):
 	@echo "FILE CREATED:\n $(shell date)\n" > $(MAKELOG)
 	@echo "MAKE:\n $(MAKE) PROFILE=$@ -j 4 \n" >> $(MAKELOG)
 	@echo "$@" > $(CURRENT)
-	@$(MAKE) PROFILE=$@ --no-print-directory 
+	@$(MAKE) PROFILE=$@ --no-print-directory
+	@if [ ! -d ../bin ] ; then mkdir ../bin ; fi
+	@cp ../source/sd ../bin/sd.$@
 
-
-
-# Setting up and executing the Rules	
+################################################################################
+# Setting up and executing the Rules
+################################################################################
 ifdef COMPILENOW
 
 # Including external generated rules. Basically dependency between all fortran .o and .mod files.
 # Check if CUDA support will be used, in that case add the proper preprocessing flag
 include make/dependencies.make
 include make/objs.make
-ifeq ($(USE_CUDA),YES) 
-#CUDA support activated  ----------------------------------------
+
+# Including the third party definitions
+include Third_party/ovf/ovf.make
+
+################################################################################
+#FFTW support
+################################################################################
+ifeq ($(USE_FFTW),YES)
+   FFTLIBFLAGS := -I/usr/local/include/ -lfftw3 -lm -DUSE_FFTW=USE_FFTW
+else
+   OBJS_T := $(OBJS)
+   OBJS := $(filter-out Hamiltonian/fftdipole_fftw.o,$(OBJS_T))
+   FFTLIBFLAGS :=
+endif
+
+ifeq ($(USE_MKL_FFT),YES)
+   #MKLROOT := $(shell source compilervars.sh intel64 && echo $${MKLROOT})
+   MKLROOT := $(shell echo $${MKLROOT})
+   FFTLIBFLAGS := -DUSE_MKL_FFT=USE_MKL_FFT -I${MKLROOT}/include
+else
+   OBJS_T := $(OBJS)
+   OBJS := $(filter-out Hamiltonian/fftdipole_mkl.o,$(OBJS_T))
+   FFTLIBFLAGS +=$(FFTLIBFLAGS)
+endif
+################################################################################
+#CUDA support activated
+################################################################################
+ifeq ($(USE_CUDA),YES)
+# Include dependencies for the C files
 include make/dependencies_c.make
 include make/objs_c.make
-CUDAPP := -DCUDA
+CUDAPP := -DCUDA 
 OBJS_T := $(OBJS)
 OBJS := $(filter-out nocuda.o,$(OBJS_T))
-
 # Add GPU and C/C++ files to the fortran objs
 OBJS += $(COBJS)
-
 # Include mod, obj and gpu folder in search path
 VPATH := $(GPUDIR)
-
 # Sort out true and false settings for CUDA/C/C++
 CCU_FLAGS  := $(shell awk '{if($$2=="=" && $$3=="T") print "-"$$1}' $(makeprofile))
-
-# Grouping flags common to CUDA C and C++ 
+# Grouping flags common to CUDA C and C++
 CCU_FLAGS += $(CUDA_INC) $(C_FCFLAG)
-
 else
-#CUDA support not activated  ------------------------------------
-CUDAPP := 
+################################################################################
+#CUDA support not activated
+################################################################################
+include make/dependencies_tp_c.make
+include make/objs_tp_c.make
+
+CUDAPP :=
 OBJS_T := $(OBJS)
 OBJS := $(filter-out chelper.o,$(OBJS_T))
+# Add GPU and C/C++ files to the fortran objs
+OBJS += $(COBJSTP)
+CXXFLAGS += $(C_FCFLAG)
+
 endif
 
-#Check if Intel Vector Statistical Library will be used for RNG
-ifeq ($(USE_VSL),YES) 
+OVFLIBFLAGS= $(OVFCCOMPLAGS) 
+################################################################################
+#Check if the Intel Vector Statistical Library will be used for RNG
+################################################################################
+ifeq ($(USE_VSL),YES)
    VSLPP := -DVSL
 else
-   VSLPP := 
+   VSLPP :=
 endif
-
+################################################################################
+# Check for the git version of the code
+################################################################################
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
+ver_length := $(words GIT_VERSION)
+ifneq (ver_length,0)
+VERFLAGS :=-DVERSION=\"$(GIT_VERSION)\"
+else
+VERFLAGS :=
+endif
+################################################################################
 # Fortran link and compiler flags
-#FFLAGS     := $(FCFLAGS) $(FCDEBUG) $(FCMODFLAG) $(MDIR) $(FCOMPFLAGS) -cpp $(CUDAPP) $(VSLPP)
-FFLAGS     := $(FCFLAGS) $(FCDEBUG) $(FCMODFLAG) $(MDIR) $(FCOMPFLAGS) $(PREPROC) $(CUDAPP) $(VSLPP)
-FLINKFLAGS := $(FCOMPFLAG) $(FLIBFLAGS) $(FFLAGS)
+################################################################################
+FFLAGS     := $(FCFLAGS) $(FCDEBUG) $(FCMODFLAG) $(MDIR) $(FCOMPFLAGS) $(PREPROC) $(CUDAPP) $(VSLPP) $(FFTLIBFLAGS) $(VERFLAGS) #$(OVFLIBFLAGS)
+FLINKFLAGS := $(FCOMPFLAG) $(FFLAGS) $(FLIBFLAGS)
 
+################################################################################
 # Link flags
+################################################################################
+#LFLAGS     := $(FLINKFLAGS) $(CCLIBFLAGS) $(CXXLIBFLAGS)
 LFLAGS     := $(CUDA_LIB) $(CCLIBFLAGS) $(CXXLIBFLAGS) $(FLINKFLAGS) 
 
+################################################################################
 # Linking grouped
-LINKG      := $(FC) #$(LFLAGS) # Libflags needed after objects in linking phase for gfortran 
+################################################################################
+LINKG      := $(FC) $(LFLAGS) # Libflags needed after objects in linking phase for gfortran
 
+################################################################################
 # The different compiler flags and compiler grouped
-FORTRANCF  := $(FC) $(FFLAGS) 
-CCF        := $(CC) $(CCU_FLAGS) $(CCFLAGS) $(CCLIBFLAGS) 
-CPPCF      := $(CXX) $(CCU_FLAGS) $(CXXFLAGS) $(CXXLIBFLAGS)
-CUDACF     := $(CUDA) $(CCU_FLAGS) $(NVCCFLAGS) $(GENCODE_ARCH) $(CUDA_FLAGS) 
+################################################################################
+FORTRANCF  := $(FC) $(FFLAGS)
+CCF        := $(CC) $(CCU_FLAGS) $(CCFLAGS) $(CCLIBFLAGS) $(OVFLIBFLAGS)
+CPPCF      := $(CXX) $(CCU_FLAGS) $(CXXFLAGS) $(CXXLIBFLAGS) $(OVFLIBFLAGS)
+CUDACF     := $(CUDA) $(CCU_FLAGS) $(NVCCFLAGS) $(GENCODE_ARCH) $(CUDA_FLAGS)
 
+################################################################################
+# Rule to make uppasd library and prints to log file
+################################################################################
+$(LIBNAME):  $(filter-out 0sd.o,$(OBJS))
+	ar rcs $@ $^
+	ranlib $@
+
+################################################################################
 # Rule to make entire program and prints to log file
+################################################################################
 $(PROG): $(OBJS)
 	-$(LINKG) $(OBJS) -o $@ $(LFLAGS)
 	@echo "FORTRAN:\n" $(FORTRANCF) "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
@@ -196,23 +280,38 @@ $(PROG): $(OBJS)
 	@echo "CUDA:\n"    $(CUDACF)    "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
 	@echo "LINK:\n"    $(LINKG)     "\n" | sed 's/-\+/\n  &/g' >> $(MAKELOG)
 
+################################################################################
 # Fortran compilation
-%.mod : %.f90 
+################################################################################
+%.mod : %.f90
 	$(FORTRANCF) -c $< -o $@
- 
+
 %.o : %.f90  | $(MDIR)
 	$(FORTRANCF) -c $< -o $@
- 
+
+%$(PY_SUFFIX)::  %.f90
+	@echo $@
+	f2py -m $* -h $*.pyf $<
+	f2py -c $*.pyf  $< $(LIBNAME) -I$(MDIR) \
+			 --f90flags='$(FCFLAGS) $(PREPROC)  $(VERFLAGS)' $(FLIBFLAGS) -lstdc++ -lgomp
+#f2py -m uppasd -h uppasd.pyf asdlib.f90
+#f2py -c uppasd.pyf asdlib.f90 -L. -lasdlib -Imod --f90flags='-ffree-line-length-0 -O3 -fopenmp -cpp     -DVERSION=\"5.0-594-gcb8d-dirty\"  -llapack -lblas' -lstdc++ -llapack -lblas -lgomp
+################################################################################
 # C compilation
-%.o : %.c 
+################################################################################
+%.o : %.c
 	$(CCF)       -c $< -o $@
 
+################################################################################
 # C++ compilation
-%.o : %.cpp 
+################################################################################
+%.o : %.cpp
 	$(CPPCF)     -c $< -o $@
 
+################################################################################
 # CUDA compilation
-%.o : %.cu 
+################################################################################
+%.o : %.cu
 	$(CUDACF)    -c $< -o $@
 
 $(MDIR):
@@ -220,24 +319,27 @@ $(MDIR):
 
 else
 
-$(PROG)   : help 
+$(PROG)   : help
 %.o       : help
 %.mod     : help
 
-# Generate an compressed archive
+################################################################################
+# Generate a compressed archive
+################################################################################
 dist:
 	@echo "Packaging source, examples, documentation, and tests to ../UppASD_dist.tar.gz"
 	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
-	@cd .. ; tar cf ./UppASD_dist.tar LICENSE AUTHORS README.md \
-	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/  \
-	./examples_revision_controlled ./docs/Doxyfile ./docs/*.pdf \
-	./codeTester/ ; \
+	@cd .. ; tar cf ./UppASD_dist.tar \
+	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
+	./examples_revision_controlled ./docs/Doxyfile ./docs/*.tex \
+	./codeTester/ ; ./ASD_Viz/*.py \
 	gzip --best -f ./UppASD_dist.tar
 
 dist_minimal:
 	@echo "Packaging source to ../UppASD_src.tar.gz"
-	@cd .. ; tar cf ./UppASD_src.tar LICENSE AUTHORS README.md \
-	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/  ;\
+	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
+	@cd .. ; tar cf ./UppASD_src.tar \
+	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ ;\
 	gzip --best -f ./UppASD_src.tar
 
 endif

@@ -1,6 +1,6 @@
 #!/bin/bash
 mypath=.
-iname=`ls -l sqw.*.out* | tail -1 | awk '{ print $NF }'`
+iname=`ls -l ../sqw.*.out* | tail -1 | awk '{ print $NF }'`
 if [[ "$iname" == ../sqw.*.out.gz ]]; then
     zcat $iname > sqw.dat
 else
@@ -14,9 +14,9 @@ time $mypath/decodeS.x < tmp1
 awk '{ print $3 }' sqw.norm.dat > sqw.arr
 $mypath/col2arr.awk sqw.arr $dim2half | $mypath/flip.awk > sqw.mat
 echo $dim2
-dt=`grep timestep inpsd.dat | tail -1 | awk '{ print $2}' ` 
-ss=`grep sc_step inpsd.dat | tail -1 | awk '{ print $2}'` 
-ns=`grep sc_nstep inpsd.dat | tail -1 | awk '{ print $2}'` 
+dt=`grep timestep ../inpsd.dat | tail -1 | awk '{ print $2}' ` 
+ss=`grep sc_step ../inpsd.dat | tail -1 | awk '{ print $2}'` 
+ns=`grep sc_nstep ../inpsd.dat | tail -1 | awk '{ print $2}'` 
 # energy in meV below
 yscale=`echo $dt $ss $ns| awk '{ print 4.13566733e-12/$1/$2/$3}'`
 sed "s/YSCALE/$yscale/" $mypath/base.gnu > $mypath/plot.gnu

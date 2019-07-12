@@ -1,9 +1,9 @@
-!> Routines for printing information about the Hamiltonian
+!-------------------------------------------------------------------------------
+! SUBROUTINE: PrintHamiltonian
+!> @brief Routines for printing information about the Hamiltonian
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!-------------------------------------------------------------------------------
 module PrintHamiltonian
    use Parameters
    use Profiling
@@ -12,178 +12,163 @@ module PrintHamiltonian
    implicit none
    public
 
-
 contains
 
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_exchange
+   !> @brief Print strength of exchange couplings
+   !> @details New version which replaces the older printing routine, it merges the
+   !> information of the struct and struct1 files, into a more self-contained structure
+   !> @note Index is wrong for ncoup in case of `do_recuce` but it should still be safe
+   !> @note Jonathan Chico: modified the routine so that it writes the couplings in mRy
+   !> for easier comparison with the jfile
+   !----------------------------------------------------------------------------
+   subroutine prn_exchange(NA,mdim,Natom,Nchmax,do_ralloy,Natom_full,max_no_neigh,  &
+      simid,anumb,atype,nlistsize,asite_ch,achem_ch,nlist,coord,ammom_inp,ncoup,aham)
 
-   !> Print structural information about the existing exchange couplings
-   subroutine prnge(simid, Natom, NT, NA, N1, N2, N3,  atype, &
-         max_no_shells, max_no_equiv, redcoord, nn, nm, nmdim, &
-         do_ralloy, Natom_full, Nchmax, acellnumb, acellnumbrev, achtype)
+      use AMS, only : wrap_coord_diff
 
-      !.. Implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      integer, intent(in) :: N1  !< Number of cell repetitions in x direction
-      integer, intent(in) :: N2  !< Number of cell repetitions in y direction
-      integer, intent(in) :: N3  !< Number of cell repetitions in z direction
-      integer, dimension(Natom), intent(in) :: atype !< Type of atom
-      integer, intent(in) :: NT !< Number of types of atoms
-      integer, intent(in) :: max_no_shells !< Calculated maximum of shells for exchange
-      integer, intent(in) :: max_no_equiv !< Calculated maximum of neighbours in one shell for exchange
-      real(dblprec), dimension(NT,max_no_shells,3), intent(in) :: redcoord !< Coordinates for Heisenberg exchange couplings
-      integer, dimension(NT), intent(in) :: nn !< Number of neighbour shells
-      integer, dimension(Natom,max_no_shells,max_no_equiv), intent(in) :: nm !< Neighbour map
-      integer, dimension(max_no_shells,Natom), intent(in) :: nmdim !< Dimension of neighbour map
-      character(len=8), intent(in) :: simid !< Name of simulation
-      integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
-      integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
-      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
-      integer, dimension(Natom_full), intent(in) :: acellnumb !< List for translating atom no. in full cell to actual cell
-      integer, dimension(Natom_full), intent(in) :: acellnumbrev !< List for translating atom no. in actual cell to full cell
-      integer, dimension(Natom_full), intent(in) :: achtype !< Chemical type of atoms (full list)
+      integer, intent(in) :: NA
+      integer, intent(in) :: mdim            !< dimension of the exchange coupling matrix (1=scalar or 9=3x3)
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Nchmax          !< Max number of chemical components on each site in cell
+      integer, intent(in) :: do_ralloy       !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full      !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_neigh    !< Calculated maximum of neighbours for exchange
+      character(len=8),intent(in) :: simid   !< Name of simulation
+      integer, dimension(Natom), intent(in) :: anumb    !< Atom number in cell
+      integer, dimension(Natom), intent(in) :: atype     !< Type of atom
+      integer, dimension(Natom), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(Natom_full), intent(in)   :: asite_ch !< Actual site of atom for dilute system
+      integer, dimension(Natom_full), intent(in)   :: achem_ch !< Chemical type of atoms (reduced list)
+      integer, dimension(max_no_neigh, Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      real(dblprec), dimension(NA,Nchmax), intent(in) :: ammom_inp   !< Magnetic moment directions from input (for alloys)
+      real(dblprec), dimension(mdim,max_no_neigh, Natom), intent(in) :: ncoup !< Heisenberg exchange couplings
+      integer, dimension(Natom), optional, intent(in) :: aham !< Hamiltonian look-up table
 
-      integer :: i, j, k, l, count, i0, i1, i2, i3
-      integer :: iatom, jatom
-      character(len=30) :: filn
+      !.. Local variables
+      integer :: iatom,jatom,ineigh
+      integer, dimension(:), allocatable :: alist
+      character(len=20) :: filn
+      real(dblprec) :: fc2_inv,tol
+      real(dblprec) :: tmp_rij_norm
+      real(dblprec), dimension(3) :: tmp_rij
+      real(dblprec), dimension(mdim) :: tmp_coup
+      tol=1e-5
+      tmp_rij=0.0_dblprec
+      tmp_rij_norm=0.0_dblprec
+      tmp_coup=0.0_dblprec
 
+      fc2_inv=mub/(mry*2.0_dblprec)
       !.. Executable statements
-
-      ! print neighbor map
       write (filn,'(''struct.'',a8,''.out'')') simid
       open(ofileno, file=filn)
 
-      write (ofileno,*) "Data from heisgeinit"
-      do I3=0, N3-1
-         do I2=0, N2-1
-            do I1=0, N1-1
-               do I0=1, NA
-                  i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                  if (do_ralloy==1) i = acellnumb(i)
-                  if (i==0) cycle
-                  write (ofileno,*) "------------------------------------------------------"
-                  if (do_ralloy==0) then
-                     write (ofileno,10001) i
-                  else
-                     iatom = acellnumbrev(i)
-                     write (ofileno,10011) i, atype(i), achtype(i)
-                  end if
-                  do k=1,nn(atype(i))
-                     write (ofileno,10002) k, nmdim(k,i), redcoord(atype(i0),k,1),&
-                        redcoord(atype(i0),k,2), redcoord(atype(i0),k,3),&
-                        sqrt(sum(redcoord(atype(i0),k,:)**2))
-                     write (ofileno,10003)   nm(i,k,1:nmdim(k,i))
-
-                     ! new check for self-mapping
-                     do l=1,nmdim(k,i)
-                        if (nm(i,k,l)==i) then
-                           write(*,'(1x,a,i6)') 'WARNING: Jii entry in neighbour map for atom',i
-                           write (ofileno,'(1x,a)') 'WARNING: Jii entry in neighbour map'
-                        endif
-                     end do
-
-                     if (do_ralloy==0) then
-                        do j=1,NT
-                           count=0
-                           do l=1,nmdim(k,i)
-                              if (nm(i,k,l)/=0) then
-                                 if (atype(nm(i,k,l))==j) then
-                                    count=count+1
-                                 endif
-                              end if
-                           end do
-                           write (ofileno,10004) j, count
-                        end do
-                     else
-                        do j=1,Nchmax
-                           count=0
-                           do l=1,nmdim(k,i)
-                              if (nm(i,k,l)/=0) then
-                                 jatom = acellnumbrev(nm(i,k,l))
-                                 if (achtype(jatom)==j) then
-                                    count=count+1
-                                 endif
-                              end if
-                           end do
-                           write (ofileno,10014) j, count
-                        end do
-                     end if
-                  end do
-               end do
-            end do
+      allocate(alist(Natom))
+      if(present(aham)) then
+         do iatom=1,Natom
+            alist(iatom)=aham(iatom)
          end do
-      end do
-      close(ofileno)
-
-      10001 format ("Atom=",i8)
-      10002 format ("Shell=",i4,2x,"Number of atoms=",i4,2x,"Shell coordinates:", 4f8.4)
-      10003 format ("            ",1X,5I6)
-      10004 format ("            Type=",i4,2x,"Number of atoms=",i4)
-
-      10011 format ("Atom=",i8,2x,"Type=",i4,2x,"Chtype=",i4)
-      10014 format ("            Chtype=",i4,2x,"Number of atoms=",i4)
-
-   end subroutine prnge
-
-   !> Print strength of exchange couplings
-   subroutine prn_exchange(Natom, max_no_neigh, nlistsize, nlist, ncoup, simid, mdim)
-      !
-      !.. Implicit declarations
-      implicit none
-
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(Natom), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(max_no_neigh, Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      integer, intent(in) :: mdim !< dimension of the exchange coupling matrix (1=scalar or 9=3x3)
-      real(dblprec), dimension(mdim,max_no_neigh, Natom), intent(in) :: ncoup !< Heisenberg exchange couplings
-      character(len=8),intent(in) :: simid !< Name of simulation
-
-      !.. Local variables
-      integer :: i,j
-      character(len=20) :: filn
-
-      !.. Executable statements
-      write (filn,'(''struct1.'',a8,''.out'')') simid
-      open(ofileno, file=filn)
-
+      else
+         do iatom=1,Natom
+            alist(iatom)=iatom
+         end do
+      end if
+      if (mdim==1) then
+         write(ofileno,'(a)')"#######################################################"
+         write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+         write(ofileno,'(a,1x,i8)')"# Maximum num of neighbours: ", max_no_neigh
+         write(ofileno,'(a)')"#######################################################"
+         write(ofileno,10000) "#  iatom", "jatom",  "itype", "jtype", "r_{ij}^x",   &
+         "r_{ij}^y","r_{ij}^z",  "J_{ij}", "|r_{ij}|"
+      else
+         write(ofileno,10010) "#iatom", "jatom",  "itype", "jtype", "r_{ij}^x",     &
+         "r_{ij}^y","r_{ij}^z", "J_{ij}^{xx}","J_{ij}^{xy}","J_{ij}^{xz}",          &
+         "J_{ij}^{yx}","J_{ij}^{yy}","J_{ij}^{yz}","J_{ij}^{zx}","Jij_zy","Jij_zz", &
+         "|rij|"
+      endif
       ! print neighbor list - after sort
-      write (ofileno,*) "Sorted data from heisge0"
-      do i=1,Natom
-         write (ofileno,*) "----------------------------------"
-         write (ofileno,10001) i,nlistsize(i)
-         write (ofileno,10002) nlist(1:nlistsize(i),i)
-         if(mdim==1) then
-            write (ofileno,10003) ncoup(1:mdim,1:nlistsize(i),i)*mub/mry
-         else
-            do j=1,nlistsize(i)
-               write (ofileno,10004) ncoup(1:mdim,j,i)*mub/mry
-            end do
-         end if
+      do iatom=1,Natom
+         do ineigh=1,nlistsize(alist(iatom))
+            jatom=nlist(ineigh,iatom)
+            call wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
+            tmp_rij_norm=norm2(tmp_rij)
+            if (tmp_rij_norm<tol) then
+               write(*,'(1x,a,i6)') 'WARNING: Jii entry in neighbour map for atom',iatom
+               write (ofileno,'(1x,a)') 'WARNING: Jii entry in neighbour map'
+                     write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),   &
+                     tmp_rij(1:3),tmp_coup,tmp_rij_norm
+            else
+               ! If scalar interaction
+               if (mdim==1) then
+                  if (do_ralloy==0) then
+                     ! Calculate the coupling so that it has the same units than the jfile
+                     tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
+                     (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     ! Print the data
+                     write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),   &
+                     tmp_rij(1:3),tmp_coup,tmp_rij_norm
+                  else
+                     ! Calculate the coupling so that it has the same units than the jfile
+                     tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
+                     (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     ! Print the data
+                     write (ofileno,10002) iatom,jatom,atype(iatom),atype(jatom),   &
+                     achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup,         &
+                     tmp_rij_norm
+                  endif
+               ! If tensor
+               else
+                  if (do_ralloy==0) then
+                     ! Calculate the coupling so that it has the same units than the jfile
+                     tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
+                     (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     ! Print the data
+                     write (ofileno,10003) iatom,jatom,atype(iatom),atype(jatom),   &
+                     tmp_rij(1:3),tmp_coup,tmp_rij_norm
+                  else
+                     ! Calculate the coupling so that it has the same units than the jfile
+                     tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
+                     (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     ! Print the data
+                     write (ofileno,10004) iatom,jatom,atype(iatom),atype(jatom),   &
+                     achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup,         &
+                     tmp_rij_norm
+                  endif
+               endif
+            endif
+         enddo
       end do
       close(ofileno)
 
-      10001 format ("Atom=",i8,4x,"No neigh=",i7)
-      10002 format ("            ",1X,5I6)
-      10003 format (5es16.8)
-      10004 format (9es16.8)
-
+      10000 format (a8,1x,a8,1x,a6,1x,a6,5a16)
+      10010 format (a8,1x,a8,1x,a6,1x,a6,13a16)
+      10001 format (i8,1X,i8,1X,i6,1x,i6,5es16.4)
+      10002 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,5es16.4)
+      10003 format (i8,1X,i8,1X,i6,1x,i6,13es16.4)
+      10004 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,13es16.4)
    end subroutine prn_exchange
 
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_exchange_sparse
    !> Print strength of exchange couplings in sparse matrix format
    !> The output is in Tesla
-   subroutine prn_exchange_sparse(Natom, max_no_neigh, nlistsize, nlist, ncoup, simid, mdim)
+   !> @note Index is wrong for ncoup in case of `do_recuce` but it should still be safe
+   !----------------------------------------------------------------------------
+   subroutine prn_exchange_sparse(Natom,max_no_neigh,nlistsize,nlist,ncoup,simid,   &
+      mdim)
       !
       !.. Implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: mdim   !< dimension of the exchange coupling matrix (1=scalar or 9=3x3)
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
       integer, dimension(Natom), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
       integer, dimension(max_no_neigh, Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
-      integer, intent(in) :: mdim !< dimension of the exchange coupling matrix (1=scalar or 9=3x3)
       real(dblprec), dimension(mdim,max_no_neigh, Natom), intent(in) :: ncoup !< Heisenberg exchange couplings
       character(len=8),intent(in) :: simid !< Name of simulation
 
@@ -207,19 +192,32 @@ contains
 
    end subroutine prn_exchange_sparse
 
-   !>  Prints the neighbour list for the induced moments
-   subroutine prn_ind_exchange(Natom,max_no_neigh,ind_nlistsize,ind_mom_nlist,simid)
+   !----------------------------------------------------------------------------
+   !> @brief  Prints the neighbour list for the induced moments
+   !> @details It contains whether an atom is an iduced moment or it is fixed and
+   !> its "induced" list, that is nearest neighbour list of fixed atoms (if induced)
+   !> and induced (if fixed)
+   !----------------------------------------------------------------------------
+   subroutine prn_ind_exchange(NA,Natom,Nchmax,do_ralloy,Natom_full,                &
+      max_no_neigh_ind,anumb,achtype,ind_nlistsize,ind_mom,ind_nlist,simid)
 
       implicit none
 
-      integer, intent(in) :: Natom
-      integer, intent(in) :: max_no_neigh
-      integer, dimension(Natom), intent(in) :: ind_nlistsize
-      integer, dimension(max_no_neigh,Natom) :: ind_mom_nlist
-      character(len=8), intent(in) :: simid
+      integer, intent(in) :: NA           !< Number of atoms in one cell
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Nchmax       !< Max number of chemical components on each site in cell
+      integer, intent(in) :: do_ralloy    !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full   !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_neigh_ind   !< Calculated maximum of neighbours for induced moments
+      integer, dimension(Natom), intent(in)        :: anumb    !< Type of atom
+      integer, dimension(Natom_full), intent(in)   :: achtype  !< Actual site of atom for dilute system
+      integer, dimension(Natom), intent(in)        :: ind_nlistsize
+      integer, dimension(NA,Nchmax), intent(in)    :: ind_mom  !< Indication of whether a given moment is induced/fixed (1/0) for the unit cell
+      integer, dimension(max_no_neigh_ind,Natom), intent(in) :: ind_nlist  !< Neighbour list for induced moments
+      character(len=8), intent(in) :: simid  !< Name of simulation
 
       ! Local variables
-      integer :: i
+      integer :: i,chem
       character(len=30) :: filn
 
       !.. Printing the induced moments list
@@ -230,56 +228,126 @@ contains
       write (ofileno,*) "Sorted data from heisge0 for induced moments"
       do i=1,Natom
          write (ofileno,*) "----------------------------------"
-         write (ofileno,10001) i,ind_nlistsize(i)
-         write (ofileno,10002) ind_mom_nlist(1:ind_nlistsize(i),i)
+         if (do_ralloy==0) then
+            chem=1
+         else
+            chem=achtype(i)
+         endif
+         write (ofileno,10001) i,ind_nlistsize(i),ind_mom(anumb(i),chem)
+         write (ofileno,10002) ind_nlist(1:ind_nlistsize(i),i)
+         if (do_ralloy==0) then
+            write (ofileno,10002) ind_mom(anumb(ind_nlist(1:ind_nlistsize(i),i)),1)
+         else
+            write (ofileno,10002) ind_mom(anumb(ind_nlist(1:ind_nlistsize(i),i)),achtype(ind_nlist(1:ind_nlistsize(i),i)))
+         endif
       end do
       close(ofileno)
 
-
-      10001 format ("Atom=",i8,4x,"No neigh=",i7)
+      10001 format ("Atom=",i8,4x,"No neigh=",i7,2x,"Ind flag=",i7)
       10002 format ("            ",1X,5I6)
 
    end subroutine prn_ind_exchange
 
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_dmcoup
    !> Print directions and strengths of DM couplings
-   subroutine prn_dmcoup(Natom, max_no_dmneigh, dmlistsize, dmlist, dm_vect, simid)
+   !> @details New version which replaces the older printing routine, it merges the
+   !> information of the struct and struct1 files, into a more self-contained structure
+   !> @note Jonathan Chico: modified the routine so that it writes the couplings in mRy
+   !> for easier comparison with the jfile
+   !----------------------------------------------------------------------------
+   subroutine prn_dmcoup(NA,Natom,Nchmax,do_ralloy,Natom_full,max_no_dmneigh,anumb, &
+      atype,dmlistsize,asite_ch,achem_ch,dmlist,coord,ammom_inp,dm_vect,simid)
       !
+      use AMS, only : wrap_coord_diff
+
       !.. Implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: NA
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Nchmax          !< Max number of chemical components on each site in cell
+      integer, intent(in) :: do_ralloy       !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full      !< Number of atoms for full system (=Natom if not dilute)
       integer, intent(in) :: max_no_dmneigh !< Calculated number of neighbours with DM interactions
-      integer,dimension(Natom), intent(in) :: dmlistsize !< Size of neighbour list for DM
-      integer,dimension(max_no_dmneigh,Natom), intent(in) :: dmlist   !< List of neighbours for DM
-      real(dblprec),dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
-      character(len=8) :: simid !< Name of simulation
-
+      integer, dimension(Natom), intent(in) :: anumb    !< Atom number in cell
+      integer, dimension(Natom), intent(in) :: atype     !< Type of atom
+      integer, dimension(Natom), intent(in) :: dmlistsize !< Size of neighbour list for DM
+      integer, dimension(Natom_full), intent(in)   :: asite_ch !< Actual site of atom for dilute system
+      integer, dimension(Natom_full), intent(in)   :: achem_ch !< Chemical type of atoms (reduced list)
+      integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist   !< List of neighbours for DM
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      real(dblprec), dimension(NA,Nchmax), intent(in) :: ammom_inp   !< Magnetic moment directions from input (for alloys)
+      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
+      character(len=8), intent(in) :: simid   !< Name of simulation
       !.. Local variables
-      integer :: i
+      !.. Local variables
+      integer :: iatom,jatom,ineigh
+      integer, dimension(:), allocatable :: alist
       character(len=20) :: filn
+      real(dblprec) :: fc2_inv,tol
+      real(dblprec) :: tmp_rij_norm
+      real(dblprec), dimension(3) :: tmp_rij
+      real(dblprec), dimension(3) :: tmp_coup
+      tol=1e-5
+      tmp_rij=0.0_dblprec
+      tmp_rij_norm=0.0_dblprec
+      tmp_coup=0.0_dblprec
+
+      fc2_inv=mub/(mry*2.0_dblprec)
 
       !.. Executable statements
       write (filn,'(''dmdata.'',a8,''.out'')') simid
       open(ofileno, file=filn)
 
+      write(ofileno,'(a)')"#######################################################"
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Maximum num of neighbours: ", max_no_dmneigh
+      write(ofileno,'(a)')"#######################################################"
+      write(ofileno,10000) "#  iatom", "jatom",  "itype", "jtype", "r_{ij}^x",      &
+      "r_{ij}^y","r_{ij}^z", "D_{ij}^x","D_{ij}^y","D_{ij}^z", "|rij|"
+
       ! print neighbor list - after sort
-      write (ofileno,*) "Sorted data from heisge "
-      do i=1,Natom
-         write (ofileno,*) "----------------------------------"
-         write (ofileno,10001) i,dmlistsize(i)
-         write (ofileno,10002) dmlist(1:dmlistsize(i),i)
-         write (ofileno,10003) dm_vect(1:3,1:dmlistsize(i),i)*mub/mry
+      do iatom=1,Natom
+         do ineigh=1,dmlistsize(iatom)
+            jatom=dmlist(ineigh,iatom)
+            !tmp_rij=coord(:,jatom)-coord(:,iatom)
+            call wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
+            tmp_rij_norm=norm2(tmp_rij)
+            if (tmp_rij_norm<tol) then
+               write(*,'(1x,a,i6)') 'WARNING: Dii entry in neighbour map for atom',iatom
+               write (ofileno,'(1x,a)') 'WARNING: Dii entry in neighbour map'
+            else
+               if (do_ralloy==0) then
+                  ! Calculate the coupling so that it has the same units than the jfile
+                  tmp_coup(1:3)=dm_vect(1:3,ineigh,iatom)*fc2_inv*                  &
+                  (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                  ! Print the data
+                  write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),      &
+                  tmp_rij(1:3),tmp_coup(1:3),tmp_rij_norm
+               else
+                  ! Calculate the coupling so that it has the same units than the jfile
+                  tmp_coup(1:3)=dm_vect(1:3,ineigh,iatom)*fc2_inv*                  &
+                  (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                  ! Print the data
+                  write (ofileno,10002) iatom,jatom,atype(iatom),atype(jatom),      &
+                  achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup(1:3),       &
+                  tmp_rij_norm
+               endif
+            endif
+         enddo
       end do
       close(ofileno)
 
-      10001 format ("Atom=",i8,4x,"No neigh=",i7)
-      10002 format ("            ",1X,5I6)
-      10003 format (6es14.6)
+      10000 format (a8,1x,a8,1x,a6,1x,a6,7a16)
+      10001 format (i8,1X,i8,1X,i5,1x,i5,7es16.4)
+      10002 format (i8,1X,i8,1X,i5,1x,i5,1x,i4,1x,i4,7es16.4)
 
    end subroutine prn_dmcoup
 
-
+   !----------------------------------------------------------------------------
    !> Print directions and strengths of PD couplings
+   !----------------------------------------------------------------------------
    subroutine prn_pdcoup(Natom, nn_pd_tot, pdlistsize, pdlist, pd_vect, simid)
       !
       !.. Implicit declarations
@@ -316,9 +384,51 @@ contains
 
    end subroutine prn_pdcoup
 
+   !> Print directions and strengths of CHIR couplings
+   subroutine prn_chircoup(Natom, max_no_chirneigh, chir_listsize, chir_list, chir_val , simid)
+      !
+      !.. Implicit declarations
+      implicit none
 
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: max_no_chirneigh !< Calculated number of neighbours with chir interactions
+      integer,dimension(Natom), intent(in) :: chir_listsize !< Size of neighbour list forchir 
+      integer,dimension(2,max_no_chirneigh,Natom), intent(in) :: chir_list   !< List of neighbours forchir 
+      real(dblprec),dimension(max_no_chirneigh,Natom), intent(in) :: chir_val  !< chir force constant matrix
+      character(len=8) :: simid !< Name of simulation
+
+      !.. Local variables
+      integer :: i,j
+      character(len=30) :: filn
+
+      !.. Executable statements
+      write (filn,'(''chirdata.'',a8,''.out'')') simid
+      open(21, file=filn)
+
+      ! print neighbor list - after sort
+      write (21,*) "Sorted chir couplings "
+      do i=1,Natom
+         write (21,*) "----------------------------------"
+         write (21,10001) i,chir_listsize(i)
+         do j=1,chir_listsize(i)
+            write (21,10004) i,chir_list(1:2,j,i),chir_val(j,i)
+         end do
+      end do
+      close(21)
+
+10001 format ("Atom=",i8,4x,"No neigh=",i7)
+10002 format ("            ",1X,2I6)
+!10002 format ("            ",1X,5I6)
+10003 format (9es14.6)
+10004 format (3x,3i6,27es14.6)
+
+   end subroutine prn_chircoup
+
+   !----------------------------------------------------------------------------
    !> Print directions and strengths of BIQDM couplings
-   subroutine prn_biqdmcoup(Natom, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, simid)
+   !----------------------------------------------------------------------------
+   subroutine prn_biqdmcoup(Natom,nn_biqdm_tot,biqdmlistsize,biqdmlist,biqdm_vect,  &
+      simid)
       !
       !.. Implicit declarations
       implicit none
@@ -394,7 +504,8 @@ contains
 
 
    !> Print single-ion anisotropies
-   subroutine prn_anisotropy(Natom, NA, anisotropytype, taniso, eaniso, kaniso, simid,Nchmax)
+   subroutine prn_anisotropy(Natom,NA,anisotropytype,taniso,eaniso,kaniso,simid,    &
+      Nchmax)
       !
       !.. Implicit declarations
       implicit none
@@ -441,80 +552,84 @@ contains
 
    end subroutine prn_anisotropy
 
-   !> Print structural information about the existing dmexchange couplings
-   subroutine dmprnge(simid, Natom, NT, NA, N1, N2, N3,  atype, &
-         max_no_shells, max_no_equiv, redcoord, nn, nm, nmdim, &
-         do_ralloy, Natom_full, Nchmax, acellnumb, acellnumbrev, achtype)
+
+   !----------------------------------------------------------------------------
+   !> @brief Print structural information about the existing exchange couplings of the cluster
+   !----------------------------------------------------------------------------
+   subroutine clus_prnge(NA_clus,NT_clus,N1_clus,N2_clus,N3_clus,do_ralloy,         &
+      Natom_clus,Nchmax_clus,Natom_full_clus,max_no_equiv_clus,max_no_shells_clus,  &
+      NN_clus,atype_clus,achtype_clus,acellnumb_clus,acellnumbrev_clus,nmdim,nm,    &
+      redcoord_clus,simid)
 
       !.. Implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      integer, intent(in) :: N1  !< Number of cell repetitions in x direction
-      integer, intent(in) :: N2  !< Number of cell repetitions in y direction
-      integer, intent(in) :: N3  !< Number of cell repetitions in z direction
-      integer, dimension(Natom), intent(in) :: atype !< Type of atom
-      integer, intent(in) :: NT !< Number of types of atoms
-      integer, intent(in) :: max_no_shells !< Calculated maximum of shells for exchange
-      integer, intent(in) :: max_no_equiv !< Calculated maximum of neighbours in one shell for exchange
-      real(dblprec), dimension(NT,max_no_shells,3), intent(in) :: redcoord !< Coordinates for Heisenberg exchange couplings
-      integer, dimension(NT), intent(in) :: nn !< Number of neighbour shells
-      integer, dimension(Natom,max_no_shells,max_no_equiv), intent(in) :: nm !< Neighbour map
-      integer, dimension(max_no_shells,Natom), intent(in) :: nmdim !< Dimension of neighbour map
-      character(len=8), intent(in) :: simid !< Name of simulation
+      integer, intent(in) :: NA_clus !< Number of atoms in the cluster
+      integer, intent(in) :: NT_clus !< Number of types of atoms in the cluster
+      integer, intent(in) :: N1_clus  !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2_clus  !< Number of cell repetitions in y direction
+      integer, intent(in) :: N3_clus  !< Number of cell repetitions in z direction
       integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
-      integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
-      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
-      integer, dimension(Natom_full), intent(in) :: acellnumb !< List for translating atom no. in full cell to actual cell
-      integer, dimension(Natom_full), intent(in) :: acellnumbrev !< List for translating atom no. in actual cell to full cell
-      integer, dimension(Natom_full), intent(in) :: achtype !< Chemical type of atoms (full list)
+      integer, intent(in) :: Natom_clus !< Number of atoms in the cluster
+      integer, intent(in) :: Nchmax_clus !< Max number of chemical components on each site in cell
+      integer, intent(in) :: Natom_full_clus !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_equiv_clus !< Calculated maximum of neighbours in one shell for exchange
+      integer, intent(in) :: max_no_shells_clus !< Calculated maximum of shells for exchange
+      integer, dimension(NT_clus), intent(in) :: NN_clus !< Number of neighbour shells
+      integer, dimension(Natom_clus), intent(in) :: atype_clus !< Type of atom
+      integer, dimension(Natom_full_clus), intent(in) :: achtype_clus !< Chemical type of atoms (full list)
+      integer, dimension(Natom_full_clus), intent(in) :: acellnumb_clus !< List for translating atom no. in full cell to actual cell
+      integer, dimension(Natom_full_clus), intent(in) :: acellnumbrev_clus !< List for translating atom no. in actual cell to full cell
+      integer, dimension(max_no_shells_clus,Natom_clus), intent(in) :: nmdim !< Dimension of neighbour map
+      integer, dimension(Natom_clus,max_no_shells_clus,max_no_equiv_clus), intent(in) :: nm !< Neighbour map
+      real(dblprec), dimension(NT_clus,max_no_shells_clus,3), intent(in) :: redcoord_clus !< Coordinates for Heisenberg exchange couplings
+      character(len=8), intent(in) :: simid !< Name of simulation
 
-      integer :: i, j, k, l, count, i0, i1, i2, i3
+      integer :: i, j, k, l, count, I0, I1, I2, I3
       integer :: iatom, jatom
       character(len=30) :: filn
 
       !.. Executable statements
 
       ! print neighbor map
-      write (filn,'(''dmstruct.'',a8,''.out'')') simid
+      write (filn,'(''clus_struct.'',a8,''.out'')') simid
       open(ofileno, file=filn)
 
-      write (ofileno,*) "Data from dmheisgeinit"
-      do I3=0, N3-1
-         do I2=0, N2-1
-            do I1=0, N1-1
-               do I0=1, NA
-                  i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                  if (do_ralloy==1) i = acellnumb(i)
+      write (ofileno,*) "Clus data from heisgeinit"
+      do I3=0, N3_clus-1
+         do I2=0, N2_clus-1
+            do I1=0, N1_clus-1
+               do I0=1, NA_clus
+                  i=I0+I1*NA_clus+I2*N1_clus*NA_clus+I3*N2_clus*N1_clus*NA_clus
+                  if (do_ralloy==1) i = acellnumb_clus(i)
                   if (i==0) cycle
                   write (ofileno,*) "------------------------------------------------------"
                   if (do_ralloy==0) then
                      write (ofileno,10001) i
                   else
-                     iatom = acellnumbrev(i)
-                     write (ofileno,10011) i, atype(i), achtype(i)
+                     iatom = acellnumbrev_clus(i)
+                     write (ofileno,10011) i, atype_clus(i), achtype_clus(i)
                   end if
-                  do k=1,nn(atype(i))
-                     write (ofileno,10002) k, nmdim(k,i), redcoord(atype(i0),k,1),&
-                        redcoord(atype(i0),k,2), redcoord(atype(i0),k,3),&
-                        sqrt(sum(redcoord(atype(i0),k,:)**2))
+                  do k=1,NN_clus(atype_clus(i))
+                     write (ofileno,10002) k, nmdim(k,i), redcoord_clus(atype_clus(I0),k,1),&
+                        redcoord_clus(atype_clus(I0),k,2), redcoord_clus(atype_clus(I0),k,3),&
+                        sqrt(sum(redcoord_clus(atype_clus(I0),k,:)**2))
                      write (ofileno,10003)   nm(i,k,1:nmdim(k,i))
 
                      ! new check for self-mapping
                      do l=1,nmdim(k,i)
                         if (nm(i,k,l)==i) then
-                           write(*,'(1x,a,i6)') 'WARNING: Dii entry in neighbour map for atom',i
-                           write (ofileno,'(1x,a)') 'WARNING: Dii entry in neighbour map'
+                           write(*,'(1x,a,i6)') 'WARNING: Jii entry in neighbour map for atom',i
+                           write (ofileno,'(1x,a)') 'WARNING: Jii entry in neighbour map'
                         endif
                      end do
 
                      if (do_ralloy==0) then
-                        do j=1,NT
+                        do j=1,NT_clus
                            count=0
                            do l=1,nmdim(k,i)
                               if (nm(i,k,l)/=0) then
-                                 if (atype(nm(i,k,l))==j) then
+                                 if (atype_clus(nm(i,k,l))==j) then
                                     count=count+1
                                  endif
                               end if
@@ -522,12 +637,12 @@ contains
                            write (ofileno,10004) j, count
                         end do
                      else
-                        do j=1,Nchmax
+                        do j=1,Nchmax_clus
                            count=0
                            do l=1,nmdim(k,i)
                               if (nm(i,k,l)/=0) then
-                                 jatom = acellnumbrev(nm(i,k,l))
-                                 if (achtype(jatom)==j) then
+                                 jatom = acellnumbrev_clus(nm(i,k,l))
+                                 if (achtype_clus(jatom)==j) then
                                     count=count+1
                                  endif
                               end if
@@ -550,6 +665,120 @@ contains
       10011 format ("Atom=",i8,2x,"Type=",i4,2x,"Chtype=",i4)
       10014 format ("            Chtype=",i4,2x,"Number of atoms=",i4)
 
-   end subroutine dmprnge
+   end subroutine clus_prnge
+
+   !----------------------------------------------------------------------------
+   !> Print structural information about the existing dm-exchange couplings of the cluster
+   !----------------------------------------------------------------------------
+   subroutine clus_dmprnge(NA_clus,N1_clus,N2_clus,N3_clus,NT_clus,do_ralloy,       &
+      Natom_clus,Nchmax_clus,Natom_full_clus,max_no_equiv_clus,max_no_dmshells_clus,&
+      dm_nn_clus,atype_clus,achtype_clus,acellnumb_clus,acellnumbrev_clus,nm,nmdim, &
+      dm_redcoord_clus,simid)
+
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA_clus !< Number of atoms in the cluster
+      integer, intent(in) :: N1_clus  !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2_clus  !< Number of cell repetitions in y direction
+      integer, intent(in) :: N3_clus  !< Number of cell repetitions in z direction
+      integer, intent(in) :: NT_clus !< Number of types of atoms
+      integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_clus !< Number of atoms in the cluster
+      integer, intent(in) :: Nchmax_clus !< Max number of chemical components on each site in cell
+      integer, intent(in) :: Natom_full_clus !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_equiv_clus !< Calculated maximum of neighbours in one shell for exchange
+      integer, intent(in) :: max_no_dmshells_clus !< Calculated maximum of shells for exchange
+      integer, dimension(NT_clus), intent(in) :: dm_nn_clus !< Number of neighbour shells
+      integer, dimension(Natom_clus), intent(in) :: atype_clus !< Type of atom
+      integer, dimension(Natom_full_clus), intent(in) :: achtype_clus !< Chemical type of atoms (full list)
+      integer, dimension(Natom_full_clus), intent(in) :: acellnumb_clus !< List for translating atom no. in full cell to actual cell
+      integer, dimension(Natom_full_clus), intent(in) :: acellnumbrev_clus !< List for translating atom no. in actual cell to full cell
+      integer, dimension(Natom_clus,max_no_dmshells_clus,max_no_equiv_clus), intent(in) :: nm !< Neighbour map
+      integer, dimension(max_no_dmshells_clus,Natom_clus), intent(in) :: nmdim !< Dimension of neighbour map
+      real(dblprec), dimension(NT_clus,max_no_dmshells_clus,3), intent(in) :: dm_redcoord_clus !< Coordinates for Heisenberg exchange couplings
+      character(len=8), intent(in) :: simid !< Name of simulation
+
+      integer :: i, j, k, l, count, i0, i1, i2, i3
+      integer :: iatom, jatom
+      character(len=30) :: filn
+
+      !.. Executable statements
+
+      ! print neighbor map
+      write (filn,'(''clus_dmstruct.'',a8,''.out'')') simid
+      open(ofileno, file=filn)
+
+      write (ofileno,*) "Data from dmheisgeinit"
+      do I3=0, N3_clus-1
+         do I2=0, N2_clus-1
+            do I1=0, N1_clus-1
+               do I0=1, NA_clus
+                  i=I0+I1*NA_clus+I2*N1_clus*NA_clus+I3*N2_clus*N1_clus*NA_clus
+                  if (do_ralloy==1) i = acellnumb_clus(i)
+                  if (i==0) cycle
+                  write (ofileno,*) "------------------------------------------------------"
+                  if (do_ralloy==0) then
+                     write (ofileno,10001) i
+                  else
+                     iatom = acellnumbrev_clus(i)
+                     write (ofileno,10011) i, atype_clus(i), achtype_clus(i)
+                  end if
+                  do k=1,dm_nn_clus(atype_clus(i))
+                     write (ofileno,10002) k, nmdim(k,i), dm_redcoord_clus(atype_clus(I0),k,1),&
+                        dm_redcoord_clus(atype_clus(I0),k,2), dm_redcoord_clus(atype_clus(I0),k,3),&
+                        sqrt(sum(dm_redcoord_clus(atype_clus(I0),k,:)**2))
+                     write (ofileno,10003)   nm(i,k,1:nmdim(k,i))
+
+                     ! new check for self-mapping
+                     do l=1,nmdim(k,i)
+                        if (nm(i,k,l)==i) then
+                           write(*,'(1x,a,i6)') 'WARNING: Dii entry in neighbour map for atom',i
+                           write (ofileno,'(1x,a)') 'WARNING: Dii entry in neighbour map'
+                        endif
+                     end do
+
+                     if (do_ralloy==0) then
+                        do j=1,NT_clus
+                           count=0
+                           do l=1,nmdim(k,i)
+                              if (nm(i,k,l)/=0) then
+                                 if (atype_clus(nm(i,k,l))==j) then
+                                    count=count+1
+                                 endif
+                              end if
+                           end do
+                           write (ofileno,10004) j, count
+                        end do
+                     else
+                        do j=1,Nchmax_clus
+                           count=0
+                           do l=1,nmdim(k,i)
+                              if (nm(i,k,l)/=0) then
+                                 jatom = acellnumbrev_clus(nm(i,k,l))
+                                 if (achtype_clus(jatom)==j) then
+                                    count=count+1
+                                 endif
+                              end if
+                           end do
+                           write (ofileno,10014) j, count
+                        end do
+                     end if
+                  end do
+               end do
+            end do
+         end do
+      end do
+      close(ofileno)
+
+      10001 format ("Atom=",i8)
+      10002 format ("Shell=",i4,2x,"Number of atoms=",i4,2x,"Shell coordinates:", 4f8.4)
+      10003 format ("            ",1X,5I6)
+      10004 format ("            Type=",i4,2x,"Number of atoms=",i4)
+
+      10011 format ("Atom=",i8,2x,"Type=",i4,2x,"Chtype=",i4)
+      10014 format ("            Chtype=",i4,2x,"Number of atoms=",i4)
+
+   end subroutine clus_dmprnge
 
 end module PrintHamiltonian

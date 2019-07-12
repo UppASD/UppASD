@@ -1,9 +1,6 @@
 !> Routine for printing input parameters
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 module PrintInput
    use Parameters
    use Profiling
@@ -33,7 +30,7 @@ contains
       file_id=ofileno
 
       ! Open outputfile
-      write (filn,'(''inp.'',a8,''.out'')') simid
+      write (filn,'(''inp.'',a8,''.yaml'')') simid
       open(file_id, file=filn)
       call print_header()
       call print_constants()
@@ -52,104 +49,103 @@ contains
 
 
       subroutine print_header()
-         write (file_id,'(a)') "**************** INPUT DATA                     ****************"
-         write (file_id,'(a,a)') "Simulation ID:          ", simid
+         write (file_id,'(a)') "#  UppASD Input data "
+         write (file_id,'(a, /20x ,a)') "simid:", simid
          write (file_id,*)  " "
       end subroutine print_header
 
       subroutine print_constants()
          use Constants, only : k_bolt, mub, mry
-         write (file_id,'(a)') "**************** Physical constants             ****************"
-         write (file_id,'(a,es16.8)') "k_Bolt          ", k_bolt
-         write (file_id,'(a,es16.8)') "Bohrmag         ", mub
-         write (file_id,'(a,es16.8)') "mRy             ", mry
+         write (file_id,'(a)') "# Physical constants"
+         write (file_id,'(a, /20x ,es16.8)') "Boltzman constant:", k_bolt
+         write (file_id,'(a, /20x ,es16.8)') "Bohr magneton:", mub
+         !write (file_id,'(a,es16.8)') "mRy             ", mry
          write (file_id,'(a)')  " "
       end subroutine print_constants
 
       subroutine print_input1()
          !
-         write (file_id,'(a)') "**************** Input 1                        ****************"
-         write (file_id,'(a,3i16)') "N1, N2, N3      ", N1, N2, N3
-         write (file_id,'(a,a,a,a,a,a)') "BC                             ", BC1, '               ', &
-            BC2, '               ', BC3
-         write (file_id,'(a, 3es16.8)') "C1              ",C1(1), C1(2), C1(3)
-         write (file_id,'(a, 3es16.8)') "C2              ",C2(1), C2(2), C2(3)
-         write (file_id,'(a, 3es16.8)') "C3              ",C3(1), C3(2), C3(3)
-         write (file_id,'(a,i16)') "NA              ", NA
-         write (file_id,'(a,i16)') "NT              ", NT
-         write (file_id,'(a,i16)') "Sym             ", Sym
-         write (file_id,'(a,i16)') "Natom           ", Natom
+         write (file_id,'(a)') "# Structure data"
+         write (file_id,'(a, /20x,i0,2x,i0,2x,i0)') "ncell:", N1, N2, N3
+         write (file_id,'(a, /20x    ,a,2x,a,2x,a)') "BC:", BC1, BC2, BC3
+         write (file_id,'(a, /20x,3es15.8/20x ,3es15.8,/20x ,3es15.8)') "cell:",C1, C2, C3
+         write (file_id,'(a)') "positions:"
          do i=1,NA
-            write (file_id,'(i16,3es16.8)') anumb_inp(i), Bas(1,i),Bas(2,i),Bas(3,i)
+            write (file_id,'(20x,i0,2x,i0,2x,3es15.8)') anumb_inp(i), atype_inp(i), bas(1:3,i)
          end do
+         write (file_id,'(a, /20x ,i0)') "NA:", NA
+         write (file_id,'(a, /20x ,i0)') "NT:", NT
+         write (file_id,'(a, /20x ,i0)') "Sym:", Sym
+         write (file_id,'(a, /20x ,i0)') "Natom:", Natom
          write (file_id,*) " "
-         write (file_id,'(a)') "Exchange"
+         !!! write (file_id,'(a)') "Exchange"
 
-         ! Sort tensorial exchange (SKKR) input later
-         if(do_jtensor/=1) then
+         !!! ! Sort tensorial exchange (SKKR) input later
+         !!! if(do_jtensor/=1) then
 
-            do i=1,NT
-               if (do_ralloy==0) then
-                  write (file_id,'(3i16,2es16.8)') i, atype_inp(i), nn(atype_inp(i)), ammom_inp(i,1,1), Landeg_ch(i,1,1)
-                  do l=1,NN(atype_inp(i))
-                     write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
-                        redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(atype_inp(i),l,1,1,1)
-                  end do
-               else
-                  write (file_id,'(4i16)') i, atype_inp(i), nn(i), Nch(i)
-                  do j=1,Nch(i)
-                  end do
-                  do j=1,Nch(i)
-                     do k=1,Nch(i)
-                        write (file_id,'(4i16,es16.8)') j, k
-                        do l=1,NN(i)
-                           write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
-                              redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(i,l,j,k,1)
-                        end do
-                     end do
-                  end do
-               end if
-            end do
+         !!!    do i=1,NT
+         !!!       if (do_ralloy==0) then
+         !!!          write (file_id,'(3i16,2es16.8)') i, atype_inp(i), nn(atype_inp(i)), ammom_inp(i,1,1), Landeg_ch(i,1,1)
+         !!!          do l=1,NN(atype_inp(i))
+         !!!             write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
+         !!!                redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(atype_inp(i),l,1,1,1)
+         !!!          end do
+         !!!       else
+         !!!          write (file_id,'(4i16)') i, atype_inp(i), nn(i), Nch(i)
+         !!!          do j=1,Nch(i)
+         !!!          end do
+         !!!          do j=1,Nch(i)
+         !!!             do k=1,Nch(i)
+         !!!                write (file_id,'(4i16,es16.8)') j, k
+         !!!                do l=1,NN(i)
+         !!!                   write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
+         !!!                      redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(i,l,j,k,1)
+         !!!                end do
+         !!!             end do
+         !!!          end do
+         !!!       end if
+         !!!    end do
 
-         end if
+         !!! end if
 
-         write (file_id,'(a)')  " "
-         write (file_id,'(a)') "Anisotropy"
-         do i=1,NT
-            write (file_id,'(6es16.8)') anisotropy(i,1,1), anisotropy(i,2,1), anisotropy(i,3,1), anisotropy(i,4,1), &
-               anisotropy(i,5,1),anisotropy(i,6,1)
-         enddo
-         write (file_id,'(a)')  " "
+         !!! write (file_id,'(a)')  " "
+         !!! write (file_id,'(a)') "Anisotropy"
+         !!! do i=1,NT
+         !!!    write (file_id,'(6es16.8)') anisotropy(i,1,1), anisotropy(i,2,1), anisotropy(i,3,1), anisotropy(i,4,1), &
+         !!!       anisotropy(i,5,1),anisotropy(i,6,1)
+         !!! enddo
+         !!! write (file_id,'(a)')  " "
       end subroutine print_input1
 
 
       subroutine print_simulation()
-         write (file_id,'(a)') "**************** Simulation parameters          ****************"
-         write (file_id,'(a,i16)') "LLG             ", llg
-         write (file_id,'(a,i16)') "SDE             ", SDEalgh
-         write (file_id,'(a,i16)') "Mensemble       ", Mensemble
+         write (file_id,'(a)') "# Simulation parameters"
+         write (file_id,'(a, /20x ,i0)') "LLG:", llg
+         write (file_id,'(a, /20x ,i0)') "SDE:", SDEalgh
+         write (file_id,'(a, /20x ,i0)') "Mensemble:", Mensemble
          write (file_id,'(a)')  " "
       end subroutine print_simulation
 
 
       subroutine print_initmagnetization()
-         write (file_id,'(a)') "**************** Initial magnetization          ****************"
-         write (file_id,'(a, i16)') "initmag        ", initmag
-         if(initmag==1) then
-            write (file_id,'(a,i16)') "mseed           ", mseed
-         endif
-         if(initmag==2) then
-            write (file_id,'(a,i16)') "mseed           ", mseed
-            write (file_id,'(a,es16.8)') "Theta0          ", theta0
-            write (file_id,'(a,es16.8)') "Phi0            ", phi0
-         endif
+         write (file_id,'(a)') "# Initial magnetization"
+         write (file_id,'(a, /20x,  i0)') "initmag:", initmag
+         !!! if(initmag==1) then
+         !!!    write (file_id,'(a,i16)') "mseed           ", mseed
+         !!! endif
+         !!! if(initmag==2) then
+         !!!    write (file_id,'(a,i16)') "mseed           ", mseed
+         !!!    write (file_id,'(a,es16.8)') "Theta0          ", theta0
+         !!!    write (file_id,'(a,es16.8)') "Phi0            ", phi0
+         !!! endif
          if(initmag==3) then
+               write (file_id,'(a)') "moments:"
             do i=1,NA
-               write (file_id,'(a,3es16.8)') "Mom             ", aemom_inp(1,i,1,1), aemom_inp(2,i,1,1), aemom_inp(3,i,1,1)
+               write (file_id,'(20x, 3es16.8)') aemom_inp(1,i,1,1), aemom_inp(2,i,1,1), aemom_inp(3,i,1,1)
             enddo
          endif
          if(initmag==4) then
-            write (file_id,'(a,a)') "File            ", restartfile
+            write (file_id,'(a, /20x, a)') "restartfile:", adjustl(restartfile)
          endif
          write (file_id,*) "   "
       end subroutine print_initmagnetization

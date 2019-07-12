@@ -5,45 +5,63 @@
 !> @details Ref: J.H. Mentink et al, J. Phys.: Condens. Matter, 22, 176001 (2010)
 !> @author
 !> Johan Mentink
+!> @copyright
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module Midpoint
-   use Parameters
+
    use Profiling
+   use Parameters
+
+   implicit none
+
+   real(dblprec), dimension(:,:,:), allocatable :: btorque_full !< Resulting effective field
+
+   private :: btorque_full
 
 contains
 
-
-   !-----------------------------------------------------------------------------
-   !> SUBROUTINE: smodeulermpt
+   !----------------------------------------------------------------------------
+   !  SUBROUTINE: smodeulermpt
    !> @brief
-   !> Semi-implicit midpoint variants
-   !> All consist of 2 steps (t and f)
+   !> Semi-implicit midpoint variants. All consist of 2 steps (t and f)
    !> Names according to note Michael Tretyakov
    !> First step of midpoint solver
-   !-----------------------------------------------------------------------------
-   subroutine smodeulermpt(Natom, Mensemble, Landeg,bn, lambda1_array, beff, emom, &
-         emom2, emomM, mmom, deltat,thermal_field)
+   !> @note Jonathan Chico: Added Zhang-Li spin transfer torque term into the field
+   !----------------------------------------------------------------------------
+   subroutine smodeulermpt(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,deltat,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
 
       use Constants
       use RandomNumbers, only : ranv
 
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: Nred            !< Number of moments that can be updated
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Mensemble       !< Number of ensembles
+      real(dblprec), intent(in) :: bn        !< Scaling factor for LLG equation (parameter=1.0_dblprec)
+      real(dblprec), intent(in) :: deltat    !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
-      real(dblprec), intent(in) :: bn !< Scaling factor for LLG equation (parameter=1.0d0)
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff !< Total effective field from application of Hamiltonian
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array   !< Damping parameter
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom  !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom         !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. In/out variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff   !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      real(dblprec), intent(in) :: deltat !< Time step
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field   !< Thermal field
 
       ! ... Local variables ...
-      integer :: i, j, ij
+      integer :: i, j,ired
       real(dblprec) :: lldamp
 
       ! deterministic variables
@@ -60,32 +78,65 @@ contains
       ! time steps
       real(dblprec) :: dt,sqrtdt
       real(dblprec) :: dtg, sqrtdtg
-
       !
       ! spins
       real(dblprec),dimension(3)  :: et
 
-      !$omp parallel do default(shared) schedule(static) &
-      !$omp private(i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
-      do i=1,Natom
+      btorque_full=0.0_dblprec
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
          do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)=btorque_full(:,i,j)+btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
 
-            lldamp=1.0D0/(1.0D0+lambda1_array(i)*lambda1_array(i))
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+she_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+sot_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      !$omp parallel do default(shared) schedule(static) &
+      !$omp private(ired,i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
+      do ired=1,Nred
+         do j=1,Mensemble
+            i=red_atom_list(ired)
+            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)*lambda1_array(i))
             dt=deltat*bn*gama*lldamp !dimm. less time
             sqrtdt=sqrt(dt)
             dtg=dt*Landeg(i)
             sqrtdtg=sqrtdt*Landeg(i)
-
             ! a1 = -b1 - lambda*(e1 cross b1)
-            a1(1)=-beff(1,i,j)-lambda1_array(i)*(emom(2,i,j)*beff(3,i,j)-emom(3,i,j)*beff(2,i,j))
-            a1(2)=-beff(2,i,j)-lambda1_array(i)*(emom(3,i,j)*beff(1,i,j)-emom(1,i,j)*beff(3,i,j))
-            a1(3)=-beff(3,i,j)-lambda1_array(i)*(emom(1,i,j)*beff(2,i,j)-emom(2,i,j)*beff(1,i,j))
+            a1(1)=-btorque_full(1,i,j)-beff(1,i,j)-lambda1_array(i)*(emom(2,i,j)*beff(3,i,j)-emom(3,i,j)*beff(2,i,j))
+            a1(2)=-btorque_full(2,i,j)-beff(2,i,j)-lambda1_array(i)*(emom(3,i,j)*beff(1,i,j)-emom(1,i,j)*beff(3,i,j))
+            a1(3)=-btorque_full(3,i,j)-beff(3,i,j)-lambda1_array(i)*(emom(1,i,j)*beff(2,i,j)-emom(2,i,j)*beff(1,i,j))
             !
             ! s1 is stochastic counterpart of a1
             s1(1)=-ranv(1,i,j)-lambda1_array(i)*(emom(2,i,j)*ranv(3,i,j)-emom(3,i,j)*ranv(2,i,j))
             s1(2)=-ranv(2,i,j)-lambda1_array(i)*(emom(3,i,j)*ranv(1,i,j)-emom(1,i,j)*ranv(3,i,j))
             s1(3)=-ranv(3,i,j)-lambda1_array(i)*(emom(1,i,j)*ranv(2,i,j)-emom(2,i,j)*ranv(1,i,j))
-
 
             thermal_field(:,i,j)=s1(:)
             !
@@ -97,10 +148,11 @@ contains
             ! Ax,Ay,Az off-diagonal components of A
             ! solve with Cramers' rule => define detAi=1/determinant(A)
             !
-            A(:)=0.5d0*dtg*a1(:)+0.5d0*sqrtdtg*s1(:)
+            A(:)=0.5_dblprec*dtg*a1(:)+0.5_dblprec*sqrtdtg*s1(:)
 
-            detAi=1.0d0/(1.0d0+sum(A(:)*A(:)))
+            detAi=1.0_dblprec/(1.0_dblprec+sum(A(:)*A(:)))
             !
+
             a2(1)=emom(1,i,j)+emom(2,i,j)*A(3)-emom(3,i,j)*A(2)
             a2(2)=emom(2,i,j)+emom(3,i,j)*A(1)-emom(1,i,j)*A(3)
             a2(3)=emom(3,i,j)+emom(1,i,j)*A(2)-emom(2,i,j)*A(1)
@@ -110,7 +162,7 @@ contains
             et(3)=a2(1)*(A(3)*A(1)+A(2))+a2(2)*(A(3)*A(2)-A(1))+a2(3)*(1+A(3)*A(3))
 
             ! now use et for writing et'=(e1+et)/2 in emom2
-            et(:)=0.5d0*(emom(:,i,j)+et(:)*detAi)
+            et(:)=0.5_dblprec*(emom(:,i,j)+et(:)*detAi)
             !
             ! write et'=(e1+et)/2 in emom2
             emom2(:,i,j)=et(:)
@@ -126,27 +178,37 @@ contains
 
    end subroutine smodeulermpt
 
-
    !-----------------------------------------------------------------------------
-   !> SUBROUTINE: modeulermpf
+   !  SUBROUTINE: modeulermpf
    !> @brief
    !> Second step of midpoint solver
    !-----------------------------------------------------------------------------
-   subroutine modeulermpf(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, deltat)
+   subroutine modeulermpf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,  &
+      deltat,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,red_atom_list)
+
       use Constants
       use RandomNumbers, only : ranv
 
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
+      real(dblprec), intent(in) :: bn !< Scaling factor for LLG equation (parameter=1.0_dblprec)
+      real(dblprec), intent(in) :: deltat !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
-      real(dblprec), intent(in) :: bn !< Scaling factor for LLG equation (parameter=1.0d0)
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. In/out variables
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
-      real(dblprec), intent(in) :: deltat !< Time step
 
       ! deterministic variables
       real(dblprec),dimension(3) :: a1
@@ -167,15 +229,52 @@ contains
       real(dblprec),dimension(3) :: etp
       !
       ! ... Local variables ...
-      integer :: i, j, ij
+      integer :: i, j, ired
       real(dblprec) :: lldamp
+
+      btorque_full=0.0_dblprec
+
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)=btorque_full(:,i,j)+btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+she_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+sot_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
       !
       !$omp parallel do default(shared) schedule(static) &
-      !$omp private(i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
-
-      do i=1,Natom
+      !$omp private(ired,i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
+      do ired=1,Nred
          do j=1,Mensemble
-            lldamp=1.0D0/(1.0D0+lambda1_array(i)*lambda1_array(i))
+            i=red_atom_list(ired)
+            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)*lambda1_array(i))
             dt=deltat*bn*gama*lldamp !dimm. less time
             sqrtdt=sqrt(dt)
             dtg=dt*Landeg(i)
@@ -183,9 +282,9 @@ contains
             etp(:)=emom2(:,i,j) ! load etp=et' back from emom2
             !
             ! a1 = -b1 - lambda*(et cross b1)
-            a1(1)=-beff(1,i,j)-lambda1_array(i)*(etp(2)*beff(3,i,j)-etp(3)*beff(2,i,j))
-            a1(2)=-beff(2,i,j)-lambda1_array(i)*(etp(3)*beff(1,i,j)-etp(1)*beff(3,i,j))
-            a1(3)=-beff(3,i,j)-lambda1_array(i)*(etp(1)*beff(2,i,j)-etp(2)*beff(1,i,j))
+            a1(1)=-btorque_full(1,i,j)-beff(1,i,j)-lambda1_array(i)*(etp(2)*beff(3,i,j)-etp(3)*beff(2,i,j))
+            a1(2)=-btorque_full(2,i,j)-beff(2,i,j)-lambda1_array(i)*(etp(3)*beff(1,i,j)-etp(1)*beff(3,i,j))
+            a1(3)=-btorque_full(3,i,j)-beff(3,i,j)-lambda1_array(i)*(etp(1)*beff(2,i,j)-etp(2)*beff(1,i,j))
             !
             ! s1 is stochastic counterpart of a1
             s1(1)=-ranv(1,i,j)-lambda1_array(i)*(etp(2)*ranv(3,i,j)-etp(3)*ranv(2,i,j))
@@ -199,8 +298,8 @@ contains
             ! Ax,Ay,Az off-diagonal components of A
             ! solve with Cramers' rule => define detAi=1/determinant(A)
             !
-            A(:)=0.5d0*dtg*a1(:)+0.5d0*sqrtdtg*s1(:)
-            detAi=1.0d0/(1.0d0+sum(A(:)*A(:)))
+            A(:)=0.5_dblprec*dtg*a1(:)+0.5_dblprec*sqrtdtg*s1(:)
+            detAi=1.0_dblprec/(1.0_dblprec+sum(A(:)*A(:)))
             !
             a2(1)=emom(1,i,j)+emom(2,i,j)*A(3)-emom(3,i,j)*A(2)
             a2(2)=emom(2,i,j)+emom(3,i,j)*A(1)-emom(1,i,j)*A(3)
@@ -221,5 +320,31 @@ contains
 
    end subroutine modeulermpf
 
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: allocate_aux_midpoint_fields
+   !> @brief Allocation of auxilary fields for the treatment of STT and SOT based torques
+   !> @author Jonathan Chico
+   !----------------------------------------------------------------------------
+   subroutine allocate_aux_midpoint_fields(flag,Natom,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: flag   !< Allocate or deallocate (1/-1)
+      integer, intent(in), optional :: Natom !< Number of atoms in system
+      integer, intent(in), optional :: Mensemble   !< Number of ensembles
+
+      integer :: i_stat,i_all
+
+      if (flag>0) then
+         allocate(btorque_full(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btorque_full))*kind(btorque_full),'btorque_full','allocate_aux_midpoint_fields')
+         btorque_full=0.0_dblprec
+      else
+         i_all=-product(shape(btorque_full))*kind(btorque_full)
+         deallocate(btorque_full,stat=i_stat)
+         call memocc(i_stat,i_all,'btorque_full','allocate_aux_midpoint_fields')
+      endif
+
+   end subroutine allocate_aux_midpoint_fields
 
 end module midpoint

@@ -7,10 +7,10 @@
 #------------------------------------------------#
 
 # Fortran compiler
-FC = ftn  
+FC = ftn
 
 #------------------------------------------------#
-# Flags for FORTRAN compilation 
+# Flags for FORTRAN compilation
 #------------------------------------------------#
 # Basic optimization settings explained
 # -ip         Inline function, substantioal speed up
@@ -29,13 +29,13 @@ FCFLAGS = -O3 -ip -openmp -openmp-simd
 # -check all   Check all
 # -xT          Optimization for intel(R) core(TM)2 Duo
 #FCDEBUG = -g -traceback
-FCDEBUG = 
+FCDEBUG =
 
 # Library flags
 # -lblas       Basic Linear Algebra Subprograms
 # -llapack     Linear Algebra Package (for eigenvalue, cholesky etc...)
 # -lmkl        Includes lapack and blas
-FLIBFLAGS = #-mkl=sequential 
+FLIBFLAGS = #-mkl=sequential
 
 # ifort mod folder flag (used to put .mods in separate files)
 FCMODFLAG = -module
@@ -44,6 +44,11 @@ FCMODFLAG = -module
 USE_CUDA = NO
 
 # Enable Intel Vector Statistical Library support for RNG
-USE_VSL = NO 
+USE_VSL = NO
 
 PREPROC = -cpp
+
+# Enable FFTW Support
+USE_FFTW = NO
+# Enable MKL FFTW Support
+USE_MKL_FFT = NO

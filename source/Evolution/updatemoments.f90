@@ -1,11 +1,10 @@
 !-------------------------------------------------------------------------------
 ! MODULE: UpdateMoments
-!> Routines for updating magnetic moment after time evolution
+!> @brief Routines for updating magnetic moment after time evolution
+!> @author
+!> Anders Bergman
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module UpdateMoments
    use Parameters
@@ -36,12 +35,16 @@ contains
       if (present(mmom0).and.present(mompar)) then
          call calcm(Natom, Mensemble,mmom2, mmom, emom2, mmom0, mompar)
       endif
+      call copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
 
       call copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
 
    end subroutine moment_update
 
-   !> Transfer moments from emom2 to emom and emomM
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: copym
+   !> @brief Transfer moments from emom2 to emom and emomM
+   !-----------------------------------------------------------------------------
    subroutine copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
       !
       implicit none
@@ -67,14 +70,12 @@ contains
             do i=1, Natom
                emom(:,i,j)  = emom2(:,i,j)
                emomM(:,i,j) = emom2(:,i,j)*mmom2(i,j)
-               mmomi(i,j)   = 1.0d0/mmom(i,j)
+               mmomi(i,j)   = 1.0_dblprec/mmom(i,j)
 
             end do
          end do
          !$omp end parallel do
-
       else
-
          !$omp parallel do default(shared) private(i,j) collapse(2)
          do i=1, Natom
             do j=1, Mensemble
@@ -85,9 +86,9 @@ contains
                emomM(2,i,j)=emom2(2,i,j)*mmom(i,j)
                emomM(3,i,j)=emom2(3,i,j)*mmom(i,j)
                if(mmom(i,j) .lt. momtol) then
-                  mmomi(i,j)=1.0d0
+                  mmomi(i,j)=1.0_dblprec
                else
-                  mmomi(i,j)=1.0d0/mmom(i,j)
+                  mmomi(i,j)=1.0_dblprec/mmom(i,j)
                end if
             end do
          end do
@@ -98,8 +99,8 @@ contains
    end subroutine copym
 
    !-----------------------------------------------------------------------------
-   ! SUBROUTINE: copym
-   !> @brief Transfer moments from emom2 to emom and emomM
+   ! SUBROUTINE: calcm
+   !> @brief Update the magnitude of the magnetic moment if wanted.
    !-----------------------------------------------------------------------------
    subroutine calcm(Natom, Mensemble,mmom2, mmom, emom2, mmom0, mompar)
       !
@@ -120,7 +121,6 @@ contains
       if(mompar==1) then
          do j=1, Mensemble
             do i=1, Natom
-
                !M=M0*mz
                mmom2(i,j)=max(mmom0(i,j)*abs(emom2(3,i,j)),1d-4)
             end do
@@ -129,7 +129,6 @@ contains
       else if(mompar==2) then
          do j=1, Mensemble
             do i=1, Natom
-
                !M=M0*mz^2
                mmom2(i,j)=max(mmom0(i,j)*(emom2(3,i,j)*emom2(3,i,j)),1.0d-4)
             end do

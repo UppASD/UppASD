@@ -1,11 +1,26 @@
+!-------------------------------------------------------------------------------
+! MODULE: AMS
+!> @brief
 !> Routines for calculating adiabatic magnon spectra (AMS), and magnon density of states
+!
+!> @details
+!> AMS - Adiabatic Magnon Spectra calculation
+!> The adiabatic magnon spectra is written to ams.SIMID.out, and the
+!> energies are sorted by nsize on each row.
+!
+!> Theory taken from Kübler, Theory of Itinerant Electron Magnetism (2009)
+!> and Halilov et ad, Phys. Rev. B, 58:293, 1998. However the A-matrix proposed
+!> in Kübler has been modified to function with the j-exchange already implemented
+!> in UppASD.
+!
+!> The module contains the main subroutine calculate_ams(), using calc_j(),
+!> eigenvalue_calculation() and printEnergies().
+!
 !> @author
 !> A. Bergman, L. Bergqvist, J. Chico, etc
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!-------------------------------------------------------------------------------
 module AMS
    !
    ! AMS - Adiabatic Magnon Spectra calculation
@@ -23,13 +38,13 @@ module AMS
    use Parameters
    use Fileparser
    use Constants
-   use InputData,          only : N1,N2,N2,N3,NA,NT,Natom,simid, do_dm, hfield,gsconf_num
-
-   use Correlation,        only : q,nq
-   use Hamiltoniandata,    only : nlist, nlistsize, ncoup, dmlist, dmlistsize, dm_vect, taniso, eaniso, kaniso
-   use Systemdata,         only : anumb,coord, Landeg
+   use InputData,          only : N1,N2,N2,N3,NA,NT,Natom,simid,do_dm,hfield,gsconf_num,do_anisotropy,nchmax,ammom_inp,do_ralloy
+   use Correlation,        only : q,nq,q_weight
+   use Hamiltoniandata,    only : ham
+   use Systemdata,         only : anumb,coord, Landeg, atype
    use Momentdata,         only : mmom, emom, emomM
-   use ChemicalData,       only : achem_ch
+   use ChemicalData,       only : achem_ch,asite_ch
+   use Profiling
 
    implicit none
 
@@ -53,23 +68,23 @@ module AMS
    public :: magdos,tcmfa,tcrpa,msat, magdos_freq, do_ams, do_magdos
    public :: magdosfile, magdos_sigma
    public :: calculate_ams,calc_j,eigenvalue_calculation_lapack,printEnergies,magdos_calc, read_parameters_ams, init_ams
-   public :: calculate_random_ams
+   public :: calculate_random_ams, wrap_coord_diff
 
 contains
 
    !--------------------------------------------------------------------------
-   !
+   ! SUBROUTINE: calculate_ams
    ! DESCRIPTION
    !> @brief
    !> Main driver for adiabatic magnon spectra (AMS) in collinear magnets.
-   !! Based on linear spin wave theory as described in ....
+   !> Based on linear spin wave theory as described in ....
    !---------------------------------------------------------------------------------
    subroutine calculate_ams()
       implicit none
       integer :: mu
       integer :: nu
       integer :: lambda
-      integer :: i,j
+      integer :: i,j,ia,nat
       integer :: I1,I2,I3 !< indices to find suitable cell to perform calculations
 
       integer :: countstart !< index for last atom "before" the cell where calculations are performed
@@ -89,7 +104,7 @@ contains
       character(LEN = 18) :: output_file2
       character(LEN = 18) :: output_file3
       character(LEN = 19) :: output_file4
-      integer :: iq
+      integer :: iq,i_stat,i_all
 
       ! Factors for mRy energy conversion
       fc = mry/mub
@@ -101,11 +116,23 @@ contains
          goto 10 ! jumps to end of subroutine
       end if
 
-      allocate(A(NA,NA,nq))
-      allocate(eigv(NA,NA,nq))
-      allocate(B(NA,NA,nq))
-      allocate(wres(NA,nq))
-      allocate(jqres(NA,nq))
+      if (.not. allocated(q_weight)) then
+         allocate(q_weight(nq),stat=i_stat)
+         call memocc(i_stat,product(shape(q_weight))*kind(q_weight),'q_weight','calculate_ams')
+         q_weight=1.0_dblprec
+      end if
+
+      allocate(A(NA,NA,nq),stat=i_stat)
+      call memocc(i_stat,product(shape(A))*kind(A),'A','calculate_ams')
+      allocate(eigv(NA,NA,nq),stat=i_stat)
+      call memocc(i_stat,product(shape(eigv))*kind(eigv),'eigv','calculate_ams')
+      allocate(B(NA,NA,nq),stat=i_stat)
+      call memocc(i_stat,product(shape(B))*kind(B),'B','calculate_ams')
+      allocate(wres(NA,nq),stat=i_stat)
+      call memocc(i_stat,product(shape(wres))*kind(wres),'wres','calculate_ams')
+      allocate(jqres(NA,nq),stat=i_stat)
+      call memocc(i_stat,product(shape(jqres))*kind(jqres),'jqres','calculate_ams')
+      
       A = 0.0_dblprec
       B = 0.0_dblprec
       zeroVector = 0.0_dblprec
@@ -138,60 +165,55 @@ contains
          end do
       end if
       !
-      do i=1,na
-         mtmp=0.d0
-         do j=1,nlistsize(i+countstart)
-            mtmp=mtmp+mmom(nlist(j,i+countstart),1)
-         enddo
-         mtmp=mtmp/nlistsize(i+countstart)
-         msat=msat+mtmp/na
-      enddo
+      msat=sum(mmom(:,1),1)/natom
 
-      order_vector(1)=1.0d0/sqrt(3.0d0)
-      order_vector(2)=1.0d0/sqrt(3.0d0)
-      order_vector(3)=1.0d0/sqrt(3.0d0)
+      order_vector(1)=1.0_dblprec/sqrt(3.0_dblprec)
+      order_vector(2)=1.0_dblprec/sqrt(3.0_dblprec)
+      order_vector(3)=1.0_dblprec/sqrt(3.0_dblprec)
+
+      A=(0.0_dblprec,0.0_dblprec)
+      B=(0.0_dblprec,0.0_dblprec)
       ! A-matrix calculation, one for each q
       write (*,'(1x,a)',advance="no") "Mounting A-matrix for AMS calculation"
-      A=(0.0d0,0.0d0)
+      !$omp parallel do default(shared),private(i,mu,nu,lambda,mag_sign_mu,mag_sign_nu,mag_sign_lambda)
       do i=1,nq
          do mu=1,NA
-            mag_sign_mu=sign(1.0d0,sum(emom(1:3,mu+countstart,1)*order_vector))
+            mag_sign_mu=sign(1.0_dblprec,sum(emom(1:3,mu+countstart,1)*order_vector))
             do nu=1,NA
-               mag_sign_nu=sign(1.0d0,sum(emom(1:3,nu+countstart,1)*order_vector))
-               A(mu,nu,i) = -calc_j(mu,nu,q(:,i),countstart)*mmom(nu+countstart,1)*mag_sign_nu
+               mag_sign_nu=sign(1.0_dblprec,sum(emom(1:3,nu+countstart,1)*order_vector))
+               A(mu,nu,i) = -calc_j(mu,nu,q(:,i),countstart)*mmom(nu+countstart,1)*mag_sign_nu  !*mag_sign_mu
                B(mu,nu,i) = -A(mu,nu,i)*mmom(nu+countstart,1)
                if (mu==nu) then
                   do lambda = 1,NA
-                     mag_sign_lambda=sign(1.0d0,sum(emom(1:3,lambda+countstart,1)*order_vector))
+                     mag_sign_lambda=sign(1.0_dblprec,sum(emom(1:3,lambda+countstart,1)*order_vector))
                      A(mu,mu,i)=A(mu,mu,i) + calc_j(mu,lambda,zeroVector,countstart)* &
                         mmom(lambda+countstart,1)*mag_sign_lambda
                   end do
-                  A(mu,mu,i)=A(mu,mu,i) + calc_ani(mu,mu,countstart)
-                  A(mu,mu,i)=A(mu,mu,i) + sum(hfield*emomm(1:3,mu+countstart,1))*mag_sign_nu*0.5d0
+                  A(mu,mu,i)=A(mu,mu,i) + calc_ani(mu,mu,countstart,do_anisotropy)
+                  A(mu,mu,i)=A(mu,mu,i) + sum(hfield*emomm(1:3,mu+countstart,1))*mag_sign_nu*0.50_dblprec
                end if
                A(mu,nu,i)=A(mu,nu,i)*Landeg(mu)*Landeg(nu) !LB Needs to be fixed,also multiply with landeg_glob
                B(mu,nu,i)=B(mu,nu,i)*Landeg(mu)*Landeg(nu)
             end do
          end do
-      end do
-
-
+      enddo
+      !$omp end parallel do
       write(*,'(a)') " done."
       ! unit conversion from mRy to mEv, by division by Rydberg's constant in (eV) (and an factor of 4 for some reason..)
       ! L.B. The factor is fine, a factor of 2 from the def of dynamical matrix and fc2 includes another factor of 2
       ! L.B Temporary fix before replacing 4 with Landeg_glob^2=4
-      A = 4.0d0*A/fc2*ry_ev
+      A = 4.0_dblprec*A/fc2*ry_ev !*sign(msat,1._dblprec)
       B = B/fc2*ry_ev
-
       ! eigenvalues of A (one set per NA) are written to wres  - AMS
-      write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for AMS calculation"
+!      write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for AMS calculation"
       ! The realness of A has been questioned.
       !According to Essenberger et. al PRB 84, 174425 (2011) Eqn. 22 it is correctly so.
       do iq=1,nq
          A(:,:,iq)=real(A(:,:,iq))
       end do
-      call eigenvalue_calculation_lapack(A,wres,eigv,na,nq)
+      !print *,A
 
+      call eigenvalue_calculation_lapack(A,B,wres,jqres,eigv,na,nq)
 
       !Take absolute values, in case of AF frequencies
       !Assumption: negative frequencies ok, still gives real energies (not complex frequencies/energies)
@@ -202,28 +224,39 @@ contains
       end do
 
       ! print energies to output file
-      call printEnergies(output_file,wres,msat,tcmfa,tcrpa,1)
+      call printEnergies(output_file,wres,msat,tcmfa,tcrpa,na,1)
       call printEigVects(output_file3,eigv,wres,q,nq,na)
-      jqres=0.0d0
-      eigv=0.0d0
-      call eigenvalue_calculation_lapack(B,jqres,eigv,na,nq)
-      call printEnergies(output_file2,jqres,msat,tcmfa,tcrpa,2)
+      !!
+
+      call printEnergies(output_file2,jqres,msat,tcmfa,tcrpa,na,2)
       !
-      call magdos_calc(output_file4,wres,magdos)
+      call magdos_calc(output_file4,wres,magdos,na)
 
       !!
-      deallocate(wres)
-      deallocate(jqres)
-      deallocate(A)
-      deallocate(eigv)
-      deallocate(B)
-      write(*,'(a)') " done."
+      i_all=-product(shape(wres))*kind(wres)
+      deallocate(wres,stat=i_stat)
+      call memocc(i_stat,i_all,'wres','calculate_ams')
+      i_all=-product(shape(jqres))*kind(jqres)
+      deallocate(jqres,stat=i_stat)
+      call memocc(i_stat,i_all,'jqres','calculate_ams')
+      i_all=-product(shape(A))*kind(A)
+      deallocate(A,stat=i_stat)
+      call memocc(i_stat,i_all,'A','calculate_ams')
+      i_all=-product(shape(eigv))*kind(eigv)
+      deallocate(eigv,stat=i_stat)
+      call memocc(i_stat,i_all,'eigv','calculate_ams')
+      i_all=-product(shape(B))*kind(B)
+      deallocate(B,stat=i_stat)
+      call memocc(i_stat,i_all,'B','calculate_ams')
+!      write(*,'(a)') " done."
       write(*,'(1x,a)') 'Adiabatic Magnon Spectra Calculations done.'
       10 continue
-      ! stop
    end subroutine calculate_ams
 
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: calc_j
    !> Fourier transform of exchange interactions around central atom
+   !-----------------------------------------------------------------------------
    complex(dblprec) function calc_j(mu,nu,q_vect,countstart)
       !
       implicit none
@@ -249,21 +282,25 @@ contains
       mutemp = mu+countstart
       nutemp = nu+countstart
 
-      i = (0.0d0,1.0d0)
+      i = (0.0_dblprec,1.0_dblprec)
 
-      do j=1,nlistsize(mutemp)
-         if (anumb(nutemp)==anumb(nlist(j,mutemp))) then
-            dist(:)=coord(1:3,mutemp)-coord(1:3,nlist(j,mutemp))
-            mdot=sum(emom(1:3,mutemp,1)*emom(1:3,nlist(j,mutemp),1))
-            calc_j = calc_j+ncoup(j,mutemp,gsconf_num)*exp(i* &
+      do j=1,ham%nlistsize(ham%aham(mutemp))
+         if (anumb(nutemp)==anumb(ham%nlist(j,mutemp))) then
+            !dist(:)=-redcoord(atype(mutemp),j,:)
+            call wrap_coord_diff(Natom,coord,mutemp,ham%nlist(j,mutemp),dist)
+            !dist(:)=coord(1:3,mutemp)-coord(1:3,ham%nlist(j,mutemp))
+            mdot=sum(emom(1:3,mutemp,1)*emom(1:3,ham%nlist(j,mutemp),1))
+            calc_j = calc_j+ham%ncoup(j,ham%aham(mutemp),gsconf_num)*exp(i* &
                (q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
          end if
       end do
       if(do_dm==1) then
-         do j=1,dmlistsize(mutemp)
-            if (anumb(nutemp)==anumb(dmlist(j,mutemp))) then
-               dist(:)=coord(1:3,mutemp)-coord(1:3,nlist(j,mutemp))
-               dmdot=sum(dm_vect(:,j,mutemp)*q_hat)
+         do j=1,ham%dmlistsize(ham%aham(mutemp))
+            if (anumb(nutemp)==anumb(ham%dmlist(j,mutemp))) then
+               !dist(:)=-redcoord(atype(mutemp),j,:)
+               call wrap_coord_diff(Natom,coord,mutemp,ham%nlist(j,mutemp),dist)
+               !dist(:)=coord(1:3,mutemp)-coord(1:3,ham%nlist(j,mutemp))
+               dmdot=sum(ham%dm_vect(:,j,ham%aham(mutemp))*q_hat)
                calc_j = calc_j+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
             end if
          end do
@@ -271,15 +308,115 @@ contains
 
    end function calc_j
 
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: calc_jRA
+   !> Fourier transform of exchange interactions around central atom of random alloy
+   !-----------------------------------------------------------------------------
+   complex(dblprec) function calc_jRA(mu,nu,q_vect,iatom)
+      !
+      implicit none
+      !
+      integer,intent(in) :: mu
+      integer,intent(in) :: nu
+      integer,intent(in) :: iatom
+
+      real(dblprec),dimension(:),intent(in) :: q_vect
+      real(dblprec),dimension(3) :: q_vect2pi
+      real(dblprec),dimension(3) :: dist
+      integer :: j
+      complex(dblprec) :: i
+      real(dblprec) :: mdot
+
+      real(dblprec) :: dmdot
+      real(dblprec), dimension(3) :: q_hat
+
+      calc_jRA=0.0_dblprec
+      q_vect2pi=q_vect*2_dblprec*pi
+      q_hat=abs(q_vect/sqrt(sum(q_vect*q_vect)+1.0d-15))
+
+      i = (0.0_dblprec,1.0_dblprec)
+
+      do j=1,ham%nlistsize(ham%aham(iatom))
+         if (achem_ch(ham%nlist(j,iatom))==nu) then
+            call wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+            mdot=sum(emom(1:3,iatom,1)*emom(1:3,ham%nlist(j,iatom),1))
+            calc_jRA = calc_jRA+ham%ncoup(j,ham%aham(iatom),gsconf_num)*exp(i* &
+               (q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
+         end if
+      end do
+      if(do_dm==1) then
+         do j=1,ham%dmlistsize(ham%aham(iatom))
+            if (achem_ch(ham%dmlist(j,iatom))==nu) then
+               call wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+               dmdot=sum(ham%dm_vect(:,j,ham%aham(iatom))*q_hat)
+               calc_jRA = calc_jRA+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
+            end if
+         end do
+      end if
+
+   end function calc_jRA
+
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: calc_jDRA
+   !> Fourier transform of exchange interactions around central atom of random alloy
+   !-----------------------------------------------------------------------------
+   complex(dblprec) function calc_jDRA(alfa,beta,q_vect,iatom)
+      !
+      implicit none
+      !
+      integer,intent(in) :: alfa
+      integer,intent(in) :: beta
+      integer,intent(in) :: iatom
+
+      real(dblprec),dimension(:),intent(in) :: q_vect
+      real(dblprec),dimension(3) :: q_vect2pi
+      real(dblprec),dimension(3) :: dist
+      integer :: j
+      complex(dblprec) :: i
+      real(dblprec) :: mdot
+
+      real(dblprec) :: dmdot
+      real(dblprec), dimension(3) :: q_hat
+
+      calc_jDRA=0.0_dblprec
+      q_vect2pi=q_vect*2_dblprec*pi
+      q_hat=abs(q_vect/sqrt(sum(q_vect*q_vect)+1.0d-15))
+
+      i = (0.0_dblprec,1.0_dblprec)
+
+      do j=1,ham%nlistsize(ham%aham(iatom))
+         if (asite_ch(ham%nlist(j,iatom))==beta) then
+            call wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+            mdot=sum(emom(1:3,iatom,1)*emom(1:3,ham%nlist(j,iatom),1))
+            calc_jDRA = calc_jDRA+ham%ncoup(j,ham%aham(iatom),gsconf_num)*exp(i* &
+               (q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3))) * &
+               ammom_inp(asite_ch(ham%nlist(j,iatom)),achem_ch(ham%nlist(j,iatom)),gsconf_num)
+         end if
+      end do
+      if(do_dm==1) then
+         do j=1,ham%dmlistsize(ham%aham(iatom))
+            if (asite_ch(ham%dmlist(j,iatom))==beta) then
+               call wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+               dmdot=sum(ham%dm_vect(:,j,ham%aham(iatom))*q_hat)
+               calc_jDRA = calc_jDRA+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))* &
+                ammom_inp(asite_ch(ham%nlist(j,iatom)),achem_ch(ham%nlist(j,iatom)),gsconf_num)
+            end if
+         end do
+      end if
+
+   end function calc_jDRA
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: calc_ani
    !> Fourier transform of anisotropy
-   complex(dblprec) function calc_ani(mu,nu,countstart)
+   !-----------------------------------------------------------------------------
+   complex(dblprec) function calc_ani(mu,nu,countstart,do_anisotropy)
       !
       implicit none
       !
       integer,intent(in) :: mu
       integer,intent(in) :: nu
       integer,intent(in) :: countstart
-
+      integer,intent(in) :: do_anisotropy
 
       integer :: mutemp, nutemp
 
@@ -287,27 +424,34 @@ contains
 
       mutemp = mu+countstart
       nutemp = nu+countstart
-
+      !!
       calc_ani=0.0_dblprec
       !!!!Add constant shift for uniaxial anisotropy (ugly and wip...)
-      if (mutemp==nutemp.and.taniso(nutemp)==1) then
-         aedot = sum(eaniso(:,nutemp)*emomm(:,nutemp,1))
-         calc_ani = 2.0d0*abs(kaniso(1,nutemp)*aedot**2) + abs(kaniso(2,nutemp)*(aedot**2)**2)
-      end if
+      if (do_anisotropy==1) then
+         if (mutemp==nutemp.and.ham%taniso(nutemp)==1) then
+            aedot = sum(ham%eaniso(:,nutemp)*emomm(:,nutemp,1))
+            calc_ani = 2.0_dblprec*abs(ham%kaniso(1,nutemp)*aedot**2) + abs(ham%kaniso(2,nutemp)*(aedot**2)**2)
+         end if
+      endif
       return
    end function calc_ani
 
-   !> Calculate eigenvalues and eigenvectors of the dynamical matrix
-   subroutine eigenvalue_calculation_lapack(A,wres,eigv,na,nq)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: eigenvalue_calculation_lapack
+   !> @brief Calculate eigenvalues and eigenvectors of the dynamical matrix
+   !-----------------------------------------------------------------------------
+   subroutine eigenvalue_calculation_lapack(A,B,wres,jqres,eigv,na,nq)
       ! calculating eigenvalues for the matrix (for all k) A(:,:,k)
       implicit none
       integer, intent(in) :: na !< Number of atoms in cell
       integer, intent(in) :: nq !< Number of q-points
       complex(dblprec), dimension(na,na,nq),intent(in) :: A !< A-matrix whose eigenvalues are the sought energies
+      complex(dblprec), dimension(na,na,nq),intent(in) :: B !< A-matrix whose eigenvalues are the sought energies
       complex(dblprec), dimension(na,na,nq),intent(inout) :: eigv !< Eigenvectors from J(q)
-      real(dblprec),  dimension(na,nq) :: wres
+      real(dblprec),  dimension(na,nq), intent(out) :: wres
+      real(dblprec),  dimension(na,nq), intent(out) :: jqres
 
-      integer :: iq, ia
+      integer :: iq, i_stat,i_all
       integer :: lwork, info
       complex(dblprec),dimension(:),allocatable :: work
       complex(dblprec),dimension(:,:),allocatable :: ctemp
@@ -316,15 +460,23 @@ contains
       complex(dblprec),dimension(:,:),allocatable :: A_inplace
       complex(dblprec), allocatable, dimension(:) :: cwres
       complex(dblprec), allocatable, dimension(:) :: eig_ave
+      complex(dblprec), dimension(na,na,nq) :: eigq !< Eigenvectors from J(q)
 
       lwork=2*na
-      allocate(work(lwork))
-      allocate(ctemp(na,na))
-      allocate(A_inplace(na,na))
-      allocate(rwork(2*na))
-      allocate(mineig(nq))
-      allocate(cwres(NA))
-      allocate(eig_ave(NA))
+      allocate(work(lwork),stat=i_stat)
+      call memocc(i_stat,product(shape(work))*kind(work),'work','eigenvalue_calculation_lapack')
+      allocate(ctemp(na,na),stat=i_stat)
+      call memocc(i_stat,product(shape(ctemp))*kind(ctemp),'ctemp','eigenvalue_calculation_lapack')
+      allocate(A_inplace(na,na),stat=i_stat)
+      call memocc(i_stat,product(shape(A_inplace))*kind(A_inplace),'A_inplace','eigenvalue_calculation_lapack')
+      allocate(rwork(2*na),stat=i_stat)
+      call memocc(i_stat,product(shape(rwork))*kind(rwork),'rwork','eigenvalue_calculation_lapack')
+      allocate(mineig(nq),stat=i_stat)
+      call memocc(i_stat,product(shape(mineig))*kind(mineig),'mineig','eigenvalue_calculation_lapack')
+      allocate(cwres(NA),stat=i_stat)
+      call memocc(i_stat,product(shape(cwres))*kind(cwres),'cwres','eigenvalue_calculation_lapack')
+      allocate(eig_ave(NA),stat=i_stat)
+      call memocc(i_stat,product(shape(eig_ave))*kind(eig_ave),'eig_ave','eigenvalue_calculation_lapack')
 
       ! eigenvalue calculations performed, energy = abs(real_part +i*imaginary part)
       do iq = 1,nq
@@ -333,38 +485,73 @@ contains
          if(info.ne.0) then
             print '(2x,a,i4)', 'Problem in zgeev:',info
          end if
-         ! Should we use the absolute value w=sqrt(re(w)**2+im(w)**2) ?
-         wres(1:NA,iq)=(real(cwres(1:NA)))
+         wres(1:NA,iq)=abs(real(cwres(1:NA)))
          mineig(iq)=minval(wres(1:NA,iq))
       end do
+      wres=abs(wres)
 
-      if(maxval(mineig)<1.0e-6_dblprec) then
-         wres=abs(wres)
-      else
-         wres=wres-minval(mineig)
-         wres=abs(wres)
-      end if
+      ! eigenvalue calculations performed, energy = abs(real_part +i*imaginary part)
+      do iq = 1,nq
+         A_inplace=B(:,:,iq)
+         call zgeev('V','V',NA, B(1:NA,1:NA,iq), NA, cwres(1:NA), ctemp, na, eigq(1:NA,1:NA,iq), NA, WORK, LWORK, RWORK, INFO)
+         if(info.ne.0) then
+            print '(2x,a,i4)', 'Problem in zgeev:',info
+         end if
+         jqres(1:NA,iq)=real(cwres(1:NA))
+      end do
 
-      deallocate(work)
-      deallocate(rwork)
-      deallocate(mineig)
-      deallocate(cwres)
-      deallocate(ctemp)
-      deallocate(A_inplace)
-      deallocate(eig_ave)
+      !!!if(maxval(mineig)<1.0e-6_dblprec) then
+      !!!   wres=abs(wres)
+      !!!else
+      !!!   wres=wres-minval(mineig)
+      !!!   wres=abs(wres)
+      !!!end if
+      !!!print *,maxval(wres(ia,:)),minval(wres(ia,:))
+
+      !!!do ia=1,NA
+      !!!   if(maxval(wres(ia,:))>0.0_dblprec.and.minval(wres(ia,:))<0.0_dblprec) then
+      !!!      wres=wres-minval(wres(ia,:))
+      !!!   end if
+      !!!end do
+
+      i_all=-product(shape(work))*kind(work)
+      deallocate(work,stat=i_stat)
+      call memocc(i_stat,i_all,'work','eigenvalue_calculation_lapack')
+      i_all=-product(shape(rwork))*kind(rwork)
+      deallocate(rwork,stat=i_stat)
+      call memocc(i_stat,i_all,'rwork','eigenvalue_calculation_lapack')
+      i_all=-product(shape(mineig))*kind(mineig)
+      deallocate(mineig,stat=i_stat)
+      call memocc(i_stat,i_all,'mineig','eigenvalue_calculation_lapack')
+      i_all=-product(shape(cwres))*kind(cwres)
+      deallocate(cwres,stat=i_stat)
+      call memocc(i_stat,i_all,'cwres','eigenvalue_calculation_lapack')
+      i_all=-product(shape(ctemp))*kind(ctemp)
+      deallocate(ctemp,stat=i_stat)
+      call memocc(i_stat,i_all,'ctemp','eigenvalue_calculation_lapack')
+      i_all=-product(shape(A_inplace))*kind(A_inplace)
+      deallocate(A_inplace,stat=i_stat)
+      call memocc(i_stat,i_all,'A_inplace','eigenvalue_calculation_lapack')
+      i_all=-product(shape(eig_ave))*kind(eig_ave)
+      deallocate(eig_ave,stat=i_stat)
+      call memocc(i_stat,i_all,'eig_ave','eigenvalue_calculation_lapack')
+
    end subroutine eigenvalue_calculation_lapack
 
-   !> Eigenvalue and eigenvector calculation
-   subroutine eigenvalue_calculation_colpa(A,wres,eigv,na,nq)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: eigenvalue_calculation_colpa
+   !> @brief Eigenvalue and eigenvector calculation
+   !-----------------------------------------------------------------------------
+   subroutine eigenvalue_calculation_colpa(A,wres,eigv,NA,nq)
       ! calculating eigenvalues for the matrix (for all k) A(:,:,k)
       implicit none
       integer, intent(in) :: na !< Number of atoms in cell
       integer, intent(in) :: nq !< Number of q-points
-      complex(dblprec), dimension(na,na,nq),intent(in) :: A !< A-matrix whose eigenvalues are the sought energies
-      complex(dblprec), dimension(na,na,nq),intent(inout) :: eigv !< Eigenvectors from J(q)
-      real(dblprec),  dimension(na,nq) :: wres
+      complex(dblprec), dimension(NA,NA,nq),intent(in) :: A !< A-matrix whose eigenvalues are the sought energies
+      complex(dblprec), dimension(NA,NA,nq),intent(inout) :: eigv !< Eigenvectors from J(q)
+      real(dblprec),  dimension(NA,nq) :: wres
 
-      integer :: iq
+      integer :: iq,i_stat,i_all
       integer :: lwork, info
       complex(dblprec),dimension(:),allocatable :: work
       complex(dblprec),dimension(:,:),allocatable :: ctemp
@@ -373,11 +560,16 @@ contains
       complex(dblprec), allocatable, dimension(:) :: cwres
 
       lwork=2*na
-      allocate(work(lwork))
-      allocate(ctemp(na,na))
-      allocate(A_inplace(na,na))
-      allocate(rwork(2*na))
-      allocate(cwres(NA))
+      allocate(work(lwork),stat=i_stat)
+      call memocc(i_stat,product(shape(work))*kind(work),'work','eigenvalue_calculation_colpa')
+      allocate(ctemp(NA,NA),stat=i_stat)
+      call memocc(i_stat,product(shape(ctemp))*kind(ctemp),'ctemp','eigenvalue_calculation_colpa')
+      allocate(A_inplace(NA,NA),stat=i_stat)
+      call memocc(i_stat,product(shape(A_inplace))*kind(A_inplace),'A_inplace','eigenvalue_calculation_colpa')
+      allocate(rwork(2*NA),stat=i_stat)
+      call memocc(i_stat,product(shape(rwork))*kind(rwork),'rwork','eigenvalue_calculation_colpa')
+      allocate(cwres(NA),stat=i_stat)
+      call memocc(i_stat,product(shape(cwres))*kind(cwres),'cwres','eigenvalue_calculation_colpa')
 
       ! eigenvalue calculations performed, energy = abs(real_part +i*imaginary part)
       do iq = 1,nq
@@ -387,21 +579,36 @@ contains
          end if
          ! Saving the real part of eigenvalues
          wres(1:NA,iq)=real(cwres(1:NA))
+         ! Should we use the absolute value w=sqrt(re(w)**2+im(w)**2) ?
       end do
 
-      deallocate(work)
-      deallocate(rwork)
-      deallocate(cwres)
-      deallocate(ctemp)
-      deallocate(A_inplace)
+      i_all=-product(shape(work))*kind(work)
+      deallocate(work,stat=i_stat)
+      call memocc(i_stat,i_all,'work','eigenvalue_calculation_colpa')
+      i_all=-product(shape(rwork))*kind(rwork)
+      deallocate(rwork,stat=i_stat)
+      call memocc(i_stat,i_all,'rwork','eigenvalue_calculation_colpa')
+      i_all=-product(shape(cwres))*kind(cwres)
+      deallocate(cwres,stat=i_stat)
+      call memocc(i_stat,i_all,'cwres','eigenvalue_calculation_colpa')
+      i_all=-product(shape(ctemp))*kind(ctemp)
+      deallocate(ctemp,stat=i_stat)
+      call memocc(i_stat,i_all,'ctemp','eigenvalue_calculation_colpa')
+      i_all=-product(shape(A_inplace))*kind(A_inplace)
+      deallocate(A_inplace,stat=i_stat)
+      call memocc(i_stat,i_all,'A_inplace','eigenvalue_calculation_colpa')
+
    end subroutine eigenvalue_calculation_colpa
 
-   !> Print out magnon frequencies and calculate MFA and RPA Tc.
-   subroutine printEnergies(filename,wres,msat,tcmfa,tcrpa,flag)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: printEnergies
+   !> @brief Print out magnon frequencies and calculate MFA and RPA Tc.
+   !-----------------------------------------------------------------------------
+   subroutine printEnergies(filename,wres,msat,tcmfa,tcrpa,iat,flag)
       implicit none
 
-      integer :: i,k,r,flag, ia
-      real(dblprec), allocatable, dimension(:,:) :: wres
+      integer :: i,k,r,flag, ia,iat
+      real(dblprec), dimension(:,:) :: wres
       real(dblprec) :: tcmfa,tcrpa,msat
       character(LEN=*),intent(in) :: filename
 
@@ -410,7 +617,7 @@ contains
       open(ofileno,file=filename)
 
       if(flag==1) then
-         tcmfa=0.d0 ; tcrpa=0.d0
+         tcmfa=0.0_dblprec ; tcrpa=0.0_dblprec
       endif
       k=0 ; r=0
       !
@@ -427,23 +634,22 @@ contains
 
          write(ofileno,1001) i, wres(:,i), locdist/maxdist
          if (flag==1) then
-            do ia=1,na
+            do ia=1,iat
                if (wres(ia,i)>=1.0d-2) then
-                  tcrpa=tcrpa+(1.d0/wres(ia,i))
-                  r=r+1
+                  tcrpa=tcrpa+(1.0_dblprec/wres(ia,i))*q_weight(i)
+                  r=r+q_weight(i)
                endif
+               tcmfa=tcmfa+wres(ia,i)*q_weight(i)
+               k=k+q_weight(i)
             end do
-            tcmfa=tcmfa+sum(wres(:,i))
-            k=k+na
          endif
       end do
       if (flag==1) then
          tcmfa=(msat*tcmfa)/(6*k*k_bolt_ev*1000)
          write(*,1002) 'Tc-MFA from AMS:' , tcmfa
-         tcrpa=((r*msat)/(6*k_bolt_ev*1000))*(1.d0/tcrpa)
+         tcrpa=((r*msat)/(6*k_bolt_ev*1000))*(1.0_dblprec/tcrpa)
          write(*,1002) 'Tc-RPA from AMS:' , tcrpa
       endif
-
 
       ! "safe" if someone calculates the spectra with many atoms in one cell.
       1001 format (2x,i7,2000f18.12)
@@ -451,14 +657,18 @@ contains
       close(ofileno)
    end subroutine printEnergies
 
-   !> Print out magnon eigenvectors
-   subroutine printEigVects(filename,eigv,wres,q,nq,na)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: printEigVects
+   !> @brief Print out magnon eigenvectors
+   !-----------------------------------------------------------------------------
+   subroutine printEigVects(filename,eigv,wres,q,nq,NA)
+
       implicit none
 
       integer,intent(in) :: nq
-      integer,intent(in) :: na
-      complex(dblprec),dimension(na,na,nq), intent(inout) :: eigv
-      real(dblprec),dimension(na,nq), intent(inout) :: wres
+      integer,intent(in) :: NA
+      complex(dblprec),dimension(NA,NA,nq), intent(inout) :: eigv
+      real(dblprec),dimension(NA,nq), intent(inout) :: wres
       real(dblprec),dimension(3,nq), intent(in) :: q
       character(LEN=*),intent(in) :: filename
 
@@ -470,7 +680,7 @@ contains
       do i =1,nq
          ! Ensuring that the "reference" direction is positive (to avoid fluctuations of theta along q)
          write(ofileno,1001) "# q-point index ",i, " vector: ", q(1:3,i)
-         do j=1,na
+         do j=1,NA
             ! Compact format : Value only for each complex number
             write(ofileno,1003) wres(j,i),(( real(eigv(k,j,i))),k=1,na)
          end do
@@ -480,32 +690,38 @@ contains
 
       ! "safe" if someone calculates the spectra with many atoms in one cell.
       1001 format (a,2x,i5,a,3f12.6)
-      1002 format (1x,2000f12.6)
       1003 format (1x,f12.6,4x,2000f12.6)
    end subroutine printEigVects
 
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: sortEigenVVs
+   !> @brief Subroutine to sort the output from cg when calculating eigenvalues,
+   !-----------------------------------------------------------------------------
    subroutine sortEigenVVs(array,matrix,nsize)
       ! subroutine to sort the output from cg when calculating eigenvalues,
       implicit none
       integer,intent(in) :: nsize
       real(dblprec),dimension(nsize):: array
       complex(dblprec),dimension(nsize,nsize):: matrix
-      integer :: min_index,i,k
+      integer :: min_index,i,k,i_stat,i_all
       real(dblprec) :: min_value,val_inf
       real(dblprec),dimension(:),allocatable :: sorted_array
       complex(dblprec),dimension(:),allocatable :: temp_row
       complex(dblprec),dimension(:,:),allocatable :: sorted_matrix
 
-      allocate(sorted_array(nsize))
-      allocate(temp_row(nsize))
-      allocate(sorted_matrix(nsize,nsize))
-      sorted_matrix=0.0d0
+      allocate(sorted_array(nsize),stat=i_stat)
+      call memocc(i_stat,product(shape(sorted_array))*kind(sorted_array),'sorted_array','sortEigenVVs')
+      allocate(temp_row(nsize),stat=i_stat)
+      call memocc(i_stat,product(shape(temp_row))*kind(temp_row),'temp_row','sortEigenVVs')
+      allocate(sorted_matrix(nsize,nsize),stat=i_stat)
+      call memocc(i_stat,product(shape(sorted_matrix))*kind(sorted_matrix),'sorted_matrix','sortEigenVVs')
+      sorted_matrix=0.0_dblprec
 
       val_inf =  1.d10
       min_index = 1
       do k = 1,nsize
          min_value = val_inf
-         temp_row=0.0d0
+         temp_row=0.0_dblprec
          do i = 1,nsize
             if (array(i)<min_value) then
                min_value = array(i)
@@ -521,23 +737,33 @@ contains
       array = sorted_array
       matrix = sorted_matrix
 
-      deallocate(sorted_matrix)
-      deallocate(sorted_array)
-      deallocate(temp_row)
+      i_all=-product(shape(sorted_matrix))*kind(sorted_matrix)
+      deallocate(sorted_matrix,stat=i_stat)
+      call memocc(i_stat,i_all,'sorted_matrix','sortEigenVVs')
+      i_all=-product(shape(sorted_array))*kind(sorted_array)
+      deallocate(sorted_array,stat=i_stat)
+      call memocc(i_stat,i_all,'sorted_array','sortEigenVVs')
+      i_all=-product(shape(temp_row))*kind(temp_row)
+      deallocate(temp_row,stat=i_stat)
+      call memocc(i_stat,i_all,'temp_row','sortEigenVVs')
 
    end subroutine sortEigenVVs
 
-   !> Sorting of array
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: sortRealArray
+   !> @brief Sorting of array
+   !-----------------------------------------------------------------------------
    subroutine sortRealArray(array,nsize)
       ! subroutine to sort the output from cg when calculating eigenvalues,
       implicit none
       real(dblprec),dimension(:):: array
       integer,intent(in) :: nsize
-      integer :: max_index,i,k
+      integer :: max_index,i,k,i_stat,i_all
       real(dblprec) :: max_value,minus_inf
       real(dblprec),dimension(:),allocatable :: sorted_array
 
-      allocate(sorted_array(nsize))
+      allocate(sorted_array(nsize),stat=i_stat)
+      call memocc(i_stat,product(shape(sorted_array))*kind(sorted_array),'sorted_array','sortRealArray')
       minus_inf = -1.d10
       max_index = 1
       do k = 1,nsize
@@ -554,9 +780,16 @@ contains
 
       array(:) = sorted_array
 
+      i_all=-product(shape(sorted_array))*kind(sorted_array)
+      deallocate(sorted_array,stat=i_stat)
+      call memocc(i_stat,i_all,'sorted_array','sortRealArray')
    end subroutine sortRealArray
 
-   !> Print eigenvectors
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: printEigenvectors
+   !> @brief Print eigenvectors
+   !> @note NOT FINISHED! for printing the eigenvectors
+   !-----------------------------------------------------------------------------
    subroutine printEigenvectors()
       ! NOT FINISHED! for printing the eigenvectors
       implicit none
@@ -577,9 +810,13 @@ contains
 
    end subroutine printEigenvectors
 
-   !> print dynamical matrix
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: printA
+   !> @brief Print dynamical matrix
+   !> @note obsolete, used for troubleshooting
+   !-----------------------------------------------------------------------------
    subroutine printA(A)
-      ! obsolete, used for troubleshooting
+      !
       implicit none
       integer :: i,j
       character(LEN=11) :: nom = 'Amatrix.out'
@@ -596,11 +833,14 @@ contains
       close(ofileno)
    end subroutine printA
 
-   !> Calculate AMS density of states
-   subroutine magdos_calc(filename,wres,magdos)
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: magdos_calc
+   !> @brief Calculate AMS density of states
+   !-----------------------------------------------------------------------------
+   subroutine magdos_calc(filename,wres,magdos,iat)
       implicit none
 
-      integer :: i, k, ia, flines
+      integer :: i, k, ia, flines,i_stat,i_all,iat
       real(dblprec), allocatable, dimension(:,:) :: wres
       real(dblprec), allocatable,dimension(:,:) :: magdos,mtemp
       real(dblprec) :: emin, emax, deltae, fac, dummy
@@ -619,7 +859,10 @@ contains
          200 continue
          rewind(ifileno)
          magdos_freq=flines
-         allocate(magdos(magdos_freq,2))
+         if(.not.allocated(magdos)) then 
+            allocate(magdos(magdos_freq,2),stat=i_stat)
+            call memocc(i_stat,product(shape(magdos))*kind(magdos),'magdos','magdos_calc')
+         end if
          do k=1,magdos_freq
             read(ifileno,*) magdos(k,1),magdos(k,2)
          enddo
@@ -635,13 +878,16 @@ contains
             emin=magdos_lfreq
          end if
          if (magdos_hfreq==0) then
-            emax=(maxval(wres)+magdos_sigma)
+            emax=maxval(wres)
          else
             emax=magdos_hfreq
          endif
          deltae=(emax-emin)/(magdos_freq-1)
-         allocate(magdos(magdos_freq,2))
-         magdos=0.d0
+         if(.not.allocated(magdos)) then 
+            allocate(magdos(magdos_freq,2),stat=i_stat)
+            call memocc(i_stat,product(shape(magdos))*kind(magdos),'magdos','magdos_calc')
+         end if
+         magdos=0.0_dblprec
 
          do i=1,magdos_freq
             magdos(i,1)=emin+(i-1)*deltae
@@ -649,8 +895,8 @@ contains
 
          do k=1,magdos_freq
             do i =1,nq
-               do ia=1,na
-                  fac=exp(-(wres(ia,i)-magdos(k,1))**2/magdos_sigma)
+               do ia=1,iat
+                  fac=exp(-(wres(ia,i)-magdos(k,1))**2/magdos_sigma)*q_weight(i)
                   magdos(k,2)=magdos(k,2)+fac
                enddo
             enddo
@@ -676,8 +922,12 @@ contains
          300 continue
          rewind(ifileno)
          magdos_freq=flines
-         allocate(mtemp(magdos_freq,2))
-         allocate(magdos(magdos_freq,2))
+         allocate(mtemp(magdos_freq,2),stat=i_stat)
+         call memocc(i_stat,product(shape(mtemp))*kind(mtemp),'mtemp','magdos_calc')
+         if(.not.allocated(magdos)) then 
+            allocate(magdos(magdos_freq,2),stat=i_stat)
+            call memocc(i_stat,product(shape(magdos))*kind(magdos),'magdos','magdos_calc')
+         end if
          do k=1,magdos_freq
             read(ifileno,*) magdos(k,1),mtemp(k,1),mtemp(k,2)
          enddo
@@ -690,16 +940,20 @@ contains
          ! Normalize
          deltae=(magdos(magdos_freq,1)-magdos(1,1))/(magdos_freq-1)
          magdos(:,2)=magdos(:,2)/(sum(magdos(:,2))*deltae)
-         deallocate(mtemp)
+         i_all=-product(shape(mtemp))*kind(mtemp)
+         deallocate(mtemp,stat=i_stat)
+         call memocc(i_stat,i_all,'mtemp','magdos_calc')
 
       endif
 
       1001 format (2x,f18.12,2f18.12)
-      1002 format (2x,a,f10.1)
       close(ofileno)
    end subroutine magdos_calc
 
-   !> q-point distances for nicer plots
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: get_maxdist
+   !> @brief q-point distances for nicer plots
+   !-----------------------------------------------------------------------------
    real(dblprec) function get_maxdist(q,nq)
       !
       implicit none
@@ -710,8 +964,8 @@ contains
       integer :: iq
       real(dblprec) :: dist,maxdist
       !
-      dist=0.0d0
-      maxdist=0.0d0
+      dist=0.0_dblprec
+      maxdist=0.0_dblprec
       !
       do iq=2,nq
          dist=sqrt(sum((q(:,iq-1)-q(:,iq))**2))
@@ -723,8 +977,6 @@ contains
       return
       !
    end function get_maxdist
-
-
 
    !---------------------------------------------------------------------------
    !> @brief
@@ -813,6 +1065,10 @@ contains
    return
 end subroutine read_parameters_ams
 
+!-----------------------------------------------------------------------------
+! SUBROUTINE: init_ams
+!> @brief Set default values for the AMS parameters
+!-----------------------------------------------------------------------------
 subroutine init_ams()
    !
    !
@@ -829,41 +1085,53 @@ subroutine init_ams()
    !
 end subroutine init_ams
 
-!--------------------------------------------------------------------------
-!
+!-----------------------------------------------------------------------------
+! SUBROUTINE: calculate_random_ams
 ! DESCRIPTION
 !> @brief
 !> Main driver for adiabatic magnon spectra (AMS) in collinear magnets.
-!! Based on linear spin wave theory as described in ....
-!---------------------------------------------------------------------------------
+!> Based on linear spin wave theory as described in ....
+!-----------------------------------------------------------------------------
 subroutine calculate_random_ams()
+   use iso_fortran_env
+
    implicit none
    integer :: mu
    integer :: nu
    integer :: lambda
-   integer :: i,j,k, eidx
+   integer :: i,j,k, eidx,ia,iatom,jatom,alfa,beta,delta
    integer :: I1,I2,I3 !< indices to find suitable cell to perform calculations
 
    integer :: countstart !< index for last atom "before" the cell where calculations are performed
 
    real(dblprec), dimension(3) :: zeroVector !(0,0,0) vector  to calculate J(0)
-   real(dblprec), allocatable, dimension(:,:) :: wres,jqres
-   real(dblprec), allocatable, dimension(:,:,:) :: wres_tot
-   real(dblprec), allocatable, dimension(:,:) :: ams_hist
-   real(dblprec) :: fc,fc2,mtmp, emax
+   real(dblprec), allocatable, dimension(:,:) :: wres,jqres,wres_diag,jqres_diag
+   real(dblprec), allocatable, dimension(:) :: xconc  ! Actual concentration of impurities in the supercell
+
+   real(dblprec) :: fc,fc2, emax
 
    real(dblprec) :: mag_sign_mu, mag_sign_nu, mag_sign_lambda
    real(dblprec), dimension(3) :: order_vector
    complex(dblprec), allocatable, dimension(:,:,:) :: A !< matrix whose eigenvalues are the sought energies fro AMS
+   complex(dblprec), allocatable, dimension(:,:,:) :: Ad !< matrix whose eigenvalues are the sought energies fro AMS
    complex(dblprec), allocatable, dimension(:,:,:) :: eigv !< matrix whose eigenvalues are the sought energies fro AMS
+   complex(dblprec), allocatable, dimension(:,:,:) :: eigv_diag !< matrix whose eigenvalues are the sought energies fro AMS
    complex(dblprec), allocatable, dimension(:,:,:) :: B !< matrix whose eigenvalues are the sought energies for J(q)
+   complex(dblprec), allocatable, dimension(:,:,:) :: Bd !< matrix whose eigenvalues are the sought energies for J(q)
+
+   complex(dblprec), allocatable, dimension(:,:,:) :: Asc !< matrix whose eigenvalues are the sought energies fro AMS
+   complex(dblprec), allocatable, dimension(:,:,:) :: Bsc !< matrix whose eigenvalues are the sought energies fro J(q)
+   complex(dblprec), allocatable, dimension(:,:,:) :: Adsc !< matrix whose eigenvalues are the sought energies fro AMS
+   complex(dblprec), allocatable, dimension(:,:,:) :: Bdsc !< matrix whose eigenvalues are the sought energies fro J(q)
 
    ! for output printing
-   character(LEN = 16) :: output_file
-   character(LEN = 18) :: output_file2
-   character(LEN = 18) :: output_file3
    character(LEN = 19) :: output_file4
-   integer :: iq, idx
+   character(LEN = 19) :: output_file5
+   character(LEN = 22) :: output_file6
+   character(LEN = 22) :: output_file7
+   character(LEN = 22) :: output_file8
+   character(LEN = 22) :: output_file9
+   integer :: iq, idx,i_stat,i_all, maxiter
 
    ! Factors for mRy energy conversion
    fc = mry/mub
@@ -875,113 +1143,275 @@ subroutine calculate_random_ams()
       goto 10 ! jumps to end of subroutine
    end if
 
-   allocate(A(NA,NA,nq))
-   allocate(eigv(NA,NA,nq))
-   allocate(B(NA,NA,nq))
-   allocate(wres(NA,nq))
-   allocate(ams_hist(nq,ams_hist_size))
-   allocate(wres_tot(NA,nq,N1*N2*N3))
-   wres_tot=0.0d0
-   allocate(jqres(NA,nq))
+   if (.not. allocated(q_weight)) then
+      allocate(q_weight(nq),stat=i_stat)
+      call memocc(i_stat,product(shape(q_weight))*kind(q_weight),'q_weight','calculate_random_ams')
+      q_weight=1.0_dblprec
+   end if
+
+
+   allocate(A(nchmax,nchmax,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(A))*kind(A),'A','calculate_random_ams')
+   allocate(Ad(na,na,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(Ad))*kind(Ad),'Ad','calculate_random_ams')
+   allocate(Asc(nchmax,nchmax,natom),stat=i_stat)
+   call memocc(i_stat,product(shape(Asc))*kind(Asc),'Asc','calculate_random_ams')
+   allocate(Adsc(na,na,natom),stat=i_stat)
+   call memocc(i_stat,product(shape(Adsc))*kind(Adsc),'Adsc','calculate_random_ams')
+   allocate(eigv(nchmax,nchmax,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(eigv))*kind(eigv),'eigv','calculate_random_ams')
+   allocate(eigv_diag(na,na,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(eigv_diag))*kind(eigv_diag),'eigv_diag','calculate_random_ams')
+   allocate(B(nchmax,nchmax,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(B))*kind(B),'B','calculate_random_ams')
+   allocate(Bd(na,na,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(Bd))*kind(Bd),'Bd','calculate_random_ams')
+   allocate(Bsc(nchmax,nchmax,natom),stat=i_stat)
+   call memocc(i_stat,product(shape(Bsc))*kind(Bsc),'Bsc','calculate_random_ams')
+   allocate(Bdsc(na,na,natom),stat=i_stat)
+   call memocc(i_stat,product(shape(Bdsc))*kind(Bdsc),'Bdsc','calculate_random_ams')
+   allocate(wres(nchmax,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(wres))*kind(wres),'wres','calculate_random_ams')
+   allocate(wres_diag(na,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(wres_diag))*kind(wres_diag),'wres_diag','calculate_random_ams')
+   allocate(jqres(nchmax,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(jqres))*kind(jqres),'jqres','calculate_random_ams')
+   allocate(jqres_diag(na,nq),stat=i_stat)
+   call memocc(i_stat,product(shape(jqres_diag))*kind(jqres_diag),'jqres_diag','calculate_random_ams')
+   allocate(xconc(nchmax),stat=i_stat)
+   call memocc(i_stat,product(shape(xconc))*kind(xconc),'xconc','calculate_random_ams')
    A = 0.0_dblprec
+   Ad = 0.0_dblprec
    B = 0.0_dblprec
+   Bd = 0.0_dblprec
+   Asc = 0.0_dblprec
+   Bsc = 0.0_dblprec
+   Adsc = 0.0_dblprec
+   Bdsc = 0.0_dblprec
    zeroVector = 0.0_dblprec
+   xconc=0.0_dblprec
 
-   output_file4 = 'ra_ams.'//simid//'.out'
+   output_file4 = 'ams.'//simid//'.out'
+   output_file5 = 'ra_ams.'//simid//'.out'
+   output_file6 = 'ra_magdos.'//simid//'.out'
+   output_file7 = 'ra_jqams.'//simid//'.out'
+   output_file8 = 'magdos.'//simid//'.out'
+   output_file9 = 'jqams.'//simid//'.out'
 
-   ! since j(q) is depending on positions (scalar product with q-vector), it is desired
-   ! to perform calculations on the lattice in the middle of the system, to avoid
-   ! problems caused by periodicy. Calculations are done for the lattice starting with
-   ! atom number countstart+1
-   !
-
-   write (*,'(1x,a)',advance="no") "Mounting A-matrices for random-AMS calculation"
+   !write (*,'(1x,a)',advance="no") "Mounting A-matrices for random-AMS calculation"
+   write (*,'(1x,a)',advance="yes") "Mounting A-matrices for random-AMS calculation"
    idx=0
-   do I1 = 0,N1-1
-      do I2 = 0,N2-1
-         do I3 = 0,N3-1
-
-            countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-            idx=idx+1
-            !
-            order_vector(1)=1.0d0/sqrt(3.0d0)
-            order_vector(2)=1.0d0/sqrt(3.0d0)
-            order_vector(3)=1.0d0/sqrt(3.0d0)
-            ! A-matrix calculation, one for each q
-            A=(0.0d0,0.0d0)
-            do i=1,nq
-               do mu=1,NA
-                  mag_sign_mu=sign(1.0d0,sum(emom(1:3,mu+countstart,1)*order_vector))
-                  do nu=1,NA
-                     mag_sign_nu=sign(1.0d0,sum(emom(1:3,nu+countstart,1)*order_vector))
-                     A(mu,nu,i) = -calc_j(mu,nu,q(:,i),countstart)*mmom(nu+countstart,1)*mag_sign_nu
-                     B(mu,nu,i) = -A(mu,nu,i)*mmom(nu+countstart,1)
-                     if (mu==nu) then
-                        do lambda = 1,NA
-                           mag_sign_lambda=sign(1.0d0,sum(emom(1:3,lambda+countstart,1)*order_vector))
-                           A(mu,mu,i)=A(mu,mu,i) + calc_j(mu,lambda,zeroVector,countstart)* &
-                              mmom(lambda+countstart,1)*mag_sign_lambda
-                        end do
-                        A(mu,mu,i)=A(mu,mu,i) + calc_ani(mu,mu,countstart)
-                        A(mu,mu,i)=A(mu,mu,i) + sum(hfield*emomm(1:3,mu+countstart,1))*mag_sign_nu*0.5d0
-                     end if
-                     A(mu,nu,i)=A(mu,nu,i)*Landeg(mu)*Landeg(nu) !LB Needs to be fixed,also multiply with landeg_glob
-                     B(mu,nu,i)=B(mu,nu,i)*Landeg(mu)*Landeg(nu)
-                  end do
-               end do
-            end do
-
-            ! unit conversion from mRy to mEv, by division by Rydberg's constant in (eV) (and an factor of 4 for some reason..)
-            ! L.B. The factor is fine, a factor of 2 from the def of dynamical matrix and fc2 includes another factor of 2
-            ! L.B Temporary fix before replacing 4 with Landeg_glob^2=4
-            A = 4.0d0*A/fc2*ry_ev !*sign(msat,1.d0)
-            B = B/fc2*ry_ev
-
-
-            ! eigenvalues of A (one set per NA) are written to wres  - AMS
-            ! The realness of A has been questioned.
-            !According to Essenberger et. al PRB 84, 174425 (2011) Eqn. 22 it is correctly so.
-            do iq=1,nq
-               A(:,:,iq)=real(A(:,:,iq))
-            end do
-            !
-            call eigenvalue_calculation_lapack(A,wres,eigv,na,nq)
-            wres_tot(:,:,idx)=wres(:,:)
-         end do
-      end do
-   end do
-   write(*,'(a)') " done."
+   maxiter=(N1)*(N2)*(N3)*NQ
+   write(output_unit,'(2x,1i3,1a1,2x,a1,40a1)', advance='no') 100*idx/maxiter,'%','[', ('#', k =1,20*idx/maxiter)
+   close(output_unit);open(output_unit)
    !
-   emax=1.1d0*maxval(wres_tot)
-   ams_hist=0.0d0
+   order_vector(1)=1.0_dblprec/sqrt(3.0_dblprec)
+   order_vector(2)=1.0_dblprec/sqrt(3.0_dblprec)
+   order_vector(3)=1.0_dblprec/sqrt(3.0_dblprec)
+
+! Calculate actual concentration of the impurities in the supercell
+   do ia=1,natom
+      xconc(achem_ch(ia))=xconc(achem_ch(ia))+1.0_dblprec/natom
+   enddo
+
+   msat=sum(mmom(:,1),1)/natom
+
    do i=1,nq
-      do j=1,na
-         do k=1,idx
-            eidx=nint(ams_hist_size*wres_tot(i,j,k)/emax)+1
-            ams_hist(i,eidx)=ams_hist(i,eidx)+1.0d0
+   !$omp parallel do default(shared),private(ia,countstart,mu,nu,lambda,mag_sign_mu,mag_sign_nu,mag_sign_lambda,alfa,beta,delta)
+      do ia=1,natom
+         countstart=(ia-1)
+         idx=idx+1
+         if(mod(idx-1,maxiter/20)==0) then
+           write(output_unit,'(47a1)', advance='no') (char(8), k =1,(20*idx/maxiter)+8)
+           write(output_unit,'(2x,1i3,1a1,2x,a1,40a1)', advance='no') 100*idx/maxiter,'%','[', ('#', k =1,20*idx/maxiter)
+           close(output_unit);open(output_unit)
+         end if
+
+         mu=achem_ch(ia)
+         alfa=asite_ch(ia)
+!         mag_sign_mu=sign(1.0_dblprec,sum(emom(1:3,ia,1)*order_vector))   
+         mag_sign_mu=1.0_dblprec
+         mag_sign_nu=1.0_dblprec
+         mag_sign_lambda=1.0_dblprec
+
+         do nu=1,nchmax
+!            mag_sign_nu=sign(1.0_dblprec,sum(emom(1:3,ia,1)*order_vector)) ! Bogus at the moment, only FM
+            Asc(mu,nu,ia) = -calc_jRA(mu,nu,q(:,i),ia)*ammom_inp(asite_ch(ia),nu,gsconf_num)*mag_sign_nu
+            Bsc(mu,nu,ia) = -Asc(mu,nu,ia)*ammom_inp(asite_ch(ia),mu,gsconf_num)
+            if (mu==nu) then
+               do lambda = 1,nchmax
+!                  mag_sign_lambda=sign(1.0_dblprec,sum(emom(1:3,ia,1)*order_vector)) ! Bogus
+                  Asc(mu,mu,ia)=Asc(mu,mu,ia) + calc_jRA(mu,lambda,zeroVector,ia)* &
+                      ammom_inp(asite_ch(ia),lambda,gsconf_num)*mag_sign_lambda
+               end do
+               Asc(mu,mu,ia)=Asc(mu,mu,ia) + calc_ani(mu,mu,countstart,do_anisotropy) ! Probably wrong
+               Asc(mu,mu,ia)=Asc(mu,mu,ia) + sum(hfield*emomm(1:3,countstart,1))*mag_sign_nu*0.5_dblprec ! No
+            end if
+            Asc(mu,nu,ia)=(Asc(mu,nu,ia)*Landeg(asite_ch(ia))*Landeg(asite_ch(ia)))/xconc(mu)
+            Bsc(mu,nu,ia)=(Bsc(mu,nu,ia)*Landeg(asite_ch(ia))*Landeg(asite_ch(ia)))/xconc(mu)
+         end do
+
+         do beta=1,na
+!            mag_sign_nu=sign(1.0_dblprec,sum(emom(1:3,ia,1)*order_vector)) ! Bogus at the moment, only FM
+            Adsc(alfa,beta,ia) = -calc_jDRA(alfa,beta,q(:,i),ia)*ammom_inp(alfa,mu,gsconf_num)*mag_sign_nu
+            Bdsc(alfa,beta,ia) = -Adsc(alfa,beta,ia)
+            if (alfa==beta) then
+               do delta = 1,na
+!                  mag_sign_lambda=sign(1.0_dblprec,sum(emom(1:3,ia,1)*order_vector)) ! Bogus
+                  Adsc(alfa,alfa,ia)=Adsc(alfa,alfa,ia) + calc_jDRA(alfa,delta,zeroVector,ia)*mag_sign_lambda*&
+                          ammom_inp(alfa,mu,gsconf_num)
+               end do
+               Adsc(alfa,alfa,ia)=Adsc(alfa,alfa,ia) + calc_ani(alfa,alfa,countstart,do_anisotropy) ! Probably wrong
+               Adsc(alfa,alfa,ia)=Adsc(alfa,alfa,ia) + sum(hfield*emomm(1:3,countstart,1))*mag_sign_nu*0.5_dblprec ! No
+            end if
+            Adsc(alfa,beta,ia)=Adsc(alfa,beta,ia)*Landeg(alfa)*Landeg(beta)
+            Bdsc(alfa,beta,ia)=Bdsc(alfa,beta,ia)*Landeg(alfa)*Landeg(beta)
          end do
       end do
-   end do
-   open(ofileno,file=output_file4)
-   do i=1,nq
-      do eidx=1,ams_hist_size
-         write(ofileno,'(1x,i4,g12.5,2x,g20.8)') i, emax*eidx/ams_hist_size, ams_hist(i,eidx)
-      end do
-   end do
-   close(ofileno)
+      !$omp end parallel do
 
+      A(:,:,i)=sum(Asc,3)/natom
+      B(:,:,i)=sum(Bsc,3)/natom
+      Ad(:,:,i)=sum(Adsc,3)/natom
+      Bd(:,:,i)=sum(Bdsc,3)/natom
+   end do
+       
+   write(*,'(a)') " done."
+   ! unit conversion from mRy to mEv, by division by Rydberg's constant in (eV) (and an factor of 4 for some reason..)
+   ! L.B. The factor is fine, a factor of 2 from the def of dynamical matrix and fc2 includes another factor of 2
+   ! L.B Temporary fix before replacing 4 with Landeg_glob^2=4
+   A = 4.0_dblprec*A/fc2*ry_ev !*sign(msat,1._dblprec)
+   B = B/fc2*ry_ev
+   Ad = (4.0_dblprec*Ad/fc2*ry_ev)/msat !*sign(msat,1._dblprec)
+   Bd = Bd/fc2*ry_ev
+
+   ! eigenvalues of A (one set per NA) are written to wres  - AMS
+   write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for AMS calculation"
+   ! The realness of A has been questioned.
+   !According to Essenberger et. al PRB 84, 174425 (2011) Eqn. 22 it is correctly so.
+   do iq=1,nq
+      A(:,:,iq)=real(A(:,:,iq))
+      Ad(:,:,iq)=real(Ad(:,:,iq))
+   end do
+   !print *,A
+   call eigenvalue_calculation_lapack(A,B,wres,jqres,eigv,nchmax,nq)
+   call eigenvalue_calculation_lapack(Ad,Bd,wres_diag,jqres_diag,eigv_diag,na,nq)
+
+   !Take absolute values, in case of AF frequencies
+   !Assumption: negative frequencies ok, still gives real energies (not complex frequencies/energies)
+   !This is now taken care of in eigenvalue_calculation_lapack() where abs() is applied
+   ! Sort eigenvalues and eigenvectors according to magnitude of eigenvalues
+ !  do i=1,nq
+ !     call sortEigenVVs(wres(1:na,i),eigv(1:na,1:na,i),na)
+ !  end do
+
+   ! print energies to output file
+   call printEnergies(output_file5,wres,msat,tcmfa,tcrpa,nchmax,1)
+   call printEnergies(output_file7,jqres,msat,tcmfa,tcrpa,nchmax,2)
+   call magdos_calc(output_file6,wres,magdos,nchmax)
+
+   write (*,'(1x,a)',advance='yes') "Diagonal disorder approximation"
+   call printEnergies(output_file4,wres_diag,msat,tcmfa,tcrpa,na,1)
+   call printEnergies(output_file9,jqres_diag,msat,tcmfa,tcrpa,na,2)
+   call magdos_calc(output_file8,wres_diag,magdos,na)
    !!
-   deallocate(wres)
-   deallocate(wres_tot)
-   deallocate(ams_hist)
-   deallocate(jqres)
-   deallocate(A)
-   deallocate(eigv)
-   deallocate(B)
+   i_all=-product(shape(wres))*kind(wres)
+   deallocate(wres,stat=i_stat)
+   call memocc(i_stat,i_all,'wres','calculate_random_ams')
+   i_all=-product(shape(wres_diag))*kind(wres_diag)
+   deallocate(wres_diag,stat=i_stat)
+   call memocc(i_stat,i_all,'wres_diag','calculate_random_ams')
+   i_all=-product(shape(jqres))*kind(jqres)
+   deallocate(jqres,stat=i_stat)
+   call memocc(i_stat,i_all,'jqres','calculate_random_ams')
+   i_all=-product(shape(jqres_diag))*kind(jqres_diag)
+   deallocate(jqres_diag,stat=i_stat)
+   call memocc(i_stat,i_all,'jqres_diag','calculate_random_ams')
+   i_all=-product(shape(A))*kind(A)
+   deallocate(A,stat=i_stat)
+   call memocc(i_stat,i_all,'A','calculate_random_ams')
+   i_all=-product(shape(Ad))*kind(Ad)
+   deallocate(Ad,stat=i_stat)
+   call memocc(i_stat,i_all,'Ad','calculate_random_ams')
+   i_all=-product(shape(Asc))*kind(Asc)
+   deallocate(Asc,stat=i_stat)
+   call memocc(i_stat,i_all,'Asc','calculate_random_ams')
+   i_all=-product(shape(Adsc))*kind(Adsc)
+   deallocate(Adsc,stat=i_stat)
+   call memocc(i_stat,i_all,'Adsc','calculate_random_ams')
+   i_all=-product(shape(eigv))*kind(eigv)
+   deallocate(eigv,stat=i_stat)
+   call memocc(i_stat,i_all,'eigv','calculate_random_ams')
+   i_all=-product(shape(eigv_diag))*kind(eigv_diag)
+   deallocate(eigv_diag,stat=i_stat)
+   call memocc(i_stat,i_all,'eigv_diag','calculate_random_ams')
+   i_all=-product(shape(B))*kind(B)
+   deallocate(B,stat=i_stat)
+   call memocc(i_stat,i_all,'B','calculate_random_ams')
+   i_all=-product(shape(Bd))*kind(Bd)
+   deallocate(Bd,stat=i_stat)
+   call memocc(i_stat,i_all,'Bd','calculate_random_ams')
+   i_all=-product(shape(Bsc))*kind(Bsc)
+   deallocate(Bsc,stat=i_stat)
+   call memocc(i_stat,i_all,'Bsc','calculate_random_ams')
+   i_all=-product(shape(Bdsc))*kind(Bdsc)
+   deallocate(Bdsc,stat=i_stat)
+   call memocc(i_stat,i_all,'Bdsc','calculate_random_ams')
+   i_all=-product(shape(xconc))*kind(xconc)
+   deallocate(xconc,stat=i_stat)
+   call memocc(i_stat,i_all,'xconc','calculate_random_ams')
    write(*,'(1x,a)') 'Random-Adiabatic Magnon Spectra Calculations done.'
    10 continue
-   ! stop
 end subroutine calculate_random_ams
 
+subroutine wrap_coord_diff(Natom,coord,i_atom,j_atom,cdiff)
+   !
+   use InputData, only : BC1,BC2,BC3,C1,C2,C3,N1,N2,N3
+   !
+   implicit none
+   !
+   integer, intent(in) :: Natom
+   real(dblprec), dimension(3,Natom), intent(in) :: coord
+   integer, intent(in) :: i_atom
+   integer, intent(in) :: j_atom
+   real(dblprec), dimension(3), intent(out) :: cdiff
+   !
+   real(dblprec), dimension(3) :: odiff, oshift, mdiff
+   integer :: x,y,z
+   integer :: xmin,xmax,ymin,ymax,zmin,zmax
+   !
+   odiff=coord(:,i_atom) - coord(:,j_atom)
+   !onorm=norm2(odiff)
+   !
+   xmax=0;xmin=0;ymax=0;ymin=0;zmax=0;zmin=0
+   if(BC1=='P') then
+      xmax=1
+      xmin=-1
+   end if
+   if(BC2=='P') then
+      ymax=1
+      ymin=-1
+   end if
+   if(BC3=='P') then
+      zmax=1
+      zmin=-1
+   end if
+   !
+   mdiff=odiff
+   do z=zmin,zmax
+      do y=ymin,ymax
+         do x=xmin,xmax
+            oshift = odiff + x*(N1)*C1 + y*(N2)*C2 + z*(N3)*C3
+            !oshift = odiff + x*(N1-1)*C1 + y*(N2-1)*C2 + z*(N3-1)*C3
+            if(norm2(oshift)<norm2(mdiff))  mdiff = oshift
+         end do
+      end do
+   end do
+   !
+   !print '(2i6,6f10.6)',i_atom,j_atom,mdiff!, oshift
+   cdiff=mdiff
+   return
+   !
+end subroutine wrap_coord_diff
 
 end module AMS

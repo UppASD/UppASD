@@ -1,256 +1,265 @@
-caselist:                                                                     
+caselist:
   - workingdir: "./Regression"
-    run: "./runtest.sh" 
+    run: "./runtest.sh"
     name: "Testing measurement routines vs. rev. 667"
-    comparisons:                                                              
+    comparisons:
       - outfile:    ams.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3','#_4' ]
-        testlist:                                                             
+        testlist:
           - select:
-             "#_1":  3 
+             "#_1":  3
             extract:  [ '#_2' ,'#_3','#_4' ]
             expected:  [ 17.468241189455, 217.608572097696, 1.400000000000 ]
             type: "ams"
-   
+
       - outfile:    autocorr.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
             extract:  [ '#_2' ]
             expected:  [ 9.89522597E-01 ]
             type: "autocorr"
-   
+
       - outfile:    averages.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
             expected:  [ 1.45555721E-01, 2.52298162E-01, 1.87754072E+00, 1.90000000E+00, 0.00000000E+00 ]
             type: "averages"
-   
+
       - outfile:    blsdos.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4','#_5' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  405.29540
             extract:  [ '#_2' ,'#_3','#_4','#_5' ]
             expected:  [ 0.38974815, 5.1845584, 0.43985669E-01, 5.1993734 ]
             type: "blsdos"
-   
+
       - outfile:    bls.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  49
               "#_2": 128
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
             expected:  [ 128, 0.60318579E+15, 0.29696983E-02, 0.30922688E-01, 0.75312026E-03, 0.18613304 ]
             type: "bls"
-   
+
       - outfile:    cbls.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  49
               "#_2": 128
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11' ]
             expected:  [ 128, 0.60318579E+15, 0.29696983E-02, 0.30922688E-01, 0.75312026E-03, 0.0000000, 0.0000000, 0.0000000, 0.31064960E-01, 0.0000000 ]
             type: "cbls"
-   
+
       - outfile:    coord.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  128
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
             expected:  [ 3.500000, 3.500000, 3.510000, 2, 2 ]
             type: "coord"
-   
+
       - outfile:    crestart.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11001
               "#_2":    128
             extract:  [  '#_3','#_4','#_5','#_6' ]
             expected:  [  0.0, 0.0, 0.0, 0.0 ]
             type: "crestart"
-   
+
       - outfile:    cprojsqw.1.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  3
               "#_5":  100
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11' ]
             expected:  [ 0.000000, 0.000000,-0.490000,     100,   7.12967924E-03,-1.09504935E+00, 1.18456416E-03, 1.18663813E+00, 3.78353253E-04, 5.98055736E-01]
             type: "cprojsqw.1"
-   
+
       - outfile:    csqw.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  3
               "#_5":  100
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11' ]
             expected:  [ 0.000000, 0.000000, -0.490000, 100, 7.39751790E-03, -7.96883206E-01, 3.50571242E-04, -1.77115554E+00, 9.71706004E-04, -4.07010054E-02 ]
             type: "csqw"
-   
+
       - outfile:    cumulants.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  211
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
             expected:  [ 1.89994014E+00, 3.60977283E+00, 1.30304642E+01, 6.66666556E-01, 2.39009895E-28, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00 ]
             type: "cumulants"
-   
+
       #- outfile:    evams.megaTest.out
-      #  filehandler: csv_like                                                 
+      #  filehandler: csv_like
       #  headers:  [ '#_1', '#_2','#_3' ]
-      #  testlist:                                                             
-      #    - select:                                                           
+      #  testlist:
+      #    - select:
       #        "#_1":  217.608572
       #      extract:  [ '#_2' ,'#_3' ]
       #      expected:  [ 1.000000, -0.000219 ]
       #      type: "evams"
-   
+
       - outfile:    jqams.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3','#_4' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  3
             extract:  [ '#_2' ,'#_3','#_4' ]
             expected:  [ 44.685108053095, 47.411617126732, 1.400000000000 ]
             type: "jqams"
-   
+
       - outfile:    moment.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
               "#_2":  128
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
             expected:  [ 128, 7.66082736E-002, 1.32788506E-001, 9.88179328E-001, 1.00000000E+000 ]
             type: "moment"
-   
+
       - outfile:    polarization.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
             expected:  [ 1.37507934e-08, 1.0843367e-08, -9.36645143e-09, 1.98593389e-08, 0.000000000E+00 ]
             type: "polarization"
-   
+
       - outfile:    projavgs.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
               "#_2":      2
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
             expected:  [ 2, 2.50000000E+00, 0.00000000E+00, 1.91520684E-01, 3.31971264E-01, 2.47044832E+00 ]
             type: "projavgs"
-   
+
       - outfile:    projcumulants.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  211
               "#_2":    2
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
             expected:  [ 2, 2.50000000E+00, 6.25000000E+00, 3.90625000E+01, 6.66666667E-01, -7.08541485E-37 ]
             type: "projcumulants"
-   
+
       - outfile:    quasiblsdos.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4','#_5' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  405.29540
             extract:  [ '#_2' ,'#_3','#_4','#_5' ]
             expected:  [ 0.57773656E-04, 0.64012376E-03, 0.15399741E-03, 0.66091711E-03 ]
             type: "quasiblsdos"
-   
+
       - outfile:    spin.megaTest.1.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2','#_3' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  0.00000000E+00
             extract:  [ '#_2' ,'#_3' ]
             expected:  [ 1.96116135E-01, 9.80580676E-01 ]
             type: "spin.megaTest.1.out"
-   
+
       - outfile:    sqw.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  3
               "#_5":  100
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
             expected:  [ 0.000000, 0.000000, -0.490000, 100, 7.39751790E-03, 3.50571242E-04, 9.71706004E-04, 7.39860466E-03 ]
             type: "sqw"
-   
+
       - outfile:    projsqw.1.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  3
               "#_5":  100
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
             expected:  [ 0.000000, 0.000000,-0.490000  ,   100 ,  7.12967924E-03, 1.18456416E-03,  3.78353253E-04, 7.10669723E-03]
             type: "projsqw.1"
-   
+
       - outfile:    swdos.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4','#_5' ]
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  405.29540
             extract:  [ '#_2' ,'#_3','#_4','#_5' ]
             expected:  [ 0.10757007E-01, 0.31268895E-01, 0.16644796E-01, 0.37020349E-01 ]
             type: "swdos"
-   
+
       - outfile:    torques.megaTest.out
-        filehandler: csv_like                                                 
+        filehandler: csv_like
         headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11']
-        testlist:                                                             
-          - select:                                                           
+        testlist:
+          - select:
               "#_1":  11000
-              "#_2":  128   
+              "#_2":  128
             extract:  [ '#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11']
             expected:  [   -4.8945E-02,-4.9103E-02, 1.0393E-02, 7.0105E-02, 0.0000E+00, 0.0000E+00, 0.0000E+00, 0.0000E+00]
             type: "torques"
-   
+
       - outfile:    totenergy.megaTest.out
-        filehandler: csv_like                                                 
-        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11', '#_12', '#_13', '#_14', '#_15', '#_16', '#_17', '#_18', '#_19', '#_20','#_21' ]
-        testlist:                                                             
-          - select:                                                           
+        filehandler: csv_like
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11']
+        testlist:
+          - select:
               "#_1":  10900
-            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11','#_12','#_13','#_14','#_15','#_16','#_17','#_18','#_19','#_20','#_21' ]
-            expected:  [ -2.90005366E+00, 0.00000000E+00, -2.90000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, -5.36582837E-05, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00 ]
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11']
+            expected:  [ -2.90005366E+00,  -2.90000000E+00,  0.00000000E+00,  0.00000000E+00,  0.00000000E+00,  0.00000000E+00,  0.00000000E+00,  0.00000000E+00,  -5.36582837E-05,  0.00000000E+00]
             type: "totenergy"
-   
+
+      - outfile:    stdenergy.megaTest.out
+        filehandler: csv_like
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11', '#_12', '#_13', '#_14', '#_15', '#_16', '#_17', '#_18', '#_19', '#_20','#_21' ]
+        testlist:
+          - select:
+              "#_1":  10900
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11']
+            expected:  [0.00000000E+00,0.00000000E+00, 0.00000000E+00, 0.00000000E+00,  0.00000000E+00,  0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00, 0.00000000E+00 ]
+            type: "stdenergy"

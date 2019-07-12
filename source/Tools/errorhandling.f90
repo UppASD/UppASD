@@ -5,10 +5,7 @@
 !> @author
 !> Thomas Nystrand
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !====================================================================!
 module ErrorHandling
    use Parameters
@@ -89,11 +86,11 @@ contains
    !---------------------------------------------------------------------------
    subroutine ErrorHandling_ERROR(msg)
       character(len=*), intent(in) :: msg
-      write(*,*) '                   **** ERROR ****                      '
-      write(*,*) '========================================================'
-      write(*,*) ' - ',msg 
-      write(*,*) '========================================================'
-      write(*,*) '             *** Terminating program ***                '
+      write(*,'(1x,a)') '                   **** ERROR ****                      '
+      write(*,'(1x,a)') '========================================================'
+      write(*,'(1x,a)') ' - ' // msg 
+      write(*,'(1x,a)') '========================================================'
+      write(*,'(1x,a)') '             *** Terminating program ***                '
       stop
    end subroutine ErrorHandling_ERROR
 

@@ -83,8 +83,6 @@ contains
             if ( iz == 0 ) then
 
                do
-                  !         x = - 0.2904764D+00 * log (mtprng_rand_real1(state))
-                  !         y = - log(mtprng_rand_real1(state))
                   x = - 0.2904764D+00 * log (real(mtprng_rand_real1(state_z)))
                   y = - log(real(mtprng_rand_real1(state_z)))
                   if ( x*x <= y+y ) then
@@ -109,7 +107,6 @@ contains
                exit
             end if
 
-            !      hz = mtprng_rand_real1( state_z )
             hz = mtprng_rand ( state_z )
             iz = iand ( hz, 127 )
 
@@ -165,9 +162,6 @@ contains
       integer, intent(in) :: inseed
       real(IEEE64) :: dn
       integer(INT32) i
-      ! real(IEEE64) :: fn(128)
-      ! integer(INT32) kn(128)
-      ! real(IEEE64) :: wn(128)
       real(IEEE64), parameter :: m1 = 2147483648.0D+00
       real(IEEE64) :: q
       real(IEEE64) :: tn
@@ -197,7 +191,6 @@ contains
          tn = dn
          fn(i) = real ( exp ( - 0.5D+00 * dn * dn ), IEEE64 )
          wn(i) = real ( dn / m1, IEEE64 )
-         !print *,kn(i+1),fn(i),wn(i)
       end do
 
       return

@@ -8,11 +8,11 @@
 GENCODE_ARCH    ?= -gencode=arch=compute_35,code=\"sm_35,compute_35\" 
 
 # cuda path
-ifdef cuda-install
-        CUDA_INSTALL_PATH ?= $(cuda-install)
+ifdef CUDA_HOME
+        CUDA_INSTALL_PATH ?= $(CUDA_HOME)
 endif
-CUDA_INSTALL_PATH ?= /usr/lib/nvidia-cuda-toolkit
-CUDA_LIBRARY_PATH ?= $(CUDA_INSTALL_PATH)/include
+CUDA_INSTALL_PATH ?= /usr/Local/cuda-10.1
+CUDA_INCLUDE_PATH ?= $(CUDA_INSTALL_PATH)/include
 #CUDA_INSTALL_PATH ?= /usr/local/cuda
 #CUDA_INSTALL_PATH ?= /opt/cuda
 
@@ -37,8 +37,8 @@ endif
 
 
 # Cuda includes
-CUDA_INC := -I$(CUDA_INCLUDE_PATH)
-CUDA_LIB += -L$(CUDA_LIBRARY_PATH)
+CUDA_INC := -I$(CUDA_INCLUDE_PATH) 
+CUDA_LIB += -L$(CUDA_INSTALL_PATH)/lib64
 
 
 

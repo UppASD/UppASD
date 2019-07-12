@@ -1,8 +1,12 @@
+!------------------------------------------------------------------------------------
+! MODULE: tools
+!> @brief Module dealing with auxiliary functions
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
 !! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
+!------------------------------------------------------------------------------------
 module tools
 
 contains
@@ -20,6 +24,7 @@ contains
       use Temperature
       use Gradients
       use prn_trajectories, only : traj_atom, traj_step, traj_buff, ntraj
+      use FixedMom, only : red_atom_list
       !
       implicit none
       !
@@ -111,7 +116,11 @@ contains
          deallocate(sitenatomfld,stat=i_stat)
          call memocc(i_stat,i_all,'sitenatomfld','deallocate_rest')
       endif
-
+      if (allocated(red_atom_list)) then
+         i_all=-product(shape(red_atom_list))*kind(red_atom_list)
+         deallocate(red_atom_list,stat=i_stat)
+         call memocc(i_stat,i_all,'red_atom_list','deallocate_rest')
+      endif
       call deallocate_temp()
       call deallocate_gradient_lists()
 

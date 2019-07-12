@@ -1,15 +1,12 @@
 !> Module for storing magnetic moment information
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 module MomentData
    use Parameters
    use Profiling
    !
    implicit none
-   ! 
+   !
    real(dblprec), dimension(:,:,:), allocatable :: emom   !< Current unit moment vector
    real(dblprec), dimension(:,:), allocatable :: mmom !< Magnitude of magnetic moments
    real(dblprec), dimension(:,:), allocatable :: mmomi !< Inverse of magnitude of magnetic moments
@@ -23,14 +20,13 @@ module MomentData
 
 contains
 
-
    !> Allocate magnitude of magnetic moments
    subroutine allocate_mmoms(Natom,Mensemble,flag)
 
       implicit none
 
       integer, intent(in), optional :: Natom !< Number of atoms in system
-      integer, intent(in), optional :: Mensemble !< Number of ensembles 
+      integer, intent(in), optional :: Mensemble !< Number of ensembles
       integer, intent(in) :: flag  !< Allocate or deallocate (1/-1)
 
       integer :: i_all, i_stat
@@ -68,7 +64,7 @@ contains
       implicit none
 
       integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles 
+      integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: flag  !< Allocate or deallocate (1/-1)
 
       integer :: i_all, i_stat
@@ -95,5 +91,3 @@ contains
 
 
 end module MomentData
-
-

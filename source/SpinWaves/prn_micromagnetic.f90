@@ -1,4 +1,4 @@
-!====================================================================!
+!------------------------------------------------------------------------------------
 !> @brief
 !> Intended to use for printing all the relevant information relating
 !> the ASD parameters to micromagnetic variables
@@ -6,11 +6,8 @@
 !> @author
 !> Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
-!====================================================================!
+!> GNU Public License
+!------------------------------------------------------------------------------------
 module prn_micromagnetic
    use Parameters
    use Profiling
@@ -24,17 +21,17 @@ module prn_micromagnetic
 
 contains
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Wrapper for writing all the micromagnetic information
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine stiffness_wrapper(NT,NA,N1,N2,N3,hdim,mconf,Natom,Nchmax,conf_num,do_ralloy,&
-         Natom_full,max_no_neigh,Nch,anumb,atype,nlistsize,atype_ch,asite_ch,&
-         achem_ch,nlist,alat,C1,C2,C3,coord,chconc,ammom_inp,ncoup,max_no_dmneigh,&
-         dmlistsize,dmlist,dm_vect,do_anisotropy,anisotropy,simid)
+   !---------------------------------------------------------------------------------
+   subroutine stiffness_wrapper(NT,NA,N1,N2,N3,hdim,mconf,Natom,nHam,Nchmax,        &
+      conf_num,do_ralloy,Natom_full,max_no_neigh,Nch,anumb,atype,aham,nlistsize,    &
+      atype_ch,asite_ch,achem_ch,nlist,alat,C1,C2,C3,coord,chconc,ammom_inp,ncoup,  &
+      max_no_dmneigh,dmlistsize,dmlist,dm_vect,do_anisotropy,anisotropy,simid)
 
       implicit none
 
@@ -47,6 +44,7 @@ contains
       integer, intent(in) :: hdim   !< Number of elements in Hamiltonian element (scalar or vector)
       integer, intent(in) :: mconf  !< LSF ground state configuration
       integer, intent(in) :: Natom  !< Number of atoms in system
+      integer, intent(in) :: nHam   !< Number of atoms in Hamiltonian
       integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
       integer, intent(in) :: conf_num !< Number of LSF configurations
       integer, intent(in) :: do_ralloy    !< Random alloy simulation (0/1)
@@ -57,8 +55,9 @@ contains
       integer, dimension(NA), intent(in) :: Nch !< Number of chemical components on each site in cell
       integer, dimension(Natom), intent(in) :: anumb !< Atom number in cell
       integer, dimension(Natom), intent(in) :: atype !< Type of atom
-      integer, dimension(Natom), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom), intent(in) :: dmlistsize !< Size of neighbour list for DM
+      integer, dimension(Natom), intent(in) :: aham  !< Hamiltonian look-up table
+      integer, dimension(nHam), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(nHam), intent(in) :: dmlistsize !< Size of neighbour list for DM
       integer, dimension(Natom_full), intent(in) :: atype_ch !< Actual site of atom for dilute system
       integer, dimension(Natom_full), intent(in) :: asite_ch !< Actual site of atom for dilute system
       integer, dimension(Natom_full), intent(in) :: achem_ch !< Chemical type of atoms (reduced list)
@@ -73,52 +72,65 @@ contains
       real(dblprec), dimension(NA,Nchmax), intent(in) :: chconc !< Chemical concentration on sites
       real(dblprec), dimension(NA,6,Nchmax), intent(in) :: anisotropy !< Input data for anisotropies
       real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp !< Magnetic moment directions from input (for alloys)
-      real(dblprec), dimension(hdim,max_no_neigh,Natom,conf_num), intent(in) :: ncoup !< Heisenberg exchange couplings
-      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Heisenberg exchange couplings
+      real(dblprec), dimension(hdim,max_no_neigh,nHam,conf_num), intent(in) :: ncoup !< Heisenberg exchange couplings
+      real(dblprec), dimension(3,max_no_dmneigh,nHam), intent(in) :: dm_vect !< Heisenberg exchange couplings
 
       character(len=8), intent(in) :: simid !< Name of simulation
 
       ! Allocate variables needed for the calculation of the stiffness
-      call allocate_stiffness(NA,1,do_stiffness,do_dm_stiffness)
+      call allocate_stiffness(NA,natom,1,do_stiffness,do_dm_stiffness)
 
       write(*,'(1x,a)',advance='no') 'Calculate the ferromagnetic stiffness'
       ! Calculate the excnage stiffness
-      call ferro_stiffness(NT,NA,N1,N2,N3,1,mconf,Natom,Nchmax,eta_max,eta_min,&
-         conf_num,do_ralloy,Natom_full,max_no_neigh,Nch,anumb,atype,nlistsize,&
-         atype_ch,asite_ch,achem_ch,nlist,alat,C1,C2,C3,coord,chconc,ammom_inp,ncoup,&
-         A_xc,M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,Dxc_fit_lsq,J0_matrix,&
-         D_xc_stiffness_matrix,A_xc_stiffness_matrix,D_xc_stiffness_matrix_lsq,&
-         A_xc_stiffness_matrix_lsq)
+      call ferro_stiffness(NT,NA,N1,N2,N3,1,mconf,Natom,nHam, Nchmax,eta_max,       &
+         eta_min,conf_num,do_ralloy,Natom_full,max_no_neigh,Nch,anumb,atype,        &
+         nlistsize,atype_ch,asite_ch,achem_ch,nlist,alat,C1,C2,C3,coord,chconc,     &
+         ammom_inp,ncoup,aham,A_xc,M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,       &
+         Dxc_fit_lsq,J0_matrix,D_xc_stiffness_matrix,A_xc_stiffness_matrix,         &
+         D_xc_stiffness_matrix_lsq,A_xc_stiffness_matrix_lsq)
       write(*,'(1x,a)') 'done'
 
       ! Check if the DMI stiffness is also to be calculated
       if (do_dm_stiffness=='Y') then
 
          write(*,'(1x,a)',advance='no') 'Calculate the DMI spiralization'
-         call DMI_stiffness(NT,NA,N1,N2,N3,Natom,Nchmax,eta_max,eta_min,max_no_dmneigh,anumb,&
-            dmlistsize,dmlist,alat,coord,ammom_inp,dm_vect,DM0_mat,DM0_mat_lsq)
+         call DMI_stiffness(NT,NA,N1,N2,N3,Natom,nHam,Nchmax,eta_max,eta_min,       &
+            max_no_dmneigh,anumb,dmlistsize,dmlist,alat,coord,ammom_inp,dm_vect,    &
+            DM0_mat,DM0_mat_lsq,aham)
          write(*,'(1x,a)') 'done'
       endif
 
+     if (do_ralloy==1) then
+      write(*,'(1x,a)',advance='no') 'Calculate the ferromagnetic stiffness of random alloy'
+      ! Calculate the excnage stiffness
+      call ferro_random_stiffness(NT,NA,N1,N2,N3,1,mconf,Natom,nHam, Nchmax,eta_max,&
+         eta_min,conf_num,do_ralloy,Natom_full,max_no_neigh,Nch,anumb,atype,        &
+         nlistsize,atype_ch,asite_ch,achem_ch,nlist,alat,C1,C2,C3,coord,chconc,     &
+         ammom_inp,ncoup,aham,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,J0_matrix_alloy)
+      write(*,'(1x,a)') 'done'
+     endif
+
       ! Print the micromagnetic information
-      call prn_micro_wrapper(NA,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,&
-         M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,Dxc_fit_lsq,&
-         D_xc_stiffness_matrix,A_xc_stiffness_matrix,D_xc_stiffness_matrix_lsq,&
-         A_xc_stiffness_matrix_lsq,anisotropy,do_dm_stiffness,simid,J0_matrix,&
-         DM0_mat,DM0_mat_lsq,prn_J0_matrix)
+      call prn_micro_wrapper(NA,natom,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,    &
+         M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,Dxc_fit_lsq,                     &
+         D_xc_stiffness_matrix,A_xc_stiffness_matrix,D_xc_stiffness_matrix_lsq,     &
+         A_xc_stiffness_matrix_lsq,anisotropy,do_dm_stiffness,simid,J0_matrix,      &
+         DM0_mat,DM0_mat_lsq,prn_J0_matrix,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,    &
+         J0_matrix_alloy,do_ralloy)
+
 
       ! Deallocate the arrays for the stiffness
-      call allocate_stiffness(NA,-1,do_stiffness,do_dm_stiffness)
+      call allocate_stiffness(NA,natom,-1,do_stiffness,do_dm_stiffness)
 
    end subroutine stiffness_wrapper
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Initializtion of the stiffnes default variables
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    subroutine init_stiffness()
 
       implicit none
@@ -130,29 +142,30 @@ contains
       do_dm_stiffness='N'
       prn_J0_matrix='N'
 
-      A_xc=0.0d0
-      M_sat=0.0d0
-      Dxc_fit=0.0d0
-      cell_vol=0.0d0
-      A_xc_lsq=0.0d0
-      D_err_fit=0.0d0
-      Dxc_fit_lsq=0.0d0
+      A_xc  		= 0.0_dblprec
+      M_sat 		= 0.0_dblprec
+      Dxc_fit		= 0.0_dblprec
+      cell_vol		= 0.0_dblprec
+      A_xc_lsq		= 0.0_dblprec
+      D_err_fit	= 0.0_dblprec
+      Dxc_fit_lsq	= 0.0_dblprec
 
    end subroutine init_stiffness
 
-   !---------------------------------------------------------------------------
+   !--------------------------------------------------------------------------------
    !> @brief
    !>  Allocate the necessary arrays to calculate the stiffness
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine allocate_stiffness(NA,flag,do_stiffness,do_dm_stiffness)
+   !---------------------------------------------------------------------------------
+   subroutine allocate_stiffness(NA,natom,flag,do_stiffness,do_dm_stiffness)
 
       implicit none
 
       ! .. Input variables
       integer, intent(in) :: NA !< Number of atoms in one cell
+      integer, intent(in) :: natom !< Number of atoms
       integer, intent(in) :: flag !< Flag for allocation for arrays
       character(len=1), intent(in) :: do_stiffness !< Calculate the spin wave stiffness of a ferromagnet
       character(len=1), intent(in) :: do_dm_stiffness !< Calculate the DMI spiralization
@@ -166,28 +179,42 @@ contains
          if ( do_stiffness.eq.'Y') then
             allocate(J0_matrix(NA,NA),stat=i_stat)
             call memocc(i_stat,product(shape(J0_matrix))*kind(J0_matrix),'J0_matrix','allocate_stiffness')
-            J0_matrix=0.0d0
+            J0_matrix=0.0_dblprec
             allocate(D_xc_stiffness_matrix(3,3),stat=i_stat)
             call memocc(i_stat,product(shape(D_xc_stiffness_matrix))*kind(D_xc_stiffness_matrix),'D_xc_stiffness_matrix','allocate_stiffness')
-            D_xc_stiffness_matrix=0.0d0
+            D_xc_stiffness_matrix=0.0_dblprec
             allocate(A_xc_stiffness_matrix(3,3),stat=i_stat)
             call memocc(i_stat,product(shape(A_xc_stiffness_matrix))*kind(A_xc_stiffness_matrix),'A_xc_stiffness_matrix','allocate_stiffness')
-            A_xc_stiffness_matrix=0.0d0
+            A_xc_stiffness_matrix=0.0_dblprec
             allocate(D_xc_stiffness_matrix_lsq(3,3),stat=i_stat)
             call memocc(i_stat,product(shape(D_xc_stiffness_matrix_lsq))*kind(D_xc_stiffness_matrix_lsq),'D_xc_stiffness_matrix_lsq','allocate_stiffness')
-            D_xc_stiffness_matrix_lsq=0.0d0
+            D_xc_stiffness_matrix_lsq=0.0_dblprec
             allocate(A_xc_stiffness_matrix_lsq(3,3),stat=i_stat)
             call memocc(i_stat,product(shape(A_xc_stiffness_matrix_lsq))*kind(A_xc_stiffness_matrix_lsq),'A_xc_stiffness_matrix_lsq','allocate_stiffness')
-            A_xc_stiffness_matrix_lsq=0.0d0
+            A_xc_stiffness_matrix_lsq=0.0_dblprec
             ! Allocation of the DM spiralization matrix
             if (do_dm_stiffness.eq.'Y') then
                allocate(DM0_mat(3,3),stat=i_stat)
                call memocc(i_stat,product(shape(DM0_mat))*kind(DM0_mat),'DM0_mat','allocate_stiffness')
-               DM0_mat=0.0d0
+               DM0_mat=0.0_dblprec
                allocate(DM0_mat_lsq(3,3),stat=i_stat)
                call memocc(i_stat,product(shape(DM0_mat_lsq))*kind(DM0_mat_lsq),'DM0_mat_lsq','allocate_stiffness')
-               DM0_mat=0.0d0
+               DM0_mat=0.0_dblprec
             endif
+!            if (do_ralloy==1) then
+              allocate(J0_matrix_alloy(NA,NA,natom),stat=i_stat)
+              call memocc(i_stat,product(shape(J0_matrix_alloy))*kind(J0_matrix_alloy),'J0_matrix_alloy','allocate_stiffness')
+              J0_matrix_alloy=0.0_dblprec
+              allocate(Axc_fit_alloy(natom),stat=i_stat)
+              call memocc(i_stat,product(shape(Axc_fit_alloy))*kind(Axc_fit_alloy),'Axc_fit_alloy','allocate_stiffness')
+              Axc_fit_alloy=0.0_dblprec
+              allocate(Dxc_fit_alloy(natom),stat=i_stat)
+              call memocc(i_stat,product(shape(Dxc_fit_alloy))*kind(Dxc_fit_alloy),'Dxc_fit_alloy','allocate_stiffness')
+              Dxc_fit_alloy=0.0_dblprec
+              allocate(Tc_alloy(natom),stat=i_stat)
+              call memocc(i_stat,product(shape(Tc_alloy))*kind(Tc_alloy),'Tc_alloy','allocate_stiffness')
+              Tc_alloy=0.0_dblprec
+!            endif
          endif
       else
          ! Deallocate arrays for the exchange stiffness
@@ -216,31 +243,46 @@ contains
                deallocate(DM0_mat_lsq,stat=i_stat)
                call memocc(i_stat,i_all,'DM0_mat_lsq','allocate_stiffness')
             endif
+!            if(do_ralloy==1) then
+               i_all=-product(shape(J0_matrix_alloy))*kind(J0_matrix_alloy)
+               deallocate(J0_matrix_alloy,stat=i_stat)
+               call memocc(i_stat,i_all,'J0_matrix_alloy','allocate_stiffness')
+               i_all=-product(shape(Axc_fit_alloy))*kind(Axc_fit_alloy)
+               deallocate(Axc_fit_alloy,stat=i_stat)
+               call memocc(i_stat,i_all,'Axc_fit_alloy','allocate_stiffness')
+               i_all=-product(shape(Dxc_fit_alloy))*kind(Dxc_fit_alloy)
+               deallocate(Dxc_fit_alloy,stat=i_stat)
+               call memocc(i_stat,i_all,'Dxc_fit_alloy','allocate_stiffness')
+               i_all=-product(shape(Tc_alloy))*kind(Tc_alloy)
+               deallocate(Tc_alloy,stat=i_stat)
+               call memocc(i_stat,i_all,'Tc_alloy','allocate_stiffness')
+!            endif
          endif
       endif
 
 
    end subroutine allocate_stiffness
 
-
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing wrapper for micromagnetic variables
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine prn_micro_wrapper(NA,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,&
-         M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,Dxc_fit_lsq,&
-         D_xc_stiffness_matrix,A_xc_stiffness_matrix,D_xc_stiffness_matrix_lsq,&
-         A_xc_stiffness_matrix_lsq,anisotropy,do_dm_stiffness,simid,J0_matrix,&
-         DM0_mat,DM0_mat_lsq,prn_J0_matrix)
+   !---------------------------------------------------------------------------------
+   subroutine prn_micro_wrapper(NA,natom,Nchmax,eta_min,eta_max,do_anisotropy,A_xc, &
+         M_sat,Dxc_fit,cell_vol,A_xc_lsq,D_err_fit,Dxc_fit_lsq,                     &
+         D_xc_stiffness_matrix,A_xc_stiffness_matrix,D_xc_stiffness_matrix_lsq,     &
+         A_xc_stiffness_matrix_lsq,anisotropy,do_dm_stiffness,simid,J0_matrix,      &
+         DM0_mat,DM0_mat_lsq,prn_J0_matrix,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,    &
+         J0_matrix_alloy,do_ralloy)
       !
       !.. Implicit declarations
       implicit none
 
       !.. Input variables
       integer, intent(in) :: NA !< Number of atoms in one cell
+      integer, intent(in) :: natom !< Number of atoms
       integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
       integer, intent(in) :: eta_min !< Minimum  convergence parameters for the stiffness
       integer, intent(in) :: eta_max !< Number of convergence parameters for the stiffness
@@ -265,6 +307,11 @@ contains
       character(len=1), intent(in) :: do_dm_stiffness !< Calculate the DMI spiralization
       character(len=1), intent(in) :: prn_J0_matrix !< Print the full site dependent J0 matrix
       character(len=8), intent(in) :: simid !< Name of simulation
+      real(dblprec),dimension(natom),intent(in) :: Axc_fit_alloy !< Exchange stiffness alloy
+      real(dblprec),dimension(natom),intent(in) :: Dxc_fit_alloy !< Spin wave stiffness alloy
+      real(dblprec),dimension(natom),intent(in) :: Tc_alloy  !< Tc-MFA alloy
+      real(dblprec),dimension(na,na,natom),intent(in) :: J0_matrix_alloy !< Exchange matrix alloy
+      integer,intent(in) :: do_ralloy
 
       !.. Local variables
       character(len=30) :: filn
@@ -277,16 +324,16 @@ contains
 
       ! Printing statements for different micromagnetic variables
       ! .. Basic parameters
-      call print_micro_misc(NA,Nchmax,eta_min,eta_max,do_anisotropy,&
-         A_xc,M_sat,cell_vol,anisotropy)
+      call print_micro_misc(NA,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,M_sat,     &
+         cell_vol,anisotropy)
       ! .. Exchange stiffness
-      call print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,&
-         A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,&
-         D_xc_stiffness_matrix_lsq,A_xc_stiffness_matrix_lsq)
+      call print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,            &
+         A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,D_xc_stiffness_matrix_lsq,      &
+         A_xc_stiffness_matrix_lsq)
 
       ! .. DMI spiralization
       if (do_dm_stiffness.eq.'Y') then
-         call print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,&
+         call print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,  &
             D_xc_stiffness_matrix_lsq)
       endif
 
@@ -297,21 +344,25 @@ contains
 
       call print_J0_vector(NA, J0_matrix)
 
+      if(do_ralloy==1) then
+        call print_random_stiffness(natom,na,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,  &
+         J0_matrix_alloy)
+      endif
+
       close(ofileno)
 
    end subroutine prn_micro_wrapper
 
-
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing the exchange stiffness parameters
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,&
-         A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,&
-         D_xc_stiffness_matrix_lsq,A_xc_stiffness_matrix_lsq)
+   !---------------------------------------------------------------------------------
+   subroutine print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,			&
+			A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,D_xc_stiffness_matrix_lsq,		&
+			A_xc_stiffness_matrix_lsq)
 
       implicit none
 
@@ -359,14 +410,14 @@ contains
 
    end subroutine print_stiffness
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing the exchange DMI stiffness/spiralization
-   !> @TODO check the implementation of the wavelength making use of the tensorial forms
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,&
+   !> @todo check the implementation of the wavelength making use of the tensorial forms
+   !---------------------------------------------------------------------------------
+   subroutine print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,	&
          D_xc_stiffness_matrix_lsq)
 
       use Constants
@@ -404,7 +455,7 @@ contains
       write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_z ',DM0_mat(:,3)
       write (ofileno,'(a)') "****************************************************************"
       write (ofileno,'(a)') " "
-      write (ofileno,'(a)') "**************** DMI SPIRALIZATION MATRIX (LSQ fit) [meVA] ***************"
+      write (ofileno,'(a)') "******* DMI SPIRALIZATION MATRIX (LSQ fit) [meVA] **************"
       write (ofileno,'(1x,a)') "            r_x         r_y         r_z"
       write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_x ',DM0_mat_lsq(:,1)
       write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_y ',DM0_mat_lsq(:,2)
@@ -413,16 +464,16 @@ contains
       write (ofileno,'(a)') " "
       write (ofileno,'(a)') "**************** DMI SPIRALIZATION MATRIX [mJ/m^2] *************"
       write (ofileno,'(1x,a)') "            r_x         r_y         r_z"
-      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_x ',DM0_mat(:,1)*1e-10*M_sat/(Joule_ev*4.0d0)
-      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_y ',DM0_mat(:,2)*1e-10*M_sat/(Joule_ev*4.0d0)
-      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_z ',DM0_mat(:,3)*1e-10*M_sat/(Joule_ev*4.0d0)
+      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_x ',DM0_mat(:,1)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
+      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_y ',DM0_mat(:,2)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
+      write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_z ',DM0_mat(:,3)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
       write (ofileno,'(a)') "****************************************************************"
       write (ofileno,'(a)') " "
       !write (ofileno,'(a)') "**************** DMI SPIRALIZATION MATRIX (LSQ FIT) [mJ/m^2] *************"
       !write (ofileno,'(1x,a)') "            r_x         r_y         r_z"
-      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_x ',DM0_mat_lsq(:,1)*1e-10*M_sat/(Joule_ev*4.0d0)
-      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_y ',DM0_mat_lsq(:,2)*1e-10*M_sat/(Joule_ev*4.0d0)
-      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_z ',DM0_mat_lsq(:,3)*1e-10*M_sat/(Joule_ev*4.0d0)
+      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_x ',DM0_mat_lsq(:,1)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
+      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_y ',DM0_mat_lsq(:,2)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
+      !write (ofileno,'(2x,a,f14.6,2x,f14.6,2x,f14.6)') ' D_z ',DM0_mat_lsq(:,3)*1e-10*M_sat/(Joule_ev*4.0_dblprec)
       !write (ofileno,'(a)') "****************************************************************"
       !write (ofileno,'(a)')  " "
       write (ofileno,'(a)') "**************** SPIRAL WAVELENGTH MATRIX (STIFF/DMI) [A] ******"
@@ -431,7 +482,7 @@ contains
       write (ofileno,'(2x,G14.6,2x,G14.6,2x,G14.6)') spiral(3,1),spiral(3,2),spiral(3,3)
       write (ofileno,'(a)') "****************************************************************"
       write (ofileno,'(a)')  " "
-      write (ofileno,'(a)') "**************** SPIRAL WAVELENGTH MATRIX LSQ (STIFF/DMI) [A] ***"
+      write (ofileno,'(a)') "*************** SPIRAL WAVELENGTH MATRIX LSQ (STIFF/DMI) [A] ***"
       write (ofileno,'(2x,G14.6,2x,G14.6,2x,G14.6)') spiral_lsq(1,1),spiral_lsq(1,2),spiral_lsq(1,3)
       write (ofileno,'(2x,G14.6,2x,G14.6,2x,G14.6)') spiral_lsq(2,1),spiral_lsq(2,2),spiral_lsq(2,3)
       write (ofileno,'(2x,G14.6,2x,G14.6,2x,G14.6)') spiral_lsq(3,1),spiral_lsq(3,2),spiral_lsq(3,3)
@@ -440,16 +491,15 @@ contains
 
    end subroutine print_dmi_stiffness
 
-
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing micromagnetic information for analysis
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
-   subroutine print_micro_misc(NA,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,&
-         M_sat,cell_vol,anisotropy)
+   !---------------------------------------------------------------------------------
+   subroutine print_micro_misc(NA,Nchmax,eta_min,eta_max,do_anisotropy,A_xc,M_sat,  &
+      cell_vol,anisotropy)
 
       use Constants
 
@@ -497,13 +547,13 @@ contains
 
    end subroutine print_micro_misc
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing the J0 vector
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    subroutine print_J0_vector(NA, J0_matrix)
 
       use Constants
@@ -523,7 +573,7 @@ contains
       write (ofileno,'(a)')  " "
       write (ofileno,'(a)') "**************** J0 VECTOR [meV] *******************************"
       do ii=1, NA
-         temp_J0=0.0d0
+         temp_J0=0.0_dblprec
          do jj=1, NA
             temp_J0=temp_J0+J0_matrix(ii,jj)
          enddo
@@ -534,13 +584,13 @@ contains
 
    end subroutine print_J0_vector
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Printing the J0 matrix
    !
    !> @author
    !> Jonathan Chico
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    subroutine print_J0(NA, J0_matrix)
 
       use Constants
@@ -566,5 +616,54 @@ contains
       write (ofileno,'(a)')  " "
 
    end subroutine print_J0
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Printing site resolved information in random alloys
+   !
+   !> @author
+   !> Lars Bergqvist
+   !---------------------------------------------------------------------------------
+	subroutine print_random_stiffness(natom,NA,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,	&
+		J0_matrix_alloy)
+
+      use Constants
+      implicit none
+
+      ! .. Input variables
+      integer, intent(in) :: natom  !< Number of atoms
+      integer, intent(in) :: NA  !< Number of atoms in one cell
+
+      real(dblprec), dimension(natom), intent(in) :: Axc_fit_alloy !< Exchange stiffness matrix
+      real(dblprec), dimension(natom), intent(in) :: Dxc_fit_alloy !< Spin wave  stiffness matrix
+      real(dblprec), dimension(natom), intent(in) :: Tc_alloy !< Tc-MFA matrix
+      real(dblprec), dimension(NA,NA,natom), intent(in) :: J0_matrix_alloy !< Exchange matrix
+
+      ! .. Local variables
+      integer :: ii,jj
+      real(dblprec) :: temp_J0
+
+      write (ofileno,'(a)')  " "
+      write (ofileno,'(a)') "*** Supercell averaged properties *******************************"
+      write (ofileno,'(a)') "*****************************************************************"
+      write (ofileno,'(a,f10.4,a)') "Exchange stiffness:   ",sum(Axc_fit_alloy)/natom,"  pJ/m"
+      write (ofileno,'(a,f10.4,a)') "Spin wave  stiffness: ",sum(Dxc_fit_alloy)/natom,"  meVÅ^2"
+      write (ofileno,'(a,f10.2,a)') "Tc-MFA:               ",sum(Tc_alloy)/natom,"  K"
+      write (ofileno,'(a)') "J0 VECTOR [meV]:"
+      do ii=1, NA
+         temp_J0=0.0_dblprec
+         do jj=1, NA
+            temp_J0=temp_J0+sum(J0_matrix_alloy(ii,jj,:))/natom
+         enddo
+         write (ofileno,'(2x,i6,2x,f10.3)') ii, temp_J0*ry_ev
+      enddo
+
+      write (ofileno,'(a)')  " "
+      write (ofileno,'(a)') "*** Site resolved properties *************************************"
+      write (ofileno,'(a)') " atom       A_xc[pJ/m] D_xc[meVÅ^2] Tc-MFA[K]                "
+      do ii=1,natom
+          write (ofileno,'(2x,i6,2x,f10.4,2x,f10.4,2x,f10.2)') ii,Axc_fit_alloy(ii),Dxc_fit_alloy(ii),Tc_alloy(ii)
+      enddo
+   end subroutine print_random_stiffness
 
 end module prn_micromagnetic

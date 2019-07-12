@@ -24,7 +24,7 @@ module QHB
 contains
 
    !> Rescaling of QHB using quasiharmonic approximation
-   subroutine qhb_rescale(temperature,temprescale,domode,mode,mag)
+   subroutine qhb_rescale(temperature,temprescale,temprescalegrad,domode,mode,mag)
       use Constants, only : k_bolt_ev
       use AMS, only : magdos, tcmfa, tcrpa, msat, magdos_freq
 
@@ -32,86 +32,109 @@ contains
 
       real(dblprec),intent(in) :: temperature
       real(dblprec),intent(out) :: temprescale
+      real(dblprec),intent(out) :: temprescalegrad
       character(len=1),intent(in) :: domode
       character(len=2),intent(in) :: mode
       real(dblprec),intent(in) :: mag
 
 
-      real(dblprec) :: emin,emax,chb,qhb,deltae,beta,fac,cfac
+      real(dblprec) :: emin,emax,chb,qhb,deltae,beta,fac,cfac,tcrit,ecut,dT,Tg
       real(dblprec),dimension(magdos_freq) :: mdos,edos,qint
-      integer :: k
+      real(dblprec),dimension(-2:2) :: Tresc
+      integer :: i
 
-      mdos=0.d0 ; edos=0.d0
-      !      beta=1.d0/3.d0                       !beta critical exponent (3D)
-      beta=0.365d0                      !beta critical exponent (3D)
+      mdos=0.0_dblprec ; edos=0.0_dblprec ; dT=1.0_dblprec
+      beta=0.3650_dblprec         !beta critical exponent (3D)
       emin=minval(magdos(:,1))
       emax=maxval(magdos(:,1))
       deltae=(emax-emin)/(magdos_freq-1)
-      fac=1.0d0
+      fac=1.0_dblprec
+      if (mode=='TM') then
+         tcrit=tcmfa
+      elseif(mode=='TR') then
+         tcrit=tcrpa
+      elseif(mode=='TC') then
+         tcrit=tcurie
+      endif
 
-      if (do_qhb=='Q' .or. do_qhb=='R') then
-         if (mode=='TM') then
-            if (temperature < tcmfa) then
-               fac=(1.d0-temperature/tcmfa)**beta
+      if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P') then
+         do i=-2,2
+            Tg=temperature+i*dT
+            if (Tg <= 0.0_dblprec) Tg=dbl_tolerance
+            if (mode=='MT') then
+               fac=mag/msat
             else
-               fac=-1.d0
+               if (Tg < tcrit) then
+                  fac=(1.0_dblprec-Tg/tcrit)**beta
+               else
+                  fac=-1.0_dblprec
+               endif
             endif
-         elseif(mode=='TR') then
-            if (temperature < tcrpa) then
-               fac=(1.d0-temperature/tcrpa)**beta
-            else
-               fac=-1.d0
-            endif
-         elseif(mode=='TC') then
-            if (temperature < tcurie) then
-               fac=(1.d0-temperature/tcurie)**beta
-            else
-               fac=-1.d0
-            endif
-         elseif(mode=='MT') then
-            fac=mag/msat
-         endif
-         if (fac>0) then
-            chb=k_bolt_ev*temperature*1000d0
-            if(do_qhb=='Q') then
-               mdos=magdos(:,2)/fac
-               edos=magdos(:,1)*fac
-               qint=edos(:)/(exp(edos(:)/chb)-1.d0)
-               qint(1)=chb
-               qhb=sum(qint(:)*mdos(:))*deltae*fac
-               temprescale=qhb/chb
-            else
-               ! Enforce classical statistics at Tdebye with additional renormalization
-               qint=magdos(:,1)/(exp(magdos(:,1)/emax)-1.d0)
-               qint(1)=emax
-               cfac=(sum(qint(:)*magdos(:,2))*deltae)/emax
-               mdos=magdos(:,2)/fac/cfac
+            if (fac>0) then
+               chb=k_bolt_ev*Tg*1000
+               if(do_qhb=='Q') then
+                  mdos=magdos(:,2)/fac
+                  edos=magdos(:,1)*fac
+                  qint=edos(:)/(exp(edos(:)/chb)-1.0_dblprec)
+                  qint(1)=chb
+                  qhb=sum(qint(:)*mdos(:))*deltae*fac
+                  Tresc(i)=qhb/chb
+               elseif(do_qhb=='R') then
+                  ! Enforce classical statistics at Tdebye with additional renormalization
+                  qint=magdos(:,1)/(exp(magdos(:,1)/emax)-1.0_dblprec)
+                  qint(1)=emax
+                  cfac=(sum(qint(:)*magdos(:,2))*deltae)/emax
+                  mdos=magdos(:,2)/fac/cfac
+                  !--------
+                  edos=magdos(:,1)*fac*cfac
+                  qint=edos(:)/(exp(edos(:)/chb)-1.0_dblprec)
+                  qint(1)=chb
+                  qhb=sum(qint(:)*mdos(:))*deltae*fac*cfac
+                  Tresc(i)=qhb/chb
+                  if (Tresc(i) > 1.0_dblprec) Tresc(i)=1.0_dblprec
+               else
+                  ! Enforce classical statistics at Tdebye with additional renormalization
+                  ecut=k_bolt_ev*tcrit*1000.0_dblprec
+                  qint=magdos(:,1)/(exp(magdos(:,1)/ecut)-1.0_dblprec)
+                  qint(1)=ecut
+                  cfac=(sum(qint(:)*magdos(:,2))*deltae)/ecut
+!               mdos=magdos(:,2)/fac/cfac
+                  mdos=magdos(:,2)/cfac
                !--------
-               edos=magdos(:,1)*fac
-               qint=edos(:)/(exp(edos(:)/chb)-1.d0)
-               qint(1)=chb
-               qhb=sum(qint(:)*mdos(:))*deltae*fac
-               temprescale=qhb/chb
-               if (temprescale > 1.d0) temprescale=1.d0
+!               edos=magdos(:,1)*fac
+                  edos=magdos(:,1)
+                  qint=edos(:)/(exp(edos(:)/chb)-1.0_dblprec)
+                  qint(1)=chb
+                  qhb=sum(qint(:)*mdos(:))*deltae
+!               qhb=sum(qint(:)*mdos(:))*deltae*fac
+                  Tresc(i)=qhb/chb
+                  if (Tresc(i) > 1.0_dblprec) Tresc(i)=1.0_dblprec
+               endif
+            else
+               Tresc(i)=1.0_dblprec
             endif
-         else
-            temprescale=1.d0
-         endif
+         enddo
+         temprescale=Tresc(0)
+         temprescalegrad=max(0.0_dblprec,((1.0_dblprec/12.0_dblprec)*(Tresc(-2)-Tresc(2))+(2.0_dblprec/3.0_dblprec)*(Tresc(1)-Tresc(-1)))/dT)
       else    ! use m-DOS from SQW or BLS, direct integration
-         chb=k_bolt_ev*temperature*1000
-         qint(:)=magdos(:,1)/(exp(magdos(:,1)/chb)-1.d0)
-         qint(1)=chb
-         qhb=sum(qint*magdos(:,2))*deltae
-         temprescale=qhb/chb
+         do i=-2,2
+            Tg=temperature+i*dT
+            if (Tg <= 0.0_dblprec) Tg=dbl_tolerance
+            chb=k_bolt_ev*Tg*1000
+            qint(:)=magdos(:,1)/(exp(magdos(:,1)/chb)-1.0_dblprec)
+            qint(1)=chb
+            qhb=sum(qint*magdos(:,2))*deltae
+            Tresc(i)=qhb/chb
+         enddo
+         temprescale=Tresc(0)
+         temprescalegrad=max(0.0_dblprec,((1.0_dblprec/12.0_dblprec)*(Tresc(-2)-Tresc(2))+(2.0_dblprec/3.0_dblprec)*(Tresc(1)-Tresc(-1)))/dT)
       endif
 
       if (mode=='MT') then
       else
-         write(*,3001) 'Temperature rescaling from Quantum Heat Bath:',temprescale, 'T_sim: ', temprescale*temperature
+         write(*,3001) 'Temperature rescaling from Quantum Heat Bath:',temprescale, 'T_sim: ', temprescale*temperature, 'dx/dt: ',temprescalegrad
       endif
-
-      3001 format (2x,a,f10.4,2x,a,f7.2)
-      3002 format (2x,f9.5,2x,f9.5,2x,f9.5,2x,f9.5)
+      3001 format (2x,a,f10.4,2x,a,f7.2,2x,a,f8.4)
    end subroutine qhb_rescale
 
    subroutine init_qhb()

@@ -26,7 +26,6 @@ Temp      100.00          K                     Temperature of the system
 hfield    0.00000   0.00000   0.00000           Static H field
 
 damping   0.50                                  damping parameter (gamma)
-mcnstep   100000                                Number of time-steps
 nstep   10000                                Number of time-steps
 timestep  1.000e-17       s                     The time step-size for the SDE-solver
 

@@ -12,7 +12,13 @@ do
 
    export OMP_NUM_THREADS=1
    sed "s/MODE/$mode/g" inpsd.dat.base > inpsd.dat
-   #/home/andersb/SD/UppASD_3.2/source/sd | tee out.$mode
+   if [ "$mode" != "S" ]
+   then
+       sed -i'' -e "s/ip_nphase/#ip_nphase/g" inpsd.dat
+       sed -i'' -e "s/Nstep/mcNstep/g" inpsd.dat
+   else
+       sed -i'' -e "s/ip_mcanneal/#ip_mcanneal/g" inpsd.dat
+   fi
    $SD_BINARY | tee out.$mode
    cp ./averages.bcc_Fe_T.out averages.$mode
    cp ./cumulants.bcc_Fe_T.out cumulants.$mode

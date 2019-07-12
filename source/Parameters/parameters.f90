@@ -11,6 +11,7 @@ module Parameters
 
    integer, parameter :: snglprec = selected_real_kind(6, 37)  !< define precision for single reals
    integer, parameter :: dblprec = selected_real_kind(15, 307)  !< define precision for double reals
+   !integer, parameter :: dblprec = selected_real_kind(6, 37)  !< define precision for single reals
    integer, parameter :: qdprec = selected_real_kind(33, 4931)  !< define precision for quad reals
    integer, parameter :: long = selected_int_kind(range(1)*2)   !< define long integer
    real(dblprec) :: dbl_tolerance=1e-14 !!! Note this is used for both ne and eq as > or < comparisons
@@ -22,10 +23,8 @@ module Parameters
    integer, parameter :: ofileno2 = 67 !< File handle number for output files
    integer, parameter :: ofileno3 = 68 !< File handle number for output files
 
-   integer :: block_size = 1
-
    public
-   !!#ifdef ( __PATHSCALE__
+!!#ifdef ( __PATHSCALE__
 #if (defined __PATHSCALE__) || (defined __PGIF90__ ) || ( defined __GFORTRAN__ )
 contains
 

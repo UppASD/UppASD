@@ -22,7 +22,6 @@ contains
       integer, intent(in) :: Natom         !< Number of atoms in the system
       integer, intent(in) :: sstep         ! Simulation step in logarithmic scale
       integer, intent(in) :: mstep         !< Current simulation step
-      !    integer, intent(in) :: mcnstep       !< Total number of simulation steps
       integer, intent(in) :: Mensemble     !< Number of ensembles
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom !< Current unit magnetic moment
       character(len=8), intent(in) :: simid             !< Simulation ID
@@ -84,7 +83,6 @@ contains
       integer :: k_ensem, trial_vert
       real(dblprec) :: total_trial,ice_count,ice_count_up,ice_count_down
 
-
       do k_ensem=1, Mensemble
 
          do trial_vert=1, Nvertex
@@ -122,12 +120,11 @@ contains
          do k_ensem=1, Mensemble
             do trial_vert=1, Nvertex
                if (ice_rule_buffer(trial_vert,k_ensem,j_buffer)) then
-                  write (ofileno,10002) int(indxb_vertex(j_buffer)), trial_vert, ice_count_buffer(trial_vert,k_ensem,j_buffer), total_trial_buffer(trial_vert,k_ensem,j_buffer),1.0d0
+                  write (ofileno,10002) int(indxb_vertex(j_buffer)), trial_vert, ice_count_buffer(trial_vert,k_ensem,j_buffer), total_trial_buffer(trial_vert,k_ensem,j_buffer),1.0_dblprec
                else
-                  write (ofileno,10002) int(indxb_vertex(j_buffer)), trial_vert, ice_count_buffer(trial_vert,k_ensem,j_buffer), total_trial_buffer(trial_vert,k_ensem,j_buffer),-1.0d0
+                  write (ofileno,10002) int(indxb_vertex(j_buffer)), trial_vert, ice_count_buffer(trial_vert,k_ensem,j_buffer), total_trial_buffer(trial_vert,k_ensem,j_buffer),-1.0_dblprec
                end if
             end do
-
          end do
       enddo
       close(ofileno)
@@ -162,8 +159,8 @@ contains
       open(ofileno,file=filn,position="append")
       do i=1, bcount_vertex
          do k=1, Mensemble
-            accept_rate=mchits*1.0d0/(mcnstep*Natom)
-            accept_rate_ice=mchits_spin_ice*1.0d0/(mcnstep*Natom)
+            accept_rate=mchits*1.0_dblprec/(mcnstep*Natom)
+            accept_rate_ice=mchits_spin_ice*1.0_dblprec/(mcnstep*Natom)
             write (ofileno,'(i8,i8,es16.8,es16.8,i8,es16.8)') int(indxb_vertex(i)), k, accept_rate, accept_rate_ice, ver_no+temp_ver, loop_ave_len
 
          enddo

@@ -1,9 +1,9 @@
+!------------------------------------------------------------------------------------
+! MODULE: prn_trajectories 
 !> Data and routines necessary for printing the trajectories of inidividual atomic moments
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License
+!------------------------------------------------------------------------------------
 module prn_trajectories
 
    use Parameters
@@ -15,10 +15,10 @@ module prn_trajectories
    integer :: ntraj         !< Number of trajectories to sample
    integer :: tottraj_step  !< Interval for sampling magnetic moments
    integer :: tottraj_buff  !< Buffer size for magnetic moments
+   character(len=1) :: do_tottraj !< Measure magnetic moments
    integer, dimension(:), allocatable :: traj_step !< Interval for sampling individual trajectories
    integer, dimension(:), allocatable :: traj_buff !< Buffer size for individual trajectories
    integer, dimension(:), allocatable :: traj_atom !< List of atoms to sample trajectories for
-   character(len=1) :: do_tottraj !< Measure magnetic moments
 
    ! Measurement variables
    integer :: bcount_tottraj !< Counter of buffer for moments
@@ -28,7 +28,7 @@ module prn_trajectories
    real(dblprec), dimension(:), allocatable :: scount_traj      !< Counter of sampling for trajectories
    real(dblprec), dimension(:,:), allocatable :: indxb_traj     !< Step counter for individual trajectories
    real(dblprec), dimension(:,:,:), allocatable :: mmomb        !< Buffer for all moment magnitudes
-   real(dblprec), dimension(:,:,:), allocatable :: mmomb_traj    !< Buffer for selected moment magnitudes
+   real(dblprec), dimension(:,:,:), allocatable :: mmomb_traj   !< Buffer for selected moment magnitudes
    real(dblprec), dimension(:,:,:,:), allocatable :: emomb      !< Buffer for all individual trajectories
    real(dblprec), dimension(:,:,:,:), allocatable :: emomb_traj !< Buffer for selected individual trajectories
 
@@ -39,8 +39,12 @@ module prn_trajectories
 
 contains
 
-   !> Wrapper routine to print all the trajectories
-   subroutine print_trajectories(Natom,sstep,mstep,Mensemble,emom,mmom,delta_t,real_time_measure,simid)
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: print_trajectories
+   !> @brief Wrapper routine to print all the spin trajectories 
+   !---------------------------------------------------------------------------------
+   subroutine print_trajectories(Natom,sstep,mstep,Mensemble,emom,mmom,delta_t,     &
+      real_time_measure,simid,do_mom_legacy,mode)
 
       implicit none
 
@@ -48,11 +52,13 @@ contains
       integer, intent(in) :: sstep         ! Simulation step in logarithmic scale
       integer, intent(in) :: mstep         !< Current simulation step
       integer, intent(in) :: Mensemble     !< Number of ensembles
+      character(len=1), intent(in) :: mode   !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
+      character(len=8), intent(in) :: simid             !< Simulation ID
+      character(len=1), intent(in) :: do_mom_legacy      !< Flag to print/read moments in legacy output
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time   
       real(dblprec), intent(in) :: delta_t !< Time step for real time measurement
       real(dblprec), dimension(Natom, Mensemble), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emom   !< Current unit moment vector
-      character(len=8), intent(in) :: simid             !< Simulation ID
-      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
       !.. Local variables
       integer :: i
@@ -61,15 +67,13 @@ contains
       if (do_tottraj=='Y') then
 
          if (mod(sstep-1,tottraj_step)==0) then
-
             ! Write step to buffer
-            call buffer_tottraj(Natom, Mensemble, mstep-1, emom, mmom, &
-               bcount_tottraj,delta_t,real_time_measure)
-
+            call buffer_tottraj(Natom,Mensemble,mstep-1,emom,mmom,bcount_tottraj,   &
+               delta_t,real_time_measure)
             if (bcount_tottraj==tottraj_buff) then
-
                !Write buffer to file
-               call prn_tottraj(Natom, Mensemble, simid,real_time_measure)
+               call prn_tottraj(Natom, Mensemble, simid,real_time_measure,mmom,     &
+                  do_mom_legacy,mode)
                bcount_tottraj=1
             else
                bcount_tottraj=bcount_tottraj+1
@@ -83,14 +87,12 @@ contains
       if(ntraj>0) then
          do i=1,ntraj
             if (mod(sstep-1,traj_step(i))==0) then
-
                ! Write step to buffer
-               call buffer_traj(Natom, Mensemble,mstep-1, emom, mmom, i, ntraj, &
-                  traj_atom, bcount_traj(i),delta_t,real_time_measure)
+               call buffer_traj(Natom,Mensemble,mstep-1,emom,mmom,i,ntraj,traj_atom,&
+                  bcount_traj(i),delta_t,real_time_measure)
                scount_traj(i)=1
-
                if (bcount_traj(i)==traj_buff(i)) then
-                  call prn_traj(Mensemble, simid, ntraj, traj_atom, i,real_time_measure)
+                  call prn_traj(Mensemble,simid,ntraj,traj_atom,i,real_time_measure)
                   bcount_traj(i)=1
                else
                   bcount_traj(i)=bcount_traj(i)+1
@@ -103,7 +105,10 @@ contains
 
    end subroutine print_trajectories
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: traj_init
    !> Initialization of variables with default variables for the trajectories
+   !---------------------------------------------------------------------------------
    subroutine traj_init()
 
       implicit none
@@ -113,27 +118,34 @@ contains
       tottraj_step = 1000
       tottraj_buff = 10
 
-
    end subroutine traj_init
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: flush_trajectories
    !> Flush the trajectory measurements, i.e. print to file in the last iteration
-   subroutine flush_trajectories(Natom,Mensemble,simid,real_time_measure)
+   !---------------------------------------------------------------------------------
+   subroutine flush_trajectories(Natom,Mensemble,simid,real_time_measure,mmom,      &
+      do_mom_legacy,mode)
 
       implicit none
 
       integer, intent(in) :: Natom     !< Number of atoms in the system
       integer, intent(in) :: Mensemble !< Number of ensembles
+      character(len=1), intent(in) :: mode   !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
       character(len=8), intent(in) :: simid             !< Simulation name ID
+      character(len=1), intent(in) :: do_mom_legacy      !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: real_time_measure !< Perfomr measurements in real time
+      real(dblprec), dimension(Natom, Mensemble), intent(in) :: mmom     !< Magnitude of magnetic moments
 
       !.. Local variables
       integer :: i
 
       ! All trajectories are printed to file in the last iteration
       if (do_tottraj=='Y') then
-         !Write buffer to file
+         !Write buffer to file  
          bcount_tottraj=bcount_tottraj-1
-         call prn_tottraj(Natom, Mensemble, simid,real_time_measure)
+         call prn_tottraj(Natom, Mensemble, simid,real_time_measure,mmom,           &
+            do_mom_legacy,mode)
       endif
 
       !  Selected trajectories are printed to file in the last iteration
@@ -147,7 +159,10 @@ contains
 
    end subroutine flush_trajectories
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINES: allocate_trajectories
    !> Allocate and initialize the variables needed for printing the trajectories
+   !---------------------------------------------------------------------------------
    subroutine allocate_trajectories(Natom,Mensemble,flag)
 
       implicit none
@@ -163,25 +178,32 @@ contains
          if (ntraj>0) then
             allocate(scount_traj(ntraj),stat=i_stat)
             call memocc(i_stat,product(shape(scount_traj))*kind(scount_traj),'scount_traj','allocate_trajectories')
+            scount_traj=0
             allocate(bcount_traj(ntraj),stat=i_stat)
             call memocc(i_stat,product(shape(bcount_traj))*kind(bcount_traj),'bcount_traj','allocate_trajectories')
+            bcount_traj=0
             allocate(emomb_traj(3,maxval(traj_buff),ntraj,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(emomb_traj))*kind(emomb_traj),'emomb_traj','allocate_trajectories')
+            emomb_traj=0.0_dblprec
             allocate(mmomb_traj(maxval(traj_buff),ntraj,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mmomb_traj))*kind(mmomb_traj),'mmomb_traj','allocate_trajectories')
+            mmomb_traj=0.0_dblprec
             allocate(indxb_traj(maxval(traj_buff),ntraj),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_traj))*kind(indxb_traj),'indxb_traj','allocate_trajectories')
+            indxb_traj=0
          endif
 
          if (do_tottraj=='Y') then
             allocate(mmomb(Natom,tottraj_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mmomb))*kind(mmomb),'mmomb','allocate_trajectories')
+            mmomb=0.0_dblprec
             allocate(emomb(3,Natom,tottraj_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(emomb))*kind(emomb),'emomb','allocate_trajectories')
+            emomb=0.0_dblprec
             allocate(indxb(tottraj_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb))*kind(indxb),'indxb','allocate_trajectories')
+            indxb=0
          endif
-
 
          !.. Initiate trajectory measurements counters
          do i=1,ntraj
@@ -196,7 +218,6 @@ contains
       else
 
          if (do_tottraj=='Y'.or. ntraj>0) then
-
 
             if (do_tottraj=='Y') then
                i_all=-product(shape(mmomb))*kind(mmomb)
@@ -228,26 +249,27 @@ contains
                call memocc(i_stat,i_all,'indxb_traj','allocate_trajectories')
             endif
          endif
-
       endif
-
 
    end subroutine allocate_trajectories
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: buffer_tottraj
    !> Buffer all moments
-   subroutine buffer_tottraj(Natom, Mensemble, mstep, emom, mmom, &
-         bcount_tottraj,delta_t,real_time_measure)
+   !---------------------------------------------------------------------------------
+   subroutine buffer_tottraj(Natom,Mensemble,mstep,emom,mmom,bcount_tottraj,delta_t,&
+      real_time_measure)
 
       implicit none
 
       integer, intent(in) :: mstep     !< Current simulation step
       integer, intent(in) :: Natom     !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: Mensemble !< Number of ensembles 
       integer, intent(in) :: bcount_tottraj !< Counter of buffer for moments
       real(dblprec), intent(in) :: delta_t  !< Current time step (used for real time measurements)
+      character(len=1), intent(in) :: real_time_measure   !< Real time measurement flag
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom   !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom !< Current unit moment vector
-      character(len=1), intent(in) :: real_time_measure   !< Real time measurement flag
 
       !.. Local variables
       integer :: i,k
@@ -267,46 +289,58 @@ contains
 
    end subroutine buffer_tottraj
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: prn_tottraj
    !> Print all moments to file
-   subroutine prn_tottraj(Natom, Mensemble, simid,real_time_measure)
+   !---------------------------------------------------------------------------------
+   subroutine prn_tottraj(Natom,Mensemble,simid,real_time_measure,mmom,             &
+      do_mom_legacy,mode)
       !
       !.. Implicit declarations
+      use restart, only : prn_mag_conf, prn_tottraj_legacy
       implicit none
 
       integer, intent(in) :: Natom     !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      character(len=8), intent(in) :: simid             !< Name of simulation
+      integer, intent(in) :: Mensemble !< Number of ensembles 
+      character(len=1), intent(in) :: mode   !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
+      character(len=8), intent(in) :: simid             !< Name of simulation 
+      character(len=1), intent(in) :: do_mom_legacy      !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom   !< Magnitude of magnetic moments
 
       !.. Local variables
-      integer :: i, j
+      integer :: i, j,k
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''moment.'',a8,''.out'')') simid
-      open(ofileno, file=filn, position="append")
-      do i=1, bcount_tottraj
-         do j=1, Natom
-            if (real_time_measure=='Y') then
-               write (ofileno,10003) indxb(i), j, emomb(1,j,i,Mensemble), emomb(2,j,i,Mensemble), emomb(3,j,i,Mensemble), &
-                  emomb(1,j,i,1)**2+emomb(2,j,i,1)**2+emomb(3,j,i,1)**2
-            else
-               write (ofileno,10002) int(indxb(i)), j, emomb(1,j,i,Mensemble), emomb(2,j,i,Mensemble), emomb(3,j,i,Mensemble), &
-                  emomb(1,j,i,1)**2+emomb(2,j,i,1)**2+emomb(3,j,i,1)**2
-            endif
-         end do
-      end do
-      close(ofileno)
+
+      if (do_mom_legacy.ne.'Y') then 
+         if (real_time_measure=='Y') then
+            do i=1, bcount_tottraj
+               call prn_mag_conf(Natom,indxb(i),Mensemble,'M',simid,mmom,           &
+               emomb(:,:,i,:),'',mode)
+            enddo
+         else
+            do i=1, bcount_tottraj
+               call prn_mag_conf(Natom,int(indxb(i)),Mensemble,'M',simid,mmom,      &
+               emomb(:,:,i,:),'',mode)
+            enddo
+         endif
+      else
+         call prn_tottraj_legacy(Natom,Mensemble,tottraj_buff,bcount_tottraj,simid, &
+            real_time_measure,indxb,emomb)
+      endif
       return
       write (*,*) "Error writing the total trajectories file"
-      10002 format (i8,2x,i8,2x,2x, es16.8E3,2x,es16.8E3,2x,es16.8E3,2x,es16.8E3)
-      10003 format (es16.4,2x,i8,2x,2x, es16.8,es16.8,es16.8,es16.8)
 
    end subroutine prn_tottraj
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: buffer_traj
    !> Buffer selected trajectories
-   subroutine buffer_traj(Natom, Mensemble,mstep, emom, mmom, traj, ntraj, &
-         traj_atom, bcount,delta_t,real_time_measure)
+   !---------------------------------------------------------------------------------
+   subroutine buffer_traj(Natom,Mensemble,mstep,emom,mmom,traj,ntraj,traj_atom,     &
+      bcount,delta_t,real_time_measure)
 
       implicit none
 
@@ -316,13 +350,13 @@ contains
       integer, intent(in) :: mstep  !< Current simulation step
       integer, intent(in) :: bcount !< Counter of buffer
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in), dimension(ntraj) :: traj_atom  !< List of atoms to sample trajectories for
       real(dblprec), intent(in) :: delta_t                !< Current time step (used for real time measurements)
+      character(len=1), intent(in) :: real_time_measure   !< Real time measurement flag
+      integer, intent(in), dimension(ntraj) :: traj_atom  !< List of atoms to sample trajectories for    
       real(dblprec), dimension(Natom,Mensemble) :: mmom   !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Natom,Mensemble) :: emom !< Current unit moment vector
-      character(len=1), intent(in) :: real_time_measure   !< Real time measurement flag
 
-      integer :: k !< Current ensemble
+      integer :: k !< Current ensemble 
 
       do k=1, Mensemble
          emomb_traj(1:3,bcount,traj,k)=emom(1:3,traj_atom(traj),k)
@@ -337,7 +371,10 @@ contains
 
    end subroutine buffer_traj
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: prn_traj
    !> Print selected trajectories
+   !---------------------------------------------------------------------------------
    subroutine prn_traj(Mensemble, simid, ntraj, traj_atom, traj,real_time_measure)
       !
       !.. Implicit declarations
@@ -345,9 +382,9 @@ contains
 
       integer, intent(in) :: traj      !< Trajectory number
       integer, intent(in) :: ntraj     !< Number of trajectories to sample
-      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: Mensemble !< Number of ensembles 
       integer, intent(in), dimension(ntraj) :: traj_atom !< List of atoms to sample trajectories for
-      character(len=8), intent(in) :: simid              !< Name of simulation
+      character(len=8), intent(in) :: simid              !< Name of simulation 
       character(len=1), intent(in) :: real_time_measure  !< Measurements displayed in real time
 
       !.. Local variables
@@ -357,11 +394,7 @@ contains
 
       !.. Executable statements
       do j=1, Mensemble
-         if (traj<10) then
-            write (filn,'(''trajectory.'',a8,''.'',i1,''.'',i1,''.out'')') simid, traj, j
-         else
-            write (filn,'(''trajectory.'',a8,''.'',i2,''.'',i1,''.out'')') simid, traj, j
-         endif
+         write (filn,'(''trajectory.'',a8,''.'',i1,''.'',i1,''.out'')') simid, traj, j
          open(ofileno, file=filn, position="append")
          do i=1, bcount_traj(traj)
             tempmx = emomb_traj(1,i,traj,j)

@@ -1,4 +1,4 @@
-!-------------------------------------------------------------------------------
+!------------------------------------------------------------------------------------
 ! MODULE: Energy
 !> @brief Routine for calculating the total energy of the system
 !> @author Anders Bergman, Lars Bergqvist, Johan Hellsvik
@@ -12,745 +12,540 @@
 !! This file is distributed under the terms of the
 !! GNU General Public License.
 !! See http://www.gnu.org/copyleft/gpl.txt
-!-------------------------------------------------------------------------------
+!------------------------------------------------------------------------------------
 module Energy
    use Parameters
    use Profiling
-   !  use Ewaldmom
+   use ErrorHandling
+   use Constants
+   use HamiltonianData
+   use HamiltonianActions
+   use DipoleManager, only : dipole_field_calculation,calc_macro_energy
+
    implicit none
+
+   type ene_t
+   ! Separated energy contributions
+   real(dblprec), dimension(:), allocatable :: ene_xc
+   real(dblprec), dimension(:), allocatable :: ene_dm
+   real(dblprec), dimension(:), allocatable :: ene_bq
+   real(dblprec), dimension(:), allocatable :: ene_pd
+   real(dblprec), dimension(:), allocatable :: ene_chir
+   real(dblprec), dimension(:), allocatable :: ene_dip
+   real(dblprec), dimension(:), allocatable :: ene_ani
+   real(dblprec), dimension(:), allocatable :: ene_lsf
+   real(dblprec), dimension(:), allocatable :: ene_ext
+   real(dblprec), dimension(:), allocatable :: ene_pair
+   real(dblprec), dimension(:), allocatable :: ene_bqdm
+   ! Total energy
+   real(dblprec), dimension(:), allocatable :: energy
+   end type ene_t
+
+   type(ene_t) :: ene
 
    public
 
 contains
 
-
-   !-----------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    ! SUBROUTINE: calc_energy
    !> @brief Calculates the total energy and the term projected contributions to the energy
-   !> @todo Check consistency with the effective field calculation in heisge()
-   !> @todo Replace use of unit length magnetic vectors emom to full length vectors emomM
-   !-----------------------------------------------------------------------------
-   subroutine calc_energy(Natom, Nchmax, Mensemble, conf_num, emom, emomM, mmom,simid, &
-         plotenergy, mstep, extfield,time_external_fields,tenergy, eenergy, lsfenergy, &
-         totene,max_no_neigh, nlistsize, nlist, ncoup, ncoupD,exc_inter, &
-         do_dm, max_no_dmneigh, dmlistsize, dmlist, dm_vect, &
-         do_pd, nn_pd_tot, pdlistsize, pdlist, pd_vect, &
-         do_biqdm, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, &
-         do_bq, nn_bq_tot, bqlistsize, bqlist, j_bq, &
-         do_dip, qdip, taniso, eaniso, kaniso,sb,&
-         mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
-         delta_t,real_time_measure,&
-         do_lsf,fs_nlist,fs_nlistsize,nind,lsf_interpolate,lsf_field,Temp)
-      !
-      use Constants
-      use LSF, only : totalenergy_LSF
-      !
-      !.. Implicit declarations
+   !> @details This routine makes use of the subroutines defined in the effective_field()
+   !> this should allow for greater consistency in the calculations.
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   subroutine calc_energy(nHam,mstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip, &
+      do_biqdm,conf_num,Mensemble,stop_atom,Num_macro,start_atom,do_jtensor,        &
+      plotenergy,do_anisotropy,Temp,delta_t,do_lsf,exc_inter,mult_axis,lsf_field,   &
+      lsf_interpolate,real_time_measure,simid,cell_index,macro_nlistsize,mmom,emom, &
+      emomM,emomM_macro,external_field,time_external_field,max_no_constellations,   &
+      maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                 &
+      constellationsNeighType,totene,NA,N1,N2,N3)
+
       implicit none
 
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: mstep   !< Current simulation step
-      integer, intent(in) :: Natom   !< Number of atoms in system
-      integer, intent(in) :: Nchmax  !< Number of chemical type
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_biqdm     !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_dmneigh    !< Calculated number of neighbours with DM interactions
-      integer, intent(in) :: nn_pd_tot    !< Calculated number of neighbours with PD interactions
-      integer, intent(in) :: nn_bq_tot    !< Calculated number of neighbours with BQ interactions
+      integer, intent(in) :: NA           !< Number of atoms in one cell
+      integer, intent(in) :: N1           !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2           !< Number of cell repetitions in y direction
+      integer, intent(in) :: N3           !< Number of cell repetitions in z direction
+      integer, intent(in) :: nHam         !< Number of atoms in Hamiltonian
+      integer, intent(in) :: mstep        !< Current simulation step
+      integer, intent(in) :: do_dm        !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_pd        !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_bq        !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Nchmax       !< Number of chemical type
+      integer, intent(in) :: do_chir      !< Add chiral exchange (CHIR) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_dip       !< Calculate dipole-dipole contribution (0=Off, 1= Brute Force, 2=macrocell)
+      integer, intent(in) :: do_biqdm     !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
+      integer, intent(in) :: conf_num     !< number of configurations for LSF
       integer, intent(in) :: Mensemble    !< Number of ensembles
-      integer, intent(in) :: conf_num  !< number of configurations for LSF
+      integer, intent(in) :: stop_atom    !< Atom to end loop for
+      integer, intent(in) :: Num_macro    !< Number of macrocells in the system
+      integer, intent(in) :: start_atom   !< Atom to start loop for
+      integer, intent(in) :: do_jtensor   !< Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
       integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, intent(in) :: nn_biqdm_tot !< Calculated number of neighbours with BIQDM interactions
-      integer, dimension(Natom),intent(in) :: taniso         !< Type of anisotropy (0-2)
-      integer, dimension(Natom),intent(in) :: taniso_diff    !< Type of anisotropy (0-2)
-      integer, dimension(Natom), intent(in) :: nlistsize     !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom), intent(in) :: dmlistsize    !< Size of neighbour list for DM
-      integer, dimension(Natom), intent(in) :: pdlistsize    !< Size of neighbour list for PD
-      integer, dimension(Natom), intent(in) :: bqlistsize    !< Size of neighbour list for BQ
-      integer, dimension(Natom), intent(in) :: biqdmlistsize !< Size of neighbour list for BIQDM
-      integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist         !< List of neighbours for DM
-      integer, dimension(nn_pd_tot,Natom), intent(in) :: pdlist         !< List of neighbours for PD
-      integer, dimension(nn_bq_tot,Natom), intent(in) :: bqlist         !< List of neighbours for BQ
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist       !< Neighbour list for Heisenberg exchange couplings
-      integer, dimension(nn_biqdm_tot,Natom), intent(in) :: biqdmlist   !< List of neighbours for BIQDM
-      real(dblprec), intent(in) :: delta_t            !< Current time step
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between Cubic and Uniaxial anisotropy
-      real(dblprec), dimension(Natom),intent(in) :: sb_diff !< Ratio between Cubic and Uniaxial anisotropy
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso_diff !< Unit anisotropy vector
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso      !< Anisotropy constant
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso_diff !< Anisotropy constant
-      real(dblprec), dimension(nn_bq_tot,Natom), intent(in) :: j_bq !< Biquadratic exchange couplings
-      real(dblprec), dimension(3,3,Natom,Natom), intent(in) :: Qdip !< Matrix for dipole-dipole interaction
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom     !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom    !< Current magnetic moment
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: extfield !< External magnetic field
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_fields !< Time dependent external magnetic field
-      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
-      real(dblprec), dimension(6,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoup  !< Heisenberg exchange couplings
-      real(dblprec), dimension(max_no_neigh,Natom,conf_num), intent(in) :: ncoupD !< Heisenberg exchange couplings (DLM)
-      real(dblprec), dimension(1,nn_biqdm_tot,Natom), intent(in) :: biqdm_vect !< BIQDM exchange couplings
-      character(len=8), intent(in) :: simid !< Name of simulation
-      character(len=1), intent(in) :: mult_axis
+      integer, intent(in) :: do_anisotropy      !< Read anisotropy data (1/0)
+      real(dblprec), intent(in) :: Temp         !< Temperature
+      real(dblprec), intent(in) :: delta_t      !< Current time step
+      character(len=1), intent(in) :: do_lsf    !< Including LSF energy
+      character(len=1), intent(in) :: exc_inter !< Interpolation of Jij (Y/N)
+      character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
+      character(len=1), intent(in) :: lsf_field          !< LSF field contribution (Local/Total)
+      character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
       character(len=1), intent(in) :: real_time_measure  !< Display measurements in real time
-      character(len=1), intent(in)  ::  do_lsf     !< Including LSF energy
-      character(len=1),intent(in) :: exc_inter !< Interpolation of Jij between FM/DLM
-      integer, dimension(:,:), intent(in) :: fs_nlist !< First shell Neighbouring list for centered atom
-      integer, dimension(:), intent(in) :: fs_nlistsize  !< Size of first shell neighbouring list for centered atom
-      integer, dimension(:,:), intent(in) :: nind !< index of firstshell-neighbour-list corresponds to neighbour-list
-      character(len=1), intent(in) :: lsf_interpolate !< Interpolate LSF or not
-      character(len=1), intent(in) :: lsf_field       !< LSF field contribution (Local/Total)
-      real(dblprec), intent(in) :: Temp               !< Temperature
-
-      !.. Subroutine output
-      real(dblprec), dimension(Mensemble), intent(out) :: tenergy !< Total energy
-      real(dblprec), dimension(Mensemble), intent(out) :: eenergy !< Total exchange (transversal) energy
-      real(dblprec), dimension(Mensemble), intent(out) :: lsfenergy !< Total LSF (longitudinal) energy
-      real(dblprec), intent(out) :: totene  !< Total energy
-
-      real(dblprec) :: xu1,xu2
+      character(len=8), intent(in) :: simid              !< Name of simulation
+      integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
+      ! .. Output Variables
+      real(dblprec), intent(out) :: totene !< Total energy
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ Optimization Routines Variables +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
+      integer, dimension(:), intent(in) :: maxNoConstl
+      integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
+      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
+      real(dblprec), dimension(:,:,:), intent(in) :: constellations
+      logical, intent(in) :: OPT_flag
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
+      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ End Region +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       !.. Local scalars
-      integer :: i, j, k, inttype
-
+      integer :: ii,kk,inttype
+      integer :: i_all, i_stat
+      real(dblprec) :: energy_dip
+      real(dblprec) :: ene_ext_m, ene_ext_s, fcinv,fc
+      real(dblprec) :: exc,edm,ebq,edip,eext,epair,ebqdm,epd,eani,echir
+      real(dblprec) :: energy_m, energy_s, ene_ani_m, ene_ani_s, ene_xc_m, ene_xc_s,ene_lsf_m,ene_lsf_s
+      real(dblprec) :: ene_dm_m, ene_dm_s, ene_pd_m, ene_pd_s, ene_bqdm_m, ene_bqdm_s, ene_chir_s
+      real(dblprec) :: ene_bq_m, ene_bq_s, ene_dip_m, ene_dip_s, ene_pair_m,ene_pair_s, ene_chir_m
+   
       !.. Local arrays
-      real(dblprec) :: fcinv,fc
-      real(dblprec), dimension(Mensemble) :: tt
-      real(dblprec), dimension(Mensemble) :: mdot,dmx,dmy,dmz,bqmdot
-      real(dblprec), dimension(Mensemble) :: pdx, pdy, pdz
-      real(dblprec), dimension(Mensemble) :: sxy,syz,szx
-      real(dblprec), dimension(Mensemble) :: tempk1, tempk2, texc
-
-      real(dblprec), dimension(Mensemble) :: fenergy, dmenergy, pdenergy, biqdmenergy, bqenergy, dipenergy
-      real(dblprec), dimension(Mensemble) :: aenergy, aeatom,aeatom2
-
-      real(dblprec) :: tenergym, tenergys, aenergym, aenergys, eenergym, eenergys,lsfenergys,lsfenergym
-      real(dblprec) :: dmenergym, dmenergys, pdenergym, pdenergys, biqdmenergym, biqdmenergys
-      real(dblprec) :: bqenergym, bqenergys, dipenergym, dipenergys
-      real(dblprec) :: fenergym, fenergys, maxfield
       character(len=30) :: filn
-
-      real(dblprec),dimension(3) :: nbsumfield
-
-      real(dblprec) :: excscale !< Interpolation parameter FM/DLM
+      real(dblprec), dimension(3) :: beff_xc,beff_dm,beff_pair,beff_pd,beff_bqdm,beff_mdip, beff_chir
+      real(dblprec), dimension(3) :: beff_bq,beff_dip,beff_tani,beff_ext,beff_ani,beff_cani
+      real(dblprec), dimension(:,:,:), allocatable :: bfield_dip
+      real(dblprec), dimension(:,:,:), allocatable :: site_energy
 
       !.. Executable statements
+      if(OPT_flag) call pre_optimize(Natom,Mensemble,max_no_constellations,maxNoConstl,&
+         constellations,constlNCoup,beff1_constellations,constellationsNeighType)
 
-      ! Initialize energy variables
-      tenergy = 0.0_dblprec       ! Total Energy
-      aenergy = 0.0_dblprec       ! Anisotropy Energy
-      eenergy = 0.0_dblprec     ! Exchange Energy
-      fenergy = 0.0_dblprec     ! Field Energy
-      dmenergy = 0.0_dblprec    ! DM Energy
-      pdenergy = 0.0_dblprec    ! PD Energy
-      biqdmenergy = 0.0_dblprec ! BIQ Energy
-      bqenergy = 0.0_dblprec    ! BQ Energy
-      dipenergy = 0.0_dblprec   ! Dip Energy
-      lsfenergy = 0.0_dblprec   ! LSF Energy
-      ! Factor for energy scale
-      fcinv = mub/mry
+      ! Set the values of all the arrays equal to zero for initialization
+      call reset_arrays()
+
+      if(plotenergy==2) then
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! For site-dependent energies, one large array is used. The indices are as follows:
+         ! 1: Jij, 2: DM, 3: PseudoDip, 4: BiqDM, 5: BiqH, 6: Dipole, 7: Anisotropy, 8: Zeeman. 9: LSF 10: Chiral
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         allocate(site_energy(10,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(site_energy))*kind(site_energy),'site_energy','calc_energy')
+         site_energy=0.0_dblprec
+      end if
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! If one is considering the dipole-dipole interaction one calls the wrapper
+      ! for the calculation of the filed
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if (do_dip>0) then
+         allocate(bfield_dip(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(bfield_dip))*kind(bfield_dip),'bfield_dip','calc_energy')
+         bfield_dip=0.0_dblprec
+         energy_dip=0.0_dblprec
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Wrapper for the calculation of the dipole-dipole interaction field
+         ! The field is stored in the bfield array which then is passed to the main loop
+         ! This is inefficient for the brute-force methods, but it the best way to ensure
+         ! that the FFT approaches can be used in an appropriate way
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         call dipole_field_calculation(NA,N1,N2,N3,Natom,do_dip,Num_macro,          &
+            Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,        &
+            emomM_macro,ham%Qdip,ham%Qdip_macro,energy_dip,bfield_dip)
+      endif
+
+      fcinv=mub/mry
       fc = mry/mub
       inttype=1
-      if (lsf_interpolate=='N') then
+      if (lsf_interpolate=='L') then
          inttype=0
       elseif(lsf_interpolate=='H') then
          inttype=2
+      elseif(lsf_interpolate=='I') then
+         inttype=3
       endif
 
       if (do_lsf=='N') then
+         do kk=1, Mensemble
+            exc   = 0.0_dblprec
+            edm   = 0.0_dblprec
+            ebq   = 0.0_dblprec
+            edip  = 0.0_dblprec
+            eext  = 0.0_dblprec
+            epair = 0.0_dblprec
+            echir = 0.0_dblprec
+            ebqdm = 0.0_dblprec
+            epd   = 0.0_dblprec
+            eani  = 0.0_dblprec
 
-         ! Loop over atoms
-!#ifndef __PATHSCALE__
-#if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)  &&  (!__INTEL_COMPILER >= 1800)
-         !$omp parallel do default(shared),private(i,j,k,mdot,texc,nbsumfield,maxfield,excscale,tt,dmx,dmy,dmz,pdx,pdy,pdz, &
-         !$omp sxy,syz,szx,bqmdot,aeatom,aeatom2,tempk1,tempk2,xu1,xu2), &
-         !$omp reduction(+:eenergy,dmenergy,pdenergy,biqdmenergy,bqenergy,dipenergy,aenergy,fenergy),schedule(static)
+#if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)
+            !$omp parallel do default(shared) schedule(static) private(ii,beff_xc,beff_dm,beff_pd,beff_bq,beff_ext,beff_dip,beff_ani,beff_cani,beff_tani,beff_pair,beff_bqdm,beff_mdip) reduction(+:exc,edm,epair,epd,ebqdm,ebq,edip,eani,eext,beff_chir)
 #endif
-         do i=1, Natom
-            if (exc_inter=='N') then
-               do j=1,nlistsize(i)
-                  ! Calculate exchange energy
-                  mdot(:)=emomM(1,nlist(j,i),:)*emomM(1,i,:)+&
-                     emomM(2,nlist(j,i),:)*emomM(2,i,:)+&
-                     emomM(3,nlist(j,i),:)*emomM(3,i,:)
-                  eenergy(:) = eenergy(:) - ncoup(j,i,1)*mdot(:)
-               end do
-            else
-               nbsumfield(:)=0._dblprec ; maxfield=0.0_dblprec
-               do j=1,nlistsize(i)
-                  nbsumfield(1) = nbsumfield(1) + sum(emomM(1,nlist(j,i),:))
-                  nbsumfield(2) = nbsumfield(2) + sum(emomM(2,nlist(j,i),:))
-                  nbsumfield(3) = nbsumfield(3) + sum(emomM(3,nlist(j,i),:))
-                  maxfield   = maxfield   + sum(mmom(nlist(j,i),:))
-               enddo
-               excscale=sqrt(nbsumfield(1)**2+nbsumfield(2)**2+nbsumfield(3)**2)/maxfield
-               do j=1,nlistsize(i)
-                  ! Calculate exchange energy
-                  texc=excscale*ncoup(j,i,1)+(1.0_dblprec-excscale)*ncoupD(j,i,1)
-                  mdot(:)=emomM(1,nlist(j,i),:)*emomM(1,i,:)+&
-                     emomM(2,nlist(j,i),:)*emomM(2,i,:)+&
-                     emomM(3,nlist(j,i),:)*emomM(3,i,:)
-                  eenergy(:) = eenergy(:) - texc*mdot(:)
-               end do
-            endif
+            do ii=start_atom, stop_atom
 
-            if(do_dm==1) then
-               do j=1,dmlistsize(i)
-                  ! Calculate DM energy
-                  dmx(:) = emomM(3,dmlist(j,i),:)*emomM(2,i,:)-emomM(2,dmlist(j,i),:)*emomM(3,i,:)
-                  dmy(:) = emomM(1,dmlist(j,i),:)*emomM(3,i,:)-emomM(3,dmlist(j,i),:)*emomM(1,i,:)
-                  dmz(:) = emomM(2,dmlist(j,i),:)*emomM(1,i,:)-emomM(1,dmlist(j,i),:)*emomM(2,i,:)
-                  dmenergy(:) = dmenergy(:) + dmx(:)*dm_vect(1,j,i) + dmy(:)*dm_vect(2,j,i) + dmz(:)*dm_vect(3,j,i)
-               end do
-            end if
-            if(do_pd==1) then
-               do j=1,pdlistsize(i)
-                  ! Calculate PD energy
-                  pdx(:) = pd_vect(1,j,i)*emomM(1,i,:)*emomM(1,pdlist(j,i),:)+&
-                     pd_vect(4,j,i)*emomM(1,i,:)*emomM(2,pdlist(j,i),:)+&
-                     pd_vect(5,j,i)*emomM(1,i,:)*emomM(3,pdlist(j,i),:)
-                  pdy(:) = pd_vect(4,j,i)*emomM(2,i,:)*emomM(1,pdlist(j,i),:)+&
-                     pd_vect(2,j,i)*emomM(2,i,:)*emomM(2,pdlist(j,i),:)+&
-                     pd_vect(6,j,i)*emomM(2,i,:)*emomM(3,pdlist(j,i),:)
-                  pdz(:) = pd_vect(5,j,i)*emomM(3,i,:)*emomM(1,pdlist(j,i),:)+&
-                     pd_vect(6,j,i)*emomM(3,i,:)*emomM(2,pdlist(j,i),:)+&
-                     pd_vect(3,j,i)*emomM(3,i,:)*emomM(3,pdlist(j,i),:)
-                  pdenergy(:) = pdenergy(:) - pdx(:) - pdy(:) - pdz(:)
-               end do
-            end if
-            if(do_biqdm==1) then
-               do j=1,biqdmlistsize(i)
-                  !Calculate biqDM energy
-                  sxy(:) = emomM(1,i,:)*emomM(2,biqdmlist(j,i),:)-&
-                     emomM(2,i,:)*emomM(1,biqdmlist(j,i),:)
-                  syz(:) = emomM(2,i,:)*emomM(3,biqdmlist(j,i),:)-&
-                     emomM(3,i,:)*emomM(2,biqdmlist(j,i),:)
-                  szx(:) = emomM(3,i,:)*emomM(1,biqdmlist(j,i),:)-&
-                     emomM(1,i,:)*emomM(3,biqdmlist(j,i),:)
-                  biqdmenergy(:) = biqdmenergy(:) + biqdm_vect(1,j,i)*&
-                     (sxy(:)**2+syz(:)**2+szx(:)**2)
-               end do
-            end if
-            if(do_bq==1) then
-               do j=1,bqlistsize(i)
-                  ! Calculate BQ energy
-                  bqmdot(:)=emomM(1,bqlist(j,i),:)*emomM(1,i,:)+&
-                     emomM(2,bqlist(j,i),:)*emomM(2,i,:)+&
-                     emomM(3,bqlist(j,i),:)*emomM(3,i,:)
-                  bqenergy(:) = bqenergy(:) - j_bq(j,i) * bqmdot(:) * bqmdot(:)
-               end do
-            end if
-            if(do_dip==1) then
-               ! Dipolar contribution to the energy
-               do j=1,Natom
-                  dipenergy(:) = dipenergy(:) - Qdip(1,1,j,i)*emomM(1,i,:)*emomM(1,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(2,1,j,i)*emomM(1,i,:)*emomM(2,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(3,1,j,i)*emomM(1,i,:)*emomM(3,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(1,2,j,i)*emomM(2,i,:)*emomM(1,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(2,2,j,i)*emomM(2,i,:)*emomM(2,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(3,2,j,i)*emomM(2,i,:)*emomM(3,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(1,3,j,i)*emomM(3,i,:)*emomM(1,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(2,3,j,i)*emomM(3,i,:)*emomM(2,j,:)
-                  dipenergy(:) = dipenergy(:) - Qdip(3,3,j,i)*emomM(3,i,:)*emomM(3,j,:)
-               end do
-            end if
+               beff_xc     = 0.0_dblprec
+               beff_dm     = 0.0_dblprec
+               beff_pd     = 0.0_dblprec
+               beff_bq     = 0.0_dblprec
+               beff_ext    = 0.0_dblprec
+               beff_dip    = 0.0_dblprec
+               beff_ani    = 0.0_dblprec
+               beff_cani   = 0.0_dblprec
+               beff_tani   = 0.0_dblprec
+               beff_pair   = 0.0_dblprec
+               beff_bqdm   = 0.0_dblprec
+               beff_mdip   = 0.0_dblprec
+               beff_chir   = 0.0_dblprec
 
-            if (taniso(i)==1) then
+               if(do_jtensor/=1) then
+                  ! Heisenberg exchange term
+                  if(exc_inter=='N') then
+                     call heisenberg_field(ii,kk,beff_xc,Natom,Mensemble,OPT_flag,&
+                        beff1_constellations,unitCellType,emomM,max_no_constellations)
+                     exc=exc+update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     if(plotenergy==2) site_energy(1,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                  else
+                     call heisenberg_rescaling_field(ii,kk,beff_xc,Natom,Mensemble,mmom,emomM)
+                     exc=exc+update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     if(plotenergy==2) site_energy(1,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                  endif
+                  ! Dzyaloshinskii-Moriya term
+                  if(do_dm==1) then
+                     call dzyaloshinskii_moriya_field(ii, kk, beff_dm,Natom,Mensemble,emomM)
+                     edm=edm+update_ene(emomM(1:3,ii,kk),beff_dm,0.5_dblprec)
+                     if(plotenergy==2) site_energy(2,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_dm,0.5_dblprec)
+                  endif
 
-               ! Calculate uniaxial anisotropy energy
-               tt(:) = eaniso(1,i)*emomM(1,i,:)+eaniso(2,i)*emomM(2,i,:)+eaniso(3,i)*emomM(3,i,:)
-               aeatom(:) = (kaniso(1,i)*tt(:)**2) + kaniso(2,i)*(tt(:)**2)**2
+                  beff_pair=beff_xc+beff_dm
+               else
+                  call tensor_field(ii, kk, beff_pair,Natom,Mensemble,emomM)
+                  epair=epair+update_ene(emomM(1:3,ii,kk),beff_pair,0.5_dblprec)
+                  if(plotenergy==2) site_energy(2,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_pair,0.5_dblprec)
+               end if
 
-               aenergy(:) = aenergy(:)+aeatom(:)
-
-            elseif (taniso(i)==2) then
-
-               ! Calculate cubic anisotropy energy
-               tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2 + emomM(2,i,:)**2*emomM(3,i,:)**2 +&
-                  emomM(3,i,:)**2*emomM(1,i,:)**2
-               tempk2(:) = emomM(1,i,:)**2 * emomM(2,i,:)**2 * emomM(3,i,:)**2
-
-               aeatom(:) = -(kaniso(1,i)*tempk1(:) + kaniso(2,i)*tempk2(:))
-
-               aenergy(:) = aenergy(:)+aeatom(:)
-
-               !!! ! ------------------------------------ For Unixial+Cubic -------------------------------------------------
-            elseif (taniso(i)==7) then
-
-               ! Calculate uniaxial anisotropy energy
-               tt(:) = eaniso(1,i)*emomM(1,i,:)+eaniso(2,i)*emomM(2,i,:)+eaniso(3,i)*emomM(3,i,:)
-               aeatom(:) = -(kaniso(1,i)*(1-tt(:)**2) - kaniso(2,i)*(1-tt(:)**2)**2)
-               aenergy(:) = aenergy(:)+aeatom(:)
-
-               ! Calculate cubic anisotropy energy
-               xu1=kaniso(1,i)*sb(i)
-               xu2=kaniso(2,i)*sb(i)
-               tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2 + emomM(2,i,:)**2*emomM(3,i,:)**2 +&
-                  emomM(3,i,:)**2*emomM(1,i,:)**2
-               tempk2(:) = emomM(1,i,:)**2 * emomM(2,i,:)**2 * emomM(3,i,:)**2
-               aeatom(:) = -(xu1*tempk1(:) + xu2*tempk2(:))
-
-            endif
-
-            ! ------------------------------------ Energy Unixial+Cubic -------------------------------------------------$
-            if (mult_axis=='Y') then
-               if (taniso_diff(i)==1) then
-
-                  ! Calculate uniaxial anisotropy energy
-                  tt(:) = eaniso_diff(1,i)*emomM(1,i,:)+eaniso_diff(2,i)*emomM(2,i,:)+eaniso_diff(3,i)*emomM(3,i,:)
-                  aeatom2(:)  = (kaniso_diff(1,i)*tt(:)**2)+kaniso_diff(2,i)*(tt(:)**2)**2
-                  aenergy(:) = aenergy(:)+aeatom2(:)
-
-               elseif (taniso_diff(i)==2) then
-
-                  ! Calculate cubic anisotropy energy
-                  tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2+emomM(2,i,:)**2*emomM(3,i,:)**2+&
-                     emomM(3,i,:)**2*emomM(1,i,:)**2
-                  tempk2(:) = emomM(1,i,:)**2*emomM(2,i,:)**2*emomM(3,i,:)**2
-
-                  aeatom2(:) = -(kaniso_diff(1,i)*tempk1(:)+kaniso_diff(2,i)*tempk2(:))
-
-                  !!!! ------------------------------------ For Unixial+Cubic -------------------------------------------------
-               elseif (taniso_diff(i)==7) then
-                  ! Calculate uniaxial anisotropy energy
-                  tt(:) = eaniso_diff(1,i)*emomM(1,i,:)+eaniso_diff(2,i)*emomM(2,i,:)+eaniso_diff(3,i)*emomM(3,i,:)
-                  aeatom2(:)  = -(kaniso_diff(1,i)*(1-tt(:)**2)-kaniso_diff(2,i)*(1-tt(:)**2)**2)
-                  aenergy(:) = aenergy(:)+aeatom2(:)
-
-                  ! Calculate cubic anisotropy energy
-                  xu1=kaniso_diff(1,i)*sb_diff(i)
-                  xu2=kaniso_diff(2,i)*sb_diff(i)
-                  tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2+emomM(2,i,:)**2*emomM(3,i,:)**2+&
-                     emomM(3,i,:)**2*emomM(1,i,:)**2
-                  tempk2(:) = emomM(1,i,:)**2*emomM(2,i,:)**2*emomM(3,i,:)**2
-                  aeatom(:) = -(xu1*tempk1(:) + xu2*tempk2(:))
-                  aenergy(:) = aenergy(:)+aeatom(:)
+               ! Pseudo-Dipolar term
+               if(do_pd==1) then
+                  call pseudo_dipolar_field(ii, kk, beff_pd,Natom,Mensemble,emomM)
+                  epd=epd+update_ene(emomM(1:3,ii,kk),beff_pd,0.5_dblprec)
+                  if(plotenergy==2) site_energy(3,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_pd,0.5_dblprec)
                endif
 
-            endif
+               ! BIQDM term
+               if(do_biqdm==1) then
+                  call dzyaloshinskii_moriya_bq_field(ii, kk, beff_bqdm,Natom,Mensemble,emomM)
+                  ebqdm=ebqdm+update_ene(emomM(1:3,ii,kk),beff_bqdm,0.5_dblprec)
+                  if(plotenergy==2) site_energy(4,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_bqdm,0.5_dblprec)
+               endif
 
-            ! External field energy
-            do k=1,Mensemble
-               fenergy(k)=fenergy(k)-(extfield(1,i,k)+time_external_fields(1,i,k))*emomM(1,i,k)&
-                  -(extfield(2,i,k)+time_external_fields(2,i,k))*emomM(2,i,k)&
-                  -(extfield(3,i,k)+time_external_fields(3,i,k))*emomM(3,i,k)
+               ! Biquadratic exchange term
+               if(do_bq==1) then
+                  call biquadratic_field(ii, kk, beff_bq,Natom,Mensemble,emomM)
+                  ebq=ebq+update_ene(emomM(1:3,ii,kk),beff_bq,0.25_dblprec)
+                  if(plotenergy==2) site_energy(5,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_bq,0.25_dblprec)
+               endif
+
+               ! Biquadratic exchange term
+               if(do_chir==1) then
+                  call chirality_field(ii, kk, beff_chir,Natom,Mensemble,emomM)
+                  echir=echir+update_ene(emomM(1:3,ii,kk),beff_chir,0.50_dblprec)
+                  if(plotenergy==2) site_energy(10,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_chir,0.5_dblprec)
+               endif
+
+               ! Dipolar energy contribution
+               ! Notice that this makes use of the bfield_dip that is previously calculated
+               if (do_dip>0) then
+                  ! Site-dependent methods
+                  if (do_dip.ne.2) then
+                     edip=edip+update_ene(emomM(1:3,ii,kk),bfield_dip(1:3,ii,kk),0.5_dblprec)
+                     if(plotenergy==2) site_energy(6,ii,kk)=update_ene(emomM(1:3,ii,kk),bfield_dip(1:3,ii,kk),0.5_dblprec)
+                  ! Macrocell method
+                  else
+                     call calc_macro_energy(ii,kk,bfield_dip(1:3,ii,kk),edip,Natom, &
+                        Num_macro,Mensemble,cell_index,emomM_macro,macro_nlistsize)
+                  endif
+               end if
+
+               if (do_anisotropy==1) then
+                  ! Anisotropy
+                  if (ham%taniso(ii)==1) then
+                     ! Uniaxial anisotropy
+                     call uniaxial_anisotropy_field(ii, kk, beff_tani,Natom,Mensemble,mult_axis,emomM)
+                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                  elseif (ham%taniso(ii)==2) then
+                     ! Cubic anisotropy
+                     call cubic_anisotropy_field(ii, kk, beff_tani,Natom,Mensemble,mult_axis,emomM)
+                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                  elseif (ham%taniso(ii)==7)then
+                     ! Uniaxial and cubic anisotropy
+                     call uniaxial_anisotropy_field(ii, kk, beff_ani,Natom,Mensemble,mult_axis,emomM)
+                     call cubic_anisotropy_field(ii, kk, beff_cani,Natom,Mensemble,mult_axis,emomM)
+                     beff_tani=beff_ani+beff_cani*ham%sb(ii)
+                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                  endif
+               endif
+               ! Contribution of the external field to the energy
+               beff_ext=time_external_field(1:3,ii,kk)+external_field(1:3,ii,kk)
+               eext=eext+update_ene(emomM(1:3,ii,kk),beff_ext,1.0_dblprec)
+               if(plotenergy==2) site_energy(8,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_ext,1.0_dblprec)
             end do
-         end do    ! do atom
-!#ifndef __PATHSCALE__
-#if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)  &&  (!__INTEL_COMPILER >= 1800)
+#if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)
          !$omp end parallel do
 #endif
-      else   !do_lsf
-         call totalenergy_LSF(Natom, Nchmax, Mensemble, conf_num, emom, emomM, mmom,simid, &
-            plotenergy, mstep, extfield,eenergy, aenergy, fenergy, lsfenergy, &
-            max_no_neigh, nlistsize, nlist, ncoup, ncoupD,exc_inter, &
-            taniso, eaniso, kaniso,sb,do_lsf,fs_nlist,fs_nlistsize,nind,inttype,lsf_field,Temp)
+
+            ene%ene_xc(kk)=exc
+            ene%ene_dm(kk)=edm
+            ene%ene_pd(kk)=epd
+            ene%ene_bq(kk)=ebq
+            ene%ene_chir(kk)=echir
+            ene%ene_ext(kk)=eext
+            ene%ene_ani(kk)=eani
+            ene%ene_dip(kk)=edip
+            ene%ene_pair(kk)=epair
+            ene%ene_bqdm(kk)=ebqdm
+
+         end do
+      else
+
+         call ErrorHandling_missing('Local Spin Fluctuations')
       endif
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Divide to get energy per atom
-      eenergy(:)=0.5_dblprec*eenergy(:)/Natom
-      lsfenergy(:)=0.5_dblprec*lsfenergy(:)/Natom
-      fenergy(:)=fenergy(:)/Natom
-      aenergy(:)=aenergy(:)/Natom
-      dmenergy(:)=0.5_dblprec*dmenergy(:)/Natom
-      pdenergy(:)=0.5_dblprec*pdenergy(:)/Natom
-      biqdmenergy(:)=0.5_dblprec*biqdmenergy(:)/Natom
-      bqenergy(:)=0.5_dblprec*bqenergy(:)/Natom
-      dipenergy(:)=0.5_dblprec*dipenergy(:)/Natom
-      tenergy(:)=eenergy(:)+fenergy(:)+aenergy(:)+dmenergy(:)+pdenergy(:)+biqdmenergy(:)+bqenergy(:)+dipenergy(:)+lsfenergy(:)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ene%ene_xc(:)=ene%ene_xc(:)/(stop_atom-start_atom+1)
+      ene%ene_dm(:)=ene%ene_dm(:)/(stop_atom-start_atom+1)
+      ene%ene_pd(:)=ene%ene_pd(:)/(stop_atom-start_atom+1)
+      ene%ene_bq(:)=ene%ene_bq(:)/(stop_atom-start_atom+1)
+      ene%ene_ext(:)=ene%ene_ext(:)/(stop_atom-start_atom+1)
+      ene%ene_ani(:)=ene%ene_ani(:)/(stop_atom-start_atom+1)
+      ene%ene_dip(:)=ene%ene_dip(:)/(stop_atom-start_atom+1)
+      ene%ene_pair(:)=ene%ene_pair(:)/(stop_atom-start_atom+1)
+      ene%ene_chir(:)=ene%ene_chir(:)/(stop_atom-start_atom+1)
+      ene%ene_bqdm(:)=ene%ene_bqdm(:)/(stop_atom-start_atom+1)
+      ene%ene_lsf(:)=0.50_dblprec*ene%ene_lsf(:)/(stop_atom-start_atom+1)
+      if(do_lsf=='Y') ene%ene_xc(:)=0.5_dblprec*ene%ene_xc(:)
+      ! Divide the total energy per atom
+      if (do_jtensor/=1) then
+         ene%energy(:)=ene%ene_xc(:)+ene%ene_dm(:)+ene%ene_pd(:)+ene%ene_bq(:)+     &
+            ene%ene_ext(:)+ene%ene_ani(:)+ene%ene_dip(:)+ene%ene_bqdm(:)+           &
+            ene%ene_lsf(:)+ene%ene_chir(:)
+      else
+         ene%energy(:)=ene%ene_pair(:)+ene%ene_pd(:)+ene%ene_bq(:)+ene%ene_ext(:)+  &
+            ene%ene_ani(:)+ene%ene_dip(:)+ene%ene_bqdm(:)+ene%ene_lsf(:)+ene%ene_chir(:)
+      endif
 
       ! Mean and std.dev. of  energies
-      call calculate_mean_and_deviation(tenergy,Mensemble,tenergym,tenergys,fcinv)
-      call calculate_mean_and_deviation(eenergy,Mensemble,eenergym,eenergys,fcinv)
-      call calculate_mean_and_deviation(aenergy,Mensemble,aenergym,aenergys,fcinv)
-      call calculate_mean_and_deviation(dmenergy,Mensemble,dmenergym,dmenergys,fcinv)
-      call calculate_mean_and_deviation(pdenergy,Mensemble,pdenergym,pdenergys,fcinv)
-      call calculate_mean_and_deviation(biqdmenergy,Mensemble,biqdmenergym,biqdmenergys,fcinv)
-      call calculate_mean_and_deviation(bqenergy,Mensemble,bqenergym,bqenergys,fcinv)
-      call calculate_mean_and_deviation(dipenergy,Mensemble,dipenergym,dipenergys,fcinv)
-      call calculate_mean_and_deviation(fenergy,Mensemble,fenergym,fenergys,fcinv)
-      call calculate_mean_and_deviation(lsfenergy,Mensemble,lsfenergym,lsfenergys,fcinv)
+      if (do_jtensor/=1) then
+         call calculate_mean_and_deviation(ene%ene_xc,Mensemble,ene_xc_m,ene_xc_s,fcinv)
+         call calculate_mean_and_deviation(ene%ene_dm,Mensemble,ene_dm_m,ene_dm_s,fcinv)
+      else
+         call calculate_mean_and_deviation(ene%ene_pair,Mensemble,ene_pair_m,ene_pair_s,fcinv)
+      endif
+      call calculate_mean_and_deviation(ene%energy,Mensemble,energy_m,energy_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_pd,Mensemble,ene_pd_m,ene_pd_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_bq,Mensemble,ene_bq_m,ene_bq_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_ani,Mensemble,ene_ani_m,ene_ani_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_dip,Mensemble,ene_dip_m,ene_dip_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_ext,Mensemble,ene_ext_m,ene_ext_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_lsf,Mensemble,ene_lsf_m,ene_lsf_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_bqdm,Mensemble,ene_bqdm_m,ene_bqdm_s,fcinv)
+      call calculate_mean_and_deviation(ene%ene_chir,Mensemble,ene_chir_m,ene_chir_s,fcinv)
 
       ! Rescale energies for other use later (Cv)
-      tenergy=tenergy*fcinv
-      eenergy=eenergy*fcinv
-      lsfenergy=lsfenergy*fcinv
-      totene=tenergym
-
+      ene%energy=ene%energy*fcinv
+      ene%ene_xc=ene%ene_xc*fcinv
+      ene%ene_lsf=ene%ene_lsf*fcinv
+      totene=energy_m
 
       ! Print to files
       write (filn,'(''totenergy.'',a8,''.out'')') simid
       open(ofileno, file=filn, position="append")
 
-      if (real_time_measure=='Y') then
-         if (mstep-1==0) then
-            write(ofileno,'(a)') ' # Time   Total Energy    Stdv. Tot Ene   Exchange       &
-               &    Stdv. Exchange  Ani. Energy     Stdv. Ani       DM Ene         &
-               &    Stdv DM Ene     PD. Ene         Stdv. PD Ene    BiqDM Ene      &
-               &    Stdv BiqDM      BQ Ene          Stdv BQ Ene     Dipolar Ene    &
-               &    Stdv Dipolar    Ext. Field Ene  Stdv Ext. Field  LSF Ene   Stdv LSF   '
+      if (do_jtensor/=1) then
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Print the total energy
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         if (real_time_measure=='Y') then
+            if (mstep-1==0) then
+               write(ofileno,10010) "#Time","Tot", "Exc","Ani","DM","PD","BiqDM",   &
+               "BQ","Dip","Zeeman","LSF","Chir"
+            endif
+            write(ofileno,10005) (mstep-1)*delta_t,energy_m,ene_xc_m,ene_ani_m,     &
+               ene_dm_m,ene_pd_m,ene_bqdm_m,ene_bq_m,ene_dip_m,ene_ext_m,ene_lsf_m, &
+               ene_chir_m
+         else
+            if (mstep-1==0) then
+               write(ofileno,10010) "#Iter","Tot","Exc","Ani","DM","PD","BiqDM",    &
+               "BQ","Dip","Zeeman","LSF","Chir"
+            endif
+            write(ofileno,10004) mstep-1,energy_m,ene_xc_m,ene_ani_m,ene_dm_m,      &
+               ene_pd_m,ene_bqdm_m,ene_bq_m,ene_dip_m,ene_ext_m,ene_lsf_m,ene_chir_m
          endif
-         write(ofileno,10005) (mstep-1)*delta_t, tenergym, tenergys, eenergym, eenergys, aenergym, aenergys, &
-            dmenergym, dmenergys, pdenergym, pdenergys, biqdmenergym, biqdmenergys, &
-            bqenergym, bqenergys, dipenergym, dipenergys, &
-            fenergym, fenergys,lsfenergym,lsfenergys
+         close(ofileno)
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Print the standard deviation of the total energy
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         if (Mensemble>1) then
+            write (filn,'(''stdenergy.'',a8,''.out'')') simid
+            open(ofileno, file=filn, position="append")
+            if (real_time_measure=='Y') then
+               if (mstep-1==0) then
+                  write(ofileno,10010) "#Time","Tot","Exc","Ani", "DM","PD","BiqDM",&
+                  "BQ","Dip Ene","Zeeman","LSF","Chir"
+               endif
+               write(ofileno,10005) (mstep-1)*delta_t,energy_s,ene_xc_s,ene_ani_s,  &
+                  ene_dm_s,ene_pd_s,ene_bqdm_s,ene_bq_s,ene_dip_s,ene_ext_s,        &
+                  ene_lsf_s,ene_chir_s
+            else
+               if (mstep-1==0) then
+                  write(ofileno,10010) "#Iter","Tot","Exc","Ani", "DM","PD","BiqDM",&
+                  "BQ","Dip","Zeeman","LSF","Chir"
+               endif
+               write(ofileno,10004) mstep-1,energy_s,ene_xc_s,ene_ani_s,ene_dm_s,   &
+                  ene_pd_s,ene_bqdm_s,ene_bq_s,ene_dip_s,ene_ext_s,ene_lsf_s,       &
+                  ene_chir_s
+            endif
+            close(ofileno)
+         endif
       else
-         if (mstep-1==0) then
-            write(ofileno,'(a)') ' # Iter.  Total Energy    Stdv. Tot Ene   Exchange       &
-               &  Stdv. Exchange  Ani. Energy     Stdv. Ani       DM Ene         &
-               &  Stdv DM Ene     PD. Ene         Stdv. PD Ene    BiqDM Ene      &
-               &  Stdv BiqDM      BQ Ene          Stdv BQ Ene     Dipolar Ene    &
-               &  Stdv Dipolar    Ext. Field Ene  Stdv Ext. Field  LSF Ene   Stdv LSF '
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Print the total energy
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         if (real_time_measure=='Y') then
+            if (mstep-1==0) then
+               write(ofileno,10011) "#Time","Tot","Heis-Tens","Ani","PD","BiqDM",   &
+               "BQ","Dip","Zeeman","LSF","Chir"
+            endif
+            write(ofileno,10007) (mstep-1)*delta_t,energy_m,ene_pair_m,ene_ani_m,   &
+               ene_pd_m,ene_bqdm_m,ene_bq_m,ene_dip_m,ene_ext_m,ene_lsf_m,ene_chir_m
+         else
+            if (mstep-1==0) then
+               write(ofileno,10011) "#Iter","Tot","Heis-Tens","Ani","PD","BiqDM",   &
+               "BQ","Dip","Zeeman","LSF","Chir"
+            endif
+            write(ofileno,10006) mstep-1,energy_m,ene_pair_m,ene_ani_m,ene_pd_m,    &
+               ene_bqdm_m,ene_bq_m,ene_dip_m,ene_ext_m,ene_lsf_m,ene_chir_m
          endif
-         write(ofileno,10004) mstep-1, tenergym, tenergys, eenergym, eenergys, aenergym, aenergys, &
-            dmenergym, dmenergys, pdenergym, pdenergys, biqdmenergym, biqdmenergys, &
-            bqenergym, bqenergys, dipenergym, dipenergys, &
-            fenergym, fenergys,lsfenergym,lsfenergys
+         close(ofileno)
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Print the standard deviation of the total energy
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         if (Mensemble>1) then
+            write (filn,'(''stdenergy.'',a8,''.out'')') simid
+            open(ofileno, file=filn, position="append")
+            if (real_time_measure=='Y') then
+               if (mstep-1==0) then
+                  write(ofileno,10011) "#Time","Tot","Heis-Tens","Ani","PD","BiqDM",&
+                  "BQ","Dip","Zeeman","LSF","Chir"
+               endif
+               write(ofileno,10007) (mstep-1)*delta_t,energy_s,ene_pair_s,ene_ani_s,&
+               ene_pd_s, ene_bqdm_s,ene_bq_s,ene_dip_s,ene_ext_s,ene_lsf_s,ene_chir_s
+            else
+               if (mstep-1==0) then
+                  write(ofileno,10011)"#Iter","Tot","Heis-Tens","Ani","PD","BiqDM",&
+                  "BQ","Dipolar","Zeeman","LSF","Chir"
+               endif
+               write(ofileno,10006) mstep-1,energy_s,ene_pair_s,ene_ani_s,ene_pd_s, &
+                  ene_bqdm_s,ene_bq_s,ene_dip_s,ene_ext_s,ene_lsf_s,ene_chir_s
+            endif
+            close(ofileno)
+         endif
       endif
-      close(ofileno)
 
-      10004 format (i8,31es16.8)
-      10005 format (es12.4,23es16.8)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Print the local energy contributions
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if(plotenergy==2) then
+         site_energy=fcinv*site_energy
+         write (filn,'(''localenergy.'',a8,''.out'')') simid
+         open(ofileno, file=filn, position="append")
+
+         if (mstep-1==0) then
+            ! 0: Total, 1: Jij, 2: DM, 3: PseudoDip, 4: BiqDM, 5: BiqH, 6: Dipole, 7: Anisotropy, 8: Zeeman
+            write(ofileno,10015) '#Iter','Site','Ens','Tot','Exc','Ani','DM','PD',  &
+            'BiqDM','BQ','Dip','Zeeman','LSF','Chir'
+         endif
+
+         do kk=1, Mensemble
+            do ii=start_atom, stop_atom
+               write(ofileno,10008) mstep-1, ii, kk, sum(site_energy(:,ii,kk)),     &
+               site_energy(1,ii,kk),site_energy(7,ii,kk),site_energy(2,ii,kk),      &
+               site_energy(3,ii,kk),site_energy(4,ii,kk),site_energy(5,ii,kk),      &
+               site_energy(6,ii,kk),site_energy(8,ii,kk),site_energy(9,ii,kk),      &
+               site_energy(10,ii,kk)
+            end do
+         end do
+         close(ofileno)
+
+         i_all=-product(shape(site_energy))*kind(site_energy)
+         deallocate(site_energy,stat=i_stat)
+         call memocc(i_stat,i_all,'site_energy','calc_energy')
+      end if
+
+      ! If one considers the dipole-dipole interaction deallocate the respective array
+      if (do_dip>0) then
+         i_all=-product(shape(bfield_dip))*kind(bfield_dip)
+         deallocate(bfield_dip,stat=i_stat)
+         call memocc(i_stat,i_all,'bfield_dip','calc_energy')
+      endif
+
+      10004 format (i8,11es16.8)
+      10005 format (es12.4,11es16.8)
+      10006 format (i8,10es16.8)
+      10007 format (es12.4,10es16.8)
+      10008 format (2i8,i6,11es16.8)
+      10010 format (a8,11a16)
+      10011 format (a8,10a16)
+      10015 format (2a8,a6,11a16)
 
    end subroutine calc_energy
 
-   !-----------------------------------------------------------------------------
-   ! SUBROUTINE: calc_en
-   !> @brief Simplified version of calc_energy subroutine
-   !> @todo Check consistency with the effective field calculation in heisge()
-   !> @todo Replace use of unit length magnetic vectors emom to full length vectors emomM
-   !-----------------------------------------------------------------------------
-   subroutine calc_en(Natom, Mensemble, emomM, &
-         extfield,tenergy, &
-         max_no_neigh, nlistsize, nlist, ncoup, &
-         do_dm, max_no_dmneigh, dmlistsize, dmlist, dm_vect, &
-         do_pd, nn_pd_tot, pdlistsize, pdlist, pd_vect, &
-         do_biqdm, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, &
-         do_bq, nn_bq_tot, bqlistsize, bqlist, j_bq, &
-         do_dip, qdip, taniso, eaniso, kaniso,sb)
-      !
+   !---------------------------------------------------------------------------------
+   ! FUNCTION: update_ene
+   !> @brief Calculation of the current energy contribution of a given field
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   real(dblprec) function update_ene(curr_emomM,curr_field,factor)
+
       use Constants
-      !
-      !.. Implicit declarations
+
       implicit none
 
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      real(dblprec), intent(in) :: factor
+      real(dblprec), dimension(3), intent(in) :: curr_emomM
+      real(dblprec), dimension(3), intent(in) :: curr_field
 
-      integer, intent(in) :: Natom   !< Number of atoms in system
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_biqdm     !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_dmneigh    !< Calculated number of neighbours with DM interactions
-      integer, intent(in) :: nn_pd_tot    !< Calculated number of neighbours with PD interactions
-      integer, intent(in) :: nn_bq_tot    !< Calculated number of neighbours with BQ interactions
-      integer, intent(in) :: Mensemble    !< Number of ensembles
-      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, intent(in) :: nn_biqdm_tot !< Calculated number of neighbours with BIQDM interactions
-      integer, dimension(Natom),intent(in) :: taniso         !< Type of anisotropy (0-2)
-      integer, dimension(Natom), intent(in) :: nlistsize     !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(Natom), intent(in) :: dmlistsize    !< Size of neighbour list for DM
-      integer, dimension(Natom), intent(in) :: pdlistsize    !< Size of neighbour list for PD
-      integer, dimension(Natom), intent(in) :: bqlistsize    !< Size of neighbour list for BQ
-      integer, dimension(Natom), intent(in) :: biqdmlistsize !< Size of neighbour list for BIQDM
-      integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist         !< List of neighbours for DM
-      integer, dimension(nn_pd_tot,Natom), intent(in) :: pdlist         !< List of neighbours for PD
-      integer, dimension(nn_bq_tot,Natom), intent(in) :: bqlist         !< List of neighbours for BQ
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist       !< Neighbour list for Heisenberg exchange couplings
-      integer, dimension(nn_biqdm_tot,Natom), intent(in) :: biqdmlist   !< List of neighbours for BIQDM
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between Cubic and Uniaxial anisotropy
-      real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
-      real(dblprec), dimension(2,Natom), intent(in) :: kaniso !< Anisotropy constant
-      real(dblprec), dimension(nn_bq_tot,Natom), intent(in) :: j_bq !< Biquadratic exchange couplings
-      real(dblprec), dimension(3,3,Natom,Natom), intent(in) :: Qdip !< Matrix for dipole-dipole interaction
-      real(dblprec), dimension(3,Natom,Mensemble) :: emom     !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: extfield !< External magnetic field
+      update_ene=-factor*(sum(curr_emomM(:)*curr_field(:)))
 
-      real(dblprec), dimension(3,max_no_dmneigh,Natom), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
-      real(dblprec), dimension(6,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
-      real(dblprec), dimension(max_no_neigh,Natom), intent(in) :: ncoup  !< Heisenberg exchange couplings
-      real(dblprec), dimension(1,nn_biqdm_tot,Natom), intent(in) :: biqdm_vect !< BIQDM exchange couplings
+   end function update_ene
 
-      !.. Subroutine output
-      real(dblprec), dimension(Mensemble), intent(out) :: tenergy !< Total energy
-
-
-      real(dblprec) :: xu1,xu2
-
-      !.. Local scalars
-      integer :: i, j, k
-
-      !.. Local arrays
-      real(dblprec) :: fcinv,tmp
-      real(dblprec), dimension(Mensemble) :: tt,tt2,tt3,ttx,tty,ttz
-      real(dblprec), dimension(Mensemble) :: mdot,dmx,dmy,dmz,bqmdot
-      real(dblprec), dimension(Mensemble) :: pdx, pdy, pdz
-      real(dblprec), dimension(Mensemble) :: sxy,syz,szx
-      real(dblprec), dimension(Mensemble) :: tempk1, tempk2
-
-
-      real(dblprec), dimension(Mensemble) :: eenergy, fenergy, dmenergy, pdenergy, biqdmenergy, bqenergy, dipenergy
-      real(dblprec), dimension(Mensemble) :: aenergy, aeatom
-      real(dblprec) :: tenergym
-
-      do i=1,Mensemble
-         do j=1,Natom
-            tmp = 0_dblprec
-            do k=1,3
-               tmp = tmp+emomM(k,j,i)*emomM(k,j,i)
-            end do
-            tmp = sqrt(tmp)
-            emom(1,j,i) = emomM(1,j,i)/tmp
-            emom(2,j,i) = emomM(2,j,i)/tmp
-            emom(3,j,i) = emomM(3,j,i)/tmp
-         end do
-      end do
-
-
-      ! Initialize energy variables
-      tenergy(1:Mensemble) = 0_dblprec       ! Total Energy
-      aenergy(1:Mensemble) = 0_dblprec       ! Anisotropy Energy
-      eenergy(1:Mensemble) = 0.0_dblprec     ! Exchange Energy
-      fenergy(1:Mensemble) = 0.0_dblprec     ! Field Energy
-      dmenergy(1:Mensemble) = 0.0_dblprec    ! DM Energy
-      pdenergy(1:Mensemble) = 0.0_dblprec    ! PD Energy
-      biqdmenergy(1:Mensemble) = 0.0_dblprec ! BIQ Energy
-      bqenergy(1:Mensemble) = 0.0_dblprec    ! BQ Energy
-      dipenergy(1:Mensemble) = 0.0_dblprec   ! Dip Energy
-
-      ! Factor for energy scale
-      fcinv = mub/mry
-
-      ! Loop over atoms
-      do i=1, Natom
-         ttx(:)=0_dblprec
-         tty(:)=0_dblprec
-         ttz(:)=0_dblprec
-         do j=1,nlistsize(i)
-            ! Calculate exchange energy
-            mdot(:)=emomM(1,nlist(j,i),:)*emomM(1,i,:)+&
-               emomM(2,nlist(j,i),:)*emomM(2,i,:)+&
-               emomM(3,nlist(j,i),:)*emomM(3,i,:)
-            eenergy(:) = eenergy(:) - ncoup(j,i)*mdot(:)
-            ! Calculate exchange field
-            ttx(:) = ttx(:) + ncoup(j,i)*emomM(1,nlist(j,i),:)
-            tty(:) = tty(:) + ncoup(j,i)*emomM(2,nlist(j,i),:)
-            ttz(:) = ttz(:) + ncoup(j,i)*emomM(3,nlist(j,i),:)
-         end do
-         if(do_dm==1) then
-            do j=1,dmlistsize(i)
-               ! Calculate DM energy
-               dmx(:) = emomM(3,dmlist(j,i),:)*emomM(2,i,:)-emomM(2,dmlist(j,i),:)*emomM(3,i,:)
-               dmy(:) = emomM(1,dmlist(j,i),:)*emomM(3,i,:)-emomM(3,dmlist(j,i),:)*emomM(1,i,:)
-               dmz(:) = emomM(2,dmlist(j,i),:)*emomM(1,i,:)-emomM(1,dmlist(j,i),:)*emomM(2,i,:)
-               dmenergy(:) = dmenergy(:) + dmx(:)*dm_vect(1,j,i) + dmy(:)*dm_vect(2,j,i) + dmz(:)*dm_vect(3,j,i)
-               !Calculate DM field
-               ttx(:) = ttx(:) - dm_vect(3,j,i)*emomM(2,dmlist(j,i),:) +&
-                  dm_vect(2,j,i)*emomM(3,dmlist(j,i),:)
-               tty(:) = tty(:) - dm_vect(1,j,i)*emomM(3,dmlist(j,i),:) +&
-                  dm_vect(3,j,i)*emomM(1,dmlist(j,i),:)
-               ttz(:) = ttz(:) - dm_vect(2,j,i)*emomM(1,dmlist(j,i),:) +&
-                  dm_vect(1,j,i)*emomM(2,dmlist(j,i),:)
-            end do
-         end if
-         if(do_pd==1) then
-            do j=1,pdlistsize(i)
-               ! Calculate PD energy
-               pdx(:) = pd_vect(1,j,i)*emomM(1,i,:)*emomM(1,pdlist(j,i),:)+&
-                  pd_vect(4,j,i)*emomM(1,i,:)*emomM(2,pdlist(j,i),:)+&
-                  pd_vect(5,j,i)*emomM(1,i,:)*emomM(3,pdlist(j,i),:)
-               pdy(:) = pd_vect(4,j,i)*emomM(2,i,:)*emomM(1,pdlist(j,i),:)+&
-                  pd_vect(2,j,i)*emomM(2,i,:)*emomM(2,pdlist(j,i),:)+&
-                  pd_vect(6,j,i)*emomM(2,i,:)*emomM(3,pdlist(j,i),:)
-               pdz(:) = pd_vect(5,j,i)*emomM(3,i,:)*emomM(1,pdlist(j,i),:)+&
-                  pd_vect(6,j,i)*emomM(3,i,:)*emomM(2,pdlist(j,i),:)+&
-                  pd_vect(3,j,i)*emomM(3,i,:)*emomM(3,pdlist(j,i),:)
-               pdenergy(:) = pdenergy(:) - pdx(:) - pdy(:) - pdz(:)
-               ! Calculate PD field
-               ttx(:) = ttx(:) + pd_vect(1,j,i)*emomM(1,pdlist(j,i),:) +&
-                  pd_vect(4,j,i)*emomM(2,pdlist(j,i),:) +&
-                  pd_vect(5,j,i)*emomM(3,pdlist(j,i),:)
-               tty(:) = tty(:) + pd_vect(4,j,i)*emomM(1,pdlist(j,i),:) +&
-                  pd_vect(2,j,i)*emomM(2,pdlist(j,i),:) +&
-                  pd_vect(6,j,i)*emomM(3,pdlist(j,i),:)
-               ttz(:) = ttz(:) + pd_vect(5,j,i)*emomM(1,pdlist(j,i),:) +&
-                  pd_vect(6,j,i)*emomM(2,pdlist(j,i),:) +&
-                  pd_vect(3,j,i)*emomM(3,pdlist(j,i),:)
-            end do
-         end if
-         if(do_biqdm==1) then
-            do j=1,biqdmlistsize(i)
-               !Calculate biqDM energy
-               sxy(:) = emomM(1,i,:)*emomM(2,biqdmlist(j,i),:)-&
-                  emomM(2,i,:)*emomM(1,biqdmlist(j,i),:)
-               syz(:) = emomM(2,i,:)*emomM(3,biqdmlist(j,i),:)-&
-                  emomM(3,i,:)*emomM(2,biqdmlist(j,i),:)
-               szx(:) = emomM(3,i,:)*emomM(1,biqdmlist(j,i),:)-&
-                  emomM(1,i,:)*emomM(3,biqdmlist(j,i),:)
-               biqdmenergy(:) = biqdmenergy(:) + biqdm_vect(1,j,i)*&
-                  (sxy(:)**2+syz(:)**2+szx(:)**2)
-               !Calculate biqDM field
-               ttx(:) = ttx(:) + 2.0_dblprec*biqdm_vect(1,j,i)*(&
-                  szx(:)*emomM(3,biqdmlist(j,i),:)-&
-                  sxy(:)*emomM(2,biqdmlist(j,i),:))
-               tty(:) = tty(:) + 2.0_dblprec*biqdm_vect(1,j,i)*(&
-                  sxy(:)*emomM(1,biqdmlist(j,i),:)-&
-                  syz(:)*emomM(3,biqdmlist(j,i),:))
-               ttz(:) = ttz(:) + 2.0_dblprec*biqdm_vect(1,j,i)*(&
-                  syz(:)*emomM(2,biqdmlist(j,i),:)-&
-                  szx(:)*emomM(1,biqdmlist(j,i),:))
-            end do
-         end if
-         if(do_bq==1) then
-            do j=1,bqlistsize(i)
-               ! Calculate BQ energy
-               bqmdot(:)=emomM(1,bqlist(j,i),:)*emomM(1,i,:)+&
-                  emomM(2,bqlist(j,i),:)*emomM(2,i,:)+&
-                  emomM(3,bqlist(j,i),:)*emomM(3,i,:)
-               bqenergy(:) = bqenergy(:) - j_bq(j,i) * bqmdot(:) * bqmdot(:)
-               ! Calculate biquadratic exchange field
-               ttx(:) = ttx(:) + 2.0_dblprec*j_bq(j,i)*bqmdot(:)*emomM(1,bqlist(j,i),:)
-               tty(:) = tty(:) + 2.0_dblprec*j_bq(j,i)*bqmdot(:)*emomM(2,bqlist(j,i),:)
-               ttz(:) = ttz(:) + 2.0_dblprec*j_bq(j,i)*bqmdot(:)*emomM(3,bqlist(j,i),:)
-            end do
-         end if
-         if(do_dip==1) then
-            ! Dipolar contribution to the energy
-            do j=1,Natom
-               dipenergy(:) = dipenergy(:) - Qdip(1,1,j,i)*emomM(1,i,:)*emomM(1,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(2,1,j,i)*emomM(1,i,:)*emomM(2,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(3,1,j,i)*emomM(1,i,:)*emomM(3,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(1,2,j,i)*emomM(2,i,:)*emomM(1,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(2,2,j,i)*emomM(2,i,:)*emomM(2,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(3,2,j,i)*emomM(2,i,:)*emomM(3,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(1,3,j,i)*emomM(3,i,:)*emomM(1,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(2,3,j,i)*emomM(3,i,:)*emomM(2,j,:)
-               dipenergy(:) = dipenergy(:) - Qdip(3,3,j,i)*emomM(3,i,:)*emomM(3,j,:)
-            end do
-         end if
-
-         if (taniso(i)==1) then
-
-            ! Calculate uniaxial anisotropy energy
-            tt(:) = eaniso(1,i)*emomM(1,i,:)+eaniso(2,i)*emomM(2,i,:)+eaniso(3,i)*emomM(3,i,:)
-            aeatom(:) = (kaniso(1,i)*tt(:)**2) + kaniso(2,i)*(tt(:)**2)**2
-
-            aenergy(:) = aenergy(:)+aeatom(:)
-
-            ! Calculate uniaxial anisotropy field
-            tt(:) = emomM(1,i,:)*eaniso(1,i)+emomM(2,i,:)*eaniso(2,i)+emomM(3,i,:)*eaniso(3,i)
-
-            tt2(:) = 2*tt(:)
-            tt3(:) = kaniso(1,i)+2*kaniso(2,i)*(1-tt(:)*tt(:))
-            tt3(:) = tt2(:)*tt3(:)
-
-            ttx(:) = ttx(:) - tt3(:)*eaniso(1,i)
-            tty(:) = tty(:) - tt3(:)*eaniso(2,i)
-            ttz(:) = ttz(:) - tt3(:)*eaniso(3,i)
-
-         elseif (taniso(i)==2) then
-
-            ! Calculate cubic anisotropy energy
-            tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2 + emomM(2,i,:)**2*emomM(3,i,:)**2 +&
-               emomM(3,i,:)**2*emomM(1,i,:)**2
-            tempk2(:) = emomM(1,i,:)**2 * emomM(2,i,:)**2 * emomM(3,i,:)**2
-
-            aeatom(:) = -(kaniso(1,i)*tempk1(:) + kaniso(2,i)*tempk2(:))
-
-            aenergy(:) = aenergy(:)+aeatom(:)
-
-            ! Calculate cubic anisotropy field
-            ttx(:) = ttx(:)  &
-               + 2*kaniso(1,i)*emomM(1,i,:)*(emomM(2,i,:)**2+emomM(3,i,:)**2) &
-               + 2*kaniso(2,i)*emomM(1,i,:)*emomM(2,i,:)**2*emomM(3,i,:)**2
-            tty(:) = tty(:)  &
-               + 2*kaniso(1,i)*emomM(2,i,:)*(emomM(3,i,:)**2+emomM(1,i,:)**2) &
-               + 2*kaniso(2,i)*emomM(2,i,:)*emomM(3,i,:)**2*emomM(1,i,:)**2
-            ttz(:) = ttz(:)  &
-               + 2*kaniso(1,i)*emomM(3,i,:)*(emomM(1,i,:)**2+emomM(2,i,:)**2) &
-               + 2*kaniso(2,i)*emomM(3,i,:)*emomM(1,i,:)**2*emomM(2,i,:)**2
-
-            !!!    ! ------------------------------------ For Unixial+Cubic -------------------------------------------------
-         elseif (taniso(i)==7) then
-
-            ! Calculate uniaxial anisotropy energy
-            tt(:) = eaniso(1,i)*emomM(1,i,:)+eaniso(2,i)*emomM(2,i,:)+eaniso(3,i)*emomM(3,i,:)
-            aeatom(:) = -(kaniso(1,i)*(1-tt(:)**2) - kaniso(2,i)*(1-tt(:)**2)**2)
-            aenergy(:) = aenergy(:)+aeatom(:)
-
-            ! Calculate uniaxial anisotropy field
-            tt(:) = emomM(1,i,:)*eaniso(1,i)+emomM(2,i,:)*eaniso(2,i)+emomM(3,i,:)*eaniso(3,i)
-            tt2(:) = 1.0_dblprec*tt(:)
-            tt3(:) = kaniso(1,i)+2*kaniso(2,i)*(tt(:)**2)
-            tt3(:) = tt2(:)*tt3(:)
-            ttx(:) = ttx(:) - tt3(:)*eaniso(1,i)
-            tty(:) = tty(:) - tt3(:)*eaniso(2,i)
-            ttz(:) = ttz(:) - tt3(:)*eaniso(3,i)
-
-            ! Calculate cubic anisotropy energy
-            xu1=kaniso(1,i)*sb(i)
-            xu2=kaniso(2,i)*sb(i)
-            tempk1(:) = emomM(1,i,:)**2*emomM(2,i,:)**2 + emomM(2,i,:)**2*emomM(3,i,:)**2 +&
-               emomM(3,i,:)**2*emomM(1,i,:)**2
-            tempk2(:) = emomM(1,i,:)**2 * emomM(2,i,:)**2 * emomM(3,i,:)**2
-            aeatom(:) = -(xu1*tempk1(:) + xu2*tempk2(:))
-
-            ! Calculate cubic anisotropy field
-            ttx(:) = ttx(:)  &
-               + 2*xu1*emomM(1,i,:)*(emom(2,i,:)**2+emom(3,i,:)**2) &
-               + 2*xu2*emomM(1,i,:)*emom(2,i,:)**2*emom(3,i,:)**2
-
-            tty(:) = tty(:)  &
-               + 2*xu1*emomM(2,i,:)*(emomM(3,i,:)**2+emomM(1,i,:)**2) &
-               + 2*xu2*emomM(2,i,:)*emomM(3,i,:)**2*emomM(1,i,:)**2
-
-            ttz(:) = ttz(:)  &
-               + 2*xu1*emomM(3,i,:)*(emomM(1,i,:)**2+emomM(2,i,:)**2) &
-               + 2*xu2*emomM(3,i,:)*emomM(1,i,:)**2*emomM(2,i,:)**2
-         endif
-         ! ------------------------------------ Energy Unixial+Cubic -------------------------------------------------
-
-         ! External field energy
-         do k=1,Mensemble
-            fenergy(k)=fenergy(k)-(extfield(1,i,k))*emomM(1,i,k)&
-               -(extfield(2,i,k))*emomM(2,i,k)&
-               -(extfield(3,i,k))*emomM(3,i,k)
-            if (extfield(1,i,k) .ne. 0.0D0 .or. extfield(2,i,k) .ne. 0.0D0 .or. extfield(3,i,k) .ne. 0.0D0 ) then
-
-            endif
-         end do
-
-      end do
-
-      ! Divide to get energy per atom
-      eenergy(:)=0.5_dblprec*eenergy(:)/Natom
-      fenergy(:)=fenergy(:)/Natom
-      aenergy(:)=aenergy(:)/Natom
-      dmenergy(:)=0.5_dblprec*dmenergy(:)/Natom
-      pdenergy(:)=0.5_dblprec*pdenergy(:)/Natom
-      biqdmenergy(:)=0.5_dblprec*biqdmenergy(:)/Natom
-      bqenergy(:)=0.5_dblprec*bqenergy(:)/Natom
-      dipenergy(:)=0.5_dblprec*dipenergy(:)/Natom
-      tenergy(:)=eenergy(:)+fenergy(:)+aenergy(:)+dmenergy(:)+pdenergy(:)+biqdmenergy(:)+bqenergy(:)+dipenergy(:)
-
-      ! Mean energies
-      tenergym=0_dblprec
-
-
-      tenergy = tenergy*Natom
-
-   end subroutine calc_en
-
-   !-----------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    ! SUBROUTINE: calculate_mean_and_deviation
    !> @brief Subroutine to calculate the mean and standard deviation of an array
-   !-----------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    subroutine calculate_mean_and_deviation(vdata,vlen,mean,deviation,factor)
       !
       implicit none
@@ -760,7 +555,6 @@ contains
       real(dblprec), intent(out) :: mean
       real(dblprec), intent(out) :: deviation
       real(dblprec), intent(in) :: factor
-      !
       !
       if(vlen>1) then
          mean=sum(vdata)
@@ -777,8 +571,123 @@ contains
       !
       return
       !
-      !
    end subroutine calculate_mean_and_deviation
 
-   !
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: allocate_energies
+   !> @brief Subroutine for allocation/deallocation of energy related temperature arrays
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   subroutine allocate_energies(flag,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: flag
+      integer, optional, intent(in) :: Mensemble
+
+      integer :: i_stat,i_all
+
+      if (flag>0) then
+         allocate(ene%energy(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%energy))*kind(ene%energy),'ene%energy','allocate_energies')
+         ene%energy=0.0_dblprec
+         allocate(ene%ene_xc(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_xc))*kind(ene%ene_xc),'ene%ene_xc','allocate_energies')
+         ene%ene_xc=0.0_dblprec
+         allocate(ene%ene_dm(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_dm))*kind(ene%ene_dm),'ene%ene_dm','allocate_energies')
+         ene%ene_dm=0.0_dblprec
+         allocate(ene%ene_bq(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_bq))*kind(ene%ene_bq),'ene%ene_bq','allocate_energies')
+         ene%ene_bq=0.0_dblprec
+         allocate(ene%ene_pd(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_pd))*kind(ene%ene_pd),'ene%ene_pd','allocate_energies')
+         ene%ene_pd=0.0_dblprec
+         allocate(ene%ene_chir(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_chir))*kind(ene%ene_chir),'ene%ene_chir','allocate_energies')
+         ene%ene_chir=0.0_dblprec
+         allocate(ene%ene_ani(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_ani))*kind(ene%ene_ani),'ene%ene_ani','allocate_energies')
+         ene%ene_ani=0.0_dblprec
+         allocate(ene%ene_bqdm(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_bqdm))*kind(ene%ene_bqdm),'ene%ene_bqdm','allocate_energies')
+         ene%ene_bqdm=0.0_dblprec
+         allocate(ene%ene_ext(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_ext))*kind(ene%ene_ext),'ene%ene_ext','allocate_energies')
+         ene%ene_ext=0.0_dblprec
+         allocate(ene%ene_dip(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_dip))*kind(ene%ene_dip),'ene%ene_dip','allocate_energies')
+         ene%ene_dip=0.0_dblprec
+         allocate(ene%ene_lsf(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_lsf))*kind(ene%ene_lsf),'ene%ene_lsf','allocate_energies')
+         ene%ene_lsf=0.0_dblprec
+         allocate(ene%ene_pair(Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(ene%ene_pair))*kind(ene%ene_pair),'ene%ene_pair','allocate_energies')
+         ene%ene_pair=0.0_dblprec
+      else
+         i_all=-product(shape(ene%energy))*kind(ene%energy)
+         deallocate(ene%energy,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%energy','allocate_energies')
+         i_all=-product(shape(ene%ene_xc))*kind(ene%ene_xc)
+         deallocate(ene%ene_xc,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_xc','allocate_energies')
+         i_all=-product(shape(ene%ene_dm))*kind(ene%ene_dm)
+         deallocate(ene%ene_dm,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_dm','allocate_energies')
+         i_all=-product(shape(ene%ene_bq))*kind(ene%ene_bq)
+         deallocate(ene%ene_bq,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_bq','allocate_energies')
+         i_all=-product(shape(ene%ene_pd))*kind(ene%ene_pd)
+         deallocate(ene%ene_pd,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_pd','allocate_energies')
+         i_all=-product(shape(ene%ene_chir))*kind(ene%ene_chir)
+         deallocate(ene%ene_chir,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_chir','allocate_energies')
+         i_all=-product(shape(ene%ene_ani))*kind(ene%ene_ani)
+         deallocate(ene%ene_ani,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_ani','allocate_energies')
+         i_all=-product(shape(ene%ene_bqdm))*kind(ene%ene_bqdm)
+         deallocate(ene%ene_bqdm,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_bqdm','allocate_energies')
+         i_all=-product(shape(ene%ene_ext))*kind(ene%ene_ext)
+         deallocate(ene%ene_ext,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_ext','allocate_energies')
+         i_all=-product(shape(ene%ene_dip))*kind(ene%ene_dip)
+         deallocate(ene%ene_dip,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_dip','allocate_energies')
+         i_all=-product(shape(ene%ene_lsf))*kind(ene%ene_lsf)
+         deallocate(ene%ene_lsf,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_lsf','allocate_energies')
+         i_all=-product(shape(ene%ene_pair))*kind(ene%ene_pair)
+         deallocate(ene%ene_pair,stat=i_stat)
+         call memocc(i_stat,i_all,'ene%ene_pair','allocate_energies')
+
+      endif
+
+   end subroutine allocate_energies
+
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: reset_arrays
+   !> @brief Subroutine for setting the value of the arrays to be zero for initialization
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   subroutine reset_arrays()
+
+      implicit none
+
+      ene%energy     = 0.0_dblprec
+      ene%ene_xc     = 0.0_dblprec
+      ene%ene_dm     = 0.0_dblprec
+      ene%ene_pd     = 0.0_dblprec
+      ene%ene_bq     = 0.0_dblprec
+      ene%ene_chir   = 0.0_dblprec
+      ene%ene_ani    = 0.0_dblprec
+      ene%ene_ext    = 0.0_dblprec
+      ene%ene_dip    = 0.0_dblprec
+      ene%ene_lsf    = 0.0_dblprec
+      ene%ene_pair   = 0.0_dblprec
+      ene%ene_bqdm   = 0.0_dblprec
+
+   end subroutine reset_arrays
+
 end module Energy

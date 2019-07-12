@@ -1,11 +1,12 @@
+!-------------------------------------------------------------------------------
 !> Data and routines necessary for printing all the possible microwave fields
+!> @author
+!> Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!-------------------------------------------------------------------------------
 module prn_microwaves
- 
+
    use Parameters
    use Profiling
    use MicroWaveField
@@ -45,17 +46,18 @@ module prn_microwaves
    integer :: bcount_mwf_mov_square    !< Counter of buffer for the moving cubic shaped field microwave field
    integer :: bcount_mwf_gauss_spatial !< Counter of buffer for the gaussian shaped frequency broadened microwave field
 
-
    public
-   !private
 
    !.. Private integers
-   private :: bcount_mwf,bcount_gauss,bcount_mwf_gauss,bcount_mov_gauss,bcount_mwf_mov_gauss,&
-      bcount_mwf_gauss_spatial,bcount_mov_circle,bcount_mwf_mov_circle,bcount_mov_square,bcount_mwf_mov_square
+   private :: bcount_mwf,bcount_gauss,bcount_mwf_gauss,bcount_mov_gauss,            &
+      bcount_mwf_mov_gauss,bcount_mwf_gauss_spatial,bcount_mov_circle,              &
+      bcount_mwf_mov_circle,bcount_mov_square,bcount_mwf_mov_square
    !.. Private working arrays
-   private :: indxb_mwf, indxb_gauss, indxb_mwf_gauss, indxb_mov_gauss,indxb_mov_circle,indxb_mwf_mov_gauss,&
-      indxb_mwf_mov_circle,indxb_mov_square,indxb_mwf_mov_square,indxb_mwf_gauss_spatial
-   private :: mwfb,gaussb,mwf_gaussb,mov_gaussb,mov_circleb,mwf_mov_gaussb,mwf_mov_circleb,mov_squareb,mwf_mov_squareb,mwf_gauss_spatialb
+   private :: indxb_mwf,indxb_gauss,indxb_mwf_gauss,indxb_mov_gauss,                &
+      indxb_mov_circle,indxb_mwf_mov_gauss,indxb_mwf_mov_circle,indxb_mov_square,   &
+      indxb_mwf_mov_square,indxb_mwf_gauss_spatial
+   private :: mwfb,gaussb,mwf_gaussb,mov_gaussb,mov_circleb,mwf_mov_gaussb,         &
+      mwf_mov_circleb,mov_squareb,mwf_mov_squareb,mwf_gauss_spatialb
 
 contains
 
@@ -75,7 +77,8 @@ contains
       ! Monochromatic microwave field
       if (prn_mwf=='Y') then
          if (mod(sstep-1,mwf_step)==0) then
-            call buffer_mwf(Natom, mstep-1, mwf,bcount_mwf,delta_t,real_time_measure,mwffield,site_mwffield)
+            call buffer_mwf(Natom, mstep-1, mwf,bcount_mwf,delta_t,                 &
+               real_time_measure,mwffield,site_mwffield)
             if (bcount_mwf==mwf_buff) then
                call print_mwf(Natom, mwf,simid,real_time_measure)
                bcount_mwf=1
@@ -87,7 +90,8 @@ contains
       ! Static gaussian shaped field
       if (prn_gauss=='Y') then
          if (mod(sstep-1,gauss_step)==0) then
-            call buffer_gauss(Natom, mstep-1, bcount_gauss,delta_t,real_time_measure,gauss_spatial,do_gauss)
+            call buffer_gauss(Natom, mstep-1, bcount_gauss,delta_t,                 &
+               real_time_measure,gauss_spatial,do_gauss)
             if (bcount_gauss==gauss_buff) then
                call print_gauss(Natom,simid,real_time_measure)
                bcount_gauss=1
@@ -99,8 +103,8 @@ contains
       ! Frequency broadened microwave field
       if (prn_mwf_gauss=='Y') then
          if (mod(sstep-1,mwf_gauss_step)==0) then
-            call buffer_mwf_gauss(Natom, mstep-1, mwf_gauss,bcount_mwf_gauss,delta_t,&
-               real_time_measure,gauss_mwffield,gauss_site_mwffield)
+            call buffer_mwf_gauss(Natom, mstep-1, mwf_gauss,bcount_mwf_gauss,       &
+               delta_t,real_time_measure,gauss_mwffield,gauss_site_mwffield)
             if (bcount_mwf_gauss==mwf_gauss_buff) then
                call print_mwf_gauss(Natom, mwf_gauss,simid,real_time_measure)
                bcount_mwf_gauss=1
@@ -112,7 +116,7 @@ contains
       ! Moving static gaussian shaped field
       if (prn_mov_gauss=='Y') then
          if (mod(sstep-1,mov_gauss_pstep)==0) then
-            call buffer_mov_gauss(Natom, mstep-1, bcount_mov_gauss,delta_t,&
+            call buffer_mov_gauss(Natom, mstep-1, bcount_mov_gauss,delta_t,         &
                real_time_measure,mov_gauss_spatial,mov_gauss)
             if (bcount_mov_gauss==mov_gauss_buff) then
                call print_mov_gauss(Natom,simid,real_time_measure)
@@ -125,7 +129,7 @@ contains
       ! Moving gaussian shaped microwave field
       if (prn_mwf_mov_gauss=='Y') then
          if (mod(sstep-1,mwf_mov_gauss_pstep)==0) then
-            call buffer_mwf_mov_gauss(Natom, mstep-1, bcount_mwf_mov_gauss,delta_t,&
+            call buffer_mwf_mov_gauss(Natom, mstep-1, bcount_mwf_mov_gauss,delta_t, &
                real_time_measure,mwf_mov_gauss_spatial,mwf_mov_gauss)
             if (bcount_mwf_mov_gauss==mwf_mov_gauss_buff) then
                call print_mwf_mov_gauss(Natom,simid,real_time_measure)
@@ -138,7 +142,7 @@ contains
       ! Moving static circular shaped field
       if (prn_mov_circle=='Y') then
          if (mod(sstep-1,mov_circle_pstep)==0) then
-            call buffer_mov_circle(Natom, mstep-1, bcount_mov_circle,delta_t,&
+            call buffer_mov_circle(Natom, mstep-1, bcount_mov_circle,delta_t,       &
                real_time_measure,mov_circle_spatial,mov_circle)
             if (bcount_mov_circle==mov_circle_buff) then
                call print_mov_circle(Natom,simid,real_time_measure)
@@ -151,7 +155,7 @@ contains
       ! Moving circular shaped microwave field
       if (prn_mwf_mov_circle=='Y') then
          if (mod(sstep-1,mwf_mov_circle_pstep)==0) then
-            call buffer_mwf_mov_circle(Natom, mstep-1, bcount_mwf_mov_circle,delta_t,&
+            call buffer_mwf_mov_circle(Natom,mstep-1,bcount_mwf_mov_circle,delta_t, &
                real_time_measure,mwf_mov_circle_spatial,mwf_mov_circle)
             if (bcount_mwf_mov_circle==mwf_mov_circle_buff) then
                call print_mwf_mov_circle(Natom,simid,real_time_measure)
@@ -165,7 +169,7 @@ contains
       ! Moving static cubic shaped field
       if (prn_mov_square=='Y') then
          if (mod(sstep-1,mov_square_pstep)==0) then
-            call buffer_mov_square(Natom, mstep-1, bcount_mov_square,delta_t,&
+            call buffer_mov_square(Natom, mstep-1, bcount_mov_square,delta_t,       &
                real_time_measure,mov_square_spatial,mov_square)
             if (bcount_mov_square==mov_square_buff) then
                call print_mov_square(Natom,simid,real_time_measure)
@@ -178,7 +182,7 @@ contains
       ! Moving cubic shaped microwave field
       if (prn_mwf_mov_square=='Y') then
          if (mod(sstep-1,mwf_mov_square_pstep)==0) then
-            call buffer_mwf_mov_square(Natom, mstep-1, bcount_mwf_mov_square,delta_t,&
+            call buffer_mwf_mov_square(Natom,mstep-1,bcount_mwf_mov_square,delta_t, &
                real_time_measure,mwf_mov_square_spatial,mwf_mov_square)
             if (bcount_mwf_mov_square==mwf_mov_square_buff) then
                call print_mwf_mov_square(Natom,simid,real_time_measure)
@@ -192,8 +196,9 @@ contains
       ! Gaussian shaped frequency broadened microwave field
       if (prn_mwf_gauss_spatial=='Y') then
          if (mod(sstep-1,mwf_gauss_spatial_step)==0) then
-            call buffer_mwf_gauss_spatial(Natom, mstep-1, mwf_gauss_spatial,bcount_mwf_gauss_spatial,delta_t,&
-               real_time_measure,gauss_spatial_site_mwffield)
+            call buffer_mwf_gauss_spatial(Natom,mstep-1,mwf_gauss_spatial,          &
+               bcount_mwf_gauss_spatial,delta_t,real_time_measure,                  &
+               gauss_spatial_site_mwffield)
             if (bcount_mwf_gauss_spatial==mwf_gauss_spatial_buff) then
                call print_mwf_gauss_spatial(Natom,simid,real_time_measure)
                bcount_mwf_gauss_spatial=1
@@ -476,138 +481,139 @@ contains
       real(dblprec) :: zero=0.0_dblprec
 
       ! Monochromatic microwave field
-      prn_mwf  = 'N'
-      mwf_step = 1000
-      mwf_buff = 100
+      prn_mwf                       = 'N'
+      mwf_step                      = 1000
+      mwf_buff                      = 100
 
       ! Static gaussian shaped field
-      prn_gauss  = 'N'
-      gauss_step = 1000
-      gauss_buff = 100
+      prn_gauss                     = 'N'
+      gauss_step                    = 1000
+      gauss_buff                    = 100
 
       ! Frequency broadened microwave field
-      prn_mwf_gauss  = 'N'
-      mwf_gauss_step = 1000
-      mwf_gauss_buff = 100
+      prn_mwf_gauss                 = 'N'
+      mwf_gauss_step                = 1000
+      mwf_gauss_buff                = 100
 
       ! Moving static gaussian shaped field
-      prn_mov_gauss   = 'N'
-      mov_gauss_buff  = 100
-      mov_gauss_pstep = 1000
+      prn_mov_gauss                 = 'N'
+      mov_gauss_buff                = 100
+      mov_gauss_pstep               = 1000
 
       ! Moving gaussian shaped microwave field
-      prn_mwf_mov_gauss   = 'N'
-      mwf_mov_gauss_buff  = 100
-      mwf_mov_gauss_pstep = 1000
+      prn_mwf_mov_gauss             = 'N'
+      mwf_mov_gauss_buff            = 100
+      mwf_mov_gauss_pstep           = 1000
 
       ! Moving static circular shaped field
-      prn_mov_circle   = 'N'
-      mov_circle_buff  = 100
-      mov_circle_pstep = 1000
+      prn_mov_circle                = 'N'
+      mov_circle_buff               = 100
+      mov_circle_pstep              = 1000
 
       ! Moving circular shaped microwave field
-      prn_mwf_mov_circle   = 'N'
-      mwf_mov_circle_buff  = 100
-      mwf_mov_circle_pstep = 1000
+      prn_mwf_mov_circle            = 'N'
+      mwf_mov_circle_buff           = 100
+      mwf_mov_circle_pstep          = 1000
 
       ! Gaussian shaped frequency broadened microwave field
-      prn_mwf_gauss_spatial  = 'N'
-      mwf_gauss_spatial_step = 1000
-      mwf_gauss_spatial_buff = 100
+      prn_mwf_gauss_spatial         = 'N'
+      mwf_gauss_spatial_step        = 1000
+      mwf_gauss_spatial_buff        = 100
 
       !Monochromatic Microwave field
-      mwf             = 'N'
-      site_phase      = 'N'
-      mwf_site_file   = 'mwf_site_file'
-      site_phase_file = 'phase_site_file'
-      mwf_pulse_time  = 0
-      mwfampl         = 0.0D0
-      mwffreq         = 0.0D0
-      mwfdir          = (/zero,zero,zero/)
+      mwf                           = 'N'
+      site_phase                    = 'N'
+      mwf_site_file                 = 'mwf_site_file'
+      site_phase_file               = 'phase_site_file'
+      mwf_pulse_time                = 0
+      mwfampl                       = 0.0_dblprec
+      mwffreq                       = 0.0_dblprec
+      mwfdir                        = (/zero,zero,zero/)
 
       !Gaussian frequency broadened Microwave fields
-      mwf_gauss            = 'N'
-      mwf_gauss_site_file  = 'mwf_gauss_site_file'
-      mwf_gauss_pulse_time = 0
-      mwf_gauss_ampl       = 0.0D0
-      mwf_gauss_freq       = 0.0D0
-      mwf_gauss_time_sigma = 0.0D0
-      mwf_gauss_dir        = (/zero,zero,zero/)
+      mwf_gauss                     = 'N'
+      mwf_gauss_site_file           = 'mwf_gauss_site_file'
+      mwf_gauss_pulse_time          = 0
+      mwf_gauss_ampl                = 0.0_dblprec
+      mwf_gauss_freq                = 0.0_dblprec
+      mwf_gauss_time_sigma          = 0.0_dblprec
+      mwf_gauss_dir                 = (/zero,zero,zero/)
 
       !Spatial Gaussian shaped frequency broadened microwave fields
       mwf_gauss_spatial             = 'N'
       mwf_gauss_spatial_site_file   = 'mwf_gauss_spatial_site_file'
       mwf_gauss_spatial_pulse_time  = 0
-      mwf_gauss_spatial_freq        = 0.0D0
-      mwf_gauss_spatial_ampl        = 0.0D0
-      mwf_gauss_spatial_time_sigma  = 0.0D0
+      mwf_gauss_spatial_freq        = 0.0_dblprec
+      mwf_gauss_spatial_ampl        = 0.0_dblprec
+      mwf_gauss_spatial_time_sigma  = 0.0_dblprec
       mwf_gauss_spatial_space_sigma = (/zero,zero,zero/)
 
       ! Static Gaussian shaped microwave field
-      do_gauss            = 'N'
-      gauss_site_file     = 'gauss_site_file'
-      gauss_pulse_time    = 0
-      gauss_spatial_ampl  = 0.0D0
-      gauss_spatial_sigma = (/zero,zero,zero/)
+      do_gauss                      = 'N'
+      gauss_site_file               = 'gauss_site_file'
+      gauss_pulse_time              = 0
+      gauss_spatial_ampl            = 0.0_dblprec
+      gauss_spatial_sigma           = (/zero,zero,zero/)
 
       !Moving gaussian shaped static field
-      mov_gauss             = 'N'
-      mov_gauss_file        = 'mov_gauss_file'
-      mov_gauss_step        = 0
-      mov_gauss_pulse_time  = 0
-      mov_gauss_ampl        = 0.0D0
-      mov_gauss_space_sigma = (/zero,zero,zero/)
+      mov_gauss                     = 'N'
+      mov_gauss_file                = 'mov_gauss_file'
+      mov_gauss_step                = 0
+      mov_gauss_pulse_time          = 0
+      mov_gauss_ampl                = 0.0_dblprec
+      mov_gauss_space_sigma         = (/zero,zero,zero/)
 
       !Moving gaussian shaped microwave field
-      mwf_mov_gauss             = 'N'
-      mwf_mov_gauss_file        = 'mwf_mov_gauss_file'
-      mwf_mov_gauss_step        = 0
-      mwf_mov_gauss_pulse_time  = 0
-      mwf_mov_gauss_ampl        = 0.0D0
-      mwf_mov_gauss_freq        = 0.0D0
-      mwf_mov_gauss_time_sigma  = 0.0D0
-      mwf_mov_gauss_space_sigma = (/zero,zero,zero/)
+      mwf_mov_gauss                 = 'N'
+      mwf_mov_gauss_file            = 'mwf_mov_gauss_file'
+      mwf_mov_gauss_step            = 0
+      mwf_mov_gauss_pulse_time      = 0
+      mwf_mov_gauss_ampl            = 0.0_dblprec
+      mwf_mov_gauss_freq            = 0.0_dblprec
+      mwf_mov_gauss_time_sigma      = 0.0_dblprec
+      mwf_mov_gauss_space_sigma     = (/zero,zero,zero/)
 
       !Moving circular shaped static field
-      mov_circle             = 'N'
-      mov_circle_file        = 'mov_circle_file'
-      mov_circle_step        = 0
-      mov_circle_pulse_time  = 0
-      mov_circle_ampl        = 0.0D0
-      mov_circle_radius      = 0.0D0
+      mov_circle                    = 'N'
+      mov_circle_file               = 'mov_circle_file'
+      mov_circle_step               = 0
+      mov_circle_pulse_time         = 0
+      mov_circle_ampl               = 0.0_dblprec
+      mov_circle_radius             = 0.0_dblprec
 
       !Moving circular shaped microwave field
-      mwf_mov_circle             = 'N'
-      mwf_mov_circle_file        = 'mwf_mov_circle_file'
-      mwf_mov_circle_step        = 0
-      mwf_mov_circle_pulse_time  = 0
-      mwf_mov_circle_ampl        = 0.0D0
-      mwf_mov_circle_freq        = 0.0D0
-      mwf_mov_circle_time_sigma  = 0.0D0
-      mwf_mov_circle_radius      = 0.0D0
+      mwf_mov_circle                = 'N'
+      mwf_mov_circle_file           = 'mwf_mov_circle_file'
+      mwf_mov_circle_step           = 0
+      mwf_mov_circle_pulse_time     = 0
+      mwf_mov_circle_ampl           = 0.0_dblprec
+      mwf_mov_circle_freq           = 0.0_dblprec
+      mwf_mov_circle_time_sigma     = 0.0_dblprec
+      mwf_mov_circle_radius         = 0.0_dblprec
 
       !Moving cubic shaped static field
-      mov_square             = 'N'
-      mov_square_file        = 'mov_square_file'
-      mov_square_step        = 0
-      mov_square_pulse_time  = 0
-      mov_square_ampl        = 0.0D0
-      mov_square_dimensions  = (/zero,zero,zero/)
+      mov_square                    = 'N'
+      mov_square_file               = 'mov_square_file'
+      mov_square_step               = 0
+      mov_square_pulse_time         = 0
+      mov_square_ampl               = 0.0_dblprec
+      mov_square_dimensions         = (/zero,zero,zero/)
 
       !Moving cubic shaped microwave field
-      mwf_mov_square             = 'N'
-      mwf_mov_square_file        = 'mwf_mov_square_file'
-      mwf_mov_square_step        = 0
-      mwf_mov_square_pulse_time  = 0
-      mwf_mov_square_ampl        = 0.0D0
-      mwf_mov_square_freq        = 0.0D0
-      mwf_mov_square_time_sigma  = 0.0D0
-      mwf_mov_square_dimensions  = (/zero,zero,zero/)
+      mwf_mov_square                = 'N'
+      mwf_mov_square_file           = 'mwf_mov_square_file'
+      mwf_mov_square_step           = 0
+      mwf_mov_square_pulse_time     = 0
+      mwf_mov_square_ampl           = 0.0_dblprec
+      mwf_mov_square_freq           = 0.0_dblprec
+      mwf_mov_square_time_sigma     = 0.0_dblprec
+      mwf_mov_square_dimensions     = (/zero,zero,zero/)
 
    end subroutine initialize_prn_microwaves
 
    !> Buffer the monochromatic microwave field
-   subroutine buffer_mwf(Natom, mstep, mwf,bcount_mwf,delta_t,real_time_measure,mwffield,site_mwffield)
+   subroutine buffer_mwf(Natom, mstep, mwf,bcount_mwf,delta_t,real_time_measure,    &
+      mwffield,site_mwffield)
 
       implicit none
 
@@ -794,8 +800,8 @@ contains
    end subroutine print_mwf_gauss
 
    !> Buffer the frequency broadened gaussian shaped microwave field
-   subroutine buffer_mwf_gauss_spatial(Natom, mstep, mwf_gauss_spatial,bcount_mwf_gauss_spatial,delta_t,&
-         real_time_measure,gauss_spatial_site_mwffield)
+   subroutine buffer_mwf_gauss_spatial(Natom,mstep,mwf_gauss_spatial,               &
+      bcount_mwf_gauss_spatial,delta_t,real_time_measure,gauss_spatial_site_mwffield)
 
       implicit none
 
@@ -862,8 +868,8 @@ contains
    end subroutine print_mwf_gauss_spatial
 
    !> Buffer the static gaussian shaped field
-   subroutine buffer_gauss(Natom, mstep, bcount_gauss,delta_t,&
-         real_time_measure,gauss_spatial,do_gauss)
+   subroutine buffer_gauss(Natom, mstep, bcount_gauss,delta_t,real_time_measure,    &
+      gauss_spatial,do_gauss)
 
       implicit none
 
@@ -930,8 +936,8 @@ contains
    end subroutine print_gauss
 
    !> Buffer the moving static gaussian shaped field
-   subroutine buffer_mov_gauss(Natom, mstep, bcount_mov_gauss,delta_t,&
-         real_time_measure,mov_gauss_spatial,mov_gauss)
+   subroutine buffer_mov_gauss(Natom, mstep, bcount_mov_gauss,delta_t,              &
+      real_time_measure,mov_gauss_spatial,mov_gauss)
 
       implicit none
 
@@ -998,8 +1004,8 @@ contains
    end subroutine print_mov_gauss
 
    !> Buffer the moving static circular shaped field
-   subroutine buffer_mov_circle(Natom, mstep, bcount_mov_circle,delta_t,&
-         real_time_measure,mov_circle_spatial,mov_circle)
+   subroutine buffer_mov_circle(Natom, mstep, bcount_mov_circle,delta_t,            &
+      real_time_measure,mov_circle_spatial,mov_circle)
 
       implicit none
 
@@ -1066,8 +1072,8 @@ contains
    end subroutine print_mov_circle
 
    !> Buffer the moving microwave gaussian shaped field
-   subroutine buffer_mwf_mov_gauss(Natom, mstep, bcount_mwf_mov_gauss,delta_t,&
-         real_time_measure,mwf_mov_gauss_spatial,mwf_mov_gauss)
+   subroutine buffer_mwf_mov_gauss(Natom, mstep, bcount_mwf_mov_gauss,delta_t,      &
+      real_time_measure,mwf_mov_gauss_spatial,mwf_mov_gauss)
 
       implicit none
 
@@ -1134,8 +1140,8 @@ contains
    end subroutine print_mwf_mov_gauss
 
    !> Buffer the moving microwave circular shaped field
-   subroutine buffer_mwf_mov_circle(Natom, mstep, bcount_mwf_mov_circle,delta_t,&
-         real_time_measure,mwf_mov_circle_spatial,mwf_mov_circle)
+   subroutine buffer_mwf_mov_circle(Natom, mstep, bcount_mwf_mov_circle,delta_t,    &
+      real_time_measure,mwf_mov_circle_spatial,mwf_mov_circle)
 
       implicit none
 
@@ -1202,8 +1208,8 @@ contains
    end subroutine print_mwf_mov_circle
 
    !> Buffer the moving static cubic shaped field
-   subroutine buffer_mov_square(Natom, mstep, bcount_mov_square,delta_t,&
-         real_time_measure,mov_square_spatial,mov_square)
+   subroutine buffer_mov_square(Natom, mstep, bcount_mov_square,delta_t,            &
+      real_time_measure,mov_square_spatial,mov_square)
 
       implicit none
 
@@ -1270,8 +1276,8 @@ contains
    end subroutine print_mov_square
 
    !> Buffer the moving microwave cubic shaped field
-   subroutine buffer_mwf_mov_square(Natom, mstep, bcount_mwf_mov_square,delta_t,&
-         real_time_measure,mwf_mov_square_spatial,mwf_mov_square)
+   subroutine buffer_mwf_mov_square(Natom, mstep, bcount_mwf_mov_square,delta_t,    &
+      real_time_measure,mwf_mov_square_spatial,mwf_mov_square)
 
       implicit none
 

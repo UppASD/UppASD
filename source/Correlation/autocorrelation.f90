@@ -2,13 +2,10 @@
 ! MODULE: AUTOCORRELATION
 !> Routines for performing autocorrelation sampling
 !! @todo Consider averaging over multiple ensembles
-!> @author
-!! Johan Hellsvik, Anders Bergman
+!> @authors
+!> Johan Hellsvik, Anders Bergman
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module AutoCorrelation
    use Parameters
@@ -27,9 +24,7 @@ module AutoCorrelation
    !
    public
 
-
 contains
-
 
    !> Allocates the array spinwait that hold sampled moments for different waiting times
    subroutine allocate_autocorr(Natom)
@@ -74,14 +69,14 @@ contains
             spinwait(1:3,i,1) = emom(1:3,i,1)
             write(ofileno,10001) emom(1:3,i,1)
             do j=2,nspinwait
-               spinwait(1,i,j)=0d0
-               spinwait(2,i,j)=0d0
-               spinwait(3,i,j)=0d0
+               spinwait(1,i,j)=0_dblprec
+               spinwait(2,i,j)=0_dblprec
+               spinwait(3,i,j)=0_dblprec
             end do
          enddo
          close(ofileno)
          n0spinwait = 1
-      else ! if(initmag==4) then
+      else
          ! else continue from last waiting time
          i=1
          do
@@ -105,9 +100,9 @@ contains
          end do
          do j=n0spinwait+1,nspinwait
             do i=1,Natom
-               spinwait(1,i,j)=0d0
-               spinwait(2,i,j)=0d0
-               spinwait(3,i,j)=0d0
+               spinwait(1,i,j)=0_dblprec
+               spinwait(2,i,j)=0_dblprec
+               spinwait(3,i,j)=0_dblprec
             end do
          end do
       end if
@@ -151,7 +146,6 @@ contains
       10001 format (3es16.8)
    end subroutine autocorr_sample
 
-
    !> Reads the waiting times for autocorrelation measurements
    subroutine read_tw(twfile)
       !
@@ -164,7 +158,6 @@ contains
       integer :: i_stat
       open(ifileno, file=adjustl(twfile))
       read (ifileno,'(10x,i10)') nspinwait
-
       allocate(spinwaitt(nspinwait),stat=i_stat)
       call memocc(i_stat,product(shape(spinwaitt))*kind(spinwaitt),'spinwaitt','read_tw')
       do iw=1,nspinwait

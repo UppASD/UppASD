@@ -1,21 +1,35 @@
-!> Data and routines for initializing the magnetic moments
+!-------------------------------------------------------------------------------
+! MODULE: MagnetizationInit
+!> @brief Data and routines for initializing the magnetic moments
+!> @details Set of subroutines handling the initialization of the magnetic moments
+!> currently the supported initial configurations are:
+!>
+!>    1 Random moments
+!>    2 Create random distribution of moments in an area phi0, theta0 around the z-axis.
+!>    3 Read from input file
+!>    4 Read the moments from the momfile
+!>    5 Random Ising moments with axis dictated from the momfile
+!>    6 Moments according to values in inpsd.dat file for GNEB calculations.
+!>      First ensemble correspond to the initial state, last ensemble correspond to the final state
+!>    7 Read magnetic configuration from file. Ensembles correspond to states to be used in the GNEB calculations
+!>    8 Moments according to values in input file combined with spin spiral modulation
+!
+!> @author Anders Bergman, Lars Bergqvist, Johan Hellsvik, Jonathan Chico, Pavel Bessarab
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!-------------------------------------------------------------------------------
 module MagnetizationInit
    use Parameters
    use Profiling
+   use ErrorHandling
 
    implicit none
 
    public
 
-
 contains
 
-   !----------------------------------------------------------------------------!
+   !----------------------------------------------------------------------------
    !> @brief Initializes the magnetic moments
    !>
    !> @date 2014-08-08 - Thomas Nystrand
@@ -24,47 +38,64 @@ contains
    !> - Previous configuration caused strange round off errors when summing x**2+y**2+z**2
    !> @date 2017-08-21 - Jonathan Chico
    !> Added fixed moments variables
-   !----------------------------------------------------------------------------!
-   subroutine magninit(Natom, conf_num, Mensemble, NA, N1, N2, N3, initmag, Nchmax, aemom_inp, anumb, do_ralloy, &
-         Natom_full, achtype, acellnumb, emom, emom2, emomM, mmom, rstep, theta0, phi0, restartfile, &
-         initrotang, initpropvec, initrotvec, coord, C1, C2, C3)
+   !----------------------------------------------------------------------------
+   subroutine magninit(Natom,conf_num,Mensemble,NA,N1,N2,N3,initmag,Nchmax,         &
+      aemom_inp,anumb,do_ralloy,Natom_full,achtype,acellnumb,emom,emom2,emomM,mmom, &
+      rstep,theta0,phi0,restartfile,initrotang,initpropvec,initrotvec,coord,C1,C2,  &
+      C3,do_fixed_mom,Nred,red_atom_list,ind_list_full,ind_mom_flag,ind_mom,fix_num,&
+      fix_list,read_ovf,do_mom_legacy,relaxed_if)
       !
       use RandomNumbers, only : rng_uniform
       use Constants, only : pi
+      use InputData, only: momfile_i,momfile_f,amp_rnd
+      use Restart, only: read_mag_conf_ovf,GNEB_read_wrapper,read_mag_conf
       !
       !.. Implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: conf_num !< Number of configurations for LSF
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      integer, intent(in) :: N1  !< Number of cell repetitions in x direction
-      integer, intent(in) :: N2  !< Number of cell repetitions in y direction
-      integer, intent(in) :: N3  !< Number of cell repetitions in z direction
-      integer :: initmag !< Mode of initialization of magnetic moments (1-4)
-      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
-      real(dblprec), intent(in), allocatable, dimension(:,:,:,:) :: aemom_inp  !< Magnetic moment directions from input (for alloys)
-      integer, dimension(Natom) , intent(in) :: anumb !< Atom number in cell
-      integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
-      integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
-      integer, dimension(:), allocatable, intent(in) :: achtype !< Chemical type of atoms (full list)
+      integer, intent(in) :: NA                 !< Number of atoms in one cell
+      integer, intent(in) :: N1                 !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2                 !< Number of cell repetitions in y direction
+      integer, intent(in) :: N3                 !< Number of cell repetitions in z direction
+      integer, intent(in) :: Natom              !< Number of atoms in system
+      integer, intent(in) :: Nchmax             !< Max number of chemical components on each site in cell
+      integer, intent(in) :: initmag            !< Mode of initialization of magnetic moments (1-4)
+      integer, intent(in) :: conf_num           !< Number of configurations for LSF
+      integer, intent(in) :: Mensemble          !< Number of ensembles
+      integer, intent(in) :: do_ralloy          !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full         !< Number of atoms for full system (=Natom if not dilute)
+      real(dblprec), intent(in) :: phi0         !< Cone angle phi
+      real(dblprec), intent(in) :: theta0       !< Cone angle theta
+      real(dblprec), intent(in) :: initrotang   !< Rotation angle phase for initial spin spiral
+      character(len=1), intent(in) :: read_ovf  !< Read the magnetization data in the ovf format
+      character(len=1), intent(in) :: relaxed_if
+      character(len=1), intent(in) :: do_fixed_mom !< Do Fixed moment calculation (Y/N)
+      character(len=1), intent(in) :: ind_mom_flag !< Flag to indicate that there are induced moments being considered
+      character(len=1), intent(in) :: do_mom_legacy
+      integer, dimension(Natom) , intent(in) :: anumb             !< Atom number in cell
+      integer, dimension(NA,Nchmax), intent(in) :: ind_mom        !< Indication of whether a given moment is induced/fixed (1/0) for the unit cell
+      integer, dimension(:), allocatable, intent(in) :: achtype   !< Chemical type of atoms (full list)
       integer, dimension(:), allocatable, intent(in) :: acellnumb !< List for translating atom no. in full cell to actual cell
-      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emom   !< Current unit moment vector
-      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emom2  !< Final (or temporary) unit moment vector
-      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom, Mensemble), intent(out) :: mmom !< Magnitude of magnetic moments
+      real(dblprec), dimension(3), intent(in) :: C1               !< First lattice vector
+      real(dblprec), dimension(3), intent(in) :: C2               !< Second lattice vector
+      real(dblprec), dimension(3), intent(in) :: C3               !< Third lattice vector
+      real(dblprec), dimension(3), intent(in) :: initrotvec       !< rotation vector for initial spin spiral
+      real(dblprec), dimension(3), intent(in) :: initpropvec      !< propagation vector for initial spin spiral
+      real(dblprec), dimension(3,Natom), intent(in) :: coord      !< Coordinates of atoms
+      real(dblprec), dimension(:,:,:,:), allocatable, intent(in) :: aemom_inp  !< Magnetic moment directions from input (for alloys)
+      !.. Output variables
+      integer, intent(out) :: Nred  !< Number of moments that can be updated
       integer, intent(out) :: rstep !< Starting simulation step
-      real(dblprec), intent(in) :: theta0  !< Cone angle theta
-      real(dblprec), intent(in) :: phi0 !< Cone angle phi
-      character(len=35) :: restartfile !< File containing restart information
-      real(dblprec), intent(in) :: initrotang !< Rotation angle phase for initial spin spiral
-      real(dblprec), dimension(3), intent(in) :: initpropvec !< propagation vector for initial spin spiral
-      real(dblprec), dimension(3), intent(in) :: initrotvec !< rotation vector for initial spin spiral
-      real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
-      real(dblprec), dimension(3), intent(in) :: C2 !< Second lattice vector
-      real(dblprec), dimension(3), intent(in) :: C3 !< Third lattice vector
+      integer, dimension(:), allocatable, intent(out) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom, Mensemble), intent(out) :: mmom      !< Magnitude of magnetic moments
+      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emom    !< Current unit moment vector
+      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emom2   !< Final (or temporary) unit moment vector
+      real(dblprec), dimension(:,:,:), allocatable, intent(out) :: emomM   !< Current magnetic moment vector
+      !.. In/Out variables
+      integer, intent(inout) :: fix_num
+      character(len=35), intent(inout) :: restartfile !< File containing restart information
+      integer, dimension(Natom), intent(inout) :: ind_list_full !< Indication of whether a given moment is induced/fixed 1/0
+      integer, dimension(:), allocatable, intent(inout) ::fix_list
 
       !.. Local scalars
       integer :: i, j
@@ -74,126 +105,34 @@ contains
 
       real(dblprec) :: c1r1, c2r2, c3r3
       real(dblprec) :: rotang, cosra, sinra, rotmatdet
-      real(dblprec) :: theta, phi, x, y, z, mmom_tmp!
+      real(dblprec) :: theta, phi, x, y, z, mmom_tmp
 
       logical :: exists
 
       !.. Local arrays
-      real(dblprec), dimension(:,:,:), allocatable :: rmom(:,:,:)
-      real(dblprec), dimension(3) :: u,v !,xyz
-
+      real(dblprec), dimension(3) :: u,v
       real(dblprec), dimension(3) :: b1,r1
       real(dblprec), dimension(3) :: b2,r2
-      real(dblprec), dimension(3) :: b3,r3, rn(3)
-
-      !real(dblprec), dimension(3) :: u
+      real(dblprec), dimension(3) :: b3,r3,rn
       real(dblprec), dimension(3) :: propvec, rotvec
-      real(dblprec), dimension(3,3) :: rotmat
       real(dblprec), dimension(3) :: tmpemom1, tmpemom2
-      !
-      !
+      real(dblprec), dimension(3,3) :: rotmat
+      real(dblprec), dimension(:,:,:), allocatable :: rmom
+
       !  Initialize moment
-      !
-      !  initmag
-      !
-      !     1       Random moments
-      !
-      !     2       Create random distribution of moments
-      !             in an area phi0, theta0 around the z-axis.
-      !             Set magnitude to 2.2
-      !
-      !     3       Read from input file
-      !
-      !     4       Read moments from start file
-      !
-      !
+      !-------------------------------------------------------------------------
       ! Allocate arrays for moment directions
+      !-------------------------------------------------------------------------
       allocate(emom(3,Natom,Mensemble),stat=i_stat)
       call memocc(i_stat,product(shape(emom))*kind(emom),'emom','magninit')
       allocate(emomM(3,Natom,Mensemble),stat=i_stat)
       call memocc(i_stat,product(shape(emomM))*kind(emomM),'emomM','magninit')
       allocate(emom2(3,Natom,Mensemble),stat=i_stat)
       call memocc(i_stat,product(shape(emom2))*kind(emom2),'emom2','magninit')
-
-      !print *, 'INITMAG ',initmag
-      ! Random moments within a cone
-      if (initmag==2) then
-         write (*,'(2x,a)',advance='no') "Start random init spins in cone"
-         rstep=0
-         do I3=0, N3-1
-            do I2=0, N2-1
-               do I1=0, N1-1
-                  do I0=1, NA
-                     i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                     call rng_uniform(rn,2)
-                     theta = rn(1)
-                     phi = rn(2)
-                     u(1) = sin(theta0*theta)*cos(phi0*phi)
-                     u(2) = sin(theta0*theta)*sin(phi0*phi)
-                     u(3) = cos(theta0*theta)
-
-                     if(do_ralloy==0) then
-                        do j=1, Mensemble
-                           emom(1:3,i,j) = u(1:3)
-                           emomM(1:3,i,j) = u(1:3)*mmom(anumb(I0),j)
-                        end do
-                     else
-                        if (achtype(i) /= 0) then
-                           iatom = acellnumb(i)
-                           do j=1, Mensemble
-                              emom(1:3,iatom,j) = u(1:3)
-                              emomM(1:3,iatom,j) = u(1:3)*mmom(iatom,j)
-                           end do
-                        end if
-                     end if
-
-                  end do
-               end do
-            end do
-         end do
-         write (*,*) " done"
-
-         ! Read moments from file
-      else if(initmag==4) then
-
-         write (*,'(2x,a)',advance='no') "Read from restart file"
-         call loadrestart(Natom,Mensemble,restartfile,rstep,mmom,emom,emomM)
-         write (*,*) " done"
-
-         ! Moments according to values in input file
-      else if(initmag==3) then
-
-         write (*,'(2x,a)',advance='no') "Moments from inpsd.dat"
-         rstep=0
-         iatom=0
-         do I3=0, N3-1
-            do I2=0, N2-1
-               do I1=0, N1-1
-                  do I0=1, NA
-                     i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                     if(do_ralloy==0) then
-                        do j=1, Mensemble
-                           emom(1:3,i,j)  = aemom_inp(1:3,I0,1,1)
-                           emomM(1:3,i,j) = aemom_inp(1:3,I0,1,1)*mmom(anumb(I0),j)
-                        end do
-                     else
-                        if (achtype(i) /= 0) then
-                           iatom = acellnumb(i)
-                           ! JohanM27Jul: use same initial condition for whole ensemble
-                           do j=1, Mensemble
-                              emom(1:3,iatom,j)  = aemom_inp(1:3,I0,achtype(i),1)
-                              emomM(1:3,iatom,j) = aemom_inp(1:3,I0,achtype(i),1)*mmom(iatom,j)
-                           end do
-                        end if
-                     end if
-
-                  end do
-               end do
-            end do
-         end do
-         write (*,*) " done"
-         ! Random directions of moments
-      else if(initmag==1) then
+      !-------------------------------------------------------------------------
+      ! Random directions of moments
+      !-------------------------------------------------------------------------
+      if(initmag==1) then
          write (*,'(2x,a)',advance='no') "Start random init spins"
          rstep=0
          do I3=0, N3-1
@@ -201,32 +140,33 @@ contains
                do I1=0, N1-1
                   do I0=1, NA
                      i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
+                     ! Call the random number generator to generate the spin directions
                      call rng_uniform(rn,3)
-                     x=2d0*(rn(1)-0.5)
-                     y=2d0*(rn(2)-0.5)
-                     z=2d0*(rn(3)-0.5)
+                     x=2.0_dblprec*(rn(1)-0.50_dblprec)
+                     y=2.0_dblprec*(rn(2)-0.50_dblprec)
+                     z=2.0_dblprec*(rn(3)-0.50_dblprec)
                      do while (x**2+y**2+z**2>1)
                         call rng_uniform(rn,3)
-                        x=rn(1)-0.5
-                        y=rn(2)-0.5
-                        z=rn(3)-0.5
+                        x=rn(1)-0.50_dblprec
+                        y=rn(2)-0.50_dblprec
+                        z=rn(3)-0.50_dblprec
                      end do
-
+                     ! Normalize the spins directions
                      u(1) = x/sqrt(x**2+y**2+z**2)
                      u(2) = y/sqrt(x**2+y**2+z**2)
                      u(3) = z/sqrt(x**2+y**2+z**2)
-
+                     ! Check if it is a random alloy
                      if(do_ralloy==0) then
                         do j=1, Mensemble
-                           emom(1:3,i,j) = u(1:3)
+                           emom(1:3,i,j)  = u(1:3)
                            emomM(1:3,i,j) = u(1:3)*mmom(anumb(I0),j)
                         end do
                      else
                         if (achtype(i) /= 0) then
                            iatom = acellnumb(i)
                            do j=1, Mensemble
-                              emom(1:3,iatom,j) = u(1:3)
-                              emomM(1:3,iatom,j) = u(1:3)*mmom(anumb(I0),j)
+                              emom(1:3,iatom,j)    = u(1:3)
+                              emomM(1:3,iatom,j)   = u(1:3)*mmom(iatom,j)
                            end do
                         end if
                      end if
@@ -235,9 +175,98 @@ contains
             end do
          end do
          write (*,*) " done"
+      !-------------------------------------------------------------------------
+      ! Random moments within a cone
+      !-------------------------------------------------------------------------
+      else if (initmag==2) then
+         write (*,'(2x,a)',advance='no') "Start random init spins in cone"
+         rstep=0
+         do I3=0, N3-1
+            do I2=0, N2-1
+               do I1=0, N1-1
+                  do I0=1, NA
+                     i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
+                     ! Call a random number generator to perturbate the initial angles
+                     call rng_uniform(rn,2)
+                     theta = rn(1)
+                     phi   = rn(2)
+                     ! Initialize the spins via euler angles
+                     u(1) = sin(theta0*theta)*cos(phi0*phi)
+                     u(2) = sin(theta0*theta)*sin(phi0*phi)
+                     u(3) = cos(theta0*theta)
+                     ! Check if the system is a random alloy
+                     if(do_ralloy==0) then
+                        do j=1, Mensemble
+                           emom(1:3,i,j)  = u(1:3)
+                           emomM(1:3,i,j) = u(1:3)*mmom(anumb(I0),j)
+                        end do
+                     else
+                        if (achtype(i) /= 0) then
+                           iatom = acellnumb(i)
+                           do j=1, Mensemble
+                              emom(1:3,iatom,j)    = u(1:3)
+                              emomM(1:3,iatom,j)   = u(1:3)*mmom(iatom,j)
+                           end do
+                        end if
+                     end if
 
+                  end do
+               end do
+            end do
+         end do
+         write (*,*) " done"
+         !-------------------------------------------------------------------------
+         ! Moments according to values in input file
+         !-------------------------------------------------------------------------
+         else if(initmag==3) then
+            write (*,'(2x,a)',advance='no') "Moments from inpsd.dat"
+            rstep=0
+            iatom=0
+            do I3=0, N3-1
+               do I2=0, N2-1
+                  do I1=0, N1-1
+                     do I0=1, NA
+                        i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
+                        ! Check if the system is a random alloy
+                        if(do_ralloy==0) then
+                           do j=1, Mensemble
+                              emom(1:3,i,j)  = aemom_inp(1:3,I0,1,1)
+                              emomM(1:3,i,j) = aemom_inp(1:3,I0,1,1)*mmom(anumb(I0),j)
+                           end do
+                        else
+                           if (achtype(i) /= 0) then
+                              iatom = acellnumb(i)
+                              ! JohanM27Jul: use same initial condition for whole ensemble
+                              do j=1, Mensemble
+                                 emom(1:3,iatom,j)  = aemom_inp(1:3,I0,achtype(i),1)
+                                 emomM(1:3,iatom,j) = aemom_inp(1:3,I0,achtype(i),1)*mmom(iatom,j)
+                              end do
+                           end if
+                        end if
+                     end do
+                  end do
+               end do
+            end do
+            write (*,*) " done"
+      !-------------------------------------------------------------------------
+      ! Read moments and magnetic configuration from restart file
+      !-------------------------------------------------------------------------
+      else if(initmag==4) then
+         if (do_fixed_mom.ne.'Y'.or.ind_mom_flag.ne.'Y') then
+            if (read_ovf.ne.'Y') then
+               write (*,'(2x,a)',advance='no') "Read from restart file"
+               call read_mag_conf(Natom,Mensemble,do_mom_legacy,rstep,restartfile,  &
+                  mmom,emom,emomM)
+               write (*,'(a)') " done"
+            else if (read_ovf.eq.'Y') then
+               write (*,'(2x,a)',advance='no') "Read from OVF restart file"
+               call read_mag_conf_ovf(Natom,Mensemble,restartfile,mmom,emom,emomM)
+            endif
+         endif
+      !-------------------------------------------------------------------------
+      ! Random moments for Ising Hamiltonian using preferred directions from input file
+      !-------------------------------------------------------------------------
       else if(initmag==5) then
-         ! Random moments for Ising Hamiltonian using preferred directions from input file
          write (*,'(2x,a)',advance='no') "Random Ising Moments from inpsd.dat"
          rstep=0
          iatom=0
@@ -246,13 +275,16 @@ contains
                do I1=0, N1-1
                   do I0=1, NA
                      i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
+                     ! Calculate a random number
                      call rng_uniform(rn,1)
-                     x=rn(1)
-                     if(x<0.5) then
+                     ! As the spins are going to be set as Ising spins see if
+                     ! one is going to flip the direction of the spin
+                     if(rn(1)<0.50_dblprec) then
                         y=1
                      else
                         y=-1
                      endif
+                     ! Check if the system is a random alloy
                      if(do_ralloy==0) then
                         ! JohanM27Jul: use same initial condition for whole ensemble
                         do j=1, Mensemble
@@ -274,12 +306,83 @@ contains
             end do
          end do
          write (*,*) " done"
+      !-------------------------------------------------------------------------
+      ! Moments according to values in inpsd.dat file. First ensemble correspond to the initial state,
+      ! last ensemble correspond to the final state
+      !-------------------------------------------------------------------------
+      else if(initmag==6) then
+         write (*,'(2x,a)',advance='no') "Moments from inpsd.dat"
+         rstep=0
+         iatom=0
+         allocate(rmom(3,NA,Nchmax),stat=i_stat)
+         call memocc(i_stat,product(shape(rmom))*kind(rmom),'rmom','magninit')
+         do j=1, Mensemble,(Mensemble-1)
+            if (j==1) then
+               inquire(file=trim(momfile_i),exist=exists)
+               if (.not.exists) then
+                  write(*,*) 'ERROR: File ',trim(adjustl(momfile_i)), ' does not exist.'
+                  stop
+               end if
+               open(ifileno,file=trim(momfile_i))
+            elseif (j==Mensemble) then
+               inquire(file=trim(momfile_f),exist=exists)
+               if (.not.exists) then
+                  write(*,*) 'ERROR: File ',trim(adjustl(momfile_f)), ' does not exist.'
+                  stop
+               end if
+               open(ifileno,file=trim(momfile_f))
+            end if
+            i_err=0
+            do while(i_err==0)
+               read(ifileno,*,iostat=i_err) isite, ichem, mmom_tmp, rmom(1:3,isite,ichem)
+            end do
+            close(ifileno)
+            do I3=0, N3-1
+               do I2=0, N2-1
+                  do I1=0, N1-1
+                     do I0=1, NA
+                        i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
+                        call rng_uniform(rn,3)
+                        u(1)=2.0_dblprec*(rn(1)-0.50_dblprec)
+                        u(2)=2.0_dblprec*(rn(2)-0.50_dblprec)
+                        u(3)=2.0_dblprec*(rn(3)-0.50_dblprec)
 
+                        if(do_ralloy==0) then
+                           v(1:3) = rmom(1:3,I0,1)+amp_rnd*u(1:3)
+                           mmom_tmp = norm2(v)
+                           emom(1:3,i,j)  = v(1:3)/mmom_tmp
+                           emomM(1:3,i,j) = emom(1:3,i,j)*mmom(anumb(I0),j)
+                        else
+                           if (achtype(i) /= 0) then
+                              iatom = acellnumb(i)
+                              v(1:3) = rmom(1:3,I0,achtype(i))+amp_rnd*u(1:3)
+                              mmom_tmp = norm2(v)
+                              emom(1:3,iatom,j)    = v(1:3)/mmom_tmp
+                              emomM(1:3,iatom,j)   = emom(1:3,iatom,j)*mmom(iatom,j)
+                           end if
+                        end if
+                     end do
+                  end do
+               end do
+            end do
+         end do
+         i_all=-product(shape(rmom))*kind(rmom)
+         deallocate(rmom,stat=i_stat)
+         call memocc(i_stat,i_all,'rmom','magninit')
 
-         ! Moments according to values in input file
-         ! combined with spin spiral modulation
+         write (*,*) " done"
+      !-------------------------------------------------------------------------
+      ! Read magnetic configuration from file. Ensembles correspond to states to be used in the GNEB calculations
+      !-------------------------------------------------------------------------
+      else if (initmag==7) then
+         write (*,'(2x,a)',advance='no') "Read moments from file"
+         call GNEB_read_wrapper(Natom,Mensemble,amp_rnd,'infi',relaxed_if,          &
+            do_mom_legacy,rstep,exists,restartfile,mmom,emom,emomM)
+         write (*,*) " done"
+      !-------------------------------------------------------------------------
+      ! Moments according to values in input file combined with spin spiral modulation
+      !-------------------------------------------------------------------------
       else if(initmag==8) then
-
          write (*,'(2x,a)') "Moments from inpsd.dat combined with"
          write (*,'(2x,a)',advance='no') "spin spiral modulation"
 
@@ -319,8 +422,7 @@ contains
          propvec(3)=2*pi*( initpropvec(1)*b1(3)+initpropvec(2)*b2(3)+initpropvec(3)*b3(3) )
 
          ! Normalized rotation vector
-         rotvec(1:3) = initrotvec(1:3)/sqrt( initrotvec(1)**2 + &
-            initrotvec(2)**2 + initrotvec(3)**2 )
+         rotvec(1:3) = initrotvec(1:3)/norm2(initrotvec)
 
          write (*,'(2x,a,3f16.8)') "Init propagation vector", initpropvec(1:3)
          write (*,'(2x,a,3f16.8)') "Propagation vector     ", propvec(1:3)
@@ -334,15 +436,17 @@ contains
                do I1=0, N1-1
                   do I0=1, NA
                      i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-
+                     !----------------------------------------------------------
                      ! The rotation angle is calculated from the scalar product of the
                      ! propagation vector and the position of the atom. The phase can
                      ! be shifted by using a finite value for initrotang
+                     !----------------------------------------------------------
                      rotang = propvec(1)*coord(1,i) + propvec(2)*coord(2,i) &
-                        + propvec(3)*coord(3,i) + initrotang * pi/180
-
+                        + propvec(3)*coord(3,i) + initrotang * pi/180.0_dblprec
+                     !----------------------------------------------------------
                      ! The rotation matrix is calculated from the rotation axis and the
                      ! rotation angle
+                     !----------------------------------------------------------
                      cosra = cos(rotang)
                      sinra = sin(rotang)
                      rotmat(1,1) = (1-cosra)*rotvec(1)*rotvec(1) + cosra
@@ -378,72 +482,44 @@ contains
                            end do
                         end if
                      end if
-
                   end do
                end do
             end do
          end do
          write (*,*) " done"
-
+      endif
+      !-------------------------------------------------------------------------
+      ! Set all the information needed for the fixed moments calculation
+      !-------------------------------------------------------------------------
+      if (do_fixed_mom.eq.'Y') then
+         call ErrorHandling_missing('Fixed moments')
+      else
+         Nred=Natom
+         allocate(red_atom_list(Nred),stat=i_stat)
+         call memocc(i_stat,product(shape(red_atom_list))*kind(red_atom_list),'red_atom_list','magninit')
+         red_atom_list=0
+         ! Fill up the array where each entry in the index
+         do iatom=1,Natom
+            red_atom_list(iatom)=iatom
+         enddo
+      endif
+      !-------------------------------------------------------------------------
+      ! Set all the information needed for the induced moments calculation
+      !-------------------------------------------------------------------------
+      if (ind_mom_flag.eq.'Y'.and.do_fixed_mom.ne.'Y') then
+         call ErrorHandling_missing('Indcued moments')
       endif
 
       emom2=emom
-      !Write moment to screen
-
-   contains
-
-
-      !> Write initial moments to stdout. Unused
-      subroutine writeinitmag
-         write (*,*) "Initial magnetic moments"
-         do j=1, Natom
-            write (*,10001) j, emom(1,j,1), emom(2,j,1), emom(3,j,1), mmom(j,1)
-         end do
-         10001 format ("Atom=",i8,2x,"Magn. mom.=",2x, f12.8,f12.8,f12.8)
-      end subroutine writeinitmag
 
    end subroutine magninit
 
-
-   !> Read magnetic moments from file
-   subroutine loadrestart(Natom,Mensemble,restartfile,rstep,mmom,emom,emomM)
-      !
-      !.. Implicit declarations
-      implicit none
-
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      character(len=35), intent(inout) :: restartfile !< File containing restart information
-      integer, intent(out) :: rstep !< Starting simulation step
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(out) :: mmom !< Magnitude of magnetic moments
-
-      integer :: i, j, k, l, ios
-      logical :: exists
-
-      !.. Executable statements
-      inquire(file=restartfile,exist=exists)
-      if(exists) then
-         open(ifileno,iostat=ios, file=restartfile, status="old")
-         read (ifileno,*) rstep
-         do i=1,Mensemble
-            do j=1, Natom
-               read (ifileno,*) k, l, mmom(j,i), emom(1,j,i), emom(2,j,i), emom(3,j,i)
-               emomM(:,j,i)=emom(:,j,i)*mmom(j,i)
-            end do
-         end do
-         close(ifileno)
-      else
-         write(*,*) 'ERROR: Restartfile ',trim(adjustl(restartfile)), ' does not exist.'
-         stop
-      end if
-
-   end subroutine loadrestart
-
+   !----------------------------------------------------------------------------
    !> Set up the magnitude of magnetic moments, and Lande factors as well.
-   subroutine setup_moment(Natom,conf_num,Mensemble, NA, N1, N2, N3, Nchmax, ammom_inp, Landeg_ch, Landeg, mmom, mmom0, mmomi,&
-         do_ralloy, Natom_full,achtype, acellnumb,mconf)
+   !----------------------------------------------------------------------------
+   subroutine setup_moment(Natom,conf_num,Mensemble,NA,N1,N2,N3, Nchmax,ammom_inp,  &
+      Landeg_ch,Landeg,mmom,mmom0,mmomi,do_ralloy, Natom_full,achtype, acellnumb,   &
+      mconf)
       !
       implicit none
       !
@@ -481,19 +557,19 @@ contains
                   if (do_ralloy==0) then
                      mmom(i,:)=abs(ammom_inp(I0,1,mconf))
                      mmom0(i,:)=abs(ammom_inp(I0,1,mconf))
-                     mmomi(i,:)=1.0d0/abs(ammom_inp(I0,1,mconf))
+                     mmomi(i,:)=1.0_dblprec/abs(ammom_inp(I0,1,mconf))
                      !Division with 2 to store in units
                      !of g=2 (the default Lande g)
-                     Landeg(i)=Landeg_ch(I0,1,1)*0.5d0
+                     Landeg(i)=Landeg_ch(I0,1,1)*0.5_dblprec
                   else
                      if (achtype(i) /= 0) then
                         iatom = acellnumb(i)
                         mmom(iatom,:)=abs(ammom_inp(I0,achtype(i),mconf))
                         mmom0(iatom,:)=abs(mmom(iatom,1))
-                        mmomi(iatom,:)=1.0d0/abs(mmom(iatom,1))
+                        mmomi(iatom,:)=1.0_dblprec/abs(mmom(iatom,1))
                         !Division with 2 to store in units
                         !of g=2 (the default Lande g)
-                        Landeg(iatom)=Landeg_ch(I0,achtype(i),1)*0.5d0
+                        Landeg(iatom)=Landeg_ch(I0,achtype(i),1)*0.5_dblprec
                      end if
                   end if
 
@@ -503,16 +579,18 @@ contains
       end do
    end subroutine setup_moment
 
-   !> Rotates initial spin configuration using
-   !! Euler angles
-   !  as described in the document
-   !  mathworld.wolfram.com/EulerAngles.html
-   !  ( /up/hellsvik/SD/RotationGroup/EulerAngles.html )
-   !  or in Goldstein, Classical Mechanics
-   !  Uses the x-convention
-   !  roteul == 1: Rotates with Euler angles phi, theta psi
-   !  roteul == 2: Rotates to x-axis, thereafter rotation
-   !  with Euler angles phi, theta, psi
+   !----------------------------------------------------------------------------
+   !> Rotates initial spin configuration using Euler angles
+   !> @details For details on the Eusler angles one can look at the document
+   !> mathworld.wolfram.com/EulerAngles.html
+   !> ( /up/hellsvik/SD/RotationGroup/EulerAngles.html )
+   !> or in Goldstein, Classical Mechanics
+   !> Uses the x-convention
+   !> roteul == 1: Rotates with Euler angles phi, theta psi
+   !> roteul == 2: Rotates to x-axis, thereafter rotation
+   !> with Euler angles phi, theta, psi
+   !> @author Johann Hellsvik
+   !----------------------------------------------------------------------------
    subroutine rotationeuler(Natom, Mensemble,roteul, rotang,emom, emomM, mmom, emom2)
 
       implicit none
@@ -651,9 +729,10 @@ contains
 
    end subroutine rotationeuler
 
-
-   !> Excites initial spin configurations
-   subroutine setinitexc(Natom, Mensemble, emom, emomM, mmom, mmom2, emom2, initexc, &
+   !----------------------------------------------------------------------------
+   !> @brief Excites initial spin configurations
+   !----------------------------------------------------------------------------
+   subroutine setinitexc(Natom, Mensemble, emom, emomM, mmom, mmom2, emom2, initexc,&
          initconc, initneigh, initimp, max_no_neigh, nlist, mseed)
 
       use stdtypes
@@ -707,7 +786,6 @@ contains
             do m=1, Mensemble
                x=mtprng_rand_real3(state)
                if(x .lt. initconc) then
-                  !mmom(i,m) = 0.0_dblprec
                   mmom(i,m) = initimp
                end if
             end do

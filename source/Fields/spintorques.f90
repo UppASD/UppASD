@@ -1,21 +1,26 @@
 !-------------------------------------------------------------------------------
 ! MODULE: SpinTorques
-!> @brief Routines for calculating \f$\frac{\partial\mathbf{m}}{\partial\mathbf{r}}\f$. Needed for generalized spin-torque term \f$\left(\mathbf{m} \times \left(\mathbf{m} \times \frac{\partial\mathbf{m}}{\partial \mathbf{r}}\right)\right)\f$
-!> @details For calculating the spin transfer torques, we use the standard adiabatic and non-adiabatic terms as introduced in the LLG equation by Zhang & Li. PRL 93, 127204 (2004).
-!> The terms are rewritten to suit the LL equations used in UppASD and here we use the same formulas as Schieback et. al, Eur. Phys. J. B 59, 429, (2007)
-!> Currently the torques are only calculated as their respective fields (i.e. missing the preceeding \f$\mathbf{m} \times\f$) since that is taken care of in the Depondt solver
+!> @brief
+!> Routines for calculating \f$\frac{\partial\mathbf{m}}{\partial\mathbf{r}}\f$.
+!> Needed for generalized spin-torque term
+!> \f$\left(\mathbf{m} \times \left(\mathbf{m}\times\frac{\partial\mathbf{m}}{\partial \mathbf{r}}\right)\right)\f$
+!> @details For calculating the spin transfer torques, we use the standard adiabatic
+!> and non-adiabatic terms as introduced in the LLG equation by Zhang & Li. PRL 93, 127204 (2004).
+!> The terms are rewritten to suit the LL equations used in UppASD and here we
+!> use the same formulas as Schieback et. al, Eur. Phys. J. B 59, 429, (2007)
+!> Currently the torques are only calculated as their respective fields
+!> (i.e. missing the preceeding \f$\mathbf{m} \times\f$) since that is taken care of in the Depondt solver
 !> @author
 !> Anders Bergman
 !> @notes
 !> J. Chico
 !> - Added the SHE torque and the calculation of the current density
+!> - Added a general model for SOT
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
+!
+!> @todo Strenght of prefactors still not controlled
 !-------------------------------------------------------------------------------
-
 module SpinTorques
 
    use Parameters
@@ -24,23 +29,30 @@ module SpinTorques
    implicit none
 
    !Spin-transfer torque inputs
-   character(len=1) :: STT       !< Treat spin transfer torque? (Y/N)
-   character(len=1) :: jsite     !< Treat site dependent jvec
-   character(len=1) :: do_she    !< Treat SHE spin transfer torque
-   character(len=35) :: jvecfile !< File name for the site dependent jvec
+   character(len=1) :: STT             !< Treat spin transfer torque? (Y/N)
+   character(len=1) :: jsite           !< Treat site dependent jvec
+   character(len=1) :: do_she          !< Treat SHE spin transfer torque
+   character(len=1) :: do_sot          !< Treat SHE spin transfer torque
+   character(len=1) :: sot_site_pol    !< Treat site dependent jvec
+   character(len=35) :: jvecfile       !< File name for the site dependent jvec
+   character(len=35) :: sot_site_file  !< File name for the site dependent SOT polarization
    real(dblprec) :: adibeta      !< Adiabacity parameter for STT
    real(dblprec) :: spin_pol     !< Spin polarization
    real(dblprec) :: SHE_angle    !< Spin Hall angle
+   real(dblprec) :: sot_field
    real(dblprec) :: thick_ferro  !< Thickness of ferromagnetic layer (t_f/alat)
+   real(dblprec) :: sot_damping
    real(dblprec), dimension(3) :: jvec !< Spin current vector
+   real(dblprec), dimension(3) :: sot_pol_vec
    real(dblprec), dimension(:,:), allocatable :: sitenatomjvec !< Site dependent spin current vector
+   real(dblprec), dimension(:,:), allocatable :: sitenatom_sot_pol
 
    !Spin-transfer torque data arrays
-   real(dblprec), dimension(:,:,:), allocatable :: btorque !< Spin transfer torque
-   real(dblprec), dimension(:,:,:), allocatable :: dmomdr  !< Current magnetic moment vector
-   real(dblprec), dimension(:,:,:), allocatable :: she_btorque !< SHE spin transfer torque
    real(dblprec), dimension(:), allocatable  :: stt_prefac !< Prefactor for the STT
-
+   real(dblprec), dimension(:,:,:), allocatable :: dmomdr  !< Current magnetic moment vector
+   real(dblprec), dimension(:,:,:), allocatable :: btorque !< Spin transfer torque
+   real(dblprec), dimension(:,:,:), allocatable :: she_btorque !< SHE spin transfer torque
+   real(dblprec), dimension(:,:,:), allocatable :: sot_btorque !< SOT spin transfer torque
 
    public
 
@@ -77,7 +89,7 @@ contains
                btorque(1,j,k)=(lambda1_array(j)-adibeta)*dmomdr(1,j,k)
                btorque(2,j,k)=(lambda1_array(j)-adibeta)*dmomdr(2,j,k)
                btorque(3,j,k)=(lambda1_array(j)-adibeta)*dmomdr(3,j,k)
-               stt_prefac(j)=-(1.0d0+adibeta*lambda1_array(j))
+               stt_prefac(j)=-(1.0_dblprec+adibeta*lambda1_array(j))
             enddo
          enddo
          !$omp end parallel do
@@ -95,11 +107,18 @@ contains
          call SHE_torque(Natom,Mensemble,lambda1_array,emom,mmom)
       endif
 
+      ! Calculates the general field-like and damping-like terms that describe the SOT
+      if (do_sot=='Y') then
+         call SOT_torque(Natom,Mensemble,lambda1_array,emom)
+      endif
+
    end subroutine calculate_spintorques
 
    !---------------------------------------------------------------------------
    !> @brief
-   !> Calculate \f$\left( \mathbf{m}\times  \left(\mathbf{u}\cdot \frac{\partial}{\partial\mathbf{r}}\right) \mathbf{m} \right)\f$ (which then ends up as one part of the spin transfer torque) for atomic damping dependence
+   !> Calculate
+   !> \f$\left(\mathbf{m}\times\left(\mathbf{u}\cdot\frac{\partial}{\partial\mathbf{r}}\right)\mathbf{m}\right)\f$
+   !> (which then ends up as one part of the spin transfer torque) for atomic damping dependence
    !
    !> @author
    !> Anders Bergman
@@ -117,17 +136,18 @@ contains
       !$omp parallel do default(shared) private(iatom,k)
       do iatom=1, Natom
          do k=1, Mensemble
-            btorque(1,iatom,k)=btorque(1,iatom,k)+stt_prefac(iatom)*emomM(2,iatom,k)*dmomdr(3,iatom,k) &
-               -stt_prefac(iatom)*emomM(3,iatom,k)*dmomdr(2,iatom,k)
-            btorque(2,iatom,k)=btorque(2,iatom,k)+stt_prefac(iatom)*emomM(3,iatom,k)*dmomdr(1,iatom,k) &
-               -stt_prefac(iatom)*emomM(1,iatom,k)*dmomdr(3,iatom,k)
-            btorque(3,iatom,k)=btorque(3,iatom,k)+stt_prefac(iatom)*emomM(1,iatom,k)*dmomdr(2,iatom,k) &
-               -stt_prefac(iatom)*emomM(2,iatom,k)*dmomdr(1,iatom,k)
+            btorque(1,iatom,k)=btorque(1,iatom,k)+stt_prefac(iatom)*(emomM(2,iatom,k)*dmomdr(3,iatom,k) &
+               -emomM(3,iatom,k)*dmomdr(2,iatom,k))
+            btorque(2,iatom,k)=btorque(2,iatom,k)+stt_prefac(iatom)*(emomM(3,iatom,k)*dmomdr(1,iatom,k) &
+               -emomM(1,iatom,k)*dmomdr(3,iatom,k))
+            btorque(3,iatom,k)=btorque(3,iatom,k)+stt_prefac(iatom)*(emomM(1,iatom,k)*dmomdr(2,iatom,k) &
+               -emomM(2,iatom,k)*dmomdr(1,iatom,k))
          end do
       end do
       !$omp end parallel do
 
    end subroutine mom_cross_dmomdr
+
    !---------------------------------------------------------------------------
    !> @brief
    !> Calculates the spin transfer torque for currents passing through a fixed ferromagnetic layer
@@ -145,7 +165,7 @@ contains
 
       integer :: iatom, k
 
-      btorque=0.0d0
+      btorque=0.0_dblprec
       do k=1, Mensemble
          do iatom=1, Natom
             btorque(1,iatom,k)=emomM(2,iatom,k)*sitenatomjvec(3,iatom)-emomM(3,iatom,k)*sitenatomjvec(2,iatom)
@@ -156,14 +176,13 @@ contains
 
    end subroutine mom_cross_mfixed
 
-   !---------------------------------------------------------------------------$
-   !> @brief$
-   !> Calculate the SHE torque generated by a current passing through a non magnetic material with SOC$
-   !$
-   !> @author$
-   !> Jonathan Chico$
-   !---------------------------------------------------------------------------$
-
+   !-----------------------------------------------------------------------------
+   !> @brief
+   !> Calculate the SHE torque generated by a current passing through a non magnetic material with SOC
+   !
+   !> @author
+   !> Jonathan Chico
+   !-----------------------------------------------------------------------------
    subroutine SHE_torque(Natom,Mensemble,lambda1_array,emom,mmom)
 
       implicit none
@@ -179,7 +198,7 @@ contains
       integer :: iatom, k
       real(dblprec) :: she_fact
 
-      she_btorque=0.0D0
+      she_btorque=0.0_dblprec
       ! Factor for the strenght of the spin hall torque
       she_fact=she_angle/(spin_pol*thick_ferro)
 
@@ -194,6 +213,49 @@ contains
       !$omp end parallel do
 
    end subroutine SHE_torque
+
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE
+   !> @brief Calculates the general form of the SOT for the LLG
+   !> @details In general the SOT can be always be written as a field like term
+   !> \f$ \tau_{FL}\mathbf{m}\times \mathbf{P} \f$ and a damping like term
+   !> \f$ \tau_{DL}\mathbf{m}\times\left(\mathbf{m}\times \mathbf{P}\right)\f$
+   !> where \f$ \mathbf{P} \f$ is the polarization of the spin current (analogous to jvec in the volume STT)
+   !> and \f$\tau_{FL}\f$ and \f$\tau_{DL}\f$ are the strenght of the field-like term and the
+   !> damping like term respectively.
+   !> @author Jonathan Chico
+   !----------------------------------------------------------------------------
+   subroutine SOT_torque(Natom,Mensemble,lambda1_array,emom)
+
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emom  !< Current magnetic moment vector$
+
+      integer :: iatom, ens
+      sot_btorque=0.0_dblprec
+      !$omp parallel do default(shared) private(iatom,ens)
+      do ens=1,Mensemble
+         do iatom=1,Natom
+            !
+            sot_btorque(1,iatom,ens)=-(sot_field-lambda1_array(iatom)*sot_damping)*sitenatom_sot_pol(1,iatom)&
+            -(sot_damping+lambda1_array(iatom)*sot_field)*&
+            (emom(2,iatom,ens)*sitenatom_sot_pol(3,iatom)-emom(3,iatom,ens)*sitenatom_sot_pol(2,iatom))
+            !
+            sot_btorque(2,iatom,ens)=-(sot_field-lambda1_array(iatom)*sot_damping)*sitenatom_sot_pol(2,iatom)&
+            -(sot_damping+lambda1_array(iatom)*sot_field)*&
+            (emom(3,iatom,ens)*sitenatom_sot_pol(1,iatom)-emom(1,iatom,ens)*sitenatom_sot_pol(2,iatom))
+            !
+            sot_btorque(3,iatom,ens)=-(sot_field-lambda1_array(iatom)*sot_damping)*sitenatom_sot_pol(3,iatom)&
+            -(sot_damping+lambda1_array(iatom)*sot_field)*&
+            (emom(1,iatom,ens)*sitenatom_sot_pol(2,iatom)-emom(2,iatom,ens)*sitenatom_sot_pol(1,iatom))
+         enddo
+      enddo
+      !$omp end parallel do
+
+   end subroutine SOT_torque
 
    !----------------------------------------------------------------------------
    !> @brief
@@ -217,33 +279,36 @@ contains
          if (do_she=='Y') then
             allocate(she_btorque(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(she_btorque))*kind(she_btorque),'she_btorque','allocate_stt_data')
-            she_btorque=0.0D0
+            she_btorque=0.0_dblprec
          endif
 
          if (stt=='A') then
             allocate(stt_prefac(Natom),stat=i_stat)
             call memocc(i_stat,product(shape(stt_prefac))*kind(stt_prefac),'stt_prefac','allocate_stt_sata')
-            stt_prefac=0.0D0
+            stt_prefac=0.0_dblprec
             allocate(btorque(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
-            btorque=0.0D0
+            btorque=0.0_dblprec
             allocate(dmomdr(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(dmomdr))*kind(dmomdr),'dmomdr','allocate_stt_data')
-            dmomdr=0.0D0
+            dmomdr=0.0_dblprec
          else if (stt=='F') then
             allocate(btorque(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
-            btorque=0.0D0
+            btorque=0.0_dblprec
+         endif
+         if (do_sot=='Y') then
+            allocate(sot_btorque(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(sot_btorque))*kind(sot_btorque),'sot_btorque','allocate_stt_data')
+            sot_btorque=0.0_dblprec
          endif
 
       else
-
          if (do_she=='Y') then
             i_all=-product(shape(she_btorque))*kind(she_btorque)
             deallocate(she_btorque,stat=i_stat)
             call memocc(i_stat,i_all,'btorque','allocate_stt_data')
          endif
-
          if (stt=='A') then
             i_all=-product(shape(stt_prefac))*kind(stt_prefac)
             deallocate(stt_prefac,stat=i_stat)
@@ -259,11 +324,14 @@ contains
             deallocate(btorque,stat=i_stat)
             call memocc(i_stat,i_all,'btorque','allocate_stt_data')
          endif
-
+         if(do_sot=='Y') then
+            i_all=-product(shape(sot_btorque))*kind(sot_btorque)
+            deallocate(sot_btorque,stat=i_stat)
+            call memocc(i_stat,i_all,'sot_btorque','allocate_stt_data')
+         endif
       endif
 
    end subroutine allocate_stt_data
-
 
    !---------------------------------------------------------------------------
    !> @brief
@@ -284,8 +352,6 @@ contains
       character(len=50) :: keyword,cache
       integer :: rd_len, i_err, i_errb
       logical :: comment
-
-
 
       do
          10     continue
@@ -345,6 +411,30 @@ contains
                read(ifile,*,iostat=i_err) thick_ferro
                if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
+            case('do_sot') ! Consider the general SOT torque
+               read(ifile,*,iostat=i_err) do_sot
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('sot_pol_vec')
+               read(ifile,*,iostat=i_err) sot_pol_vec
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('sot_field')
+               read(ifile,*,iostat=i_err) sot_field
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('sot_damping')
+               read(ifile,*,iostat=i_err) sot_damping
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('sot_site_pol')
+               read(ifile,*,iostat=i_err) sot_site_pol
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('sot_site_file')
+               read(ifile,'(a)',iostat=i_err) cache
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               sot_site_file=adjustl(trim(cache))
             end select
          end if
 
@@ -368,16 +458,20 @@ contains
       !
       implicit none
 
-
       !Spin transfer torque
-      STT         = "N"
-      jsite       = "N"
-      do_she      = "N"
-      adibeta     = 0.0d0
-      spin_pol    = 0.0D0
-      jvecfile    = 'jvecfile'
-      she_angle   = 0.0D0
-      thick_ferro = 0.0D0
+      STT           = "N"
+      jsite         = "N"
+      do_she        = "N"
+      do_sot        = "N"
+      adibeta       = 0.0_dblprec
+      spin_pol      = 0.0_dblprec
+      jvecfile      = 'jvecfile'
+      sot_field     = 0.0_dblprec
+      she_angle     = 0.0_dblprec
+      thick_ferro   = 0.0_dblprec
+      sot_damping   = 0.0_dblprec
+      sot_site_pol  = "N"
+      sot_site_file = 'site_pol'
 
    end subroutine init_stt
 
@@ -387,9 +481,10 @@ contains
    !
    !> @author
    !> Jonathan Chico, Anders Bergman
-   !>
    !---------------------------------------------------------------------------
    subroutine read_jvecfile(Natom)
+
+      implicit none
 
       integer, intent(in) :: Natom
 
@@ -399,9 +494,7 @@ contains
       call memocc(i_stat,product(shape(sitenatomjvec))*kind(sitenatomjvec),'sitenatomjvec','read_jvecfile')
 
       if (jsite=='Y') then
-
          open(ifileno, file=trim(jvecfile))
-
          flines=0
          ! Pre-read file to get number of lines
          do
@@ -444,6 +537,65 @@ contains
 
    !---------------------------------------------------------------------------
    !> @brief
+   !> Read site dependent currents
+   !
+   !> @author
+   !> Jonathan Chico, Anders Bergman
+   !---------------------------------------------------------------------------
+   subroutine read_sot_pol_site(Natom)
+
+      implicit none
+
+      integer, intent(in) :: Natom
+
+      integer :: i,flines, isite, i_stat
+
+      allocate(sitenatom_sot_pol(3,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(sitenatom_sot_pol))*kind(sitenatom_sot_pol),'sitenatom_sot_pol','read_sot_pol_site')
+
+      if (sot_site_pol=='Y') then
+         open(ifileno, file=trim(sot_site_file))
+         flines=0
+         ! Pre-read file to get number of lines
+         do
+            read(ifileno,*,end=200)  isite
+            flines=flines+1
+         end do
+
+         200 continue
+
+         rewind(ifileno)
+
+         write(*,'(2x,a)') 'Reading site dependent polarizations'
+
+         ! If the size of the file is NATOM then there is no problem
+         if ( Natom.eq.flines ) then
+
+            do i=1, flines
+               read(ifileno,*) isite, sitenatom_sot_pol(1,isite), sitenatom_sot_pol(2,isite), sitenatom_sot_pol(3,isite)
+            end do
+         else
+            write(*,*) 'WARNING: Size of the sitenatom_sot_pol is not NATOM'
+            do i=1, flines
+               read(ifileno,*) isite, sitenatom_sot_pol(1,isite), sitenatom_sot_pol(2,isite), sitenatom_sot_pol(3,isite)
+            end do
+
+         end if
+
+         close(ifileno)
+
+         ! If there is no site dependent polarization set it to be constant
+      else
+         do i=1, Natom
+            sitenatom_sot_pol(1,i)=sot_pol_vec(1)
+            sitenatom_sot_pol(2,i)=sot_pol_vec(2)
+            sitenatom_sot_pol(3,i)=sot_pol_vec(3)
+         enddo
+      endif
+
+   end subroutine read_sot_pol_site
+   !---------------------------------------------------------------------------
+   !> @brief
    !> Calculation of the current density in A/m^2
    !
    !> @author
@@ -477,9 +629,9 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! If alat is not defined set it to BCC Fe
-      if (alat.eq.1.d0) then
+      if (alat.eq.1._dblprec) then
          alat=2.856e-10
-         write(*,'(1x,a,2x,G14.6,a)') 'No lattice constant given, assuming BCC Fe lattice constant: ',alat,'m'
+         write(*,'(1x,a,2x,G14.6,x,a)') 'No lattice constant given, assuming BCC Fe lattice constant: ',alat,'m'
       endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -494,7 +646,7 @@ contains
       ! If the spin polarization is not set set it to one
       if (spin_pol.eq.0) then
          spin_pol=1
-         write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100%: ',spin_pol
+         write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100% : ',spin_pol
       endif
       ! Calculate the current density
       curr_den(1:3)=ev*total_mom*gama*alat*jvec(1:3)/(cell_vol*spin_pol)

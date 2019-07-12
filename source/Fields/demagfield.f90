@@ -1,11 +1,9 @@
 !-------------------------------------------------------------------------------
 ! MODULE DemagField
-!> Data and routines for calculating demagnetizing field
+!> @brief Data and routines for calculating demagnetizing field
+!> @author Johan Hellsvik
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module DemagField
    use Parameters
@@ -44,9 +42,9 @@ contains
       real(dblprec), dimension(Mensemble) ::  mx, my, mz
 
       !.. Executable statements
-      mx=0.0d0
-      my=0.0d0
-      mz=0.0d0
+      mx=0.0_dblprec
+      my=0.0_dblprec
+      mz=0.0_dblprec
       !.. Sum over moments
       do k=1, Mensemble
          do i=1, Natom
@@ -69,6 +67,7 @@ contains
       end do
    end subroutine calc_demag
 
+
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: allocate_demag
    !> @brief Allocate array for demagnetization field
@@ -83,9 +82,8 @@ contains
       !
       allocate(demagfld(3,Mensemble),stat=i_stat)
       call memocc(i_stat,product(shape(demagfld))*kind(demagfld),'demagfld','read_demag')
-      demagfld=0.0d0
+      demagfld=0.0_dblprec
       !
    end subroutine allocate_demag
-
 
 end module DemagField

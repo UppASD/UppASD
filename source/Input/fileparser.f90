@@ -1,13 +1,13 @@
 !> Routines for parsing input files
+!> @author
+!> Anders Bergman, Lars Bergqvist, Johan Hellsvik, Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 module fileparser
    use Parameters
 
    implicit none
+
 
 contains
 
@@ -32,8 +32,9 @@ contains
       do while(.not.rd_done.and.rd_len<len(keyword))
          rd_len=rd_len+1
          read(ifile,'(a1)',advance='no',end=20,eor=10) keyword(rd_len:rd_len)
-         rd_start=rd_start.or.(keyword(rd_len:rd_len)/=" ")
-         rd_done=rd_start.and.(keyword(rd_len:rd_len)==" ")
+         rd_start=rd_start.or.keyword(rd_len:rd_len)/=" ".or.keyword(rd_len:rd_len)/=":"
+         rd_done=rd_start.and.(keyword(rd_len:rd_len)==" ".or.keyword(rd_len:rd_len)==":")
+         if(keyword(rd_len:rd_len)==":") keyword(rd_len:rd_len)=""
       end do
       ! happy ending
       i_err=0
@@ -43,7 +44,6 @@ contains
       10  continue
       i_err=10
       keyword=adjustl(keyword(1:rd_len)//'')
-      !        print *,'<<<<',trim(keyword),'>>>>>'
       return
       ! end of file
       20  continue

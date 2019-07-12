@@ -15,13 +15,12 @@ module ChemicalData
    integer, dimension(:), allocatable :: acellnumb !< List for translating atom no. in full cell to actual cell
    integer, dimension(:), allocatable :: acellnumbrev !< List for translating atom no. in actual cell to full cell
    integer, dimension(:), allocatable :: achem_ch !< Chemical type of atoms (reduced list) (achem_ch(i)=achtype(acellnumbrev(i)))
-   integer, dimension(:), allocatable :: atype_ch !< Actual site of atom for dilute system 
-   integer, dimension(:), allocatable :: asite_ch !< Actual site of atom for dilute system 
+   integer, dimension(:), allocatable :: atype_ch !< Actual site of atom for dilute system
+   integer, dimension(:), allocatable :: asite_ch !< Actual site of atom for dilute system
    real(dblprec) :: chconceff !< Effective chemical concentration
 
    !
 contains
-
 
    !> Allocate arrays for random alloys
    subroutine allocate_chemicaldata(Natom,flag)
@@ -76,4 +75,3 @@ contains
 
 
 end module ChemicalData
-

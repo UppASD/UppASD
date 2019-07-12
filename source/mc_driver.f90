@@ -32,7 +32,7 @@ module mc_driver
 
 contains
 
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    !> @brief
    !> Monte Carlo initial phase.
    !> This phase of the program is used for equillibration.
@@ -41,24 +41,24 @@ contains
    !
    !> @author
    !> Anders Bergman, Lars Bergqvist, Jonathan Chico
-   !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    subroutine mc_iphase()
 
-      !      use Ewaldmom
       use InputData
       use SystemData
       use MonteCarlo
       use DemagField
       use MomentData
       use HamiltonianData
-      use ChemicalData, only : atype_ch
       use Measurements, only : calc_mavrg
+      !use InducedMoments,        only : renorm_ncoup_ind
       use AMS
       use QHB
       use Restart
+      use macrocells
 
       integer :: i, k, ipmcstep
-      real(dblprec) :: energy,temprescale,dummy
+      real(dblprec) :: energy,temprescale,temprescalegrad, dummy
       character(len=30) :: filn
       integer :: mc_nmeas,mc_nsamp
       real(dblprec) :: mc_mavg,mc_mavg2,mc_mavg4,mc_minst
@@ -81,21 +81,20 @@ contains
 
          ! Calculate demagnetization field
          if(demag=='Y') then
-            call calc_demag(Natom, Mensemble, demag1, demag2, demag3, demagvol, emomM)
+            call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
          endif
 
          ! Rescaling of temperature according to Quantum Heat bath
-         temprescale=1.d0
-         if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='T') then
+         temprescale=1.0_dblprec
+         temprescalegrad=0.0_dblprec
+         if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
             if(qhb_mode=='MT') then
                call calc_mavrg(Natom,Mensemble,emomM,mavg)
-               call qhb_rescale(iptemp(i),temprescale,do_qhb,qhb_mode,mavg)
+               call qhb_rescale(iptemp(i),temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
             else
-               call qhb_rescale(iptemp(i),temprescale,do_qhb,qhb_mode,dummy)
+               call qhb_rescale(iptemp(i),temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
             endif
          endif
-
-         !! Initialize counter for MC spin flips
 
          ! Set up order for Metropolis sweeps
          call choose_random_atom_x(Natom,iflip_a)
@@ -103,30 +102,29 @@ contains
          ! Zero data for averaging
          mc_nmeas=0
          mc_nsamp=0
-         mc_mavg=0.0d0
-         mc_mavg2=0.0d0
-         mc_mavg4=0.0d0
-         mc_avcum=0.0d0
-         mc_avsus=0.0d0
+         mc_mavg=0.0_dblprec
+         mc_mavg2=0.0_dblprec
+         mc_mavg4=0.0_dblprec
+         mc_avcum=0.0_dblprec
+         mc_avsus=0.0_dblprec
          !
          ! Set energy to zero
-         energy = 0.0d0
+         energy = 0.0_dblprec
          ! Loop over steps of sweeps
          do ipmcstep=1,ipmcnstep(i)
             ! Perform metropolis algorithm
-            call mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,ipTemp(i),temprescale,&
-               ipmode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
-               lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
-               dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
-               biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
-               eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
-               ind_nlist,ind_mom,sus_ind,ind_mom_flag,iphfield(1:3),do_dip,Qdip)
+            call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(i),temprescale,ipmode,&
+               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,           &
+               lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,     &
+               mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),do_dip, &
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,        &
+               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,do_anisotropy)
 
             ! Sample m, m2, m4 for second half of run (every tenth step)
             if(ipmcstep>ipmcnstep(i)/2.and.mod(ipmcstep-1,10)==0) then
 
                ! Calculate m_avg
-               mc_minst=0.0d0
+               mc_minst=0.0_dblprec
                do k=1,Mensemble
                   mc_minst=sqrt(sum(emomM(1,:,k))**2+sum(emomM(2,:,k))**2+sum(emomM(3,:,k))**2)/natom/Mensemble
                   mc_mavg=mc_mavg+mc_minst
@@ -137,12 +135,12 @@ contains
 
                ! Calculate Binder cumulant for final quarter of run
                if(ipmcstep>3*ipmcnstep(i)/4) then
-                  mc_avcum=mc_avcum+1.0d0-(mc_mavg4/mc_nmeas)/((mc_mavg2/mc_nmeas)**2)/3.0d0
+                  mc_avcum=mc_avcum+1.0_dblprec-(mc_mavg4/mc_nmeas)/((mc_mavg2/mc_nmeas)**2)/3.0_dblprec
                   mc_avsus=mc_avsus+((mc_mavg2/mc_nmeas)-(mc_mavg/mc_nmeas)**2)
                   mc_nsamp=mc_nsamp+1
 
                   ! Print Binder cumulant and susceptibility for final tenth of run
-                  if(ipmcstep>ipmcnstep(i)*0.9d0) then
+                  if(ipmcstep>ipmcnstep(i)*0.9_dblprec) then
                      write(11,'(i8,4f10.6,3f18.6)') ipmcstep,mc_mavg/mc_nmeas,&
                         mc_avcum/mc_nsamp, mc_avsus/mc_nsamp/(8.617343d-5)/ (ipTemp(i)+1.0d-15) *Mensemble
                   end if
@@ -164,20 +162,40 @@ contains
                call choose_random_atom_x(Natom,iflip_a)
             end if
             !Adjust QHB
-            if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='T') then
+            if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
                if (qhb_mode=='MT') then
                   if (mod(ipmcstep,ipmcnstep(i)/20)==0) then
                      call calc_mavrg(Natom,Mensemble,emomM,mavg)
-                     call qhb_rescale(iptemp(i),temprescale,do_qhb,qhb_mode,mavg)
+                     call qhb_rescale(iptemp(i),temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
                   endif
                endif
             endif
+         !------------------------------------------------------------------------
+         ! Induced moments treatment
+         !------------------------------------------------------------------------
+         ! If there are induced moments in the system one must renormalize the
+         ! the Heisenberg exchange and Dzyaloshinskii-Moriya vectors, as well as
+         ! the magnitude and direction of the induced moments
+         !if (ind_mom_flag=='Y') then
+         !   call renorm_ncoup_ind(do_dm,Natom,conf_num,Mensemble, &
+         !      ham%max_no_neigh,ham%max_no_dmneigh,ham%max_no_neigh_ind, &
+         !      ham%nlistsize,ham%dmlistsize,ham%ind_list_full,ham%ind_nlistsize, &
+         !      ham%nlist,ham%dmlist,ham%ind_nlist,ham%sus_ind,mmom,emom,emomM, &
+         !      ham%ncoup,ham%dm_vect,ham%fix_list,ham%fix_num)
+         !endif
+         !------------------------------------------------------------------------
+         ! End ! of ! the ! induced ! moments ! treatment
+         !------------------------------------------------------------------------
 
          enddo
 
          call timing(0,'Initial       ','OF')
          call timing(0,'PrintRestart  ','ON')
-         call prnrestart(Natom, Mensemble, simid, 0, emom, mmom)
+         if (do_mom_legacy.ne.'Y') then
+            call prn_mag_conf(Natom,0,Mensemble,'R',simid,mmom,emom,'',mode)
+         else
+            call prnrestart(Natom, Mensemble, simid, 0, emom, mmom)
+         endif
          call timing(0,'PrintRestart  ','OF')
          call timing(0,'Initial       ','ON')
       enddo
@@ -217,20 +235,22 @@ contains
       use Polarization
       use prn_averages
       use Measurements
-      use ChemicalData,    only : achem_ch, asite_ch,atype_ch
+      use ChemicalData,    only : achem_ch, asite_ch
       use MicroWaveField
       use CalculateFields
       use HamiltonianData
       use AutoCorrelation, only : autocorr_sample
       use ChemicalData, only : achtype
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
+      !use InducedMoments,        only : renorm_ncoup_ind
+      use macrocells
+      use optimizationRoutines
 
       !
       implicit none
-
       !
       integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc, mcmstep
-      real(dblprec) :: temprescale,dummy
+      real(dblprec) :: temprescale,temprescalegrad,dummy,totene
 
       call timing(0,'MonteCarlo    ','ON')
 
@@ -253,23 +273,23 @@ contains
       endif
 
       ! Rescaling of temperature according to Quantum Heat bath
-      temprescale=1.d0
-      if (do_qhb=="Q" .or. do_qhb=='R' .or. do_qhb=='T') then
+      temprescale=1.0_dblprec
+      temprescalegrad=0.0_dblprec
+      if (do_qhb=="Q" .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
          if(qhb_mode=='MT') then
             call calc_mavrg(Natom,Mensemble,emomM,mavg)
-            call qhb_rescale(Temp,temprescale,do_qhb,qhb_mode,mavg)
+            call qhb_rescale(Temp,temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
          else
-            call qhb_rescale(Temp,temprescale,do_qhb,qhb_mode,dummy)
+            call qhb_rescale(Temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
 
       if (do_pol=='Y') then
-         call init_polarization(Natom, Mensemble, max_no_neigh, &
-            nlist, coord, 1)
+         call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
       end if
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-      call calc_external_fields(Natom, Mensemble, NA, hfield, anumb, external_field, &
+      call calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
 
       ! Perform MC sweeps
@@ -279,46 +299,49 @@ contains
          call timing(0,'Measurement   ','ON')
 
          ! Measure averages and trajectories
-         call measure(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mcmstep, emom, emomM, mmom, &
-            Nchmax, do_ralloy, Natom_full, asite_ch, achem_ch, atype,  plotenergy, Temp, &
-            'N',1.0d0, logsamp, max_no_neigh, nlist, ncoup,nlistsize,thermal_field, &
-            beff,beff1,beff3,coord,ind_mom,ind_nlistsize,ind_nlist,atype_ch)
+         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mcmstep,emom,emomM, &
+            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
+            Temp,temprescale,temprescalegrad,'N',1.0_dblprec,logsamp,               &
+            ham%max_no_neigh,ham%nlist,ham%ncoup,                                   &
+            ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,            &
+            ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
+            ham%sus_ind,do_mom_legacy,mode)
+         call timing(0,'Measurement   ','OF')
 
          ! Calculate total and term resolved energies
          if(plotenergy>0.and.mod(mcmstep-1,cumu_step)==0) then
 
-            call timing(0,'Measurement   ','OF')
             call timing(0,'Energy        ','ON')
-            totene=0.0d0
-            call calc_energy(Natom, Nchmax,Mensemble, conf_num, emom, emomM, mmom,simid, plotenergy, mcmstep, external_field,time_external_field,tenergy, eenergy, lsfenergy, totene, &
-               max_no_neigh, nlistsize, nlist, ncoup, ncoupD,exc_inter,do_dm, max_no_dmneigh, dmlistsize, dmlist, dm_vect, &
-               do_pd, nn_pd_tot, pdlistsize, pdlist, pd_vect, &
-               do_biqdm, nn_biqdm_tot, biqdmlistsize, biqdmlist, biqdm_vect, &
-               do_bq, nn_bq_tot, bqlistsize, bqlist, j_bq, &
-               do_dip, qdip,taniso, eaniso, kaniso,sb,&
-               mult_axis,taniso_diff, eaniso_diff, kaniso_diff,sb_diff,&
-               1.0d0,'N',do_lsf,fs_nlist,fs_nlistsize,nind,lsf_interpolate,lsf_field,Temp)
+            totene=0.0_dblprec
+
+            call calc_energy(nHam,mcmstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,   &
+               do_dip,do_biqdm,conf_num,Mensemble,Natom,Num_macro,1,do_jtensor,     &
+               plotenergy,do_anisotropy,Temp,1.0_dblprec,do_lsf,exc_inter,mult_axis,&
+               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
+               emom,emomM,emomM_macro,external_field,time_external_field,           &
+               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
+               constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
             call timing(0,'Energy        ','OF')
-            call timing(0,'Measurement   ','ON')
          endif
 
+         call timing(0,'SpinCorr      ','ON')
          ! Spin correlation
          ! Sample magnetic moments for correlation functions
          ! Sample S(r) through S(q)
-         call correlation_wrapper(Natom, Mensemble, coord, simid,emomM, mcmstep, delta_t, NT, atype, Nchmax,achtype,cgk_flag,cgk_flag_pc)
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mcmstep,delta_t,&
+            NT,atype,Nchmax,achtype,cgk_flag,cgk_flag_pc)
 
-         call timing(0,'Measurement   ','OF')
+         call timing(0,'SpinCorr      ','OF')
          call timing(0,'MonteCarlo    ','ON')
 
          ! Metropolis sweeps
 
-         call mc_evolve(NA,Natom,Nchmax,Mensemble,do_ralloy,Natom_full,atype,atype_ch,Temp,temprescale,&
-            mode,conf_num,lsf_metric,fs_nlistsize,fs_nlist,nind,lsf_window,do_lsf,lsf_field,exc_inter,&
-            lsf_interpolate,do_jtensor,max_no_neigh,nlistsize,nlist,ncoup,ncoupD,j_tens,do_dm,max_no_dmneigh,&
-            dmlistsize,dmlist,dm_vect,do_pd,nn_pd_tot,pdlistsize,pdlist,pd_vect,do_biqdm,nn_biqdm_tot,&
-            biqdmlistsize,biqdmlist,biqdm_vect,do_bq,nn_bq_tot,bqlistsize,bqlist,j_bq,taniso,taniso_diff,&
-            eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,iflip_a,emomM,emom,mmom,ind_nlistsize,&
-            ind_nlist,ind_mom,sus_ind,ind_mom_flag,hfield,do_dip,Qdip)
+         call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,conf_num, &
+            lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,lsf_interpolate,       &
+            do_jtensor,do_dm,do_pd,do_biqdm,do_bq,do_chir,mult_axis,iflip_a,emomM,  &
+            emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,max_num_atom_macro_cell, &
+            cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,     &
+            mmom_macro,do_anisotropy)
 
          ! Calculate and print m_avg
          if(mcnstep>20) then
@@ -338,11 +361,11 @@ contains
          end if
 
          !Adjust QHB
-         if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='T') then
+         if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
             if(qhb_mode=='MT') then
                if (mod(mcmstep,mcnstep/40)==0) then
                   call calc_mavrg(Natom,Mensemble,emomM,mavg)
-                  call qhb_rescale(Temp,temprescale,do_qhb,qhb_mode,mavg)
+                  call qhb_rescale(Temp,temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
                endif
             endif
          endif
@@ -352,18 +375,35 @@ contains
             call choose_random_atom_x(Natom,iflip_a)
          end if
 
+         !------------------------------------------------------------------------
+         ! Induced moments treatment
+         !------------------------------------------------------------------------
+         ! If there are induced moments in the system one must renormalize the
+         ! the Heisenberg exchange and Dzyaloshinskii-Moriya vectors, as well as
+         ! the magnitude and direction of the induced moments
+         !if (ind_mom_flag=='Y') then
+         !   call renorm_ncoup_ind(do_dm,Natom,conf_num,Mensemble, &
+         !      ham%max_no_neigh,ham%max_no_dmneigh,ham%max_no_neigh_ind, &
+         !      ham%nlistsize,ham%dmlistsize,ham%ind_list_full,ham%ind_nlistsize, &
+         !      ham%nlist,ham%dmlist,ham%ind_nlist,ham%sus_ind,mmom,emom,emomM, &
+         !      ham%ncoup,ham%dm_vect,ham%fix_list,ham%fix_num)
+         !endif
+         !------------------------------------------------------------------------
+         ! End ! of ! the ! induced ! moments ! treatment
+         !------------------------------------------------------------------------
+
+
       enddo
 
       call timing(0,'MonteCarlo    ','OF')
       call timing(0,'Measurement   ','ON')
 
       ! Print remaining measurements
-      call flush_measurements(Natom, Mensemble, NT, NA, N1, N2, N3, simid, mcmstep, emom, mmom, &
-         Nchmax,atype,'N',mcnstep,do_ralloy,Natom_full,atype_ch,ind_mom)
+      call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mcmstep,emom,    &
+         mmom,Nchmax,atype,'N',mcnstep,ham%ind_list_full,do_mom_legacy,mode)
 
       if (do_pol=='Y') then
-         call init_polarization(Natom, Mensemble, max_no_neigh, &
-            nlist, coord, -1)
+         call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,-1)
       end if
 
       ! Deallocate work arrays
@@ -371,6 +411,5 @@ contains
       close(11)
       call timing(0,'Measurement   ','OF')
    end subroutine mc_mphase
-
 
 end module mc_driver

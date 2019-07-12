@@ -1,0 +1,122 @@
+version: "{build}"
+
+
+# x64 is a CMake-compatible solution platform name.
+# This allows us to pass %PLATFORM% to CMake -A.
+platform:
+  - x64
+
+
+environment:
+  # The (encrypted) user and password for the PyPI account
+  PYPIUSER:
+    secure: 1Hn7JfM/388aPRdxSThkkQ==
+  PYPIPASSWORD:
+    secure: 1sOoohMQBYezWsPx41QsuDkQrW+8gUuY9fh9J6BFrsI=
+
+  # - Set VS version and configuration
+  # - Add Python3 path
+  matrix:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      configuration: Release
+      PYTHON: "C:\\Python36-x64"
+      CMAKE_OPTIONS: "-DOVF_BUILD_FORTRAN_BINDINGS=OFF"
+      EXCLUDETESTS:
+      PYPI: true
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      configuration: Debug
+      PYTHON: "C:\\Python36-x64"
+      CMAKE_OPTIONS: "-DOVF_BUILD_FORTRAN_BINDINGS=OFF"
+      EXCLUDETESTS:
+      PYPI:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      configuration: Release
+      PYTHON: "C:\\Python36-x64"
+      CMAKE_OPTIONS: "-DOVF_BUILD_FORTRAN_BINDINGS=OFF"
+      EXCLUDETESTS:
+      PYPI:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      configuration: Debug
+      PYTHON: "C:\\Python36-x64"
+      CMAKE_OPTIONS: "-DOVF_BUILD_FORTRAN_BINDINGS=OFF"
+      EXCLUDETESTS:
+      PYPI:
+    # Build and test with pinning and defects
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      configuration: Release
+      PYTHON: "C:\\Python36-x64"
+      CMAKE_OPTIONS: "-DOVF_BUILD_FORTRAN_BINDINGS=OFF"
+      EXCLUDETESTS:
+      PYPI:
+
+
+install:
+  # Log out the python version just so we know it
+  - ECHO "%PYTHON_VERSION%"
+
+  # update path to use installed pip
+  - set PATH=%PYTHON%\\scripts;%PATH%
+
+  # Install numpy wheel and twine
+  - "%PYTHON%/Scripts/pip.exe install numpy wheel twine"
+
+
+# Cmake will autodetect the compiler, but we set the arch
+before_build:
+  - set CXXFLAGS=%additional_flags%
+  - cmake -H. -BBuild -A%PLATFORM% %CMAKE_OPTIONS%
+
+
+# Build with MSBuild
+build:
+  project: Build\ovf.sln # path to Visual Studio solution or project
+  parallel: true            # enable MSBuild parallel builds
+  verbosity: normal         # MSBuild verbosity level {quiet|minimal|normal|detailed}
+
+
+# # Run unit tests with CTest
+# test_script:
+#   - cd Build
+#   - ctest --output-on-failure -C %CONFIGURATION%
+#   - cd ..
+
+
+# Deployment:
+after_test:
+  # Build source distro and wheel
+  - echo Going to build python package and wheel
+  - ps: if ("$Env:APPVEYOR_REPO_BRANCH" -eq "master") {$env:OVF_ADD_VERSION_SUFFIX="false"} else {$env:OVF_ADD_VERSION_SUFFIX="true"}
+  - ps: echo "Add suffix to version tag for python package $env:OVF_ADD_VERSION_SUFFIX"
+  
+  - cd python
+  - "%PYTHON%/python setup.py sdist bdist_wheel"
+
+  # Specify account details for PyPI
+  - echo [distutils]                                  > %USERPROFILE%\\.pypirc
+  - echo index-servers =                             >> %USERPROFILE%\\.pypirc
+  - echo     pypi                                    >> %USERPROFILE%\\.pypirc
+  - echo     testpypi                                >> %USERPROFILE%\\.pypirc
+  - echo [pypi]                                      >> %USERPROFILE%\\.pypirc
+  - echo repository=https://upload.pypi.org/legacy/  >> %USERPROFILE%\\.pypirc
+  - echo username=%PYPIUSER%                         >> %USERPROFILE%\\.pypirc
+  - echo password=%PYPIPASSWORD%                     >> %USERPROFILE%\\.pypirc
+  - echo [testpypi]                                  >> %USERPROFILE%\\.pypirc
+  - echo repository=https://test.pypi.org/legacy/    >> %USERPROFILE%\\.pypirc
+  - echo username=%PYPIUSER%                         >> %USERPROFILE%\\.pypirc
+  - echo password=%PYPIPASSWORD%                     >> %USERPROFILE%\\.pypirc
+
+  # Workaround required to ensure setup.py finds the .pypirc under Windows
+  - set HOME=%USERPROFILE%
+
+  # Publish python package
+  - ps: echo "PYPI deployment:"
+  - ps: if ("$Env:PYPI" -ne "true") {echo "Not going to deploy because not configured to."}
+  # Do not build pull requests
+  - ps: if (Test-Path env:APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH) {echo "Not going to deploy because pull request."}
+  - ps: if (Test-Path env:APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH) {$env:PYPI="false"}
+  # Upload to pypi on master commits (if PYPI == true)
+  - ps: if (("$Env:PYPI" -eq "true")  -and ("$Env:APPVEYOR_REPO_BRANCH" -eq "master")) {echo "Deploying to pypi because on master branch."} else {echo "Not deploying to pypi."}
+  - ps: if (("$Env:PYPI" -eq "true")  -and ("$Env:APPVEYOR_REPO_BRANCH" -eq "master")) {Invoke-Expression "twine upload -r pypi --skip-existing dist/*"}
+  # Upload to testpypi on all commits (if PYPI == true)
+  - ps: if (("$Env:PYPI" -eq "true")) {echo "Deploying to testpypi."} else {echo "Not deploying to testpypi."}
+  - ps: if (("$Env:PYPI" -eq "true")) {Invoke-Expression "twine upload -r testpypi --skip-existing dist/*"}

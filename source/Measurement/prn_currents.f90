@@ -2,10 +2,7 @@
 !> @author
 !> Jonathan Chico
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License
 
 module prn_currents
 
@@ -46,29 +43,30 @@ module prn_currents
 
    private
 
-   !private :: bcount_current, indxb_currents, heat_current_b, magnon_current_b,heat_current2_b,psi_amp_b,psi_b,psi_phase_b
    public :: print_currents, flush_currents, allocate_currents, current_init
    public :: do_currents, current_step, current_buff, quant_axis
 
 contains
 
    !> Wrapper routine to print all the currents
-   subroutine print_currents(Natom,sstep,mstep,Mensemble,emomM,delta_t,real_time_measure,simid,&
-         ncoup,nlistsize,nlist,max_no_neigh,coord)
+   subroutine print_currents(Natom,nHam, sstep,mstep,Mensemble,emomM,delta_t,real_time_measure,simid,&
+         ncoup,nlistsize,nlist,aham,max_no_neigh,coord)
 
       implicit none
 
       integer, intent(in) :: Natom         !< Number of atoms in the system
+      integer, intent(in) :: nHam          !< Number of atoms in the Hamiltonian
       integer, intent(in) :: sstep         !< Simulation step in logarithmic scale
       integer, intent(in) :: mstep         !< Current simulation step
       integer, intent(in) :: Mensemble     !< Number of ensembles
       integer, intent(in) :: max_no_neigh  !< Maximum number of neighbours for the neighbour lists
-      integer, dimension(Natom), intent(in) :: nlistsize          !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(nHam), intent(in) :: nlistsize          !< Size of neighbour list for Heisenberg exchange couplings
       integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       real(dblprec), intent(in) :: delta_t !< Time step for real time measurement
       real(dblprec), intent(in), dimension(3,Natom) :: coord !< Coordinates for all the atoms
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(max_no_neigh,Natom), intent(in) :: ncoup !< Heisenberg exchange couplings
+      real(dblprec), dimension(max_no_neigh,nHam), intent(in) :: ncoup !< Heisenberg exchange couplings
+      integer, dimension(Natom), intent(in) :: aham !< Hamiltonian look-up table
       character(len=8), intent(in) :: simid             !< Simulation ID
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
@@ -78,7 +76,7 @@ contains
          call mag_axes(Natom,sstep,Mensemble,emomM)
 
          ! Calculate the heat and magnon currents
-         call calc_currents(Natom,mstep,Mensemble,max_no_neigh,nlistsize,nlist,ncoup,coord)
+         call calc_currents(Natom, nHam, mstep,Mensemble,max_no_neigh,nlistsize,nlist,ncoup,aham,coord)
 
          if (mod(sstep-1,current_step)==0) then
 
@@ -101,43 +99,46 @@ contains
    end subroutine print_currents
 
    !> This is a subroutine to calculate the heat and magnon currents in the system
-   subroutine calc_currents(Natom,Nstep,Mensemble,max_no_neigh,nlistsize,nlist,ncoup,coord)
+   subroutine calc_currents(Natom,nHam, Nstep,Mensemble,max_no_neigh,nlistsize,nlist,ncoup,aham,coord)
 
       implicit none
 
       integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: nHam         !< Number of atoms in Hamiltonian
       integer, intent(in) :: Nstep        !< Current time step
       integer, intent(in) :: Mensemble    !< Number of ensembles
       integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
-      integer, dimension(Natom), intent(in) :: nlistsize                !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist       !< Neighbour list for Heisenberg exchange couplings
+      integer, dimension(nHam), intent(in) :: nlistsize                !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh,nHam), intent(in) :: nlist       !< Neighbour list for Heisenberg exchange couplings
       real(dblprec), dimension(3,Natom) :: coord !< Coordinates for all the atoms
-      real(dblprec), dimension(max_no_neigh,Natom), intent(in) :: ncoup !< Heisenberg exchange couplings
+      real(dblprec), dimension(max_no_neigh,nHam), intent(in) :: ncoup !< Heisenberg exchange couplings
+      integer, dimension(Natom), intent(in) :: aham !< Hamiltonian look-up table
 
       !.. Local variables
-      integer :: i,j,k
+      integer :: i,j,k, ih
 
-      if (Nstep.eq.1) psi_prev=0.0D0
+      if (Nstep.eq.1) psi_prev=0.0_dblprec
 
       ! This is a calculation of the magnon current
       do j=1, Mensemble
          do i=1, Natom
-            do k=1, nlistsize(i)
+            ih=aham(i)
+            do k=1, nlistsize(ih)
                ! Current flowing in the x-direction sharing the same quantization axis
                if ((coord(1,nlist(k,i)).gt.coord(1,i)).and.abs(coord(2,nlist(k,i))-&
                   coord(2,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
                   magnon_current(1,i)=magnon_current(1,i)+&
-                     2*ncoup(k,i)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+                     2*ncoup(k,ih)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
                   ! Current flowing in the y-direction sharing the same quantization axis
                else if ((coord(2,nlist(k,i)).gt.coord(2,i)).and.abs(coord(1,nlist(k,i))-&
                coord(1,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
                magnon_current(2,i)=magnon_current(2,i)+&
-                  2*ncoup(k,i)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+                  2*ncoup(k,ih)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
                ! Current flowing in the z-direction sharing the same quantization axis
             else if ((coord(3,nlist(k,i)).gt.coord(3,i)).and.abs(coord(1,nlist(k,i))-&
             coord(1,i))<dbl_tolerance.and.abs(coord(2,nlist(k,i))-coord(2,i))<dbl_tolerance) then
             magnon_current(3,i)=magnon_current(3,i)+&
-               2*ncoup(k,i)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+               2*ncoup(k,ih)*AIMAG(CONJG(psi_curr(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
          endif
       enddo
    enddo
@@ -148,39 +149,40 @@ magnon_current=magnon_current/Mensemble
 ! This is the calculation of the heat currents
 do j=1, Mensemble
    do i=1, Natom
-      do k=1, nlistsize(i)
+      ih=aham(i)
+      do k=1, nlistsize(ih)
          ! Current flowing in the x-direction sharing the same quantization axis
          if ((coord(1,nlist(k,i)).gt.coord(1,i)).and.abs(coord(2,nlist(k,i))-&
             coord(2,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
             heat_current(1,i)=heat_current(1,i)+&
-               2*ncoup(k,i)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+               2*ncoup(k,ih)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
             ! Current flowing in the y-direction sharing the same quantization axis
          else if ((coord(2,nlist(k,i)).gt.coord(2,i)).and.abs(coord(1,nlist(k,i))-&
          coord(1,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
          heat_current(2,i)=heat_current(2,i)+&
-            2*ncoup(k,i)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+            2*ncoup(k,ih)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
          ! Current flowing in the z-direction sharing the same quantization axis
       else if ((coord(3,nlist(k,i)).gt.coord(3,i)).and.abs(coord(1,nlist(k,i))-&
       coord(1,i))<dbl_tolerance.and.abs(coord(2,nlist(k,i))-coord(2,i))<dbl_tolerance) then
       heat_current(3,i)=heat_current(3,i)+&
-         2*ncoup(k,i)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
+         2*ncoup(k,ih)*REAL(CONJG(psi_dot(i,j))*(psi_curr(nlist(k,i),j)-psi_curr(i,j)))
    endif
 
    ! Current flowing in the x-direction sharing the same quantization axis
    if ((coord(1,nlist(k,i)).gt.coord(1,i)).and.abs(coord(2,nlist(k,i))-&
       coord(2,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
       heat_current2(1,i)=heat_current2(1,i)+&
-         2*ncoup(k,i)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
+         2*ncoup(k,ih)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
       ! Current flowing in the y-direction sharing the same quantization axis
    else if ((coord(2,nlist(k,i)).gt.coord(2,i)).and.abs(coord(1,nlist(k,i))-&
    coord(1,i))<dbl_tolerance.and.abs(coord(3,nlist(k,i))-coord(3,i))<dbl_tolerance) then
    heat_current2(2,i)=heat_current2(2,i)+&
-      2*ncoup(k,i)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
+      2*ncoup(k,ih)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
    ! Current flowing in the z-direction sharing the same quantization axis
 else if ((coord(3,nlist(k,i)).gt.coord(3,i)).and.abs(coord(1,nlist(k,i))-&
 coord(1,i))<dbl_tolerance.and.abs(coord(2,nlist(k,i))-coord(2,i))<dbl_tolerance) then
 heat_current2(3,i)=heat_current2(3,i)+&
-   2*ncoup(k,i)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
+   2*ncoup(k,ih)*REAL(CONJG(psi_dot2(i,j))*(psi_prev(nlist(k,i),j)-psi_prev(i,j)))
                endif
 
             enddo
@@ -233,11 +235,11 @@ heat_current2(3,i)=heat_current2(3,i)+&
       complex(dblprec) :: i
       integer :: j, k
 
-      i=(0.0D0,1.0D0)
+      i=(0.0_dblprec,1.0_dblprec)
 
       if (mstep.eq.1) then
-         psi_prev=0.0d0
-         psi_time(1,Natom,Mensemble)=0.0d0
+         psi_prev=0.0_dblprec
+         psi_time(1,Natom,Mensemble)=0.0_dblprec
       else
          psi_prev=psi_curr
       endif
@@ -332,7 +334,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
          do i=1, Natom
             magnon_current_b(1:3,i,bcount_current)=magnon_current(1:3,i)
             if (mstep.eq.1.or.mstep.eq.2) then
-               heat_current2_b(1:3,i,bcount_current)=0.0d0
+               heat_current2_b(1:3,i,bcount_current)=0.0_dblprec
             else
                heat_current2_b(1:3,i,bcount_current)=heat_current2(1:3,i)
             endif
@@ -499,11 +501,11 @@ heat_current2(3,i)=heat_current2(3,i)+&
             call memocc(i_stat,product(shape(ave_heat_current))*kind(ave_heat_current),'ave_heat_current','allocate_currents')
             allocate(ave_magnon_current(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(ave_magnon_current))*kind(ave_magnon_current),'ave_magnon_current','allocate_currents')
-            heat_current=0.0D0
-            heat_current2=0.0D0
-            magnon_current=0.0D0
-            ave_heat_current=0.0D0
-            ave_magnon_current=0.0D0
+            heat_current=0.0_dblprec
+            heat_current2=0.0_dblprec
+            magnon_current=0.0_dblprec
+            ave_heat_current=0.0_dblprec
+            ave_magnon_current=0.0_dblprec
 
             allocate(psi_curr(Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(psi_curr))*kind(psi_curr),'psi_curr','allocate_currents')
@@ -519,13 +521,13 @@ heat_current2(3,i)=heat_current2(3,i)+&
             call memocc(i_stat,product(shape(psi_amp))*kind(psi_amp),'psi_amp','allocate_currents')
             allocate(psi_phase(Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(psi_phase))*kind(psi_phase),'psi_phase','allocate_currents')
-            psi_curr=0.0D0
-            psi_prev=0.0D0
-            psi_dot=0.0D0
-            psi_dot2=0.0D0
-            psi_time=0.0d0
-            psi_amp=0.0D0
-            psi_phase=0.0D0
+            psi_curr=0.0_dblprec
+            psi_prev=0.0_dblprec
+            psi_dot=0.0_dblprec
+            psi_dot2=0.0_dblprec
+            psi_time=0.0_dblprec
+            psi_amp=0.0_dblprec
+            psi_phase=0.0_dblprec
 
             allocate(psi_b(Natom,Mensemble,current_buff),stat=i_stat)
             call memocc(i_stat,product(shape(psi_b))*kind(psi_b),'psi_b','allocate_currents')
@@ -541,12 +543,12 @@ heat_current2(3,i)=heat_current2(3,i)+&
             call memocc(i_stat,product(shape(magnon_current_b))*kind(magnon_current_b),'magnon_current_b','allocate_currents')
             allocate(indxb_currents(current_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_currents))*kind(indxb_currents),'indxb_currents','allocate_currents')
-            heat_current_b=0.0D0
-            heat_current2_b=0.0D0
-            magnon_current_b=0.0D0
-            psi_amp_b=0.0d0
-            psi_phase_b=0.0d0
-            psi_b=0.0D0
+            heat_current_b=0.0_dblprec
+            heat_current2_b=0.0_dblprec
+            magnon_current_b=0.0_dblprec
+            psi_amp_b=0.0_dblprec
+            psi_phase_b=0.0_dblprec
+            psi_b=0.0_dblprec
 
          endif
 

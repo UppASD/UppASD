@@ -1,14 +1,11 @@
-!-------------------------------------------------------------------------------
+!------------------------------------------------------------------------------------
 ! MODULE: BLS
-!> Data and routines for calculate frequency based spin correlation functions \f$\mathbf{S}\left(\omega\right)\f$
+!> Data and routines for calculate frequency based spin correlation function \f$\mathbf{S}\left(\omega\right)\f$
 !> @author
 !> A. Bergman
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
-!-------------------------------------------------------------------------------
+!> GNU Public License.
+!------------------------------------------------------------------------------------
 module BLS
    use Parameters
    use Profiling
@@ -41,6 +38,7 @@ module BLS
    integer :: bls_nsamples    !< Number of samples to be studied in a window
    integer :: bls_sample_step !< Number of steps between measurements in a window
    integer :: bls_window_fun  !< Choice of FFT window function (1=box, 2=Hann, 3=Hamming, 4=Blackman-Harris)
+   real(dblprec) :: bls_local_axis_mix !< Mixing for local-axis sampling
 
    private
 
@@ -49,7 +47,7 @@ module BLS
 
 contains
 
-   !--------------------------------------------------------------------------
+   !---------------------------------------------------------------------------------
    ! SUBROUTINE: setup_bls
    !> @brief
    !> Main driver for frequency based correlation function \f$\mathbf{S}\left(\omega\right)\f$ similar to
@@ -67,13 +65,18 @@ contains
       bls_nsamples=1
       bls_sample_step=1
       bls_window_fun=1
+      bls_local_axis_mix=0.0_dblprec
 
    end subroutine setup_bls
 
+   !---------------------------------------------------------------------------------
+   ! SUBROTUINE: calc_bls
    !> Calculate S(q,t) for obtaining S(q,w) after FT
+   !---------------------------------------------------------------------------------
    subroutine calc_bls(N1,N2,N3,C1,C2,C3,Natom, Mensemble, simid, coord,emomM, mstep, delta_t, flag)
 
       use Constants
+      use FieldData, only : beff
       !
       implicit none
       !
@@ -101,16 +104,17 @@ contains
       real(dblprec), dimension(3) :: m_proj, bls_avg, bls_norm_avg, bls_phase_avg, bls_phase_zero
       real(dblprec), dimension(:,:,:), allocatable :: bls_norm,bls_phase
       complex(dblprec) :: epowqr, eexp
+      real(dblprec) :: beff_norm
       !
 
       if (.not.(do_bls=='Y'.or.do_bls=='D'.or.do_bls=='Q')) return
 
-      i=(0.0d0,1.0d0)
+      i=(0.0_dblprec,1.0_dblprec)
 
-      tot_moment=0.0d0
+      tot_moment=0.0_dblprec
 
-      qfac=2.d0*pi
-      nainv=1.0d0/Natom
+      qfac=2._dblprec*pi
+      nainv=1.0_dblprec/Natom
 
       if(flag==0) then
 
@@ -118,23 +122,24 @@ contains
          if (do_bls=='Y'.or.do_bls=='Q') then
             allocate(magmom_w(bls_nstep,3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(magmom_w))*kind(magmom_w),'magmom_w','calc_bls')
-            magmom_w=0.0d0
+            magmom_w=0.0_dblprec
             !
             allocate(magmom_start(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(magmom_start))*kind(magmom_start),'magmom_start','calc_bls')
-            magmom_start=0.0d0
+            magmom_start=0.0_dblprec
          end if
 
          if (do_bls=='Q') then
             call setup_bls_qcoord(N1,N2,N3,C1,C2,C3)
             allocate(magmom_qw(bls_nstep,3,numq,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(magmom_qw))*kind(magmom_qw),'magmom_qw','calc_bls')
-            magmom_qw=0.0d0
+            magmom_qw=0.0_dblprec
          endif
 
          if ((do_bls=='Y'.or.do_bls=='Q').and.do_bls_local_axis=='Y') then
             allocate(mavg_local_axis(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_local_axis))*kind(mavg_local_axis),'mavg_local_axis','calc_bls')
+            mavg_local_axis=emomM
          end if
 
          !
@@ -150,19 +155,19 @@ contains
          !
          allocate(expw_bls(nw_bls),stat=i_stat)
          call memocc(i_stat,product(shape(expw_bls))*kind(expw_bls),'expw_bls','calc_bls')
-         expw_bls=0.0d0
+         expw_bls=0.0_dblprec
          !
          allocate(bls_dos(3,nw_bls),stat=i_stat)
          call memocc(i_stat,product(shape(bls_dos))*kind(bls_dos),'bls_dos','calc_bls')
-         bls_dos=0.0d0
+         bls_dos=0.0_dblprec
          !
          allocate(mavg_axis(3,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(mavg_axis))*kind(mavg_axis),'mavg_axis','calc_bls')
-         mavg_axis=0.0d0
+         mavg_axis=0.0_dblprec
          !
          allocate(mort_axis(3,3,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(mort_axis))*kind(mort_axis),'mort_axis','calc_bls')
-         mort_axis=0.0d0
+         mort_axis=0.0_dblprec
          !
          dt_bls=delta_t*bls_step
          !
@@ -178,7 +183,7 @@ contains
                bls_tidx(isamp)=bls_tidx(isamp)+1
 
                if(bls_tidx(isamp)==1) then
-#if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
+#if _OPENMP >= 201307
                   !$omp parallel do default(shared) private(iens,iatom) collapse(2) reduction(+:mavg_axis)
 #endif
                   do iens=1,Mensemble
@@ -188,14 +193,14 @@ contains
                         magmom_start(3,iatom,iens)=emomM(3,iatom,iens)
                      end do
                   end do
-#if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
+#if _OPENMP >= 201307
                   !$end parallel do
 #endif
                end if
 
                ! Find magnetization axis to obtain orthogonal components to M
-               mavg_axis=0.0d0
-#if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
+               mavg_axis=0.0_dblprec
+#if _OPENMP >= 201307
                !$omp parallel do default(shared) private(iens,iatom) collapse(2) reduction(+:mavg_axis)
 #endif
                do iens=1,Mensemble
@@ -205,23 +210,23 @@ contains
                      mavg_axis(3,iens)=mavg_axis(3,iens)+emomM(3,iatom,iens)
                   end do
                end do
-#if _OPENMP >= 201307 && __INTEL_COMPILER < 1800
+#if _OPENMP >= 201307
                !$end parallel do
 #endif
                do iens=1,Mensemble
                   mavg_axis(:,iens)=mavg_axis(:,iens)/Natom
-                  mavg_norm=sum(mavg_axis(:,iens)*mavg_axis(:,iens))**0.5d0
+                  mavg_norm=sum(mavg_axis(:,iens)*mavg_axis(:,iens))**0.5_dblprec
                   if(mavg_norm>1.0d-2) then
                      mavg_axis(:,iens)=mavg_axis(:,iens)/mavg_norm
                   else
-                     mavg_axis(:,iens)=(/0.0d0,0.0d0,1.0d0/)
+                     mavg_axis(:,iens)=(/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
                   end if
                end do
                ! Without orthogonalization
-               mort_axis=0.0d0
-               mort_axis(1,1,:)=1.0d0
-               mort_axis(2,2,:)=1.0d0
-               mort_axis(3,3,:)=1.0d0
+               mort_axis=0.0_dblprec
+               mort_axis(1,1,:)=1.0_dblprec
+               mort_axis(2,2,:)=1.0_dblprec
+               mort_axis(3,3,:)=1.0_dblprec
                !  Measure magnetic moments and transform on the fly to M(w)
                !  Start with precalculation of exponential/cosine lookup-table
                eexp=(bls_tidx(isamp))*dt_bls*i
@@ -230,16 +235,16 @@ contains
                   select case(bls_window_fun)
                   ! Hann windowing
                case(2)
-                  expw_bls(iw)=exp(eexp*w_bls(iw))*(0.50d0-0.50*cos(2.0d0*pi*(bls_tidx(isamp)-1)/(bls_nstep-1.0)))
+                  expw_bls(iw)=exp(eexp*w_bls(iw))*(0.50_dblprec-0.50*cos(2.0_dblprec*pi*(bls_tidx(isamp)-1)/(bls_nstep-1.0)))
                   ! Hamming windowing
                case(3)
-                  expw_bls(iw)=exp(eexp*w_bls(iw))*(0.54d0-0.46*cos(2.0d0*pi*(bls_tidx(isamp)-1.0d0)/(bls_nstep-1.0d0)))
+                  expw_bls(iw)=exp(eexp*w_bls(iw))*(0.54_dblprec-0.46*cos(2.0_dblprec*pi*(bls_tidx(isamp)-1.0_dblprec)/(bls_nstep-1.0_dblprec)))
                   ! Blackman-Harris
                case(4)
                   expw_bls(iw)=exp(eexp*w_bls(iw))* &
-                     (0.35785d0-0.48829d0*cos(2.0d0*pi*(bls_tidx(isamp)-1)/(1.0d0*bls_nstep))+ &
-                     0.14128d0*cos(4.0d0*pi*(bls_tidx(isamp)-1)/(1.0d0*bls_nstep))   &
-                     -0.01168d0*cos(6.0d0*pi*(bls_tidx(isamp)-1)/(1.0d0*bls_nstep)))
+                     (0.35785_dblprec-0.48829_dblprec*cos(2.0_dblprec*pi*(bls_tidx(isamp)-1)/(1.0_dblprec*bls_nstep))+ &
+                     0.14128_dblprec*cos(4.0_dblprec*pi*(bls_tidx(isamp)-1)/(1.0_dblprec*bls_nstep))   &
+                     -0.01168_dblprec*cos(6.0_dblprec*pi*(bls_tidx(isamp)-1)/(1.0_dblprec*bls_nstep)))
                   ! Square windows
                case default
                   expw_bls(iw)=exp(eexp*w_bls(iw))
@@ -250,11 +255,30 @@ contains
                !$omp parallel do default(shared) private(iens,iatom,component,iw,m_proj) collapse(2)
                do iens=1,Mensemble
                   do iatom=1,Natom
-                     m_proj(1)=mort_axis(1,1,iens)*emomM(1,iatom,iens)+mort_axis(2,1,iens)*emomM(2,iatom,iens)+mort_axis(3,1,iens)*emomM(3,iatom,iens)
-                     m_proj(2)=mort_axis(1,2,iens)*emomM(1,iatom,iens)+mort_axis(2,2,iens)*emomM(2,iatom,iens)+mort_axis(3,2,iens)*emomM(3,iatom,iens)
-                     m_proj(3)=mort_axis(1,3,iens)*emomM(1,iatom,iens)+mort_axis(2,3,iens)*emomM(2,iatom,iens)+mort_axis(3,3,iens)*emomM(3,iatom,iens)
+                     !m_proj(1)=mort_axis(1,1,iens)*emomM(1,iatom,iens)+mort_axis(2,1,iens)*emomM(2,iatom,iens)+mort_axis(3,1,iens)*emomM(3,iatom,iens)
+                     !m_proj(2)=mort_axis(1,2,iens)*emomM(1,iatom,iens)+mort_axis(2,2,iens)*emomM(2,iatom,iens)+mort_axis(3,2,iens)*emomM(3,iatom,iens)
+                     !m_proj(3)=mort_axis(1,3,iens)*emomM(1,iatom,iens)+mort_axis(2,3,iens)*emomM(2,iatom,iens)+mort_axis(3,3,iens)*emomM(3,iatom,iens)
+                     m_proj(1)=emomM(1,iatom,iens)
+                     m_proj(2)=emomM(2,iatom,iens)
+                     m_proj(3)=emomM(3,iatom,iens)
                      do component=1,3
-                        !mm_prod=emomM(component,iatom,iens)
+                        do iw=1,nw_bls
+                           magmom_w(iw,component,iatom,iens)=magmom_w(iw,component,iatom,iens)+m_proj(component)*expw_bls(iw)
+                        end do
+                     end do
+                  end do
+               end do
+               !$omp end parallel do
+            else if ((do_bls=='Y'.or.do_bls=='Q').and.do_bls_local_axis=='B') then
+               !$omp parallel do default(shared) private(iens,iatom,component,iw,m_proj) collapse(2)
+               do iens=1,Mensemble
+                  do iatom=1,Natom
+                     beff_norm=sqrt(sum(beff(:,iatom,iens)**2))+1.0d-12
+                     m_proj(1)=beff(2,iatom,iens)*emomM(3,iatom,iens)-beff(3,iatom,iens)*emomM(2,iatom,iens)
+                     m_proj(2)=beff(3,iatom,iens)*emomM(1,iatom,iens)-beff(1,iatom,iens)*emomM(3,iatom,iens)
+                     m_proj(3)=beff(1,iatom,iens)*emomM(2,iatom,iens)-beff(2,iatom,iens)*emomM(1,iatom,iens)
+                     m_proj=m_proj/beff_norm
+                     do component=1,3
                         do iw=1,nw_bls
                            magmom_w(iw,component,iatom,iens)=magmom_w(iw,component,iatom,iens)+m_proj(component)*expw_bls(iw)
                         end do
@@ -266,11 +290,13 @@ contains
                ! Sample current moment directions and weight in for average
                do iens=1,Mensemble
                   do iatom=1,Natom
-                     mm=sum(emomM(:,iatom,iens)**2)**0.5d0
-                     mavg_local_axis(:,iatom,iens)=mavg_local_axis(:,iatom,iens)*0.90d0+emomM(:,iatom,iens)/mm*0.10d0
-                     mavg_local_axis(:,iatom,iens)=mavg_local_axis(:,iatom,iens)/(sum(mavg_local_axis(:,iatom,iens)**2)**0.5)
+                     mm=sum(emomM(:,iatom,iens)**2)**0.5_dblprec
+                     mavg_local_axis(:,iatom,iens)=mavg_local_axis(:,iatom,iens)*(1.0_dblprec-bls_local_axis_mix)+emomM(:,iatom,iens)/mm*bls_local_axis_mix
+                     !mavg_local_axis(:,iatom,iens)=mavg_local_axis(:,iatom,iens)*0.95_dblprec+emomM(:,iatom,iens)/mm*0.05_dblprec
+                     mavg_local_axis(:,iatom,iens)=mavg_local_axis(:,iatom,iens)/(sum(mavg_local_axis(:,iatom,iens)**2)**0.5+1.0e-12_dblprec)
                   end do
                end do
+!              call find_local_rotmat(Natom*Mensemble,mavg_local_axis,mavg_local_rotmat)
                !$omp parallel do default(shared) private(iens,iatom,component,iw,m_proj) collapse(2)
                do iens=1,Mensemble
                   do iatom=1,Natom
@@ -279,7 +305,6 @@ contains
                      m_proj(2)=mort_axis(1,2,1)*emomM(1,iatom,iens)+mort_axis(2,2,1)*emomM(2,iatom,iens)+mort_axis(3,2,1)*emomM(3,iatom,iens)
                      m_proj(3)=mort_axis(1,3,1)*emomM(1,iatom,iens)+mort_axis(2,3,1)*emomM(2,iatom,iens)+mort_axis(3,3,1)*emomM(3,iatom,iens)
                      do component=1,3
-                        !mm_prod=emomM(component,iatom,iens)
                         do iw=1,nw_bls
                            magmom_w(iw,component,iatom,iens)=magmom_w(iw,component,iatom,iens)+m_proj(component)*expw_bls(iw)
                         end do
@@ -293,7 +318,7 @@ contains
       return
       ! Final operations, sum and print
    else if (flag==2) then
-      magmom_w(1,:,:,:)=(0.0d0,0.0d0)
+      magmom_w(1,:,:,:)=(0.0_dblprec,0.0_dblprec)
       ! Fourier transform to reciprocal space
       if (do_bls=='Q') then
          !$omp parallel do default(shared) private(iw,iq,iens,r,qdr,epowqr)
@@ -319,7 +344,7 @@ contains
          open(ofileno, file=filn,position='append')
          do iw=1,(nw_bls-1)/2
             do iatom=1,Natom
-               bls_avg=0.0d0
+               bls_avg=0.0_dblprec
                do iens=1,Mensemble
                   bls_avg=bls_avg+abs(magmom_w(iw,1:3,iatom,iens))**2/bls_nsamples
                end do
@@ -351,8 +376,8 @@ contains
                end do
             end do
             do iatom=1,Natom
-               bls_norm_avg=0.0d0
-               bls_phase_avg=0.0d0
+               bls_norm_avg=0.0_dblprec
+               bls_phase_avg=0.0_dblprec
                do iens=1,Mensemble
                   bls_phase_avg=bls_phase_avg+bls_phase(:,iatom,iens)
                   bls_norm_avg=bls_norm_avg+bls_norm(:,iatom,iens)
@@ -381,15 +406,13 @@ contains
             do iq=1,numq
                do iens=1, Mensemble
                   if (bls_window.gt.1) then
-                     write(ofileno,10005) mstep,iw,iq,iens,w_bls(iw),(abs(magmom_qw(iw,:,iq,iens)))**2/bls_nsamples, &
-                        abs(sqrt(magmom_qw(iw,1,iatom,iens)**2+&
-                        magmom_qw(iw,2,iatom,iens)**2+&
-                        magmom_qw(iw,3,iatom,iens)**2))**2/bls_nsamples
+                     write(ofileno,10005) mstep,iw,iq,iens,w_bls(iw),               &
+                        (abs(magmom_qw(iw,:,iq,iens)))**2/bls_nsamples,             &
+                        abs(sqrt(sum(magmom_qw(iw,:,iatom,iens)**2)))**2/bls_nsamples
                   else
-                     write(ofileno,10004) iw,iq,iens,w_bls(iw),(abs(magmom_qw(iw,:,iq,iens)))**2/bls_nsamples, &
-                        abs(sqrt(magmom_qw(iw,1,iatom,iens)**2+&
-                        magmom_qw(iw,2,iatom,iens)**2+&
-                        magmom_qw(iw,3,iatom,iens)**2))**2/bls_nsamples
+                     write(ofileno,10004) iw,iq,iens,w_bls(iw),                     &
+                        (abs(magmom_qw(iw,:,iq,iens)))**2/bls_nsamples,             &
+                        abs(sqrt(sum(magmom_qw(iw,:,iatom,iens)**2)))**2/bls_nsamples
                   endif
                enddo
             enddo
@@ -398,11 +421,16 @@ contains
       endif
 
       ! Calculate and write the bls DOS
-      bls_dos=0.0d0
+      bls_dos=0.0_dblprec
       write (filn,'(''blsdos.'',a8,''.out'')') simid
       open(ofileno, file=filn,position='append')
-      if ((mstep/(bls_step*bls_nstep))==1) write (ofileno,'(a)') &
-         "#    E(meV)            DOS_x           DOS_y           DOS_z          DOS_tot"
+      if ((mstep/(bls_step*bls_nstep))==1) then
+         if (bls_window.gt.1) then
+            write(ofileno,'(a7,5a16)') "#time","E(meV)","DOS_x","DOS_y","DOS_z","DOS_tot"
+         else
+            write(ofileno,'(5a16)') "#    E(meV)","DOS_x","DOS_y","DOS_z","DOS_tot"
+         endif
+      endif
       !do iw=1,nw_bls
       do iw=1,(nw_bls)/2
          do iens=1, Mensemble
@@ -418,31 +446,31 @@ contains
          ! Taking care of the time dependent bls
          if(do_bls_local_axis=='N') then
             if (bls_window.gt.1) then
-               write (ofileno,10006) mstep,hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw), bls_dos(3,iw), &
-                  (bls_dos(1,iw)**2+bls_dos(2,iw)**2+bls_dos(3,iw)**2)**0.5
+               write (ofileno,10006) mstep,hbar_mev*w_bls(iw),bls_dos(1,iw),        &
+               bls_dos(2,iw), bls_dos(3,iw), norm2(bls_dos(:,iw))
             else
-               write (ofileno,10007) hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw), bls_dos(3,iw), &
-                  (bls_dos(1,iw)**2+bls_dos(2,iw)**2+bls_dos(3,iw)**2)**0.5
+               write (ofileno,10007) hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw),&
+               bls_dos(3,iw), norm2(bls_dos(:,iw))
             endif
          else
             if (bls_window.gt.1) then
-               write (ofileno,10006) mstep,hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw), bls_dos(3,iw), &
-                  (bls_dos(1,iw)**2+bls_dos(2,iw)**2)**0.5
+               write (ofileno,10006) mstep,hbar_mev*w_bls(iw),bls_dos(1,iw),        &
+               bls_dos(2,iw),bls_dos(3,iw),norm2(bls_dos(:,iw))
             else
-               write (ofileno,10007) hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw), bls_dos(3,iw), &
-                  (bls_dos(1,iw)**2+bls_dos(2,iw)**2)**0.5
+               write (ofileno,10007) hbar_mev*w_bls(iw),bls_dos(1,iw),bls_dos(2,iw),&
+               bls_dos(3,iw), norm2(bls_dos(:,iw))
             endif
          end if
       end do
       close(ofileno)
 
-      bls_dos=0.0D0
+      bls_dos=0.0_dblprec
       bls_tidx=0
-      magmom_w=0.0D0
-      expw_bls=0.0D0
-      mavg_axis=0.0D0
-      if (do_bls=='Q') magmom_qw=0.0D0
-      magmom_start=0.0D0
+      magmom_w=0.0_dblprec
+      expw_bls=0.0_dblprec
+      mavg_axis=0.0_dblprec
+      if (do_bls=='Q') magmom_qw=0.0_dblprec
+      magmom_start=0.0_dblprec
 
    end if
    return
@@ -456,9 +484,12 @@ contains
    !
 end subroutine calc_bls
 
+!------------------------------------------------------------------------------------
+! SUBROUTINE: set_w_bls
 !> Calculate suitable values of frequencies for S(q,t) -> S(q,w) transform
-!! @todo Change setup to smarter algorithm wrt the exchange strength of the
-!! system
+!> @todo Change setup to smarter algorithm wrt the exchange strength of the
+!> system
+!------------------------------------------------------------------------------------
 subroutine set_w_bls(delta_t, bls_step, bls_nstep)
    !
    use Constants, only : pi, hbar_mev
@@ -487,7 +518,11 @@ subroutine set_w_bls(delta_t, bls_step, bls_nstep)
 
 end subroutine set_w_bls
 
-!> Gramm-Schmidt orthogonalization
+
+!------------------------------------------------------------------------------------
+! SUBROUTINE: gramms
+!> @brief Gramm-Schmidt orthogonalization
+!------------------------------------------------------------------------------------
 subroutine gramms(v_in,m_out,ldim)
    !
    integer, intent(in) :: ldim
@@ -498,30 +533,22 @@ subroutine gramms(v_in,m_out,ldim)
    real(dblprec)  :: v_in_norm
    integer :: i
    !
-   !
    do i=1,ldim
       v_in_norm=sqrt(v_in(1,i)*v_in(1,i)+v_in(2,i)*v_in(2,i)+v_in(3,i)*v_in(3,i))
       ! Set trial vector to x
-      v_trial=(/1.0d0, 0.0d0, 0.0d0/)
-      !v_trial=(/1.0d0, 1.0d0, 0.0d0/)
+      v_trial=(/1.0_dblprec, 0.0_dblprec, 0.0_dblprec/)
       v_trial=v_trial/sqrt(sum(v_trial*v_trial))
       ! If input vector is close to x, set trial vector to y..
-      if(abs(v_in(1,i))/v_in_norm>0.9995d0) then
-         v_trial=(/0.0d0, 1.0d0, 0.0d0/)
-         !v_trial=(/1.0d0,-1.0d0, 0.0d0/)
+      if(abs(v_in(1,i))/v_in_norm>0.9995_dblprec) then
+         v_trial=(/0.0_dblprec, 1.0_dblprec, 0.0_dblprec/)
          v_trial=v_trial/sqrt(sum(v_trial*v_trial))
       end if
       ! Keep input vector as third output vector
       m_out(1:3,3,i)=v_in(1:3,i)/v_in_norm
-      !!! ! Get first orthogonal vector through Gramm-Schmidt step
-      !!! m_out(:,1,i)=v_trial- &
-      !!!   ( v_trial(1)*v_in(1,i)+v_trial(2)*v_in(2,i)+v_trial(3)*v_in(3,i) ) &
-      !!!    *v_in(:,i) / v_in_norm / v_in_norm
       ! Get first orthogonal vector through cross product
       m_out(1,1,i)=m_out(2,3,i)*v_trial(3)-m_out(3,3,i)*v_trial(2)
       m_out(2,1,i)=m_out(3,3,i)*v_trial(1)-m_out(1,3,i)*v_trial(3)
       m_out(3,1,i)=m_out(1,3,i)*v_trial(2)-m_out(2,3,i)*v_trial(1)
-      !! Get first orthogonal vector through cross product
       ! Normalize
       m_out(:,1,i)=m_out(:,1,i) / sqrt(sum(m_out(:,1,i)*m_out(:,1,i)))
       ! Get second orthogonal vector by cross product
@@ -540,7 +567,11 @@ subroutine gramms(v_in,m_out,ldim)
    !
 end subroutine gramms
 
-!> Gramm-Schmidt orthogonalization alternative
+
+!------------------------------------------------------------------------------------
+! SUBROUTINE: gramms2
+!> @brief Gramm-Schmidt orthogonalization alternative
+!------------------------------------------------------------------------------------
 subroutine gramms2(v_in,v_qt,m_out,ldim)
    !
    integer, intent(in) :: ldim
@@ -551,17 +582,7 @@ subroutine gramms2(v_in,v_qt,m_out,ldim)
    real(dblprec), dimension(3) :: v_perp1, v_perp2
    integer :: i
    !
-   !
    do i=1,ldim
-      !!! v_in_norm=sqrt(v_in(1,i)*v_in(1,i)+v_in(2,i)*v_in(2,i)+v_in(3,i)*v_in(3,i))
-      !!! v_qt_norm=sqrt(v_qt(1,i)*v_qt(1,i)+v_qt(2,i)*v_qt(2,i)+v_qt(3,i)*v_qt(3,i))
-      !!! ! Project parallel component as third element
-      !!! v_para=sum(v_in*v_qt)/v_qt_norm
-      !!! m_out(3,i)=v_para
-      !!! ! Get first orthogonal vector through Gramm-Schmidt step
-      !!! v_perp1=v_in(:,i)-v_para*v_qt(:,i)/v_qt_norm
-      !!! ! Project first orthogonal component as first element
-      !!! m_out(1,i)=sum(v_perp1*v_in(:,i))
       ! Get first orthogonal vector by cross product
       v_perp1(1)=v_qt(2,i)*v_in(3,i)-v_qt(3,i)*v_in(2,i)
       v_perp1(2)=v_qt(3,i)*v_in(1,i)-v_qt(2,i)*v_in(3,i)
@@ -576,10 +597,12 @@ subroutine gramms2(v_in,v_qt,m_out,ldim)
       m_out(3,i)=sum(v_qt(:,i)*v_in(:,i))
    end do
    !
-   !
 end subroutine gramms2
 
-!> Setup the q-coordinates for the BLS analysis
+!------------------------------------------------------------------------------------
+! SUBROUTINE: setup_bls_qcoord
+!> @brief Setup the q-coordinates for the BLS analysis
+!------------------------------------------------------------------------------------
 subroutine setup_bls_qcoord(N1,N2,N3,C1,C2,C3)
 
    use Sorting, only : qsort
@@ -653,7 +676,7 @@ subroutine setup_bls_qcoord(N1,N2,N3,C1,C2,C3)
       do yq=-(N2-1)/2,N2/2
          do xq=-(N1-1)/2,N1/2
             iq=iq+1
-            qcoord(:,iq)=xq/(1.0d0*N1)*b1+yq/(1.0d0*N2)*b2+zq/(1.0d0*N3)*b3
+            qcoord(:,iq)=xq/(1.0_dblprec*N1)*b1+yq/(1.0_dblprec*N2)*b2+zq/(1.0_dblprec*N3)*b3
             dqcoord(iq)=qcoord(1,iq)**2+qcoord(2,iq)**2+qcoord(3,iq)**2
          end do
       end do
@@ -671,10 +694,12 @@ subroutine setup_bls_qcoord(N1,N2,N3,C1,C2,C3)
    end do
    close(ofileno)
 
-
 end subroutine setup_bls_qcoord
 
-!> Deallocation of the arrays for the bls analysis
+!------------------------------------------------------------------------------------
+! SUBROUTINE: deallocate_bls_data
+!> @brief Deallocation of the arrays for the bls analysis
+!------------------------------------------------------------------------------------
 subroutine deallocate_bls_data()
 
    implicit none
@@ -728,13 +753,13 @@ subroutine deallocate_bls_data()
 end subroutine deallocate_bls_data
 
 
-!---------------------------------------------------------------------------
+!------------------------------------------------------------------------------------
 !> @brief
 !> Read input parameters.
 !
 !> @author
 !> Anders Bergman
-!---------------------------------------------------------------------------
+!------------------------------------------------------------------------------------
 subroutine read_parameters_bls(ifile)
    use FileParser
 
@@ -747,8 +772,6 @@ subroutine read_parameters_bls(ifile)
    character(len=50) :: keyword
    integer :: rd_len, i_err, i_errb
    logical :: comment
-
-
 
    do
       10     continue
@@ -770,54 +793,55 @@ subroutine read_parameters_bls(ifile)
          ! Parse keyword
          keyword=trim(keyword)
          select case(keyword)
-         !> - simid
-         !           if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-      case('do_bls')
-         read(ifile,*,iostat=i_err) do_bls
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('do_bls')
+            read(ifile,*,iostat=i_err) do_bls
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('do_bls_local_axis')
-         read(ifile,*,iostat=i_err) do_bls_local_axis
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('do_bls_local_axis')
+            read(ifile,*,iostat=i_err) do_bls_local_axis
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_step')
-         read(ifile,*,iostat=i_err) bls_step
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_step')
+            read(ifile,*,iostat=i_err) bls_step
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_nstep')
-         read(ifile,*,iostat=i_err) bls_nstep
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_nstep')
+            read(ifile,*,iostat=i_err) bls_nstep
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_nsamples')
-         read(ifile,*,iostat=i_err) bls_nsamples
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_nsamples')
+            read(ifile,*,iostat=i_err) bls_nsamples
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_sample_step')
-         read(ifile,*,iostat=i_err) bls_sample_step
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_sample_step')
+            read(ifile,*,iostat=i_err) bls_sample_step
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_window')
-         read(ifile,*,iostat=i_err) bls_window
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_window')
+            read(ifile,*,iostat=i_err) bls_window
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      case('bls_window_fun')
-         read(ifile,*,iostat=i_err) bls_window_fun
-         if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('bls_local_axis_mix')
+            read(ifile,*,iostat=i_err) bls_local_axis_mix
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+         case('bls_window_fun')
+            read(ifile,*,iostat=i_err) bls_window_fun
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-      end select
-   end if
+         end select
+      end if
 
-   ! End of file
-   if (i_errb==20) goto 20
-   ! End of row
-   if (i_errb==10) goto 10
-end do
+      ! End of file
+      if (i_errb==20) goto 20
+      ! End of row
+      if (i_errb==10) goto 10
+   end do
 
-20  continue
+   20  continue
 
-rewind(ifile)
-return
+   rewind(ifile)
+   return
 end subroutine read_parameters_bls
 
 end module BLS

@@ -4,7 +4,7 @@
 !> @copyright
 !! Copyright (C) 2008-2018 UppASD group
 !! This file is distributed under the terms of the
-!! GNU General Public License.
+!! GNU General Public License. 
 !! See http://www.gnu.org/copyleft/gpl.txt
 #ifdef VSL
 include 'mkl_vsl.f90'
@@ -24,6 +24,7 @@ module RandomNumbers
    implicit none
 
    real(dblprec), dimension(:,:,:), allocatable :: ranv !< Work array for RNG
+   real(dblprec), dimension(:,:,:), allocatable :: lattranv !< Work array for RNG
 
    logical*1 :: use_vsl       !< Use Intel Vector Statistics Library (VSL) (T/F) (also need preprocessing flag VSL)
 
@@ -55,6 +56,7 @@ module RandomNumbers
    public :: rng_uniform,rng_gaussian, rng_norm, rannum, allocate_randomwork
    public :: rng_defaults, setup_rng_hb, rng_init, fill_rngarray,rng_uniformP
    public :: ranv, use_vsl,rng_gaussianP
+   public :: lattranv, lattrannum
 
 
 contains
@@ -86,10 +88,19 @@ contains
       if (flag>0) then
          allocate(ranv(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(ranv))*kind(ranv),'ranv','allocate_randomwork')
+         if(do_ld == 'Y') then
+            allocate(lattranv(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(lattranv))*kind(lattranv),'lattranv','allocate_randomwork')
+         end if
       else
          i_all=-product(shape(ranv))*kind(ranv)
          deallocate(ranv,stat=i_stat)
          call memocc(i_stat,i_all,'ranv','allocate_systemdata')
+         if(do_ld == 'Y') then
+            i_all=-product(shape(lattranv))*kind(lattranv)
+            deallocate(lattranv,stat=i_stat)
+            call memocc(i_stat,i_all,'lattranv','allocate_systemdata')
+         end if
       end if
    end subroutine allocate_randomwork
 
@@ -98,7 +109,7 @@ contains
    subroutine rng_init(seed)
       integer, intent(in) :: seed  !< Seed number for PRNG
 #ifdef VSL
-      integer :: errcode,id,nid
+      integer :: errcode,id
 #endif
 
 #ifdef VSL
@@ -124,7 +135,7 @@ contains
 
 #ifdef VSL
       if(use_vsl) then
-         errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(omp_get_thread_num()), len, out, 0.d0, 1.d0)
+         errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(omp_get_thread_num()), len, out, 0.0_dblprec, 1.0_dblprec)
       else
          do i=1,len
             out(i)= mtprng_rand_real2(state_c)
@@ -158,7 +169,7 @@ contains
             stop_idx=min(len,(id+1)*local_len)
             if (id==(omp_get_num_threads()-1)) stop_idx=len
             local_len=stop_idx-start_idx+1
-            errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(id), local_len, out(start_idx:stop_idx), 0.d0, 1.d0)
+            errcode=vdrnguniform(VSL_RNG_METHOD_UNIFORM_STD, stream(id), local_len, out(start_idx:stop_idx), 0.0_dblprec, 1.0_dblprec)
          end do
          !$omp end parallel do
       else
@@ -206,7 +217,7 @@ contains
 
 #ifdef VSL
       if(use_vsl) then
-         errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(omp_get_thread_num()),len, out, 0.d0, sigma)
+         errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(omp_get_thread_num()),len, out, 0.0_dblprec, sigma)
       else
          call fill_rngarray(out,len)
       end if
@@ -220,7 +231,6 @@ contains
       integer,intent(in) :: len
       REAL(dblprec),dimension(len),intent(out) :: out  !< Random number in the interval [0,1)
       real(dblprec),intent(in) :: sigma
-      integer :: i
 #ifdef VSL
       integer :: errcode
 #endif
@@ -237,7 +247,7 @@ contains
             stop_idx=min(len,(id+1)*local_len)
             if (id==(omp_get_num_threads()-1)) stop_idx=len
             local_len=stop_idx-start_idx+1
-            errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(id),local_len, out(start_idx:stop_idx), 0.d0, sigma)
+            errcode=vdrnggaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF,stream(id),local_len, out(start_idx:stop_idx), 0.0_dblprec, sigma)
          end do
          !$omp end parallel do
       else
@@ -534,9 +544,7 @@ contains
       real(dblprec), intent(in) :: mu, sigma
       real(dblprec) :: rng_norm
 
-      if(rng_trans==1) then
-         rng_norm=r4_nor()*sigma
-      end if
+      rng_norm=r4_nor()*sigma
    end function rng_norm
 
 
@@ -572,7 +580,7 @@ contains
       real(dblprec),parameter  :: zero=0.0_dblprec
 
       if(rng_trans==1) then
-         ranv=0.0d0
+         ranv=0.00_dblprec
          !$omp parallel do default(shared) private(i)
          do i=1,arr_len
             ranv(i)=r4_nor()
@@ -600,7 +608,7 @@ contains
          y=rng_norm(mu,sigma)
          z=rng_norm(mu,sigma)
       else
-         phi=2.0d0*pi*(mtprng_rand_real2(state_z))
+         phi=2.00_dblprec*pi*(mtprng_rand_real2(state_z))
          r=rng_norm(mu,sigma)**2+rng_norm(mu,sigma)**2+rng_norm(mu,sigma)**2
          theta=pi*(mtprng_rand_real1(state_z))
          r=sqrt(r)
@@ -632,7 +640,7 @@ contains
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(Natom), intent(in) :: lambda2_array !< Additional damping parameter (not used for llg=1)
       integer, intent(in) :: compensate_drift !< Correct for drift in RNG
-      real(dblprec), intent(in) :: bn !< Scaling factor for LLG equation (parameter=1.0d0)
+      real(dblprec), intent(in) :: bn !< Scaling factor for LLG equation (parameter=1.00_dblprec)
       real(dblprec), dimension(3,Mensemble), intent(in) :: field1 !< Average internal effective field
       real(dblprec), dimension(3,Mensemble), intent(in) :: field2 !< Average external effective field
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmomi !< Inverse of magnitude of magnetic moments
@@ -653,7 +661,7 @@ contains
       end do
 
       !   LL equations ONE universal damping
-      Dk(:,:)=0.0d0
+      Dk(:,:)=0.00_dblprec
       if(llg==0) then
          do i=1,Natom
             Dk(:,i)=(lambda1_array(i)*k_bolt/gama/(mub))*(gama/bn)  !last factor for dim. less.
@@ -705,8 +713,8 @@ contains
       if(.not.para_rng) then
 #ifdef VSL
          if(use_vsl) then
-            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
-            call rng_gaussianP(ranv,3*Natom*Mensemble,1.d0)
+            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.0_dblprec)
+            call rng_gaussianP(ranv,3*Natom*Mensemble,1.0_dblprec)
          else
             call fill_rngarray(ranv,3*Natom*Mensemble)
          end if
@@ -716,8 +724,8 @@ contains
       else
 #ifdef VSL
          if(use_vsl) then
-            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
-            call rng_gaussianP(ranv,3*Natom*Mensemble,1.d0)
+            !            call rng_gaussian(ranv,3*Natom*Mensemble,1.0_dblprec)
+            call rng_gaussianP(ranv,3*Natom*Mensemble,1.0_dblprec)
          else
             call fill_rngarray_para(ranv,3*Natom*Mensemble)
          end if
@@ -731,8 +739,8 @@ contains
       do j=1, Mensemble
          do i=1, Natom
             D=Dk(j,i)*mmomi(i,j)*Temp_array(i)*temprescale
-            sigma=sqrt(2.0d0*D)
-            mu=0d0
+            sigma=sqrt(2.00_dblprec*D)
+            mu=00_dblprec
             ranv(1,i,j)=ranv(1,i,j)*sigma
             ranv(2,i,j)=ranv(2,i,j)*sigma
             ranv(3,i,j)=ranv(3,i,j)*sigma
@@ -744,7 +752,7 @@ contains
       ! the true mean is zero. Not used by default
       if(compensate_drift==1) then
          do j=1, Mensemble
-            rx=0.0d0;ry=0.0d0;rz=0.0d0
+            rx=0.00_dblprec;ry=0.00_dblprec;rz=0.00_dblprec
             do i=1, Natom
                ity=mod(i-1,NA)+1
                rx(ity)=rx(ity)+ranv(1,i,j)
@@ -764,6 +772,98 @@ contains
       end if
 
    end subroutine rannum
+
+
+   !> Sets up an array of random numbers for the lattice dynamics
+   subroutine lattrannum(Natom, Mensemble, NA, deltat, lattdampvec, compensate_drift, Temp_array, temprescale)
+
+      use Constants, only : k_bolt, angstrom
+      use InputData, only : para_rng
+
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: NA  !< Number of atoms in one cell
+      real(dblprec), intent(in) :: deltat !< Time step
+      real(dblprec), dimension(Natom), intent(in) :: lattdampvec !< Ionic damping parameter
+      integer, intent(in) :: compensate_drift !< Correct for drift in RNG
+      real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature (array)
+      real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
+
+      real(dblprec) :: D
+      real(dblprec) :: mu, sigma, angstrominv
+      real(dblprec), dimension(Mensemble,Natom) :: Dk
+      real(dblprec) :: rx(NA), ry(NA), rz(NA)
+      integer :: ity
+      integer :: i, j
+
+      angstrominv = 1.00_dblprec/angstrom
+
+      Dk(:,:) = 0.00_dblprec
+      do i=1, Natom
+         Dk(:,i)= lattdampvec(i) * k_bolt !Check units!
+      enddo
+
+      if(.not.para_rng) then
+#ifdef VSL
+         if(use_vsl) then
+            call rng_gaussianP(lattranv,3*Natom*Mensemble,1.0_dblprec)
+         else
+            call fill_rngarray(lattranv,3*Natom*Mensemble)
+         end if
+#else
+         call fill_rngarray(lattranv,3*Natom*Mensemble)
+#endif
+      else
+#ifdef VSL
+         if(use_vsl) then
+            call rng_gaussianP(lattranv,3*Natom*Mensemble,1.0_dblprec)
+         else
+            call fill_rngarray_para(lattranv,3*Natom*Mensemble)
+         end if
+#else
+         call fill_rngarray_para(lattranv,3*Natom*Mensemble)
+#endif
+      end if
+
+      !$omp parallel do default(shared) private(i,j,D,sigma,mu) collapse(2)
+      do j=1, Mensemble
+         do i=1, Natom
+            D=Dk(j,i)*deltat*Temp_array(i)*temprescale
+            sigma=sqrt(2.00_dblprec*D)
+            mu=00_dblprec
+            lattranv(1,i,j)=lattranv(1,i,j)*sigma
+            lattranv(2,i,j)=lattranv(2,i,j)*sigma
+            lattranv(3,i,j)=lattranv(3,i,j)*sigma
+         end do
+      end do
+      !$omp end parallel do
+
+      ! Possibility to correct the random number distribution so that
+      ! the true mean is zero. Not used by default
+      if(compensate_drift==1) then
+         do j=1, Mensemble
+            rx=0.00_dblprec;ry=0.00_dblprec;rz=0.00_dblprec
+            do i=1, Natom
+               ity=mod(i-1,NA)+1
+               rx(ity)=rx(ity)+lattranv(1,i,j)
+               ry(ity)=ry(ity)+lattranv(2,i,j)
+               rz(ity)=rz(ity)+lattranv(3,i,j)
+            end do
+            rx=rx/Natom*NA
+            ry=ry/Natom*NA
+            rz=rz/Natom*NA
+            do i=1, Natom
+               ity=mod(i-1,NA)+1
+               lattranv(1,i,j)=lattranv(1,i,j)-rx(ity)
+               lattranv(2,i,j)=lattranv(2,i,j)-ry(ity)
+               lattranv(3,i,j)=lattranv(3,i,j)-rz(ity)
+            end do
+         end do
+      end if
+
+   end subroutine lattrannum
 
 
 end module RandomNumbers

@@ -2,10 +2,7 @@
 ! MODULE: FieldPulse
 !> @brief Data and routines for calculating time dependent field pulses
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 !-------------------------------------------------------------------------------
 module FieldPulse
    use Parameters
@@ -27,7 +24,6 @@ module FieldPulse
 
    public :: bpulse_time, bpulse_step, bpulsefield
    public :: bpulse, read_bpulse
-
 
 contains
 
@@ -68,7 +64,6 @@ contains
       bpulsefield(2) = befftemp(2)
       bpulsefield(3) = befftemp(3)
 
-
    end subroutine bpulse
 
    !-----------------------------------------------------------------------------
@@ -79,11 +74,11 @@ contains
       real(dblprec) :: t
       real(dblprec) :: tpulse
       if (t < bpulse_par(2) ) then
-         tpulse = 0.0d0
+         tpulse = 0.0_dblprec
       elseif (t >= bpulse_par(2) .and. t < bpulse_par(3) ) then
          tpulse = bpulse_par(6)
       else
-         tpulse = 0.0d0
+         tpulse = 0.0_dblprec
       end if
    end subroutine squarepulse
 
@@ -128,7 +123,6 @@ contains
    !> @brief Print header of magnetic pulse field
    !-----------------------------------------------------------------------------
    subroutine prn_bpulse0(simid,mstep)
-      !
 
       !.. Implicit declarations
       implicit none
@@ -156,7 +150,6 @@ contains
    !> @brief Print shape of magnetic pulse field
    !-----------------------------------------------------------------------------
    subroutine prn_bpulse(simid, mstep)
-      !
 
       !.. Implicit declarations
       implicit none
@@ -217,6 +210,5 @@ contains
       end if
 
    end subroutine read_bpulse
-
 
 end module FieldPulse

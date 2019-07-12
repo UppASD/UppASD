@@ -5,7 +5,7 @@ Utility functions for selecting data in output files
 """
 import csv
 import os, os.path
-from ast import literal_eval 
+from ast import literal_eval
 from pprint import pprint
 #from decimal import Decimal
 #gtvl = groundtruthvalue = [5,6,9]
@@ -19,9 +19,10 @@ def iterablecmp(l,r):
     return [le==ri for le,ri in zip(l,r)]
 #iterablecmp(gtvl,tvl)
 class Skipspace(csv.excel):
-    skipinitialspace = True    
+    skipinitialspace = True
 
-def csv_like(filepath, selectors, extractors, headers=None, verbose=1): #single value for now
+def csv_like(filepath, selectors, extractors, headers=None, verbose=0,skiprows=None): #single value for now
+    from itertools import islice
    # (,pass_lambda_as_selector=False) #not yet implemented
     """selectors is a dictionary with the format {column_header:row_value} if headers==True, otherwise the format {zero_indexed_column_number:row_value}
 extractors is a list with values corresponding to the keys portion of the selectors
@@ -31,14 +32,12 @@ extractors is a list with values corresponding to the keys portion of the select
     else:
         print ("%s not found. (Working from %s)" % (filepath, os.getcwd()))
         return None
-   
     #with open(filepath, 'rb') as csvfile:
     with open(filepath, 'rU') as csvfile:
-        linereader = csv.reader(csvfile, 
-                                delimiter=' ', 
-                                quotechar='|', 
+        linereader = csv.reader(islice(csvfile,skiprows,None),
+                                delimiter=' ',
+                                quotechar='|',
                                 dialect=Skipspace)
-
         if not isinstance(extractors, list):
                 extractors = [extractors]
 
@@ -46,8 +45,8 @@ extractors is a list with values corresponding to the keys portion of the select
             header_number_dict = {s:i for s,i in zip(headers, range(len(headers)))}
             number_header_dict = {v:k for k,v in header_number_dict.items()}
             selectors = new_selectors = {header_number_dict[k]:selectors[k] for k in selectors.keys()}
-            
-            
+
+
             extractors_new2old = {headers.index(ev):ev for ev in extractors}
             extractors = new_extractors = [headers.index(ev) for ev in extractors]
 
@@ -62,7 +61,7 @@ extractors is a list with values corresponding to the keys portion of the select
             try:
                 li = next(linereader)
                 #li = linereader.next()
-                
+
             except StopIteration as SI:
                 print ("stopped iteration trying to get to line ", line+1, "\n", SI)
                 break
@@ -74,7 +73,7 @@ extractors is a list with values corresponding to the keys portion of the select
                     return [ float(li[x]) for x in extractors ]
                     #return [ Decimal(li[x]) for x in extractors ]
                     #return [ li[x] for x in extractors ]
-                        
+
             except SyntaxError as se:
                 if verbose >=1:
                     print ("SyntaxError occured while processing line %s of %s. Presumably literal_eval of a non-number\n" % (line,filepath) , se)

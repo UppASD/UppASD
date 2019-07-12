@@ -9,14 +9,35 @@
 # Fortran compiler
 FC = gfortran
 
+# C compiler
+CC = gcc
+
+# C++ compiler
+CXX = g++
 #------------------------------------------------#
-# Flags for FORTRAN compilation 
+# Flags for FORTRAN compilation
 #------------------------------------------------#
 # Basic optimization settings explained
 # -O3                      Optimization, faster exeuction, slower make times
 # -ffree-line-length-200   Allow long lines
 FCFLAGS = -O3 -ffree-line-length-0
 
+#------------------------------------------------#
+# Flags for C compilation
+#------------------------------------------------#
+CCFLAGS = -O3 -g -pthread
+CCLIBFLAGS = -fopenmp
+
+#------------------------------------------------------------------------------------
+# Flags for C++ compilation
+#------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
+# Define the path for the GCC
+#------------------------------------------------------------------------------------
+GCC_ID :=$(shell which g++ | sed 's/bin/lib/g')
+GCCPATH :=$(dir $(GCC_ID))
+CXXFLAGS = -O3 -g -pthread
+CXXLIBFLAGS = -L${GCCPATH} -lstdc++ -fopenmp 
 # Basic debug settings explained
 # -pedantic
 # -p
@@ -27,14 +48,15 @@ FCFLAGS = -O3 -ffree-line-length-0
 # -fbounds-check
 # -fprofile-arcs
 # -ftest-coverage
-#FCDEBUG = -g -fbacktrace -Wall
-FCDEBUG = 
+#FCDEBUG = -g -fbacktrace -Wall -fcheck=bounds
+#FCDEBUG = -g -fbacktrace -pg
+FCDEBUG =
 
 # OpenMp related flags (-mp on PGI, -openmp on ifort)
 FCOMPFLAGS = -fopenmp
 
 # Link flags
-# -llapack_atlas lf77blas 
+# -llapack_atlas lf77blas
 # -lcblas
 # -lf77blas
 # -latlas
@@ -53,3 +75,8 @@ USE_CUDA = NO
 USE_VSL = NO
 
 PREPROC = -cpp
+
+# Enable FFTW support
+USE_FFTW = NO
+# Enable MKL FFT Support
+USE_MKL_FFT = NO

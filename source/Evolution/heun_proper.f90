@@ -1,71 +1,79 @@
-!-------------------------------------------------------------------------------
-!> MODULE: Heun_proper
+!------------------------------------------------------------------------------------
+!  MODULE: Heun_proper
 !> @brief
 !> A predictor-corrector Heun solver for the LLG-equation
-!> @author
-!! Johan Hellsvik
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
-!-------------------------------------------------------------------------------
+!> GNU Public License.
+!------------------------------------------------------------------------------------
 module Heun_proper
    use Parameters
    use Profiling
    !
    implicit none
 
+   real(dblprec), dimension(:,:,:), allocatable :: btorque_full !< Resulting effective field
+
    private
 
-   public :: evolve4p, evolve4f
+   public :: evolve4p, evolve4f, allocate_aux_heun_fields
 
    !
 contains
 
-
-   !-----------------------------------------------------------------------------
-   !> SUBROUTINE: evolve4p
+   !---------------------------------------------------------------------------------
+   !  SUBROUTINE: evolve4p
    !> @brief
    !> First part of the integrator
-   !-----------------------------------------------------------------------------
-   subroutine evolve4p(Natom, Mensemble, Landeg, llg, lambda1_array, compensate_drift, &
-         beff, b2eff, mmomi, emom2, emom, emomM, mmom, deltat,Temp_array,temprescale,thermal_field)
-      !
+   !---------------------------------------------------------------------------------
+   subroutine evolve4p(Natom,Mensemble,Landeg,llg,lambda1_array,compensate_drift,   &
+      beff,b2eff,mmomi,emom2,emom,emomM,mmom,deltat,Temp_array,temprescale,         &
+      thermal_field,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,         &
+      red_atom_list)
+
       use Constants
       use RandomNumbers, only : ranv, rng_gaussian
       !
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: llg    !< Type of equation of motion (1=LLG)
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
-      integer, intent(in) :: llg !< Type of equation of motion (1=LLG)
       integer, intent(in) :: compensate_drift !< Correct for drift in RNG
+      real(dblprec), intent(in) :: deltat !< Time step
+      real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field
+      real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmomi !< Inverse of magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom2  !< Final (or temporary) unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      !.. Output variables
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom  !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      real(dblprec), intent(in) :: deltat !< Time step
-      real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature
-      real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
+      ! .. In/out variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field   !< Thermal field
 
       real(dblprec) :: D
       real(dblprec) :: dt, mu, sigma
       real(dblprec) :: rx,ry,rz
       real(dblprec), dimension(Natom) :: Dk
 
-      integer :: i,k
+      integer :: i,k,ired
 
       !JohanH-Dec23: Temporarily evolve3 and heun3
       !work only for Mensemble=1
       !   LLG equations ONE universal damping
-      Dk=0.0d0
+      Dk=0.0_dblprec
       if (llg==1) then
          Dk=lambda1_array/(1+lambda1_array**2)*k_bolt/mub
          dt=deltat*gama !rescaled time
@@ -73,12 +81,13 @@ contains
          stop 'Only llg=1 is currently supported'
       endif
       !
-      call rng_gaussian(ranv,3*Natom*Mensemble,1.d0)
-      mu=0d0
+      call rng_gaussian(ranv,3*Natom*Mensemble,1.0_dblprec)
+      mu=0_dblprec
 
-      !$omp parallel do default(shared) private(k,i,D,sigma) collapse(2)
+      !$omp parallel do default(shared) private(ired,k,i,D,sigma) collapse(2)
       do k=1, Mensemble
-         do i=1, Natom
+         do ired=1, Nred
+            i=red_atom_list(ired)
             D=Dk(i)*mmomi(i,k)*Temp_array(i)*temprescale
             sigma=sqrt(dt*2*D)
             ranv(1,i,k)=ranv(1,i,k)*sigma
@@ -88,10 +97,47 @@ contains
       end do
       !$omp end parallel do
 
+      btorque_full=0.0_dblprec
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)=btorque_full(:,i,k)+btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)= btorque_full(:,i,k)+she_btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)= btorque_full(:,i,k)+sot_btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
       if(compensate_drift==1) then
          do k=1, Mensemble
-            rx=0.0d0;ry=0.0d0;rz=0.0d0
-            do i=1, Natom
+            rx=0.0_dblprec;ry=0.0_dblprec;rz=0.0_dblprec
+            do ired=1, Nred
+               i=red_atom_list(ired)
                rx=rx+ranv(1,i,k)
                ry=ry+ranv(2,i,k)
                rz=rz+ranv(3,i,k)
@@ -99,45 +145,56 @@ contains
             rx=rx/Natom
             ry=ry/Natom
             rz=rz/Natom
-            do i=1, Natom
+            do ired=1, Nred
+               i=red_atom_list(ired)
                ranv(1,i,k)=ranv(1,i,k)-rx
                ranv(2,i,k)=ranv(2,i,k)-ry
                ranv(3,i,k)=ranv(3,i,k)-rz
             end do
          end do
       end if
-      call heun4p(Natom, Mensemble, Landeg, lambda1_array,  beff,  b2eff, emom, emomM, emom2, mmom, dt)
+      call heun4p(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emomM,emom2, &
+         mmom,dt,Nred,red_atom_list)
 
       thermal_field=ranv
 
    end subroutine evolve4p
 
-
-   !-----------------------------------------------------------------------------
-   !> SUBROUTINE: evolve4f
+   !---------------------------------------------------------------------------------
+   !  SUBROUTINE: evolve4f
    !> @brief
    !> Second part of the integrator
-   !-----------------------------------------------------------------------------
-   subroutine evolve4f(Natom, Mensemble, Landeg, lambda1_array, llg, beff,  b2eff, emom2, emom, deltat)
+   !---------------------------------------------------------------------------------
+   subroutine evolve4f(Natom,Mensemble,Landeg,lambda1_array,llg,beff,b2eff,emom2,   &
+      emom,deltat,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,red_atom_list)
       !
       use Constants
       !
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: llg    !< Type of equation of motion (1=LLG)
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of independent simulations
-      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
-      integer, intent(in) :: llg !< Type of equation of motion (1=LLG)
+      real(dblprec), intent(in) :: deltat !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff !< Temporary storage of magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. Output variables
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2  !< Final (or temporary) unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
-      real(dblprec), intent(in) :: deltat !< Time step
 
       real(dblprec) :: etot, dt
 
-      integer :: i,k
+      integer :: i,k,ired
 
       if (llg==1) then
          dt=deltat*gama !rescaled time
@@ -145,12 +202,48 @@ contains
          stop 'Only llg=1 is currently supported'
       endif
 
-      call heun4f(Natom, Mensemble, Landeg, lambda1_array, beff, b2eff, emom, emom2, dt)
+      btorque_full=0.0_dblprec
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)=btorque_full(:,i,k)+btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)= btorque_full(:,i,k)+she_btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,k)  schedule(static) collapse(2)
+         do k=1,Mensemble
+            do ired=1,Nred
+               i=red_atom_list(ired)
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,k)= btorque_full(:,i,k)+sot_btorque(:,i,k)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      call heun4f(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emom2,dt,    &
+         Nred,red_atom_list)
 
       !$omp parallel do schedule(static) default(shared) private(i,k,etot) collapse(2)
       do i=1,Natom
          do k=1,Mensemble
-            etot=1/sqrt(emom2(1,i,k)**2+emom2(2,i,k)**2+emom2(3,i,k)**2)
+            etot=1.0_dblprec/norm2(emom2(:,i,k))
             emom2(1,i,k)=emom2(1,i,k)*etot
             emom2(2,i,k)=emom2(2,i,k)*etot
             emom2(3,i,k)=emom2(3,i,k)*etot
@@ -160,31 +253,35 @@ contains
 
    end subroutine evolve4f
 
-
-   !-----------------------------------------------------------------------------
-   !> SUBROUTINE: heun4p
+   !---------------------------------------------------------------------------------
+   !  SUBROUTINE: heun4p
    !> @brief
    !> Performs predictor step
-   !-----------------------------------------------------------------------------
-   subroutine heun4p(Natom, Mensemble, Landeg, lambda1_array,  beff,  b2eff, emom, emomM, emom2, mmom, dt)
+   !---------------------------------------------------------------------------------
+   subroutine heun4p(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emomM,    &
+      emom2,mmom,dt,Nred,red_atom_list)
       !
       use RandomNumbers, only : ranv
       !
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Nred      !< Number of moments that can be updated
+      integer, intent(in) :: Natom     !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
+      real(dblprec), intent(in) :: dt  !< Time step
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array      !< Damping parameter
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff   !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom2  !< Final (or temporary) unit moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      real(dblprec), intent(in) :: dt !< Time step
+      ! .. Output variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom  !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM !< Current magnetic moment vector
 
       real(dblprec) :: b1xx, b1xy, b1xz
+      real(dblprec) :: bsttx, bstty, bsttz
       real(dblprec) :: b1yx, b1yy, b1yz
       real(dblprec) :: b1zx, b1zy, b1zz
       real(dblprec) :: a1x, a1y, a1z
@@ -194,27 +291,33 @@ contains
       real(dblprec) :: e1x, e1y, e1z
       real(dblprec) :: hlpx,hlpy,hlpz
       real(dblprec) :: hesx,hesy,hesz,prot
+      real(dblprec) :: lldamp
       !
       ! ... Local variables ...
-      integer :: i,k
+      integer :: i,k,ired
       !
       !$omp parallel do default(shared) &
 
-      !$omp private(i,e1x,e1y,e1z,dwx,dwy,dwz,hesx,hesy,hesz &
+      !$omp private(i,ired,e1x,e1y,e1z,dwx,dwy,dwz,hesx,hesy,hesz &
       !$omp ,hlpx,hlpy,hlpz,etx,ety,etz,a1x,a1y,a1z,prot,b1xx &
-      !$omp ,b1xy,b1xz,b1yx,b1yy,b1yz,b1zx,b1zy,b1zz,dtg) collapse(2)
-      do i=1,Natom
+      !$omp ,b1xy,b1xz,b1yx,b1yy,b1yz,b1zx,b1zy,b1zz,dtg,lldamp &
+      !$omp ,bsttx,bstty,bsttz) collapse(2)
+      do ired=1,Nred
          do k=1,Mensemble
-
+            i=red_atom_list(ired)
             !Store away the initial effective field that is used
             !for the support value
             b2eff(1,i,k)=beff(1,i,k)
             b2eff(2,i,k)=beff(2,i,k)
             b2eff(3,i,k)=beff(3,i,k)
+            bsttx=btorque_full(1,i,k)
+            bstty=btorque_full(2,i,k)
+            bsttz=btorque_full(3,i,k)
             e1x=emom2(1,i,k)
             e1y=emom2(2,i,k)
             e1z=emom2(3,i,k)
-            dtg=dt*Landeg(i)
+            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)**2)
+            dtg=dt*Landeg(i)*lldamp
             dwx=ranv(1,i,k)*Landeg(i)
             dwy=ranv(2,i,k)*Landeg(i)
             dwz=ranv(3,i,k)*Landeg(i)
@@ -227,16 +330,20 @@ contains
 
             ! Calculate a1 and b1
             prot=e1x*hlpx+e1y*hlpy+e1z*hlpz
-            a1x=hlpx+e1z*hesy-e1y*hesz-e1x*prot
-            a1y=hlpy-e1z*hesx+e1x*hesz-e1y*prot
-            a1z=hlpz+e1y*hesx-e1x*hesy-e1z*prot
+            ! a1_\mu=\alpha B_\mu + (m\times B)_\mu -m_\mu (\alpha m \cdot B)
+            a1x=hlpx+e1z*(hesy+bstty)-e1y*(hesz+bsttz)-e1x*prot
+            a1y=hlpy-e1z*(hesx+bsttx)+e1x*(hesz+bsttz)-e1y*prot
+            a1z=hlpz+e1y*(hesx+bsttx)-e1x*(hesy+bstty)-e1z*prot
+            ! b1 is a matrix with diagonal entries given by b_\mu\mu=(\alpha-\alpha m_\mu m_\mu)
+            ! and off diagonal entries b_\mu\nu are given by
+            ! b_\mu\nu= m_\mu\times m_\nu -\alpha m_\mu m_\nu
             b1xx=          lambda1_array(i)-e1x*e1x*lambda1_array(i)
-            b1xy=e1z-e1x*e1y*lambda1_array(i)
+            b1xy= e1z-e1x*e1y*lambda1_array(i)
             b1xz=-e1y-e1x*e1z*lambda1_array(i)
             b1yx=-e1z-e1y*e1x*lambda1_array(i)
             b1yy=          lambda1_array(i)-e1y*e1y*lambda1_array(i)
-            b1yz=e1x-e1y*e1z*lambda1_array(i)
-            b1zx=e1y-e1z*e1x*lambda1_array(i)
+            b1yz= e1x-e1y*e1z*lambda1_array(i)
+            b1zx= e1y-e1z*e1x*lambda1_array(i)
             b1zy=-e1x-e1z*e1y*lambda1_array(i)
             b1zz=          lambda1_array(i)-e1z*e1z*lambda1_array(i)
 
@@ -261,35 +368,38 @@ contains
 
    end subroutine heun4p
 
-   !-----------------------------------------------------------------------------
-   !> SUBROUTINE: heun4f
+   !---------------------------------------------------------------------------------
+   !  SUBROUTINE: heun4f
    !> @brief
    !> Performs corrector step
-   !-----------------------------------------------------------------------------
-   subroutine heun4f(Natom, Mensemble, Landeg, lambda1_array, beff, b2eff, emom, emom2, dt)
+   !---------------------------------------------------------------------------------
+   subroutine heun4f(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emom2,dt, &
+      Nred,red_atom_list)
 
       use RandomNumbers, only : ranv
-      !
 
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
+      real(dblprec), intent(in) :: dt  !< Time step
+      integer, dimension(Nred), intent(in) :: red_atom_list    !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg    !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff !< Temporary storage of magnetic field
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
-      real(dblprec), intent(in) :: dt !< Time step
 
       ! ... Local variables ...
-      integer :: i,k
+      integer :: i,k, ired
 
       real(dblprec) :: dtg
       real(dblprec) :: dwx, dwy, dwz
 
       real(dblprec) :: bxx, bxy, bxz
+      real(dblprec) :: bsttx, bstty, bsttz
       real(dblprec) :: byx, byy, byz
       real(dblprec) :: bzx, bzy, bzz
       real(dblprec) :: ax, ay, az
@@ -314,20 +424,23 @@ contains
       real(dblprec) :: e2x, e2y, e2z
 
       real(dblprec) :: prot
-
+      real(dblprec) :: lldamp
       !Executable statements
 
       !$omp parallel do default(shared) &
-      !$omp private(i,dtg, dwx,dwy,dwz, &
+      !$omp private(i,ired,dtg, dwx,dwy,dwz, &
       !$omp bxx, bxy, bxz, byx, byy, byz, bzx, bzy, bzz, ax, ay, az, &
       !$omp b1xx, b1xy, b1xz, b1yx, b1yy, b1yz, b1zx, b1zy, b1zz, a1x, a1y, a1z, &
       !$omp b2xx, b2xy, b2xz, b2yx, b2yy, b2yz, b2zx, b2zy, b2zz, a2x, a2y, a2z, &
       !$omp h1px, h1py, h1pz, h1esx, h1esy, h1esz, &
       !$omp h2px, h2py, h2pz, h2esx, h2esy, h2esz, &
-      !$omp etx, ety, etz, e1x, e1y, e1z, e2x, e2y, e2z ,prot) collapse(2)
-      do i=1,Natom
+      !$omp etx, ety, etz, e1x, e1y, e1z, e2x, e2y, e2z ,prot,lldamp,&
+      !$omp bsttx,bstty,bsttz) collapse(2)
+      do ired=1,Nred
          do k=1,Mensemble
-            dtg=dt*Landeg(i)
+            i=red_atom_list(ired)
+            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)**2)
+            dtg=dt*Landeg(i)*lldamp
             dwx=ranv(1,i,k)*Landeg(i)
             dwy=ranv(2,i,k)*Landeg(i)
             dwz=ranv(3,i,k)*Landeg(i)
@@ -353,11 +466,15 @@ contains
             h2esz=b2eff(3,i,k)
             h2pz=lambda1_array(i)*b2eff(3,i,k)
 
+            bsttx=btorque_full(1,i,k)
+            bstty=btorque_full(2,i,k)
+            bsttz=btorque_full(3,i,k)
+
             !Calculate Ai_ytilde and Bik_ytilde
             prot=e1x*h1px+e1y*h1py+e1z*h1pz
-            a1x=h1px+e1z*h1esy-e1y*h1esz-e1x*prot
-            a1y=h1py-e1z*h1esx+e1x*h1esz-e1y*prot
-            a1z=h1pz+e1y*h1esx-e1x*h1esy-e1z*prot
+            a1x=h1px+e1z*(h1esy+bstty)-e1y*(h1esz+bsttz)-e1x*prot
+            a1y=h1py-e1z*(h1esx+bsttx)+e1x*(h1esz+bsttz)-e1y*prot
+            a1z=h1pz+e1y*(h1esx+bsttx)-e1x*(h1esy+bstty)-e1z*prot
             b1xx=          lambda1_array(i)-e1x*e1x*lambda1_array(i)
             b1xy=e1z-e1x*e1y*lambda1_array(i)
             b1xz=-e1y-e1x*e1z*lambda1_array(i)
@@ -401,9 +518,9 @@ contains
             etx=ax*dtg+bxx*dwx+bxy*dwy+bxz*dwz
             ety=ay*dtg+byx*dwx+byy*dwy+byz*dwz
             etz=az*dtg+bzx*dwx+bzy*dwy+bzz*dwz
-            emom2(1,i,k)=e2x+0.5d0*etx
-            emom2(2,i,k)=e2y+0.5d0*ety
-            emom2(3,i,k)=e2z+0.5d0*etz
+            emom2(1,i,k)=e2x+0.5_dblprec*etx
+            emom2(2,i,k)=e2y+0.5_dblprec*ety
+            emom2(3,i,k)=e2z+0.5_dblprec*etz
          end do
       end do
       !$omp end parallel do
@@ -412,5 +529,31 @@ contains
 
    end subroutine heun4f
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: allocate_aux_heun_fields
+   !> @brief Allocation of auxilary fields for the treatment of STT and SOT based torques
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   subroutine allocate_aux_heun_fields(flag,Natom,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: flag   !< Allocate or deallocate (1/-1)
+      integer, intent(in), optional :: Natom !< Number of atoms in system
+      integer, intent(in), optional :: Mensemble   !< Number of ensembles
+
+      integer :: i_stat,i_all
+
+      if (flag>0) then
+         allocate(btorque_full(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btorque_full))*kind(btorque_full),'btorque_full','allocate_aux_heun_fields')
+         btorque_full=0.0_dblprec
+      else
+         i_all=-product(shape(btorque_full))*kind(btorque_full)
+         deallocate(btorque_full,stat=i_stat)
+         call memocc(i_stat,i_all,'btorque_full','allocate_aux_heun_fields')
+      endif
+
+   end subroutine allocate_aux_heun_fields
 
 end module heun_proper

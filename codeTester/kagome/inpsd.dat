@@ -30,3 +30,6 @@ ntraj 1
 plotenergy 1         
 
 use_vsl F
+
+do_reduced Y
+

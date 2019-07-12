@@ -64,6 +64,16 @@ def sloppy(outfilevalue, expectedvalue, relativeprecision=2E-2, absoluteprecisio
 
     return abs(ov - ev) <= abs(absprec) and abs((ov-ev) / ev) < abs(relprec)
 
+def sloppy(outfilevalue, expectedvalue, relativeprecision=2E-2, absoluteprecision=2e-2):
+    def levalfilter(s):
+        filtered = s if isinstance(s, (int,float)) else literal_eval(s)
+        return filtered
+    raws =  (outfilevalue, expectedvalue, relativeprecision, absoluteprecision)
+    ov, ev, relprec, absprec = map(levalfilter,raws)
+
+    return abs(ov - ev) <= abs(absprec) and abs((ov-ev) / ev) < abs(relprec)
+
+
 def compare(outfilevalue, expectedvalue, comparison_func=similar, **kwargs):
     """compare is essentially a wrapper for comparison_func to keep naming consistent internally. **kwargs arepassed on to comparison_func. comparison_func is expected to take two mandatory (usually numerical) arguments to be compared """
     return comparison_func(outfilevalue, expectedvalue, **kwargs)
@@ -71,12 +81,14 @@ def compare(outfilevalue, expectedvalue, comparison_func=similar, **kwargs):
 
 
 def readconfig(definitionfilename):
-     with open(definitionfilename, 'rU') as yf:
+     #with open(definitionfilename, 'rU') as yf:
+     with open(definitionfilename, 'r') as yf:
           yamlob = yaml.load(yf)
+          #yamlob = yaml.load(yf, Loader=yaml.FullLoader)
      return yamlob
 
 
-def extract(test, outfile, headers=None):
+def extract(test, outfile, headers=None,skiprows=None):
     import extractoutput
     #reload(extractoutput)
     filehandler = extractoutput.csv_like
@@ -85,7 +97,7 @@ def extract(test, outfile, headers=None):
     #     eval import(test.get('import'))
     # filehandler = eval(test['filehandler']) if test['filehandler'] else extractoutput.csv_like
     return filehandler(outfile, test['select'], test['extract'],
-                       headers=headers, verbose=0)
+                       headers=headers, verbose=0,skiprows=skiprows)
 
 
 def runexternal(runcmd, wd):
@@ -102,10 +114,10 @@ def runexternal(runcmd, wd):
      return com
 
 
-def extractandcompare(test, outfile, headers=None):
+def extractandcompare(test, outfile, headers=None,skiprows=None):
     # Comparisons between output files and expected values
 
-    outfilevalue = extract(test, outfile, headers=headers)
+    outfilevalue = extract(test, outfile, headers=headers,skiprows=skiprows)
 
     if outfilevalue:
         comcrit = test.get('comparison_crit') if test.get('comparison_crit') else {}
@@ -155,6 +167,7 @@ def execcase(case, externallabel=None, reallyrun=True):
         ### print "Running %s in %s" % (runcmd,wd)
         out, err = runexternal(runcmd,wd)
         if err:
+            print("Something fishy")
             map(pprint, ("===== Error(s) occured: =====", err.split("\n"), "-"*25))
 
     ccoms = case['comparisons']
@@ -164,7 +177,7 @@ def execcase(case, externallabel=None, reallyrun=True):
             if os.path.isfile(ccom['outfile']):
                 test['cmpoutcome'], test['extracted'] =  extractandcompare(test,
                                                                            ccom['outfile'],
-                                                                           headers=ccom.get('headers'))
+                                                                           headers=ccom.get('headers'),skiprows=ccom.get('skiprows'))
             else:
                 # printfun(wcolors.FAIL+"  Test failed."+wcolors.ENDC+("    Can not find file %s" %  ccom['outfile']))
                 # print "Can not find file %s\n" %  ccom['outfile']
@@ -372,3 +385,11 @@ if __name__ == "__main__":
     print (("    %s "+plur1+" performed, %s "+plur2+" failed.") % ( numtests, snumfails))
     #print "    %s tests performed, %s tests failed." % ( numtests, snumfails)
     print ("-----------------------------------------------")
+
+    if (snumfails == 0):
+        #print("Exiting without errors")
+        sys.exit(0)
+    else:
+        #print("Exiting with errors")
+        sys.exit(-1)
+

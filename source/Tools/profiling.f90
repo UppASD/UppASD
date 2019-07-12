@@ -1,11 +1,8 @@
 !> Routines for monitoing time and memory usage
 !> @author
-!! Luigi Genovese, Anders Bergman
+!> Luigi Genovese, Anders Bergman
 !> @copyright
-!! Copyright (C) 2007-2008 BigDFT group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
+!> GNU Public License.
 module Profiling
    use Parameters
 
@@ -147,7 +144,7 @@ contains
 
       !Local variables
       logical :: parallel,init
-      integer, parameter :: ncat=12 ! define timing categories
+      integer, parameter :: ncat=13 ! define timing categories
       integer :: i,ii,nprocs
       integer, external :: omp_get_num_threads,OMP_GET_NUM_PROCS
 
@@ -157,7 +154,7 @@ contains
       real(kind=8) :: flops(ncat),timesum(ncat+1),timemax(ncat+1),timemin(ncat+1)
       save :: time0,init,timesum,total0,parallel
 
-      character(len=14), dimension(ncat), parameter :: cats = (/ &
+      character(len=13), dimension(ncat), parameter :: cats = (/ &
          'Startup       ' , &
          'Initial       ' , &
          'Measurement   ' , &
@@ -169,7 +166,8 @@ contains
          'Moments       ' , &
          'PrintRestart  ' , &
          'LattCorr      ' , &
-         'SpinCorr      ' /)
+         'SpinCorr      ' , &
+         'Dipolar Int.  '/)
 
       !$omp parallel
       !$omp master
@@ -180,8 +178,8 @@ contains
       if (action.eq.'IN') then ! INIT
          call cpu_time(total0)
          do i=1,ncat
-            flops(i)=0.d0
-            timesum(i)=0.d0
+            flops(i)=0.0_dblprec
+            timesum(i)=0.0_dblprec
          enddo
          parallel=trim(category).eq.'parallel'
          init=.false.
@@ -207,10 +205,10 @@ contains
             write(*,'(1x,a)')&
                '----------------TIME CONSUMPTION REPORT----------------------'
             write(*,*) 'CATEGORY                 TIME(sec)           PERCENT'
-            total_pc=0.d0
+            total_pc=0.0_dblprec
             do i=1,ncat
-               pc=100.d0*timemax(i)/real(total,kind=8)
-               if(timemax(i)>0.0d0) write(*,'(2x,a14,10x,1pe9.2,10x,0pf8.1 )') &
+               pc=100.0_dblprec*timemax(i)/real(total,kind=8)
+               if(timemax(i)>0.0_dblprec) write(*,'(2x,a14,10x,1pe9.2,10x,0pf8.1 )') &
                   cats(i),timemax(i)/nprocs,pc
                total_pc=total_pc+pc
             enddo

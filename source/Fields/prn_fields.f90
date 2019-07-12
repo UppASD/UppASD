@@ -1,12 +1,8 @@
-!-------------------------------------------------------------------------------
-! MODULE: prn_fields
 !> Data structures for printing the effective and thermal fields
+!> @author
+!> Jonathan Chico, Johan Hellsvik, Anders Bergman
 !> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License.
-!! See http://www.gnu.org/copyleft/gpl.txt
-!-------------------------------------------------------------------------------
+!> GNU Public License.
 module prn_fields
 
    use Profiling
@@ -18,6 +14,8 @@ module prn_fields
    ! Input parameters to be read
    integer :: beff_step               !< Interval between consecutive prints of the total effective field
    integer :: beff_buff               !< Buffer size for the total field
+   integer :: binteff_step            !< Interval between consecutive prints of the internal effective field
+   integer :: binteff_buff            !< Buffer size for the internal field
    integer :: thermfield_step         !< Interval between thermal field trajectories
    integer :: thermfield_buff         !< Buffer size for the stochastic field
    integer :: torques_step            !< Interval between consecutive prints of the resulting torques
@@ -26,6 +24,7 @@ module prn_fields
    integer :: larm_buff               !< Buffer size for the larmor frequencies
    integer :: larm_dos_size           !< Number of windows for larmor dos histogram
    character(len=1) :: do_prn_beff    !< Flag governing file output of total effective fields (Y/N)
+   character(len=1) :: do_prn_binteff !< Flag governing file output of internal effective fields (Y/N)
    character(len=1) :: do_prn_torques !< Flag governing file output of resulting torques (Y/N)
    character(len=1) :: do_thermfield  !< Thermal fields trajectory
    character(len=1) :: do_larmor_loc  !< Calculate local precession frequencies from local field (Y/N)
@@ -33,10 +32,12 @@ module prn_fields
 
    ! Local variables for buffering and indexing of fields
    integer :: bcount_beff    !< Counter of buffer for total field
+   integer :: bcount_binteff !< Counter of buffer for internal field
    integer :: bcount_torques !< Counter of buffer for toruqes
    integer :: bcount_therm   !< Counter of buffer for stochastic field
    integer :: bcount_larm    !< Counter of buffer for Larmor frequencies
    real(dblprec), dimension(:), allocatable :: indxb_beff         !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_binteff      !< Step counter for internal field
    real(dblprec), dimension(:), allocatable :: indxb_torques      !< Step counter for resulting torques
    real(dblprec), dimension(:), allocatable :: indxb_larm         !< Step counter for total field
    real(dblprec), dimension(:), allocatable :: indxb_therm        !< Step counter for stochastic field
@@ -49,9 +50,9 @@ module prn_fields
 
 contains
 
-   !----------------------------------------------------------------------------
+
    !> Wrapper routine to print the thermal and effective fields
-   !----------------------------------------------------------------------------
+   !subroutine print_fields(mstep,sstep,Natom,Mensemble,simid,real_time_measure,delta_t,beff,thermal_field,emom)
    subroutine print_fields(mstep, sstep, Natom, Mensemble, simid, real_time_measure, delta_t, &
          beff, thermal_field, beff1, beff3, emom)
 
@@ -110,6 +111,26 @@ contains
 
 
       ! Total site dependent field
+      if (do_prn_binteff=='Y') then
+
+         if (mod(sstep-1,binteff_step)==0) then
+            ! Write step to buffer
+            call buffer_internalfield(Natom, Mensemble, mstep-1, beff1, beff3, &
+               bcount_binteff, delta_t, real_time_measure)
+            if (bcount_binteff==binteff_buff) then
+               ! write buffer to file
+               call prn_internalbfields(Natom, Mensemble, simid,real_time_measure)
+               bcount_binteff=1
+            else
+               bcount_binteff=bcount_binteff+1
+            endif
+
+         endif
+
+      endif
+
+
+      ! Total site dependent field
       if (do_larmor_loc=='Y'.or.do_larmor_dos=='Y') then
 
          if (mod(sstep-1,larm_step)==0) then
@@ -151,9 +172,8 @@ contains
 
    end subroutine print_fields
 
-   !----------------------------------------------------------------------------
+
    !> Flush the field measurements, i.e. print to file the fields in the last time step
-   !----------------------------------------------------------------------------
    subroutine flush_prn_fields(Natom,Mensemble,simid,real_time_measure)
 
       implicit none
@@ -175,6 +195,12 @@ contains
          call prn_totalbfields(Natom, Mensemble, simid,real_time_measure)
       endif
 
+      if (do_prn_binteff=='Y') then
+         ! Write buffer to file
+         bcount_binteff=bcount_binteff-1
+         call prn_internalbfields(Natom, Mensemble, simid,real_time_measure)
+      endif
+
       if (do_prn_torques=='Y') then
          ! Write buffer to file
          bcount_torques=bcount_torques-1
@@ -183,22 +209,24 @@ contains
 
    end subroutine flush_prn_fields
 
-   !----------------------------------------------------------------------------
+
    !> Initialization of the variables for field printing with their default variables
-   !----------------------------------------------------------------------------
    subroutine fields_prn_init()
 
       implicit none
 
       do_thermfield     = 'N'
       do_prn_beff       = 'N'
+      do_prn_binteff    = 'N'
       do_larmor_loc     = 'N'
       do_larmor_dos     = 'N'
-      do_prn_torques       = 'N'
+      do_prn_torques    = 'N'
       thermfield_step   = 1000
       thermfield_buff   = 10
       beff_step         = 1000
       beff_buff         = 10
+      binteff_step      = 1000
+      binteff_buff      = 10
       torques_step      = 1000
       torques_buff      = 10
       larm_step         = 1000
@@ -207,9 +235,8 @@ contains
 
    end subroutine fields_prn_init
 
-   !----------------------------------------------------------------------------
+
    !> Routine for allocation and initialization of the arrays for field printing
-   !----------------------------------------------------------------------------
    subroutine allocate_field_print(Natom,Mensemble,flag)
 
       implicit none
@@ -224,6 +251,7 @@ contains
       if (flag>0) then
 
          bcount_beff=1
+         bcount_binteff=1
          bcount_larm=1
          bcount_therm=1
          bcount_torques=1
@@ -240,6 +268,13 @@ contains
             call memocc(i_stat,product(shape(beffb))*kind(beffb),'beffb','allocate_measurements')
             allocate(indxb_beff(beff_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_beff))*kind(indxb_beff),'indxb_beff','allocate_measurements')
+         endif
+
+         if (do_prn_binteff=='Y') then
+            allocate(binteffb(6,Natom,binteff_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(binteffb))*kind(binteffb),'binteffb','allocate_measurements')
+            allocate(indxb_binteff(binteff_buff),stat=i_stat)
+            call memocc(i_stat,product(shape(indxb_binteff))*kind(indxb_binteff),'indxb_binteff','allocate_measurements')
          endif
 
          if (do_prn_torques=='Y') then
@@ -276,6 +311,15 @@ contains
             call memocc(i_stat,i_all,'indxb_beff','allocate_measurements')
          endif
 
+         if (do_prn_binteff=='Y') then
+            i_all=-product(shape(binteffb))*kind(binteffb)
+            deallocate(binteffb,stat=i_stat)
+            call memocc(i_stat,i_all,'binteffb','allocate_measurements')
+            i_all=-product(shape(indxb_binteff))*kind(indxb_binteff)
+            deallocate(indxb_binteff,stat=i_stat)
+            call memocc(i_stat,i_all,'indxb_binteff','allocate_measurements')
+         endif
+
          if (do_prn_torques=='Y') then
             i_all=-product(shape(torquesb))*kind(torquesb)
             deallocate(torquesb,stat=i_stat)
@@ -298,11 +342,11 @@ contains
 
    end subroutine allocate_field_print
 
-   !----------------------------------------------------------------------------
+
    !> Buffer site dependent thermal field
-   !----------------------------------------------------------------------------
    subroutine buffer_thermfield(Natom, Mensemble, mstep,&
          thermal_field,bcount_therm,delta_t,real_time_measure)
+      !
 
       implicit none
 
@@ -331,9 +375,8 @@ contains
 
    end subroutine buffer_thermfield
 
-   !----------------------------------------------------------------------------
+
    !> Buffer site dependent total field
-   !----------------------------------------------------------------------------
    subroutine buffer_totalfield(Natom, Mensemble, mstep,beff,&
          thermal_field,bcount_beff,delta_t,real_time_measure)
       !
@@ -366,9 +409,44 @@ contains
 
    end subroutine buffer_totalfield
 
-   !----------------------------------------------------------------------------
+
+   !> Buffer site dependent internal field
+   subroutine buffer_internalfield(Natom, Mensemble, mstep, beff1, beff3, &
+         bcount_binteff, delta_t, real_time_measure)
+      !
+
+      implicit none
+
+      integer, intent(in) :: mstep !< Current simulation step
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: bcount_binteff   !< Counter of buffer for total effective field
+      real(dblprec), intent(in) :: delta_t !< Current measurement time
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff1  !< Current effective B-field from the magnetic Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff3  !< Current effective B-field from the mixed spin-lattice Hamiltonian
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      !.. Local scalar variables
+      integer :: i,k
+
+      do k=1, Mensemble
+         do i=1, Natom
+            !beffb(1:3,i,bcount_beff,k)=thermal_field(1:3,i,k)+beff(1:3,i,k)
+            binteffb(1:3,i,bcount_binteff,k) = beff1(1:3,i,k)
+            binteffb(4:6,i,bcount_binteff,k) = beff3(1:3,i,k)
+         end do
+      end do
+
+      if (real_time_measure=='Y') then
+         indxb_binteff(bcount_binteff)=mstep*delta_t
+      else
+         indxb_binteff(bcount_binteff)=mstep
+      endif
+
+   end subroutine buffer_internalfield
+
+
    !> Buffer site dependent larmor frequencies
-   !----------------------------------------------------------------------------
    subroutine buffer_larmorfreq(Natom, Mensemble, mstep,beff,&
          thermal_field,bcount_larm,delta_t,real_time_measure,emom)
       !
@@ -410,9 +488,8 @@ contains
 
    end subroutine buffer_larmorfreq
 
-   !----------------------------------------------------------------------------
+
    !> Buffer site resulting torques
-   !----------------------------------------------------------------------------
    subroutine buffer_torques(Natom, Mensemble, mstep,beff,thermal_field,&
          bcount_torques,delta_t,real_time_measure,emom)
       !
@@ -479,9 +556,8 @@ contains
 
    end subroutine buffer_torques
 
-   !----------------------------------------------------------------------------
+
    !> Print total effective field
-   !----------------------------------------------------------------------------
    subroutine prn_larmorfreq(Natom, Mensemble, simid,real_time_measure)
       !
       !.. Implicit declarations
@@ -521,19 +597,19 @@ contains
          write(filn,'(''larmor_dos.'',a8,''.out'')') simid
          open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
          allocate(larm_dos(0:larm_dos_size))
-         larm_dos=0.0d0
-         larm_max=maxval(larmb)*1.005d0
+         larm_dos=0.0_dblprec
+         larm_max=maxval(larmb)*1.005_dblprec
          do k=1, bcount_larm
             do j=1,Mensemble
                do i=1,Natom
                   larm_idx=int(larm_dos_size*larmb(i,k,j)/larm_max)
-                  larm_dos(larm_idx)=larm_dos(larm_idx)+1.0d0
+                  larm_dos(larm_idx)=larm_dos(larm_idx)+1.0_dblprec
                end do
             end do
          enddo
-         larm_dos=larm_dos/(1.0d0*k*j*i)
+         larm_dos=larm_dos/(1.0_dblprec*k*j*i)
          do larm_idx=1,larm_dos_size
-            write (ofileno,122) larm_idx,hbar_mev*gama*larm_max/(1.0d0*larm_dos_size)*larm_idx,larm_dos(larm_idx)
+            write (ofileno,122) larm_idx,hbar_mev*gama*larm_max/(1.0_dblprec*larm_dos_size)*larm_idx,larm_dos(larm_idx)
          end do
          close(ofileno)
       end if
@@ -547,9 +623,8 @@ contains
 
    end subroutine prn_larmorfreq
 
-   !----------------------------------------------------------------------------
+
    !> Print total effective field
-   !----------------------------------------------------------------------------
    subroutine prn_totalbfields(Natom, Mensemble, simid,real_time_measure)
       !
       !.. Implicit declarations
@@ -600,9 +675,59 @@ contains
    end subroutine prn_totalbfields
 
 
-   !----------------------------------------------------------------------------
+   !> Print internal magnetic field effective field from spin Hamiltonian
+   !> and from spin-lattice Hamiltonian respectively
+   subroutine prn_internalbfields(Natom, Mensemble, simid, real_time_measure)
+      !
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: Natom     !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      character(len=8), intent(in) :: simid !< Name of the simulation
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      ! Local variables
+      integer :: i,j,k
+      character(len=30) :: filn
+
+      ! Print thermal fields to output file if specified
+      ! Remember to remove old data since the write statement appends new data to the file
+
+      write(filn,'(''bintefftot.'',a8,''.out'')') simid
+      open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
+
+      ! Write header to output files for first iteration
+      if(abs(indxb_binteff (1))<dbl_tolerance) then
+         write (ofileno,'(a)') "# Iter.     Site     Replica      B_SD_x      B_SD_y      B_SD_z      B_SD       &
+            & B_SLD_x     B_SLD_y     B_SLD_z     B_SLD"
+      end if
+
+      do k=1, bcount_binteff
+         do j=1,Mensemble
+            do i=1,Natom
+               if (real_time_measure=='Y') then
+                  write (ofileno,121) indxb_binteff(k), i, j, binteffb(1:3,i,k,j), norm2(binteffb(1:3,i,k,j)), &
+                     binteffb(4:6,i,k,j), norm2(binteffb(4:6,i,k,j))
+               else
+                  write (ofileno,120) int(indxb_binteff(k)), i, j, binteffb(1:3,i,k,j), norm2(binteffb(1:3,i,k,j)), &
+                     binteffb(4:6,i,k,j), norm2(binteffb(4:6,i,k,j))
+               endif
+            end do
+         end do
+      enddo
+      close(ofileno)
+
+      return
+
+      write(*,*) 'Error writing the internal field file'
+
+      120 format(i8,i8,i8,8x,8es12.4)
+      121 format(es12.4,i8,i8,8x,8es12.4)
+
+   end subroutine prn_internalbfields
+
    !> Print magnetic torques
-   !----------------------------------------------------------------------------
    subroutine prn_torques(Natom, Mensemble, simid, real_time_measure)
       !
       !.. Implicit declarations
@@ -616,7 +741,6 @@ contains
       ! Local variables
       integer :: i,j,k
       character(len=30) :: filn
-      real(dblprec) :: temp_norm, temp_norm2
 
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
@@ -626,14 +750,12 @@ contains
       do k=1, bcount_torques
          do j=1,Mensemble
             do i=1,Natom
-               temp_norm=sqrt(torquesb(1,i,k,j)**2+torquesb(2,i,k,j)**2+torquesb(3,i,k,j)**2)
-               temp_norm2=sqrt(torquesb(4,i,k,j)**2+torquesb(5,i,k,j)**2+torquesb(6,i,k,j)**2)
                if (real_time_measure=='Y') then
-                  write (ofileno,121) indxb_torques(k), i, j, torquesb(1:3,i,k,j), temp_norm, &
-                     torquesb(4:6,i,k,j), temp_norm2
+                  write (ofileno,121) indxb_torques(k), i, j, torquesb(1:3,i,k,j), norm2(torquesb(1:3,i,k,j)), &
+                     torquesb(4:6,i,k,j), norm2(torquesb(4:6,i,k,j))
                else
-                  write (ofileno,120) int(indxb_torques(k)), i, j, torquesb(1:3,i,k,j), temp_norm, &
-                     torquesb(4:6,i,k,j), temp_norm2
+                  write (ofileno,120) int(indxb_torques(k)), i, j, torquesb(1:3,i,k,j), norm2(torquesb(1:3,i,k,j)), &
+                     torquesb(4:6,i,k,j), norm2(torquesb(4:6,i,k,j))
                endif
             end do
          end do
@@ -649,9 +771,9 @@ contains
 
    end subroutine prn_torques
 
-   !----------------------------------------------------------------------------
+
+
    !> Print thermal field
-   !----------------------------------------------------------------------------
    subroutine prn_thermfields(Natom, Mensemble, simid,real_time_measure)
       !
 
@@ -666,7 +788,6 @@ contains
       character(len=30) :: filn
       ! Local variables
       integer :: i,j,k
-      real(dblprec) :: temp_norm
 
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
@@ -675,11 +796,10 @@ contains
       do k=1, bcount_therm
          do j=1,Mensemble
             do i=1,Natom
-               temp_norm=sqrt(therm_fieldb(1,i,k,j)**2+therm_fieldb(2,i,k,j)**2+therm_fieldb(3,i,k,j)**2)
                if (real_time_measure=='Y') then
-                  write (ofileno,111) indxb_therm(k), i, j, therm_fieldb(:,i,k,j),temp_norm
+                  write (ofileno,111) indxb_therm(k), i, j, therm_fieldb(:,i,k,j),norm2(therm_fieldb(:,i,k,j))
                else
-                  write (ofileno,110) int(indxb_therm(k)), i, j, therm_fieldb(:,i,k,j),temp_norm
+                  write (ofileno,110) int(indxb_therm(k)), i, j, therm_fieldb(:,i,k,j),norm2(therm_fieldb(:,i,k,j))
                endif
             end do
          end do
@@ -694,5 +814,6 @@ contains
       111 format(es16.4,i8,i8,8x,es16.8,es16.8,es16.8,es16.8)
 
    end subroutine prn_thermfields
+
 
 end module prn_fields
