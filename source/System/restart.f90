@@ -27,6 +27,7 @@ module Restart
 
 contains
 
+#ifdef USE_OVF
    !---------------------------------------------------------------------------------
    ! > @brief Print the magnetic configurations in ovf format
    !> @author Jonathan Chico
@@ -173,7 +174,7 @@ contains
       call memocc(i_stat,i_all,'emom_ovf','read_mag_conf_ovf')
 
    end  subroutine read_mag_conf_ovf
-
+#endif
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: prn_mag_conf_iter
    !> @brief Prints a given magnetic configuration for either a restartfile or a momentfile

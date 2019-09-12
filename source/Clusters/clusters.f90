@@ -661,7 +661,7 @@ contains
    !---------------------------------------------------------------------------
    subroutine read_moments_clus(Landeg_global,conf_num,ind_mom_flag,do_lsf,set_landeg)
 
-      !use LSF
+      use LSF
       use Profiling
       use Parameters
 

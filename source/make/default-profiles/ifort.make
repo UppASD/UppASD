@@ -87,3 +87,8 @@ PREPROC = -fpp
 USE_FFTW = NO
 # Enable MKL FFT Support
 USE_MKL_FFT = YES
+
+# Enable OVF support
+USE_OVF = NO
+
+

@@ -34,13 +34,17 @@ module Correlation
    character(len=1) :: do_sc_tens   !< Print the tensorial values s(q,w) (Y/N)
    character(len=1) :: do_qt_traj   !< Measure time trajectory of S(q,t) (Y/N)
    character(len=1) :: do_connected !< Perform the connected part S(q,w)
+   character(len=1) :: sc_average   !< Averaging of S(q,w): (F)ull, (E)ven, or (N)one
    character(LEN=35) :: qfile       !< File name for q-points
    integer :: sc_sep                !< Separation between averages
    integer :: sc_mode               !< Spin correlation mode (0-3)
    integer :: sc_step               !< Separation between sampling steps
    integer :: sc_nstep              !< Number of steps to sample
+   integer :: sc_max_nstep          !< Max number of sampling opportunities
+   integer :: sc_naverages          !< Number of averages for S(q,w) averaging 
    real(dblprec) :: sigma_q         !< Sigma parameter in Q for the Gaussian convolution
    real(dblprec) :: sigma_w         !< Sigma parameter in W for the Gaussian convolution
+   real(dblprec) :: sigma_t         !< Sigma parameter in t for the Gaussian convolution
    real(dblprec) :: LWfactor        !< Gamma parameter in W for Lorentzian convolution
    real(dblprec) :: LQfactor        !< Gamma parameter in Q for Lorentzian convolution
 
@@ -64,7 +68,7 @@ module Correlation
    real(dblprec), dimension(:,:), allocatable :: q                   !< q-points
    real(dblprec), dimension(:,:), allocatable :: qdir                !< q-points expressed in the basis of the reciprocal lattice vectors
    real(dblprec), dimension(:,:), allocatable :: corr_k              ! Correlation in q G(k)
-   real(dblprec), dimension(:,:), allocatable :: corr_s              ! Correlation in r G(r)
+   complex(dblprec), dimension(:,:), allocatable :: corr_s              ! Correlation in r G(r)
    real(dblprec), dimension(:,:), allocatable :: corr_sr             ! Correlation in r G(r) calculated directly
    real(dblprec), dimension(:,:), allocatable :: corr_kt0            ! Temporary for g(q,t0)
    real(dblprec), dimension(:,:,:), allocatable :: corr_s_proj       ! Correlation in q or r (G(k),G(r)) (sublattice)
@@ -72,6 +76,7 @@ module Correlation
    real(dblprec), dimension(:,:,:,:), allocatable :: corr_ss_proj    ! Correlation in r G(r) (sublattice)
    complex(dblprec), dimension(:,:,:), allocatable :: sqw            !< S(q,w)
    complex(dblprec), dimension(:,:,:), allocatable :: corr_kt        ! Correlation for G(k,t)
+   complex(dblprec), dimension(:,:,:), allocatable :: m_kt        ! Correlation for G(k,t)
    complex(dblprec), dimension(:,:,:,:), allocatable :: corr_kt_tens   ! Correlation for G(k,t)
    complex(dblprec), dimension(:,:,:), allocatable :: corr_kw        ! Correlation for G(k,w)
    complex(dblprec), dimension(:,:,:,:), allocatable :: corr_kw_tens        ! Correlation for G(k,w)
@@ -109,13 +114,14 @@ module Correlation
    real(dblprec), dimension(3) :: r_mid !< Local variable containing the center coordinate for the system. Used for FT in calc_gk
 
    integer :: sc_tidx
+   integer :: sc_tidx_max
 
    private
 
    public :: do_sc, q, nq, calc_corr_w, w, sc_nstep, do_conv,sigma_q,sigma_w,LQfactor,LWfactor, do_sc_proj
    public :: setup_qcoord, read_q, set_w, qpoints,q_weight
    public :: correlation_init, read_parameters_correlation,  allocate_deltatcorr, deallocate_q
-   public :: correlation_wrapper
+   public :: correlation_wrapper, set_correlation_average
 
 contains
    !---------------------------------------------------------------------------------
@@ -157,7 +163,9 @@ contains
 
       else if(do_sc=='Q') then
          ! S(k,w)
-         if(mod(mstep-1,sc_step)==1.and.sc_tidx<=sc_nstep) then
+         !if(mod(mstep-1,sc_step)==1.and.sc_tidx<=sc_max_nstep) then
+         if(mod(mstep-1,sc_step)==1.and.sc_tidx<=sc_nstep+sc_naverages) then
+         !if(mod(mstep-1,sc_step)==1.and.sc_tidx<=sc_nstep) then
             sc_tidx=sc_tidx+1
             deltat_corr(sc_tidx) = delta_t ! Save current time step
             scstep_arr(sc_tidx) = sc_step  ! Save current sampling period
@@ -213,7 +221,7 @@ contains
       do_sc_proj   = 'N'
       do_sc_projch   = 'N'
       do_sc_local_axis   = 'N'
-      sc_local_axis_mix = 0.5_dblprec
+      sc_local_axis_mix = 0.0_dblprec
       do_sc_proj_axis   = 'N'
       do_sc_dosonly   = 'N'
       do_sc_complex   = 'N'
@@ -221,6 +229,8 @@ contains
       do_qt_traj   = 'N'
       do_connected = 'N'
       sc_window_fun = 1
+      sc_naverages = 1
+      sc_average = 'N'
 
    end subroutine correlation_init
 
@@ -244,11 +254,12 @@ contains
       !
       integer :: iq,r,l,i_stat,i_all
       character(len=30) :: filn
-      real(dblprec) :: epowqr
+      complex(dblprec) :: epowqr
       real(dblprec) :: qdr,nainv,k_min,qfac,wfac
       real(dblprec), dimension(3) :: s0,sp,cl
       real(dblprec), dimension(3) :: mavrg_vec
       complex(dblprec), dimension(3) :: cl_step
+      complex(dblprec) :: iqfac
 
       if(.not.(do_sc=='C')) return
 
@@ -272,6 +283,7 @@ contains
       end if
 
       qfac=2._dblprec*pi
+      iqfac=-2._dblprec*pi*(0.0_dblprec,1.0_dblprec)
       wfac=1._dblprec
       nainv=1.0_dblprec/Natom
 
@@ -295,14 +307,10 @@ contains
                   corr_s(:,iq)=0.0_dblprec
                   do r=1,Natom
                      qdr=q(1,iq)*(coord(1,r)-r_mid(1))+q(2,iq)*(coord(2,r)-r_mid(2))+q(3,iq)*(coord(3,r)-r_mid(3))
-                     epowqr=cos(qfac*qdr)*nainv*sc_window_fac(sc_window_fun,iq,nq)
-                     corr_s(1,iq)=corr_s(1,iq)+epowqr*emomM(1,r,l)-epowqr*mavrg_vec(1)
-                     corr_s(2,iq)=corr_s(2,iq)+epowqr*emomM(2,r,l)-epowqr*mavrg_vec(2)
-                     corr_s(3,iq)=corr_s(3,iq)+epowqr*emomM(3,r,l)-epowqr*mavrg_vec(3)
+                     epowqr=exp(iqfac*qdr)*nainv*sc_window_fac(sc_window_fun,iq,nq)
+                     corr_s(:,iq)=corr_s(:,iq)+epowqr*emomM(:,r,l)-epowqr*mavrg_vec(:)
                   end do
-                  corr_k(1,iq)=corr_k(1,iq) + abs(corr_s(1,iq))**2
-                  corr_k(2,iq)=corr_k(2,iq) + abs(corr_s(2,iq))**2
-                  corr_k(3,iq)=corr_k(3,iq) + abs(corr_s(3,iq))**2
+                  corr_k(:,iq)=corr_k(:,iq) + conjg(corr_s(:,iq))*corr_s(:,iq)
                   corr_kt0(1,iq)=corr_kt0(1,iq) + corr_s(1,iq)
                   corr_kt0(2,iq)=corr_kt0(2,iq) + corr_s(2,iq)
                   corr_kt0(3,iq)=corr_kt0(3,iq) + corr_s(3,iq)
@@ -374,7 +382,7 @@ contains
          do r=1,Natom
             do iq=1,nq
                qdr=q(1,iq)*(coord(1,r)-r_mid(1))+q(2,iq)*(coord(2,r)-r_mid(2))+q(3,iq)*(coord(3,r)-r_mid(3))
-               epowqr=cos(-qfac*qdr)*sc_window_fac(sc_window_fun,iq,nq)
+               epowqr=exp(iqfac*qdr)*sc_window_fac(sc_window_fun,iq,nq)
                corr_s(1,r)=corr_s(1,r)+epowqr*corr_k(1,iq)
                corr_s(2,r)=corr_s(2,r)+epowqr*corr_k(2,iq)
                corr_s(3,r)=corr_s(3,r)+epowqr*corr_k(3,iq)
@@ -386,8 +394,8 @@ contains
          write (filn,'(''sr.'',a8,''.out'')') simid
          open(ofileno,file=filn,status='replace')
          do r=1,Natom
-            write(ofileno,'(i10,3f10.4,5f18.8)') r,(coord(l,r)-r_mid(l),l=1,3),(((corr_s(l,r))),l=1,3),&
-               sqrt(corr_s(1,r)**2+corr_s(2,r)**2+corr_s(3,r)**2),corr_s(1,r)+corr_s(2,r)+corr_s(3,r)
+            write(ofileno,'(i10,3f10.4,5f18.8)') r,(coord(l,r)-r_mid(l),l=1,3),((real(corr_s(l,r))),l=1,3),&
+               real(sqrt(corr_s(1,r)**2+corr_s(2,r)**2+corr_s(3,r)**2)),real(corr_s(1,r)+corr_s(2,r)+corr_s(3,r))
          end do
          close(ofileno)
 
@@ -1322,11 +1330,19 @@ contains
       real(dblprec) :: beff_norm
       real(dblprec) :: qnorm, qnorm2, polfac
       !
+      complex(dblprec), dimension(:,:,:), allocatable ::  corr_kt_temp
+      integer, dimension(:), allocatable  :: step_weight
+      integer :: relstep
+      !
       i=(0.0_dblprec,1.0_dblprec)
 
-
       if(flag==0) then
+         sc_max_nstep = sc_nstep + sc_naverages 
+
          ! First call, allocate and clear arrays
+         allocate(m_kt(3,nq,sc_max_nstep+1),stat=i_stat)
+         call memocc(i_stat,product(shape(m_kt))*kind(m_kt),'m_kt','calc_gkt')
+         m_kt=0.0_dblprec
          allocate(corr_kt(3,nq,sc_nstep+1),stat=i_stat)
          call memocc(i_stat,product(shape(corr_kt))*kind(corr_kt),'corr_kt','calc_gkt')
          corr_kt=0.0_dblprec
@@ -1456,32 +1472,42 @@ contains
          end if
 
          win_fac=1.0_dblprec*nainv
-         !$omp parallel do default(shared) private(r,iq,l,qdr,epowqr) schedule(static)
+         !$omp parallel do default(shared) private(r,iq,l,qdr,epowqr) schedule(static) 
          do iq=1,nq
             do l=1,Mensemble
 !#if _OPENMP >= 201307
-!               !$omp simd   private(qdr,epowqr)
+!            !$omp simd   private(qdr,epowqr) lastprivate(iq)
 !#endif
+
+         !DIR$ vector aligned
                do r=1,Natom
                   ! No need to window the q-transform
                   qdr=q(1,iq)*coord(1,r)+q(2,iq)*coord(2,r)+q(3,iq)*coord(3,r)
                   epowqr=exp(iqfac*qdr)*win_fac
                   !DIR$ vector always aligned
                   !!! Check this step !!!
-                  ! corr_kt is linear in magnetic moment, but corr_kt_tens is quadratic
-                  corr_kt(:,iq,sc_tidx)=corr_kt(:,iq,sc_tidx)+epowqr*m_proj(:,r,l)
-                  corr_kt_tens(:,1,iq,sc_tidx)=corr_kt_tens(:,1,iq,sc_tidx)+epowqr*m_proj(:,r,l)*m_proj(1,r,l)
-                  corr_kt_tens(:,2,iq,sc_tidx)=corr_kt_tens(:,2,iq,sc_tidx)+epowqr*m_proj(:,r,l)*m_proj(2,r,l)
-                  corr_kt_tens(:,3,iq,sc_tidx)=corr_kt_tens(:,3,iq,sc_tidx)+epowqr*m_proj(:,r,l)*m_proj(3,r,l)
-                  !!! Check this step !!!
+                  ! See forthcoming notes about the correlation sampling and the convolution theorem
+                  !corr_kt(:,iq,sc_tidx)=corr_kt(:,iq,sc_tidx)+epowqr*m_proj(:,r,l)
+                  m_kt(1:3,iq,sc_tidx)=m_kt(1:3,iq,sc_tidx)+epowqr*m_proj(1:3,r,l)
                end do
             end do
+            ! Changed to post-process
+            !!! ! The quadratic spin dependance comes from the multiplication with c(q,t=t0) i.e at sc_tidx=1
+            !!! corr_kt_tens(:,1,iq,sc_tidx)=corr_kt_tens(:,1,iq,sc_tidx)+corr_kt(:,iq,sc_tidx)*conjg(corr_kt(1,iq,1))
+            !!! corr_kt_tens(:,2,iq,sc_tidx)=corr_kt_tens(:,2,iq,sc_tidx)+corr_kt(:,iq,sc_tidx)*conjg(corr_kt(2,iq,1))
+            !!! corr_kt_tens(:,3,iq,sc_tidx)=corr_kt_tens(:,3,iq,sc_tidx)+corr_kt(:,iq,sc_tidx)*conjg(corr_kt(3,iq,1))
+            !!! !!! if(sc_tidx>1) then
+            !!! !!!    corr_kt(:,iq,sc_tidx)=corr_kt(:,iq,sc_tidx)*conjg(corr_kt(:,iq,1))
+            !!! !!! end if
          end do
          !$omp end parallel do
       end if
 
       ! Final operations, transform and print
       if (flag==2) then
+
+
+         print *,'-------------------------------------------------------------'
 
          ! Allocate arrays
          allocate(corr_kw(3,nq,nw),stat=i_stat)
@@ -1492,43 +1518,140 @@ contains
          call memocc(i_stat,product(shape(corr_kw_tens))*kind(corr_kw_tens),'corr_kw_tens','calc_gkt')
          corr_kw_tens=0.0_dblprec
 
-         ! Finish sampling and transform (k,t)->(k,w)
-         if(sc_tidx.GT.sc_nstep) then
-            sc_tidx = sc_nstep
-         end if
+         allocate(corr_kt_temp(3,nq,sc_nstep+1),stat=i_stat)
+         call memocc(i_stat,product(shape(corr_kt_temp))*kind(corr_kt_temp),'corr_kt_temp','calc_gkt')
+         corr_kt_temp=0.0_dblprec
+
+         allocate(step_weight(sc_nstep+1),stat=i_stat)
+         call memocc(i_stat,product(shape(step_weight))*kind(step_weight),'step_weight','calc_gkt')
+         step_weight=1
+
+         !!! ! Finish sampling and transform (k,t)->(k,w)
+         !!! if(sc_tidx.GT.sc_nstep) then
+         !!!    sc_tidx = sc_nstep
+         !!! end if
 
          j=1
-         do while(j.LE.sc_tidx)
+         ! Calculate time array
+         !do while(j.LE.sc_tidx)
+         do while(j.LE.sc_nstep)
             dt(j) = scstep_arr(j)*deltat_corr(j)
             j = j+1
          end do
+
+         !! ! Square the first time-step of corr_kt which was not done earlier
+         !! do step=2,sc_tidx
+         !!    do iq=1,nq
+         !!       corr_kt(:,iq,step)=corr_kt(:,iq,step)*conjg(corr_kt(:,iq,1))
+         !!    enddo
+         !! enddo
+         !! do iq=1,nq
+         !!    corr_kt(:,iq,1)=corr_kt(:,iq,1)*conjg(corr_kt(:,iq,1))
+         !! enddo
+         step_weight=0
+
+         ! Square corr_kt which was not done earlier
+         !do step=1,min(sc_tidx,sc_max_nstep)
+         !   do relstep=1,min(step,sc_nstep)
+         if (sc_average=='F') then
+            print *,' Full S(q,w) averaging over: ', max(0,(sc_tidx-sc_nstep))+1,' samples'
+            !$omp parallel do default(shared) private(relstep,step,iq)
+            do relstep=1,sc_nstep
+               do step=relstep,min(sc_tidx,sc_max_nstep)
+                  do iq=1,nq
+                     corr_kt(1:3,iq,relstep)=corr_kt(:,iq,relstep)+m_kt(:,iq,step)*conjg(m_kt(:,iq,step-relstep+1))
+                     corr_kt_tens(1:3,1,iq,relstep)=corr_kt_tens(:,1,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(1,iq,step-relstep+1))
+                     corr_kt_tens(1:3,2,iq,relstep)=corr_kt_tens(:,2,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(2,iq,step-relstep+1))
+                     corr_kt_tens(1:3,3,iq,relstep)=corr_kt_tens(:,3,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(3,iq,step-relstep+1))
+                  enddo
+                  step_weight(relstep)=step_weight(relstep)+1
+               enddo
+            enddo
+            !$omp end parallel do
+         else if (sc_average=='E') then
+            print *,' Even S(q,w) averaging over: ', max(0,(sc_tidx-sc_nstep))+1,' samples'
+            !$omp parallel do default(shared) private(relstep,step,iq)
+            do relstep=1,sc_nstep
+               do step=relstep,relstep+max(0,(sc_tidx-sc_nstep))
+                  do iq=1,nq
+                     corr_kt(1:3,iq,relstep)=corr_kt(:,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(1:3,iq,step-relstep+1))
+                     corr_kt_tens(1:3,1,iq,relstep)=corr_kt_tens(1:3,1,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(1,iq,step-relstep+1))
+                     corr_kt_tens(1:3,2,iq,relstep)=corr_kt_tens(1:3,2,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(2,iq,step-relstep+1))
+                     corr_kt_tens(1:3,3,iq,relstep)=corr_kt_tens(1:3,3,iq,relstep)+m_kt(1:3,iq,step)*conjg(m_kt(3,iq,step-relstep+1))
+                  enddo
+                  step_weight(relstep)=step_weight(relstep)+1
+               enddo
+            enddo
+            !$omp end parallel do
+         else
+            print *,' No S(q,w) averaging'
+            !$omp parallel do default(shared) private(relstep,step,iq)
+            do relstep=1,sc_nstep
+                  do iq=1,nq
+                     corr_kt(1:3,iq,relstep)=corr_kt(1:3,iq,relstep)+m_kt(1:3,iq,relstep)*conjg(m_kt(1:3,iq,1))
+                     corr_kt_tens(1:3,1,iq,relstep)=corr_kt_tens(1:3,1,iq,relstep)+m_kt(1:3,iq,relstep)*conjg(m_kt(1,iq,1))
+                     corr_kt_tens(1:3,2,iq,relstep)=corr_kt_tens(1:3,2,iq,relstep)+m_kt(1:3,iq,relstep)*conjg(m_kt(2,iq,1))
+                     corr_kt_tens(1:3,3,iq,relstep)=corr_kt_tens(1:3,3,iq,relstep)+m_kt(1:3,iq,relstep)*conjg(m_kt(3,iq,1))
+                  enddo
+                  step_weight(relstep)=step_weight(relstep)+1
+            enddo
+            !$omp end parallel do
+         end if
+
+         !corr_kt=corr_kt_temp
+         !$omp parallel do default(shared) private(step,iq)
+         do step=1,min(sc_tidx,sc_nstep)
+            do iq=1,nq
+               corr_kt(1:3,iq,step)=corr_kt(1:3,iq,step)/step_weight(step)
+               corr_kt_tens(1:3,1:3,iq,step)=corr_kt_tens(1:3,1:3,iq,step)/step_weight(step)
+            end do
+         enddo
+
+         ! Convolution over frequencies. Done in real-time space by means of the convolution theorem 
+         if (do_conv .eq. 'G') then
+            print '(2x,a)','Gaussian convolution of S(q,w) in progress'
+            print '(3x,a,g12.4,a)','Sigma_w:' , sigma_w, ' (Hz)'
+            sigma_t=sqrt(1.0_dblprec/(2.0_dblprec*pi*pi*sigma_w*sigma_w))
+            print '(3x,a,g12.4,a)','Sigma_t:' , sigma_t, ' (s)'
+            !$omp parallel do default(shared) private(iq,step,tt,epowwt) schedule(static) 
+               do step=1,min(sc_tidx,sc_nstep)
+                  tt=dt(step)*(step-min(sc_tidx,sc_nstep)*0.5_dblprec)*sigma_w
+                  epowwt=exp(-tt*tt/2.0_dblprec)*sqrt(2.0_dblprec*pi)
+                  !!tt=dt(step)*(step-min(sc_tidx,sc_nstep)*0.5_dblprec)/sigma_t
+                  !!epowwt=exp(-tt*tt/2.0_dblprec)*2.0_dblprec
+                  do iq=1,nq
+                     corr_kt(1:3,iq,step)=epowwt*corr_kt(1:3,iq,step)
+                  enddo
+                  do iq=1,nq
+                     corr_kt_tens(1:3,1:3,iq,step)=epowwt*corr_kt_tens(1:3,1:3,iq,step)
+                  enddo
+               enddo
+            !$omp end parallel do
+         end if
 
          wfac=1.0_dblprec
          corr_kw=0.0_dblprec
 
          !$omp parallel do default(shared) private(iw,iq,step,tt,epowwt) schedule(static)
          do iw=1,nw
-            do step=1,sc_tidx
+         !DIR$ vector aligned
+            do step=1,min(sc_tidx,sc_nstep)
                tt=i*wfac*(step-1)*dt(step)
                ! Apply window function as determined by 'sc_window_fun'
-               epowwt=exp(w(iw)*tt)*sc_window_fac(sc_window_fun,step,sc_tidx)
+               epowwt=exp(w(iw)*tt)*sc_window_fac(sc_window_fun,step,min(sc_tidx,sc_nstep))
+               !epowwt=exp(w(iw)*tt)*sc_window_fac(sc_window_fun,step,sc_tidx)
                !
 !#if _OPENMP >= 201307
-!               !$omp simd
+!               !$omp simd lastprivate(epowwt,iw)
 !#endif
                do iq=1,nq
-                  corr_kw(:,iq,iw)=corr_kw(:,iq,iw)+epowwt*corr_kt(:,iq,step)
+                  corr_kw(1:3,iq,iw)=corr_kw(1:3,iq,iw)+epowwt*corr_kt(1:3,iq,step)
                enddo
+!#if _OPENMP >= 201307
+!               !$omp simd lastprivate(epowwt)
+!#endif
                do iq=1,nq
-               !!! Check this step !!!
-                  ! corr_kt_tens is already quadratic in magnetic moment
-                  corr_kw_tens(:,1,iq,iw)=corr_kw_tens(:,1,iq,iw)+epowwt*corr_kt_tens(:,1,iq,step)
-                  corr_kw_tens(:,2,iq,iw)=corr_kw_tens(:,2,iq,iw)+epowwt*corr_kt_tens(:,2,iq,step)
-                  corr_kw_tens(:,3,iq,iw)=corr_kw_tens(:,3,iq,iw)+epowwt*corr_kt_tens(:,3,iq,step)
-               !   corr_kw_tens(:,1,iq,iw)=corr_kw_tens(:,1,iq,iw)+epowwt*corr_kt(:,iq,step)*corr_kt(1,iq,step)
-               !   corr_kw_tens(:,2,iq,iw)=corr_kw_tens(:,2,iq,iw)+epowwt*corr_kt(:,iq,step)*corr_kt(2,iq,step)
-               !   corr_kw_tens(:,3,iq,iw)=corr_kw_tens(:,3,iq,iw)+epowwt*corr_kt(:,iq,step)*corr_kt(3,iq,step)
-               !!! Check this step !!!
+                  corr_kw_tens(1:3,1:3,iq,iw)=corr_kw_tens(1:3,1:3,iq,iw)+epowwt*corr_kt_tens(1:3,1:3,iq,step)
                enddo
             enddo
          enddo
@@ -1540,7 +1663,21 @@ contains
             call calc_dos_conv(corr_kw)
          endif
 
+
          if(do_sc_dosonly/="Y") then
+            !!! ! Write S(q,w)
+            !!! write (filn,'(''sqt.'',a8,''.out'')') simid
+            !!! open(ofileno, file=filn)
+            !!! do iq=1,Nq
+            !!!    do iw=1,sc_tidx
+            !!!       write (ofileno,10005) iq,q(1,iq), q(2,iq),q(3,iq),iw, &
+            !!!          !real(corr_kt(1,iq,iw)), aimag(corr_kt(1,iq,iw)), abs(corr_kt(1,iq,iw)) , &
+            !!!          abs(corr_kt(1,iq,iw)),abs(corr_kt(2,iq,iw)),abs(corr_kt(3,iq,iw)), &
+            !!!          abs(corr_kt(1,iq,iw)**2+corr_kt(2,iq,iw)**2+corr_kt(3,iq,iw)**2)**0.5_dblprec
+            !!!    end do
+            !!! end do
+            !!! close(ofileno)
+
             ! Write S(q,w)
             write (filn,'(''sqw.'',a8,''.out'')') simid
             open(ofileno, file=filn)
@@ -1592,7 +1729,7 @@ contains
                unit3 = 0.0_dblprec
                unit3(1,1) = 1.0_dblprec;  unit3(2,2) = 1.0_dblprec; unit3(3,3) = 1.0_dblprec
                do iq=1,Nq
-                  qnorm = norm2(q(1:3,iq))
+                  qnorm = norm2(q(1:3,iq))+1.0e-12_dblprec
                   qnorm2 = qnorm**2
                   do iw=1,Nw/2
                      do ia=1,3
@@ -1645,6 +1782,14 @@ contains
                   magnon_dos(3,iw)=magnon_dos(3,iw)+abs(corr_kw(3,iq,iw))*q_weight(iq)
                end do
             end do
+         else if (do_sc_tens=='Y') then
+            do iw=1,Nw/2
+               do iq=1,Nq
+                  magnon_dos(1,iw)=magnon_dos(1,iw)+abs(sqwintensity(iq,iw))
+                  magnon_dos(2,iw)=magnon_dos(2,iw)+abs(sqwintensity(iq,iw))
+                  magnon_dos(3,iw)=magnon_dos(3,iw)+abs(sqwintensity(iq,iw))
+               end do
+            end do
          else
             do iw=1,Nw/2
                do iq=1,Nq
@@ -1692,6 +1837,10 @@ contains
          i_all=-product(shape(corr_kt))*kind(corr_kt)
          deallocate(corr_kt,stat=i_stat)
          call memocc(i_stat,i_all,'corr_kt','calc_gkt')
+         !
+         i_all=-product(shape(m_kt))*kind(m_kt)
+         deallocate(m_kt,stat=i_stat)
+         call memocc(i_stat,i_all,'m_kt','calc_gkt')
          !
          i_all=-product(shape(corr_kw))*kind(corr_kw)
          deallocate(corr_kw,stat=i_stat)
@@ -1760,6 +1909,7 @@ contains
       complex(dblprec) :: i, iqfac, iwfac, tt, epowqr,epowwt
       !
       i=(0.0_dblprec,1.0_dblprec)
+
       !
       if(flag==0) then
          ! First call, allocate and clear arrays
@@ -1810,6 +1960,10 @@ contains
 
       ! Calculate g(k) for the current iteration and add to G(k,t)
       if (flag==1) then
+
+         ! Safety condition related to no averaging.
+         if(sc_tidx>sc_nstep) return
+
          iqfac=i*qfac
          corr_st_proj=0.0_dblprec
          if(do_sc_proj_axis/='Y') then
@@ -1868,13 +2022,13 @@ contains
          call memocc(i_stat,product(shape(corr_kw_proj))*kind(corr_kw_proj),'corr_kw_proj','calc_gkt_projch')
          corr_kw_proj=0.0_dblprec
 
-         ! Finish sampling and transform (k,t)->(k,w)
-         if(sc_tidx.GT.sc_nstep) then
-            sc_tidx = sc_nstep
-         end if
+         !!! ! Finish sampling and transform (k,t)->(k,w)
+         !!! if(sc_tidx.GT.sc_nstep) then
+         !!!    sc_tidx = sc_nstep
+         !!! end if
 
          j=1
-         do while(j.LE.sc_tidx)
+         do while(j.LE.min(sc_tidx,sc_nstep))
             dt(j) = scstep_arr(j)*deltat_corr(j)
             j = j+1
          end do
@@ -1884,7 +2038,7 @@ contains
          !$omp parallel do default(shared) private(iw,iq,k,step,tt,epowwt) schedule(static)
          do iw=1,nw
             do k=1,nchmax
-               do step=1,sc_tidx
+               do step=1,min(sc_tidx,sc_nstep)
                   tt=iwfac*(step-1)*dt(step)
                   epowwt=exp(w(iw)*tt)
                   do iq=1,nq
@@ -1980,6 +2134,8 @@ contains
       !
       i=(0.0_dblprec,1.0_dblprec)
       !
+      !
+      !
       if(flag==0) then
          ! First call, allocate and clear arrays
          allocate(corr_st_proj(3,nq,nt),stat=i_stat)
@@ -2029,6 +2185,10 @@ contains
 
       ! Calculate g(k) for the current iteration and add to G(k,t)
       if (flag==1) then
+
+         ! Safety condition related to no averaging.
+         if(sc_tidx>sc_nstep) return
+
          iqfac=i*qfac
          corr_st_proj=0.0_dblprec
          if(do_sc_proj_axis/='Y') then
@@ -2087,13 +2247,13 @@ contains
          call memocc(i_stat,product(shape(corr_kw_proj))*kind(corr_kw_proj),'corr_kw_proj','calc_gkt_proj')
          corr_kw_proj=0.0_dblprec
 
-         ! Finish sampling and transform (k,t)->(k,w)
-         if(sc_tidx.GT.sc_nstep) then
-            sc_tidx = sc_nstep
-         end if
+         !!! ! Finish sampling and transform (k,t)->(k,w)
+         !!! if(sc_tidx.GT.sc_nstep) then
+         !!!    sc_tidx = sc_nstep
+         !!! end if
 
          j=1
-         do while(j.LE.sc_tidx)
+         do while(j.LE.min(sc_tidx,sc_nstep))
             dt(j) = scstep_arr(j)*deltat_corr(j)
             j = j+1
          end do
@@ -2103,7 +2263,7 @@ contains
          !$omp parallel do default(shared) private(iw,iq,k,step,tt,epowwt) schedule(static)
          do iw=1,nw
             do k=1,nt
-               do step=1,sc_tidx
+               do step=1,min(sc_tidx,sc_nstep)
                   tt=iwfac*(step-1)*dt(step)
                   epowwt=exp(w(iw)*tt)
                   do iq=1,nq
@@ -2345,7 +2505,6 @@ contains
          conv_cutoff_w=0.001_dblprec
          conv_range_q=int(sqrt(log(conv_cutoff_q)/facq1)+0.5_dblprec)
          conv_range_w=int(sqrt(log(conv_cutoff_w)/facw1)+0.5_dblprec)
-         print *,'range',conv_range_q,conv_range_w
 
       else if (do_conv=='LY') then
          ! Variables for both qpoints and frequencies convolutions for Lorentz distribution
@@ -2560,11 +2719,11 @@ contains
 
       if(allocate_flag) then
          if(.not.allocated(deltat_corr)) then
-            allocate(deltat_corr(sc_nstep+1),stat=i_stat)
+            allocate(deltat_corr(sc_nstep+sc_naverages+1),stat=i_stat)
             call memocc(i_stat,product(shape(deltat_corr))*kind(deltat_corr),'deltat_corr','allocate_deltatcorr')
          end if
          if(.not.allocated(scstep_arr)) then
-            allocate(scstep_arr(sc_nstep+1),stat=i_stat)
+            allocate(scstep_arr(sc_nstep+sc_naverages+1),stat=i_stat)
             call memocc(i_stat,product(shape(scstep_arr))*kind(scstep_arr),'scstep_arr','allocate_deltatcorr')
          end if
       else
@@ -3028,10 +3187,19 @@ contains
          case('sc_nstep')
             read(ifile,*,iostat=i_err) sc_nstep
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         !!!    !> - sc_max_nstep
+         !!!    !! Max no. sampling opportunities for correlations
+         !!! case('sc_max_nstep')
+         !!!    read(ifile,*,iostat=i_err) sc_max_nstep
+         !!!    if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             !> - sc_sep
             !! Sampling period of static G(r)
          case('sc_sep')
             read(ifile,*,iostat=i_err) sc_sep
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            !! How to perform averaging of S(q,w) (F)ull,(E)ven, or (N)one.
+         case('sc_average')
+            read(ifile,*,iostat=i_err) sc_average
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             !> - qpoints
             !! Specify format of qfile for correlation (F=file in cart. coord,
@@ -3100,13 +3268,19 @@ real(dblprec) function sc_window_fac(sc_window_fun,step,nstep)
          (0.35785_dblprec-0.48829_dblprec*cos(2.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))+ &
          0.14128_dblprec*cos(4.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))   &
          -0.01168_dblprec*cos(6.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec)))
+       ! Nuttal
+    case(5)
+       dum=  &
+          (0.355768_dblprec-0.478396_dblprec*cos(2.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))+ &
+          0.144232_dblprec*cos(4.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))   &
+          -0.012604_dblprec*cos(6.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec)))
       ! Nuttal
-   case(5)
-      dum=  &
-         (0.355768_dblprec-0.478396_dblprec*cos(2.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))+ &
-         0.144232_dblprec*cos(4.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec))   &
-         -0.012604_dblprec*cos(6.0_dblprec*pi*(step-1._dblprec)/(nstep-1.0_dblprec)))
-      ! Square windows
+   !!!case(5)
+   !!!   dum=  &
+   !!!      (0.355768_dblprec-0.478396_dblprec*cos(2.0_dblprec*pi*(step)/(nstep))+ &
+   !!!      0.144232_dblprec*cos(4.0_dblprec*pi*(step)/(nstep))   &
+   !!!      -0.012604_dblprec*cos(6.0_dblprec*pi*(step)/(nstep)))
+   !!!   ! Square windows
    case default
       dum=1.0_dblprec
    end select
@@ -3150,5 +3324,20 @@ real(dblprec) function sc_window_fac(sc_window_fun,step,nstep)
      rmid=coord(:,ridx)
      !
   end subroutine find_rmid
+
+  subroutine set_correlation_average(nstep)
+     !
+     implicit none
+     !
+     integer, intent(in) :: nstep
+     !
+     if (sc_average=='E'.or.sc_average=='F') then
+        sc_naverages=nstep-sc_nstep
+     else
+        sc_naverages=0
+     end if
+     !
+     return
+  end subroutine set_correlation_average
 
 end module Correlation

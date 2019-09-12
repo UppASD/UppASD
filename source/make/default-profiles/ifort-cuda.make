@@ -150,3 +150,8 @@ DSINGLE_PREC             = F
 DNVPROF                  = F
 
 PREPROC = -cpp
+
+# Enable OVF support
+USE_OVF = NO
+
+

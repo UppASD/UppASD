@@ -44,13 +44,14 @@ module uppasd
    !
    use omp_lib
    use SD_driver
+   use WL_driver
    use MC_driver
+   use PT_driver
    use Profiling
    use Parameters
    use InputData, only: Nstep
    use GNEB_driver
    use ErrorHandling
-
 
    !.. Implicit declarations
    implicit none
@@ -62,11 +63,9 @@ module uppasd
 
 contains
 
-
    subroutine main()
 
       implicit none
-
 
       ! Executable statements
       !==============================================================!
@@ -122,8 +121,8 @@ contains
       call memocc(0,0,'count','stop')
 
       !==============================================================!
-   end subroutine main
 
+   end subroutine main
 
 
    !---------------------------------------------------------------------------------
@@ -184,11 +183,10 @@ contains
          call mc_iphase()
       elseif (ipmode=='E') then
          ! Wang-Landau warmup
-         call ErrorHandling_missing('Wang-Landau histogram method')
-         !call wl_iphase()
+         call wl_iphase()
       elseif (ipmode=='B') then
          ! Spin-lattice Hamiltonian Monte Carlo initial phase
-         call ErrorHandling_missing('Spin-lattice dynamics')
+         !call ErrorHandling_missing('Spin-lattice dynamics')
          !call sld_mc_iphase()
       elseif (ipmode=='S') then
          ! Spin dynamics initial phase
@@ -202,8 +200,8 @@ contains
          !write (*,'(1x,a)') "Calls sld_iphase"
          !call sld_iphase() ! Spin Lattice Dynamics initial phase
       elseif (ipmode=='X') then
-         call ErrorHandling_missing('Parallel tempering / Simulated annealing')
-         !call pt_iphase() ! Parallel tempering initial phase
+         write (*,'(1x,a)') "Calls parallel tempering"
+         call pt_iphase() ! Parallel tempering initial phase
       elseif (ipmode=='Q') then
          ! Spin spiral minimization initial phase
          !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
@@ -283,8 +281,8 @@ contains
          endif
 
       elseif (mode=='E') then
-         call ErrorHandling_missing('Wang-Landau histogram method')
-         !call wl_mphase()
+         write (*,'(1x,a)') "Calls Wang-Landau measurements"
+         call wl_mphase()
 
       elseif (mode=='B') then
          call ErrorHandling_missing('Spin-lattice dynamics')
@@ -368,6 +366,7 @@ contains
    !> - Moved to separate function
    !---------------------------------------------------------------------------------
    subroutine cleanup_simulation()
+      use LSF,          only : allocate_lsfdata
       use Tools
       use Energy,       only : allocate_energies
       use KMCData,      only : allocate_kmc,do_kmc,NA_KMC
@@ -417,12 +416,14 @@ contains
       if(do_ralloy==1.or.oldformat) call allocate_chemicaldata(flag=-1)
       if(do_ralloy==1.or.oldformat) call allocate_chemicalinput(flag=-1)
       if(do_anisotropy==1) call allocate_anisotropies(Natom,mult_axis,flag=-1)
+      if(do_lsf=='Y') call allocate_lsfdata(NA,Nchmax,conf_num,flag=-1)
       if(do_kmc.eq.'Y') call allocate_kmc(NA_KMC=NA_KMC,flag=-1)
 
       if(do_dip>0) call dipole_cleanup(do_dip,Num_macro)
       if(do_macro_cells=='Y'.or.do_dip==2) then
          call allocate_macrocell(-1,Natom,Mensemble)
       endif
+      if(ind_mom_flag=='Y') call allocate_hamiltoniandata_ind(flag=-1)
       if(plotenergy>0) call allocate_energies(flag=-1)
       if(do_cluster=='Y') call deallocate_cluster_info()
       if (mode=='L') then
@@ -447,6 +448,7 @@ contains
       use ams
       use KMC
       use BLS
+      use LSF,             only : read_LSF,allocate_lsfdata
       use Sparse
       use Energy,          only: allocate_energies
       use Damping
@@ -478,6 +480,7 @@ contains
       use inputhandler
       use RandomNumbers
       use clus_geometry
+      use InducedMoments,  only : calculate_init_ind_sus
       use prn_microwaves
       use SimulationData
       use microwavefield
@@ -485,6 +488,7 @@ contains
       use AutoCorrelation
       use hamiltonianinit
       use magnetizationinit
+      use WangLandau
       use OptimizationRoutines
       use Diamag
       use ElkGeometry
@@ -568,8 +572,8 @@ contains
       call set_temperature_defaults()
       ! Set microwaves fields printing defaults
       call initialize_prn_microwaves()
-      !!! ! Set Wang-Landau defaults
-      !!! call wanglandau_init()
+      ! Set Wang-Landau defaults
+      call wanglandau_init()
       ! Set q-sweep defaults
       call qminimizer_init()
 
@@ -598,8 +602,8 @@ contains
       rewind(ifileno)
       call read_parameters_correlation(ifileno)
       rewind(ifileno)
-      !!! call read_parameters_wanglandau(ifileno)
-      !!! rewind(ifileno)
+      call read_parameters_wanglandau(ifileno)
+      rewind(ifileno)
       call read_parameters_diamag(ifileno)
       rewind(ifileno)
       call read_parameters_elkgeometry(ifileno)
@@ -682,10 +686,9 @@ contains
 
       ! Read LSF related items
       if (do_lsf == 'Y') then
-         call ErrorHandling_missing('Local Spin Fluctuations')
-         !mconf=gsconf_num
-         !call allocate_lsfdata(NA,Nchmax,conf_num,1)
-         !call read_LSF(lsffile,nchmax,conf_num,mconf)
+         mconf=gsconf_num
+         call allocate_lsfdata(NA,Nchmax,conf_num,1)
+         call read_LSF(lsffile,nchmax,conf_num,mconf)
       else
          mconf=1
       endif
@@ -873,6 +876,10 @@ contains
       call prninp()
       write(*,'(a)') ' done.'
       !
+      ! 
+      i=max(nstep,mcnstep)
+      call set_correlation_average(i)
+      !
       ! Set up q-point grid if real space correlation function is to be calculated
       if(do_sc=='C' .or. do_sc=='Q' .or. do_ams=='Y' ) then
          if (qpoints == 'C' .or. qpoints == 'P' .or. qpoints == 'A'.or.qpoints=='X'.or.qpoints=='H') then
@@ -985,14 +992,13 @@ contains
 
       ! If induced moments are considered, calculate the weight factor this needs to be calculated only once
       if (ind_mom_flag=='Y') then
-         call ErrorHandling_missing('Induced moments')
-         !write(*,'(1x,a)',advance='no') "Setup induced moments information"
-         !call calculate_init_ind_sus(do_dm,Natom,conf_num,Mensemble,                &
-         !   ham%max_no_neigh,ham%max_no_dmneigh,ham%max_no_neigh_ind,ham%nlistsize, &
-         !   ham%dmlistsize,ham%ind_list_full,ham%ind_nlistsize,ham%nlist,ham%dmlist,&
-         !   ham%ind_nlist,mmom,emom,emomM,ham%ncoup,ham%dm_vect,ham%sus_ind,        &
-         !   renorm_coll,ham%fix_list,ham%fix_num)
-         !write(*,'(a)')" done"
+         write(*,'(1x,a)',advance='no') "Setup induced moments information"
+         call calculate_init_ind_sus(do_dm,Natom,conf_num,Mensemble,                &
+            ham%max_no_neigh,ham%max_no_dmneigh,ham%max_no_neigh_ind,ham%nlistsize, &
+            ham%dmlistsize,ham%ind_list_full,ham%ind_nlistsize,ham%nlist,ham%dmlist,&
+            ham%ind_nlist,mmom,emom,emomM,ham%ncoup,ham%dm_vect,ham%sus_ind,        &
+            renorm_coll,ham%fix_list,ham%fix_num)
+         write(*,'(a)')" done"
       endif
 
       ! Rotation of the initial spin configuration
@@ -1392,3 +1398,4 @@ contains
    end subroutine check_format
 
 end module uppasd
+

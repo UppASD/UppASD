@@ -10,7 +10,6 @@
 module MonteCarlo
    use Parameters
    use Profiling
-   use ErrorHandling
    use HamiltonianData, only : ham
    implicit none
 
@@ -50,8 +49,10 @@ contains
          cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,do_anisotropy)
       !
       use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian, rng_gaussianP, use_vsl
+      use LSF, only : mc_update_LSF
       use SpinIce , only: mc_update_spinice
       use montecarlo_common
+      use InducedMoments, only : mc_update_ind_mom
       use Constants, only : mub,k_bolt
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
@@ -137,11 +138,23 @@ contains
       delta=(2.0/25.0)*(k_bolt*temperature/mub)**(0.20_dblprec)
 
       if (do_lsf=='Y') then
-         call ErrorHandling_missing('Local Spin Fluctuations')
+         call mc_update_LSF(Natom,Nchmax,Mensemble,nHam, conf_num,do_lsf,emomM, emom, mmom, temperature, temprescale,  &
+            extfield,mult_axis,mode,lsf_interpolate,lsf_field,lsf_window,lsf_metric,exc_inter,iflip_a,&
+            ind_mom_flag,do_dip,Num_macro,mmom_macro,emom_macro,emomM_macro,do_anisotropy)
 
       ! Evolution of induced moments as described by Polesya et al.
       else if (ind_mom_flag=='Y') then
-         call ErrorHandling_missing('Induced moments')
+         call mc_update_ind_mom(Natom,Mensemble,iflip_a,&
+            temperature,temprescale,mode,ham%max_no_neigh,ham%nlistsize,ham%nlist,ham%ncoup,ham%ncoupD,conf_num,exc_inter,&
+            do_dm,ham%max_no_dmneigh,ham%dmlistsize,ham%dmlist,ham%dm_vect,do_pd,ham%nn_pd_tot,ham%pdlistsize,&
+            ham%pdlist,ham%pd_vect,do_biqdm,ham%nn_biqdm_tot,ham%biqdmlistsize,ham%biqdmlist,ham%biqdm_vect,&
+            do_bq,ham%nn_bq_tot,ham%bqlistsize,ham%bqlist,ham%j_bq,ham%taniso,ham%taniso_diff,ham%eaniso,ham%eaniso_diff,ham%kaniso,&
+            ham%kaniso_diff,ham%sb,ham%sb_diff,mult_axis,mmom,emomM,emom,extfield,do_dip,ham%Qdip,&
+            Num_macro,max_num_atom_macro_cell,&
+            cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,ham%Qdip_macro,emom_macro,mmom_macro,&
+            ham%ind_nlistsize,ham%ind_nlist,ham%ind_list_full,ham%sus_ind,&
+            do_lsf,lsf_metric,ind_mom_flag,ham%max_no_neigh_ind,do_anisotropy)
+
       else
          ! Set up trial directions of magnetic moments
          if (mode=='L') then

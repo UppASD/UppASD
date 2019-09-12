@@ -21,7 +21,6 @@
 module MagnetizationInit
    use Parameters
    use Profiling
-   use ErrorHandling
 
    implicit none
 
@@ -48,7 +47,14 @@ contains
       use RandomNumbers, only : rng_uniform
       use Constants, only : pi
       use InputData, only: momfile_i,momfile_f,amp_rnd
+      use FixedMom, only : create_aux_fixed_arrays
+      use InducedMoments, only : setup_induced_information
+#ifdef USE_OVF
       use Restart, only: read_mag_conf_ovf,GNEB_read_wrapper,read_mag_conf
+#else
+      use Restart, only: GNEB_read_wrapper,read_mag_conf
+#endif
+     use ErrorHandling
       !
       !.. Implicit declarations
       implicit none
@@ -259,8 +265,12 @@ contains
                   mmom,emom,emomM)
                write (*,'(a)') " done"
             else if (read_ovf.eq.'Y') then
+#ifdef USE_OVF
                write (*,'(2x,a)',advance='no') "Read from OVF restart file"
                call read_mag_conf_ovf(Natom,Mensemble,restartfile,mmom,emom,emomM)
+#else
+               call ErrorHandling_ERROR('`read_ovf is Y but code is not compiled with OVF support')
+#endif
             endif
          endif
       !-------------------------------------------------------------------------
@@ -492,7 +502,11 @@ contains
       ! Set all the information needed for the fixed moments calculation
       !-------------------------------------------------------------------------
       if (do_fixed_mom.eq.'Y') then
-         call ErrorHandling_missing('Fixed moments')
+         write (*,'(2x,a)',advance='no') "Setting up for fixed moments "
+         call create_aux_fixed_arrays(Natom,Mensemble,initmag,Natom_full,do_ralloy, &
+            anumb,achtype,rstep,red_atom_list,Nred,mmom,emom,emomM,restartfile,     &
+            ind_mom_flag,ind_list_full,do_mom_legacy)
+         write(*,'(a)') "done"
       else
          Nred=Natom
          allocate(red_atom_list(Nred),stat=i_stat)
@@ -507,7 +521,11 @@ contains
       ! Set all the information needed for the induced moments calculation
       !-------------------------------------------------------------------------
       if (ind_mom_flag.eq.'Y'.and.do_fixed_mom.ne.'Y') then
-         call ErrorHandling_missing('Indcued moments')
+         write (*,'(2x,a)',advance='no') "Setting up for induced moments "
+         call setup_induced_information(NA,Natom,Nchmax,do_ralloy,Natom_full,anumb, &
+            achtype,ind_mom,ind_list_full,fix_list,fix_num,restartfile,rstep,mmom,  &
+            emom,emomM,initmag,Mensemble,do_mom_legacy)
+         write(*,'(a)') "done"
       endif
 
       emom2=emom

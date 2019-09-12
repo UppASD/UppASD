@@ -72,6 +72,7 @@ qpoints                F , A , C , D            !< Flag for q-point generation (
 qfile                  ./qfile
 sc_step                50
 sc_nstep               100
+sc_average             N, E, F
 
 do_bls                 Y , C , Q , L , N        !< Perform frequency based spin-correlation sampling (Y/N/C)
 do_bls_local_axis      N , Y                    !< Perform BLS along local quantization axis (Y/N)

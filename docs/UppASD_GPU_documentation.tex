@@ -1,0 +1,332 @@
+% Project Documentation for the GPU/CUDA implementation of UppASD
+\documentclass{article}
+
+\usepackage{mathrsfs} % for \mathscr
+\usepackage{amstext}
+
+
+\setcounter{secnumdepth}{0}
+
+\begin{document}
+
+\title{UppASD GPU Project Documentation}
+\author{Niklas Fejes}
+\maketitle
+
+
+\section{Summary}
+The goal of this project has been to implement the basic simulation parts of
+UppASD on Nvidia's parallel computing platform CUDA. The CUDA implementation 
+is based on UppASD 3.0 and uses UppASD's Fortran code for setting up the 
+system and writing output files, while all calculations are made on the GPU 
+through functions written in CUDA C/C++.
+
+
+\section{Implemented Parts}
+The simulation model that has been implemented so far is the simplest model 
+available in UppASD, which is based on the Landau-Lifshitz-Gilbert equations 
+using the Heisenberg Hamiltonian without additional terms:
+\[
+\mathscr{H} = - \frac{1}{2} \sum_{i,j,i\ne j} J_{ij} \, \mathbf{M}_i \cdot \mathbf{M}_j
+\]
+
+The UppASD code contains several different time evolution algorithms to choose 
+from, but only Depondt's method has been implemented in the CUDA code. 
+However, additional algorithms should be straightforward to implement using the 
+code for Depondt's method as a base.
+
+
+\section{Program Structure}
+As the CUDA code is based on the original Fortran code, most of the variable 
+and function names have been kept the same or similar in the new 
+implementation. The structure of the simulation loop is also the same, and 
+all data necessary for the simulations are copied to device memory when the 
+simulations are initiated.
+
+The code also contains a C/C++ implementation (non-CUDA) of the code that 
+served as a predecessor to the CUDA implementation.
+
+For future development the structure of the simulation loop could be made 
+``cleaner'' by moving the different moment vectors into the classes they 
+belong to (this has been made for the neighbour list for example), and by 
+using virtual classes for the Hamiltonian and integrator to make it easier 
+to implement other algorithms.
+
+
+\section{Profiling}
+
+There are various ways to profile the program, where the most accurate one 
+is by using \verb|nvprof| or Nvidia Visual Profiler (\verb|nvvp|). (Both 
+requires CUDA compute capability 2.0 or higher.) The code also contains a 
+stopwatch class that may be used instead, which will time the simulation with 
+respect to the different simulation steps. However, using this will prevent 
+asynchronous GPU work, and the total run time will increase. It is possible 
+to disable this GPU synchronization which can be useful to detect unwanted 
+synchronization. For example, with asynchronous stopwatch enabled and 
+``fast copy'' disabled, the measurements will appear to take up most of the 
+simulation time as \verb|cudaMemcpy| has to wait for all GPU work to be done 
+before it can copy the data.
+
+
+\section{Possible Improvements}
+
+\subsection{Reordering of Atoms}
+The \verb|Heisge| kernel typically takes about 60-70\% of the total 
+simulation time, so for future improvements the focus should be put on 
+making this part of the code faster.
+
+The biggest bottleneck in the current implementation is that the GPU for each 
+atom has to read the moments of other atoms that are spread out at different 
+locations in the memory.
+
+When the GPU reads data (from global GPU memory to the multiprocessor) 
+reads from adjacent threads can be coalesced if they read the same or adjacent 
+data. In the \verb|Heisge| kernel, (\verb|HeisgeJijElement| in 
+\verb|cudaHamiltonianCalculations.cu|) each warp (see CUDA guide) processes 
+$10\frac{2}{3}$~atoms (32 threads with one atoms axis each), so if all of those atoms 
+have many neighbours that are the same the warp can under optimal conditions 
+read each neighbour once for all atoms, while it otherwise has to read each 
+neighbour for each atom.
+
+By reordering the atoms and/or the order of the neighbours in the neighbour 
+list so that reads are made optimally, the Heisge kernel should become 
+significantly faster. By changing the order of the reads so that memory 
+alignment is optimal (without taking into account that the the setup is 
+wrong) the \verb|Heisge|-kernel becomes about 15\% faster.
+
+If the atoms in each block/warp has enough common neighbours it might also be 
+beneficial to read the moments of the common neighbours to shared memory and 
+then process them.
+
+\subsection{Spin Transfer Torque}
+The Fortran code that the CUDA implementation is based on has support for 
+Spin transfer torque (\verb|btorque|), which is only partially implemented 
+in the CUDA code. Those parts that are available are not tested and will 
+not work without changes.
+
+\subsection{Measurement Queue Size}
+A potential problem with the current code is that the program dynamically 
+allocates memory for the moments that are queued up for measurement. If the 
+measurements takes more time than the simulation and there are many 
+measurement points this might cause problems. Each queued data takes up 
+$[ 56 \times \text{atoms} \times \text{ensembles} ]$ bytes of memory, so for big 
+systems which queues a lot of data the system might run out of memory and 
+crash the simulation. For robustness a limit on the measurement queue size
+should be implemented.
+
+
+%\section{Algorithm}
+
+
+\section{Kernel / Parallelization Code Structure}
+Since most of the CUDA code is parallelized in the same way the code is 
+written so that all CUDA kernels share the same code base, which 
+is located in the \verb|CudaParallelizationHelper| class. This has the 
+advantage that it becomes easier to write new parallelized functions, 
+and that changes made to the common code applies to all parallelizations 
+in the program.\\
+
+A simple example of the parallelization is the \verb|CudaCommon::Add| class:
+
+\begin{verbatim}
+class CudaCommon::Add : public CudaParallelizationHelper::Element {
+    real *       a;
+    const real * b;
+    const real * c;
+public:
+    // Constructor
+    Add(cudaMatrix<real,3,3> &A, const cudaMatrix<real,3,3> &B,
+            const cudaMatrix<real,3,3> &C) {
+        a = A;
+        b = B;
+        c = C;
+    }
+    // device "each" function
+    __device__ void each(unsigned int element) {
+        a[element] = b[element] + c[element];
+    }
+};
+\end{verbatim}
+
+Here, the \verb|each| function is called on the GPU once for each element in 
+the matrix, and performs the element-wise addition $A = B + C$.\\
+
+This code can be called with the following syntax:
+\begin{verbatim}
+CudaParallelizationHelper parallel = ...;
+cudaMatrix<real,3,3> A = ..., B = ..., C = ...;
+
+parallel.cudaElementCall(CudaCommon::Add(A, B, C));
+\end{verbatim}
+
+Depending on the parameters needed for the parallelization, there are various 
+base classes in the \verb|CudaParallelizationHelper| class. these are:\\
+
+\verb|Atom|, \verb|Site|, \verb|AtomSite|, \verb|AtomSiteEnsemble|, 
+\verb|ElementAxisSiteEnsemble|, \verb|Element|\\
+
+Subclasses of these should have an \verb|each| function with parameters 
+according to the classes name, e.g. subclasses of \verb|AtomSite| should 
+have a function \verb|__device__ each(unsigned int atom, unsigned int site)|.
+These classes also provides the \verb|N| and \verb|M| system size limits, 
+corresponding to Fortrans \verb|Natom| and \verb|Mensemble|. The difference 
+between \verb|Atom| and \verb|Site| in these names are that \verb|Atom| 
+represents all $N\times M$ atoms in all ensembles, while \verb|Site| 
+represents the $N$ different sites in one ensemble.
+
+\section{Performance Comparision}
+
+Performance comparisions has been made on the UppASD example system 
+``bccFe'' with 8192 ($16\times16\times16$ cell) atoms, and 8 ensembles:\\
+
+\begin{tabular}{ l r }
+System & Simulation Time\\
+\hline
+Intel(R) Core(TM) i5 CPU (4 cores at 2.67GHz) & 201.6 s \\
+GeForce GTX 670 GPU & 29.5 s\\
+\end{tabular}
+
+
+
+\section{Compilation Parameters}
+
+There are various parameters that can be set in the \verb|Makefile| to 
+change the behaviour of the program. Note that for these to take effect 
+the program must be rebuilt. The parameters are added to the compiler 
+through additional definitions that can be enabled by uncommenting lines 
+in the \verb|Makefile|, or adding \verb|-D<FLAG>| to the compiler
+parameters.
+
+\begin{description}
+\item{\verb|DEBUG|:} Enables error checking in the matrix class and classes 
+deriving from it.
+
+\item{\verb|MATRIX_ERROR_INTERRUPT|:} Interrupts the program if an error occurs 
+in a matrix. Can be used with \verb|gdb| to detect where in the code an error 
+occured.
+
+\item{\verb|DUMMY_STOPWATCH|:} Disables the stopwatch.
+
+\item{\verb|ASYNC_STOPWATCH|:} Normally the stopwatch waits for the GPU to 
+finish all its work before measuring the time. This behaviour can be disabled 
+with this flag.
+
+\item{\verb|USE_BIG_GRID|:} With this flag the code does not use CUDA's built 
+in 2-D and 3-D block indexing and instead uses one big 1-D block that is splits
+up in the kernels. Enabling this flag seems to generate slightly faster code.
+
+\item{\verb|USE_FAST_COPY|:} This flag enables utilization of asynchronous 
+kernel work and device to host memory copy, which may increase speed if the 
+system is large. With this flag, the simulation loop never has to synchronize 
+with the GPU and thus allows the CPU to ``work ahead'' of the GPU. If the GPU 
+would have an unlimited call stack this would mean that all calculations 
+could be queued up at the start of the program, and most of the calculations 
+would be performed while the main thread waits in the final device 
+synchronization. This method requires slightly more memory that are page 
+locked, which according to the CUDA Best Practices Guide may ``reduce overall 
+system performance''. The fast copy also relies on ``\verb|cudaCallback|s'', 
+which sometimes seems to block the GPU work without reason if the CPU is 
+under high workload.
+
+\item{\verb|SINGLE_PREC|:} Makes the program use single precision 
+(\verb|float|s) instead of double precision. This also requires that the 
+Fortran part of UppASD uses single precision.
+
+\item{\verb|NVPROF|:} Adds profiling information for Nvidia Visual Profiler so 
+that the progress of the measurements can be visualized.
+
+\end{description}
+
+
+\section{Simulation Parameters}
+
+Three additional simulation parameters have been added that controls the GPU 
+implementation:
+
+\begin{description}
+\item{\verb|gpu_mode|:} Determines what code to use. 
+(0=Fortran, 1=CUDA (default), 2=C/C++)
+\item{\verb|gpu_rng|:} Determines what RNG to use. 
+(0=CURAND Default (default), 1=XORWOW,  2=MRG32K3A, 3=MTGP32)
+\item{\verb|gpu_rng_seed|:} The seed to use for the RNG.
+(if 0 the seed is initialize with \verb|time()| (default))
+\end{description}
+
+
+
+\section{Files}
+
+\subsection{Helper files}
+
+\subsubsection{\texttt{cudamake.mk}}
+Contains the CUDA-specific make flags and rules.
+
+\subsubsection{\texttt{stopwatch.hpp stopwatchPool.cpp/hpp stopwatchDeviceSync.hpp\\ stopwatch\_fortran.cpp}}
+Different utilities for measuring time.
+
+\subsubsection{\texttt{matrix.hpp fortMatrix.hpp cudaMatrix.hpp hostMatrix.hpp}}
+Matrix classes for different types of memory. The matrix data is stored in column-major order (Fortran style).
+
+\subsubsection{\texttt{real\_type.h}}
+Defines the ``\verb|real|'' data type which is either \verb|double| (64-bit) or \verb|float| (32-bit) depending on \verb|SINGLE_PREC|.
+
+\subsubsection{\texttt{c\_helper.f90 c\_helper.h}}
+Helper functions for calling Fortran code from C/C++ code.
+
+\subsubsection{\texttt{fort\_helper.cpp}}
+Helper subroutines for calling C/C++ code from Fortran.
+
+\subsubsection{\texttt{cudaParallelizationHelper.cu/hpp}}
+A helper class that simplifies parallelization over atoms and provides a common base for all CUDA parallelized methods.
+
+\subsubsection{\texttt{gridHelper.hpp}}
+Class for splitting up the grid over the atoms. Used by \verb|cudaParallelizationHelper.cu|.
+
+\subsubsection{\texttt{fortranData.cpp/hpp}}
+Class for interfacing Fortrans data members with C/C++.
+
+\subsubsection{\texttt{cudaCommon.hpp}}
+Various parallelized vector/matrix operations that may be useful for multiple classes.
+
+\subsubsection{\texttt{cudaEventPool.cu/hpp}}
+Provides a ``pool'' of CUDA events so that events may be reused between time steps without having to synchronize with the GPU.
+
+
+\subsection{CUDA Algorithm Files}
+
+\subsubsection{\texttt{cudaMdSimulation.cu/hpp}}
+Contains the simulation loop and handles the initialization of the simulation. This class corresponds to the \verb|sd_mphase()| routine in \verb|0sd.f90|.
+
+\subsubsection{\texttt{cudaHamiltonianCalculations.cu/hpp}}
+Contains the Hamiltonian calculation algorithm. (See \verb|applyhamiltonian.f90|)
+
+\subsubsection{\texttt{cudaDepondtIntegrator.cu/hpp}}
+Contains the Depondt integrator algorithm. (See \verb|depondt.f90|)
+
+\subsubsection{\texttt{cudaMomentUpdater.cu/hpp}}
+Contains the moment updater. (See \verb|updatemoments.f90|)
+
+\subsubsection{\texttt{cudaMeasurement.cu/hpp}}
+Wrapper for Fortran’s measurement routines. This class handles the copying between device and host for measurements, and queues the moments for measurement.
+
+\subsubsection{\texttt{cudaThermfield.cu/hpp}}
+The thermfield class which is responsible for generating the thermal field. (Separated from the Depondt integrator.)
+
+\subsubsection{\texttt{measurementQueue.cpp/hpp}}
+This class queues up moments and performs the measurements in a separate thread so that the GPU does not have to wait for the measurements to finish.
+
+\subsection{C/C++ Algorithm Files}
+
+\subsubsection{\texttt{depondt\_c\_wrapper.cpp
+depondtIntegrator.cpp/hpp
+hamiltonianCalculations.cpp/hpp
+mdSimulation.cpp/hpp
+momentUpdater.cpp/hpp
+randomnum.cpp/hpp
+thermfield.cpp/hpp}}
+The C/C++ implementation. (Structured in the same way as the CUDA implementation.)
+
+
+
+\end{document}
+

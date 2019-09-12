@@ -1,0 +1,6 @@
+function(removeDuplicateSubstring stringIn stringOut)
+   separate_arguments(stringIn)
+   list(REMOVE_DUPLICATES stringIn)
+   string(REPLACE ";" " " stringIn "${stringIn}")
+   set(${stringOut} "${stringIn}" PARENT_SCOPE)
+endfunction()

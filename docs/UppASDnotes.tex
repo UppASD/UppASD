@@ -1,0 +1,170 @@
+\documentclass{article}
+%\usepackage{enumitem}
+
+\newcommand\litem[1]{\item{\bfseries #1\enspace}}
+
+\begin{document}
+\title{UppASD 3.0}
+\author{Anders Bergman}
+\maketitle
+
+\section{Introduction}
+This document describes the changes done between earlier versions of the UppASD program and the current 3.0 version.
+A full manual to the program can be found elsewhere.
+
+\section{Philosophy}
+The focus of the restructuration has mostly been on the developer side of the code. After changing the module structure drastically it should now be possible to add functionality to the code in a reasonably safe and simple way. The new module structure also involves a reduction in the number of global variables since the data for most critical subroutines are now passed as arguments to the routines. All subroutines are also now contained in modules since that gives them explicit interfaces.
+The new module structure should also simplify the implementation of automatic tests
+\par
+Another feature that should help new developers is the introduction of comments and descriptions of routines and variables that are compatible with the 'doxygen' program. Doxygen can be used to produce call graphs and reference manuals to the code in a semi-automatic fashion.
+\par
+A new feature that should serve both developers and users is the introduction of a new input file format. Since the old format was line based, adding new input fields to the input file while keepig compatibility with older input files has been troublesome. The new input file format is keyword based and thus new information can be introduced with ease. Currently the old file handler is kept in parallel to the new one for compabillity issues, but future examples and tutorials should be based on the new input format. 
+\par
+
+\section{Code structure}
+The new module structure is designed so that the important modules such as the solvers or the calculation of the effective field could be used externally as building blocks for other programs. In this perspective, the main file "0sd.f90" could be seen as a wrapper for all the important functionalities and has thus not been kept as tidy as the other routines. 
+Among the most important modules are
+\begin{description}
+ \item{HamiltonianInit} \\
+ Sets up the different terms of the Hamiltonian; Heisenberg, DM, and anisotropies 
+ \item{ApplyHamiltonian} \\
+ Calculates the effective field as the derivative of the Hamiltonian with respect to the local moments (so the name of the module might actually be slighly misleading)
+ \item{Evolution} \\
+ Evolves the local moments in the local effective fields. This module is a wrapper for a selection of solvers, each packaged in an own module. 
+The working solvers are the following
+ \begin{description}
+  \item{Midpoint} \\
+  Johan Mentinks semi-implicit midpoint solver. Currently the most stable solver and is the default solver.
+  \item{Heun\_proper} \\
+  The standard predictor-corrector Heun scheme.
+  §\item{Depondt} \\
+  A rotation matrix based version of the Heun scheme, where the rotation matrix approach conserves the magnitudes of the magnetic moment vectors. There are still questions about the finite temperature behaviour of this scheme.
+ \end{description}
+ \item{MonteCarlo} \\
+ Performs the Metropolis algorithm on the system. Good for equilibrating systems.
+ \item{Measurements} \\
+ Sampling and printing of averages, cumulants, trajectories, and more.
+ \item{Correlation} \\
+ Routines for real space spin-spin correlation and Fourier transforms so that S(q,w) can be obtained.
+\end{description}
+The remaining routines are briefly described in the doxygen created documentation.
+
+\section{Coding guidelines}
+The general attitude should be that all additions to the UppASD code are appreciated and we should be aware that the developers are foremost physicists and not software engineers. However, it would be good to have a common policy for how to write code that will be incorporated into the UppASD package. 
+For the current version of the code the following guidelines have been pursued with various rates of success.
+\begin{itemize}
+ \item{Use bazaar} \\
+  We have a working version control system. Use it as much as possible for your own projects and make sure that you update theparent branch when you work on additions that will eventually be a part of the main branch. Do not expect that someone else will do the merging afterwards.
+ \item{Control your variables} \\
+  Simple bugs can be avoided by using standard Fortran statements to control your variables. Always add {\it implicit none} in your subroutine statements. Provide {\it intent} statements to your arguments. Restrict the scope of the variables by using the {\it private} statement as much as possible.
+ \item{Comment, comment, and comment} \\
+  Try to comment your contributions as much as possible. This is especially important if you have made routines that you consider to be extra clever. Also make sure that you add 'doxygen' compatible comments for formal arguments and descriptions for subroutines.
+ \item{Add new content in modules} \\
+  Keep everything nicely packaged in modules. This way explicit interfaces will be created for your subroutines, and the next point can easier be fulfilled.
+ \item{Keep things local} \\
+  A large part of the restructuring has been focused on decreasing number of globally accessible variables and instead pass as much information as possible as arguments in your subroutines. Even though this point is not fully enforced in the current code (the 0sd main program and the input routines sometimes transfers data using modules) we should try improve this over time. 
+The Parameters module that is present in all subroutines is not supposed to be used for transferring data between routines.
+ \item{Keep performance in mind} \\
+ Writing efficient Fortran code is usually not hard. Try to write your code for good performance from the start. Simple things to keep in mind is to consider the memory layout for Fortran arrays (pursue inner loops over the leftmost idex) and to keep {\it if}-statements out of major loops.
+ \item{Deallocate} \\
+  Currently almost all allocate and deallocate statements are followed by a call to the memocc routine that can be used to calculate the memory usage of the code. This way memory bottlenecks can be identified and avoided.
+\end{itemize}
+
+\section{Doxygen}
+The code is now using doxygen to create call graphs and html/latex documentation of the program. This commenting could be expanded so that a proper manual (even containing formulas) could be obtained by running doxygen but we are not there yet. For starters the aim is that all modules and subroutines should have a brief doxygen comment and also that all input/output variables should be commented. This is very easy to do by just adding > and < to the fortran comment "!" mark like this
+\begin{verbatim}
+!> This routine calculates stuff
+subroutine calculate_stuff(stuff,result)
+   implicit none
+   integer, intent(in) :: stuff   !< Stuff to be calculated
+   integer, intent(out) :: result !< The result of calculated stuff
+\end{verbatim}
+If you are ambitious (please be) you can add a more detailed description, todo status, bug status and author info like this
+\begin{verbatim}
+!> \brief This routine calculates stuff
+!! \details For calculating stuff we use 
+!! the formula \f$ stuff^3-stuff^2 = result \f$
+!! \todo Calculate more stuff
+!! \bug Does not work for negative stuff
+!! \author  Dr. Programmer
+!! \date August 2010
+subroutine calculate_stuff(stuff,result)
+   implicit none
+   integer, intent(in) :: stuff   !< Stuff to be calculated
+   integer, intent(out) :: result !< The result of calculated stuff
+\end{verbatim}
+
+\section{New input format}
+The old input format in the inpsd.dat file has now been used for a while and works well but since we intend to increase the functionallity and the userfriendlyness of the code it is convenient to have a keyword based input format. This has now been implemented through the modules InputData, where the input data entries and their default values are added, and InputHandler, where the input file is parsed and additional files such as positions, exchange couplings, and moments are read.
+\par
+Currently the following entries are implemented (and tested for a number of systems)
+\begin{description}
+\litem{simid} The 8 carachter long simulation id 
+\litem{cell} The three lattice vectors describing the cell (C1,C2,C3)
+\litem{ncell} Number of repetitions of the cell (N1,N2,N3)
+\litem{bc} Boundary conditions (P=periodic, 0=free) (BC1,BC2,BC3)
+\litem{natoms} Number of atoms in one cell (NA)
+\litem{ntypes} Number of types atoms in one cell (NT)
+\litem{do\_ralloy} Flag to set if a random alloy is simulated
+\litem{sym} Flag to determine the assumed symmetry of the system (0=none, 1=cubic, 2=2d-cubic (in xy-plane), 3=hexagonal)
+\litem{posfile} External file for the positions of the atoms in one cell,
+accompanied with the site number and type of the atom
+\litem{momfile} External file for magnitudes and directions of magnetic moments
+\litem{exchange} External file for Heisenberg exchange couplings
+\litem{dm} External file for Dzyaloshinskii-Moriya exchange couplings
+\litem{anisotropy} External file for single ion anisotropy strenghts and directions
+\litem{do\_dip} Flag for enabling dipole-dipole interactions
+\litem{sdealgh} Which solver to use (1=Midpoint, 4=Heun\_proper, 5=Depondt)
+\litem{mensemble} Number of ensembles to simulate 
+\litem{tseed} Random number seed for the stochastic field 
+\litem{initmag} How to initialize the magnetic moments (1=Random, 2=Cone, 3=momfile, 4=restartfile)
+\litem{mseed} Random number seed for magnetic moments if initmag=3
+\litem{theta0} Cone angle for initmag=2
+\litem{phi0} Cone angle for initmag=2
+\litem{restartfile} External file containing stored snapshot from previous simulation (used when initmag=4)
+\litem{roteul} Perform global rotation of magnetization
+\litem{rotang} Euler angles describing the rotation if roteul=1
+\litem{ip\_mode} Mode for initial phase run (S=SD, M=MonteCarlo, N=none)
+\litem{ip\_temp} Temperature for initial phase run
+\litem{ip\_hfield} External field for initial phase run
+\litem{ip\_mcnstep} Number of Metropolis sweeps over the system if ip\_mode=M
+\litem{ip\_damping} Damping parameter for SD initial phase
+\litem{ip\_nphase} Number of initial phases to be done with SD \\
+Followed by ip\_nphase lines containing number of steps and timestep for each phase
+\litem{mode} Mode for measurement phase run (S=SD, M=MonteCarlo)
+\litem{temp} Temperature for measurement phase
+\litem{hfield} External field for measurement phase
+\litem{mcnstep} Number of Metropolis sweeps over the system if mode=M
+\litem{damping} Damping parameter for SD measurement phase
+\litem{timestep} Time step between SD iterations
+\litem{do\_avrg} Sample and print average magnetizations
+\litem{do\_proj\_avrg} Sample and print type projected average moments
+\litem{do\_projch\_avrg} Sample and print chemical projected average moments
+\litem{avrg\_step} Time step between samplings of averages
+\litem{avrg\_buff} Number of samplings of averages to buffer between printing to file
+\litem{do\_tottraj} Sample and print all trajectories (moments) in the system
+\litem{tottraj\_step} Time step between samplings of moments
+\litem{tottraj\_buff} Number of samplings of moments to buffer between printing to file
+\litem{ntraj} Number of individual trajectories to sample and print \\ 
+Followed by ntraj lines describing atoms to sample, time step between samples and steps to buffer
+\litem{do\_sc} Flag to determine if spin-correlation should be analyzed (N=no, Y=yes, C=G(r) only)
+\litem{sc\_mode} Flag to determine when to transform the spin-correlations (2=on-the-fly)
+\litem{sc\_nstep} Number of steps to sample
+\litem{sc\_step} Number of timesteps between each sampling
+\litem{sc\_navrg} Number of spin-correlation measurements to average over
+\litem{sc\_nsep} Number of time steps between the start of subsequent spin-correlation measurements
+\litem{sc\_volume} Sub volume of system to sample the correlation functions in
+\litem{qfile} External file containing the q-points for S(q,w) calculations
+\litem{rdirfile} External file containing directions to calculate S(r,t) for
+\litem{do\_autocorr} Flag to enable autocorrelation sampling (Y=yes, N=no)
+\litem{acfile} External file containing waiting times for the autocorrelation measurements
+\litem{plotenergy} Flag to enable the calculation of the energy of the system projected to the different components of the Hamiltonian
+\litem{maptype} Flag to change between cartesian or BGFM style for exchange coupling vectors
+\litem{set\_landeg} Flag for assigning different values of the gyromagnetic factor for the moments
+\end{description}
+Examples using the new input file format should be available in the bzr tree.
+\par
+Eventually, a little bit of intelligence should also be added to the input file handler so that non-expert users could use some kind of 'wizards' or wrapping keywords to set reasonable simulation parameters. Since the maximum strength of the effective fields can be estimated beforehand, sufficient timesteps and sampling intervals can also be reasonably estimated. The same is true for S(q,w) calculations where the exchange coupling strengths can be used to estimate the sampling window needed to achieve a good signal. 
+
+\end{document}
+

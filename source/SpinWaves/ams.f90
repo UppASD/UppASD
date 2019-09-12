@@ -205,13 +205,7 @@ contains
       A = 4.0_dblprec*A/fc2*ry_ev !*sign(msat,1._dblprec)
       B = B/fc2*ry_ev
       ! eigenvalues of A (one set per NA) are written to wres  - AMS
-!      write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for AMS calculation"
-      ! The realness of A has been questioned.
-      !According to Essenberger et. al PRB 84, 174425 (2011) Eqn. 22 it is correctly so.
-      do iq=1,nq
-         A(:,:,iq)=real(A(:,:,iq))
-      end do
-      !print *,A
+      ! write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for AMS calculation"
 
       call eigenvalue_calculation_lapack(A,B,wres,jqres,eigv,na,nq)
 

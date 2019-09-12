@@ -146,9 +146,15 @@ contains
       ! Create full neighbour list according to symmetry
       call get_fullnnlist(NT,NN,nelem,max_no_shells,redcoord,max_no_equiv,nncoord)
       ! Start looking in "first cell"
+      if(do_hoc_debug==1) then
+         write(*,*) 'Constructs nm_cell and nm_trunk'
+      end if
       !$omp parallel do default(shared) private(i0,itype,ishell,counter,inei,cvec,icvec,bsf,rvec,ia)
       do I0=1,NA
          itype=atype(I0)
+         if(do_hoc_debug==1) then
+            write(*,'(a,i4,a)') '------- i0 ', i0, ' -------'
+         end if
 
          ! Shell
          do ishell=1,NN(itype)
@@ -157,31 +163,43 @@ contains
             ! Symmetry equivalent sites in shell
             do inei=1,nmdimt(ishell,itype)
 
+               if(do_hoc_debug==1) then
+                  write(*,'(a,i4)') 'counter ', counter
+                  write(*,'(a,i4,a,3f10.6)') ' inei ', inei, '   nncoord ', nncoord(1:3,inei,ishell,itype)
+                  !write(*,'(a,i4,a,i4,a,3f10.6)') ' ielem ', ielem, ' inei ', inei, '   nncoord ', nncoord(1:3,ielem,inei,ishell,itype)
+               end if
+
                ! Coordinate vector in cartesian coordinates
                cvec(1)=nncoord(1,inei,ishell,itype)+Bas(1,i0)
                cvec(2)=nncoord(2,inei,ishell,itype)+Bas(2,i0)
                cvec(3)=nncoord(3,inei,ishell,itype)+Bas(3,i0)
+               if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'cvec  ',cvec(:)
 
                ! Find coordinate vector in basis coordinates
                icvec(1)=cvec(1)*invmatrix(1,1)+cvec(2)*invmatrix(2,1)+cvec(3)*invmatrix(3,1)
                icvec(2)=cvec(1)*invmatrix(1,2)+cvec(2)*invmatrix(2,2)+cvec(3)*invmatrix(3,2)
                icvec(3)=cvec(1)*invmatrix(1,3)+cvec(2)*invmatrix(2,3)+cvec(3)*invmatrix(3,3)
+               if(do_hoc_debug==1) write(*,'(a,3f10.6)')'icvec ',icvec(:)
 
                ! Fold back to original cell
                bsf(1)=floor(icvec(1)+1d-6)
                bsf(2)=floor(icvec(2)+1d-6)
                bsf(3)=floor(icvec(3)+1d-6)
+               if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'bsf   ',bsf(:)
 
                ! Corresponding position of atom in cell
                rvec(1)=cvec(1)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
                rvec(2)=cvec(2)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
                rvec(3)=cvec(3)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
+               if(do_hoc_debug==1) write(*,'(a,3f10.6)')  'rvec  ',rvec(:)
 
                ! loop through atoms in cell to find match
                do ia=1,NA
                   if((rvec(1)-Bas(1,ia))**2+ &
                      (rvec(2)-Bas(2,ia))**2+ &
                      (rvec(3)-Bas(3,ia))**2<tol) then
+
+                     if(do_hoc_debug==1) write(*,'(a,i4,a,i4)') 'hit!  i0 ', i0, ' ia ', ia
 
                      counter=counter+1
                      if(max_no_equiv>=counter) then
@@ -570,7 +588,8 @@ contains
          max_no_neigh, max_no_shells, max_no_equiv, sym, &
          nn, redcoord, nm, nmdim, nelem, &
          do_ralloy, Natom_full, acellnumb, atype_ch, &
-         Nchmax, hdim, do_tens_sym_in, couptensrank, invsym, timesym, couptens, fullcouptens)
+         Nchmax, hdim, do_tens_sym_in, couptensrank, invsym, timesym, couptens, fullcouptens, nm_cell_symind)
+         !Nchmax, hdim, do_tens_sym_in, couptensrank, invsym, timesym, couptens, fullcouptens)
 
       !
       implicit none
@@ -611,6 +630,7 @@ contains
       integer, intent(in) :: timesym !< Flag for time reversal symmetry of coupling tensor
       real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax), intent(in) :: couptens !< Coupling tensor
       real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      integer, dimension(48,max_no_shells,na), intent(out) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       !
       integer :: i0
       integer :: i, ielem
@@ -673,6 +693,16 @@ contains
       allocate(nm_cell(nelem,max_no_equiv,max_no_shells,na),stat=i_stat)
       call memocc(i_stat,product(shape(nm_cell))*kind(nm_cell),'nm_cell','setup_nm_nelem')
       nm_cell=0
+
+      ! Indicies of the symmetry equivalent coupling tensors
+      !allocate(nm_cell_symind(max_no_equiv,max_no_shells,na),stat=i_stat)
+      !call memocc(i_stat,product(shape(nm_cell_symind))*kind(nm_cell_symind),'nm_cell_symind','setup_nm_nelem')
+      ! For case of no symmetry, set all elements to 1.
+      if(nsym == 1) then
+         nm_cell_symind=1
+      else
+         nm_cell_symind=0
+      end if
 
       ! neighbour map information 2: translation in basis vectors
       ! so that full neighbour vector is nm_cell+nm_trunk
@@ -772,7 +802,10 @@ contains
                         end if
                         if(max_no_equiv>=counter) then
                            nm_cell(ielem,counter,ishell,i0)=ia
-
+                           nm_cell_symind(counter,ishell,i0)=inei
+                           if(do_hoc_debug==1) then
+                              write(*,'(a,i4,a,i4a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
+                           end if
                            if(N1*N2*N3>1) then
                               nm_trunk(1,ielem,counter,ishell,i0)=nint(bsf(1))
                               nm_trunk(2,ielem,counter,ishell,i0)=nint(bsf(2))
@@ -846,7 +879,12 @@ contains
 
                      ! Shell
                      do ishell=1,NN(itype)
-                        counter=1
+                        if (do_ralloy==1) then
+                           nmdim(ishell,iat)=nmdimt(ishell,atype_ch(iat))
+                        else
+                           nmdim(ishell,iat)=nmdimt(ishell,atype(iat))
+                        end if
+                        !counter=1
 
                         ! Site in shell
                         do inei=1,nnm_cell(ishell,i0)
@@ -893,7 +931,8 @@ contains
                               if(jx>=0.and.jx<N1.and.jy>=0.and.jy<N2.and.jz>=0.and.jz<N3) then
                                  jat=j0+jx*NA+jy*N1*NA+jz*N2*N1*NA
                                  if (do_ralloy==1) jat = acellnumb(jat)
-                                 nm(iat,ishell,counter,ielem)=jat
+                                 nm(iat,ishell,inei,ielem)=jat
+                                 !nm(iat,ishell,counter,ielem)=jat
                                  elemhit(ielem) = .true.
                               end if
                               !
@@ -908,17 +947,18 @@ contains
                               hit = elemhit(1) .and. elemhit(2) .and. elemhit(3)
                            end if
                            if(hit) then
-                              counter = counter + 1
+                              write(*,*) 'All neighbours have been found'
+                              !counter = counter + 1
                            else
-                              nm(iat,ishell,counter,1:nelem)=0
+                              nm(iat,ishell,inei,1:nelem)=0
                            end if
 
                         end do
 
-                        counter = counter -1
-                        nmdim(ishell,iat) = counter
+                        !counter = counter -1
+                        !nmdim(ishell,iat) = counter
 
-                        if(do_hoc_debug==1) write(*,*) 'hit counter ', counter
+                        !if(do_hoc_debug==1) write(*,*) 'nm hit counter ', counter
 
                         if(do_hoc_debug==1) then
                            write(*,'(a,i4,a,i4,a,i4)') 'iat ', iat, ' ishell ', ishell, ' nmdim ', nmdim(ishell,iat)
@@ -943,6 +983,10 @@ contains
       i_all=-product(shape(nm_cell))*kind(nm_cell)
       deallocate(nm_cell,stat=i_stat)
       call memocc(i_stat,i_all,'nm_cell','setup_nm_nelem')
+      !
+      !i_all=-product(shape(nm_cell_symind))*kind(nm_cell_symind)
+      !deallocate(nm_cell_symind,stat=i_stat)
+      !call memocc(i_stat,i_all,'nm_cell_symind','setup_nm_nelem')
       !
       i_all=-product(shape(sym_mats))*kind(sym_mats)
       deallocate(sym_mats,stat=i_stat)
@@ -1024,8 +1068,10 @@ contains
       tol=0.00050_dblprec
 
       do_tens_sym = .true.
-      
+
       nncoord = 0.0_dblprec
+      fullcouptens = 0.0_dblprec
+
       if(do_hoc_debug==1) then
          write(*,*) 'Symmetry equivalent bond vectors'
       end if

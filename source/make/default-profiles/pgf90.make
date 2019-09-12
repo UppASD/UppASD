@@ -67,7 +67,7 @@ FCOMPFLAGS = -mp  -pgf90libs -I${MKLROOT}/include
 # -lblas       Basic Linear Algebra Subprograms
 # -llapack     Linear Algebra Package (for eigenvalue, cholesky etc...)
 # -lmkl        Includes lapack and blas
-FLIBFLAGS =  -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -mp -lpthread -lm -ldl
+FLIBFLAGS =  -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -mp -lpthread -lm -ldl
 
 # ifort mod folder flag (used to put .mods in separate files)
 FCMODFLAG = -module
@@ -84,3 +84,8 @@ PREPROC = -cpp
 USE_FFTW = NO
 # Enable MKL FFT Support
 USE_MKL_FFT = YES
+
+# Enable OVF support
+USE_OVF = NO
+
+

@@ -64,14 +64,24 @@ def sloppy(outfilevalue, expectedvalue, relativeprecision=2E-2, absoluteprecisio
 
     return abs(ov - ev) <= abs(absprec) and abs((ov-ev) / ev) < abs(relprec)
 
-def sloppy(outfilevalue, expectedvalue, relativeprecision=2E-2, absoluteprecision=2e-2):
+def sloppyabs(outfilevalue, expectedvalue, relativeprecision=1E-3, absoluteprecision=1e-4):
     def levalfilter(s):
         filtered = s if isinstance(s, (int,float)) else literal_eval(s)
         return filtered
     raws =  (outfilevalue, expectedvalue, relativeprecision, absoluteprecision)
     ov, ev, relprec, absprec = map(levalfilter,raws)
 
-    return abs(ov - ev) <= abs(absprec) and abs((ov-ev) / ev) < abs(relprec)
+    return abs(ov - ev) <= abs(absprec) 
+
+
+def sloppyrel(outfilevalue, expectedvalue, relativeprecision=1E-3, absoluteprecision=2e-2):
+    def levalfilter(s):
+        filtered = s if isinstance(s, (int,float)) else literal_eval(s)
+        return filtered
+    raws =  (outfilevalue, expectedvalue, relativeprecision, absoluteprecision)
+    ov, ev, relprec, absprec = map(levalfilter,raws)
+
+    return abs((ov-ev) / ev) < abs(relprec)
 
 
 def compare(outfilevalue, expectedvalue, comparison_func=similar, **kwargs):
@@ -386,10 +396,10 @@ if __name__ == "__main__":
     #print "    %s tests performed, %s tests failed." % ( numtests, snumfails)
     print ("-----------------------------------------------")
 
-    if (snumfails == 0):
-        #print("Exiting without errors")
+    if (numfails == 0):
+        print("Exiting without errors")
         sys.exit(0)
     else:
-        #print("Exiting with errors")
+        print("Exiting with errors")
         sys.exit(-1)
 

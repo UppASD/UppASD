@@ -19,7 +19,7 @@ INCLUDEDIR=${current_dir}/Third_party/ovf/include
 # -ipo        Inline between files
 # -xP         Intel processor specific optimizations
 # -fast       Uses -ipo -O3 -xP  -static
-OVFFCFLAGS = -O3 -ip  -xHost
+OVFFCFLAGS = -O3 -ip  -xHost -DUSE_OVF
 
 # Basic debug settings explained
 # -g           Debug with gdb

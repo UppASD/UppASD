@@ -77,3 +77,7 @@ USE_CUDA = NO
 
 # Enable Intel Vector Statistical Library support for RNG
 USE_VSL = NO
+# Enable OVF support
+USE_OVF = NO
+
+

@@ -53,10 +53,12 @@ contains
       do_reduced,do_prnstruct,do_sortcoup,simid,print_dip_tensor,read_dipole,       &
       qdip_files)
 
+      use LSF,             only : LSF_datareshape
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
       use InputData,       only : jij_scale, dm_scale
       use NeighbourMap,    only : setup_nm, setup_nm_nelem
+      use InducedMoments
       use HamiltonianData, only : allocate_hamiltoniandata, allocate_anisotropies,  &
          allocate_dmhamiltoniandata, allocate_pdhamiltoniandata,                    &
          allocate_biqdmhamiltoniandata, allocate_bqhamiltoniandata,                 &
@@ -225,6 +227,8 @@ contains
 
       ! Variable currently used only to match with the extended call arguments in setup_nm_nelem
       real(dblprec), dimension(27,NT,max_no_chirshells,NT,NT,48) :: chir_symtens
+
+      integer, dimension(48,max_no_chirshells,na) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       
       ! Set the Hamiltonian dimension
       if (do_reduced=='Y') then
@@ -383,24 +387,24 @@ contains
                write(*,'(a)') ' done'
             end if
 
-            !!! if (ind_mom_flag=='Y') then
-            !!!    write(*,'(2x,a)',advance='no') 'Set up neighbour map for induced moments'
-            !!!    call induced_mapping(Natom,NT,NA,N1,N2,N3,sym,max_no_shells,nn,atype,&
-            !!!       ham%ind_nlistsize,ham%ind_nlist,ham%fix_nlistsize,ham%fix_nlist,  &
-            !!!       do_sortcoup,Nchmax,do_ralloy,     &
-            !!!       Natom_full,atype_ch,acellnumb,C1,C2,C3,Bas,BC1,BC2,BC3,ind_tol,   &
-            !!!       redcoord,ind_mom,block_size,ham%ind_list_full,                    &
-            !!!       ham%max_no_neigh_ind,ham%fix_num,ham%fix_list)
+            if (ind_mom_flag=='Y') then
+               write(*,'(2x,a)',advance='no') 'Set up neighbour map for induced moments'
+               call induced_mapping(Natom,NT,NA,N1,N2,N3,sym,max_no_shells,nn,atype,&
+                  ham%ind_nlistsize,ham%ind_nlist,ham%fix_nlistsize,ham%fix_nlist,  &
+                  do_sortcoup,Nchmax,do_ralloy,     &
+                  Natom_full,atype_ch,acellnumb,C1,C2,C3,Bas,BC1,BC2,BC3,ind_tol,   &
+                  redcoord,ind_mom,block_size,ham%ind_list_full,                    &
+                  ham%max_no_neigh_ind,ham%fix_num,ham%fix_list)
 
-            !!!    write(*,'(a)') ' done'
-            !!!    if (do_prnstruct==1) then
-            !!!       write(*,'(2x,a)',advance='no') 'Print neighbour map for induced moments'
-            !!!       call prn_ind_exchange(NA,Natom,Nchmax,do_ralloy,Natom_full,       &
-            !!!          ham%max_no_neigh_ind,anumb,achtype,ham%ind_nlistsize,ind_mom,  &
-            !!!          ham%ind_nlist,simid)
-            !!!       write(*,'(a)') ' done'
-            !!!    endif
-            !!! endif
+               write(*,'(a)') ' done'
+               if (do_prnstruct==1) then
+                  write(*,'(2x,a)',advance='no') 'Print neighbour map for induced moments'
+                  call prn_ind_exchange(NA,Natom,Nchmax,do_ralloy,Natom_full,       &
+                     ham%max_no_neigh_ind,anumb,achtype,ham%ind_nlistsize,ind_mom,  &
+                     ham%ind_nlist,simid)
+                  write(*,'(a)') ' done'
+               endif
+            endif
             if(do_prnstruct==5) then
                write(*,'(2x,a)',advance='no') "Print exchange interaction strengths (sparse format)"
                call prn_exchange_sparse(Natom,ham%max_no_neigh,ham%nlistsize,       &
@@ -530,11 +534,11 @@ contains
       end if
 
       ! If LSF
-      !if(do_lsf=='Y') then
-      !   write (*,'(2x,a)',advance='no') 'Set up moments map for Longitudial Fluctuation'
-      !   call LSF_datareshape(NA, Nchmax, conf_num)
-      !   write(*,'(a)') ' done'
-      !endif
+      if(do_lsf=='Y') then
+         write (*,'(2x,a)',advance='no') 'Set up moments map for Longitudial Fluctuation'
+         call LSF_datareshape(NA, Nchmax, conf_num)
+         write(*,'(a)') ' done'
+      endif
 
       if(do_pd==1) then
          ! Allocate and mount PD Hamiltonian

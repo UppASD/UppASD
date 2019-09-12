@@ -16,10 +16,10 @@
 module Energy
    use Parameters
    use Profiling
-   use ErrorHandling
    use Constants
    use HamiltonianData
    use HamiltonianActions
+   use LSF, only : totalenergy_LSF
    use DipoleManager, only : dipole_field_calculation,calc_macro_energy
 
    implicit none
@@ -328,8 +328,13 @@ contains
 
          end do
       else
-
-         call ErrorHandling_missing('Local Spin Fluctuations')
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Calculation of the total LDF energy
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         call totalenergy_LSF(Natom,Nchmax,Mensemble,nHam,conf_num,emom,emomM,mmom, &
+            simid,plotenergy,mstep,external_field,ene%ene_xc,ene%ene_ani,           &
+            ene%ene_ext,ene%ene_lsf,exc_inter,do_lsf,inttype,lsf_field,Temp,        &
+            site_energy)
       endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

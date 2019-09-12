@@ -86,7 +86,7 @@ endif
 
 endif
 
-.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal gneb-tests lib python f2py  $(MDIR) $(SYSTEMS)
+.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal asd-tests gneb-tests lib python f2py  $(MDIR) $(SYSTEMS)
 
 # Including the help files
 include make/makefileHELP
@@ -102,18 +102,27 @@ probe:
 	@./make/suggestProfiles.py
 
 docs:
-	@cd ../docs; doxygen Doxyfile; pdflatex UppASDmanual.tex
-
-regression-test:
-	@cd ../codeTester; python -u ./bergtest.py --file regressionIceland.yaml | tee regression-tests.log
-	@cd ../codeTester; python -u ./bergtest.py --clean
+	@cd ../docs; doxygen Doxyfile; cd Manual; pdflatex UppASDmanual.tex
 
 tests:
+	@echo ''
+	@echo 'To run tests for selected functionalies, run:' 
+	@echo '`make asd-tests` and/or `make gneb-tests`'
+	@echo ''
+	@echo 'For regression test, run `make regression-test`'
+	@echo ''
+
+asd-tests:
 	@cd ../codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
 	@cd ../codeTester; python -u ./bergtest.py --clean
 
 gneb-tests:
 	@cd ../codeTester; python -u ./bergtest.py --file regressionIcelandGNEB.yaml | tee tests.log
+	@cd ../codeTester; python -u ./bergtest.py --clean
+
+regression-test:
+	@cd ../codeTester; python -u ./bergtest.py --file regressionGotland.yaml | tee regression-tests.log
+	@cd ../codeTester; python -u ./bergtest.py --clean
 
 
 python: lib f2py
@@ -161,8 +170,20 @@ ifdef COMPILENOW
 include make/dependencies.make
 include make/objs.make
 
-# Including the third party definitions
-include Third_party/ovf/ovf.make
+
+################################################################################
+# OVF support
+################################################################################
+ifeq ($(USE_OVF),YES)
+   # Including the third party definitions
+   include make/dependencies_tp_c.make
+   include make/objs_tp_c.make
+   include Third_party/ovf/ovf.make
+   OVFLIBFLAGS= $(OVFCCOMPLAGS) 
+else
+   OBJS_T := $(OBJS)
+   OBJS := $(filter-out Third_party/ovf/fortran/ovf.o,$(OBJS_T))
+endif
 
 ################################################################################
 #FFTW support
@@ -206,8 +227,6 @@ else
 ################################################################################
 #CUDA support not activated
 ################################################################################
-include make/dependencies_tp_c.make
-include make/objs_tp_c.make
 
 CUDAPP :=
 OBJS_T := $(OBJS)
@@ -218,7 +237,6 @@ CXXFLAGS += $(C_FCFLAG)
 
 endif
 
-OVFLIBFLAGS= $(OVFCCOMPLAGS) 
 ################################################################################
 #Check if the Intel Vector Statistical Library will be used for RNG
 ################################################################################
@@ -331,15 +349,18 @@ dist:
 	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
 	@cd .. ; tar cf ./UppASD_dist.tar \
 	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
-	./examples_revision_controlled ./docs/Doxyfile ./docs/*.tex \
-	./codeTester/ ; ./ASD_Viz/*.py \
+	./source/Third_party/ \
+	./examples_revision_controlled ./docs/Doxyfile ./docs/*.pdf ./docs/*.tex ASD_GUI/*.py \
+	./docs/Manual/*.tex ./docs/Manual/*.ist ./docs/Manual/Pictures/*.png \
+	./codeTester/ ; \
 	gzip --best -f ./UppASD_dist.tar
 
 dist_minimal:
 	@echo "Packaging source to ../UppASD_src.tar.gz"
 	@cd ../codeTester ; ./cleanAll.sh ; cd ../source
 	@cd .. ; tar cf ./UppASD_src.tar \
-	 ./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ ;\
+	./source/*.f90 ./source/*/*.f90 ./source/make/ ./source/gpu_files/ ./source/README/ \
+	./source/Third_party/ ; \
 	gzip --best -f ./UppASD_src.tar
 
 endif

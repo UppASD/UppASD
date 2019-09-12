@@ -33,6 +33,7 @@ caselist:
           - select:
               "#_1":  11000
             extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
+            comparison_func: norel
             expected:  [ 1.45563843E-01, 2.52300602E-01, 1.87753977E+00, 1.90000000E+00, 0.00000000E+00 ]
             type: "averages"
 
@@ -91,6 +92,7 @@ caselist:
               "#_1":  11001
               "#_2":    128
             extract:  [  '#_3','#_4','#_5','#_6' ]
+            comparison_func: norel
             expected:  [  0.0, 0.0, 0.0, 0.0 ]
             type: "crestart"
 

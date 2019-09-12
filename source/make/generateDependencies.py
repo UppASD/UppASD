@@ -63,8 +63,8 @@ third_party_FORT=['ovf']
 scriptpath     = path.realpath(__file__)
 scriptlocation = path.dirname(scriptpath)
 source_folder  = path.dirname(scriptlocation)
-gpu_folder     = source_folder+"/gpu_files"
-third_party_folder = source_folder+"/Third_party"
+gpu_folder     = path.join(source_folder,'gpu_files')
+third_party_folder = path.join(source_folder,'Third_party')
 
 ################################################################################
 # Start of Program                                                             #
@@ -190,7 +190,8 @@ def createProgramObjsDepsFile():
 def createDependencyDotFile():
     sourcefiles = findFORTSourcefiles(source_folder)
     dependencies = readDependenciesFORT(source_folder, sourcefiles,"use ")
-    writeDotGraphFile(scriptlocation+"/dependencies.dot", dependencies)
+    dot_file=path.join(scriptlocation,"dependencies.dot")
+    writeDotGraphFile(dot_file, dependencies)
     print("Direct dependencies written to dependencies.dot")
 
 def maxStringLengthInSet(setOfStrings):
@@ -310,10 +311,9 @@ def recursiveAddDepsCCCC(fil,deps):
                    sys.exit()
                 if not (package in deps):
                     if package not in third_party_CCCC:
-                        depsstring = gpu_folder+"/"+package.replace('"','')
+                        depsstring = path.join(gpu_folder,package.replace('"',''))
                         deps.add(depsstring)
-                        nfile = path.join(sep,"/"+depsstring)
-                        #nfile = path.join(path,"/"+depsstring)
+                        nfile = path.join(sep,depsstring)
                         recursiveAddDepsCCCC(nfile,deps)
                     else:
                         for root, dirs, files in walk(third_party_folder):
@@ -323,7 +323,7 @@ def recursiveAddDepsCCCC(fil,deps):
                                     file_path=path.join(root, name)
                                     depsstring = file_path
                                     deps.add(depsstring)
-                                    nfile = path.join(sep,"/"+depsstring)
+                                    nfile = path.join(sep,depsstring)
                                     recursiveAddDepsCCCC(nfile,deps)
     fp.close()
     return deps

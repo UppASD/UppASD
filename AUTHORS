@@ -1,26 +1,45 @@
 --------------------------------------------------------------------------------
 The Uppsala Atomistic Spin Dynamics (UppASD) project was initially conceived and
-developed at the Division of Materials Theory at Uppsala University. The UppASD
-project has been funded by a grant from the European Research Council (ERC), the
-Swedish Research Council, the Knut and Alice Wallenberg Foundation and eSSENCE.
+developed at the Division of Materials Theory at Uppsala University. The UppASD 
+project has been funded by a grant from the European Research Council (ERC) via 
+the Senior Researchers Grant of 2009. Other funding organizations include the 
+Swedish Research Council and the Knut and Alice Wallenberg Foundation.
 
-The team behind this effort are (listed alphabetically)
-
-Anders Bergman, Uppsala University <anders.bergman@physics.uu.se>
-Lars Bergqvist, KTH Royal Institute of Technology (email <lbergqv@kth.se>)
-Jonathan Chico, Forschungzentrum Julich (email <j.chico@fz-juelich.de>)
-Anna Delin, KTH Royal Institute of Technology
-Olle Eriksson, Uppsala University
-Johan Hellsvik, KTH Royal Institute of Technology (email <hellsvik@kth.se>)
-Johan Mentink, Raadboud University
-Lars Nordström, Uppsala University
-Manuel Pereiro, Uppsala University
-Björn Skubic, formerly Uppsala University (now at Ericsson Research)
+Principal investigators for this project has been
+Olle Eriksson, Uppsala University, Uppsala, Sweden
+Lars Nordström, Uppsala University, Uppsala, Sweden
+Anna Delin, KTH Royal Institute of Technology, Stockholm, Sweden
 
 --------------------------------------------------------------------------------
 
-The UppASD code also includes additional routines from other 
-authors/software
+Contributors ( version < 2.0 ):
+Björn Skubic
+Johan Hellsvik <hellsvik@kth.se>
+
+Contributors ( version > 2.0 ):
+Anders Bergman <anders.bergman@physics.uu.se>
+Johan Hellsvik <hellsvik@kth.se>
+Lars Bergqvist <lbergqv@kth.se>
+Jonathan Chico <j.chico@fz-juelich.de>
+Johan Mentink*, Andrea Taroni, Satadeep Bhattacharjee, Peter Larsson,
+Thomas Nystrand, Jonathan Werpers, Johan Venemalm, Manuel Pereiro, 
+Fan Pan, Pavel Bessarab**, Raghuveer Chimata, Niklas Fejes
+
+Specific contributions:
+* Semi-implicit midpoint solver: Johan Mentink <j.mentink@science.ru.nl>
+** Geodesic nudged elastic band method (GNEB): Pavel Bessarab <bessarab@hi.is>
+
+--------------------------------------------------------------------------------
+
+Present and former members of the UppASD team
+Olle Eriksson, Lars Nordström, Björn Skubic, Johan Hellsvik, Anders Bergman,
+Lars Bergqvist, Andrea Taroni, Satadeep Bhattacharjee, Corina Etz, Anna Delin,
+Manuel Pereiro, Jonathan Chico, Raghuveer Chimata, Konstantinos Koumpouras,
+Simone Borlenghi, Fan Pan, Debora Rodrigues, Pavel Bessarab, Danny Thonig
+
+--------------------------------------------------------------------------------
+
+The UppASD code also includes additional routines from other authors/software
 - Profiling routines from BigDFT (http://bigdft.org)
 - Mersenne-Twister RNG (http://www.math.keio.ac.jp/matumoto/emt.htm)
 - Ziggurat RNG (http://people.sc.fsu.edu/~jburkardt/f_src/ziggurat/ziggurat.html)

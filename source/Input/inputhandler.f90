@@ -34,6 +34,7 @@ module InputHandler
    use prn_currents
    use ErrorHandling
    use RandomNumbers
+   use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
    use prn_trajectories
 
    implicit none
@@ -1293,29 +1294,29 @@ contains
             ! START OF VARIABLES FOR INDUCED MOMENTS
             !------------------------------------------------------------------------
 
-            !case('ind_mom_flag') ! Flag to indicate that there are induced moments being considered
-            !   read(ifile,*,iostat=i_err) ind_mom_flag
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('ind_mom_flag') ! Flag to indicate that there are induced moments being considered
+               read(ifile,*,iostat=i_err) ind_mom_flag
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            !case('ind_tol') ! Value for the tolerance between neighbouring shells
-            !   read(ifile,*,iostat=i_err) ind_tol
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('ind_tol') ! Value for the tolerance between neighbouring shells
+               read(ifile,*,iostat=i_err) ind_tol
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            !case('do_prn_induced') ! Whether or not to print extra info for the induced moments
-            !   read(ifile,*,iostat=i_err) do_prn_induced
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('do_prn_induced') ! Whether or not to print extra info for the induced moments
+               read(ifile,*,iostat=i_err) do_prn_induced
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            !case('ind_buff') ! Buffer for the induced moments
-            !   read(ifile,*,iostat=i_err) ind_buff
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('ind_buff') ! Buffer for the induced moments
+               read(ifile,*,iostat=i_err) ind_buff
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            !case('ind_step') ! Steps between measurements for the induced moments
-            !   read(ifile,*,iostat=i_err) ind_step
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('ind_step') ! Steps between measurements for the induced moments
+               read(ifile,*,iostat=i_err) ind_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            !case('renorm_coll')  ! If the setup is in some sort non-collinear this forces the first calculation of the susceptibility to be collinear
-            !   read(ifile,*,iostat=i_err) renorm_coll
-            !   if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            case('renorm_coll')  ! If the setup is in some sort non-collinear this forces the first calculation of the susceptibility to be collinear
+               read(ifile,*,iostat=i_err) renorm_coll
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR INDUCED MOMENTES
@@ -1728,7 +1729,7 @@ contains
    subroutine read_moments(Landeg_global)
       use Parameters
       use Profiling
-
+      use LSF
       implicit none
 
       real(dblprec), intent(in) :: Landeg_global !< Default gyromagnetic ratio
@@ -1830,6 +1831,7 @@ contains
    !----------------------------------------------------------------------------------
    subroutine read_fixed_moments(Landeg_global)
 
+      use LSF
       use FixedMom, only : inp_fixed_mom_flag
       use Profiling
       use Parameters

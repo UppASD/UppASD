@@ -1,0 +1,9 @@
+add_sources(mc_wolff.f90
+montecarlo.f90
+montecarlo_common.f90
+prn_spinice.f90
+qminimizer.f90
+setupspinice.f90
+spinice.f90
+spinicedata.f90
+wanglandau.f90)

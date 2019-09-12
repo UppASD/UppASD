@@ -125,13 +125,14 @@ contains
       ind_nlistsize,ind_nlist,max_no_neigh_ind,sus_ind,do_mom_legacy,mode)
       !
       use prn_fields,       only : print_fields
-      use prn_trajectories, only : print_trajectories
       use prn_SpinIce,      only : print_vertices
       use Polarization,     only : print_pol
       use prn_averages,     only : print_averages
       use prn_topology,     only : print_topology
       use prn_currents,     only : print_currents
       use prn_microwaves,   only : print_mwf_fields
+      use prn_trajectories, only : print_trajectories
+      use prn_induced_info, only : print_ind_trajectories
 
       implicit none
       !
@@ -207,6 +208,11 @@ contains
       ! Print the polarization measurement
       call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emomM,&
          delta_t,simid,real_time_measure)
+
+      ! Print information about the induced moments
+      call print_ind_trajectories(Natom,Mensemble,sstep,mstep,max_no_neigh_ind,     &
+         ind_nlistsize,ind_list_full,ind_nlist,delta_t,emomM,simid,                 &
+         real_time_measure,sus_ind)
 
    end subroutine measure
 
@@ -285,6 +291,7 @@ contains
       use prn_microwaves,   only : flush_mwf_fields
       use prn_trajectories, only : flush_trajectories
       use prn_currents,     only : flush_currents
+      use prn_induced_info, only : flush_ind_trajectories
 
       implicit none
 
@@ -325,6 +332,8 @@ contains
       call flush_topology(NT,Natom,simid,real_time_measure)
       ! Flush the current measurements
       call flush_currents(Natom,Mensemble,real_time_measure,simid)
+      ! Flush the induced moments measurements
+      call flush_ind_trajectories(Natom,Mensemble,ind_list_full,simid,real_time_measure)
 
    end subroutine flush_measurements
 
@@ -342,6 +351,7 @@ contains
       use prn_currents,     only : allocate_currents
       use prn_microwaves,   only : mwf_initializations
       use prn_trajectories, only : allocate_trajectories
+      use prn_induced_info, only : allocate_ind_trajectories
 
       implicit none
 
@@ -367,6 +377,8 @@ contains
       call allocate_topology(NT,Natom,Mensemble,flag)
       ! Allocate the arrays needed for measuring the magnon and heat currents
       call allocate_currents(Natom,Mensemble,flag)
+      ! Allocate arrays for the measurement of induced moments
+      call allocate_ind_trajectories(Natom,Mensemble,flag)
 
    end subroutine allocate_measurementdata
 
