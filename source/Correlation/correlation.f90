@@ -1015,7 +1015,7 @@ contains
          !Write G(k)
          do k=1,nt
             do m=k,nt
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projsq.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projsq.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -1058,7 +1058,7 @@ contains
          do k=1,nt
             ic=indxcoord(1,k)
             do m=k,nt
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projsr.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projsr.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -1079,7 +1079,7 @@ contains
          do k=1,nt
             ic=indxcoord(1,k)
             do m=k,nt
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projsra.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projsra.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -1199,7 +1199,7 @@ contains
          !Write G(k)
          do k=1,nchmax
             do m=k,nchmax
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projchsq.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projchsq.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -1244,7 +1244,7 @@ contains
          do k=1,nchmax
             ic=indxcoord(1,k)
             do m=k,nchmax
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projchsr.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projchsr.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -1267,7 +1267,7 @@ contains
          do k=1,nchmax
             ic=indxcoord(1,k)
             do m=k,nchmax
-               if(k>10) then
+               if(k>=10) then
                   write (filn,'(''projchsra.'',i2,''.'',i2,''.'',a8,''.out'')') k,m,simid
                else
                   write (filn,'(''projchsra.'',i1,''.'',i1,''.'',a8,''.out'')') k,m,simid
@@ -2053,7 +2053,7 @@ contains
 
          ! Write S(q,w)
          do k=1,nchmax
-            if(k>10) then
+            if(k>=10) then
                write (filn,'(''projchsqw.'',i2,''.'',a8,''.out'')') k,simid
             else
                write (filn,'(''projchsqw.'',i1,''.'',a8,''.out'')') k,simid
@@ -2278,7 +2278,7 @@ contains
 
          ! Write S(q,w)
          do k=1,nt
-            if(k>10) then
+            if(k>=10) then
                write (filn,'(''projsqw.'',i2,''.'',a8,''.out'')') k,simid
             else
                write (filn,'(''projsqw.'',i1,''.'',a8,''.out'')') k,simid
@@ -2296,7 +2296,7 @@ contains
 
          ! Write S(q,w) decomposed in real and imag
          do k=1,nt
-            if(k>10) then
+            if(k>=10) then
                write (filn,'(''cprojsqw.'',i2,''.'',a8,''.out'')') k,simid
             else
                write (filn,'(''cprojsqw.'',i1,''.'',a8,''.out'')') k,simid
