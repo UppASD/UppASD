@@ -24,7 +24,7 @@ CXX = g++
 # -ipo        Inline between files
 # -xP         Intel processor specific optimizations
 # -fast       Uses -ipo -O3 -xP  -static
-FCFLAGS =  -O3 -ffree-line-length-0
+FCFLAGS =  -O3 -ffree-line-length-0 -fallow-argument-mismatch
 
 # Basic debug settings explained
 # -g           Debug with gdb
