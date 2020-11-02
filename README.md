@@ -70,9 +70,8 @@ After installing anaconda one can create virtual environment where to host the `
 
 ```
 conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas
-source activate ASD_GUI_env
-conda install -c menpo enum 
-conda install -c qt5 pyqt5
+conda activate ASD_GUI_env
+conda install -c anaconda pyqt
 ```
 This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
 
