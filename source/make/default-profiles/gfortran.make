@@ -20,7 +20,7 @@ CXX = g++
 # Basic optimization settings explained
 # -O3                      Optimization, faster exeuction, slower make times
 # -ffree-line-length-200   Allow long lines
-FCFLAGS = -O3 -ffree-line-length-0
+FCFLAGS = -O3 -ffree-line-length-0 -fallow-argument-mismatch
 
 #------------------------------------------------#
 # Flags for C compilation
