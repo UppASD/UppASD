@@ -93,8 +93,8 @@ def compare(outfilevalue, expectedvalue, comparison_func=similar, **kwargs):
 def readconfig(definitionfilename):
      #with open(definitionfilename, 'rU') as yf:
      with open(definitionfilename, 'r') as yf:
-          yamlob = yaml.load(yf)
-          #yamlob = yaml.load(yf, Loader=yaml.FullLoader)
+          #yamlob = yaml.load(yf)
+          yamlob = yaml.load(yf, Loader=yaml.SafeLoader)
      return yamlob
 
 
