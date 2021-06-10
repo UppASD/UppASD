@@ -20,13 +20,22 @@ CUDA = nvcc
 #------------------------------------------------------------------------------------
 # Flags for FORTRAN compilation
 #------------------------------------------------------------------------------------
+# First check compiler version for version dependent flag setting
+GFORTVER := $(shell $(FC) --version | head -1 | awk '{ print $$NF}' | sed 's/\./ /g' | awk '{ print $$1}')
+$(info $$GFORTVER is [$(GFORTVER)] [$(FC)])
+# Then use -fallow-argument-mismatch if GFORTVER > 8.x; otherwise use flag is not needed
+ifneq ($(shell test $(GFORTVER) -gt 9; echo $$?),0)
+FCARGCHECK =
+else
+FCARGCHECK = -fallow-argument-mismatch
+endif
 # Basic optimization settings explained
 # -ip         Inline function, substantioal speed up
 # -O3         Optimization, faster execution, slow make times
 # -ipo        Inline between files
 # -xP         Intel processor specific optimizations
 # -fast       Uses -ipo -O3 -xP  -static
-FCFLAGS =  -O3 -ffree-line-length-0 -fallow-argument-mismatch
+FCFLAGS =  -O3 -ffree-line-length-0 $(FCARGCHECK)
 
 # Basic debug settings explained
 # -g           Debug with gdb
