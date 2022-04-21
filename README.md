@@ -43,6 +43,8 @@ Examples are provided in `./examples_revision_controlled/`
 
 The manual is found at `./docs/UppASDmanual.pdf` 
 
+---
+
 <h2>User Graphic Interface</h2>
 
 ---
@@ -55,7 +57,7 @@ This allows for:
 
 ***Requirements***
 - `Qt5`.
-- `python2.7` or higher.
+- `python3.6` or higher.
    - `pandas`
    - `numpy`
    - `PYYaml`
@@ -63,17 +65,35 @@ This allows for:
    - `Enum`
 - `VTK7.0` or higher.
 
-***Installation Guide***
-A simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
+***Installation Guide using pip (recommended)***
 
-After installing anaconda one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+One way to install the prerequisites for the `ASD_GUI` can be done via `pip` and `virtualenv` or `venv` environments.
+
+After installing `virtualenv` or `venv` one can create a virtual environment where to host the `ASD_GUI`. This can be done in the following way:
 
 ```
-conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas
-conda activate ASD_GUI_env
-conda install -c anaconda pyqt
+python3 -m pip install --user --upgrade pip
+python3 -m pip install --user venv
+python3 -m venv ~/ASD_GUI_env
+source ~/ASD_GUI_env/bin/activate
+python3 -m pip install numpy scipy matplotlib pandas pyqt5 vtk
 ```
 This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
+
+***Installation Guide using anaconda***
+
+One simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
+
+After installing anaconda one can create a virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+
+```
+conda create --name ASD_GUI_env python=3.8 
+source activate ASD_GUI_env
+conda install vtk numpy scipy matplotlib yaml pyyaml pandas pyqt
+
+```
+This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI. 
+
 
 ---
 (C) 2008-2018 [UppASD group][2]
