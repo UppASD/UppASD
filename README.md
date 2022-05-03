@@ -94,6 +94,12 @@ conda install vtk numpy scipy matplotlib yaml pyyaml pandas pyqt
 ```
 This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI. 
 
+Alternatively, the following variant of conda environment can be used.
+
+```
+conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas jsoncpp=1.8.3 tbb=2020.2
+conda activate ASD_GUI_env
+```
 
 ---
 (C) 2008-2018 [UppASD group][2]
