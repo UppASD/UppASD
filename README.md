@@ -126,7 +126,7 @@ where `<your-path-to-the-gui>` is the path to where you downloaded the repo or e
 It is most convenient to run the GUI from the directory where the output files to be analyzed resides.
 
 ---
-(C) 2008-2018 [UppASD group][2]
+(C) 2008-2022 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 [2]:http://www.physics.uu.se/research/materials-theory/ongoing-research/uppasd/
