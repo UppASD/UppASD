@@ -1,6 +1,6 @@
 ---
 
-<h2>Graphical User Interface</h2>
+<h2>The UppASD Graphical User Interface</h2>
 
 ---
 
