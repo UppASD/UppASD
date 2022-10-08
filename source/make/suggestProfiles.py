@@ -43,7 +43,7 @@ def guessEnvironmentSettings():
         sto=errors[sta:].find(' ')+sta
         gv=errors[sta:sto]
         print("   GNU Fortran compiler found, version",gv)
-        #print("    FC = gfortran")
+        print("    FC = gfortran")
         gvmaj=int(gv[:gv.find('.')])
         gvmin=float(gv[gv.find('.')+1:])
         gsimd=(gvmaj>=4)and(gvmin>=9.1)
@@ -53,7 +53,12 @@ def guessEnvironmentSettings():
         #    print("    FCOMPFLAGS = -fopenmp ")
     else:
         have_gfortran=False
-        #print(" GNU Fortran compiler not found")
+        print(" GNU Fortran compiler not found")
+
+    p = sub.Popen(['which', 'ftn'],stdout=sub.PIPE,stderr=sub.PIPE)
+    ftn, errors = p.communicate()
+    if (len(ftn)>0):
+        have_ftn=True
 
     p = sub.Popen(['which', 'ifort'],stdout=sub.PIPE,stderr=sub.PIPE)
     ifort, errors = p.communicate()
@@ -190,6 +195,10 @@ def guessEnvironmentSettings():
             prof_list.append('gfortran')
             if(have_cuda):
                 prof_list.append('gfortran-cuda')
+    if(have_ftn):
+        prof_list.append('gfortran-ftn')
+        print("   Cray Fortran compiler wrapper found")
+        print("    FC = ftn")
     print('  '+'; '.join('{}'.format(k) for k in prof_list))
 
     if (have_cuda):
