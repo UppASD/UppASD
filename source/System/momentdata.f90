@@ -20,6 +20,7 @@ module MomentData
 
 contains
 
+
    !> Allocate magnitude of magnetic moments
    subroutine allocate_mmoms(Natom,Mensemble,flag)
 

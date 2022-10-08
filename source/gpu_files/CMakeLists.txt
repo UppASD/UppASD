@@ -1,4 +1,4 @@
-add_sources(c_helper.h
+target_sources(${UppASD_LIB} PRIVATE c_helper.h
 cudaCommon.hpp
 cudaDepondtIntegrator.cu
 cudaDepondtIntegrator.hpp

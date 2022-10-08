@@ -405,7 +405,7 @@ contains
       implicit none
       integer, intent(in) :: N ! Number of entries that will be sorted
       real(dblprec), dimension(N), intent(inout) :: A ! Square modulus of the entries to be sorted (for vectors)
-      integer, dimension(N), intent(inout) :: IA  ! Indexing counters
+      integer, dimension(N), intent(out) :: IA  ! Indexing counters
       integer :: I,IL,IL1,IP,IQ,ISAV,ISTACK,IU,IU1,IX,IZ,J
       real(dblprec) :: X,XSAV,XX,Z,ZZ
       integer, dimension(20) :: ILT,IUT

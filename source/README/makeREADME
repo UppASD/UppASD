@@ -1,0 +1,89 @@
+Instructions for running makefile
+---------------------------------
+
+If new files (or adding/removing 'use' statements)
+are added/removed to repo this must be run once:
+-----------------------------------------------
+make deps
+
+OR
+
+./make/generateDependencies.py
+
+Note: To be safe it should also be run after a repostiory pull and merge
+
+--WARNING-- 
+THIS WILL MOVE CURRENT Makefile to Makefile.bak AND REPLACE IT WITH THE REVISIONED makefile.template
+
+--WARNING-- 
+Current implementation of generatedependencies does not handle header in header includes properly.
+Fix by two pass generate dependencies where 'deeper' dependencies are re cursively checked on second pass.
+
+To make program run one off:
+-----------------------------------------------
+make ifort
+make gfortran
+make haddock
+make tintin
+etc...
+
+OR
+make profile=ifort sd  # Where sd is the program name and ifort the profile
+make profile=gfortran sd
+make profile=haddock sd
+make profile=tintin sd
+etc...
+
+OR
+export UPPASD_MAKE_PROFILE=ifort
+etc...
+make
+
+The systems profiles can and should be changed if the machine requires a specific setting
+
+To clean and remove all .mod and .o files:
+-----------------------------------------------
+make clean
+
+To turn on or off flags (DEBUG for instance) for the program compilation and linking edit:
+-----------------------------------------------
+/source/make/user_profiles/ifort.make
+/source/make/user_profiles/gfortran.make
+/source/make/user_profiles/haddock.make
+/source/make/user_profiles/tintin.make
+etc...
+
+By default there are no profiles under
+/source/make/user_profiles/
+These are however automatically copied from
+source/make/default-profiles/
+when running make with a profile with an existing profile name
+
+
+
+### WARNING ####
+-----------------------------------------------
+To change Makefile persistantly you must edit the .templates files:
+source/make/makefile.template
+
+Otherwise changes will be overwritten next time generateDependencies.py is run.
+
+--------------
+|   ERRORS   |
+--------------
+
+If program does not compile check that you are using the
+nvcc,ifort or gfortran,g++ versions
+and ifort has sourced compilervars.sh
+
+If gpu region does not compile
+Check paths in makefileCUDA.mk
+
+If gpu sections compiles but not run
+Check graphics card setting and changeing archintecture in makefileCUDA.mk
+
+--------------
+|    TODO    |
+--------------
+Fix architecture CUDA flag so its general for all profiles
+(avoid performance penalty by putting low version compability)

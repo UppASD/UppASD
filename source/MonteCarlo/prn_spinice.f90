@@ -1,8 +1,3 @@
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module prn_spinice
    use SpinIceData
 
@@ -113,7 +108,7 @@ contains
 
       integer :: trial_vert,k_ensem,j_buffer
 
-      write (filn,'(''vertex.'',a8,''.out'')') simid
+      write (filn,'(''vertex.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
 
       do j_buffer=1, bcount_vertex
@@ -154,7 +149,7 @@ contains
 
       temp_ver=0
 
-      write(filn,'(''mchits.'',a8,''.out'')') simid
+      write(filn,'(''mchits.'',a,''.out'')') trim(simid)
 
       open(ofileno,file=filn,position="append")
       do i=1, bcount_vertex
@@ -202,11 +197,11 @@ contains
       !.. Executable statements
       ! print neighbor map
       if ( neigh_type.eq.'V') then
-         write (filn,'(''sverver.'',a8,''.out'')') simid
+         write (filn,'(''sverver.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
          write (ofileno,*) "Data from SpinIce"
       else if (neigh_type.eq.'A') then
-         write (filn,'(''sveram.'',a8,''.out'')') simid
+         write (filn,'(''sveram.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
          write (ofileno,*) "Data from SpinIce"
       end if
@@ -306,7 +301,7 @@ contains
       !.. Executable statements
 
       if (neigh_type.eq.'V') then
-         write (filn,'(''s1vv.'',a8,''.out'')') simid
+         write (filn,'(''s1vv.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
 
          ! print neighbor list - after sort
@@ -322,7 +317,7 @@ contains
          40002  format ("            ",1X,5I6)
 
       else if (neigh_type.eq.'A') then
-         write (filn,'(''s1va.'',a8,''.out'')') simid
+         write (filn,'(''s1va.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
 
          ! print neighbor list - after sort

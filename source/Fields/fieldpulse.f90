@@ -133,7 +133,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''bpulse.'',A8,''.out'')') simid
+      write (filn,'(''bpulse.'',A8,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       write (ofileno,10002) mstep, bpulse_time, bpulsefield(1), bpulsefield(2), bpulsefield(3)
       close(ofileno)
@@ -161,7 +161,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''bpulse.'',A8,''.out'')') simid
+      write (filn,'(''bpulse.'',A8,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       write (ofileno,10002) mstep, bpulse_time, bpulsefield(1), bpulsefield(2), bpulsefield(3)
       close(ofileno)

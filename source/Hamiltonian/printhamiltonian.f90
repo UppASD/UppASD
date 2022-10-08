@@ -26,7 +26,8 @@ contains
    subroutine prn_exchange(NA,mdim,Natom,Nchmax,do_ralloy,Natom_full,max_no_neigh,  &
       simid,anumb,atype,nlistsize,asite_ch,achem_ch,nlist,coord,ammom_inp,ncoup,aham)
 
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
+      use InputData, only : do_storeham
 
       implicit none
 
@@ -64,7 +65,7 @@ contains
 
       fc2_inv=mub/(mry*2.0_dblprec)
       !.. Executable statements
-      write (filn,'(''struct.'',a8,''.out'')') simid
+      write (filn,'(''struct.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       allocate(alist(Natom))
@@ -77,11 +78,11 @@ contains
             alist(iatom)=iatom
          end do
       end if
+      write(ofileno,'(a)')"#######################################################"
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Maximum num of neighbours: ", max_no_neigh
+      write(ofileno,'(a)')"#######################################################"
       if (mdim==1) then
-         write(ofileno,'(a)')"#######################################################"
-         write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
-         write(ofileno,'(a,1x,i8)')"# Maximum num of neighbours: ", max_no_neigh
-         write(ofileno,'(a)')"#######################################################"
          write(ofileno,10000) "#  iatom", "jatom",  "itype", "jtype", "r_{ij}^x",   &
          "r_{ij}^y","r_{ij}^z",  "J_{ij}", "|r_{ij}|"
       else
@@ -94,27 +95,29 @@ contains
       do iatom=1,Natom
          do ineigh=1,nlistsize(alist(iatom))
             jatom=nlist(ineigh,iatom)
-            call wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
+            call f_wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
             tmp_rij_norm=norm2(tmp_rij)
-            if (tmp_rij_norm<tol) then
-               write(*,'(1x,a,i6)') 'WARNING: Jii entry in neighbour map for atom',iatom
-               write (ofileno,'(1x,a)') 'WARNING: Jii entry in neighbour map'
-                     write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),   &
-                     tmp_rij(1:3),tmp_coup,tmp_rij_norm
-            else
+            !if (tmp_rij_norm<tol) then
+            !   write(*,'(1x,a,i6)') 'WARNING: Jii entry in neighbour map for atom',iatom
+            !   write (ofileno,'(1x,a)') 'WARNING: Jii entry in neighbour map'
+            !         write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),   &
+            !         tmp_rij(1:3),tmp_coup,tmp_rij_norm
+            !else
                ! If scalar interaction
                if (mdim==1) then
                   if (do_ralloy==0) then
                      ! Calculate the coupling so that it has the same units than the jfile
                      tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
-                     (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     !(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     abs(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
                      ! Print the data
                      write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),   &
                      tmp_rij(1:3),tmp_coup,tmp_rij_norm
                   else
                      ! Calculate the coupling so that it has the same units than the jfile
                      tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
-                     (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     !(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     abs(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
                      ! Print the data
                      write (ofileno,10002) iatom,jatom,atype(iatom),atype(jatom),   &
                      achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup,         &
@@ -139,17 +142,26 @@ contains
                      tmp_rij_norm
                   endif
                endif
-            endif
+            !endif
          enddo
       end do
+      !
       close(ofileno)
+      !
+      if(do_storeham==1) then
+         write (filn,'(''hamiltonian.'',a,''.bin'')') trim(simid)
+         open (ofileno,file=filn,form='unformatted')
+         write(ofileno) mdim
+         write(ofileno) ncoup
+         close(ofileno)
+      end if
 
-      10000 format (a8,1x,a8,1x,a6,1x,a6,5a16)
-      10010 format (a8,1x,a8,1x,a6,1x,a6,13a16)
-      10001 format (i8,1X,i8,1X,i6,1x,i6,5es16.4)
-      10002 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,5es16.4)
-      10003 format (i8,1X,i8,1X,i6,1x,i6,13es16.4)
-      10004 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,13es16.4)
+      10000 format (a8,1x,a,1x,a6,1x,a6,5a16)
+      10010 format (a8,1x,a,1x,a6,1x,a6,13a16)
+      10001 format (i8,1X,i8,1X,i6,1x,i6,5es16.6)
+      10002 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,5es16.6)
+      10003 format (i8,1X,i8,1X,i6,1x,i6,13es16.6)
+      10004 format (i8,1X,i8,1X,i6,1x,i6,1x,i4,1x,i4,13es16.6)
    end subroutine prn_exchange
 
    !----------------------------------------------------------------------------
@@ -177,7 +189,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''structsparse.'',a8,''.out'')') simid
+      write (filn,'(''structsparse.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort
@@ -221,7 +233,7 @@ contains
       character(len=30) :: filn
 
       !.. Printing the induced moments list
-      write (filn,'(''indstruct.'',a8,''.out'')') simid
+      write (filn,'(''indstruct.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! Printing the new induced moments neighbour lists
@@ -259,7 +271,7 @@ contains
    subroutine prn_dmcoup(NA,Natom,Nchmax,do_ralloy,Natom_full,max_no_dmneigh,anumb, &
       atype,dmlistsize,asite_ch,achem_ch,dmlist,coord,ammom_inp,dm_vect,simid)
       !
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
 
       !.. Implicit declarations
       implicit none
@@ -283,7 +295,6 @@ contains
       !.. Local variables
       !.. Local variables
       integer :: iatom,jatom,ineigh
-      integer, dimension(:), allocatable :: alist
       character(len=20) :: filn
       real(dblprec) :: fc2_inv,tol
       real(dblprec) :: tmp_rij_norm
@@ -297,7 +308,7 @@ contains
       fc2_inv=mub/(mry*2.0_dblprec)
 
       !.. Executable statements
-      write (filn,'(''dmdata.'',a8,''.out'')') simid
+      write (filn,'(''dmdata.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       write(ofileno,'(a)')"#######################################################"
@@ -312,23 +323,25 @@ contains
          do ineigh=1,dmlistsize(iatom)
             jatom=dmlist(ineigh,iatom)
             !tmp_rij=coord(:,jatom)-coord(:,iatom)
-            call wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
+            call f_wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
             tmp_rij_norm=norm2(tmp_rij)
             if (tmp_rij_norm<tol) then
                write(*,'(1x,a,i6)') 'WARNING: Dii entry in neighbour map for atom',iatom
                write (ofileno,'(1x,a)') 'WARNING: Dii entry in neighbour map'
             else
                if (do_ralloy==0) then
-                  ! Calculate the coupling so that it has the same units than the jfile
+                  ! Calculate the coupling so that it has the dmme units than the jfile
                   tmp_coup(1:3)=dm_vect(1:3,ineigh,iatom)*fc2_inv*                  &
-                  (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                  !(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                  abs(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
                   ! Print the data
                   write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),      &
                   tmp_rij(1:3),tmp_coup(1:3),tmp_rij_norm
                else
-                  ! Calculate the coupling so that it has the same units than the jfile
+                  ! Calculate the coupling so that it has the dmme units than the jfile
                   tmp_coup(1:3)=dm_vect(1:3,ineigh,iatom)*fc2_inv*                  &
-                  (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                  !(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                  abs(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
                   ! Print the data
                   write (ofileno,10002) iatom,jatom,atype(iatom),atype(jatom),      &
                   achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup(1:3),       &
@@ -339,11 +352,109 @@ contains
       end do
       close(ofileno)
 
-      10000 format (a8,1x,a8,1x,a6,1x,a6,7a16)
+      10000 format (a8,1x,a,1x,a6,1x,a6,7a16)
       10001 format (i8,1X,i8,1X,i5,1x,i5,7es16.4)
       10002 format (i8,1X,i8,1X,i5,1x,i5,1x,i4,1x,i4,7es16.4)
 
    end subroutine prn_dmcoup
+
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: prn_sacoup
+   !> Print directions and strengths of SA couplings
+   !> @details New version which replaces the older printing routine, it merges the
+   !> information of the struct and struct1 files, into a more self-contained structure
+   !> @note Jonathan Chico: modified the routine so that it writes the couplings in mRy
+   !> for easier comparison with the jfile
+   !----------------------------------------------------------------------------
+   subroutine prn_sacoup(NA,Natom,Nchmax,do_ralloy,Natom_full,max_no_saneigh,anumb, &
+      atype,salistsize,asite_ch,achem_ch,salist,coord,ammom_inp,sa_vect,simid)
+      !
+      use Math_functions, only : f_wrap_coord_diff
+
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Nchmax          !< Max number of chemical components on each site in cell
+      integer, intent(in) :: do_ralloy       !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full      !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_saneigh !< Calculated number of neighbours with DM interactions
+      integer, dimension(Natom), intent(in) :: anumb    !< Atom number in cell
+      integer, dimension(Natom), intent(in) :: atype     !< Type of atom
+      integer, dimension(Natom), intent(in) :: salistsize !< Size of neighbour list for DM
+      integer, dimension(Natom_full), intent(in)   :: asite_ch !< Actual site of atom for dilute system
+      integer, dimension(Natom_full), intent(in)   :: achem_ch !< Chemical type of atoms (reduced list)
+      integer, dimension(max_no_saneigh,Natom), intent(in) :: salist   !< List of neighbours for DM
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      real(dblprec), dimension(NA,Nchmax), intent(in) :: ammom_inp   !< Magnetic moment directions from input (for alloys)
+      real(dblprec), dimension(3,max_no_saneigh,Natom), intent(in) :: sa_vect !< Dzyaloshinskii-Moriya exchange vector
+      character(len=8), intent(in) :: simid   !< Name of simulation
+      !.. Local variables
+      !.. Local variables
+      integer :: iatom,jatom,ineigh
+      character(len=20) :: filn
+      real(dblprec) :: fc2_inv,tol
+      real(dblprec) :: tmp_rij_norm
+      real(dblprec), dimension(3) :: tmp_rij
+      real(dblprec), dimension(3) :: tmp_coup
+      tol=1e-5
+      tmp_rij=0.0_dblprec
+      tmp_rij_norm=0.0_dblprec
+      tmp_coup=0.0_dblprec
+
+      fc2_inv=mub/(mry*2.0_dblprec)
+
+      !.. Executable statements
+      write (filn,'(''sadata.'',a,''.out'')') trim(simid)
+      open(ofileno, file=filn)
+
+      write(ofileno,'(a)')"#######################################################"
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Maximum num of neighbours: ", max_no_saneigh
+      write(ofileno,'(a)')"#######################################################"
+      write(ofileno,10000) "#  iatom", "jatom",  "itype", "jtype", "r_{ij}^x",      &
+      "r_{ij}^y","r_{ij}^z", "C_{ij}^x","C_{ij}^y","C_{ij}^z", "|rij|"
+
+      ! print neighbor list - after sort
+      do iatom=1,Natom
+         do ineigh=1,salistsize(iatom)
+            jatom=salist(ineigh,iatom)
+            !tmp_rij=coord(:,jatom)-coord(:,iatom)
+            call f_wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
+            tmp_rij_norm=norm2(tmp_rij)
+            if (tmp_rij_norm<tol) then
+               write(*,'(1x,a,i6)') 'WARNING: Cii entry in neighbour map for atom',iatom
+               write (ofileno,'(1x,a)') 'WARNING: Cii entry in neighbour map'
+            else
+               if (do_ralloy==0) then
+                  ! Calculate the coupling so that it has the same units than the jfile
+                  tmp_coup(1:3)=sa_vect(1:3,ineigh,iatom)*fc2_inv*                  &
+                  !(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                  abs(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                  ! Print the data
+                  write (ofileno,10001) iatom,jatom,atype(iatom),atype(jatom),      &
+                  tmp_rij(1:3),tmp_coup(1:3),tmp_rij_norm
+               else
+                  ! Calculate the coupling so that it has the same units than the jfile
+                  tmp_coup(1:3)=sa_vect(1:3,ineigh,iatom)*fc2_inv*                  &
+                  !(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                  abs(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                  ! Print the data
+                  write (ofileno,10002) iatom,jatom,atype(iatom),atype(jatom),      &
+                  achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup(1:3),       &
+                  tmp_rij_norm
+               endif
+            endif
+         enddo
+      end do
+      close(ofileno)
+
+      10000 format (a8,1x,a,1x,a6,1x,a6,7a16)
+      10001 format (i8,1X,i8,1X,i5,1x,i5,7es16.4)
+      10002 format (i8,1X,i8,1X,i5,1x,i5,1x,i4,1x,i4,7es16.4)
+
+   end subroutine prn_sacoup
 
    !----------------------------------------------------------------------------
    !> Print directions and strengths of PD couplings
@@ -357,7 +468,7 @@ contains
       integer, intent(in) :: nn_pd_tot !< Calculated number of neighbours with PD interactions
       integer,dimension(Natom), intent(in) :: pdlistsize !< Size of neighbour list for PD
       integer,dimension(nn_pd_tot,Natom), intent(in) :: pdlist   !< List of neighbours for PD
-      real(dblprec),dimension(6,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
+      real(dblprec),dimension(9,nn_pd_tot,Natom), intent(in) :: pd_vect !< Pseudo-Dipolar exchange vector
       character(len=8) :: simid !< Name of simulation
 
       !.. Local variables
@@ -365,7 +476,7 @@ contains
       character(len=20) :: filn
 
       !.. Executable statements
-      write (filn,'(''pddata.'',a8,''.out'')') simid
+      write (filn,'(''pddata.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort
@@ -374,7 +485,7 @@ contains
          write (ofileno,*) "----------------------------------"
          write (ofileno,10001) i,pdlistsize(i)
          write (ofileno,10002) pdlist(1:pdlistsize(i),i)
-         write (ofileno,10003) pd_vect(1:6,1:pdlistsize(i),i)*mub/mry
+         write (ofileno,10003) pd_vect(1:9,1:pdlistsize(i),i)*mub/mry
       end do
       close(ofileno)
 
@@ -402,7 +513,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''chirdata.'',a8,''.out'')') simid
+      write (filn,'(''chirdata.'',a,''.out'')') trim(simid)
       open(21, file=filn)
 
       ! print neighbor list - after sort
@@ -423,6 +534,46 @@ contains
 10004 format (3x,3i6,27es14.6)
 
    end subroutine prn_chircoup
+
+   !> Print directions and strengths of fourx couplings
+   subroutine prn_fourxcoup(Natom, max_no_fourxneigh, fourx_listsize, fourx_list, fourx_val , simid)
+      !
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: max_no_fourxneigh !< Calculated number of neighbours with fourx interactions
+      integer,dimension(Natom), intent(in) :: fourx_listsize !< Size of neighbour list forfourx 
+      integer,dimension(2,max_no_fourxneigh,Natom), intent(in) :: fourx_list   !< List of neighbours forfourx 
+      real(dblprec),dimension(max_no_fourxneigh,Natom), intent(in) :: fourx_val  !< fourx force constant matrix
+      character(len=8) :: simid !< Name of simulation
+
+      !.. Local variables
+      integer :: i,j
+      character(len=30) :: filn
+
+      !.. Executable statements
+      write (filn,'(''fourxdata.'',a,''.out'')') trim(simid)
+      open(21, file=filn)
+
+      ! print neighbor list - after sort
+      write (21,*) "Sorted fourx couplings "
+      do i=1,Natom
+         write (21,*) "----------------------------------"
+         write (21,10001) i,fourx_listsize(i)
+         do j=1,fourx_listsize(i)
+            write (21,10004) i,fourx_list(1:2,j,i),fourx_val(j,i)
+         end do
+      end do
+      close(21)
+
+10001 format ("Atom=",i8,4x,"No neigh=",i7)
+10002 format ("            ",1X,2I6)
+!10002 format ("            ",1X,5I6)
+10003 format (9es14.6)
+10004 format (3x,3i6,27es14.6)
+
+   end subroutine prn_fourxcoup
 
    !----------------------------------------------------------------------------
    !> Print directions and strengths of BIQDM couplings
@@ -445,7 +596,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''biqdmdata.'',a8,''.out'')') simid
+      write (filn,'(''biqdmdata.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort
@@ -483,7 +634,7 @@ contains
       character(len=20) :: filn
 
       !.. Executable statements
-      write (filn,'(''bqdata.'',a8,''.out'')') simid
+      write (filn,'(''bqdata.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort
@@ -501,6 +652,68 @@ contains
       10003 format (5es16.8)
 
    end subroutine prn_bqcoup
+
+  !> Print strength of four-spin ring couplings
+  subroutine prn_ringcoup(Natom, nn_ring_tot, ringlist, ringlistsize, j_ring, simid)
+    !
+    !.. Implicit declarations
+    implicit none
+
+    integer, intent(in) :: Natom        !< Number of atoms in system
+    integer, intent(in) :: nn_ring_tot  !< Calculated number of neighbours with ring interactions
+    integer, dimension(Natom,nn_ring_tot,3), intent(in) :: ringlist     !< List of neighbours for ring exchange
+    integer, dimension(Natom), intent(in) :: ringlistsize               !< Size of neighbour list for 4SR coupling
+    real(dblprec),dimension(Natom,nn_ring_tot), intent(in) :: j_ring    !< Ring exchange couplings
+    character(len=8),intent(in) :: simid                                !< Name of simulation
+
+    !.. Local variables
+    integer           :: i, k, m, counter
+    character(len=30) :: filn
+    logical           :: selfmap
+ 
+    !.. Executable statements
+    write (filn,'(a,a,a)') 'ringdata.',trim(simid),'.out'
+    open(ofileno, file=filn) 
+  !print neighbor list
+    do i=1,Natom
+       counter=0
+       write (ofileno,*) "----------------------------------"
+       write (ofileno,10001) i, ringlistsize(i)   
+         do k=1,ringlistsize(i)
+            write (ofileno,*) "Plaquette", k
+            selfmap=.false.
+            if (i==ringlist(i,k,1).or.i==ringlist(i,k,2).or.i==ringlist(i,k,3)) then
+                selfmap=.true.
+            end if
+            if (ringlist(i,k,1)==ringlist(i,k,2).or.ringlist(i,k,2)==ringlist(i,k,3).or. &
+                ringlist(i,k,1)==ringlist(i,k,3)) then
+                selfmap=.true.
+            end if
+            if (selfmap) then
+            write (ofileno,*) "Some of the atoms in this plaquette are mapped onto itself!"
+            write (ofileno,*) "The number of cells should be increased"
+            end if
+            write (ofileno,10002) ringlist(i,k,1), ringlist(i,k,2), ringlist(i,k,3)
+         do m=1,counter
+            if (ringlist(i,k,1)==ringlist(i,m,1).and.ringlist(i,k,2)==ringlist(i,m,2).and. &
+               ringlist(i,k,3)==ringlist(i,m,3)) then
+               write (ofileno,*) "Such a plaquette already exists for atom_i!"
+               write (ofileno,*) "Check an input to avoid double counting"
+            end if
+         end do
+         counter=counter+1
+         write (ofileno,10003) j_ring(i,k)*mub/mry
+         end do
+
+    end do
+    close(ofileno)
+
+
+10001 format ("Atom_i:",i7,4x,"No plaquettes:",i7)
+10002 format ("j: ",i7,4x,"k: ",i7,4x,"l: ",i7)
+10003 format ("G(K)=",5es16.8)
+
+  end subroutine prn_ringcoup
 
 
    !> Print single-ion anisotropies
@@ -534,7 +747,7 @@ contains
       end do
       if(is_ani==0) return
 
-      write (filn,'(''aniso1.'',a8,''.out'')') simid
+      write (filn,'(''aniso1.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort
@@ -592,7 +805,7 @@ contains
       !.. Executable statements
 
       ! print neighbor map
-      write (filn,'(''clus_struct.'',a8,''.out'')') simid
+      write (filn,'(''clus_struct.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       write (ofileno,*) "Clus data from heisgeinit"
@@ -706,7 +919,7 @@ contains
       !.. Executable statements
 
       ! print neighbor map
-      write (filn,'(''clus_dmstruct.'',a8,''.out'')') simid
+      write (filn,'(''clus_dmstruct.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       write (ofileno,*) "Data from dmheisgeinit"

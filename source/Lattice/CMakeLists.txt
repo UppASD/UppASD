@@ -1,4 +1,4 @@
-add_sources(latticecorrelation.f90
+target_sources(${UppASD_LIB} PRIVATE latticecorrelation.f90
 latticedata.f90
 latticefielddata.f90
 latticehamiltonianactions.f90
@@ -8,7 +8,6 @@ latticeinit.f90
 latticeinputdata.f90
 latticeinputhandler.f90
 latticemeasurements.f90
-latticemontecarlo.f90
 latticeprinthamiltonian.f90
 latticerestart.f90
 latticespectra.f90

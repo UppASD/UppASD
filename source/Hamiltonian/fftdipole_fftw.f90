@@ -96,7 +96,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: bfield
 
       integer :: kk,ii,jj,I3,I2,I1,I0,IA,nu
-      real(dblprec) :: scale_fact,ene
+      real(dblprec) :: scale_fact
       type(C_PTR) :: plan
       complex(C_DOUBLE_COMPLEX), dimension(3,Npadding) :: tmp_vec
       complex(C_DOUBLE_COMPLEX), dimension(N1_pad,N2_pad,N3_pad) :: tmp
@@ -366,7 +366,7 @@ contains
 
       type(C_PTR) :: plan
       integer :: i_stat,i_all
-      integer :: I1,I2,I3,I0,IA,ii,mu,nu,jj
+      integer :: I1, I2, I3, I0, IA, ii, mu, nu
       integer :: I1_indx,I2_indx,I3_indx
       real(dblprec), dimension(3) :: Rij
       complex(C_DOUBLE_COMPLEX), dimension(:,:,:), allocatable :: tmp

@@ -59,7 +59,7 @@ contains
       implicit none
       character(len=*),intent(inout):: str  !< string to convert
       !
-      integer i
+      integer :: i
       !
       do i=1,len(str)
          if(str(i:i)>="a" .and. str(i:i)<= "z") str(i:i)=achar(iachar(str(i:i))-32)
@@ -73,7 +73,7 @@ contains
       implicit none
       character(len=*),intent(inout):: str  !< string to convert
       !
-      integer i
+      integer :: i
       !
       do i=1,len(str)
          if(str(i:i)>="A" .and. str(i:i)<= "Z") str(i:i)=achar(iachar(str(i:i))+32)

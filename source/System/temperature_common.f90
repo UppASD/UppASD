@@ -620,7 +620,7 @@ contains
       rjac=rjac/fac
 
       ! file for the convergence of the sor method
-      write(filn,'(''sor.'',a8,''.out'')') simid
+      write(filn,'(''sor.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn,position="append")
 
       do while ((k.le.max_its).and.(errmax.gt.eps))
@@ -694,7 +694,7 @@ contains
       character(len=30) :: filn
 
       !.. executable statements
-      write(filn,'(''temp_neigh.'',a8,''.out'')') simid
+      write(filn,'(''temp_neigh.'',a,''.out'')') trim(simid)
       open(45, file=filn,position="append")
 
       ! print neighbor list - after sort
@@ -766,13 +766,12 @@ contains
       real(dblprec), dimension(3,natom), intent(in) :: coord
 
       real(dblprec) :: phi_mls ! the mls shape functions
-      real(dblprec) :: div_phi ! the laplacian of the mls shape functions
       real(dblprec) :: tot_phi
       real(dblprec) :: tot_div2_phi
       real(dblprec), dimension(3) :: tot_div2_phi_temp
 
-      integer :: d_par, index_num, coord_index, shape_index
-      integer :: i_stat, i_all, node, neigh_nodes, cart_coord
+      integer :: index_num, coord_index, shape_index
+      integer :: i_stat, i_all, cart_coord
 
       ! allocate the mxm matrix that contains the polynomial basis
       allocate(ptp(dim_base_poly,dim_base_poly),stat=i_stat)
@@ -938,7 +937,7 @@ contains
       real(dblprec), dimension(dim_base_poly), intent(inout) :: w_vector
       real(dblprec), dimension(dim_base_poly,dim_base_poly), intent(inout) :: u_matrix
       real(dblprec), dimension(dim_base_poly,dim_base_poly), intent(inout) :: v_matrix
-      integer :: neigh_nodes, i,j, d_par
+      integer :: neigh_nodes, i, j
       real(dblprec), dimension(3) :: rij
       real(dblprec) :: wmax, wmin
 
@@ -2381,7 +2380,7 @@ contains
 
 
       real(dblprec), dimension(:), allocatable :: work
-      integer :: lda,m,n,lwork,ldvt,info,ldu,i,j
+      integer :: lda, lwork, ldvt, info, ldu, i, j
       character :: jobu, jobvt
 
       jobu='a'

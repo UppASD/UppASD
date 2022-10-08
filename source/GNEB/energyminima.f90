@@ -39,10 +39,10 @@ contains
    !> @author
    !> Pavel Bessarab
    !-----------------------------------------------------------------------------
-   subroutine vpo_min(nHam,every,Natom,do_dm,do_pd,do_bq,do_chir,do_dip,Nchmax,     &
-      itrmax,OPT_flag,do_biqdm,conf_num,Mensemble,Num_macro,do_jtensor,plotenergy,  &
-      do_anisotropy,max_no_constellations,ftol,mass,delta_t,simid,do_lsf,lsf_field, &
-      exc_inter,mult_axis,lsf_interpolate,cell_index,macro_nlistsize,mmom,emom,     &
+   subroutine vpo_min(nHam,every,Natom,Nchmax, &
+      itrmax,OPT_flag,conf_num,Mensemble,Num_macro,plotenergy,  &
+      max_no_constellations,ftol,mass,delta_t,simid,do_lsf,lsf_field, &
+      lsf_interpolate,cell_index,macro_nlistsize,mmom,emom,     &
       emomM_macro,external_field,maxNoConstl,unitCellType,constlNCoup,              &
       constellations,constellationsNeighType,energy,emomM,NA,N1,N2,N3,mode,         &
       do_mom_legacy)
@@ -56,21 +56,13 @@ contains
       integer, intent(in) :: nHam         !< Number of atoms in Hamiltonian
       integer, intent(in) :: every        !< Save path every 'every' step
       integer, intent(in) :: Natom        !< Number of atoms in system
-      integer, intent(in) :: do_dm        !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd        !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq        !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_chir      !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_dip       !<  Calculate dipole-dipole contribution (0/1)
       integer, intent(in) :: Nchmax       !< Max number of chemical components on each site in cell
       integer, intent(in) :: itrmax       !< Maximum number of iterations
       logical, intent(in) :: OPT_flag
-      integer, intent(in) :: do_biqdm     !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
       integer, intent(in) :: conf_num     !< number of configurations for LSF
       integer, intent(in) :: Mensemble    !< Number of images in GNEB calculations
       integer, intent(in) :: Num_macro    !< Number of macrocells in the system
-      integer, intent(in) :: do_jtensor   !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
       integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
-      integer, intent(in) :: do_anisotropy   !< Read anisotropy data (1/0)
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       real(dblprec), intent(in) :: ftol               !< Tolerance
       real(dblprec), intent(in) :: mass               !< mass of the point
@@ -79,8 +71,6 @@ contains
       character(len=8), intent(in) :: simid           !< Name of simulation
       character(len=1), intent(in) :: do_lsf          !< Including LSF energy
       character(len=1), intent(in) :: lsf_field       !< LSF field contribution (Local/Total)
-      character(len=1), intent(in) :: exc_inter       !< Interpolation of Jij (Y/N)
-      character(len=1), intent(in) :: mult_axis       !< Flag to treat more than one anisotropy 
       character(len=1), intent(in) :: do_mom_legacy    !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: lsf_interpolate !< Interpolate LSF or not
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
@@ -122,17 +112,16 @@ contains
       ! Pre calculation of the field and energy
       !-------------------------------------------------------------------------
       ! Calculation of the effective field
-      call effective_field(Natom,Mensemble,1,nHam,do_jtensor,do_anisotropy,         &
-         exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,            &
+      call effective_field(Natom,Mensemble,1,nHam,emomM,mmom,    &
          external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
-         constellationsNeighType,mult_axis,energy,Num_macro,cell_index,emomM_macro, &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
 
       ! Calculation of the total energy
-      call calc_energy(nHam,1,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,        &
-         do_biqdm,conf_num,Mensemble,Natom,Num_macro,1,do_jtensor,plotenergy,       &
-         do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,lsf_field,    &
+      call calc_energy(nHam,1,Natom,Nchmax,&
+         conf_num,Mensemble,Natom,Num_macro,1,plotenergy,       &
+         0.0_dblprec,delta_t,do_lsf,lsf_field,    &
          lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,      &
          emomM_macro,external_field,time_external_field,max_no_constellations,      &
          maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,              &
@@ -197,11 +186,10 @@ contains
          end do
 
          ! Calculation of the effective field
-         call effective_field(Natom,Mensemble,1,nHam,do_jtensor,do_anisotropy,      &
-            exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,         &
+         call effective_field(Natom,Mensemble,1,nHam,emomM,mmom, &
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,mult_axis,energy,Num_macro,      &
+            constellations,constellationsNeighType,energy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          call convert_force(Natom,Mensemble,mmom,emom,beff)
@@ -233,9 +221,9 @@ contains
 
          if (mod(itr,every).eq.0) then
             ! Calculation of the total energy
-            call calc_energy(nHam,itr,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,&
-               do_biqdm,conf_num,Mensemble,Natom,Num_macro,1,do_jtensor,plotenergy, &
-               do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,        &
+            call calc_energy(nHam,itr,Natom,Nchmax,&
+               conf_num,Mensemble,Natom,Num_macro,1,plotenergy, &
+               0.0_dblprec,delta_t,do_lsf,        &
                lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
                emom,emomM,emomM_macro,external_field,time_external_field,           &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &

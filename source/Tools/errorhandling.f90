@@ -48,7 +48,7 @@ contains
 
       logical :: file_exist
       integer :: Read_Code, ifileno2
-      character(10) :: teststring
+      character(1) :: teststring
 
       ifileno2=ifileno+1
 
@@ -110,7 +110,7 @@ contains
 
       write(*,999) feature
       STOP 
-      999 format(1x,"This version does not support ",a,", stopping. Contact the developers for more info")
+      999 format(1x,"This version does not support ",a,", stopping.",/,2x,"Contact the developers for more info")
    end subroutine ErrorHandling_missing
 
 end module ErrorHandling

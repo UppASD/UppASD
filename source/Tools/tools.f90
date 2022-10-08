@@ -25,6 +25,9 @@ contains
       use Gradients
       use prn_trajectories, only : traj_atom, traj_step, traj_buff, ntraj
       use FixedMom, only : red_atom_list
+      use Qvectors, only : q_weight
+      use AMS, only : magdos
+      use MetaTypes, only : atype_meta, allocate_metatype, allocate_metanumb
       !
       implicit none
       !
@@ -36,8 +39,8 @@ contains
       deallocate(coord,stat=i_stat)
       call memocc(i_stat,i_all,'coord','deallocate_rest')
 
-      i_all=-product(shape(redcoord))*kind(redcoord)
-      deallocate(redcoord,stat=i_stat)
+      i_all=-product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord)
+      deallocate(ham_inp%redcoord,stat=i_stat)
       call memocc(i_stat,i_all,'redcoord','deallocate_rest')
 
       i_all=-product(shape(bas))*kind(bas)
@@ -121,9 +124,39 @@ contains
          deallocate(red_atom_list,stat=i_stat)
          call memocc(i_stat,i_all,'red_atom_list','deallocate_rest')
       endif
+
+      if (allocated(q_weight)) then
+         i_all=-product(shape(q_weight))*kind(q_weight)
+         deallocate(q_weight,stat=i_stat)
+         call memocc(i_stat,i_all,'q_weight','deallocate_rest')
+      end if
+
+      if (allocated(ham_inp%nntype)) then
+         i_all=-product(shape(ham_inp%nntype))*kind(ham_inp%nntype)
+         deallocate(ham_inp%nntype,stat=i_stat)
+         call memocc(i_stat,i_all,'nntype','deallocate_rest')
+      end if
+
+      !if(allocated(atype_meta)) then
+      !   i_all=-product(shape(atype_meta))*kind(atype_meta)
+      !   deallocate(atype_meta,stat=i_stat)
+      !   call memocc(i_stat,i_all,'atype_meta','deallocate_rest')
+      !end if
+
+      call allocate_metatype(Natom,-1)
+      call allocate_metanumb(Natom,-1)
+
+      if (allocated(magdos)) then
+         i_all=-product(shape(magdos))*kind(magdos)
+         deallocate(magdos,stat=i_stat)
+         call memocc(i_stat,i_all,'magdos','deallocate_rest')
+      end if
+
+
       call deallocate_temp()
-      call deallocate_gradient_lists()
+      !call deallocate_gradient_lists()
 
    end subroutine deallocate_rest
+
 
 end module tools

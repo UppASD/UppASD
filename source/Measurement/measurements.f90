@@ -9,13 +9,14 @@
 module Measurements
    use Parameters
    use Profiling
+   use Math_functions, only : f_logstep
    !
    implicit none
    !
    private
 
    !public subroutines
-   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg, logstep, logfun
+   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg
 
 contains
 
@@ -48,7 +49,7 @@ contains
       integer :: i
       integer :: sstep
 
-      sstep = logstep(mstep,logsamp)
+      sstep = f_logstep(mstep,logsamp)
 
       ! Averages
       if (do_avrg=='Y') then
@@ -93,24 +94,6 @@ contains
       do_copy = 0
 
    end subroutine do_measurements
-
-   !--------------------------------------------!
-   ! @date 2014/09/01 - Thomas Nystrand
-   ! - Moved to separate function
-   !--------------------------------------------!
-   function logstep(mstep,logsamp) result(sstep)
-      character(len=1)   :: logsamp
-      integer,intent(in) :: mstep
-
-      integer            :: sstep
-
-      if(logsamp=='Y') then
-         sstep=logfun(mstep)
-         if(sstep<0) return
-      else
-         sstep=mstep
-      end if
-   end function logstep
 
    !---------------------------------------------------------------------------------
    !  SUBROUTINE: measure
@@ -183,7 +166,7 @@ contains
       ! Local variables
       integer :: sstep
 
-      sstep = logstep(mstep,logsamp)
+      sstep = f_logstep(mstep,logsamp)
 
       ! Print Microwave fields
       call print_mwf_fields(sstep,mstep,Natom,delta_t,real_time_measure,simid)
@@ -233,7 +216,7 @@ contains
       real(dblprec), intent(out) :: mavrg                                 !< Current average magnetization
 
       !.. Scalar variables
-      integer :: i,k
+      integer :: k
 
       !.. Local arrays
       real(dblprec), dimension(3,Mensemble) ::  m
@@ -248,32 +231,6 @@ contains
 
 
    end subroutine calc_mavrg
-
-   !-----------------------------------------------------------------------------
-   !  FUNCTION: logfun
-   !> @brief
-   !> Function to write the measurements in logarithmic scale
-   !-----------------------------------------------------------------------------
-   integer function logfun(mstep)
-      implicit none
-      !
-      integer, intent(in) :: mstep !< Current simulation step
-      !
-      integer :: sstep,pstep,tstep
-      !
-      if(mstep==0) then
-         sstep=0
-      else
-         tstep=int(log(real(mstep))*10) 
-         pstep=int(log(real(mstep-1))*10)
-         if(tstep>pstep) then
-            sstep=tstep
-         else
-            sstep=-1
-         end if
-      end if
-      logfun=sstep
-   end function logfun
 
    !---------------------------------------------------------------------------------
    !  SUBROUTINE: flush_measurements

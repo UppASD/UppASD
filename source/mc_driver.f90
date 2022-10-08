@@ -66,7 +66,7 @@ contains
       real(dblprec) :: mavg
 
       ! Write header for moment file
-      write (filn,'(''mcinitial.'',a8,''.out'')') simid
+      write (filn,'(''mcinitial.'',a,''.out'')') trim(simid)
       open(11, file=filn, position="append")
       write(11,'(a)') "#  Iter.   M_avg.    U_Bind.    Susc."
 
@@ -113,12 +113,13 @@ contains
          ! Loop over steps of sweeps
          do ipmcstep=1,ipmcnstep(i)
             ! Perform metropolis algorithm
-            call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(i),temprescale,ipmode,&
-               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,           &
-               lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,     &
-               mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),do_dip, &
-               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,        &
-               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,do_anisotropy)
+            call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(i),temprescale,ipmode,   &
+               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
+               lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
+               ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
+               ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),ham_inp%do_dip,    &
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
+               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
 
             ! Sample m, m2, m4 for second half of run (every tenth step)
             if(ipmcstep>ipmcnstep(i)/2.and.mod(ipmcstep-1,10)==0) then
@@ -231,7 +232,7 @@ contains
       use DemagField
       use MomentData
       use FieldPulse
-      use Correlation,          only : correlation_wrapper
+      use Correlation
       use Polarization
       use prn_averages
       use Measurements
@@ -239,7 +240,7 @@ contains
       use MicroWaveField
       use CalculateFields
       use HamiltonianData
-      use AutoCorrelation, only : autocorr_sample
+      use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use ChemicalData, only : achtype
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
       !use InducedMoments,        only : renorm_ncoup_ind
@@ -289,7 +290,7 @@ contains
       end if
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-      call calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_field,     &
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
 
       ! Perform MC sweeps
@@ -297,6 +298,11 @@ contains
 
          call timing(0,'MonteCarlo    ','OF')
          call timing(0,'Measurement   ','ON')
+
+         ! Sample autocorrelation
+         if(do_autocorr=='Y') then
+            call autocorr_sample(Natom, Mensemble, simid, mcmstep, emom)
+         end if
 
          ! Measure averages and trajectories
          call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mcmstep,emom,emomM, &
@@ -314,12 +320,12 @@ contains
             call timing(0,'Energy        ','ON')
             totene=0.0_dblprec
 
-            call calc_energy(nHam,mcmstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,   &
-               do_dip,do_biqdm,conf_num,Mensemble,Natom,Num_macro,1,do_jtensor,     &
-               plotenergy,do_anisotropy,Temp,1.0_dblprec,do_lsf,exc_inter,mult_axis,&
-               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
-               emom,emomM,emomM_macro,external_field,time_external_field,           &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
+            call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
+               conf_num,Mensemble,Natom,Num_macro,1, &
+               plotenergy,Temp,1.0_dblprec,do_lsf,    &
+               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
+               emom,emomM,emomM_macro,external_field,time_external_field,               &
+               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
                constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
             call timing(0,'Energy        ','OF')
          endif
@@ -329,19 +335,27 @@ contains
          ! Sample magnetic moments for correlation functions
          ! Sample S(r) through S(q)
          call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mcmstep,delta_t,&
-            NT,atype,Nchmax,achtype,cgk_flag,cgk_flag_pc)
+            NT,atype,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
          call timing(0,'SpinCorr      ','OF')
          call timing(0,'MonteCarlo    ','ON')
 
          ! Metropolis sweeps
 
-         call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,conf_num, &
-            lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,lsf_interpolate,       &
-            do_jtensor,do_dm,do_pd,do_biqdm,do_bq,do_chir,mult_axis,iflip_a,emomM,  &
-            emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,max_num_atom_macro_cell, &
-            cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,     &
-            mmom_macro,do_anisotropy)
+            call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,   &
+               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
+               lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
+               ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
+               ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,    &
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
+               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+
+         !call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,conf_num,       &
+         !   lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,lsf_interpolate,             &
+         !   do_jtensor,do_dm,do_pd,do_biqdm,do_bq,do_ring,do_chir,mult_axis,iflip_a,      &
+         !   emomM,emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,max_num_atom_macro_cell, &
+         !   cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,           &
+         !   mmom_macro,do_anisotropy)
 
          ! Calculate and print m_avg
          if(mcnstep>20) then
@@ -411,5 +425,100 @@ contains
       close(11)
       call timing(0,'Measurement   ','OF')
    end subroutine mc_mphase
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Monte Carlo minimal driver
+   !> This phase of the program is used for equillibration.
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------------
+   subroutine mc_minimal(emomM_io,emom_io,mmom_io,niter,mcmode,mctemp)
+
+      use InputData
+      use SystemData
+      use MonteCarlo
+      use DemagField
+      use MomentData
+      use HamiltonianData
+      use Measurements, only : calc_mavrg
+      !use InducedMoments,        only : renorm_ncoup_ind
+      use AMS
+      use QHB
+      use Restart
+      use macrocells
+
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM_io
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom_io
+      real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom_io
+      integer, intent(in) :: niter
+      character(len=2), intent(in) :: mcmode
+      real(dblprec), intent(in) :: mctemp
+
+      integer :: ipmcstep, ia,ik
+      real(dblprec) :: energy,temprescale,temprescalegrad, dummy
+      real(dblprec) :: mavg
+
+      ! Copy inmoments to working array
+      do ik=1,Mensemble
+         do ia=1,Natom
+            emom(:,ia,ik)=emom_io(:,ia,ik)
+            mmom(ia,ik)=mmom_io(ia,ik)
+            emomM(:,ia,ik)=emomM_io(:,ia,ik)
+            mmomi(ia,ik) = 1.0_dblprec/mmom(ia,ik)
+         end do
+      end do
+
+      ! Calculate demagnetization field
+      if(demag=='Y') then
+         call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+      endif
+
+      ! Rescaling of temperature according to Quantum Heat bath
+      temprescale=1.0_dblprec
+      temprescalegrad=0.0_dblprec
+      if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
+         if(qhb_mode=='MT') then
+            call calc_mavrg(Natom,Mensemble,emomM,mavg)
+            call qhb_rescale(iptemp(1),temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
+         else
+            call qhb_rescale(iptemp(1),temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
+         endif
+      endif
+
+      ! Set up order for Metropolis sweeps
+      call choose_random_atom_x(Natom,iflip_a)
+      !
+      ! Set energy to zero
+      energy = 0.0_dblprec
+      ! Loop over steps of sweeps
+      do ipmcstep=1,niter
+         ! Perform metropolis algorithm
+         call mc_evolve(Natom,Nchmax,Mensemble,nHam,mctemp,temprescale,mcmode,   &
+            conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
+            lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
+            ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
+            ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),ham_inp%do_dip,    &
+            Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
+            macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+      enddo
+
+      ! Copy equillibrated moments for use in measurement phase
+      emom2=emom
+      mmom2=mmom
+
+      ! Copy working moments to outdata
+      do ik=1,Mensemble
+         do ia=1,Natom
+            emom_io(:,ia,ik)=emom(:,ia,ik)
+            mmom_io(ia,ik)=mmom(ia,ik)
+            emomM_io(:,ia,ik)=emomM(:,ia,ik)
+         end do
+      end do
+
+      !
+   end subroutine mc_minimal
+
 
 end module mc_driver

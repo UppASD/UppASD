@@ -16,8 +16,8 @@ module NeighbourMap
    implicit none
 
    integer, dimension(:,:), allocatable :: nmdimt !< Temporary storage of dimensions for neighbour map
-   real(dblprec), dimension(:,:,:), allocatable :: sym_mats !< Symmetry operation matrices
-   integer :: nsym !< Number of symmetry operations
+   real(dblprec), dimension(:,:,:,:), allocatable :: sym_mats !< Symmetry operation matrices
+   integer, dimension(:), allocatable :: nsym !< Number of symmetry operations
 
    private
    public :: setup_nm, setup_nm_nelem
@@ -31,7 +31,7 @@ contains
    !----------------------------------------------------------------------------
    subroutine setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
       Bas,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,         &
-      do_ralloy,Natom_full,acellnumb,atype_ch)
+      do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
       !
       implicit none
       !
@@ -64,6 +64,7 @@ contains
       integer, intent(in), optional :: do_ralloy  !< Random alloy simulation (0/1)
       integer, dimension(Natom_full), optional ,intent(in) :: acellnumb !< List for translating atom no. in full cell to actual cell
       integer, dimension(Natom_full), optional ,intent(in) :: atype_ch !< Actual type of atom for dilute system
+      integer, dimension(NT,max_no_shells), optional, intent(in) :: nntype
       !
       integer :: i0
       integer :: i, nelem=1
@@ -72,17 +73,20 @@ contains
       real(dblprec) :: tol
       real(dblprec) :: detmatrix
       real(dblprec), dimension(3,3) :: invmatrix
-      integer :: ix,iy,iz,xc_hop,yc_hop,zc_hop,ia,counter,ishell,itype,inei
+      integer :: ix,iy,iz,xc_hop,yc_hop,zc_hop,ia,counter,ishell,itype,jtype,inei
       integer :: iat,jat,j0,jx,jy,jz, iix, iiy, iiz
       real(dblprec), dimension(3) :: bsf,cvec,icvec,rvec
       real(dblprec), dimension(:,:,:,:), allocatable:: nncoord !< Full list of neighbours for each type
       integer, dimension(:,:,:), allocatable:: nm_cell
       integer, dimension(:,:,:,:), allocatable :: nm_trunk
       integer, dimension(:,:), allocatable :: nnm_cell
-      logical :: is_periodic,is_dilute
+      logical :: is_periodic,is_dilute, typematch, tolmatch
 
       ! Set tolerance
       tol=0.00050_dblprec**2
+      !tol=0.001_dblprec
+
+      if(present(nntype)) print *, 'nntype', shape(nntype)
 
       ! calculate max.no. of shells of neighbours
       nndim=0
@@ -109,12 +113,16 @@ contains
       end if
       max_no_neigh=0
 
+      allocate(nsym(NT),stat=i_stat)
+      call memocc(i_stat,product(shape(nsym))*kind(nsym),'nsym','setup_nm')
+      nsym=0
+      
       ! create all symmetry matrices wrt symmetry type
-      call get_symops(sym)
+      call get_symops(sym,NT)
 
       ! Allocate arrays
       ! Maximum no. of neighbours in each shell is determined by the symmetry (max=48)
-      max_no_equiv=nsym
+      max_no_equiv=maxval(nsym)
       ! neighbour coordinates
       allocate(nncoord(3,max_no_equiv,max_no_shells,nt),stat=i_stat)
       call memocc(i_stat,product(shape(nncoord))*kind(nncoord),'nncoord','setup_nm')
@@ -149,7 +157,7 @@ contains
       if(do_hoc_debug==1) then
          write(*,*) 'Constructs nm_cell and nm_trunk'
       end if
-      !$omp parallel do default(shared) private(i0,itype,ishell,counter,inei,cvec,icvec,bsf,rvec,ia)
+      !$omp parallel do default(shared) private(i0,itype,jtype,ishell,counter,inei,cvec,icvec,bsf,rvec,ia)
       do I0=1,NA
          itype=atype(I0)
          if(do_hoc_debug==1) then
@@ -195,9 +203,15 @@ contains
 
                ! loop through atoms in cell to find match
                do ia=1,NA
-                  if((rvec(1)-Bas(1,ia))**2+ &
-                     (rvec(2)-Bas(2,ia))**2+ &
-                     (rvec(3)-Bas(3,ia))**2<tol) then
+                  jtype=atype(ia)
+                  typematch=.true.
+                  if(present(nntype).and.do_ralloy==0) then
+                     !print *,ia,i0,ishell,jtype,nntype(iatype(i0),ishell)
+                     typematch=(jtype==nntype(atype(i0),ishell))
+                  end if
+                  tolmatch=(rvec(1)-Bas(1,ia))**2+(rvec(2)-Bas(2,ia))**2+(rvec(3)-Bas(3,ia))**2<tol
+                  if(tolmatch.and.typematch) then
+                  !if(tolmatch) then
 
                      if(do_hoc_debug==1) write(*,'(a,i4,a,i4)') 'hit!  i0 ', i0, ' ia ', ia
 
@@ -300,6 +314,10 @@ contains
       end do
 
       ! Deallocate
+      i_all=-product(shape(nsym))*kind(nsym)
+      deallocate(nsym,stat=i_stat)
+      call memocc(i_stat,i_all,'nsym','setup_nm')
+
       if(N1*N2*N3>1) then
          i_all=-product(shape(nm_trunk))*kind(nm_trunk)
          deallocate(nm_trunk,stat=i_stat)
@@ -335,15 +353,17 @@ contains
    end subroutine setup_nm
 
    !> Find possible symmetry operations depending on assumed symmetry
-   subroutine get_symops(isym)
+   subroutine get_symops(isym,NT)
       !
       implicit none
       !
-      integer, intent(in) :: isym !< Type of assumed symmetry (0-3)
+      integer, intent(in) :: isym      !< Type of assumed symmetry (0-5)
+      integer, intent(in) :: NT        !< Number of types of atoms
+            
       !
-      integer :: i,j,x,y,z,j_s,x1,x2,y1,y2
+      integer :: i,j,x,y,z,j_s,x1,x2,y1,y2,k
       integer :: i_stat
-      integer :: sym_count
+      integer, dimension(NT) :: sym_count
       real(dblprec) :: half,roothalf
       !
 
@@ -353,30 +373,34 @@ contains
       if (isym==0) then
 
          sym_count=1
-         allocate(sym_mats(3,3,1),stat=i_stat)
+         allocate(sym_mats(3,3,1,NT),stat=i_stat)
          call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
          sym_mats=0.0_dblprec
-         do i=1,3
-            sym_mats(i,i,1)=1.0_dblprec
+         do k=1,NT
+            do i=1,3
+               sym_mats(i,i,1,k)=1.0_dblprec
+            end do
          end do
 
          ! Cubic symmetry
       else if(isym==1) then
 
-         allocate(sym_mats(3,3,48),stat=i_stat)
+         allocate(sym_mats(3,3,48,NT),stat=i_stat)
          call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
          sym_mats=0.0_dblprec
          sym_count=0
-         do i=1,3
-            do j=0,1
-               j_s=(-1)**j
-               do x=0,1
-                  do y=0,1
-                     do z=0,1
-                        sym_count=sym_count+1
-                        sym_mats(1,mod(i-j_s,3)+1,sym_count)=(-1.0_dblprec)**x
-                        sym_mats(2,mod(i,3)+1,sym_count)=(-1.0_dblprec)**y
-                        sym_mats(3,mod(i+j_s,3)+1,sym_count)=(-1.0_dblprec)**z
+         do k=1,NT
+            do i=1,3
+               do j=0,1
+                  j_s=(-1)**j
+                  do x=0,1
+                     do y=0,1
+                        do z=0,1
+                           sym_count(k)=sym_count(k)+1
+                           sym_mats(1,mod(i-j_s,3)+1,sym_count(k),k)=(-1.0_dblprec)**x
+                           sym_mats(2,mod(i,3)+1,sym_count(k),k)=(-1.0_dblprec)**y
+                           sym_mats(3,mod(i+j_s,3)+1,sym_count(k),k)=(-1.0_dblprec)**z
+                        end do
                      end do
                   end do
                end do
@@ -385,17 +409,19 @@ contains
 
          ! Cubic symmetry in xy-plane
       else if(isym==2) then
-         allocate(sym_mats(3,3,12),stat=i_stat)
+         allocate(sym_mats(3,3,12,NT),stat=i_stat)
          call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
          sym_mats=0.0_dblprec
          sym_count=0
-         do j=0,1
-            do x=0,1
-               do y=0,1
-                  sym_count=sym_count+1
-                  sym_mats(1,mod(j,2)+1,sym_count)=(-1.0_dblprec)**x
-                  sym_mats(2,mod(j+1,2)+1,sym_count)=(-1.0_dblprec)**y
-                  sym_mats(3,3,sym_count)=1.0_dblprec
+         do k=1,NT
+            do j=0,1
+               do x=0,1
+                  do y=0,1
+                     sym_count(k)=sym_count(k)+1
+                     sym_mats(1,mod(j,2)+1,sym_count(k),k)=(-1.0_dblprec)**x
+                     sym_mats(2,mod(j+1,2)+1,sym_count(k),k)=(-1.0_dblprec)**y
+                     sym_mats(3,3,sym_count(k),k)=1.0_dblprec
+                  end do
                end do
             end do
          end do
@@ -403,57 +429,84 @@ contains
          ! Hexagonal symmetry
       else if(isym==3) then
 
-         allocate(sym_mats(3,3,24),stat=i_stat)
+         allocate(sym_mats(3,3,24,NT),stat=i_stat)
          call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
          sym_mats=0.0_dblprec
          sym_count=0
          half=0.50_dblprec
          roothalf=sqrt(3.0_dblprec)*0.50_dblprec
          ! 8 ops due to 'cartesian' inversion
-         do x=0,1
-            do y=0,1
-               do z=0,1
-                  sym_count=sym_count+1
-                  sym_mats(1,1,sym_count)=(-1.0_dblprec)**x
-                  sym_mats(2,2,sym_count)=(-1.0_dblprec)**y
-                  sym_mats(3,3,sym_count)=(-1.0_dblprec)**z
+         do k=1,NT
+            do x=0,1
+               do y=0,1
+                  do z=0,1
+                     sym_count(k)=sym_count(k)+1
+                     sym_mats(1,1,sym_count(k),k)=(-1.0_dblprec)**x
+                     sym_mats(2,2,sym_count(k),k)=(-1.0_dblprec)**y
+                     sym_mats(3,3,sym_count(k),k)=(-1.0_dblprec)**z
+                  end do
                end do
             end do
          end do
          ! 16 ops due to 'cartesian' inversion
-         do x1=0,1
-            do x2=0,1
-               do y1=0,1
-                  do y2=0,1
-                     if((-1.0_dblprec)**x1*(-1.0_dblprec)**x2*(-1.0_dblprec)**y1*(-1.0_dblprec)**y2<0.0_dblprec) then
-                        do z=0,1
-                           sym_count=sym_count+1
-                           sym_mats(1,1,sym_count)=(-1.0_dblprec)**x1*half
-                           sym_mats(2,1,sym_count)=(-1.0_dblprec)**x2*roothalf
-                           sym_mats(1,2,sym_count)=(-1.0_dblprec)**y1*roothalf
-                           sym_mats(2,2,sym_count)=(-1.0_dblprec)**y2*half
-                           sym_mats(3,3,sym_count)=(-1.0_dblprec)**z
-                        end do
-                     end if
+         do k=1,NT
+            do x1=0,1
+               do x2=0,1
+                  do y1=0,1
+                     do y2=0,1
+                        if((-1.0_dblprec)**x1*(-1.0_dblprec)**x2*(-1.0_dblprec)**y1*(-1.0_dblprec)**y2<0.0_dblprec) then
+                           do z=0,1
+                              sym_count(k)=sym_count(k)+1
+                              sym_mats(1,1,sym_count(k),k)=(-1.0_dblprec)**x1*half
+                              sym_mats(2,1,sym_count(k),k)=(-1.0_dblprec)**x2*roothalf
+                              sym_mats(1,2,sym_count(k),k)=(-1.0_dblprec)**y1*roothalf
+                              sym_mats(2,2,sym_count(k),k)=(-1.0_dblprec)**y2*half
+                              sym_mats(3,3,sym_count(k),k)=(-1.0_dblprec)**z
+                           end do
+                        end if
+                     end do
                   end do
                end do
             end do
          end do
 
-         ! Reads symmetry operations from file
+         ! Reads symmetry operations from file, global set of symmetry elements
       else if(isym==4) then
          open(ifileno,file='sym.mat')
-         read(ifileno,*) sym_count
-         allocate(sym_mats(3,3,sym_count),stat=i_stat)
+         read(ifileno,*) sym_count(1)
+         allocate(sym_mats(3,3,sym_count(1),NT),stat=i_stat)
          call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
-         do j=1,sym_count
+         do j=1,sym_count(1)
             do x=1,3
-               read(ifileno,*) (sym_mats(y,x,j),y=1,3)
+               read(ifileno,*) (sym_mats(x,y,j,1),y=1,3)
+               !read(ifileno,*) (sym_mats(y,x,j,1),y=1,3)
+            end do
+            do k=2,NT
+               sym_mats(1:3,1:3,j,k)=sym_mats(1:3,1:3,j,1)
+            end do
+         end do
+         close(ifileno)
+         print *,sym_mats
+
+         ! Reads symmetry operations from file, type specific sets of symmetry elements
+      else if(isym==5) then
+         allocate(sym_mats(3,3,48,NT),stat=i_stat)
+         call memocc(i_stat,product(shape(sym_mats))*kind(sym_mats),'sym_mats','get_symops')
+         open(ifileno,file='sym.mat')
+         sym_mats=0.0_dblprec
+         sym_count=0
+         do k=1,NT
+            read(ifileno,*) sym_count(k)
+            do j=1,sym_count(k)
+               do x=1,3
+                  read(ifileno,*) (sym_mats(y,x,j,k),y=1,3)
+               end do
             end do
          end do
          close(ifileno)
       end if
-      nsym=sym_count
+
+      nsym(1:NT)=sym_count(1:NT)
       !
    end subroutine get_symops
 
@@ -502,7 +555,7 @@ contains
       end if
       do itype=1,nt
          do ishell=1,NN(itype)
-            if (nsym==1) then
+            if (nsym(itype)==1) then
                do k=1,3
                   nncoord(k,1:nelem,1,ishell,itype)=redcoord(itype,ishell,k,1:nelem)
                end do
@@ -520,14 +573,14 @@ contains
             else
                counter=0
                ! Loop over symmetries
-               do isym=1,nsym
+               do isym=1,nsym(itype)
                   tvect=0.0_dblprec
                   tvectelem=0.0_dblprec
                   unique=.true.
                   do i=1,3
                      do j=1,3
                         tvectelem(i,1:nelem)=tvectelem(i,1:nelem) +&
-                           redcoord(itype,ishell,j,1:nelem)*sym_mats(i,j,isym)
+                           redcoord(itype,ishell,j,1:nelem)*sym_mats(i,j,isym,itype)
                      end do
                   end do
                   do k=1,counter
@@ -678,12 +731,16 @@ contains
       end if
       max_no_neigh=0
 
+      allocate(nsym(NT),stat=i_stat)
+      call memocc(i_stat,product(shape(nsym))*kind(nsym),'nsym','setup_nm_nelem')
+      nsym=0
+      
       ! create all symmetry matrices wrt symmetry type
-      call get_symops(sym)
+      call get_symops(sym,NT)
 
       ! Allocate arrays
       ! Maximum no. of neighbours in each shell is determined by the symmetry (max=48)
-      max_no_equiv=nsym
+      max_no_equiv=maxval(nsym)
 
       ! neighbour coordinates
       allocate(nncoord(3,nelem,max_no_equiv,max_no_shells,nt),stat=i_stat)
@@ -698,7 +755,8 @@ contains
       !allocate(nm_cell_symind(max_no_equiv,max_no_shells,na),stat=i_stat)
       !call memocc(i_stat,product(shape(nm_cell_symind))*kind(nm_cell_symind),'nm_cell_symind','setup_nm_nelem')
       ! For case of no symmetry, set all elements to 1.
-      if(nsym == 1) then
+      if(nsym(1) == 1) then
+      !if(nsym == 1) then
          nm_cell_symind=1
       else
          nm_cell_symind=0
@@ -804,7 +862,7 @@ contains
                            nm_cell(ielem,counter,ishell,i0)=ia
                            nm_cell_symind(counter,ishell,i0)=inei
                            if(do_hoc_debug==1) then
-                              write(*,'(a,i4,a,i4a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
+                              write(*,'(a,i4,a,i4,a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
                            end if
                            if(N1*N2*N3>1) then
                               nm_trunk(1,ielem,counter,ishell,i0)=nint(bsf(1))
@@ -947,7 +1005,7 @@ contains
                               hit = elemhit(1) .and. elemhit(2) .and. elemhit(3)
                            end if
                            if(hit) then
-                              write(*,*) 'All neighbours have been found'
+                              if(do_hoc_debug==1) write(*,*) 'All neighbours have been found'
                               !counter = counter + 1
                            else
                               nm(iat,ishell,inei,1:nelem)=0
@@ -974,6 +1032,10 @@ contains
       end do
 
       ! Deallocate
+      i_all=-product(shape(nsym))*kind(nsym)
+      deallocate(nsym,stat=i_stat)
+      call memocc(i_stat,i_all,'nsym','setup_nm_nelem')
+
       if(N1*N2*N3>1) then
          i_all=-product(shape(nm_trunk))*kind(nm_trunk)
          deallocate(nm_trunk,stat=i_stat)
@@ -1069,6 +1131,9 @@ contains
 
       do_tens_sym = .true.
 
+      !timesym = 1.0_dblprec
+      !invsym = 1.0_dblprec
+      
       nncoord = 0.0_dblprec
       fullcouptens = 0.0_dblprec
 
@@ -1077,7 +1142,7 @@ contains
       end if
       do itype=1,nt
          do ishell=1,NN(itype)
-            if (nsym==1) then
+            if (nsym(itype)==1) then
                do k=1,3
                   nncoord(k,1:nelem,1,ishell,itype)=redcoord(itype,ishell,k,1:nelem)
                end do
@@ -1104,14 +1169,14 @@ contains
             else
                counter=0
                ! Loop over symmetries
-               do isym=1,nsym
+               do isym=1,nsym(itype)
                   tvect=0.0_dblprec
                   tvectelem=0.0_dblprec
                   unique=.true.
                   do i=1,3
                      do j=1,3
                         tvectelem(i,1:nelem)=tvectelem(i,1:nelem) +&
-                           redcoord(itype,ishell,j,1:nelem)*sym_mats(i,j,isym)
+                           redcoord(itype,ishell,j,1:nelem)*sym_mats(i,j,isym,itype)
                      end do
                   end do
                   do k=1,counter
@@ -1158,9 +1223,11 @@ contains
                      if(do_tens_sym) then
                         do ich=1,Nchmax
                            do jch=1,Nchmax
-                              write(*,*) 'isym ', isym, 'couptensrank ', couptensrank
-                              write(*,'(a)') 'couptens(1:hdim,itype,ishell,ich,jch) '
-                              write(*,'(9es14.6)') couptens(1:hdim,itype,ishell,ich,jch)
+                              if(do_hoc_debug==1) then
+                                 write(*,*) 'isym ', isym, 'couptensrank ', couptensrank
+                                 write(*,'(a)') 'couptens(1:hdim,itype,ishell,ich,jch) '
+                                 write(*,'(9es14.6)') couptens(1:hdim,itype,ishell,ich,jch)
+                              end if
                               !write(*,'(9es14.6)') 'couptens(1:hdim,itype,ishell,ich,jch) ', couptens(1:hdim,itype,ishell,ich,jch)
                               ! For now the timesym and invsym factors are inactive and set to 1.
                               ! They can be used if permutation operations are added so that e.g. the input of 
@@ -1168,25 +1235,33 @@ contains
                               ! (m_i . m_j) u_k --> (m_j . m_i) u_k      invsym=1 , timesym=1
                               ! (m_i . m_j) u_i --> (m_i . m_j) u_j      invsym=-1, timesym=1 
                               ! Additional if-statements
+                              ! When reinstating timesym and invsym, ensure proper casting to dblprec
                               if(couptensrank == 0) then
                                  fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
-                                    couptens(1:hdim,itype,ishell,ich,jch) * timesym * invsym
+                                    couptens(1:hdim,itype,ishell,ich,jch)
+                                 !couptens(1:hdim,itype,ishell,ich,jch) * timesym * invsym
                               else if(couptensrank == 1) then
                                  fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
-                                    transt1(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
+                                    transt1(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym,itype))
+                                 !transt1(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
                               else if (couptensrank == 2) then
                                  fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
-                                    transt2(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
+                                    transt2(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym,itype))
+                                 !transt2(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
                               else if(couptensrank == 3) then
                                  fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
-                                    transt3(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
+                                    transt3(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym,itype))
+                                 !transt3(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
                               else if(couptensrank == 4) then
                                  fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
-                                    transt4(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
+                                    transt4(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym,itype))
+                                 !transt4(couptens(1:hdim,itype,ishell,ich,jch),sym_mats(1:3,1:3,isym)) * timesym * invsym
                               end if
-                              write(*,'(a)') 'fullcouptens(1:hdim,itype,ishell,ich,jch,counter) '
-                              write(*,'(9es14.6)') fullcouptens(1:hdim,itype,ishell,ich,jch,counter)
-                              !write(*,'(9es14.6)') 'fullcouptens(1:hdim,itype,ishell,ich,jch,counter) ', fullcouptens(1:hdim,itype,ishell,ich,jch,counter)
+                              if (do_hoc_debug==1) then
+                                 write(*,'(a)') 'fullcouptens(1:hdim,itype,ishell,ich,jch,counter) '
+                                 write(*,'(9es14.6)') fullcouptens(1:hdim,itype,ishell,ich,jch,counter)
+                                 !write(*,'(9es14.6)') 'fullcouptens(1:hdim,itype,ishell,ich,jch,counter) ', fullcouptens(1:hdim,itype,ishell,ich,jch,counter)
+                              end if
                            end do
                         end do
                      end if

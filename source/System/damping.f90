@@ -97,8 +97,8 @@ contains
       integer, dimension(:), intent(in) :: asite_ch
       integer, dimension(:), intent(in) :: achem_ch
 
-      character(len=1), intent(in) :: mode
-      character(len=1), intent(in) :: ip_mode
+      character(len=2), intent(in) :: mode
+      character(len=2), intent(in) :: ip_mode
       character(len=1), intent(in) :: do_site_damping
       character(len=1), intent(in) :: do_site_ip_damping
 
@@ -147,7 +147,7 @@ contains
          endif
          ! If there is no site dependent damping
       elseif (ip_mode=='H' .or. ip_mode=='M'.or.ip_mode=='I'.or.ip_mode=='D'&
-         .or.ip_mode=='R'.or.ip_mode=='L'.or.ip_mode=='Z') then
+         .or.ip_mode=='R'.or.ip_mode=='L'.or.ip_mode=='Z'.or.ip_mode=='SX') then
          do i=1, ipnphase
             iplambda1_array(i,:)=iplambda1(i)
             iplambda2_array(i,:)=iplambda2(1)
@@ -159,6 +159,7 @@ contains
       elseif (ip_mode=='Q') then
       elseif (ip_mode=='E') then
       elseif (ip_mode=='X') then
+      elseif (ip_mode=='Y') then
       else
          call ErrorHandling_ERROR('Unrecognized ip_mode: '//ip_mode)
       endif

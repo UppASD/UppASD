@@ -21,7 +21,6 @@ module Evolution
    use Heun_proper
    use RandomNumbers,         only : rannum, ranv
    use optimizationroutines,  only : modeulermpf_constl,smodeulermpt_constl,invalidationCheck
-   use InputData, only : perp
 
    implicit none
 
@@ -42,7 +41,7 @@ contains
       mmomi,stt,do_site_damping,nlist,nlistsize,constellationsUnitVec,              &
       constellationsUnitVec2,constellationsMag,constellations,unitCellType,OPT_flag,&
       cos_thr,max_no_constellations,do_she,she_btorque,Nred,red_atom_list,          &
-      do_fixed_mom,do_sot,sot_btorque)
+      do_sot,sot_btorque)
 
       implicit none
 
@@ -59,8 +58,7 @@ contains
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat spin hall effect torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      character(len=1), intent(in) :: do_fixed_mom 	!< Do Fixed moment calculation (Y/N)
-      character(len=1), intent(in) :: do_site_damping	!< Flag for site dependent damping in measurement phase
+      character(len=1), intent(in) :: do_site_damping !< Flag for site dependent damping in measurement phase
       integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(3), intent(in) :: field1 !< Average internal effective field
       real(dblprec), dimension(3), intent(in) :: field2 !< Average external effective field
@@ -83,6 +81,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2  !< Final (or temporary) unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
+     
 
       ! Optimization used variables
       integer, intent(in)                            :: max_no_constellations  !< Max number of constellations for all ensembles
@@ -138,6 +137,8 @@ contains
          if (do_site_damping=='Y') then
             call rannum(Natom,Mensemble,NA,llg,lambda1_array,lambda2_array,         &
                compensate_drift,bn,field1,field2,mmomi,Temp_array,temprescale)
+                 !rannum(Natom, Mensemble, NA,  llg, lambda1_array, lambda2_array, &
+                  !compensate_drift, bn, field1, field2, mmomi, Temp_array,temprescale)
             else
                if(minval(lambda1_array).gt.lambdatol.or.minval(lambda2_array).gt.lambdatol) then
                   call rannum(Natom,Mensemble,NA,llg,lambda1_array,lambda2_array,   &
@@ -183,11 +184,15 @@ contains
       !------------------------------------------------------------------------------
       ! The Depondt solver
       !------------------------------------------------------------------------------
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       elseif(SDEalgh==5) then
          ! Selective updater only some moments are updated
-         call depondt_evolve_first(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
+          
+       call depondt_evolve_first(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
             btorque,emom,emom2,emomM,mmom,delta_t,Temp_array,temprescale,stt,       &
             thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list)
+          
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !------------------------------------------------------------------------------
       ! Mentink's Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
@@ -276,7 +281,7 @@ contains
       delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,nlist,nlistsize,    &
       constellationsUnitVec,constellationsUnitVec2,constellationsMag,constellations,&
       unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque,Nred,  &
-      red_atom_list,do_fixed_mom,do_sot,sot_btorque)
+      red_atom_list,do_sot,sot_btorque)
 
       implicit none
 
@@ -291,11 +296,10 @@ contains
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the spin hall effect spin transfer torque?
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      character(len=1), intent(in) :: do_fixed_mom !< Do Fixed moment calculation (Y/N)
       integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array            !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff		!< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff      !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff2        !< External field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff        !< Temporary storage of magnetic field
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
@@ -304,6 +308,7 @@ contains
       ! .. Output variables
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom        !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2       !< Final (or temporary) unit moment vector
+      
 
       ! Optimization used variables
       integer, intent(inout)                         :: max_no_constellations  !< Max number of constellations for all ensembles
@@ -360,10 +365,11 @@ contains
       ! The Depondt solver
       !------------------------------------------------------------------------------
       elseif(SDEalgh==5) then
-         ! Selective moment update only some moments are evolved
-         call depondt_evolve_second(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,  &
-            btorque,emom,emom2,delta_t,stt,do_she,she_btorque,do_sot,sot_btorque,   &
-            red_atom_list)
+          ! Selective updater only some moments are updated    
+        call depondt_evolve_second(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,  &
+         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,  &
+         red_atom_list)
+          
       !------------------------------------------------------------------------------
       ! Mentink's Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------

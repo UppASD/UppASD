@@ -35,8 +35,8 @@ contains
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
    subroutine setup_clus_geometry(NA,N1,N2,N3,N1_clus,N2_clus,N3_clus,NA_clus,      &
-      do_ralloy,block_size,Natom_full,Nchmax_clus,Natom_full_clus,Nch_clus,tseed,   &
-      C1,C2,C3,C1_clus,C2_clus,C3_clus,Bas,chconc_clus,clus_expand,index_clus,         &
+      do_ralloy,block_size,Natom_full,Nchmax_clus,Natom_full_clus,Nch_clus,         &
+      C1,C2,C3,C1_clus,C2_clus,C3_clus,Bas,chconc_clus,clus_expand,index_clus,      &
       Natom_clus,atype_inp_clus,anumb_inp_clus,Bas_clus,coord_clus)
 
       implicit none
@@ -45,7 +45,6 @@ contains
       integer, intent(in) :: N1  !< Number of cell repetitions in x direction
       integer, intent(in) :: N2  !< Number of cell repetitions in y direction
       integer, intent(in) :: N3  !< Number of cell repetitions in z direction
-      integer, intent(in) :: tseed        !< Temperature seed
       integer, intent(in) :: N1_clus      !< Number of cell repetitions in x direction for the cluster
       integer, intent(in) :: N2_clus      !< Number of cell repetitions in y direction for the cluster
       integer, intent(in) :: N3_clus      !< Number of cell repetitions in z direction for the cluster
@@ -69,7 +68,7 @@ contains
       integer, dimension(NA_clus), intent(inout) :: atype_inp_clus  !< Type of atom from input
       integer, dimension(NA_clus), intent(inout) :: anumb_inp_clus !< Atom number in cell from input
       integer, dimension(:), allocatable, intent(inout) :: index_clus   !< Mapping of cluster indices to host indices
-      real(dblprec), dimension(3,NA), intent(inout) :: Bas           !< Coordinates for basis atoms
+      real(dblprec), dimension(3,NA), intent(in) :: Bas           !< Coordinates for basis atoms
       real(dblprec), dimension(3,NA_clus), intent(inout) :: Bas_clus !< Coordinates for basis atoms for the cluster
       real(dblprec), dimension(:,:), allocatable, intent(inout) :: coord_clus !< Coordinates of all atoms belonging to the cluster
 
@@ -83,7 +82,7 @@ contains
       ! Setup the chemical information of the generalized cluster
       if (do_ralloy==1) then
          call allocate_chemicaldata_clus(Natom_clus,1)
-         call setup_chemicaldata_clus(tseed,NA_clus,N1_clus,N2_clus,N3_clus,        &
+         call setup_chemicaldata_clus(NA_clus,N1_clus,N2_clus,N3_clus,        &
             do_ralloy,Nchmax_clus,Natom_full_clus,Nch_clus,chconc_clus,achtype_clus,&
             atype_ch_clus,asite_ch_clus,achem_ch_clus,acellnumb_clus,               &
             acellnumbrev_clus,Natom_clus,atype_clus)
@@ -135,7 +134,7 @@ contains
       integer, intent(inout) :: Natom_clus   !< Number of atoms in the cluster
       integer, intent(inout) :: clus_expand  !< Number of atoms in the cluster that do not belong to the host
       integer, dimension(:), allocatable, intent(inout) :: index_clus   !< Mapping of cluster indices to host indices
-      real(dblprec), dimension(3,NA), intent(inout) :: Bas  !< Coordinates for basis atoms
+      real(dblprec), dimension(3,NA), intent(in) :: Bas  !< Coordinates for basis atoms
       real(dblprec), dimension(3,NA_clus), intent(inout) :: Bas_clus !< Coordinates for basis atoms for the cluster
       real(dblprec), dimension(:,:), allocatable, intent(inout) :: coord_clus !< Coordinates of all atoms belonging to the cluster
       ! .. Local variables
@@ -252,9 +251,9 @@ contains
          bsf(2)=floor(icvec(2)+1d-7)
          bsf(3)=floor(icvec(3)+1d-7)
          !
-         Bas(1,I0)=Bas(1,I0)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
-         Bas(2,I0)=Bas(2,I0)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
-         Bas(3,I0)=Bas(3,I0)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
+         !Bas(1,I0)=Bas(1,I0)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
+         !Bas(2,I0)=Bas(2,I0)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
+         !Bas(3,I0)=Bas(3,I0)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
       end do
 
       ! Allocate coordinate array
@@ -316,7 +315,7 @@ contains
    !> magnetic layer are considered
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
-   subroutine modify_global_coordinates(Natom,NT,NA,N1,N2,N3,Bas,C1,C2,C3,coord,    &
+   subroutine modify_global_coordinates(Natom,NA,N1,N2,N3,Bas,C1,C2,C3,coord,    &
       atype,anumb,atype_inp,anumb_inp,do_prnstruct,do_prn_poscar,tseed,simid,do_ralloy,Natom_full,&
       Natom_clus,Nchmax,Nch,acellnumb,acellnumbrev,achtype,chconc,atype_ch,asite_ch,&
       achem_ch,block_size)
@@ -325,7 +324,6 @@ contains
       use Sorting, only : mergesort
       implicit none
 
-      integer, intent(in) :: NT  !< Number of atoms in one cell
       integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: N1  !< Number of cell repetitions in x direction
       integer, intent(in) :: N2  !< Number of cell repetitions in y direction
@@ -390,7 +388,7 @@ contains
          if (clus_expand>0) then
             ! Open file for writing the coordinates
             if(do_prnstruct==1.or.do_prnstruct==2.or.do_prnstruct==4) then
-               write (filn,'(''coord.'',a8,''.out'')') simid
+               write (filn,'(''coord.'',a,''.out'')') trim(simid)
                open(ofileno, file=filn,position='append')
             end if
             ! Loop over the atoms in the cluster
@@ -475,7 +473,7 @@ contains
    !> @note IMPORTANT: In case of dilute system, Natom variable is reduced.
    !> @note Based on the routine for the host
    !----------------------------------------------------------------------------
-   subroutine setup_chemicaldata_clus(tseed,NA_clus,N1_clus,N2_clus,N3_clus,        &
+   subroutine setup_chemicaldata_clus(NA_clus,N1_clus,N2_clus,N3_clus,        &
       do_ralloy,Nchmax_clus,Natom_full_clus,Nch_clus,chconc_clus,achtype_clus,      &
       atype_ch_clus,asite_ch_clus,achem_ch_clus,acellnumb_clus,acellnumbrev_clus,   &
       Natom_clus,atype_clus)
@@ -485,7 +483,6 @@ contains
       !
       implicit none
 
-      integer, intent(in) :: tseed    !< Temperature seed
       integer, intent(in) :: NA_clus  !< Number of atoms in the cluster unit cell
       integer, intent(in) :: N1_clus  !< Number of cell repetitions in x direction for the cluster
       integer, intent(in) :: N2_clus  !< Number of cell repetitions in y direction for the cluster

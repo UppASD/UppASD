@@ -63,7 +63,7 @@ contains
       endif
 
       ! Calculate external field
-      call calc_external_fields(Natom,Mensemble,NA,iphfield,anumb,external_field,   &
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,   &
          do_bpulse,sitefld,sitenatomfld)
 
       call save_ifmom(Natom,Mensemble,simid,0,mmom,emom,mode,do_mom_legacy)
@@ -83,14 +83,22 @@ contains
       write (*,'(1x,a)') "Energy minimization in progress"
       if (minalgo==1) then
 
-         call vpo_min(nHam,mintraj_step,Natom,do_dm,do_pd,do_bq,do_chir,do_dip,     &
-            Nchmax,minitrmax,OPT_flag,do_biqdm,conf_num,2,Num_macro,do_jtensor,     &
-            plotenergy,do_anisotropy,max_no_constellations,minftol,vpomass,vpodt,   &
-            simid,do_lsf,lsf_field,exc_inter,mult_axis,lsf_interpolate,cell_index,  &
-            macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                      &
-            emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                        &
-            external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType, &
-            constlNCoup,constellations,constellationsNeighType,energy,              &
+         !!! call vpo_min(nHam,mintraj_step,Natom,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip, &
+         !!!    Nchmax,minitrmax,OPT_flag,do_biqdm,conf_num,2,Num_macro,do_jtensor,         &
+         !!!    plotenergy,do_anisotropy,max_no_constellations,minftol,vpomass,vpodt,       &
+         !!!    simid,do_lsf,lsf_field,exc_inter,mult_axis,lsf_interpolate,cell_index,      &
+         !!!    macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
+         !!!    emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
+         !!!    external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
+         !!!    constlNCoup,constellations,constellationsNeighType,energy,                  &
+         !!!    emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
+         call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,2,     &
+            Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
+            simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
+            macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
+            emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
+            external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
+            constlNCoup,constellations,constellationsNeighType,energy,                  &
             emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
 
       end if
@@ -205,7 +213,7 @@ contains
       endif
 
       ! Calculate external field
-      call calc_external_fields(Natom,Mensemble,NA,iphfield,anumb,external_field,   &
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,   &
          do_bpulse,sitefld,sitenatomfld)
 
       ! Generate the path
@@ -254,11 +262,11 @@ contains
       if (do_gneb=='Y') then
          write (*,'(1x,a)') "       GNEB calculation in progress       "
          if (minalgo==1) then
-            call gneb_mep(Mensemble,nHam,Natom,meptraj_step,do_dm,do_pd,do_bq,      &
-               do_chir,do_dip,mepitrmax,Nchmax,conf_num,do_biqdm,Num_macro,         &
-               do_jtensor,plotenergy,do_anisotropy,max_no_constellations,vpomass,   &
-               mepftol,spring,vpodt,simid,do_lsf,en_zero,fixed_if,mult_axis,        &
-               exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
+            call gneb_mep(Mensemble,nHam,Natom,meptraj_step,ham_inp%do_dm,ham_inp%do_pd,ham_inp%do_bq,      &
+               ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_dip,mepitrmax,Nchmax,conf_num,ham_inp%do_biqdm,Num_macro, &
+               ham_inp%do_jtensor,plotenergy,ham_inp%do_anisotropy,max_no_constellations,vpomass,   &
+               mepftol,spring,vpodt,simid,do_lsf,en_zero,fixed_if,ham_inp%mult_axis,        &
+               ham_inp%exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
                macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
                unitCellType,constellationsNeighType,constlNCoup,constellations,     &
                denergy,emomM,rx,dene,NA,N1,N2,N3,mode,do_mom_legacy)
@@ -271,11 +279,11 @@ contains
       if (do_gneb_ci=='Y') then
          write (*,'(1x,a)') "     CI-GNEB calculation in progress      "
          if (minalgo==1) then
-            call gneb_ci_mep(Mensemble,nHam,Natom,meptraj_step,do_dm,do_pd,do_bq,   &
-               do_chir,do_dip,mepitrmax,Nchmax,conf_num,do_biqdm,Num_macro,         &
-               do_jtensor,plotenergy,do_anisotropy,max_no_constellations,vpomass,   &
-               mepftol_ci,spring,vpodt,simid,do_lsf,en_zero,fixed_if,mult_axis,     &
-               exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
+            call gneb_ci_mep(Mensemble,nHam,Natom,meptraj_step,ham_inp%do_dm,ham_inp%do_pd,ham_inp%do_bq,   &
+               ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_dip,mepitrmax,Nchmax,conf_num,ham_inp%do_biqdm,Num_macro, &
+               ham_inp%do_jtensor,plotenergy,ham_inp%do_anisotropy,max_no_constellations,vpomass,   &
+               mepftol_ci,spring,vpodt,simid,do_lsf,en_zero,fixed_if,ham_inp%mult_axis,     &
+               ham_inp%exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
                macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
                unitCellType,constellationsNeighType,constlNCoup,constellations,     &
                denergy,emomM,ci,rx,dene,NA,N1,N2,N3,mode,do_mom_legacy)
@@ -347,11 +355,10 @@ contains
 
       call timing(0,'Hamiltonian   ','ON')
       ! Calculate effective fields at each image
-      call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,        &
-         exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,            &
+      call effective_field(Natom,Mensemble,1,Natom,emomM,mmom,    &
          external_field,tef,beff,beff1,beff2,OPT_flag,max_no_constellations,        &
          maxNoConstl,unitCellType,constlNCoup,constellations,                       &
-         constellationsNeighType,mult_axis,denergy,Num_macro,cell_index,emomM_macro,&
+         constellationsNeighType,denergy,Num_macro,cell_index,emomM_macro,&
          macro_nlistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
@@ -374,10 +381,10 @@ contains
       ! Calculation of the Hessian
       !-------------------------------------------------------------------------
       if ((do_hess_ini=='Y').or.(do_hess_fin=='Y').or.(do_hess_sp=='Y')) then
-         call hessian_wrapper(N1,N2,N3,Mensemble,nHam,Natom,do_dm,do_pd,do_bq,      &
-            do_chir,do_dip,do_biqdm,Num_macro,do_jtensor,plotenergy,                &
-            ham%max_no_neigh,do_anisotropy,ham%max_no_dmneigh,max_no_constellations,&
-            eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,mult_axis,exc_inter,lsf_field,    &
+         call hessian_wrapper(N1,N2,N3,Mensemble,nHam,Natom,ham_inp%do_dm,ham_inp%do_pd,ham_inp%do_bq,      &
+            ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_dip,ham_inp%do_biqdm,Num_macro,ham_inp%do_jtensor,plotenergy,        &
+            ham%max_no_neigh,ham_inp%do_anisotropy,ham%max_no_dmneigh,max_no_constellations,&
+            eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,ham_inp%mult_axis,ham_inp%exc_inter,lsf_field,    &
             do_hess_sp,do_hess_ini,do_hess_fin,lsf_interpolate,OPT_flag,ham%aHam,   &
             ham%taniso,ham%nlistsize,ham%dmlistsize,cell_index,macro_nlistsize,     &
             ham%nlist,ham%dmlist,C1,C2,C3,ene0,ene%energy(:),coord,ham%eaniso,ham%kaniso,  &

@@ -47,13 +47,13 @@ contains
 
    !---------------------------------------------------------------------------
    !> @brief
-   !> Monte Carlo initial phase.
+   !> Replica Exchange / Parallel Tempering Monte Carlo initial phase.
    !> This phase of the program is used for equillibration.
    !> No measurements are performed.
-   !> Choose between Monte Carlo, Heat Baths or Spin Dynamics.
+   !> Currently only Heat Bath MC is supported
    !
    !> @author
-   !> Anders Bergman, Lars Bergqvist, Jonathan Chico
+   !> Anders Bergman
    !---------------------------------------------------------------------------
    subroutine pt_iphase()
 
@@ -77,13 +77,13 @@ contains
 
       integer :: irep, ipmcstep
       integer :: i_all, i_stat
-      real(dblprec) :: temprescale,dummy
+      real(dblprec) :: temprescale
       character(len=30) :: filn
       integer :: mc_nmeas,mc_nsamp, ishift
-      real(dblprec) :: mc_mavg,mc_mavg2,mc_mavg4,mc_minst
+      real(dblprec) :: mc_mavg, mc_mavg2, mc_mavg4
       real(dblprec) :: mc_avcum,mc_avsus
       real(dblprec) :: mavg
-      real(dblprec) :: rep_tmp, temp_tmp
+      real(dblprec) :: temp_tmp
       real(dblprec) :: try_pow
       real(dblprec) :: n_hit, n_miss, n_trial
       real(dblprec), dimension(:), allocatable :: repene  !< Array of replica energies
@@ -97,7 +97,7 @@ contains
 
       pt_numrep=ipmcnphase
       ! Write header for moment file
-      write (filn,'(''ptinitial.'',a8,''.out'')') simid
+      write (filn,'(''ptinitial.'',a,''.out'')') trim(simid)
       open(11, file=filn, position="append")
       write(11,'(a)') "#  Iter.   M_avg.    U_Bind.    Susc."
 
@@ -159,7 +159,7 @@ contains
       endif
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-      call calc_external_fields(Natom, Mensemble, NA, hfield, anumb, external_field,&
+      call calc_external_fields(Natom, Mensemble, hfield, anumb, external_field,&
          do_bpulse,sitefld,sitenatomfld)
 
       ! Set up order for Metropolis sweeps
@@ -177,8 +177,7 @@ contains
       ! Loop over steps of sweeps
       do ipmcstep=1,ipmcnstep(1)
          do irep=1,pt_numrep
-            !print *,'-----------------------',ipTemp(irep)
-            !print '(3f10.4)',emom(:,:,1)
+            
             ! Rescaling of temperature according to Quantum Heat bath
             temprescale=1.0_dblprec
             !if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='T') then
@@ -190,34 +189,25 @@ contains
             !   endif
             !endif
 
-            !! Perform metropolis algorithm
-            !call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(irep),temprescale,ipmode,     &
-            !   conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,                &
-            !   lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,mult_axis,&
-            !   iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),do_dip,Num_macro,      &
-            !   max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,      &
-            !   emomM_macro,emom_macro,mmom_macro,do_anisotropy)
-
             call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(irep),temprescale,'H',&
-               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,           &
-               lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,     &
-               mult_axis,iflip_a,pt_emomM(:,:,:,irep),pt_emom(:,:,:,irep),          &
-               pt_mmom(:,:,irep),ind_mom_flag,iphfield(1:3),do_dip,Num_macro,       &
+               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,           &
+               lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, ham_inp%do_biqdm,ham_inp%do_bq, ham_inp%do_ring,    &
+               ham_inp%do_chir, ham_inp%do_sa, ham_inp%mult_axis,iflip_a,pt_emomM(:,:,:,irep),pt_emom(:,:,:,irep), &
+               pt_mmom(:,:,irep),ind_mom_flag,iphfield(1:3),ham_inp%do_dip,Num_macro,       &
                max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist, &
                pt_emomM_macro(:,:,:,irep),pt_emom_macro(:,:,:,irep),                &
-               pt_mmom_macro(:,:,irep),do_anisotropy)
+               pt_mmom_macro(:,:,irep),ham_inp%do_anisotropy)
 
 
             !Calculate energy for PT exchange
             if( mod(ipmcstep, pt_step)==0 ) then
                repene(irep)=0.0_dblprec
 
-               call effective_field(Natom,Mensemble,1,Natom,do_jtensor,             &
-                  do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,&
-                  pt_emomM(:,:,:,irep),pt_mmom(:,:,irep),external_field,            &
-                  time_external_field,beff,beff1,beff2,OPT_flag,                    &
+               call effective_field(Natom,Mensemble,1,Natom,pt_emomM(:,:,:,irep),   &
+                  pt_mmom(:,:,irep),            &
+                  external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                  constellations,constellationsNeighType,mult_axis,repene(irep),    &
+                  constellations,constellationsNeighType,repene(irep),    &
                   Num_macro,cell_index,pt_emomM_macro(:,:,:,irep),macro_nlistsize,  &
                   NA,N1,N2,N3)
 
@@ -226,8 +216,9 @@ contains
 
          end do
 
-            !PT exchange here
-            if( mod(ipmcstep, pt_step)==0 ) then
+            !PT exchange here (Not for the last 10% of the run (to equilibrate
+            !temperature)
+            if( mod(ipmcstep, pt_step)==0 .and.  ipmcstep/(1.0d0*ipmcnstep(1))<0.90d0)  then
 
                call rng_uniform(pt_flipprob(:),pt_numrep)
 
@@ -235,11 +226,7 @@ contains
                   do irep=1+ishift,pt_numrep-1,2
 
                      n_trial=n_trial+1.0_dblprec
-                     !print '(a,i4,a,f12.6)', 'Replica #',irep,"  Energy: " , repene(irep)
-                     !rint '(a,i4,a,f12.6)', 'Replica #',irep+1,"  Energy: " , repene(irep+1)
-
-                     !temp_1=ipTemp(templist(irep))
-                     !temp_2=ipTemp(templist(irep+1))
+                     
                      temp_1=ipTemp(irep)
                      temp_2=ipTemp(irep+1)
                      beta_1=1.0_dblprec/k_bolt/(temprescale*temp_1+1.0d-15)
@@ -247,27 +234,17 @@ contains
                      ene_1=repene(irep)*mry/Natom
                      ene_2=repene(irep+1)*mry/Natom
                      try_pow=(ene_2-ene_1)*(beta_2-beta_1)
-                     !print '(6g20.8)',ene_1,ene_2,beta_1,beta_2,try_pow, exp(try_pow)
+                     
                      trial_prob=min(1.0_dblprec,exp(try_pow))
-                     !if(ene_1-k_bolt*temp_1>ene_2-k_bolt*temp_2) trial_prob=1.0_dblprec
-
-                     !if(trial_prob>=pt_flipprob(irep)) then
-                     !if(ene_1-k_bolt*temp_1>ene_2-k_bolt*temp_2) then
+                     
                      if(pt_flipprob(irep)<=trial_prob) then
                         temp_tmp=ipTemp(irep)
                         ipTemp(irep)=ipTemp(irep+1)
                         ipTemp(irep+1)=temp_tmp
-                        !temp_tmp=templist(irep)
-                        !rep_tmp=replist(irep)
-                        !templist(irep)=templist(irep+1)
-                        !replist(irep)=replist(irep+1)
-                        !templist(irep+1)=temp_tmp
-                        !replist(irep+1)=rep_tmp
-                        !print *,'hit', irep , '<-->', irep+1
                         n_hit=n_hit+1.0_dblprec
                      else
                         n_miss=n_miss+1.0_dblprec
-                     !  print *,'miss'
+                     !  
                   end if
 
                end do
@@ -278,28 +255,6 @@ contains
          ! Sample m, m2, m4 for second half of run (every tenth step)
          if(ipmcstep>ipmcnstep(1)/2.and.mod(ipmcstep-1,10)==0) then
 
-            !!! ! Calculate m_avg
-            !!! mc_minst=0.0_dblprec
-            !!! do k=1,Mensemble
-            !!!    mc_minst=sqrt(sum(emomM(1,:,k))**2+sum(emomM(2,:,k))**2+sum(emomM(3,:,k))**2)/natom/Mensemble
-            !!!    mc_mavg=mc_mavg+mc_minst
-            !!!    mc_mavg2=mc_mavg2+mc_minst*mc_minst
-            !!!    mc_mavg4=mc_mavg4+mc_minst*mc_minst*mc_minst*mc_minst
-            !!!    mc_nmeas=mc_nmeas+1
-            !!! end do
-
-            !!! ! Calculate Binder cumulant for final quarter of run
-            !!! if(ipmcstep>3*ipmcnstep(i)/4) then
-            !!!    mc_avcum=mc_avcum+1.0_dblprec-(mc_mavg4/mc_nmeas)/((mc_mavg2/mc_nmeas)**2)/3.0_dblprec
-            !!!    mc_avsus=mc_avsus+((mc_mavg2/mc_nmeas)-(mc_mavg/mc_nmeas)**2)
-            !!!    mc_nsamp=mc_nsamp+1
-
-            !!!    ! Print Binder cumulant and susceptibility for final tenth of run
-            !!!    if(ipmcstep>ipmcnstep(i)*0.9_dblprec) then
-            !!!       write(11,'(i8,4f10.6,3f18.6)') ipmcstep,mc_mavg/mc_nmeas,&
-            !!!          mc_avcum/mc_nsamp, mc_avsus/mc_nsamp/(8.617343d-5)/ (ipTemp(i)+1.0d-15) *Mensemble
-            !!!    end if
-            !!! end if
 
          end if
 
@@ -307,14 +262,7 @@ contains
          if (mod(ipmcstep,ipmcnstep(1)/10)==0) then
 
             print '(2x,a,i5,a,f10.0,a,f5.2,a)', "IP PT ", ipmcstep*100/ipmcnstep(1),"% done.  No. trials: ",n_trial, " Hitrate: ",n_hit/n_trial*100, "%"
-            !call calc_mavrg(Natom,Mensemble,emomM,mavg)
-            !if(ipmcstep<=3*ipmcnstep(i)/4) then
-            !   write(*,'(2x,a,i5,a,f10.6)') "IP MC ",ipmcstep*100/ipmcnstep(i),"% done. Mbar:", mavg
-            !else
-            !   write(*,'(2x,a,i5,a,f10.6,a,f10.6,a,f10.6)') "IP MC ",ipmcstep*100/ipmcnstep(i),"% done. Mbar:", mavg,&
-            !      "  U(L):",mc_avcum/mc_nsamp, &
-            !      "  X:",mc_avsus/mc_nsamp/(8.617343d-5)/ (ipTemp(i)+1.0d-15)*Mensemble
-            !end if
+            call pt_prn_mag_conf_clone(Natom,0,pt_numrep,'X',simid,pt_mmom(:,1,:),pt_emom(:,:,1,:),'',mode,iptemp)
 
             call choose_random_atom_x(Natom,iflip_a)
          end if
@@ -334,12 +282,11 @@ contains
          !Calculate energy for PT exchange
          repene(irep)=0.0_dblprec
 
-         call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,     &
-            exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,                    &
+         call effective_field(Natom,Mensemble,1,Natom, &
             pt_emomM(:,:,:,irep),pt_mmom(:,:,irep),external_field,                  &
             time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,    &
             maxNoConstl,unitCellType,constlNCoup,constellations,                    &
-            constellationsNeighType,mult_axis,repene(irep),Num_macro,cell_index,    &
+            constellationsNeighType,repene(irep),Num_macro,cell_index,    &
             pt_emomM_macro(:,:,:,irep),macro_nlistsize,NA,N1,N2,N3)
 
             call calc_mavrg(Natom,Mensemble,pt_emomM(:,:,:,irep),mavg)
@@ -351,11 +298,12 @@ contains
 
       ! Copy equillibrated moments for use in measurement phase
       irep=1
-      !do while (templist(irep)<pt_numrep)
+      
       do while (repene(irep)>minval(repene))
          irep=irep+1
       end do
       print *,' Selected replica:',irep
+
       emomM=pt_emomM(:,:,:,irep)
       emom=pt_emom(:,:,:,irep)
       mmom=pt_mmom(:,:,irep)
@@ -418,5 +366,54 @@ contains
       !
    end subroutine pt_iphase
 
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: prn_mag_conf_iter
+   !> @brief Prints a given magnetic configuration for either a restartfile or a momentfile
+   !> @details Prints a magnetic configuration, the objective is to make all the types
+   !> of printing honogeneous, of that way restartfiles, momentfiles and GNEB files
+   !> would have all the same structure.
+   !> Cloned from prn_mag_conf_iter() 
+   !> @author Jonathan Chico
+   !---------------------------------------------------------------------------------
+   subroutine pt_prn_mag_conf_clone(Natom,mstep,Mensemble,type,simid,mmom,emom,suffix, mode,Mtemp)
+
+      implicit none
+
+      integer, intent(in) :: Natom     !< Number of atoms in system
+      integer, intent(in) :: mstep     !< Current simulation step
+      integer, intent(in) :: Mensemble !< Number of ensembles 
+      character(len=1), intent(in) :: type   !< type to see whether the file is a restartfile or a momentfile
+      character(len=1), intent(in) :: mode   !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
+      character(len=8), intent(in) :: simid  !< Name of simulation
+      character(len=*), intent(in) :: suffix !< Suffix to be appended to the files
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+      real(dblprec), dimension(Mensemble), intent(in) :: Mtemp !< Temperature array
+
+      !.. Local variables
+      integer :: ii,jj
+      character(len=40) filn,fil_pos
+
+      ! Write the name of the restartfile and the position of the writing of file
+         write (filn,'(''pt_restart'',a,''.'',a,''.out'')') suffix,trim(simid)
+         fil_pos="rewind"
+         open(ofileno,file=filn,position=trim(fil_pos))
+         write(ofileno,'(a)') repeat("#",80)
+         write(ofileno,'(a,1x,a)') "# File type:", type
+         write(ofileno,'(a,1x,a)') "# Simulation type:", mode
+         write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+         write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
+         write(ofileno,'(a)') repeat("#",80)
+         write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#iter","Temp","iatom","|Mom|","M_x","M_y","M_z"
+
+      do ii=1, Mensemble
+         do jj=1, Natom
+            write(ofileno,10003) mstep,Mtemp(ii),jj, mmom(jj,ii), emom(1,jj,ii),emom(2,jj,ii),emom(3,jj,ii)
+         enddo
+      enddo
+      close(ofileno)
+      10003 format(i8,f8.3,i8,2x,es16.8,es16.8,es16.8,es16.8)
+
+   end subroutine pt_prn_mag_conf_clone
 
 end module pt_driver

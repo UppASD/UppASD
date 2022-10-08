@@ -23,7 +23,7 @@ CXX = icc
 # -ipo        Inline between files
 # -xP         Intel processor specific optimizations
 # -fast       Uses -ipo -O3 -xP  -static
-FCFLAGS = -O3 -ip  -xHost  -align array16byte
+FCFLAGS = -O3 -ip  -xHost  -align array16byte  -assume realloc_lhs 
 
 # Basic debug settings explained
 # -g           Debug with gdb

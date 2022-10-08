@@ -17,7 +17,14 @@ module temperature
    real(dblprec), dimension(:), allocatable   :: temp_array      !< temperature as an array
    real(dblprec), dimension(:,:),allocatable  :: iptemp_array    !< temperature (array) for initial phase
 
-   real(dblprec),dimension(:),allocatable     :: spintemp_array  !< temperature (array) for initial phase
+   real(dblprec), dimension(:), allocatable   :: temp_s_array      !< spin temperature as an array
+   real(dblprec), dimension(:,:),allocatable  :: iptemp_s_array    !< spin temperature (array) for initial phase
+   real(dblprec), dimension(:), allocatable   :: temp_l_array      !< lattice temperature as an array
+   real(dblprec), dimension(:,:),allocatable  :: iptemp_l_array    !< lattice temperature (array) for initial phase
+   real(dblprec), dimension(:), allocatable   :: temp_e_array      !< electron temperature as an array
+   real(dblprec), dimension(:,:),allocatable  :: iptemp_e_array    !< electron temperature (array) for initial phase
+
+   real(dblprec),dimension(:),allocatable     :: spintemp_sample  !< temperature (array) for initial phase
    integer :: spintemp_samp_done
 
    ! temperature gradient
@@ -70,12 +77,21 @@ module temperature
    real(dblprec) :: temp_low_x,temp_high_x, temp_high_y, temp_low_y, temp_high_z,temp_low_z !< boundary conditions for the 1d laplace equation
    integer :: barr_size ! size of the stpe for the tprof=1dstep
 
+   ! Three-temperature model
+
+   character(len=1) :: do_3tm               !< Use the 3TM for spin-lattice simulations (Y)/N/E 
+   real(dblprec) :: temp_spin_init          !< Initial spin temperature in 3TM (default Temp)
+   real(dblprec) :: temp_latt_init          !< Initial spin temperature in 3TM (default Temp)
+   real(dblprec) :: temp_elec_init          !< Initial spin temperature in 3TM (default Temp)
+
+
    private
 
-   public :: temp_array, iptemp_array, spintemperature
+   public :: temp_array, iptemp_array, spintemperature, do_3tm
    public :: grad, tempfile,temp_low_x,temp_high_x, temp_high_y, temp_low_y
    public :: allocate_temp, setup_temp, read_temperature, deallocate_temp, set_temperature_defaults
    public :: read_temperature_legacy, lparray
+   public :: f_spintemp
 
 contains
 
@@ -102,9 +118,9 @@ contains
       real(dblprec) :: spintemp, spintempnom, spintempdenom
 
       if (flag==0) then
-         allocate(spintemp_array(ntemp),stat=i_stat)
-         call memocc(i_stat,product(shape(spintemp_array))*kind(spintemp_array),'spintemp_array','spintemperature')
-         spintemp_array=0.0_dblprec
+         allocate(spintemp_sample(ntemp),stat=i_stat)
+         call memocc(i_stat,product(shape(spintemp_sample))*kind(spintemp_sample),'spintemp_sample','spintemperature')
+         spintemp_sample=0.0_dblprec
          spintemp_samp_done=1
       endif
       if (flag==1) then
@@ -126,28 +142,67 @@ contains
          spintemp=spintemp/mensemble
          spintemp=(mub*spintemp)/(2*k_bolt)
 
-         spintemp_array(spintemp_samp_done)=spintemp
+         spintemp_sample(spintemp_samp_done)=spintemp
 
-         write (filn,'(''spintemp.'',a8,''.out'')') simid
+         write (filn,'(''spintemp.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn, position='append')
 
-         write(ofileno,20002) mstep,spintemp_array(spintemp_samp_done), &
-            sum(spintemp_array(1:spintemp_samp_done))/spintemp_samp_done, &
-            sum(abs(spintemp_array(1:spintemp_samp_done)))/spintemp_samp_done
+         write(ofileno,20002) mstep,spintemp_sample(spintemp_samp_done), &
+            sum(spintemp_sample(1:spintemp_samp_done))/spintemp_samp_done, &
+            sum(abs(spintemp_sample(1:spintemp_samp_done)))/spintemp_samp_done
 
          close(ofileno)
          spintemp_samp_done=spintemp_samp_done+1
 
       endif
       if (flag==2) then
-         i_all=-product(shape(spintemp_array))*kind(spintemp_array)
-         deallocate(spintemp_array,stat=i_stat)
-         call memocc(i_stat,i_all,'spintemp_array','spintemperature')
+         i_all=-product(shape(spintemp_sample))*kind(spintemp_sample)
+         deallocate(spintemp_sample,stat=i_stat)
+         call memocc(i_stat,i_all,'spintemp_sample','spintemperature')
       endif
 
       20002 format (i8,2x,es16.8,es16.8,es16.8)
 
    end subroutine spintemperature
+
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: f_spintemp
+   !> @brief Calculation of the spin temperature 
+   !> @author Anders Bergman (based on spintemperature())
+   !-----------------------------------------------------------------------------
+   function f_spintemp(natom, mensemble, emomm, beff) result(spintemp)
+
+      implicit none
+
+      integer, intent(in) :: natom !< number of atoms in system
+      integer, intent(in) :: mensemble !< number of ensembles
+      real(dblprec), dimension(3,natom,mensemble), intent(in) :: emomm  !< current magnetic moment vector
+      real(dblprec), dimension(3,natom,mensemble), intent(in) :: beff !< effective field
+
+      integer :: l,r
+      real(dblprec) :: spintemp
+      real(dblprec) ::  spintempnom, spintempdenom
+
+         spintemp=0.0_dblprec
+         spintempnom=0_dblprec
+         spintempdenom=0_dblprec
+         do l=1,mensemble
+            do r=1,natom
+               spintempnom = spintempnom + &
+                  ((emomm(2,r,l)*beff(3,r,l)-emomm(3,r,l)*beff(2,r,l))**2 + &
+                  (emomm(3,r,l)*beff(1,r,l)-emomm(1,r,l)*beff(3,r,l))**2 + &
+                  (emomm(1,r,l)*beff(2,r,l)-emomm(2,r,l)*beff(1,r,l))**2)
+               spintempdenom = spintempdenom + &
+                  (emomm(1,r,l)*beff(1,r,l)+emomm(2,r,l)*beff(2,r,l)+ emomm(3,r,l)*beff(3,r,l))
+            end do
+         enddo
+         spintempdenom = spintempdenom + 1.0e-12_dblprec
+         spintemp = spintempnom / spintempdenom
+
+         spintemp=spintemp/mensemble
+         spintemp=(mub*spintemp)/(2*k_bolt)
+
+   end function f_spintemp
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: allocate_temp
@@ -341,7 +396,7 @@ contains
 
       ! printing the final temperature file and for comparison the intial temperature file
       if (grad.eq.'Y'.or.grad.eq.'F') then
-         write(filn,'(''temperature.'',a8,''.out'')') simid
+         write(filn,'(''temperature.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn,position="append")
          do i=1, Natom
             write(ofileno,'(i8,3f16.8,f16.8,2x,f16.8)') i, coord(1:3,i),temp_array(i), temp_init(i)
@@ -633,8 +688,8 @@ contains
 
       implicit none
 
-      integer :: i_err,i_stat,rd_len,i_errb
-      character(len=50) :: keyword, cache
+      integer :: i_err, rd_len, i_errb
+      character(len=50) :: keyword
       logical :: comment
 
       open(500,file=trim(tempfile))
@@ -770,7 +825,7 @@ contains
 
       n=1
 
-      print '(4f10.4)',temp_low_y,temp_high_y,temp_low_x,temp_high_x
+      !print '(4f10.4)',temp_low_y,temp_high_y,temp_low_x,temp_high_x
       do i=1, natom
          ! fill up the array with the results of the chosen function given by the boundary conditions
          tarray(i) = lpfunction(temp_low_y,temp_high_y,temp_low_x,temp_high_x,coord,natom,i,n,grad,bounds,temp)
@@ -778,7 +833,7 @@ contains
 
       ! printing the final temperature file and for comparison the intial temperature file
       if (printme) then
-         write(filn,'(''temperature.'',a8,''.out'')') simid
+         write(filn,'(''temperature.'',a,''.out'')') trim(simid)
          open(45,file=filn)
          do i=1, natom
             write(45,'(i8,3f16.8,f16.8)') i, coord(1:3,i),tarray(i)

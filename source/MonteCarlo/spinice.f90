@@ -33,11 +33,13 @@ contains
    !> @author Jonathan Chico and Anders Bergman
    !-----------------------------------------------------------------------------
    subroutine mc_update_spinice(Natom,Mensemble,nHam,max_no_neigh,conf_num,ncoup,ncoupD,&
-      nlist,nlistsize,aham,do_dm,max_no_dmneigh,dm_vect,dmlist,dmlistsize,&
+      nlist,nlistsize,aham,&
+      do_dm,max_no_dmneigh,dm_vect,dmlist,dmlistsize,&
       do_pd,nn_pd_tot,pd_vect,pdlist,pdlistsize,&
       do_biqdm,nn_biqdm_tot,biqdm_vect,biqdmlist,biqdmlistsize,&
       do_bq,nn_bq_tot,j_bq,bqlist,bqlistsize,&
       do_chir,nn_chir_tot,chir_coup,chirlist,chirlistsize,&
+      do_sa,max_no_saneigh,sa_vect,salist,salistsize,&
       taniso,eaniso,kaniso,sb,emomM,emom,mmom,iflip_a,extfield,&
       mult_axis,taniso_diff,eaniso_diff,kaniso_diff,sb_diff,&
       do_dip,Qdip,exc_inter,temperature,temprescale,&
@@ -84,6 +86,11 @@ contains
       real(dblprec), dimension(nn_chir_tot,Natom), intent(in) :: chir_coup !< Pseudo-Dipolar exchange vector
       integer, dimension(nn_chir_tot,Natom), intent(in) :: chirlist   !< List of neighbours forchir 
       integer, dimension(Natom),intent(in) :: chirlistsize !< Size of neighbour list forchir 
+      integer, intent(in) :: do_sa   !< Add symmetric anisotropic (SA) term to Hamiltonian (0/1)
+      integer, intent(in) :: max_no_saneigh !< Calculated number of neighbours with SA interactions
+      real(dblprec), dimension(3,max_no_saneigh,Natom), intent(in) :: sa_vect !< Symmetric anisotropic exchange vector
+      integer, dimension(max_no_saneigh,Natom), intent(in) :: salist   !< List of neighbours for SA
+      integer, dimension(Natom),intent(in) :: salistsize !< Size of neighbour list for SA
       integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
       integer, dimension(Natom),intent(in) :: taniso_diff !< Type of anisotropy (0-2)
       real(dblprec), dimension(3,Natom), intent(in) :: eaniso !< Unit anisotropy vector
@@ -161,10 +168,10 @@ contains
          ! Calculate energy and flip spin if preferred
          !$omp parallel do default(shared), private(i,de), schedule(static,1)
          do i=1, Natom
-            call  calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_chir,&
+            call  calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, 0, do_chir,do_sa,&
             emomM, emom, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i)), extfield, de, k, &
             mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-            macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy)
+            macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,0)
 
             call flip_a(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),&
             newmom_a(1:3,iflip_a(i)),newmmom_a(iflip_a(i)),&
@@ -178,7 +185,6 @@ contains
          do i=1,Nvertex
             vertex_map(i)=ice_rule(Natom,Mensemble,k,emom,i,ve,ice_count,ice_count_up,ice_count_down)
          end do
-         !print '(32L1)',vertex_map
 
          do iatom=1, Natom
             !call select_cluster(Natom,Mensemble,emom, Ncount_atom, loop_len, k)
@@ -247,11 +253,10 @@ contains
       logical :: loop_closed, atom_selected, failure, total_failure, vertex_selected
 
       integer :: start_vertex, current_vertex, next_vertex, prev_vertex, flip_atom
-      integer :: flip_atom_list_num, prev_flip_atom,prev_flip_atom_num_list
       !
-      integer, dimension(:), allocatable :: visited_vertices, snake, atomsnake ! This are the vertices that are visited and form the cluster
+      integer, dimension(:), allocatable :: visited_vertices, atomsnake
       logical, dimension(:), allocatable :: occupied
-      integer :: snaketail, atomlen, i, j,snakehead  ! This are the indexes used for the cluster
+      integer :: atomlen, i, j, snakehead
 
       real(dblprec) :: dflip(1)
       integer :: ntrial, npossible
@@ -266,7 +271,7 @@ contains
       ! Allocating the vertex snake and the atom snake (clusters for atoms and vertices)
       !allocate(snake(Nvertex))
       allocate(atomsnake(Nvertex+1))
-      !allocate(visited_vertices(Nvertex))
+      allocate(visited_vertices(Nvertex))
       allocate(occupied(Nvertex))
       allocate(shortlist(maxval(nlistsize_ver)))
       visited_vertices=0

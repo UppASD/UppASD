@@ -17,20 +17,10 @@ CXX = x86_64-w64-mingw32-g++
 #------------------------------------------------#
 # Flags for FORTRAN compilation
 #------------------------------------------------#
-# First check compiler version for version dependent flag setting
-GFORTVER := $(shell $(FC) --version | head -1 | awk '{ print $$NF}' | sed 's/\./ /g' | awk '{ print $$1}')
-$(info $$GFORTVER is [$(GFORTVER)] [$(FC)])
-# Then use -fallow-argument-mismatch if GFORTVER > 8.x; otherwise use flag is not needed
-ifneq ($(shell test $(GFORTVER) -gt 9; echo $$?),0)
-FCARGCHECK =
-else
-FCARGCHECK = -fallow-argument-mismatch
-endif
-
 # Basic optimization settings explained
 # -O3                      Optimization, faster exeuction, slower make times
 # -ffree-line-length-200   Allow long lines
-FCFLAGS = -O3 -ffree-line-length-0 $(FCARGCHECK)
+FCFLAGS = -O3 -ffree-line-length-0
 
 #------------------------------------------------#
 # Flags for C compilation

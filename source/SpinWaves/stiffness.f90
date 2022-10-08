@@ -70,7 +70,7 @@ contains
          A_xc_stiffness_matrix_lsq)
 
       use Constants
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
 
       implicit none
 
@@ -136,10 +136,10 @@ contains
       real(dblprec) :: rij2, rij, rfit, drfit, stiff_par
 
       real(dblprec), dimension(3) :: rcoord
-      real(dblprec), dimension(eta_max) :: temp_x, eig_val, eig_val_temp
+      real(dblprec), dimension(0:eta_max) :: temp_x, eig_val, eig_val_temp
       real(dblprec), dimension(eta_max-(eta_min-1),3) :: lmatrix
       real(dblprec), dimension(eta_max-(eta_min-1)) :: dvector
-      real(dblprec), dimension(eta_max,3,3) :: eig_val_mat
+      real(dblprec), dimension(0:eta_max,3,3) :: eig_val_mat
 
       real(dblprec), dimension(:), allocatable :: wres
       real(dblprec), dimension(:), allocatable :: awork
@@ -191,11 +191,11 @@ contains
       call memocc(i_stat,product(shape(A_inplace))*kind(A_inplace),'A_inplace','ferro_stiffness')
       allocate(A_mat_inplace(NA,NA),stat=i_stat)
       call memocc(i_stat,product(shape(A_mat_inplace))*kind(A_mat_inplace),'A_mat_inplace','ferro_stiffness')
-      allocate(etemp(NA,NA,eta_max),stat=i_stat)
+      allocate(etemp(NA,NA,0:eta_max),stat=i_stat)
       call memocc(i_stat,product(shape(etemp))*kind(etemp),'etemp','ferro_stiffness')
-      allocate(stiff_matrix(NA,NA,eta_max),stat=i_stat)
+      allocate(stiff_matrix(NA,NA,0:eta_max),stat=i_stat)
       call memocc(i_stat,product(shape(stiff_matrix))*kind(stiff_matrix),'stiff_matrix','ferro_stiffness')
-      allocate(D_matrix(3,3,NA,NA,eta_max),stat=i_stat)
+      allocate(D_matrix(3,3,NA,NA,0:eta_max),stat=i_stat)
       call memocc(i_stat,product(shape(D_matrix))*kind(D_matrix),'D_matrix','ferro_stiffness')
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -264,6 +264,7 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Calculating the saturation magnetization
       M_sat=total_mom/cell_vol
+      write(420,'(f14.6,g20.8)') total_mom,M_sat
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -273,7 +274,7 @@ contains
 
          ! Need to create a matrix which includes inter and intra sublattice interactions
          ! Now must loop over the convergency factor to make sure that the sum is well defined
-         do eta=1, eta_max
+         do eta=0, eta_max
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! Loop over atoms in the unit cell and sum up the exchange interactions
@@ -286,7 +287,7 @@ contains
                   katom=nlist(jatom,iatom)
 
                   ! Distace vector between the atoms
-                  call wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
+                  call f_wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
 
                   ! Distance vector between neighbouring atoms
                   rij2=rcoord(1)**2+rcoord(2)**2+rcoord(3)**2
@@ -325,9 +326,14 @@ contains
             A_inplace(1:NA,1:NA)=stiff_matrix(1:NA,1:NA,eta)*1d20*ry_ev
 
             ! The eigenvalues for the spin wave stiffness are calculated using LAPACK
-            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
             if(info.ne.0) then
                print '(2x,a,i4)', 'Problem in zgeev 1:',info
+            end if
+            if(eta==0) then
+               write(2420,'(3f14.6)') A_inplace/ry_ev
+               write(1420,'(3f14.6)') maxval((rwres))/ry_ev
+               write(420,'(3f14.6)') maxval((rwres))
             end if
 
             ! Temporal x-axis for the fitting to a polynomial
@@ -346,13 +352,19 @@ contains
                   ! Transform to meVA^2
                   A_mat_inplace(1:NA,1:NA)=D_matrix(ii,jj,1:NA,1:NA,eta)*1d20*ry_ev
                   ! Calculate eigenvalues for each component of the matrix
-                  call dgeev('N','N',NA, A_mat_inplace, NA, rwres_mat, iwres_mat, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+                  call dgeev('N','N',NA, A_mat_inplace, NA, rwres_mat, iwres_mat, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
                   if(info.ne.0) then
                      print '(2x,a,i4)', 'Problem in zgeev 2:',info
                   end if
                   eig_val_mat(eta,ii,jj)=maxval((rwres_mat))
                enddo
             enddo
+            !  AB hack
+            if(eta==0) then
+               write(2420,'(3f14.6)') D_matrix(:,:,1,1,eta)*1d20
+               write(1420,'(3f14.6)') eig_val_mat(eta,:,:)/ry_ev
+               write(420,'(3f14.6)') eig_val_mat(eta,:,:)
+            end if
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! End of calculation of eignevalues for the stiffness tensor
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -485,7 +497,7 @@ contains
                   katom=nlist(jatom,iatom)
 
                   ! Distace vector between the atoms
-                  call wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
+                  call f_wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
 
                   ! Distance vector between neighbouring atoms
                   rij2=rcoord(1)**2+rcoord(2)**2+rcoord(3)**2
@@ -530,7 +542,7 @@ contains
             A_inplace(1:NA,1:NA)=stiff_matrix(1:NA,1:NA,eta)*1d20*ry_ev
 
             ! The eigenvalues for the spin wave stiffness are calculated using LAPACK
-            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
             if(info.ne.0) then
                print '(2x,a,i4)', 'Problem in zgeev 4:',info
             end if
@@ -551,7 +563,7 @@ contains
                   ! Transform to meVA^2
                   A_mat_inplace(1:NA,1:NA)=D_matrix(ii,jj,1:NA,1:NA,eta)*1d20*ry_ev
                   ! Calculate eigenvalues for each component of the matrix
-                  call dgeev('N','N',NA, A_mat_inplace, NA, rwres_mat, iwres_mat, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+                  call dgeev('N','N',NA, A_mat_inplace, NA, rwres_mat, iwres_mat, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
                   eig_val_mat(eta,ii,jj)=maxval((rwres_mat))
                enddo
             enddo
@@ -656,7 +668,7 @@ contains
          J0_matrix=J0_matrix/eta_max
          A_inplace(1:NA,1:NA)=(J0_matrix*ry_ev*1e-3)/k_bolt_ev
          ! The eigenvalues for the spin wave stiffness are calculated using LAPACK
-         call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+         call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
          if(info.ne.0) then
             print '(2x,a,i4)', 'Problem in zgeev 5:',info
          end if
@@ -729,7 +741,7 @@ contains
          dmlistsize,dmlist,alat,coord,ammom_inp,dm_vect,DM0_mat,DM0_mat_lsq,aham)
 
       use Constants
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
 
       implicit none
 
@@ -761,13 +773,12 @@ contains
 
       ! .. Local variables
       integer :: info,ii,jj,i_stat,i_all
-      integer :: i, j, k, lwork, alwork, eta
+      integer :: i, j, k, alwork, eta
       integer :: iatom, jatom, iham
       integer :: katom, I1, I2, I3, countstart
       real(dblprec) :: rij2, rij
       real(dblprec) :: fcinv, dmsign
       real(dblprec) :: dm_mag_par
-      real(dblprec), dimension(500) :: lp_work
       real(dblprec), dimension(3) :: rcoord, DM_xc, dm_stiff,dij
       real(dblprec), dimension(:),allocatable :: eigenvals
       real(dblprec), dimension(:,:,:,:,:), allocatable :: dm_mat !< Matrix being used to calculate the DM stiffness
@@ -840,7 +851,7 @@ contains
                ! Neighbouring atom
                katom=dmlist(jatom,iatom)
                ! Distance VECTOR betwwen neighbouring atoms
-               call wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
+               call f_wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
 
                ! Distance between the atoms
                rij2=rcoord(1)**2+rcoord(2)**2+rcoord(3)**2
@@ -935,10 +946,10 @@ contains
 
    !---------------------------------------------------------------------------
    !> @brief
-   !> Fitting via a rational polynomial approach
+   !> Fitting via a rational polynomial approach (from Numerical Recipes)
    !
    !> @author
-   !> Manuel Pereiro
+   !> Manuel Pereiro 
    !---------------------------------------------------------------------------
    subroutine ratint(xa,ya,n,x,y,dy)
       ! Largest expected value of n, and a small number.
@@ -1025,7 +1036,7 @@ contains
          
 
       use Constants
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
 
       implicit none
 
@@ -1072,17 +1083,17 @@ contains
       real(dblprec),dimension(na,na,natom),intent(out) :: J0_matrix_alloy !< Exchange matrix alloy
 
       ! .. Local variables
-      integer :: ii, jj,i_stat,i_all,ia
+      integer :: i_stat, i_all, ia
       integer :: lwork, info, alwork
       integer :: iatom, jatom, iham
       integer :: katom, I1, I2, I3, countstart
-      integer :: i, k, eta, ich, eta_redu
+      integer :: i, k, eta, ich
 
       real(dblprec) :: M_sat    !< Saturation magnetization muB/m^3
       real(dblprec) :: cell_vol !< Unit cell volume m^3
       real(dblprec) :: total_mom
       real(dblprec) :: fcinv, jij, jijsign
-      real(dblprec) :: rij2, rij, rfit, drfit, stiff_par
+      real(dblprec) :: rij2, rij, stiff_par
 
       real(dblprec), dimension(3) :: rcoord
       real(dblprec), dimension(eta_max) :: eig_val, eig_val_temp
@@ -1201,7 +1212,7 @@ contains
                   katom=nlist(jatom,iatom)
 
                   ! Distace vector between the atoms
-                  call wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
+                  call f_wrap_coord_diff(Natom,coord,katom,iatom,rcoord)
 
                   ! Distance vector between neighbouring atoms
                   rij2=rcoord(1)**2+rcoord(2)**2+rcoord(3)**2
@@ -1235,7 +1246,7 @@ contains
             A_inplace(1:NA,1:NA)=stiff_matrix(1:NA,1:NA,eta)*1d20*ry_ev
 
             ! The eigenvalues for the spin wave stiffness are calculated using LAPACK
-            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+            call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
             if(info.ne.0) then
                print '(2x,a,i4)', 'Problem in zgeev 4:',info
             end if
@@ -1276,7 +1287,7 @@ contains
          J0_matrix_alloy(:,:,ia)=J0_matrix_alloy(:,:,ia)/eta_max
          A_inplace(1:NA,1:NA)=(J0_matrix_alloy(:,:,ia)*ry_ev*1e-3)/k_bolt_ev
          ! The eigenvalues for the spin wave stiffness are calculated using LAPACK
-         call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,eta), NA, WORK, LWORK, INFO)
+         call dgeev('N','N',NA, A_inplace, NA, rwres, iwres, ctemp, NA, etemp(1,1,1), NA, WORK, LWORK, INFO)
          if(info.ne.0) then
             print '(2x,a,i4)', 'Problem in zgeev 5:',info
          end if

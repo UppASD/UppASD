@@ -325,7 +325,6 @@ contains
       real(dblprec), dimension(Natom), intent(inout) :: vel
       ! .. Local variables
       real(dblprec) :: fv,fd
-      integer :: ii
 
       fv = 0.0_dblprec
       fd = 0.0_dblprec

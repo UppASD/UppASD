@@ -1,0 +1,59 @@
+Additional hints for installation on high performance 
+computers that are part of the The Swedish National 
+Infrastructure for Computing (SNIC)
+---------------------------------
+
+
+PDC:
+
+Beskow:
+
+ALternative 1) Intel compiler (probably safest)
+module swap PrgEnv-cray/5.2.56 PrgEnv-intel/5.2.56
+
+make cray-nomkl (using libsci and no mkl and vsl)
+or
+make cray (using MKL and vsl)
+
+Alternative 2) Cray compiler
+
+make cray-ftn
+
+
+UPPMAX:
+
+
+
+NSC: 
+
+*** Triolith (checked 20170314) ***
+Use a recent build environment, e.g. the currently newest ones
+module add intel/17.0
+module add mkl/2017
+(or simply module add buildenv-intel/2017)
+To run tests/bergtest.py, use a python that supports yaml e.g.
+module add python/2.7.12
+
+
+HPC2N:
+
+*** abisko (checked 20170314) ***
+Use a recent build environment, e.g. the currently newest ones
+module add intel/16.0.2.181
+module add mkl/mic/11.3.2 
+In make/user_profiles/ifort.make (or corresponding profile), use
+FCOMPFLAGS = -openmp -qno-openmpsimd
+so that SIMD:s are not used .
+
+
+
+C3SE:
+
+
+
+Lunarc:
+
+
+
+
+

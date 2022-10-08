@@ -290,7 +290,7 @@ contains
       complex(dblprec), dimension(3,NA,Npadding,Mensemble), intent(out) :: emomM_trans
 
       integer :: status
-      integer :: I0,kk,nu,I1,I2,I3,ii
+      integer :: I0, kk, nu
       integer, dimension(3) :: Ndim
       integer, dimension(4) :: strides
       complex(dblprec), dimension(Npadding) :: tmp

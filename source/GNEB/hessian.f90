@@ -31,7 +31,7 @@ contains
    !> the prefactor of the Arrhenius process, i.e. in KMC terms, the attempt frequency.
    !> @author Jonathan Chico
    !---------------------------------------------------------------------------------
-   subroutine hessian_wrapper(N1,N2,N3,nim,nHam,Natom,do_dm,do_pd,do_bq,do_chir,    &
+   subroutine hessian_wrapper(N1,N2,N3,nim,nHam,Natom,do_dm,do_pd,do_bq,do_ring,do_chir, &
       do_dip,do_biqdm,Num_macro,do_jtensor,plotenergy,max_no_neigh,do_anisotropy,   &
       max_no_dmneigh,max_no_constellations,eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,   &
       mult_axis,exc_inter,lsf_field,do_hess_sp,do_hess_ini,do_hess_fin,             &
@@ -55,6 +55,7 @@ contains
       integer, intent(in) :: do_dm           !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
       integer, intent(in) :: do_pd           !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
       integer, intent(in) :: do_bq           !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_ring         !< Add four-spin ring (4SR) term to Hamiltonian (0/1)
       integer, intent(in) :: do_chir         !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
       integer, intent(in) :: do_dip          !< Calculate dipole-dipole contribution (0/1)
       integer, intent(in) :: do_biqdm        !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
@@ -204,11 +205,10 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the initial point
          beff(:,:,1)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,do_jtensor,do_anisotropy,exc_inter,   &
-            do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM(:,:,1),mmom(:,1),       &
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1), &
-            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-            constellations,constellationsNeighType,mult_axis,denergy,Num_macro,     &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1), &
+            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),   &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,      &
+            constellations,constellationsNeighType,denergy,Num_macro,       &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
@@ -227,11 +227,10 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the final point
          beff(:,:,nim)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,do_jtensor,do_anisotropy,exc_inter,   &
-            do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM(:,:,nim),mmom(:,nim),       &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,nim),mmom(:,nim),     &
             external_field(:,:,nim),tef(:,:,nim),beff(:,:,nim),beff1(:,:,nim),beff2(:,:,nim), &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-            constellations,constellationsNeighType,mult_axis,denergy,Num_macro,     &
+            constellations,constellationsNeighType,denergy,Num_macro,     &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
@@ -250,11 +249,10 @@ contains
 
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the saddle point
-         call effective_field(Natom,1,1,Natom,do_jtensor,do_anisotropy,exc_inter,   &
-            do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM(:,:,1),mmom(:,1),       &
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1), &
-            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-            constellations,constellationsNeighType,mult_axis,denergy,Num_macro,     &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1),&
+            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),  &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,     &
+            constellations,constellationsNeighType,denergy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          ! Save effective fields at the SP
@@ -912,7 +910,7 @@ contains
       !$omp parallel do default(shared), private(ii,jj), collapse(2)
       do ii=1,Natom
          do jj=1,3
-            hess_lambda(3*ii-3+jj,3*ii-3+jj) = hess_lambda(3*ii-3+jj,3*ii-3+jj) + 2.0_dblprec*lambda(ii)
+            hess_lambda(3*ii-3+jj,3*ii-3+jj) = hess_lambda(3*ii-3+jj,3*ii-3+jj) + lambda(ii)
          end do
       end do
       !$omp end parallel do
@@ -948,10 +946,11 @@ contains
          tmp1 = 0.0_dblprec
          tmp2 = 0.0_dblprec
          tmp3 = 0.0_dblprec
-         tmp1 = sum(beff(:,ii))
-         tmp2 = sum(emomM(:,ii))
-         tmp3 = norm2(emomM(:,ii))
-         lambda(ii) = 0.50_dblprec*tmp1*tmp3*tmp3/tmp2
+         !tmp1 = sum(beff(:,ii))
+         !tmp2 = sum(emomM(:,ii))
+         !tmp3 = norm2(emomM(:,ii))
+         !lambda(ii) = tmp1*tmp3*tmp3/tmp2
+         lambda(ii) = emomM(1,ii)*beff(1,ii)+emomM(2,ii)*beff(2,ii)+emomM(3,ii)*beff(3,ii)
       end do
       !$omp end parallel do
    end subroutine calc_lambda
@@ -1980,21 +1979,18 @@ contains
        real(dblprec), dimension(lda,*), intent(out), optional :: eigvecs !< eigenvectors
 
        ! .. Local variables
-       integer :: lwork,ii,jj,liwork
+       integer :: lwork, liwork
        integer :: i_stat,i_all
        integer :: n_eig
-       integer(8) :: lwmax 
        real(dblprec), dimension(1) :: ww
        integer, dimension(1) :: iww
        real(dblprec) :: vl,vu,abstol
        integer :: il, iu
  
        ! .. Local allocatable variables
-       real(dblprec), dimension(:), allocatable :: eig
        real(dblprec), dimension(:), allocatable :: work
        integer, dimension(:), allocatable :: iwork, isuppz
        real(dblprec), dimension(:,:), allocatable :: hwork, zwork
-       real(dblprec), dimension(:,:), allocatable :: eig_v
  
        allocate(isuppz(2*lda),stat=i_stat)
        call memocc(i_stat,product(shape(isuppz))*kind(isuppz),'isuppz','eigen_driver')

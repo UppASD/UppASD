@@ -135,7 +135,7 @@ contains
 
    end subroutine effective_field_lite
 
-   subroutine effective_field_extralite(Natom,Mensemble,start_atom,stop_atom,emomM,mmom,energy,beff)
+   subroutine effective_field_extralite(Natom,Mensemble,start_atom,stop_atom,emomM,energy,beff)
       !
       use Constants, only : mry,mub
       !use DipoleManager, only : dipole_field_calculation
@@ -147,7 +147,6 @@ contains
       integer, intent(in) :: start_atom   !< Atom to start loop for
       integer, intent(in) :: stop_atom    !< Atom to end loop for
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       !real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
       !real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
       ! .. Output Variables

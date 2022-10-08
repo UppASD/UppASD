@@ -65,23 +65,18 @@ contains
 
    subroutine wl_evolve(Natom,Nchmax,Mensemble,nHam,&
          mode,conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,&
-         lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,&
+         lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_ring,do_chir,do_sa,&
          mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,&
          extfield,do_dip,Num_macro,max_num_atom_macro_cell,&
          cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,&
          hist,dos,wl_totenergy,m_hist,m_avg,wl_lhist_min,wl_lhist_max,do_anisotropy,stepsize)
          !hist,dos,wl_totenergy,ran_w,m_hist,m_avg)
       !
-      use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian,use_vsl
-      use HamiltonianActions_lite, only: effective_field_extralite
+      use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian
       use LSF, only : mc_update_LSF
-      use SpinIce , only: mc_update_spinice
       use montecarlo_common
-      use InducedMoments, only : mc_update_ind_mom
-      use Constants, only : mry
       use optimizationRoutines
       use omp_lib
-      use FieldData, only : beff
 
       !
       implicit none
@@ -112,8 +107,12 @@ contains
       integer, intent(in) :: do_biqdm   !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
       ! BQ variables
       integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      ! Four-spin ring variables
+      integer, intent(in) :: do_ring   !< Add four-spin ring (4SR) term to Hamiltonian (0/1)
       ! CHIR variables
       integer, intent(in) :: do_chir !< Add scalar chirality (CHIR) term to Hamiltonian (0/1)
+      ! SA  variables
+      integer, intent(in) :: do_sa   !< Add Symmetric anisotropic (SA) term to Hamiltonian (0/1)
       ! Anisotropy variables
       character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       integer, intent(in) :: do_anisotropy
@@ -146,15 +145,13 @@ contains
       integer ,intent(in) :: wl_lhist_max
       real(dblprec),intent(in) :: stepsize
       !.. Local variables
-      integer :: i, k, ip,icell
+      integer :: i, k, icell
 
       real(dblprec) :: de !< Energy difference
-      real(dblprec) :: cluster_size,macro_mag_trial
+      real(dblprec) :: macro_mag_trial
       !.. Local arrays
-      integer, dimension(Natom) :: visited_atoms
       real(dblprec), dimension(3) :: newmom !< New trial moment
       real(dblprec), dimension(3) :: macro_trial,halfarray
-      real(dblprec), dimension(3) :: totfield  !<Total effective field acting on each moment
       real(dblprec),dimension(natom,mensemble) :: flipprob_a ,newmmom_a
       real(dblprec),dimension(3,natom,mensemble) :: newmom_a
 !     real(dblprec),dimension(3,natom,mensemble) :: grot
@@ -216,10 +213,10 @@ contains
          do k=1,mensemble
 
             ! Calculate the energy
-            call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_chir,&
+            call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir,do_sa,&
                emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
                mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy)
+               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
       !     call effective_field_extralite(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,mmom,temp_ene,beff)
       !      call effective_field_lite(Natom,Mensemble,i,i,do_jtensor,      &
       !         do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
@@ -269,7 +266,7 @@ contains
 
    subroutine wl_warmup(Natom,Nchmax,Mensemble,nHam,&
          mode,conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,&
-         lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,&
+         lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_ring,do_chir,do_sa,&
          mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,&
          extfield,do_dip,Num_macro,max_num_atom_macro_cell,&
          cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,&
@@ -277,10 +274,7 @@ contains
       !
       use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussianP,use_vsl
       use LSF, only : mc_update_LSF
-      use SpinIce , only: mc_update_spinice
       use montecarlo_common
-      use InducedMoments, only : mc_update_ind_mom
-      use Constants, only : mry
       !
       implicit none
 
@@ -310,8 +304,12 @@ contains
       integer, intent(in) :: do_biqdm   !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
       ! BQ variables
       integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      ! Four-spin ring (4SR) variables
+      integer, intent(in) :: do_ring   !< Add four-spin ring (4SR) term to Hamiltonian (0/1)
       ! CHIR variables
       integer, intent(in) :: do_chir !< Add scalar chirality (CHIR) term to Hamiltonian (0/1)
+      ! SA  variables
+      integer, intent(in) :: do_sa   !< Add Symmetric anisotropic (SA) term to Hamiltonian (0/1)
       ! Anisotropy variables
       character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       integer, intent(in) :: do_anisotropy
@@ -338,9 +336,8 @@ contains
       integer :: i, k,icell
 
       real(dblprec) :: de !< Energy difference
-      real(dblprec) :: cluster_size,macro_mag_trial
+      real(dblprec) :: macro_mag_trial
       !.. Local arrays
-      integer, dimension(Natom) :: visited_atoms
       real(dblprec), dimension(3) :: newmom !< New trial moment
       real(dblprec), dimension(3) :: macro_trial
       real(dblprec), dimension(3) :: totfield  !<Total effective field acting on each moment
@@ -394,10 +391,10 @@ contains
       do i=1, Natom
          do k=1,mensemble
             ! Calculate the energy
-            call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_chir,&
+            call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir,do_sa,&
                emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
                mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy)
+               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
 
             call minimaxi(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k), &
                de,do_lsf,k,flipprob_a(i,k),lsf_metric,ham%ind_nlistsize,&
@@ -537,13 +534,11 @@ contains
       real(dblprec), intent(in) :: wl_totenergy !< Total energy
 
       integer :: k !< Current ensemble
-      integer :: ind_neigh,curr_ind,fix_neigh
       integer :: idx_0, idx_1, idx_s , delta
-      real(dblprec) :: beta,des,lmetric, edist, prefac, gam_fac
+      real(dblprec) :: edist, gam_fac
       real(dblprec) :: g1,g0, prob, conv_de
-      real(dblprec), dimension(3) :: ave_mom
 
-      real(dblprec) :: e_min, e_max, e_trial
+      real(dblprec) :: e_trial
 
       !e_min=-1589.000_dblprec
       !e_max=664.000_dblprec
@@ -730,13 +725,7 @@ contains
       real(dblprec), intent(in) :: direction  !< Direction of energy sweep
 
       integer :: k !< Current ensemble
-      integer :: ind_neigh,curr_ind,fix_neigh
-      integer :: idx_0, idx_1, idx_s
-      real(dblprec) :: beta,des,lmetric, edist, prefac
-      real(dblprec) :: g1,g0, prob, conv_de
-      real(dblprec), dimension(3) :: ave_mom
 
-      real(dblprec) :: e_min, e_max, e_trial
 
       !e_min=-1589.000_dblprec
       !e_max=664.000_dblprec
@@ -835,7 +824,7 @@ contains
       !
       use Constants
       use QHB
-      use InputData, only : Natom, Mensemble
+      use InputData, only : Natom
       !
       implicit none
       !
@@ -846,18 +835,18 @@ contains
       character(len=8), intent(in) :: simid  !< Name of simulation
 
 
-      integer :: ihist , itemp, ismear, ii
+      integer :: ihist, itemp
       character(len=30) :: filn
       !real(dblprec), dimension(nhist) :: dos, hist, ene, dosS, histS
       !real(dblprec), dimension(-3:3) :: dsmear
-      real(dblprec) :: lambda, U, E, E2, Z, F, iS, C, deltaT, temp, tempC, kb ,umin
-      real(dblprec) :: lambdaQ, UQ, EQ, E2Q, ZQ, FQ, iSQ, CQ
+      real(dblprec) :: lambda, U, E2, Z, F, iS, C, deltaT, temp, tempC, kb
+      real(dblprec) :: lambdaQ, UQ, E2Q, ZQ, FQ, iSQ, CQ
       real(dblprec) :: mavg, temprescale,temprescalegrad
       !
       kb=k_bolt/mry
       !
       !
-      write(filn,'(''wloutput.'',a8,''.out'')') simid
+      write(filn,'(''wloutput.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
       write(ofileno,'(a)') "#   T (K)    x      U(classical)      U(quantum)     Cv (classical)    Cv(quantum)  F(classical)     F(quantum)     S(classical)       S(quantum)"
       iS=0.0_dblprec ; iSQ=0.0_dblprec
@@ -941,7 +930,7 @@ contains
       integer, intent(in) :: ifile   !< File to read from
       !
       ! ... Local Variables ...
-      character(len=50) :: keyword, cache
+      character(len=50) :: keyword
       integer :: rd_len, i_err, i_errb
       logical :: comment
 

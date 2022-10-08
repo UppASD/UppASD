@@ -7,6 +7,9 @@ module Profiling
    use Parameters
 
    implicit none
+
+   integer :: do_meminfo = 0     !< Print memory allocation info to `meminfo` file (0/1)
+
    public
 
 contains
@@ -66,9 +69,11 @@ contains
             !open the writing file for the root process
             if (iproc == 0) then
                open(unit=mfileno,file='meminfo',status='unknown')
-               write(mfileno,'(a32,1x,a20,3(1x,a12))')&
-                  '(Data in kB)             Routine','    Peak Array',&
-                  'Routine Mem','Total Mem','Action'
+               if (do_meminfo>0) then
+                  write(mfileno,'(a32,1x,a20,3(1x,a12))')&
+                     '(Data in kB)             Routine','    Peak Array',&
+                     'Routine Mem','Total Mem','Action'
+               end if
             end if
          else if (routine=='stop' .and. iproc==0) then
             write(*,'(1x,a)')&
@@ -79,6 +84,11 @@ contains
             write(*,'(1x,5(a))') 'For the array: "',trim(maxarray),'" in routine "',trim(maxroutine),'"'
             write(*,'(1x,a)')&
                '-----------------END MEMORY CONSUMPTION REPORT---------------------'
+            if (do_meminfo > 0 ) then
+               close(mfileno)
+            else
+               close(mfileno,status='delete')
+            end if
          end if
 
       case default
@@ -103,7 +113,8 @@ contains
                allocationflag = '?'
             end if
 
-            write(mfileno,'(a32,1x,a20,3(1x,i12),1x,a12)')trim(routine),trim(array),isize*dblsize,memory,maxmemory,allocationflag
+            if(do_meminfo>0) write(mfileno,'(a32,1x,a20,3(1x,i12),1x,a12)') &
+               trim(routine),trim(array),isize*dblsize,memory,maxmemory,allocationflag
             if (trim(locroutine) /= routine) then
                locroutine=routine
                locmemory=isize*dblsize
@@ -155,19 +166,19 @@ contains
       save :: time0,init,timesum,total0,parallel
 
       character(len=13), dimension(ncat), parameter :: cats = (/ &
-         'Startup       ' , &
-         'Initial       ' , &
-         'Measurement   ' , &
-         'Hamiltonian   ' , &
-         'Evolution     ' , &
-         'RNG           ' , &
-         'MonteCarlo    ' , &
-         'Energy        ' , &
-         'Moments       ' , &
-         'PrintRestart  ' , &
-         'LattCorr      ' , &
-         'SpinCorr      ' , &
-         'Dipolar Int.  '/)
+         'Startup      ' , &
+         'Initial      ' , &
+         'Measurement  ' , &
+         'Hamiltonian  ' , &
+         'Evolution    ' , &
+         'RNG          ' , &
+         'MonteCarlo   ' , &
+         'Energy       ' , &
+         'Moments      ' , &
+         'PrintRestart ' , &
+         'LattCorr     ' , &
+         'SpinCorr     ' , &
+         'Dipolar Int. '/)
 
       !$omp parallel
       !$omp master

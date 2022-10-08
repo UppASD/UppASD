@@ -35,6 +35,7 @@ module prn_trajectories
    private
 
    public :: print_trajectories, flush_trajectories, allocate_trajectories, traj_init
+   public :: read_parameters_trajectories
    public :: do_tottraj, tottraj_step, tottraj_buff, ntraj, traj_atom, traj_step, traj_buff
 
 contains
@@ -154,6 +155,7 @@ contains
          do i=1,ntraj
             bcount_traj(i)=bcount_traj(i)-1
             call prn_traj(Mensemble, simid, ntraj, traj_atom, i,real_time_measure)
+            bcount_traj(i)=1
          enddo
       endif
 
@@ -309,8 +311,7 @@ contains
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom   !< Magnitude of magnetic moments
 
       !.. Local variables
-      integer :: i, j,k
-      character(len=30) :: filn
+      integer :: i
 
       !.. Executable statements
 
@@ -394,7 +395,8 @@ contains
 
       !.. Executable statements
       do j=1, Mensemble
-         write (filn,'(''trajectory.'',a8,''.'',i1,''.'',i1,''.out'')') simid, traj, j
+         write (filn,'(''trajectory.'',a,''.'',i0.3,''.'',i1,''.out'')') trim(simid), traj, j
+
          open(ofileno, file=filn, position="append")
          do i=1, bcount_traj(traj)
             tempmx = emomb_traj(1,i,traj,j)
@@ -419,5 +421,95 @@ contains
 
    end subroutine prn_traj
 
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Read input parameters.
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------
+   subroutine read_parameters_trajectories(ifile)
+      use FileParser
+
+      implicit none
+
+      ! ... Formal Arguments ...
+      integer, intent(in) :: ifile   !< File to read from
+      !
+      ! ... Local Variables ...
+      character(len=50) :: keyword
+      integer :: rd_len, i_err, i_errb, i_stat, i
+      logical :: comment
+
+      do
+         10     continue
+         ! Read file character for character until first whitespace
+         keyword=""
+         call bytereader(keyword,rd_len,ifile,i_errb)
+
+         ! converting Capital letters
+         call caps2small(keyword)
+
+         ! check for comment markers (currently % and #)
+         comment=(scan(trim(keyword),'%')==1).or.(scan(trim(keyword),'#')==1).or.&
+            (scan(trim(keyword),'*')==1).or.(scan(trim(keyword),'=')==1.or.&
+            (scan(trim(keyword),'!')==1))
+
+         if (comment) then
+            read(ifile,*)
+         else
+            ! Parse keyword
+            keyword=trim(keyword)
+            select case(keyword)
+            !------------------------------------------------------------------------
+            ! START OF VARIABLES FOR PRINTING MOMENTS TRAJECTORIES
+            !------------------------------------------------------------------------
+
+            case('do_tottraj')
+               read(ifile,*,iostat=i_err) do_tottraj
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('tottraj_step')
+               read(ifile,*,iostat=i_err) tottraj_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('tottraj_buff')
+               read(ifile,*,iostat=i_err) tottraj_buff
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('ntraj')
+               read(ifile,*,iostat=i_err) ntraj
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               if(ntraj>0) then
+                  allocate(traj_atom(ntraj),stat=i_stat)
+                  call memocc(i_stat,product(shape(traj_atom))*kind(traj_atom),'traj_atom','read_parameters')
+                  allocate(traj_step(ntraj),stat=i_stat)
+                  call memocc(i_stat,product(shape(traj_step))*kind(traj_step),'traj_step','read_parameters')
+                  allocate(traj_buff(ntraj),stat=i_stat)
+                  call memocc(i_stat,product(shape(traj_buff))*kind(traj_buff),'traj_buff','read_parameters')
+                  do i=1,ntraj
+                     read(ifile,*,iostat=i_err) traj_atom(i), traj_step(i), traj_buff(i)
+                  end do
+               else
+                  read(ifile,*)
+               end if
+
+            !------------------------------------------------------------------------
+            ! END OF VARIABLES FOR PRINTING MOMENTS TRAJECTORIES
+            !------------------------------------------------------------------------
+            end select
+         end if
+
+         ! End of file
+         if (i_errb==20) goto 20
+         ! End of row
+         if (i_errb==10) goto 10
+      end do
+
+      20  continue
+
+      rewind(ifile)
+      return
+   end subroutine read_parameters_trajectories
 
 end module prn_trajectories

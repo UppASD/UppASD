@@ -25,11 +25,10 @@ module prn_averages
 
    ! Local calculations for printing
    integer :: Navrgcum        !< Counter for number of cumulated averages
+   real(dblprec) :: cumuw     !< Weight for current sample to cumulant
+   real(dblprec) :: cumutotw  !< Sum of all cumulant weights 
    integer :: Navrgcum_proj   !< Counter for number of cumulated projected averages
    real(dblprec) :: mavg      !< Average magnetic moment
-   real(dblprec) :: mxavg     !< Average x-component of magnetization
-   real(dblprec) :: myavg     !< Average y-component of magnetization
-   real(dblprec) :: mzavg     !< Average z-component of magnetization
    real(dblprec) :: totene    !< Total energy
    real(dblprec) :: binderc   !< Binder cumulant
    real(dblprec) :: avrglcum  !< Cumulated average of l
@@ -122,8 +121,7 @@ contains
       if (do_avrg=='Y') then
          if ( mod(sstep-1,avrg_step)==0) then
             ! Write average step to buffer
-            call buffer_avrg(Natom,Mensemble,do_autocorr,mstep-1,nspinwait,spinwait,&
-               emom,emomM,bcount_avrg,delta_t,real_time_measure)
+            call buffer_avrg(Natom,Mensemble,mstep-1,emom,emomM,bcount_avrg,delta_t,real_time_measure)
             ! Write projected average step to buffer
             if (do_proj_avrg=='Y' .or. do_proj_avrg=='A') then
                call buffer_proj_avrg(Natom,Mensemble,NA,emomM,bcount_avrg,do_ralloy,&
@@ -137,8 +135,6 @@ contains
             if (bcount_avrg==avrg_buff) then
                ! Write the total averages buffer to file
                call prn_avrg(Natom, Mensemble, simid,real_time_measure)
-               ! Write the autocorrelation buffer to file
-               call prn_autocorr(Natom,simid,do_autocorr,nspinwait,real_time_measure)
                if (do_proj_avrg=='Y' .or. do_proj_avrg=='A') then
                   call prn_proj_avrg(Natom,Mensemble,NA,N1,N2,N3,simid,NT,atype,    &
                      do_proj_avrg,real_time_measure)
@@ -154,11 +150,23 @@ contains
             else
                bcount_avrg=bcount_avrg+1
             endif
-
-         else
          endif
       endif
 
+      if (do_autocorr=='Y') then
+         if ( mod(sstep-1,ac_step)==0.or.any(spinwaitt==sstep-1)) then
+            call buffer_autocorr(Natom,Mensemble,do_autocorr,mstep,nspinwait,spinwait,emom,&
+               emomM,bcount_ac,delta_t,real_time_measure)
+            if (bcount_ac==ac_buff) then
+               ! Write the autocorrelation buffer to file
+               call prn_autocorr(Natom,simid,do_autocorr,nspinwait,real_time_measure)
+               ! Reset statistics buffer
+               bcount_ac=1
+            else
+               bcount_ac=bcount_ac+1
+            endif
+         endif
+      end if
       ! Binder cumulant, susceptibility, and specific heat
       if(mod(sstep,cumu_step)==0) then
          if(do_cumu=='Y') then
@@ -182,7 +190,7 @@ contains
    !> Flush the averages, cumulants and autocorrelation measurements, i.e. print them to file in the last iteration
    !---------------------------------------------------------------------------------
    subroutine flush_averages(NT,NA,N1,N2,N3,mstep,Natom,Nchmax,Mensemble,atype,mmom,&
-      emom,simid,real_time_measure,mode)
+         emom,simid,real_time_measure,mode)
 
       use Restart, only : prn_mag_conf
 
@@ -209,7 +217,7 @@ contains
          ! Write buffer to file
          bcount_avrg=bcount_avrg-1
          call prn_avrg(Natom, Mensemble, simid,real_time_measure)
-         call prn_autocorr(Natom, simid, do_autocorr, nspinwait,real_time_measure)
+
 
          if (do_proj_avrg=='Y' .or. do_proj_avrg=='A') then
             call prn_proj_avrg(Natom,Mensemble,NA,N1,N2,N3,simid,NT,atype,          &
@@ -222,7 +230,13 @@ contains
          ! Create a restart file
          call prn_mag_conf(Natom,mstep,Mensemble,'R',simid,mmom,emom,'',mode)
          ! Reset statistics buffer
+         bcount_avrg=1
       endif
+      if (do_autocorr=='Y') then
+         bcount_ac=bcount_ac+1
+         call prn_autocorr(Natom, simid, do_autocorr, nspinwait, real_time_measure)
+         bcount_ac=1
+      end if
 
    end subroutine flush_averages
 
@@ -246,6 +260,8 @@ contains
       cumu_step      = 50
       cumu_buff      = 10
       !Autocorrelation variables
+      ac_step        = 100
+      ac_buff        = 10
       do_autocorr    = 'N'
       twfile         = 'twfile'
 
@@ -259,6 +275,8 @@ contains
       !
       implicit none
       Navrgcum          = 0
+      cumuw             = 0.0_dblprec
+      cumutotw          = 0.0_dblprec
       Navrgcum_proj     = 0
       avrgmcum          = 0.0_dblprec
       avrgm2cum         = 0.0_dblprec
@@ -297,7 +315,8 @@ contains
          bcount_avrg=1
          ! Allocations for the averages
          if (do_avrg=='Y'.or.do_proj_avrg=='Y' .or. do_proj_avrg=='A') then
-            allocate(mavg_buff(20,avrg_buff,Mensemble),stat=i_stat)
+            !allocate(mavg_buff(20,avrg_buff,Mensemble),stat=i_stat)
+            allocate(mavg_buff(3,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_buff))*kind(mavg_buff),'mavg_buff','averages_allocations')
             mavg_buff=0.0_dblprec
             allocate(mavg_buff_proj(3,NA,avrg_buff,Mensemble),stat=i_stat)
@@ -390,8 +409,7 @@ contains
    ! SUBROUTINE: buffer_avrg
    !> Buffer average magnetization
    !---------------------------------------------------------------------------------
-   subroutine buffer_avrg(Natom,Mensemble,do_autocorr,mstep,nspinwait,spinwait,emom,&
-      emomM,bcount_avrg,delta_t,real_time_measure)
+   subroutine buffer_avrg(Natom,Mensemble,mstep,emom,emomM,bcount_avrg,delta_t,real_time_measure)
       !
 
       !.. Implicit declarations
@@ -400,77 +418,32 @@ contains
       integer, intent(in) :: mstep !< Current simulation step
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble   !< Number of ensembles
-      integer, intent(in) :: nspinwait   !< Number of waiting times for autocorrelatio
       integer, intent(in) :: bcount_avrg !< Counter of buffer for averages
       real(dblprec), intent(in) :: delta_t               !< Current time step (used for real time measurements)
-      character(len=1), intent(in) :: do_autocorr        !< Perform autocorrelation (Y/N)
       character(len=1), intent(in) :: real_time_measure  !< Real time measurement flag
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(:,:,:), intent(in) :: spinwait !< Data for autocorrelation analysis
 
       !.. Scalar variables
-      integer :: i,j,k, i_stat, i_all
+      integer :: i, k
       !real(dblprec) :: tm
 
       !.. Local arrays
       real(dblprec), dimension(3,Mensemble) ::  m
-      real(dblprec), dimension(:), allocatable :: autocorr
 
       !.. Executable statements
-      if(do_autocorr=='Y') then
-         allocate(autocorr(nspinwait),stat=i_stat)
-         call memocc(i_stat,product(shape(autocorr))*kind(autocorr),'autocorr','buffer_avrg')
-         autocorr=0.0_dblprec
-      end if
       m(:,:)=0.0_dblprec
       !.. Sum over moments
-      if(do_autocorr=='Y') then
-!#if _OPENMP >= 201307
-!         !$omp parallel do default(shared) private(i,k,j) reduction(+:m,autocorr) collapse(2) schedule(static)
-!#endif
-         do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
-            end do
-            !Autocorr only over sample 1
-            do j=1, nspinwait
-               autocorr(j) = autocorr(j)+spinwait(1,i,j)*emom(1,i,1)+&
-                  spinwait(2,i,j)*emom(2,i,1)+spinwait(3,i,j)*emom(3,i,1)
-            end do
+      do i=1, Natom
+         do k=1,Mensemble
+            m(:,k) = m(:,k) + emomM(:,i,k)
          end do
-!#if _OPENMP >= 201307
-!         !$omp end parallel do
-!#endif
-      else
-!#if _OPENMP >= 201307
-!#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || ( __INTEL_COMPILER_BUILD_DATE > 20140422 && __INTEL_COMPILER_BUILD_DATE != 20170811 ) )
-!        !$omp parallel do default(shared) private(i,k) reduction(+:m) collapse(2) schedule(static)
-!#endif
-         do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
-            end do
-         end do
-!#if _OPENMP >= 201307
-!#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || ( __INTEL_COMPILER_BUILD_DATE > 20140422 && __INTEL_COMPILER_BUILD_DATE != 20170811 ) )
-!!$omp end parallel do
-!#endif
-      end if
+      end do
 
       !.. Save in buffer
       do k=1,Mensemble
          mavg_buff(1:3,bcount_avrg,k) = m(1:3,k)
       end do
-
-      if(do_autocorr=='Y') then
-         do j=1, nspinwait
-            mavg_buff(j+3,bcount_avrg,1) = autocorr(j)
-         end do
-         i_all=-product(shape(autocorr))*kind(autocorr)
-         deallocate(autocorr,stat=i_stat)
-         call memocc(i_stat,i_all,'autocorr','buffer_avrg')
-      end if
 
       if (real_time_measure=='Y') then
          indxb_avrg(bcount_avrg)=mstep*delta_t
@@ -588,61 +561,6 @@ contains
    end subroutine buffer_projch_avrg
 
    !---------------------------------------------------------------------------------
-   ! SUBROUTINE: prn_autocorr
-   !> Print autocorrelation data
-   !---------------------------------------------------------------------------------
-   subroutine prn_autocorr(Natom, simid, do_autocorr, nspinwait,real_time_measure)
-
-      !.. Implicit declarations
-      implicit none
-
-      integer, intent(in) :: Natom     !< Number of atoms in system
-      integer, intent(in) :: nspinwait !< Number of waiting times for autocorrelation
-      character(len=8), intent(in) :: simid       !< Name of simulation
-      character(len=1), intent(in) :: do_autocorr !< Perform autocorrelation (Y/N)
-      character(len=1), intent(in) :: real_time_measure !< Real time measurement flag
-      integer :: i,j, i_all, i_stat
-      real(dblprec), dimension(:), allocatable :: autocorr
-      character(len=30) :: filn4
-
-      !.. Executable statements
-      if(do_autocorr=='Y') then
-
-         allocate(autocorr(nspinwait),stat=i_stat)
-         call memocc(i_stat,product(shape(autocorr))*kind(autocorr),'autocorr','prn_autocorr')
-
-         write (filn4,'(''autocorr.'',a8,''.out'')') simid
-         open(ofileno, file=filn4, position="append")
-
-         do i=1, bcount_avrg
-            do j=1, nspinwait
-               if(do_autocorr=='Y') autocorr(j) = mavg_buff(j+3,i,1)/Natom
-            end do
-            if(do_autocorr=='Y') then
-               if (real_time_measure=='Y') then
-                  write (ofileno,10005) indxb_avrg(i), autocorr(1:nspinwait)
-               else
-                  write (ofileno,10004) int(indxb_avrg(i)), autocorr(1:nspinwait)
-               endif
-            end if
-         end do
-
-         i_all=-product(shape(autocorr))*kind(autocorr)
-         deallocate(autocorr,stat=i_stat)
-         call memocc(i_stat,i_all,'autocorr','prn_autocorr')
-
-         close(ofileno)
-      end if
-
-      return
-
-      write(*,*) 'Eror writing the autocorrelation file'
-      10004 format (i8,30es16.8)
-      10005 format (es16.8,30es16.8)
-
-   end subroutine prn_autocorr
-
-   !---------------------------------------------------------------------------------
    ! SUBROUTINE: prn_avrg
    !> Print instantaneous and cumulated average magnetizations
    !---------------------------------------------------------------------------------
@@ -668,11 +586,11 @@ contains
 
       avrgmv=0.0_dblprec;avrgm=0.0_dblprec;avrgmvm=0.0_dblprec
 
-      write (filn,'(''averages.'',a8,''.out'')') simid
+      write (filn,'(''averages.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
 
       ! Write header to output files for first iteration
-      if(abs(indxb_avrg(1))<dbl_tolerance) then
+      if(abs(indxb_avrg(1))==0.0e0_dblprec) then
          ! Averages
          if (real_time_measure=='Y') then
             write(ofileno,10007)"Time[s]","<M>_x","<M>_y","<M>_z","<M>","M_{stdv}"
@@ -710,8 +628,8 @@ contains
          avrgms=avrgms/Mensemble - avrgmm**2
 
          !Filter out negative errors
-         if(avrgms<0) then
-            avrgms=0
+         if(avrgms<dbl_tolerance) then
+            avrgms=0.0_dblprec
          else
             avrgms=sqrt(avrgms)
          end if
@@ -768,10 +686,10 @@ contains
       i_na=-1;
 
       !.. Executable statements
-      write (filn,'(''projavgs.'',a8,''.out'')') simid
+      write (filn,'(''projavgs.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
 
-      if(abs(indxb_avrg(1))<dbl_tolerance) then
+      if(abs(indxb_avrg(1))<=0.0e0_dblprec) then
          ! Averages
          if (real_time_measure=='Y') then
             write(ofileno,10007)"Time[s]","Proj","<M>","M_{stdv}","<M>_x","<M>_y","<M>_z"
@@ -877,9 +795,9 @@ contains
 
       write (*,*) "Error writing the projected averages file"
       10004 format (i8,i8,5es16.8)
-      10006 format (a8,a8,5a16)
+      10006 format (a8,a,5a16)
       10005 format (es16.4,i8,5es16.8)
-      10007 format (a16,a8,5a16)
+      10007 format (a16,a,5a16)
 
    end subroutine prn_proj_avrg
 
@@ -909,13 +827,13 @@ contains
       avrgmx=0.0_dblprec;avrgmy=0.0_dblprec;avrgmz=0.0_dblprec;avrgm=0.0_dblprec
       avrgmag=0.0_dblprec
       !.. Executable statements
-      write (filn,'(''projchavgs.'',a8,''.out'')') simid
+      write (filn,'(''projchavgs.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
 
-      if(abs(indxb_avrg(1))<dbl_tolerance) then
+      if(abs(indxb_avrg(1))<=0.0e0_dblprec) then
          ! Averages
          if (real_time_measure=='Y') then
-            write(ofileno,10007)"Time[s]","Proj","<M>","M_{stdv}","<M>_x","<M>_y","<M>_z","\sum<M>"
+            write(ofileno,10007)"#Time[s]","Proj","<M>","M_{stdv}","<M>_x","<M>_y","<M>_z","\sum<M>"
          else
             write(ofileno,10006)"# Iter.","Proj","<M>","M_{stdv}","<M>_x","<M>_y","<M>_z","\sum<M>"
          endif
@@ -986,9 +904,9 @@ contains
 
       write (*,*) "Error writing the chemical projected averages file"
       10004 format (i8,i8,6es16.8)
-      10006 format (a8,a8,6a16)
+      10006 format (a8,a,6a16)
       10005 format (es16.4,i8,6es16.8)
-      10007 format (a16,a8,6a16)
+      10007 format (a16,a,6a16)
 
    end subroutine prn_projch_avrg
 
@@ -1000,6 +918,7 @@ contains
       temprescalegrad,plotenergy,cumu_buff,do_prn_flag)
       !
       use Constants
+      use prn_topology
 
       !.. Implicit declarations
       implicit none
@@ -1042,9 +961,15 @@ contains
          avrgm2 = avrgme**2
          avrgm4 = avrgm2**2
 
-         avrgmt = (Navrgcum*avrgmcum+avrgme)/(Navrgcum+1)
-         avrgmt2 = (Navrgcum*avrgm2cum+avrgm2)/(Navrgcum+1)
-         avrgmt4 = (Navrgcum*avrgm4cum+avrgm4)/(Navrgcum+1)
+         cumuw = cumuw + 1.0_dblprec
+
+         avrgmt  = (avrgmcum*cumutotw+avrgme*cumuw )/(cumutotw+cumuw)
+         avrgmt2 = (avrgm2cum*cumutotw+avrgm2*cumuw)/(cumutotw+cumuw)
+         avrgmt4 = (avrgm4cum*cumutotw+avrgm4*cumuw)/(cumutotw+cumuw)
+
+         !!!avrgmt = (Navrgcum*avrgmcum+avrgme)/(Navrgcum+1)
+         !!!avrgmt2 = (Navrgcum*avrgm2cum+avrgm2)/(Navrgcum+1)
+         !!!avrgmt4 = (Navrgcum*avrgm4cum+avrgm4)/(Navrgcum+1)
 
          cumulant = 1-(avrgmt4/3/avrgmt2**2)
          avrgmcum = avrgmt
@@ -1060,22 +985,32 @@ contains
          end if
 
          if (plotenergy>0.and.Temp>0.0_dblprec) then
-            avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
+            !!! avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
+            !!! avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
+            !!! avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
+            !!! avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
 
-            avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
+            avrgen   = (avrgecum*cumutotw+ene%energy(k)*cumuw)/(cumutotw+cumuw)
+            avrgen2  = (avrge2cum*cumutotw+ene%energy(k)**2*cumuw)/(cumutotw+cumuw)
+            avrgent  = (avrgetcum*cumutotw+ene%ene_xc(k)*cumuw)/(cumutotw+cumuw)
+            avrgenl  = (avrgelcum*cumutotw+ene%ene_lsf(k)*cumuw)/(cumutotw+cumuw)
 
-            avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
             cv  =  ( avrgen2  -avrgen**2  ) * mry**2 * Natom  / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 !* Natom   ! units of k_B
             avrgecum    = avrgen
             avrge2cum   = avrgen2
             avrgetcum   = avrgent
             avrgelcum   = avrgenl
+
          else if(plotenergy>0) then
-            avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
-            avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
+            !!! avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
+            !!! avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
+            !!! avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
+            !!! avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
+            avrgen   = (avrgecum*cumutotw+ene%energy(k)*cumuw)/(cumutotw+cumuw)
+            avrgen2  = (avrge2cum*cumutotw+ene%energy(k)**2*cumuw)/(cumutotw+cumuw)
+            avrgent  = (avrgetcum*cumutotw+ene%ene_xc(k)*cumuw)/(cumutotw+cumuw)
+            avrgenl  = (avrgelcum*cumutotw+ene%ene_lsf(k)*cumuw)/(cumutotw+cumuw)
+
             cv = 0.0_dblprec
             avrgecum    = avrgen
             avrge2cum   = avrgen2
@@ -1092,14 +1027,16 @@ contains
             avrgetcum   = 0.0_dblprec
             avrgelcum   = 0.0_dblprec
          end if
+
          Navrgcum = Navrgcum+1
+         cumutotw = cumutotw + cumuw
       end do
 
       ! Write output to file
       if(do_prn_flag .eqv. .true.) then
          if(mod(Navrgcum/Mensemble-1,cumu_buff)==0) then
             ! Open file
-            write (filn,'(''cumulants.'',a8,''.out'')') simid
+            write (filn,'(''cumulants.'',a,''.out'')') trim(simid)
             open(ofileno, file=filn, position="append")
 
             ! Write header the first time
@@ -1107,9 +1044,40 @@ contains
                write(ofileno,10005)"#Iter","<M>","<M^2>","<M^4>","U_{Binder}",&
                   "\chi","C_v(tot)","<E>","<E_{exc}>","<E_{lsf}>"
             end if
+            !if (real_time_measure=='Y') then
+            !   write (ofileno,10014) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
+            !      cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
+            !else
             write (ofileno,10004) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
                cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
+            !end if
             close(ofileno)
+
+            ! Open file
+            write (filn,'(''cumulants.'',a8,''.json'')') simid
+            open(ofileno, file=filn)
+
+            write(ofileno,'(a)') '{'
+            write(ofileno,'(a,f16.8,a)') '    "temperature"     : ', Temp,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "magnetization"   : ', avrgmt,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "binder_cumulant" : ', cumulant,' ,'
+            if (avrgen.ne.0.0_dblprec) then
+               write(ofileno,'(a,f16.8,a)') '    "energy"          : ', avrgen, ' ,'
+            else
+               write(ofileno,'(a)') '    "energy"          :  null ,'
+            end if
+            if (skyno=='T'.or.skyno=='Y') then
+               write(ofileno,'(a,f16.8,a)') '    "skyrmion_num"    : ', sk_avrg,' ,'
+               write(ofileno,'(a,f16.8,a)') '    "skyrmion_std"    : ', sqrt(sk_var),' ,'
+            else
+               write(ofileno,'(a)') '    "skyrmion_num"    :  null,'
+               write(ofileno,'(a)') '    "skyrmion_std"    :  null,'
+            end if
+            write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv
+            write(ofileno,'(a)') '}'
+            close(ofileno)
+
          end if
       end if
 
@@ -1120,6 +1088,7 @@ contains
       write(*,*) 'Error writing the cumulant file'
       10004 format (i8,10es16.8)
       10005 format (a8,9a16)
+      10014 format (es16.8,10es16.8)
 
    end subroutine calc_and_print_cumulant
 
@@ -1239,7 +1208,7 @@ contains
       if(mod(Navrgcum/Mensemble-1,cumu_buff)==0) then
 
          ! Open file
-         write (filn,'(''afmcumulants.'',a8,''.out'')') simid
+         write (filn,'(''afmcumulants.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
 
          ! Write header the first time
@@ -1342,7 +1311,7 @@ contains
       if(mod(Navrgcum_proj/Mensemble-1,cumu_buff)==0) then
 
          ! Open file
-         write (filn,'(''projcumulants.'',a8,''.out'')') simid
+         write (filn,'(''projcumulants.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
 
          ! Write header the first time
@@ -1377,7 +1346,7 @@ contains
       integer, intent(in) :: ifile   !< File to read from
       !
       ! ... Local Variables ...
-      character(len=50) :: keyword, cache
+      character(len=50) :: keyword
       integer :: rd_len, i_err, i_errb
       logical :: comment
 
@@ -1439,14 +1408,14 @@ contains
                read(ifile,*,iostat=i_err) cumu_buff
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            case('do_autocorr')
-               read(ifile,*,iostat=i_err) do_autocorr
-               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            !!! case('do_autocorr')
+            !!!    read(ifile,*,iostat=i_err) do_autocorr
+            !!!    if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
-            case('acfile')
-               read(ifile,'(a)',iostat=i_err) cache
-               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-               twfile=trim(adjustl(cache))
+            !!! case('acfile')
+            !!!    read(ifile,'(a)',iostat=i_err) cache
+            !!!    if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+            !!!    twfile=trim(adjustl(cache))
             end select
          end if
 

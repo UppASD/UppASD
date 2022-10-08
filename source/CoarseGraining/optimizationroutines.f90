@@ -1,11 +1,4 @@
 !> Optimiztion stuff ....
-!> @author
-!! Johan Venemalm, Thomas Nystrand, Anders Bergman
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module optimizationRoutines
    use Parameters
    use Profiling

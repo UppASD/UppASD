@@ -42,7 +42,7 @@ module BLS
 
    private
 
-   public :: gramms, setup_bls, calc_bls, deallocate_bls_data, read_parameters_bls
+   public :: setup_bls, calc_bls, deallocate_bls_data, read_parameters_bls
    ! public subroutines
 
 contains
@@ -77,6 +77,7 @@ contains
 
       use Constants
       use FieldData, only : beff
+      use Math_functions, only : gramms
       !
       implicit none
       !
@@ -340,15 +341,16 @@ contains
 
       ! Write the site dependent power spectra
       if(do_bls=='Y'.or.do_bls=='Q') then
-         write (filn,'(''bls.'',a8,''.out'')') simid
+         write (filn,'(''bls.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn,position='append')
          do iw=1,(nw_bls-1)/2
             do iatom=1,Natom
                bls_avg=0.0_dblprec
                do iens=1,Mensemble
-                  bls_avg=bls_avg+abs(magmom_w(iw,1:3,iatom,iens))**2/bls_nsamples
+                  !bls_avg=bls_avg+abs(magmom_w(iw,1:3,iatom,iens))**2/bls_nsamples
+                  bls_avg=bls_avg+abs(magmom_w(iw,1:3,iatom,iens)*conjg(magmom_w(iw,1:3,iatom,iens)))/bls_nsamples
                end do
-               bls_avg_norm=sqrt(sum(bls_avg))
+               bls_avg_norm=sqrt(sum(bls_avg*bls_avg))
                if (bls_window.gt.1) then
                   write (ofileno,10005) mstep,iw,iatom,w_bls(iw), bls_avg,bls_avg_norm
                else
@@ -358,7 +360,7 @@ contains
          end do
          close(ofileno)
          ! also writing complex bls in order to get phases (probably does not work with ensemble averaging)
-         write (filn,'(''cbls.'',a8,''.out'')') simid
+         write (filn,'(''cbls.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn,position='append')
          allocate(bls_norm(3,Natom,Mensemble))
          allocate(bls_phase(3,Natom,Mensemble))
@@ -400,7 +402,7 @@ contains
 
       ! Write the site dependent power spectra in reciprocal space
       if (do_bls=='Q') then
-         write (filn,'(''blsqres.'',a8,''.out'')') simid
+         write (filn,'(''blsqres.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn,position='append')
          do iw=1,(nw_bls-1)/2
             do iq=1,numq
@@ -422,7 +424,7 @@ contains
 
       ! Calculate and write the bls DOS
       bls_dos=0.0_dblprec
-      write (filn,'(''blsdos.'',a8,''.out'')') simid
+      write (filn,'(''blsdos.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn,position='append')
       if ((mstep/(bls_step*bls_nstep))==1) then
          if (bls_window.gt.1) then
@@ -517,87 +519,6 @@ subroutine set_w_bls(delta_t, bls_step, bls_nstep)
    emax=abs(hbar_mev*w_bls(nw_bls))
 
 end subroutine set_w_bls
-
-
-!------------------------------------------------------------------------------------
-! SUBROUTINE: gramms
-!> @brief Gramm-Schmidt orthogonalization
-!------------------------------------------------------------------------------------
-subroutine gramms(v_in,m_out,ldim)
-   !
-   integer, intent(in) :: ldim
-   real(dblprec), dimension(3,ldim), intent(in) :: v_in
-   real(dblprec), dimension(3,3,ldim), intent(out) :: m_out
-   !
-   real(dblprec), dimension(3) :: v_trial
-   real(dblprec)  :: v_in_norm
-   integer :: i
-   !
-   do i=1,ldim
-      v_in_norm=sqrt(v_in(1,i)*v_in(1,i)+v_in(2,i)*v_in(2,i)+v_in(3,i)*v_in(3,i))
-      ! Set trial vector to x
-      v_trial=(/1.0_dblprec, 0.0_dblprec, 0.0_dblprec/)
-      v_trial=v_trial/sqrt(sum(v_trial*v_trial))
-      ! If input vector is close to x, set trial vector to y..
-      if(abs(v_in(1,i))/v_in_norm>0.9995_dblprec) then
-         v_trial=(/0.0_dblprec, 1.0_dblprec, 0.0_dblprec/)
-         v_trial=v_trial/sqrt(sum(v_trial*v_trial))
-      end if
-      ! Keep input vector as third output vector
-      m_out(1:3,3,i)=v_in(1:3,i)/v_in_norm
-      ! Get first orthogonal vector through cross product
-      m_out(1,1,i)=m_out(2,3,i)*v_trial(3)-m_out(3,3,i)*v_trial(2)
-      m_out(2,1,i)=m_out(3,3,i)*v_trial(1)-m_out(1,3,i)*v_trial(3)
-      m_out(3,1,i)=m_out(1,3,i)*v_trial(2)-m_out(2,3,i)*v_trial(1)
-      ! Normalize
-      m_out(:,1,i)=m_out(:,1,i) / sqrt(sum(m_out(:,1,i)*m_out(:,1,i)))
-      ! Get second orthogonal vector by cross product
-      m_out(1,2,i)=m_out(2,3,i)*m_out(3,1,i)-m_out(3,3,i)*m_out(2,1,i)
-      m_out(2,2,i)=m_out(3,3,i)*m_out(1,1,i)-m_out(1,3,i)*m_out(3,1,i)
-      m_out(3,2,i)=m_out(1,3,i)*m_out(2,1,i)-m_out(2,3,i)*m_out(1,1,i)
-      ! Normalize for safety..
-      m_out(:,2,i)=m_out(:,2,i) / sqrt(sum(m_out(:,2,i)*m_out(:,2,i)))
-      ! Get second orthogonal vector by cross product
-      m_out(1,1,i)=m_out(2,2,i)*m_out(3,3,i)-m_out(3,2,i)*m_out(2,3,i)
-      m_out(2,1,i)=m_out(3,2,i)*m_out(1,3,i)-m_out(1,2,i)*m_out(3,3,i)
-      m_out(3,1,i)=m_out(1,2,i)*m_out(2,3,i)-m_out(2,2,i)*m_out(1,3,i)
-      ! Normalize for safety..
-      m_out(:,1,i)=m_out(:,1,i) / sqrt(sum(m_out(:,1,i)*m_out(:,1,i)))
-   end do
-   !
-end subroutine gramms
-
-
-!------------------------------------------------------------------------------------
-! SUBROUTINE: gramms2
-!> @brief Gramm-Schmidt orthogonalization alternative
-!------------------------------------------------------------------------------------
-subroutine gramms2(v_in,v_qt,m_out,ldim)
-   !
-   integer, intent(in) :: ldim
-   real(dblprec), dimension(3,ldim), intent(in) :: v_in
-   real(dblprec), dimension(3,ldim), intent(in) :: v_qt
-   real(dblprec), dimension(3,ldim), intent(out) :: m_out
-   !
-   real(dblprec), dimension(3) :: v_perp1, v_perp2
-   integer :: i
-   !
-   do i=1,ldim
-      ! Get first orthogonal vector by cross product
-      v_perp1(1)=v_qt(2,i)*v_in(3,i)-v_qt(3,i)*v_in(2,i)
-      v_perp1(2)=v_qt(3,i)*v_in(1,i)-v_qt(2,i)*v_in(3,i)
-      v_perp1(3)=v_qt(1,i)*v_in(2,i)-v_qt(1,i)*v_in(1,i)
-      ! Get second orthogonal vector by cross product
-      v_perp2(1)=v_perp1(2)*v_in(3,i)-v_perp1(3)*v_in(2,i)
-      v_perp2(2)=v_perp1(3)*v_in(1,i)-v_perp1(2)*v_in(3,i)
-      v_perp2(3)=v_perp1(1)*v_in(2,i)-v_perp1(1)*v_in(1,i)
-      ! Calculate projections
-      m_out(1,i)=sum(v_perp1*v_in(:,i))
-      m_out(2,i)=sum(v_perp2*v_in(:,i))
-      m_out(3,i)=sum(v_qt(:,i)*v_in(:,i))
-   end do
-   !
-end subroutine gramms2
 
 !------------------------------------------------------------------------------------
 ! SUBROUTINE: setup_bls_qcoord
@@ -729,6 +650,14 @@ subroutine deallocate_bls_data()
       i_all=-product(shape(bls_dos))*kind(bls_dos)
       deallocate(bls_dos,stat=i_stat)
       call memocc(i_stat,i_all,'bls_dos','calc_bls')
+      !
+      i_all=-product(shape(mavg_axis))*kind(mavg_axis)
+      deallocate(mavg_axis,stat=i_stat)
+      call memocc(i_stat,i_all,'mavg_axis','calc_bls')
+      !
+      i_all=-product(shape(mort_axis))*kind(mort_axis)
+      deallocate(mort_axis,stat=i_stat)
+      call memocc(i_stat,i_all,'mort_axis','calc_bls')
       !
 
       if (do_bls=='Q') then

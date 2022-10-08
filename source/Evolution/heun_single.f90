@@ -21,8 +21,8 @@ contains
    !> @brief The evolution routine for single step Heun
    !-----------------------------------------------------------------------------
    subroutine evolve2(Natom,Mensemble,Landeg,llg,bn,lambda1_array,lambda2_array,    &
-      beff,beff2,field1,field2,mmomi,emom2,compensate_drift,deltat,Temp_array,      &
-      temprescale,thermal_field,Nred,red_atom_list)
+         beff,beff2,field1,field2,mmomi,emom2,compensate_drift,deltat,Temp_array,      &
+         temprescale,thermal_field,Nred,red_atom_list)
       !
       use Constants
       use RandomNumbers, only : ranv, rng_gaussian
@@ -174,22 +174,22 @@ contains
    !> @brief An alternative evolution routine for single step Heun
    !-----------------------------------------------------------------------------
    subroutine evolve3(Natom,Mensemble,Landeg,llg,lambda1_array,beff,field1,field2,  &
-      mmomi,emom2,compensate_drift,deltat,Temp_array,temprescale,thermal_field,Nred,&
-      red_atom_list)
+         mmomi,emom2,compensate_drift,deltat,Temp_array,temprescale,thermal_field,Nred,&
+         red_atom_list)
 
       use Constants
       use RandomNumbers, only : rng_norm, ranv
 
       implicit none
 
-      integer, intent(in) :: llg 	!< Type of equation of motion (1=LLG)
-      integer, intent(in) :: Nred	!< Number of moments that can be updated
-      integer, intent(in) :: Natom 	!< Number of atoms in system
+      integer, intent(in) :: llg    !< Type of equation of motion (1=LLG)
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: compensate_drift 	!< Correct for drift in RNG
-      real(dblprec), intent(in) :: deltat 		!< Time step
+      integer, intent(in) :: compensate_drift   !< Correct for drift in RNG
+      real(dblprec), intent(in) :: deltat       !< Time step
       real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
-      integer, dimension(Nred), intent(in) :: red_atom_list	!< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
@@ -199,7 +199,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       !.. In/out variables
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout), optional :: thermal_field	!< Thermal field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout), optional :: thermal_field  !< Thermal field
 
       real(dblprec) :: D
       real(dblprec) :: etot
@@ -225,8 +225,8 @@ contains
          stop 'Only llg=1 is currently supported'
       endif
 
-		do ired=1, Nred
-			i=red_atom_list(ired)
+      do ired=1, Nred
+         i=red_atom_list(ired)
          D=Dk(i)*mmomi(i,1)*Temp_array(i)*temprescale
          sigma=sqrt(dt*2*D)
          mu=0_dblprec
@@ -237,8 +237,8 @@ contains
 
       if(compensate_drift==1) then
          rx=0.0_dblprec;ry=0.0_dblprec;rz=0.0_dblprec
-			do ired=1, Nred
-				i=red_atom_list(ired)
+         do ired=1, Nred
+            i=red_atom_list(ired)
             rx=rx+ranv(1,i,1)
             ry=ry+ranv(2,i,1)
             rz=rz+ranv(3,i,1)
@@ -246,16 +246,16 @@ contains
          rx=rx/Natom
          ry=ry/Natom
          rz=rz/Natom
-			do ired=1, Nred
-				i=red_atom_list(ired)
+         do ired=1, Nred
+            i=red_atom_list(ired)
             ranv(1,i,1)=ranv(1,i,1)-rx
             ranv(2,i,1)=ranv(2,i,1)-ry
             ranv(3,i,1)=ranv(3,i,1)-rz
          end do
       end if
 
-		call heun3(Natom, Mensemble, Landeg, lambda1_array, beff, emom2, dt,Nred,		&
-			red_atom_list)
+      call heun3(Natom, Mensemble, Landeg, lambda1_array, beff, emom2, dt,Nred,     &
+         red_atom_list)
 
       !$omp parallel do schedule(static) default(shared) private(i,etot)
       do i=1,Natom
@@ -275,20 +275,20 @@ contains
    !> @brief Perform a single Heun step
    !-----------------------------------------------------------------------------
    subroutine heun2(Natom,Mensemble,Landeg,lambda1_array,lambda2_array,llg,beff,    &
-      beff2,emom2,dt,b2h1,b2h2,Nred,red_atom_list)
+         beff2,emom2,dt,b2h1,b2h2,Nred,red_atom_list)
       !
       use RandomNumbers, only : ranv
       !
       implicit none
 
-		integer, intent(in) :: llg 	!< Type of equation of motion (1=LLG)
-		integer, intent(in) :: Nred	!< Number of moments that can be updated
-		integer, intent(in) :: Natom 	!< Number of atoms in system
+      integer, intent(in) :: llg    !< Type of equation of motion (1=LLG)
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       real(dblprec), intent(in) :: dt !< Time step
       real(dblprec), intent(in) :: b2h1 !< Scale factor for effective field
-		real(dblprec), intent(in) :: b2h2 !< Scale factor for applied field
-		integer, dimension(Nred), intent(in) :: red_atom_list	!< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), intent(in) :: b2h2 !< Scale factor for applied field
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(Natom), intent(in) :: lambda2_array !< Additional damping parameter (not used for llg=1)
@@ -322,8 +322,8 @@ contains
       !$omp private(i,ired,e1x,e1y,e1z,dwx,dwy,dwz,hesx,hesy,hesz &
       !$omp ,hlpx,hlpy,hlpz,etx,ety,etz,a1x,a1y,a1z,prot,b1xx &
       !$omp ,b1xy,b1xz,b1yx,b1yy,b1yz,b1zx,b1zy,b1zz,dtg)
-		do ired=1,Nred
-			i=red_atom_list(ired)
+      do ired=1,Nred
+         i=red_atom_list(ired)
          e1x=emom2(1,i,1)
          e1y=emom2(2,i,1)
          e1z=emom2(3,i,1)
@@ -396,14 +396,14 @@ contains
 
       implicit none
 
-		integer, intent(in) :: Nred	!< Number of moments that can be updated
-      integer, intent(in) :: Natom 	!< Number of atoms in system
+      integer, intent(in) :: Nred   !< Number of moments that can be updated
+      integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), intent(in) :: dt 	!< Time step
-		integer, dimension(Nred), intent(in) :: red_atom_list		!< Reduced list containing atoms allowed to evolve in a fixed moment calculation
-		real(dblprec), dimension(Natom), intent(in) :: Landeg  	!< Gyromagnetic ratio
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array 		!< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff 	!< Total effective field from application of Hamiltonian
+      real(dblprec), intent(in) :: dt  !< Time step
+      integer, dimension(Nred), intent(in) :: red_atom_list    !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg    !< Gyromagnetic ratio
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array      !< Damping parameter
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff   !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
 
       real(dblprec) :: b1xx, b1xy, b1xz
@@ -426,7 +426,7 @@ contains
       !$omp ,hlpx,hlpy,hlpz,etx,ety,etz,a1x,a1y,a1z,prot,b1xx &
       !$omp ,b1xy,b1xz,b1yx,b1yy,b1yz,b1zx,b1zy,b1zz,dtg)
       do ired=1,Nred
-        	i=red_atom_list(ired)
+         i=red_atom_list(ired)
          e1x=emom2(1,i,1)
          e1y=emom2(2,i,1)
          e1z=emom2(3,i,1)
