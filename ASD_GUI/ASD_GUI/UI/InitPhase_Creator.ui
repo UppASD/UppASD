@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>InitPhaseCreator</class>
+ <widget class="QDialog" name="InitPhaseCreator">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>620</width>
+    <height>641</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Initial Phase Creation</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QScrollArea" name="InitPhaseCreatorScrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>594</width>
+        <height>615</height>
+       </rect>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <widget class="QGroupBox" name="MCannealBox">
+         <property name="title">
+          <string>Monte Carlo initial phase</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="0" column="0">
+           <widget class="QTableWidget" name="MCannealTable">
+            <property name="rowCount">
+             <number>1</number>
+            </property>
+            <row/>
+            <column>
+             <property name="text">
+              <string>MC steps</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Temperature</string>
+             </property>
+            </column>
+            <item row="0" column="0">
+             <property name="text">
+              <string>1</string>
+             </property>
+            </item>
+            <item row="0" column="1">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="IpNphaseBox">
+         <property name="title">
+          <string>ASD initial phase</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0">
+           <widget class="QTableWidget" name="IpNphaseTable">
+            <property name="rowCount">
+             <number>1</number>
+            </property>
+            <row/>
+            <column>
+             <property name="text">
+              <string>Num. steps</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Temperature</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Time step</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Damping</string>
+             </property>
+            </column>
+            <item row="0" column="0">
+             <property name="text">
+              <string>1</string>
+             </property>
+            </item>
+            <item row="0" column="1">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+            <item row="0" column="2">
+             <property name="text">
+              <string>1e-16</string>
+             </property>
+            </item>
+            <item row="0" column="3">
+             <property name="text">
+              <string>0.001</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="IpVPOBox">
+         <property name="title">
+          <string>VPO initial phase</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="0" column="0">
+           <widget class="QTableWidget" name="VPOTable">
+            <row>
+             <property name="text">
+              <string>1</string>
+             </property>
+            </row>
+            <column>
+             <property name="text">
+              <string>Max. num. steps</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Spring coeff.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Mass</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Time step</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Tolerance</string>
+             </property>
+            </column>
+            <item row="0" column="0">
+             <property name="text">
+              <string>10000</string>
+             </property>
+            </item>
+            <item row="0" column="1">
+             <property name="text">
+              <string>50.5</string>
+             </property>
+            </item>
+            <item row="0" column="2">
+             <property name="text">
+              <string>1.0</string>
+             </property>
+            </item>
+            <item row="0" column="3">
+             <property name="text">
+              <string>0.01</string>
+             </property>
+            </item>
+            <item row="0" column="4">
+             <property name="text">
+              <string>0.000000001</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="TableControlBox">
+         <property name="title">
+          <string/>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QPushButton" name="InitPhaseAddButton">
+            <property name="text">
+             <string>Add row</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="InitPhaseDelButton">
+            <property name="text">
+             <string>Delete row</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="FinishControlBox">
+         <property name="title">
+          <string/>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <widget class="QPushButton" name="InitPhaseDoneButton">
+            <property name="text">
+             <string>Done</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="InitPhaseCancelButton">
+            <property name="text">
+             <string>Cancel</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

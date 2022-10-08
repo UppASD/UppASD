@@ -1,0 +1,37 @@
+simid     HeisStrip
+ncell     10        1         100               System size
+BC        0         0         P                 Boundary conditions (0=vacuum,P=periodic)
+cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile   ./posfile
+exchange  ./jfile
+momfile   ./momfile
+anisotropy ./kfile
+do_prnstruct 2                                  Print lattice structure (0=no, 1=yes)
+
+Mensemble 1                                     Number of samples in ensemble averaging
+Initmag   1                                     (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode   N                                     Initial phase parameters
+ip_nphase 1
+20000 0.1 1d-16 4.0
+
+mode      S                                     S=SD, M=MC
+temp      000.000                              Measurement phase parameters
+damping   0.10
+Nstep     1500                                 --
+timestep  1.000d-16                             --
+
+do_avrg   Y                                     Measure averages
+avrg_step 10 
+
+do_tottraj N                                    Measure moments
+tottraj_step       100
+tottraj_buff       10                           time step, buffer size
+
+plotenergy 1
+
+use_vsl F

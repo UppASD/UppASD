@@ -4,6 +4,8 @@
 <!--![logo][logo]-->
 
 
+[![build status](https://gitlab.com/UppASD/UppASD/badges/master/pipeline.svg)](https://gitlab.com/UppASD/UppASD/pipelines)
+
 The `UppASD` software package is a simulation suite to study magnetization dynamics by means of the atomistic version of the Landau-Lifshitz-Gilbert (LLG) equation.
 
 ***Applications:***
@@ -39,15 +41,15 @@ Where `<profile>` is a suitable compiler profile, i.e. `ifort`, `gfortran`, `gfo
 
 The binary is compiled as `./source/sd`
 
-Examples are provided in `./examples_revision_controlled/`
+Examples are provided in `./examples/`
 
 The manual is found at `./docs/UppASDmanual.pdf` 
 
----
+**Developers please look at the development guidelines in the `CONTRIBUTING.md` file, about how to make your contributions to UppASD.**
 
 ---
 
-<h2>Graphical User Interface</h2>
+<h2>User Graphic Interface</h2>
 
 ---
 
@@ -59,7 +61,7 @@ This allows for:
 
 ***Requirements***
 - `Qt5`.
-- `python3.6` or higher.
+- `python2.7` or higher.
    - `pandas`
    - `numpy`
    - `PYYaml`
@@ -67,66 +69,36 @@ This allows for:
    - `Enum`
 - `VTK7.0` or higher.
 
----
-***Downloading the source files for the GUI***
+***Installation Guide (anaconda)***
 
-If you have downloaded the full UppASD repository, the GUI is accessible from the `./ASD_GUI/` directory within the repo. 
+One simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
 
-Alternatively it can also be downloaded stand-alone from https://github.com/UppASD/UppASD/releases/download/v5.1.0/ASD_GUI.tar.gz
-
----
-***Installation Guide using pip (recommended)***
-
-One way to install the prerequisites for the `ASD_GUI` can be done via `pip` and `virtualenv` or `venv` environments.
-
-After installing `virtualenv` or `venv` one can create a virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+After installing anaconda one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
 
 ```
-python3 -m pip install --user --upgrade pip
-python3 -m pip install --user venv
-python3 -m venv ~/ASD_GUI_env
-source ~/ASD_GUI_env/bin/activate
-python3 -m pip install numpy scipy matplotlib pandas pyqt5 vtk
+conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas
+source activate ASD_GUI_env
+conda install -c menpo enum 
+conda install -c qt5 pyqt5
+```
+This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
+
+***Installation Guide (pip)***
+
+Another  way to install the prerequisites for the `ASD_GUI` can be done via `pip` and `virtualenv` environments.
+
+After installing `virtualenv` one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+
+```
+pip install virtualenv
+virtualenv ASD_GUI_env --python=python3.8
+source ASD_GUI_env/bin/activate
+pip install numpy scipy matplotlib pandas pyqt5 vtk
 ```
 This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
 
 ---
-***Installation Guide using anaconda***
-
-One simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
-
-After installing anaconda one can create a virtual environment where to host the `ASD_GUI`. This can be done in the following way:
-
-```
-conda create --name ASD_GUI_env python
-source activate ASD_GUI_env
-conda install vtk numpy scipy matplotlib yaml pyyaml pandas pyqt
-
-```
-This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI. 
-
-Alternatively, the following variant of conda environment can be used.
-
-```
-conda create --name ASD_GUI_env python vtk numpy scipy matplotlib yaml pyyaml pandas jsoncpp=1.8.3 tbb=2020.2
-conda activate ASD_GUI_env
-```
-
----
-***Running the GUI***
-
-With all dependencies installed, according to the instructions above, the GUI can be started by 
-
-```
-python <your-path-to-the-gui>/ASD_GUI/ASD_GUI.py
-```
-
-where `<your-path-to-the-gui>` is the path to where you downloaded the repo or exctracted the stand-alone version.
-
-It is most convenient to run the GUI from the directory where the output files to be analyzed resides.
-
----
-(C) 2008-2022 [UppASD group][2]
+(C) 2008-2020 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 [2]:http://www.physics.uu.se/research/materials-theory/ongoing-research/uppasd/

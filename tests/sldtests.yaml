@@ -1,0 +1,154 @@
+caselist:
+  - workingdir: "./DimerSLD"
+    run: "./runtest.sh"
+    name: "DimerSLD"
+    comparisons:
+      - outfile:   ./lattenergy.scnobase.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+        testlist:
+          - select:
+              "#_Iter.": 20000
+            extract: ["ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+            #expected: [6.38253008E-01,  9.81426437E-06, -7.46941550E-01, -1.08678728E-01,  1.27790278E-01,  1.91115492E-02,  1.34509971E+01]
+            expected: [0.638253008, 9.81426437e-06, -0.74694155, -0.108678728, 0.127790278, 0.0191017349, 13.4509971]
+            type: "SLD energies"
+
+      - outfile:   ./bintefftot.scnobase.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "Site", "Replica", "B_SD_x", "B_SD_y", "B_SD_z", "B_SD", "B_SLD_x", "B_SLD_y", "B_SLD_z", "B_SLD"]
+        testlist:
+          - select:
+              "#_Iter.": 20000
+            extract: ["Site", "Replica", "B_SD_x", "B_SD_y", "B_SD_z", "B_SD", "B_SLD_x", "B_SLD_y", "B_SLD_z", "B_SLD"]
+            expected: [1, 1, 4.6239E+02, -5.8653E+01,  6.1215E+01,  4.7010E+02,  3.6941E+02, -4.6858E+01,  4.8905E+01,  3.7557E+02]
+            type: "SLD B fields"
+
+      - outfile:   ./eintefftot.scnobase.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "Site", "Replica", "E_LD_x", "E_LD_y", "E_LD_z", "E_LD", "E_SLD_x", "E_SLD_y", "E_SLD_z", "E_SLD"]
+        testlist:
+          - select:
+              "#_Iter.": 20000
+            extract: ["Site", "Replica", "E_LD_x", "E_LD_y", "E_LD_z", "E_LD", "E_SLD_x", "E_SLD_y", "E_SLD_z", "E_SLD"]
+            expected: [1, 1, 1.5978E+00,  0.0000E+00,  0.0000E+00,  1.5978E+00, -9.3495E-01,  0.0000E+00,  0.0000E+00,  9.3495E-01]
+            type: "SLD E fields"
+
+  - workingdir: "./TrimerSLD"
+    run: "./runtest.sh"
+    name: "TrimerSLD"
+    comparisons:
+      - outfile:   ./lattenergy.trimeSLD.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+        testlist:
+          - select:
+              "#_Iter.": 10000
+            extract: ["ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+            expected: [1.45433343E-02, -8.06762065E-14,  7.38895153E-04,  1.52822294E-02,  4.68222190E-04,  1.57504516E-02,  3.12148127E-04]
+            type: "SLD energies"
+
+      - outfile:   ./bintefftot.trimeSLD.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "Site", "Replica", "B_SD_x", "B_SD_y", "B_SD_z", "B_SD", "B_SLD_x", "B_SLD_y", "B_SLD_z", "B_SLD"]
+        testlist:
+          - select:
+              "#_Iter.": 10000
+            extract: ["Site", "Replica", "B_SD_x", "B_SD_y", "B_SD_z", "B_SD", "B_SLD_x", "B_SLD_y", "B_SLD_z", "B_SLD"]
+            expected: [1,  1, 2.9283E+00,  5.8864E-01,  1.8893E-01,  2.9928E+00,  2.4968E-03,  5.0167E-04,  1.6106E-04,  2.5518E-03]
+            type: "SLD B fields"
+
+      - outfile:   ./eintefftot.trimeSLD.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "Site", "Replica", "E_LD_x", "E_LD_y", "E_LD_z", "E_LD", "E_SLD_x", "E_SLD_y", "E_SLD_z", "E_SLD"]
+        testlist:
+          - select:
+              "#_Iter.": 10000
+            extract: ["Site", "Replica", "E_LD_x", "E_LD_y", "E_LD_z", "E_LD", "E_SLD_x", "E_SLD_y", "E_SLD_z", "E_SLD"]
+            expected: [1,  1,  2.5580E-01,  1.4767E-01,  0.0000E+00,  2.9536E-01,  9.5981E-03,  7.9639E-03,  0.0000E+00,  1.2472E-02]
+            type: "SLD E fields"
+
+  - workingdir: "./triang2D"
+    run: "./runtest.sh"
+    name: "triang2D"
+    comparisons:
+      - outfile:   ./lattenergy.triang2D.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+        testlist:
+          - select:
+              "#_Iter.": 1000
+            extract: ["ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+            comparison_func: almost
+            #expected: [0.000335179624, 5.90491054, 0.0, 5.90524572, 0.000728373973, 5.9059741, 0.0766674619]
+            #expected: [0.00623808438, 0.00578193945, 0.0, 0.0120200238, 0.00864925261, 0.0206692764, 0.910406287]
+            expected: [0.00623808438, 0.00578193945, 0.0, 0.0120200238, 0.00864998517, 0.0148880695, 0.910483395]
+            type: "SLD energies"
+
+      - outfile:   sqw.triang2D.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "q_x", "q_y", "q_z", "#_w", "S_x", "S_y", "S_z", "|S|"]
+        skiprows: 1
+        testlist:
+          - select:
+             "#_w": 23    # zero-indexed
+            extract: ["S_y"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            #expected: [1.67517199e-06]
+            expected: [3.48105772e-10]
+            type: "Spin S(Q,w)"
+
+      - outfile:   uqw.triang2D.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "q_x", "q_y", "q_z", "#_w", "S_x", "S_y", "S_z", "|S|"]
+        skiprows: 1
+        testlist:
+          - select:
+             "#_w": 23    # zero-indexed
+            extract: ["S_y"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            #expected: [2.40466965e-07]
+            expected: [2.10438983e-13]
+            type: "Displacement S(Q,w)"
+
+  - workingdir: "./bccFeSLD"
+    run: "./runtest.sh"
+    name: "bccFMSLD"
+    comparisons:
+      - outfile:   ./lattenergy.bccFMSLD.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+        testlist:
+          - select:
+              "#_Iter.": 100
+            extract: ["ld_potenrg", "sd_potenrg", "sld_potenrg", "totpot_enrg", "kin_enrg", "tot_enrg", "ionic temp"]
+            #expected: [3.72287992E-05, -3.45607987E-14,  1.89735380E-20,  3.72287991E-05,  1.10029051E-03,  1.13751931E-03,  1.15814793E-01]
+            #expected: [0.518984719, 1.75289479, 0.000340653607, 2.27222016, 0.0894600829, 2.36168025, 9.41642308]
+            expected: [0.518984719, 1.75289479, 0.000340653607, 2.27222016, 0.0894600829, 0.608785455, 9.41642308]
+            type: "SLD energies"
+
+      - outfile:   sqw.bccFMSLD.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "q_x", "q_y", "q_z", "#_w", "S_x", "S_y", "S_z", "|S|"]
+        skiprows: 1
+        testlist:
+          - select:
+             "#_w": 5    # zero-indexed
+            extract: ["S_z"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            #expected: [2.99903347E-31]
+            expected: [5.17318201e-12]
+            type: "Spin S(Q,w)"
+
+      - outfile:   uqw.bccFMSLD.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "q_x", "q_y", "q_z", "#_w", "S_x", "S_y", "S_z", "|S|"]
+        skiprows: 1
+        testlist:
+          - select:
+             "#_w": 5    # zero-indexed
+            extract: ["S_z"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            #expected: [5.46367002E-09]
+            expected: [1.2366854e-16]
+            type: "Displacement S(Q,w)"

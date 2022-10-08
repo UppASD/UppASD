@@ -2,6 +2,7 @@
 # Determine and set the Fortran compiler flags we want 
 ######################################################
 
+message(STATUS "Setting compiler flags.")
 ####################################################################
 # Make sure that the default build type is RELEASE if not specified.
 ####################################################################
@@ -34,8 +35,9 @@ ENDIF(BT STREQUAL "RELEASE")
 #########################################################
 # If the compiler flags have already been set, return now
 #########################################################
-
+#
 IF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG)
+   #unset(CMAKE_Fortran_FLAGS CACHE)
     RETURN ()
 ENDIF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG)
 
@@ -59,6 +61,13 @@ ENDIF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fort
 # No limits on line-lengths with GNU
 SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
                  Fortran "-ffree-line-length-0")
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                 Fortran "-std=legacy")
+
+if(USE_VSL)
+   SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
+                 Fortran "-fno-range-check")
+endif()
 
 # Ensure that preprocessor flags are invoked
 SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}"
@@ -179,3 +188,7 @@ SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
 
              
 mark_as_advanced(CMAKE_Fortran_FLAGS_TESTING)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_RELEASE)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_TESTING)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_DEBUG)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS)

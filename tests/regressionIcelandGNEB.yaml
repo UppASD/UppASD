@@ -1,0 +1,82 @@
+caselist:
+  - workingdir: "./GNEB"  # base directory both for running sd and for possible relative paths to output files.
+    run: "./runtest.sh"
+    name: "GNEB tests"
+    comparisons:
+
+      - outfile:   force_min.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Iter.", "Force"]
+        testlist:
+          - select:
+              "# Iter.": 1 # zero-indexed
+            extract: ["Force"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            expected: [8.50733319E-009]
+            type: "VPO Force min"
+
+      - outfile:   en_path.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#Itr.","React_coord","Ene","dEne/dReact_coord"]
+        testlist:
+          - select:
+              "#Itr.": 8    # zero-indexed
+            extract: ["React_coord","Ene"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            expected: [1.00773643E+001,1.40865553E+001]
+            type: "Energy Path"
+
+      - outfile:   eig_Final.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Ent.","Eigenvalue"]
+        testlist:
+          - select:
+              "# Ent.": 1   # zero-indexed
+            extract: ["Eigenvalue"] #column number, zero-indexed
+            comparison_func: similar # default. not be required unless you wish to exchange the default.
+            expected: [2.05003275e-001]
+            type: "Eigenvalues Final State"
+
+      - outfile:   eig_Initial.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Ent.","Eigenvalue"]
+        testlist:
+          - select:
+              "# Ent.": 1    # zero-indexed
+            extract: ["Eigenvalue"] #column number, zero-indexed
+            comparison_func: similar # default. not be required unless you wish to exchange the default.
+            expected: [1.71762859E-009]
+            type: "Eigenvalues Initial State"
+
+      - outfile:   eig_Saddle.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Ent.","Eigenvalue"]
+        testlist:
+          - select:
+              "# Ent.": 1    # zero-indexed
+            extract: ["Eigenvalue"] #column number, zero-indexed
+            comparison_func: similar # default. not be required unless you wish to exchange the default.
+            expected: [-2.45602107E+000]
+            type: "Eigenvalues Saddle State"
+
+      - outfile:   rate_fi.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Barrier","Prefactor","Exp Trans","Vol_ini","Vol_sp"]
+        testlist:
+          - select:
+              "# Barrier": 1.40865553E+001    # zero-indexed
+            extract: ["Prefactor"] #column number, zero-indexed
+            comparison_func: similar # default. not be required unless you wish to exchange the default.
+            expected: [8.71836884E+014]
+            type: "Rates final to intial state"
+
+      - outfile:   rate_if.GNEBTEST.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["# Barrier","Prefactor","Exp Trans","Vol_ini","Vol_sp"]
+        testlist:
+          - select:
+              "# Barrier": 5.32124714E+000    # zero-indexed
+            extract: ["Prefactor",Vol_ini] #column number, zero-indexed
+            comparison_func: similar # default. not be required unless you wish to exchange the default.
+            expected: [4.19772751E+012,1.51529716E+001]
+            type: "Rates intial to final state"

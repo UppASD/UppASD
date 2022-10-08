@@ -1,0 +1,46 @@
+simid     HeisWire 
+ncell     1         1         100               System size
+BC        0         0         P                 Boundary conditions (0=vacuum,P=periodic)
+cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile   ./posfile
+exchange  ./jfile
+momfile   ./momfile
+do_prnstruct 2                                  Print lattice structure (0=no, 1=yes)
+
+Mensemble 1                                     Number of samples in ensemble averaging
+Initmag   4                                     (1=random, 2=cone, 3=spec., 4=file)
+restartfile ./startmom
+
+ip_mode   S                                     Initial phase parameters
+ip_nphase 1
+20000 0.1 1d-16 4.0
+
+mode      S                                     S=SD, M=MC
+temp      0000.000                              Measurement phase parameters
+damping   0.000000                              --
+Nstep     15005                                 --
+timestep  1.000d-16                             --
+
+do_avrg   Y                                     Measure averages
+avrg_step 100 
+
+do_tottraj Y                                    Measure moments
+tottraj_step       1000
+tottraj_buff       1                           time step, buffer size
+
+do_sc Q                                         Measure spin correlation
+sc_nstep 50                                    Number of steps to sample
+sc_step 30                                       Number of time steps between each sampling
+qpoints F                                       Flag for q-point generation (F=file,A=automatic,C=full cell)
+qfile   ./qfile
+
+do_ams Y
+
+plotenergy 1
+
+use_vsl .false.
+

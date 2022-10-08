@@ -1,0 +1,4 @@
+1   1   1.000000    0.000000    0.000000         1.005473   #From 3 x 3 x 3 RSPt nodist SC, check!
+1   1   1.000000    1.000000    0.000000         0.621362   #From 3 x 3 x 3 RSPt nodist SC, check!
+1   1   1.000000    1.000000    2.000000         0.004646   #From 3 x 3 x 3 RSPt nodist SC, check!
+1   1   1.000000    1.000000   -1.000000         0.004644   #From 3 x 3 x 3 RSPt nodist SC, check!
