@@ -22,7 +22,6 @@ module prn_induced_info
    character(len=1) :: do_prn_induced !< Print extra information of the induced moments
 
    integer :: bcount_indtraj !< Counter of buffer for moments
-   integer :: scount_tottraj !< Counter of sampling for moments
 
    real(dblprec), dimension(:), allocatable :: ind_indxb            !< Step counter for the induced magnetic moments
    real(dblprec), dimension(:,:), allocatable :: sus_indb           !< Buffer for the susceptibility
@@ -254,7 +253,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''ind_moment.'',a8,''.out'')') simid
+      write (filn,'(''ind_moment.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do ii=1, bcount_indtraj
          do jj=1, Natom

@@ -611,7 +611,7 @@ contains
       character(len=30) :: filn
 
       ! write info about KMC
-      write(filn,'(''kmc_info.'',a8,''.out'')') simid
+      write(filn,'(''kmc_info.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
 
       if (real_time_measure=='Y') then

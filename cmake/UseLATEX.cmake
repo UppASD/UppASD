@@ -474,6 +474,7 @@ function(latex_execute_latex)
     RESULT_VARIABLE execute_result
     )
 
+  message(STATUS "LaTeX result is ${execute_result}.")
   if(NOT ${execute_result} EQUAL 0)
     # LaTeX tends to write a file when a failure happens. Delete that file so
     # that LaTeX will run again.
@@ -484,7 +485,8 @@ function(latex_execute_latex)
     message("Log output:")
     file(READ "${LATEX_WORKING_DIRECTORY}/${LATEX_TARGET}.log" log_output)
     message("${log_output}")
-    message(FATAL_ERROR
+    #message(FATAL_ERROR
+    message(STATUS 
       "Successfully executed LaTeX, but LaTeX returned an error.")
   endif()
 endfunction(latex_execute_latex)

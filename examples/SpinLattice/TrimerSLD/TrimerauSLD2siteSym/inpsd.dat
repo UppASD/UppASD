@@ -1,0 +1,69 @@
+simid     trimeSLD
+ncell     1         1         1                 System size            
+BC        0         0         0                 Boundary conditions (0=vacuum, P=periodic)
+cell      3.00000   0.00000   0.00000         
+          0.00000   3.00000   0.00000
+          0.00000   0.00000   3.00000
+Sym       3                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+do_prnstruct 1
+aunits    Y
+do_n3     Y
+
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./jfile.sym
+Initmag   3
+
+phonfile  ./phonfile
+ll        ./llfile.sym
+mml       ./mmlfile.sym
+Initlatt  3
+
+do_ld     Y
+mode      R
+Nstep     100000
+timestep  1e-5
+damping   0.00
+lattdamp  0.00
+Temp      0.00
+
+lntraj     3
+1    100    10
+2    100    10
+3    100    10
+
+do_lavrg   Y
+do_proj_lavrg   Y
+lavrg_step   100
+lavrg_buff   10
+
+do_ltottraj  Y
+ltottraj_step  100
+ltottraj_buff  10
+
+do_prn_eeff  Y
+eeff_step    100
+eeff_buff    10
+
+do_prn_einteff  Y
+einteff_step    100
+einteff_buff    10
+
+do_avrg   Y
+do_proj_avrg   Y
+avrg_step   100
+avrg_buff   10
+
+do_tottraj  Y
+tottraj_step  100
+tottraj_buff  10
+
+do_prn_beff  Y
+beff_step    100
+beff_buff    10
+
+do_prn_binteff  Y
+binteff_step    100
+binteff_buff    10
+
+plotenergy   1

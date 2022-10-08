@@ -1,0 +1,66 @@
+simid     scnobase
+ncell     4         1         1                 System size            
+BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
+cell      1.00000   0.00000   0.00000         
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+do_prnstruct 1
+do_sortcoup N
+aunits    N
+do_hoc_debug 0
+
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./jfile.nosym
+Initmag   1
+
+phonfile  ./phonfile
+ll        ./llfile.nosym
+mml       ./mmlfile.1000
+Initlatt  1
+
+do_ld     Y
+mode      R
+Nstep     100000
+timestep  1e-16
+damping   0.00
+lattdamp  0.00
+Temp      0.00
+
+do_lavrg   Y
+do_proj_lavrg   Y
+lavrg_step   10
+lavrg_buff   10
+
+do_ltottraj  Y
+ltottraj_step  10
+ltottraj_buff  10
+
+do_prn_eeff  Y
+eeff_step    10
+eeff_buff    10
+
+do_prn_einteff  Y
+einteff_step    10
+einteff_buff    10
+
+do_avrg   Y
+do_proj_avrg   Y
+avrg_step   10
+avrg_buff   10
+
+do_tottraj  Y
+tottraj_step  10
+tottraj_buff  10
+
+do_prn_beff  Y
+beff_step    10
+beff_buff    10
+
+do_prn_binteff  Y
+binteff_step    10
+binteff_buff    10
+
+plotenergy   1
+SDEalgh   21

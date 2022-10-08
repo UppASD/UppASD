@@ -145,7 +145,7 @@ contains
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,do_dm,ham%max_no_dmneigh)
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh)
 
       call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
          beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &

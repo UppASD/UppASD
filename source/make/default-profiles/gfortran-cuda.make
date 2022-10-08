@@ -20,23 +20,13 @@ CUDA = nvcc
 #------------------------------------------------------------------------------------
 # Flags for FORTRAN compilation
 #------------------------------------------------------------------------------------
-# First check compiler version for version dependent flag setting
-GFORTVER := $(shell $(FC) --version | head -1 | awk '{ print $$NF}' | sed 's/\./ /g' | awk '{ print $$1}')
-$(info $$GFORTVER is [$(GFORTVER)] [$(FC)])
-# Then use -fallow-argument-mismatch if GFORTVER > 8.x; otherwise use flag is not needed
-ifneq ($(shell test $(GFORTVER) -gt 9; echo $$?),0)
-FCARGCHECK =
-else
-FCARGCHECK = -fallow-argument-mismatch
-endif
-
 # Basic optimization settings explained
 # -ip         Inline function, substantioal speed up
 # -O3         Optimization, faster execution, slow make times
 # -ipo        Inline between files
 # -xP         Intel processor specific optimizations
 # -fast       Uses -ipo -O3 -xP  -static
-FCFLAGS =  -O3 -ffree-line-length-0 $(FCARGCHECK)
+FCFLAGS =  -O3 -ffree-line-length-0
 
 # Basic debug settings explained
 # -g           Debug with gdb
@@ -94,16 +84,16 @@ NVCCFLAGS = -O3
 # Other common alternatives:
 #  - gencode=arch=compute_30,code=\"sm_30,compute_30\"
 #  - gencode=arch=compute_20,code=\"sm_20,compute_220\"
-GENCODE_ARCH  = -gencode=arch=compute_20,code=\"sm_20,compute_20\"
+GENCODE_ARCH  = -gencode=arch=compute_61,code=\"sm_61,compute_61\"
 
 # CUDA install, include and library paths is not matching default
 # This is computer specific. Change if needed.
 #CUDA_INSTALL_PATH = /usr/lib/nvidia-cuda-toolkit
 #CUDA_INCLUDE_PATH = /usr/lib/nvidia-cuda-toolkit/include
 #CUDA_LIBRARY_PATH = /usr/lib/nvidia-304-updates/
-CUDA_INSTALL_PATH = /opt/cuda-7.5
-CUDA_INCLUDE_PATH = /opt/cuda-7.5/include
-CUDA_LIBRARY_PATH = /opt/cuda-7.5/lib64
+#CUDA_INSTALL_PATH = /opt/cuda-7.5
+#CUDA_INCLUDE_PATH = /opt/cuda-7.5/include
+#CUDA_LIBRARY_PATH = /opt/cuda-7.5/lib64
 
 # Extra libraries needed for compilation
 #  - lcublas         BLAS for CUDA

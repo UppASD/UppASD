@@ -1,9 +1,4 @@
 !> Data containing simulation parameters
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module SimulationData
    use Parameters
    use Profiling
@@ -16,6 +11,7 @@ module SimulationData
    integer :: mstep !< Current simulation step
    real(dblprec), parameter :: bn=1.0_dblprec   !< Scaling factor for LLG equation
    !
+   real(dblprec) :: total_energy = 0.0_dblprec
 
 
 end module SimulationData

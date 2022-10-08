@@ -372,7 +372,7 @@ def writeDotGraphFile(f, dependencies):
         f = f[:-4].lower()
         for dep in sorted(deps):
             # New order
-            fp.write("  " + f +" -> " + dep.lower() + ";\n")
+            fp.write("  \"" + f +"\" -> \"" + dep.lower() + "\" ;\n")
             # Old order
             #fp.write("  " + dep.lower()+" -> " + f + ";\n")
         fp.write("\n")

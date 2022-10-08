@@ -81,7 +81,7 @@ contains
    !> Calculates a random spin direction
    subroutine randomize_spins(Natom,Mensemble,emom,emomM,mmom)
 
-      use RandomNumbers, only : use_vsl,rng_uniform
+      use RandomNumbers, only : rng_uniform
       !.. Implicit declarations
       implicit none
 
@@ -142,6 +142,7 @@ contains
          do_dip,Num_macro,icell,macro_mag_trial,macro_trial,mmom_macro,emom_macro,emomM_macro)
 
       use Constants
+      use InputData, only: ind_mom_type
 
       !.. Implicit declarations
       implicit none
@@ -184,7 +185,6 @@ contains
       integer :: k !< Current ensemble
       integer :: ind_neigh,curr_ind,fix_neigh
       real(dblprec) :: beta,des,lmetric
-      real(dblprec) :: ind_parcomp, mmom_diff
       real(dblprec), dimension(3) :: ave_mom
 
       beta=1.0_dblprec/k_bolt/(temprescale*Temperature+1.0d-15)
@@ -198,31 +198,57 @@ contains
                mmom_macro(icell,k)=macro_mag_trial
             endif
          endif
-      else if (do_lsf=='N'.and.ind_mom_flag=='Y') then
-         if(de<=0.0_dblprec .or. flipprob<exp(-beta*de)) then
-!           ! If the flip is accepted then the magnitude of the induced moments must change
-            emom(:,iflip,k)=newmom(:)
-            emomM(:,iflip,k)=mmom(iflip,k)*newmom(:)
-            if (ind_list_full(iflip).eq.0) then
+         !Induced treatment v1 (Bergman): Flip both fixed and induced moments, renormalize induced magnitudes from susceptibility
+         else if (do_lsf=='N'.and.ind_mom_flag=='Y'.and.ind_mom_type==1) then
+            if(de<=0.0_dblprec .or. flipprob<exp(-beta*de)) then
+   !           ! If the flip is accepted then the magnitude of the induced moments must change
+               emom(:,iflip,k)=newmom(:)
+               emomM(:,iflip,k)=mmom(iflip,k)*newmom(:)
+               if (ind_list_full(iflip).eq.0) then
+                  do ind_neigh=1,ind_nlistsize(iflip)
+                     ! Select the current induced moment
+                     curr_ind=ind_nlist(ind_neigh,iflip)
+                       ! Sum over the nearest neighbours that are fixed
+                       ave_mom=0.0_dblprec
+                       do fix_neigh=1, ind_nlistsize(curr_ind)
+                          ave_mom(1)=ave_mom(1)+emomM(1,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
+                          ave_mom(2)=ave_mom(2)+emomM(2,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
+                          ave_mom(3)=ave_mom(3)+emomM(3,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
+                       enddo
+                       ! Vary the magnitude of the induced moments
+                       mmom(curr_ind,k)=sqrt(ave_mom(1)*ave_mom(1)+ave_mom(2)*ave_mom(2)+ave_mom(3)*ave_mom(3))+1.0e-12_dblprec
+                       emomM(:,curr_ind,k)=emom(:,curr_ind,k)*mmom(curr_ind,k)
+                       !emomM(:,curr_ind,k)=ave_mom(:)*sus_ind(curr_ind)
+                       !mmom(curr_ind,k)=sqrt(emomM(1,curr_ind,k)**2+emomM(2,curr_ind,k)**2+emomM(3,curr_ind,k)**2)+1.0e-12_dblprec
+                       !emom(:,curr_ind,k)=emomM(:,curr_ind,k)/mmom(curr_ind,k)
+                  enddo
+               end if
+            endif
+            !Induced treatment v2 (Ebert): Only flip fixed moments, recalculate induced moments from susceptibility
+      else if (do_lsf=='N'.and.ind_mom_flag=='Y'.and.ind_mom_type==2) then
+      !else if (do_lsf=='N'.and.ind_mom_flag=='Y') then
+          if (ind_list_full(iflip).eq.0) then
+            if(de<=0.0_dblprec .or. flipprob<exp(-beta*de)) then
+               !           ! If the flip is accepted then the magnitude of the induced moments must change
+               emom(:,iflip,k)=newmom(:)
+               emomM(:,iflip,k)=mmom(iflip,k)*newmom(:)
                do ind_neigh=1,ind_nlistsize(iflip)
                   ! Select the current induced moment
                   curr_ind=ind_nlist(ind_neigh,iflip)
-                    ! Sum over the nearest neighbours that are fixed
-                    ave_mom=0.0_dblprec
-                    do fix_neigh=1, ind_nlistsize(curr_ind)
-                       ave_mom(1)=ave_mom(1)+emomM(1,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
-                       ave_mom(2)=ave_mom(2)+emomM(2,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
-                       ave_mom(3)=ave_mom(3)+emomM(3,ind_nlist(fix_neigh,curr_ind),k)*sus_ind(curr_ind)
-                    enddo
-                    ! Vary the magnitude of the induced moments
-                    mmom(curr_ind,k)=sqrt(ave_mom(1)*ave_mom(1)+ave_mom(2)*ave_mom(2)+ave_mom(3)*ave_mom(3))+1.0e-12_dblprec
-                    emomM(:,curr_ind,k)=emom(:,curr_ind,k)*mmom(curr_ind,k)
-                    !emomM(:,curr_ind,k)=ave_mom(:)*sus_ind(curr_ind)
-                    !mmom(curr_ind,k)=sqrt(emomM(1,curr_ind,k)**2+emomM(2,curr_ind,k)**2+emomM(3,curr_ind,k)**2)+1.0e-12_dblprec
-                    !emom(:,curr_ind,k)=emomM(:,curr_ind,k)/mmom(curr_ind,k)
+                  ! Sum over the nearest neighbours that are fixed
+                  ave_mom=0.0_dblprec
+                  do fix_neigh=1, ind_nlistsize(curr_ind)
+                     ave_mom(1)=ave_mom(1)+emomM(1,ind_nlist(fix_neigh,curr_ind),k)!*sus_ind(curr_ind)
+                     ave_mom(2)=ave_mom(2)+emomM(2,ind_nlist(fix_neigh,curr_ind),k)!*sus_ind(curr_ind)
+                     ave_mom(3)=ave_mom(3)+emomM(3,ind_nlist(fix_neigh,curr_ind),k)!*sus_ind(curr_ind)
+                  enddo
+                  ! Align induced moments according to susceptibility
+                  emomM(:,curr_ind,k)=ave_mom(:)*sus_ind(curr_ind)
+                  mmom(curr_ind,k)=sqrt(emomM(1,curr_ind,k)**2+emomM(2,curr_ind,k)**2+emomM(3,curr_ind,k)**2)+1.0e-12_dblprec
+                  emom(:,curr_ind,k)=emomM(:,curr_ind,k)/mmom(curr_ind,k)
                enddo
             end if
-         endif
+          endif
       else
          if(lsf_metric==1) then
             lmetric=1.0_dblprec
@@ -374,20 +400,25 @@ contains
       zarg=sqrt(sum(zfc(:)*zfc(:)))
       zctheta=zfc(3)/zarg
       zstheta=sqrt(1.0_dblprec-zctheta*zctheta)
-      if (zstheta < 1.d-2) then
-         zctheta=0.999950_dblprec
-         zstheta=1.d-2
-         zcphi=1.0_dblprec
-         zsphi=0.0_dblprec
+      !if (zstheta < 1.d-2) then
+      if (zstheta < 1.d-6) then
+         !zctheta=0.999950_dblprec
+         !zctheta=0.999999995_dblprec
+         zctheta=0.9999999999995_dblprec
+         zstheta=1.d-6
+         !zcphi=1.0_dblprec
+         !zsphi=0.0_dblprec
+         zcphi=zfc(1)/(zarg*zstheta)
+         zsphi=zfc(2)/(zarg*zstheta)
       else
          zcphi=zfc(1)/(zarg*zstheta)
          zsphi=zfc(2)/(zarg*zstheta)
       endif
-!      ctheta=1.50_dblprec
-!      do while (abs(ctheta)>1.0_dblprec)
-!         call rng_uniform(q,1)
-!         ctheta=1.0_dblprec+1.0_dblprec/zarg*log(q(1))   ! Modified Direct Heat Bath
-!      enddo
+      !ctheta=1.50_dblprec
+      !do while (abs(ctheta)>1.0_dblprec)
+      !   call rng_uniform(q,1)
+      !   ctheta=1.0_dblprec+1.0_dblprec/zarg*log(q(1))   ! Modified Direct Heat Bath
+      !enddo
       ctheta=1.0_dblprec+(1.0_dblprec/zarg)*log((1.0_dblprec-exp(-2.0_dblprec*zarg))*q+exp(-2.0_dblprec*zarg)+dbl_tolerance)
       stheta=sqrt(1.0_dblprec-ctheta*ctheta)
       phi=pi*(2.0_dblprec*flipprob-1.0_dblprec)
@@ -408,10 +439,10 @@ contains
    !> @author Lars Bergqvist
    !> Jonathan Chico --------> Adding macrocell dipole-dipole energy calculation
    !-----------------------------------------------------------------------------
-   subroutine calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_chir,&
+   subroutine calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa,&
          emomM, emom, mmom, iflip, newmom, extfield, de, k, &
          mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-         macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy)
+         macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,do_jtensor)
 
       use Constants, only : mub
       use macrocells, only : calc_trial_macro_mom
@@ -428,7 +459,9 @@ contains
       integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
       integer, intent(in) :: do_biqdm   !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
       integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_ring !< Add four-spin ring (4SR) term to Hamiltonian (0/1)      
       integer, intent(in) :: do_chir !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_sa   !< Add symmetric anisotropic exchange (SA) term to Hamiltonian (0/1)
       integer, intent(in) :: do_anisotropy
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
@@ -451,13 +484,14 @@ contains
       integer, intent(out) :: icell
       real(dblprec), intent(out) :: macro_mag_trial
       real(dblprec), dimension(3), intent(out) :: macro_trial
+      integer, intent(in) ::  do_jtensor  !<  Use SKKR style exchange tensor (0=off, 1=on)
 
       !.. Local scalars
       integer :: j,mu,nu, iflip_h
       real(dblprec) :: tt, tta, ttb, e_c, e_t
       real(dblprec) :: bqmdot, excscale
-      real(dblprec) :: dum_c, dum_t
-      real(dblprec), dimension(3) :: c_vect, f_vect, b_vect, field
+      real(dblprec) :: ringmdotij,ringmdotkl,ringmdotil,ringmdotkj,ringmdotik,ringmdotjl   
+      real(dblprec), dimension(3) :: field
       integer :: im1,ip1,im2,ip2
 
       !.. Local arrays
@@ -466,9 +500,9 @@ contains
       !.. Executable statements
 
       ! First calculate effective field
-      beff_t(1) = 0.0_dblprec
-      beff_t(2) = 0.0_dblprec
-      beff_t(3) = 0.0_dblprec
+      !beff_t(1) = 0.0_dblprec
+      !beff_t(2) = 0.0_dblprec
+      !beff_t(3) = 0.0_dblprec
       tt=0.0_dblprec
 
       e_c=0.0_dblprec
@@ -476,25 +510,35 @@ contains
       trialmom(:)=newmom(:)*mmom(iflip,k)
       iflip_h=ham%aham(iflip)
 
-      if (exc_inter=='N') then
-         ! Exchange
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
-         !$omp simd reduction(+:e_c,e_t)
-#endif
+      if (do_jtensor==1) then
          do j=1,ham%nlistsize(iflip_h)
-            e_c=e_c-ham%ncoup(j,iflip_h,1)*sum(emomM(:,iflip,k)*emomM(:,ham%nlist(j,iflip),k))
-            e_t=e_t-ham%ncoup(j,iflip_h,1)*sum(trialmom(:)*emomM(:,ham%nlist(j,iflip),k))
+            beff_t = beff_t +  ham%j_tens(:,1,j,iflip_h)*emomM(1,ham%nlist(j,iflip),k)  &
+                          +  ham%j_tens(:,2,j,iflip_h)*emomM(2,ham%nlist(j,iflip),k)  &
+                          +  ham%j_tens(:,3,j,iflip_h)*emomM(3,ham%nlist(j,iflip),k)
          end do
+         e_c = e_c - sum(emomM(:,iflip,k)*beff_t)
+         e_t = e_t - sum(trialmom(:)*beff_t)
       else
+         if (exc_inter=='N') then
+            ! Exchange
 #if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
-         !$omp simd private(excscale) reduction(+:e_c,e_t)
+            !$omp simd reduction(+:e_c,e_t)
 #endif
-         do j=1,ham%nlistsize(iflip_h)
-            excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-            e_c=e_c-(excscale*ham%ncoup(j,iflip_h,1)+(1.0_dblprec-excscale)*ham%ncoupD(j,iflip_h,1))*sum(emomM(:,iflip,k)*emomM(:,ham%nlist(j,iflip),k))
-            e_t=e_t-(excscale*ham%ncoup(j,iflip_h,1)+(1.0_dblprec-excscale)*ham%ncoupD(j,iflip_h,1))*sum(trialmom(:)*emomM(:,ham%nlist(j,iflip),k))
-         end do
-      endif
+            do j=1,ham%nlistsize(iflip_h)
+               e_c=e_c-ham%ncoup(j,iflip_h,1)*sum(emomM(:,iflip,k)*emomM(:,ham%nlist(j,iflip),k))
+               e_t=e_t-ham%ncoup(j,iflip_h,1)*sum(trialmom(:)*emomM(:,ham%nlist(j,iflip),k))
+            end do
+         else
+#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422)
+            !$omp simd private(excscale) reduction(+:e_c,e_t)
+#endif
+            do j=1,ham%nlistsize(iflip_h)
+               excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
+               e_c=e_c-(excscale*ham%ncoup(j,iflip_h,1)+(1.0_dblprec-excscale)*ham%ncoupD(j,iflip_h,1))*sum(emomM(:,iflip,k)*emomM(:,ham%nlist(j,iflip),k))
+               e_t=e_t-(excscale*ham%ncoup(j,iflip_h,1)+(1.0_dblprec-excscale)*ham%ncoupD(j,iflip_h,1))*sum(trialmom(:)*emomM(:,ham%nlist(j,iflip),k))
+            end do
+         endif
+      end if
 
       ! Anisotropy
       if (do_anisotropy==1) then
@@ -590,28 +634,64 @@ contains
          end do
       end if
 
+      ! SA interaction
+      if (do_sa==1) then
+         do j=1,ham%salistsize(iflip_h)
+            e_c=e_c+ham%sa_vect(1,j,iflip_h)*(emomM(2,iflip,k)*emomM(3,ham%salist(j,iflip),k)+ &
+               emom(3,iflip,k)*emomM(2,ham%salist(j,iflip),k))+ &
+               ham%sa_vect(2,j,iflip_h)*(emomM(3,iflip,k)*emomM(1,ham%salist(j,iflip),k)+ &
+               emomM(1,iflip,k)*emomM(3,ham%salist(j,iflip),k))+ &
+               ham%sa_vect(3,j,iflip_h)*(emom(1,iflip,k)*emomM(2,ham%salist(j,iflip),k)+ &
+               emomM(2,iflip,k)*emomM(1,ham%salist(j,iflip),k))
+            e_c = -e_c
+            e_t=e_t+ham%sa_vect(1,j,iflip_h)*(trialmom(2)*emomM(3,ham%salist(j,iflip),k)+ &
+               trialmom(3)*emomM(2,ham%salist(j,iflip),k))+ &
+               ham%sa_vect(2,j,iflip_h)*(trialmom(3)*emomM(1,ham%salist(j,iflip),k)+ &
+               trialmom(1)*emomM(3,ham%salist(j,iflip),k))+ &
+               ham%sa_vect(3,j,iflip_h)*(trialmom(1)*emomM(2,ham%salist(j,iflip),k)+ &
+               trialmom(2)*emomM(1,ham%salist(j,iflip),k))
+            e_t = -e_t
+
+         end do
+      end if
+
       ! PD interaction
       if(do_pd==1) then
          do j=1,ham%pdlistsize(iflip_h)
-            e_c=e_c-ham%pd_vect(1,j,iflip_h)*emomM(1,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(4,j,iflip_h)*emomM(1,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(5,j,iflip_h)*emomM(1,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(4,j,iflip_h)*emomM(2,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(2,j,iflip_h)*emomM(2,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(6,j,iflip_h)*emomM(2,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(5,j,iflip_h)*emomM(3,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(6,j,iflip_h)*emomM(3,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(3,j,iflip_h)*emomM(3,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)
+          !  e_c=e_c-ham%pd_vect(1,j,iflip_h)*emomM(1,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(4,j,iflip_h)*emomM(1,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(5,j,iflip_h)*emomM(1,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(4,j,iflip_h)*emomM(2,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(2,j,iflip_h)*emomM(2,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(6,j,iflip_h)*emomM(2,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(5,j,iflip_h)*emomM(3,iflip,k)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(6,j,iflip_h)*emomM(3,iflip,k)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(3,j,iflip_h)*emomM(3,iflip,k)*emomM(3,ham%pdlist(j,iflip),k)
 
-            e_t=e_t-ham%pd_vect(1,j,iflip_h)*trialmom(1)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(4,j,iflip_h)*trialmom(1)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(5,j,iflip_h)*trialmom(1)*emomM(3,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(4,j,iflip_h)*trialmom(2)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(2,j,iflip_h)*trialmom(2)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(6,j,iflip_h)*trialmom(2)*emomM(3,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(5,j,iflip_h)*trialmom(3)*emomM(1,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(6,j,iflip_h)*trialmom(3)*emomM(2,ham%pdlist(j,iflip),k)- &
-               ham%pd_vect(3,j,iflip_h)*trialmom(3)*emomM(3,ham%pdlist(j,iflip),k)
+          !  e_t=e_t-ham%pd_vect(1,j,iflip_h)*trialmom(1)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(4,j,iflip_h)*trialmom(1)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(5,j,iflip_h)*trialmom(1)*emomM(3,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(4,j,iflip_h)*trialmom(2)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(2,j,iflip_h)*trialmom(2)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(6,j,iflip_h)*trialmom(2)*emomM(3,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(5,j,iflip_h)*trialmom(3)*emomM(1,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(6,j,iflip_h)*trialmom(3)*emomM(2,ham%pdlist(j,iflip),k)- &
+          !     ham%pd_vect(3,j,iflip_h)*trialmom(3)*emomM(3,ham%pdlist(j,iflip),k)
+
+                field(1)=ham%pd_vect(1,j,iflip_h)*emomM(1,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(2,j,iflip_h)*emomM(2,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(3,j,iflip_h)*emomM(3,ham%pdlist(j,iflip),k) 
+                field(2)=ham%pd_vect(4,j,iflip_h)*emomM(1,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(5,j,iflip_h)*emomM(2,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(6,j,iflip_h)*emomM(3,ham%pdlist(j,iflip),k) 
+                field(3)=ham%pd_vect(7,j,iflip_h)*emomM(1,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(8,j,iflip_h)*emomM(2,ham%pdlist(j,iflip),k) +&
+                         ham%pd_vect(9,j,iflip_h)*emomM(3,ham%pdlist(j,iflip),k) 
+                           
+             e_c=e_c-( emomM(1,iflip,k)*field(1)+emomM(2,iflip,k)*field(2)+emomM(3,iflip,k)*field(3) )
+             e_t=e_t-( trialmom(1)*field(1)+trialmom(2)*field(2)+trialmom(3)*field(3) )                   
+               
+                    
          end do
       end if
 
@@ -652,6 +732,58 @@ contains
 
          end do
       end if
+
+    ! Four-spin ring interaction
+	  if(do_ring==1) then
+
+       do j=1,ham%ringlistsize(iflip_h)
+          ! current spin
+             ringmdotij=emomM(1,ham%ringlist(iflip,j,1),k)*emomM(1,iflip,k)+&
+                       emomM(2,ham%ringlist(iflip,j,1),k)*emomM(2,iflip,k)+&
+                       emomM(3,ham%ringlist(iflip,j,1),k)*emomM(3,iflip,k)
+
+             ringmdotkl=emomM(1,ham%ringlist(iflip,j,2),k)*emomM(1,ham%ringlist(iflip,j,3),k)+&
+                       emomM(2,ham%ringlist(iflip,j,2),k)*emomM(2,ham%ringlist(iflip,j,3),k)+&
+                       emomM(3,ham%ringlist(iflip,j,2),k)*emomM(3,ham%ringlist(iflip,j,3),k)
+
+             ringmdotil=emomM(1,ham%ringlist(iflip,j,3),k)*emomM(1,iflip,k)+&
+                       emomM(2,ham%ringlist(iflip,j,3),k)*emomM(2,iflip,k)+&
+                       emomM(3,ham%ringlist(iflip,j,3),k)*emomM(3,iflip,k)
+
+             ringmdotkj=emomM(1,ham%ringlist(iflip,j,2),k)*emomM(1,ham%ringlist(iflip,j,1),k)+&
+                       emomM(2,ham%ringlist(iflip,j,2),k)*emomM(2,ham%ringlist(iflip,j,1),k)+&
+                       emomM(3,ham%ringlist(iflip,j,2),k)*emomM(3,ham%ringlist(iflip,j,1),k)
+
+             ringmdotik=emomM(1,ham%ringlist(iflip,j,2),k)*emomM(1,iflip,k)+&
+                       emomM(2,ham%ringlist(iflip,j,2),k)*emomM(2,iflip,k)+&
+                       emomM(3,ham%ringlist(iflip,j,2),k)*emomM(3,iflip,k)
+
+             ringmdotjl=emomM(1,ham%ringlist(iflip,j,1),k)*emomM(1,ham%ringlist(iflip,j,3),k)+&
+                       emomM(2,ham%ringlist(iflip,j,1),k)*emomM(2,ham%ringlist(iflip,j,3),k)+&
+                       emomM(3,ham%ringlist(iflip,j,1),k)*emomM(3,ham%ringlist(iflip,j,3),k)
+
+          e_c=e_c+ham%j_ring(iflip_h,j)*ringmdotij*ringmdotkl+&
+             ham%j_ring(iflip_h,j)*ringmdotil*ringmdotkj-ham%j_ring(iflip_h,j)*ringmdotik*ringmdotjl
+
+          !trial spin
+
+             ringmdotij=emomM(1,ham%ringlist(iflip,j,1),k)*trialmom(1)+&
+                       emomM(2,ham%ringlist(iflip,j,1),k)*trialmom(2)+&
+                       emomM(3,ham%ringlist(iflip,j,1),k)*trialmom(3)
+
+             ringmdotil=emomM(1,ham%ringlist(iflip,j,3),k)*trialmom(1)+&
+                       emomM(2,ham%ringlist(iflip,j,3),k)*trialmom(2)+&
+                       emomM(3,ham%ringlist(iflip,j,3),k)*trialmom(3)
+
+             ringmdotik=emomM(1,ham%ringlist(iflip,j,2),k)*trialmom(1)+&
+                       emomM(2,ham%ringlist(iflip,j,2),k)*trialmom(2)+&
+                       emomM(3,ham%ringlist(iflip,j,2),k)*trialmom(3)
+
+          e_t=e_t+ham%j_ring(iflip_h,j)*ringmdotij*ringmdotkl+&
+             ham%j_ring(iflip_h,j)*ringmdotil*ringmdotkj-ham%j_ring(iflip_h,j)*ringmdotik*ringmdotjl
+
+       end do
+    end if
 
       ! CHIR interaction
       if (do_chir==1) then

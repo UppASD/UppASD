@@ -32,9 +32,11 @@ module clusters
    integer :: do_anisotropy_clus     !< Read anisotropy data for the cluster (1/0)
    integer :: max_no_shells_clus     !< Actual maximum number of shells for the cluster
    integer :: max_no_dmshells_clus   !< Actual maximum number of shells for DM interactions for the cluster
+   integer :: max_no_sashells_clus   !< Actual maximum number of shells for DM interactions for the cluster
    integer, dimension(:), allocatable :: NN_clus                        !< Number of neighbour shells for the cluster
    integer, dimension(:), allocatable :: Nch_clus                       !< Number of chemical components on each site in cell
    integer, dimension(:), allocatable :: dm_nn_clus                     !< No. shells of neighbours for DM for the cluster
+   integer, dimension(:), allocatable :: sa_nn_clus                     !< No. shells of neighbours for DM for the cluster
    integer, dimension(:), allocatable :: anumb_inp_clus                 !< Atom number in cluster
    integer, dimension(:), allocatable :: atype_inp_clus                 !< Type of atom in cluster
    integer, dimension(:,:), allocatable :: anisotropytype_clus          !< Type of anisotropies for the cluster (0-2)
@@ -50,15 +52,18 @@ module clusters
    real(dblprec), dimension(:,:,:), allocatable :: Landeg_ch_clus       !< Gyromagnetic ratio for the cluster
    real(dblprec), dimension(:,:,:), allocatable :: anisotropy_clus      !< Input data for anisotropies for the cluster
    real(dblprec), dimension(:,:,:), allocatable :: dm_redcoord_clus     !< Neighbour vectors for DM for the cluster
+   real(dblprec), dimension(:,:,:), allocatable :: sa_redcoord_clus     !< Neighbour vectors for DM for the cluster
    real(dblprec), dimension(:,:,:), allocatable :: anisotropy_diff_clus !< Input data for the second anisotropy axis for the cluster
    real(dblprec), dimension(:,:,:,:), allocatable :: aemom_inp_clus     !< Magnetic moment directions from input for the cluster
    real(dblprec), dimension(:,:,:,:,:), allocatable :: jc_clus          !< Exchange couplings for the cluster
    real(dblprec), dimension(:,:,:,:,:), allocatable :: dm_inpvect_clus  !< Neighbour vectors for DM for the cluster
+   real(dblprec), dimension(:,:,:,:,:), allocatable :: sa_inpvect_clus  !< Neighbour vectors for DM for the cluster
    logical :: random_anisotropy_clus   !< Put random anisotropy in the sample for the cluster (T/F)
    character(len=1) :: do_cluster      !< Perform cluster embedding procedure
    character(len=1) :: mult_axis_clus  !< Flag to treat more than one anisotropy axis at the same time for the cluster
    character(len=35) :: kfile_clus     !< File name for the anisotropies for the cluster
    character(len=35) :: dmfile_clus    !< File name for Dzyaloshinskii-Moriya data of the cluster
+   character(len=35) :: safile_clus    !< File name for Dzyaloshinskii-Moriya data of the cluster
    character(len=35) :: posfile_clus   !< File name for coordinates of the cluster
    character(len=35) :: momfile_clus   !< File name for magnetic moments for the cluster
    character(len=30), dimension(:), allocatable ::jfile_clus !< File name for exchange couplings for the cluster
@@ -66,12 +71,15 @@ module clusters
    type ham_clus_t
       integer :: max_no_neigh_clus      !< Calculated maximum of neighbours for exchange for the cluster
       integer :: max_no_dmneigh_clus    !< Calculated maximum of neighbours for DM exchange for the cluster
+      integer :: max_no_saneigh_clus    !< Calculated maximum of neighbours for DM exchange for the cluster
       integer, dimension(:), allocatable :: taniso_clus        !< Type of anisotropy for cluster (0-2)
       integer, dimension(:), allocatable :: nlistsize_clus     !< Size of neighbour list for Heisenberg exchange couplings for the cluster
       integer, dimension(:), allocatable :: dmlistsize_clus    !< Size of neighbour list for DM for the cluster
+      integer, dimension(:), allocatable :: salistsize_clus    !< Size of neighbour list for DM for the cluster
       integer, dimension(:), allocatable :: taniso_diff_clus   !< Type of anisotropy for cluster (0-2)
       integer, dimension(:,:), allocatable :: nlist_clus       !< Neighbour list for Heisenberg exchange couplings for the cluster
       integer, dimension(:,:), allocatable :: dmlist_clus      !< List of neighbours for DM for the cluster
+      integer, dimension(:,:), allocatable :: salist_clus      !< List of neighbours for DM for the cluster
       integer, dimension(:,:), allocatable :: ind_mom_clus     !< Flag to decide whether a moment is induced or not
       real(dblprec), dimension(:), allocatable :: sb_clus            !< Ratio between Cubic and Uniaxial anisotropy for the cluster
       real(dblprec), dimension(:), allocatable :: sb_diff_clus       !< Ratio between Cubic and Uniaxial anisotropy for the cluster
@@ -81,6 +89,7 @@ module clusters
       real(dblprec), dimension(:,:), allocatable :: eaniso_diff_clus !< Unit anisotropy vector for the cluster
       real(dblprec), dimension(:,:,:), allocatable :: ncoup_clus     !< Heisenberg exchange couplings for the cluster
       real(dblprec), dimension(:,:,:), allocatable :: dm_vect_clus   !< Dzyaloshinskii-Moriya exchange vector
+      real(dblprec), dimension(:,:,:), allocatable :: sa_vect_clus   !< Dzyaloshinskii-Moriya exchange vector
    end type ham_clus_t
 
    type(ham_clus_t) :: ham_clus
@@ -137,10 +146,10 @@ contains
    !> @author
    !> Jonathan Chico
    !-----------------------------------------------------------------------------
-   subroutine cluster_creation(NT,do_dm,Natom,Nchmax,initmag,conf_num,Mensemble,    &
+   subroutine cluster_creation(NT,do_dm,Natom,initmag,conf_num,Mensemble,    &
       do_ralloy,Natom_full,do_jtensor,do_prnstruct,do_anisotropy_clus,index_clus,   &
       atype_clus,anumb_clus,coord,coord_clus,simid,mult_axis_clus,atype,anumb,      &
-      atype_ch,asite_ch,achem_ch,achtype,acellnumb,mmom,emom,emomM,Landeg)
+      asite_ch,achem_ch,mmom,emom,emomM,Landeg)
 
       use Profiling
       use Parameters
@@ -152,7 +161,6 @@ contains
       integer, intent(in) :: NT              !< Number of types of atoms
       integer, intent(in) :: do_dm           !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
       integer, intent(in) :: Natom           !< Number of atoms in system
-      integer, intent(in) :: Nchmax          !< Max number of chemical components on each site in cell
       integer, intent(in) :: initmag         !< Mode of initialization of magnetic moments (1-4)
       integer, intent(in) :: conf_num        !< Number of configurations for LSF
       integer, intent(in) :: Mensemble       !< Number of ensembles
@@ -171,11 +179,8 @@ contains
       ! In/out variables
       integer, dimension(Natom), intent(inout)        :: atype       !< Type of atom
       integer, dimension(Natom), intent(inout)        :: anumb       !< Atom number in cell
-      integer, dimension(Natom), intent(inout)        :: achtype     !< Chemical type of atoms (full list)
-      integer, dimension(Natom_full), intent(inout)   :: atype_ch    !< Actual type of atom for dilute system
       integer, dimension(Natom_full), intent(inout)   :: asite_ch    !< Actual site of atom for dilute system
       integer, dimension(Natom_full), intent(inout)   :: achem_ch    !< Chemical type of atoms (reduced list)
-      integer, dimension(Natom), intent(inout)        :: acellnumb   !< List for translating atom no. in full cell to actual cell
       real(dblprec), dimension(Natom), intent(inout) :: Landeg  !< Gyromagnetic ratio
       real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
@@ -318,7 +323,7 @@ contains
       ! Impose symmetrization of the interactions to avoid probles at the boundaries
       call symmetrize_interactions(Natom,do_dm)
       ! Write extra information for the cluster
-      write (filn,'(''clus_info.'',a8,''.out'')') simid
+      write (filn,'(''clus_info.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
       write(ofileno,'(a)') "Clus. ind.  iatom  coord_x  coord_y  coord_z  type"
       do iclus=1,Natom_clus
@@ -1195,7 +1200,7 @@ contains
    subroutine read_parameters_cluster(ifile,conf_num)
       use FileParser
       use ErrorHandling
-      use InputData, only: do_anisotropy
+      use InputData, only: ham_inp
 
       implicit none
 
@@ -1256,7 +1261,7 @@ contains
 
          case('anisotropy_clus')
             do_anisotropy_clus=1
-            do_anisotropy=1
+            ham_inp%do_anisotropy=1
             read(ifile,'(a)',iostat=i_err) cache
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             kfile_clus=adjustl(trim(cache))

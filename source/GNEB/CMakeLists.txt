@@ -1,4 +1,4 @@
-add_sources(energyminima.f90
+target_sources(${UppASD_LIB} PRIVATE energyminima.f90
 gneb.f90
 hermitelib.f90
 hessian.f90

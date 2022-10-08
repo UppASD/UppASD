@@ -10,7 +10,6 @@
 module qminimizer
    use Parameters
    use Profiling
-   use HamiltonianData
    use FieldData
    use HamiltonianActions
    !
@@ -32,8 +31,11 @@ module qminimizer
    real(dblprec), dimension(3) :: theta, phi
    real(dblprec) :: theta_glob
    !
+   character*1 :: qm_rot   !< Rotate magnetic texture instead of pure spin spirals
+   character*1 :: qm_oaxis !< Ensure that the rotational axis is perpendicular to m
+   character*1 :: qm_type  !< Which type of qm_axis to use (C)ycloidal, (H)elical, or (G)eneral
+   !
    ! Control parameters for line sweep
-   real(dblpreC) :: q_scale
    real(dblpreC) :: q_min
    real(dblpreC) :: q_max
    integer :: nstep
@@ -41,12 +43,63 @@ module qminimizer
    private
    !
    !public :: mini_q, plot_q, qmc, sweep_q2, sweep_q3, plot_q3
-   public :: plot_q, qmc, sweep_q2, sweep_q3, plot_q3
-   public :: sweep_cube, plot_cube
-   public :: read_parameters_qminimizer,qminimizer_init
+   !public :: plot_q, qmc, sweep_q2, sweep_q3, plot_q3
+   !public :: sweep_cube, plot_cube
+   public :: read_parameters_qminimizer,qminimizer_init, qminimizer_wrapper
    !public :: sweep_q,read_parameters_qminimizer,qminimizer_init
    !
 contains
+
+   subroutine qminimizer_wrapper(qmode)
+      !
+      use InputData!, only : Natom, Mensemble, NA
+      use optimizationRoutines, only : OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup, constellations,constellationsNeighType
+      use macrocells, only : Num_macro,cell_index, emomM_macro,macro_nlistsize
+      use MomentData, only : emom, emomM, mmom
+      use SystemData, only : coord
+      use Qvectors,   only : q, nq
+
+      implicit none
+      !
+      character*1, intent(in) :: qmode
+
+      !
+
+      if (qmode=='Q') then
+         ! Spin spiral minimization initial phase
+         !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
+         call sweep_q2(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
+            constellations,constellationsNeighType,Num_macro,cell_index,  &
+            emomM_macro,macro_nlistsize,simid,q,nq)
+         call plot_q(Natom,Mensemble,coord,emom,emomM,mmom,simid)
+      elseif (qmode=='Z') then
+         ! Spin spiral minimization initial phase
+         !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
+         !call sweep_q3(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,    &
+         call sweep_cube(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
+            constellations,constellationsNeighType,Num_macro,cell_index,  &
+            emomM_macro,macro_nlistsize,simid,q,nq)
+         call plot_cube(Natom,Mensemble,coord,emom,emomM,mmom,simid)
+      elseif (qmode=='Y') then
+         ! Spin spiral minimization initial phase
+         call sweep_q3(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
+            constellations,constellationsNeighType,Num_macro,cell_index,  &
+            emomM_macro,macro_nlistsize,simid,q,nq)
+         call plot_q3(Natom,Mensemble,coord,emom,emomM,mmom,simid)
+      elseif (mode=='S') then
+         ! Spin spiral minimization measurement phase
+         call qmc(Natom,Mensemble,NA,N1,N2,N3,coord, emomM,mmom,hfield,&
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
+            constellations,constellationsNeighType,Num_macro,cell_index,  &
+            emomM_macro,macro_nlistsize)
+         call plot_q(Natom, Mensemble, coord, emom, emomM, mmom,simid)
+
+      end if
+   
+   end subroutine qminimizer_wrapper
 !!!    !-----------------------------------------------------------------------------
 !!!    ! SUBROUTINE: mini_q
 !!!    !> @brief Main driver for the minimization of spin spirals
@@ -531,11 +584,11 @@ contains
 !!! 
 !!!       countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
 !!!       !
-!!!       write(filn,'(''qm_sweep.'',a8,''.out'')') simid
+!!!       write(filn,'(''qm_sweep.'',a,''.out'')') trim(simid)
 !!!       open(ofileno,file=filn, position="append")
 !!!       write(ofileno,'(a)') "#    Iter                          Q-vector                                 Energy  "
 !!! 
-!!!       write(filn,'(''qm_minima.'',a8,''.out'')') simid
+!!!       write(filn,'(''qm_minima.'',a,''.out'')') trim(simid)
 !!!       open(ofileno2,file=filn, position="append")
 !!!       write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy  "
 !!!       ! Read from ip_mcnstep
@@ -685,21 +738,21 @@ contains
 !!!    end subroutine sweep_q
 
    !-----------------------------------------------------------------------------
-   ! SUBROUTINE: sweep_q
+   ! SUBROUTINE: sweep_q2
    !> @brief Stupid line search minimization of spin spirals (clone of sweep_q
    !  but for external q-point set.
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine sweep_q2(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,     &
-      do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
+   subroutine sweep_q2(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,do_anisotropy,simid,qpts,nq)
+      constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
+      macro_nlistsize,simid,qpts,nq)
 
-      use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
-      use Constants, only : mub, mry
+      use RandomNumbers, only: rng_uniform,rng_gaussian
       use InputData, only : N1,N2,N3
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff, f_cross_product
+      use Depondt, only : rodmat
+      use Diamag, only : diamag_qvect
       !
       !.. Implicit declarations
       implicit none
@@ -708,21 +761,9 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: NA  !< Number of atoms in one cell
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      integer, intent(in) :: do_jtensor   !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
-      character(len=1),intent(in) :: exc_inter !< Interpolate Jij (Y/N)
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_biqdm   !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_chir  !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_anisotropy
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      character(len=1), intent(in) :: mult_axis
       !! +++ New variables due to optimization routines +++ !!
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
@@ -749,27 +790,25 @@ contains
       !
       integer :: iq
       !
-      real(dblprec), dimension(3) :: m_i, m_j, r_i, r_j, m_avg
-      real(dblprec) :: pi, qr, rx,ry, rz
-      integer :: i,j, k, iia, ia, ja, lhit, nhits, countstart
+      real(dblprec), dimension(3) :: m_j
+      real(dblprec) :: pi, qr
+      integer :: i, k, ia, lhit, nhits, countstart
       real(dblprec) :: energy, min_energy
       character(len=30) :: filn
       !
-      real(dblprec), dimension(3,3) :: q_best, q_diff, s_diff, q_0, s_0, q_norm
-      real(dblprec), dimension(3,3) :: s_save, q_save
-      real(dblprec), dimension(3) :: theta_save, theta_diff, theta_best
-      real(dblprec) :: theta_glob_save, cone_ang, cone_ang_save
-      real(dblprec) :: theta_glob_diff, theta_glob_best
-      real(dblprec), dimension(3) :: phi_save, phi_diff, phi_best
-      real(dblprec), dimension(1) :: cone_ang_diff
-      real(dblprec), dimension(1) :: rng_tmp_arr
+      real(dblprec), dimension(3,3) :: q_best
+      real(dblprec), dimension(3,3) :: s_save
+      real(dblprec), dimension(3) :: theta_best
+      real(dblprec) :: theta_glob_best
+      real(dblprec), dimension(3) :: phi_best
       integer :: iter, iscale, i1 ,i2 ,i3
-      real(dblprec) :: q_range, theta_range, s_range, phi_range, theta_glob_range, cone_ang_range
-      real(dblprec) :: q_range0, theta_range0, s_range0, phi_range0, theta_glob_range0
       real(dblprec), dimension(3) :: srvec 
+      real(dblprec), dimension(3,3) :: R_mat
+      real(dblprec), dimension(:,:,:), allocatable :: emomM_start
+
+      real(dblprec), dimension(3) :: mavg
       !
-      !
-      real(dblprec) :: q_start=1.0_dblprec
+      integer :: i_stat, i_all
       !
       !
       pi=4._dblprec*ATAN(1._dblprec)
@@ -789,15 +828,34 @@ contains
 
       countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
       !
-      write(filn,'(''qm_sweep.'',a8,''.out'')') simid
+      write(filn,'(''qm_sweep.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
       write(ofileno,'(a)') "#    Iter                          Q-vector                                 Energy(meV)  "
 
-      write(filn,'(''qm_minima.'',a8,''.out'')') simid
+      write(filn,'(''qm_minima.'',a,''.out'')') trim(simid)
       open(ofileno2,file=filn, position="append")
       write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy(mRy)  "
      
     
+      if (qm_rot=='Y') then
+         allocate(emomM_start(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(emomM_start))*kind(emomM_start),'emomM_start','sweep_q2')
+         emomM_start=emomM
+
+         if (qm_oaxis=='Y') then
+            mavg(1)=sum(emomM(1,:,:))/Natom/Mensemble
+            mavg(2)=sum(emomM(2,:,:))/Natom/Mensemble
+            mavg(3)=sum(emomM(3,:,:))/Natom/Mensemble
+            mavg=mavg/(norm2(mavg)+1.0e-12_dblprec)
+            if(abs(mavg(3)-1.0_dblprec)<1.0e-6_dblprec) then
+               n_vec(1)=1.0_dblprec;n_vec(2)=0.0_dblprec;n_vec(3)=0.0_dblprec
+            else
+               n_vec(1)=mavg(1); n_vec(2)=-mavg(2); n_vec(3)=0.0_dblprec
+            end if
+            n_vec=n_vec/norm2(n_vec)
+         end if
+
+      end if
       
       !
       theta = 0.0_dblprec
@@ -829,72 +887,132 @@ contains
          !         !
          ! Set up spin-spiral magnetization (only first cell+ neighbours)
          energy=0.0_dblprec
-         q(:,1)=qpts(:,iq)
-         s(1,1)=q(2,1)*n_vec(3)-q(3,1)*n_vec(2)
-         s(2,1)=q(3,1)*n_vec(1)-q(1,1)*n_vec(3)
-         s(3,1)=q(1,1)*n_vec(2)-q(2,1)*n_vec(1)
-         if(norm2(s(:,1))<1.0e-12_dblprec) then
-            !print '(a,3f12.6)','s before:',s
-            s(1,1)=1.0_dblprec
-            s(2,1)=0.0_dblprec
-            s(3,1)=0.0_dblprec
-            !print '(a,3f12.6)','s after:',s
+         ! Check if diamag_qvect and then only use that spin spiral vector
+         if (norm2(diamag_qvect)>0.0_dblprec) then
+            q(:,1)=diamag_qvect
+         else
+            q(:,1)=qpts(:,iq)
          end if
-         s(:,1)=s(:,1)/norm2(s(:,1))
+         !!! s(1,1)=q(2,1)*n_vec(3)-q(3,1)*n_vec(2)
+         !!! s(2,1)=q(3,1)*n_vec(1)-q(1,1)*n_vec(3)
+         !!! s(3,1)=q(1,1)*n_vec(2)-q(2,1)*n_vec(1)
+         !!! if(norm2(s(:,1))<1.0e-12_dblprec) then
+         !!!    !print '(a,3f12.6)','s before:',s
+         !!!    s(1,1)=1.0_dblprec
+         !!!    s(2,1)=0.0_dblprec
+         !!!    s(3,1)=0.0_dblprec
+         !!!    !print '(a,3f12.6)','s after:',s
+         !!! end if
+         !!! s(:,1)=s(:,1)/norm2(s(:,1))
 
          !!! print *,'----Q-and-S-vectors----',1
          !!! print '(3f10.4)', q(:,1)
          !!! print '(3f10.4)', s(:,1)
          !!! print '(3f10.4)', n_vec(:)
 
+
          !!!!stop
-         do ia=1,Natom
-            !
-            !srvec=coord(:,ia)-coord(:,countstart+1)
-            ! Possible use wrap_coord_diff() here.
-            call wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
-            !
-            m_j=0.0_dblprec
-            qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
-            m_j=n_vec*cos(2*pi*qr+phi(1))+s(:,1)*sin(2*pi*qr+phi(1))
-            !call normalize(m_j)
-            !emom(1:3,ia,k)=m_j
-            emomM(1:3,ia,k)=m_j*mmom(ia,k)
-            !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
-         end do
+         ! Set up magnetic order 
+         ! If qm_rot=Y, take the original magnetic order and rotate each spin to 
+         ! create spin-spirals in an disordered background
+         ! otherwise rotate all spins to create pure spin-spirals
+         if (qm_rot=='Y') then
+            do ia=1,Natom
+               !
+               call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+               !
+               qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
+               !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
+               qr=2.0_dblprec*pi*qr
+
+               call rodmat(n_vec,qr,R_mat)
+
+               emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+            end do
+         else
+            call set_nsvec(qm_type,q(:,1),s(:,1),n_vec)
+            !call set_nsvec(qm_type,qpts(:,iq),s(:,1),n_vec)
+            !!! print *,'IQ:',iq
+            !!! print '(a,3f12.6)' , '   iq:', q(:,1)
+            !!! !print '(a,3f12.6)' , '   iq:', qpts(:,iq)
+            !!! print '(a,3f12.6)' , 's_vec:', s(:,1)
+            !!! print '(a,3f12.6)' , 'n_vec:', n_vec
+            !!! print '(a,3f12.6)' , 'cross:', f_cross_product(n_vec,s(:,1))
+
+            do ia=1,Natom
+               !
+               !srvec=coord(:,ia)-coord(:,countstart+1)
+               ! Possible use wrap_coord_diff() here.
+               call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+               !
+               m_j=0.0_dblprec
+               qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
+               !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
+               m_j=n_vec*cos(2*pi*qr+phi(1))+s(:,1)*sin(2*pi*qr+phi(1))
+               !print '(a,4f12.6)' , 'r_i  :',qr,m_j
+               !print '(a,4f12.6)' , 'qr,mj:',qr,m_j
+               !call normalize(m_j)
+               !emom(1:3,ia,k)=m_j
+               emomM(1:3,ia,k)=m_j*mmom(ia,k)
+               !print '(a,3f12.6,i8)' , 'emom :', emomM(1:3,ia,k), ia
+               !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
+            end do
+         end if
+         !!! if (qm_rot=='Y') then
+         !!! else
+         !!!    do ia=1,Natom
+         !!!       !
+         !!!       !srvec=coord(:,ia)-coord(:,countstart+1)
+         !!!       ! Possible use wrap_coord_diff() here.
+         !!!       call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+         !!!       !
+         !!!       m_j=0.0_dblprec
+         !!!       qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
+         !!!       m_j=n_vec*cos(2*pi*qr+phi(1))+s(:,1)*sin(2*pi*qr+phi(1))
+         !!!       !call normalize(m_j)
+         !!!       !emom(1:3,ia,k)=m_j
+         !!!       emomM(1:3,ia,k)=m_j*mmom(ia,k)
+         !!!       !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
+         !!!    end do
+         !!! end if
 
          ! Calculate energy for given q,s,theta combination
          ! Anisotropy + external field to be added
          energy=0.0_dblprec
          !call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
          call effective_field(Natom,Mensemble,1,Natom, &
-            do_jtensor,do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,&
-            do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
+            emomM,mmom,external_field,time_external_field,beff,beff1,      &
             beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-            constlNCoup,constellations,constellationsNeighType,mult_axis,         &
+            constlNCoup,constellations,constellationsNeighType,         &
             energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          energy=energy/Natom !/mub*mry !/mry*mub/NA
+         !  print '(a,3f12.6)' , 'ene  :', energy
 
-         call wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
+         call f_wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
          !!! print '(3f10.4,5x,1f10.5,5x,3f10.4,5x,3f10.4,10x,f12.6)',qpts(:,iq),&
          !!!    srvec,&
          !!!    qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3),&
          !!!    emomM(:,countstart+1,1),energy
 
-         write(ofileno,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy*13.605_dblprec !/mry*mub*13.605_dblprec
+         write(ofileno,'(i8,3g20.8,g20.8)') iq,q(:,1),energy*13.605_dblprec !/mry*mub*13.605_dblprec
+         !write(ofileno,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy*13.605_dblprec !/mry*mub*13.605_dblprec
 
          ! Store best energy configuration if trial energy is lower than minimum
          if(energy<min_energy) then
 
             min_energy=energy
-            q_best(:,1)=qpts(:,iq)
+            !q_best(:,1)=qpts(:,iq)
+            q_best(:,1)=q(:,1)
             s_save(:,1)=s(:,1)
             lhit=iter
             nhits=nhits+1
-            write(ofileno2,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy
+            write(ofileno2,'(i8,3g20.8,g20.8)') iq,q(:,1),energy
+            !write(ofileno2,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy
 
          end if
+         ! Do not loop if diamag_qvect is set
+         if (norm2(diamag_qvect)>0.0_dblprec) exit
       end do
       !
       !
@@ -905,6 +1023,8 @@ contains
       end do
       ! Important: Save the lowest energy q-vector
       q=q_best
+      ! Save best q_vector for nc-AMS
+      if (norm2(diamag_qvect)==0.0_dblprec) diamag_qvect = q_best(:,1)
       s=s_save
       print '(1x,a)','|-----------------------|-----------------------------------------|------------------------------------------|'
 
@@ -912,6 +1032,11 @@ contains
       close(ofileno)
       close(ofileno2)
       !
+      if (qm_rot=='Y') then
+         i_all=-product(shape(emomM_start))*kind(emomM_start)
+         deallocate(emomM_start,stat=i_stat)
+         call memocc(i_stat,i_all,'emomM_start','emomM_start')
+      end if
       !
       return
       !
@@ -924,16 +1049,15 @@ contains
    !  but for external q-point set.
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine sweep_q3(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,     &
-      do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
+   subroutine sweep_q3(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,do_anisotropy,simid,qpts,nq)
+      constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
+      macro_nlistsize,simid,qpts,nq)
 
-      use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
-      use Constants, only : mub, mry
+      use RandomNumbers, only: rng_uniform,rng_gaussian
       use InputData, only : N1,N2,N3
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
+      use Depondt, only : rodmat
       !
       !.. Implicit declarations
       implicit none
@@ -942,21 +1066,9 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: NA  !< Number of atoms in one cell
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      integer, intent(in) :: do_jtensor   !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
-      character(len=1),intent(in) :: exc_inter !< Interpolate Jij (Y/N)
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_biqdm   !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_chir  !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_anisotropy
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      character(len=1), intent(in) :: mult_axis
       !! +++ New variables due to optimization routines +++ !!
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
@@ -983,27 +1095,20 @@ contains
       !
       integer :: iq
       !
-      real(dblprec), dimension(3) :: m_i, m_j, r_i, r_j, m_avg
-      real(dblprec) :: pi, qr, rx,ry, rz
-      integer :: i,j, k, iia, ia, ja, lhit, nhits, countstart
+      real(dblprec), dimension(3) :: m_j
+      real(dblprec) :: pi, qr
+      integer :: i, k, ia, lhit, nhits, countstart
       real(dblprec) :: energy, min_energy
       character(len=30) :: filn
       !
-      real(dblprec), dimension(3,3) :: q_best, q_diff, s_diff, q_0, s_0, q_norm
-      real(dblprec), dimension(3,3) :: s_save, q_save
-      real(dblprec), dimension(3) :: theta_save, theta_diff, theta_best
-      real(dblprec) :: theta_glob_save, cone_ang, cone_ang_save
-      real(dblprec) :: theta_glob_diff, theta_glob_best
-      real(dblprec), dimension(3) :: phi_save, phi_diff, phi_best
-      real(dblprec), dimension(1) :: cone_ang_diff
-      real(dblprec), dimension(1) :: rng_tmp_arr
+      real(dblprec), dimension(3,3) :: q_best
+      real(dblprec), dimension(3,3) :: R_mat
+      real(dblprec), dimension(3) :: theta_best
+      real(dblprec) :: theta_glob_best
+      real(dblprec), dimension(3) :: phi_best
       integer :: iter, iscale, i1 ,i2 ,i3, qq
-      real(dblprec) :: q_range, theta_range, s_range, phi_range, theta_glob_range, cone_ang_range
-      real(dblprec) :: q_range0, theta_range0, s_range0, phi_range0, theta_glob_range0
       real(dblprec), dimension(3) :: srvec 
       !
-      !
-      real(dblprec) :: q_start=1.0_dblprec
       !
       !
       pi=4._dblprec*ATAN(1._dblprec)
@@ -1023,11 +1128,11 @@ contains
 
       countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
       !
-      write(filn,'(''qm_sweep.'',a8,''.out'')') simid
+      write(filn,'(''qm_sweep.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
       write(ofileno,'(a)') "#    Iter                          Q-vector                                 Energy(meV)  "
 
-      write(filn,'(''qm_minima.'',a8,''.out'')') simid
+      write(filn,'(''qm_minima.'',a,''.out'')') trim(simid)
       open(ofileno2,file=filn, position="append")
       write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy(mRy)  "
      
@@ -1072,16 +1177,21 @@ contains
          theta(1)=0.0d0
          theta(2)=2.0_dblprec*pi/3.0d0*(1.0_dblprec)
          theta(3)=2.0_dblprec*pi/3.0d0*(2.0_dblprec)
+         ! Replace with Rodrigues
+
          do qq=2,3
-            rx= q(1,1)*cos(theta(qq))+q(2,1)*sin(theta(qq))
-            ry=-q(1,1)*sin(theta(qq))+q(2,1)*cos(theta(qq))
-            q(1,qq)=rx
-            q(2,qq)=ry
-            q(3,qq)=0.0_dblprec
-            rx= s(1,1)*cos(theta(qq))+s(2,1)*sin(theta(qq))
-            ry=-s(1,1)*sin(theta(qq))+s(2,1)*cos(theta(qq))
-            s(1,qq)=rx
-            s(2,qq)=ry
+            !!! rx= q(1,1)*cos(theta(qq))+q(2,1)*sin(theta(qq))
+            !!! ry=-q(1,1)*sin(theta(qq))+q(2,1)*cos(theta(qq))
+            !!! q(1,qq)=rx
+            !!! q(2,qq)=ry
+            !!! q(3,qq)=0.0_dblprec
+            !!! rx= s(1,1)*cos(theta(qq))+s(2,1)*sin(theta(qq))
+            !!! ry=-s(1,1)*sin(theta(qq))+s(2,1)*cos(theta(qq))
+            !!! s(1,qq)=rx
+            !!! s(2,qq)=ry
+            call rodmat(n_vec,theta(qq),R_mat)
+            q(:,qq)=matmul(R_mat,q(:,1))
+            s(:,qq)=matmul(R_mat,s(:,1))
             !s(:,qq)=s(:,1)
          end do
          !!!!stop
@@ -1101,7 +1211,7 @@ contains
             !
             !srvec=coord(:,ia)-coord(:,countstart+1)
             ! Possible use wrap_coord_diff() here.
-            call wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+            call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
             !
             m_j=0.0_dblprec
             do qq=1,3
@@ -1121,15 +1231,14 @@ contains
          energy=0.0_dblprec
          !call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
          call effective_field(Natom,Mensemble,1,Natom, &
-            do_jtensor,do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,&
-            do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
+            emomM,mmom,external_field,time_external_field,beff,beff1,      &
             beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-            constlNCoup,constellations,constellationsNeighType,mult_axis,         &
+            constlNCoup,constellations,constellationsNeighType,         &
             energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          energy=energy/Natom !/mub*mry !/mry*mub/NA
 
-         call wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
+         call f_wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
          !!! print '(3f10.4,5x,1f10.5,5x,3f10.4,5x,3f10.4,10x,f12.6)',qpts(:,iq),&
          !!!    srvec,&
          !!!    qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3),&
@@ -1158,6 +1267,7 @@ contains
       end do
       ! Important: Save the lowest energy q-vector
       q=q_best
+      !s=s_save
       print '(1x,a)','|-----------------------|-----------------------------------------|------------------------------------------|'
 
       !
@@ -1175,16 +1285,14 @@ contains
    !  but for external q-point set.
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine sweep_cube(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,     &
-      do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
+   subroutine sweep_cube(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,do_anisotropy,simid,qpts,nq)
+      constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
+      macro_nlistsize,simid,qpts,nq)
 
-      use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
-      use Constants, only : mub, mry
+      use RandomNumbers, only: rng_uniform,rng_gaussian
       use InputData, only : N1,N2,N3
-      use AMS, only : wrap_coord_diff
+      use Math_functions, only : f_wrap_coord_diff
       !
       !.. Implicit declarations
       implicit none
@@ -1193,21 +1301,9 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: NA  !< Number of atoms in one cell
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      integer, intent(in) :: do_jtensor   !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
-      character(len=1),intent(in) :: exc_inter !< Interpolate Jij (Y/N)
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_biqdm   !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_chir  !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_anisotropy
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      character(len=1), intent(in) :: mult_axis
       !! +++ New variables due to optimization routines +++ !!
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
@@ -1234,27 +1330,20 @@ contains
       !
       integer :: iq, jq
       !
-      real(dblprec), dimension(3) :: m_i, m_j, r_i, r_j, m_avg
-      real(dblprec) :: pi, qr, rx,ry, rz
-      integer :: i,j, k, iia, ia, ja, lhit, nhits, countstart
+      real(dblprec), dimension(3) :: m_j
+      real(dblprec) :: pi, qr
+      integer :: i, k, ia, lhit, nhits, countstart
       real(dblprec) :: energy, min_energy
       character(len=30) :: filn
       !
-      real(dblprec), dimension(3,3) :: q_best, q_diff, s_diff, q_0, s_0, q_norm
-      real(dblprec), dimension(3,3) :: s_save, q_save
-      real(dblprec), dimension(3) :: theta_save, theta_diff, theta_best
-      real(dblprec) :: theta_glob_save, cone_ang, cone_ang_save
-      real(dblprec) :: theta_glob_diff, theta_glob_best
-      real(dblprec), dimension(3) :: phi_save, phi_diff, phi_best
-      real(dblprec), dimension(1) :: cone_ang_diff
-      real(dblprec), dimension(1) :: rng_tmp_arr
+      real(dblprec), dimension(3,3) :: q_best
+      real(dblprec), dimension(3,3) :: s_save
+      real(dblprec), dimension(3) :: theta_best
+      real(dblprec) :: theta_glob_best
+      real(dblprec), dimension(3) :: phi_best
       integer :: iter, iscale, i1 ,i2 ,i3, qq
-      real(dblprec) :: q_range, theta_range, s_range, phi_range, theta_glob_range, cone_ang_range
-      real(dblprec) :: q_range0, theta_range0, s_range0, phi_range0, theta_glob_range0
       real(dblprec), dimension(3) :: srvec 
       !
-      !
-      real(dblprec) :: q_start=1.0_dblprec
       !
       !
       pi=4._dblprec*ATAN(1._dblprec)
@@ -1274,11 +1363,11 @@ contains
 
       countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
       !
-      write(filn,'(''qm_sweep.'',a8,''.out'')') simid
+      write(filn,'(''qm_sweep.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
       write(ofileno,'(a)') "#    Iter                          Q-vector                                 Energy(meV)  "
 
-      write(filn,'(''qm_minima.'',a8,''.out'')') simid
+      write(filn,'(''qm_minima.'',a,''.out'')') trim(simid)
       open(ofileno2,file=filn, position="append")
       write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy(mRy)  "
      
@@ -1369,7 +1458,7 @@ contains
                !
                !srvec=coord(:,ia)-coord(:,countstart+1)
                ! Possible use wrap_coord_diff() here.
-               call wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+               call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
                !
                m_j=0.0_dblprec
                do qq=1,2
@@ -1389,15 +1478,14 @@ contains
             energy=0.0_dblprec
             !call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
             call effective_field(Natom,Mensemble,1,Natom, &
-               do_jtensor,do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,&
-               do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
+               emomM,mmom,external_field,time_external_field,beff,beff1,      &
                beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-               constlNCoup,constellations,constellationsNeighType,mult_axis,         &
+               constlNCoup,constellations,constellationsNeighType,         &
                energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
             energy=energy/Natom !/mub*mry !/mry*mub/NA
 
-            call wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
+            call f_wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
             !!! print '(3f10.4,5x,1f10.5,5x,3f10.4,5x,3f10.4,10x,f12.6)',qpts(:,iq),&
             !!!    srvec,&
             !!!    qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3),&
@@ -1444,6 +1532,7 @@ contains
    !> Plot final configuration
    subroutine plot_q(Natom, Mensemble, coord, emom, emomM, mmom,simid)
       !
+      use math_functions, only : f_wrap_coord_diff
       implicit none
       !
       integer, intent(in) :: Natom !< Number of atoms in system
@@ -1455,7 +1544,7 @@ contains
       character(len=8), intent(in) :: simid  !< Name of simulation
       !
       real(dblprec), dimension(3) :: srvec, m_j
-      integer :: lhit, ia, nplot, k, iq
+      integer :: lhit, ia, k, iq
       real(dblprec) :: pi, qr
       character(len=30) :: filn
       !
@@ -1465,16 +1554,25 @@ contains
       !nplot=12
       !q=10.0_dblprec*q
       !
-      write(filn,'(''qm_restart.'',a8,''.out'')') simid
+      write(filn,'(''qm_restart.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn)
-      write(ofileno,*) 0
+      !write(ofileno,*) 0
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a,1x,a)') "# File type:", 'R'
+      write(ofileno,'(a,1x,a)') "# Simulation type:", 'Q'
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Timestep","ens","iatom","|Mom|","M_x","M_y","M_z"
       do k=1,Mensemble
          do ia=1,Natom
             lhit=lhit+1
-            srvec=coord(:,ia)
+            !srvec=coord(:,ia)
+            call f_wrap_coord_diff(Natom,coord,ia,1,srvec)
             !
             m_j=0.0_dblprec
-            do iq=1,nq
+            do iq=1,1!nq
+               call set_nsvec(qm_type,q(:,iq),s(:,iq),n_vec)
                qr=q(1,iq)*srvec(1)+q(2,iq)*srvec(2)+q(3,iq)*srvec(3)
                m_j=m_j+n_vec*cos(2*pi*qr+phi(iq))+s(:,iq)*sin(2*pi*qr+phi(iq))
             end do
@@ -1482,11 +1580,14 @@ contains
             emom(1:3,ia,k)=m_j
             emomM(1:3,ia,k)=m_j*mmom(ia,k)
             !write(ofileno,'(2i8,4f14.6)') 1,lhit,mmom(ia,k),m_j
-            write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            !write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
          end do
       end do
       close(ofileno)
       !
+      10003 format(i8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
+      !10003 format(es16.8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
       !
       !
    end subroutine plot_q
@@ -1494,6 +1595,7 @@ contains
 
    !> Plot final configuration
    subroutine plot_q3(Natom, Mensemble, coord, emom, emomM, mmom,simid)
+      use Math_functions, only : f_wrap_coord_diff
       !
       implicit none
       !
@@ -1506,7 +1608,7 @@ contains
       character(len=8), intent(in) :: simid  !< Name of simulation
       !
       real(dblprec), dimension(3) :: srvec, m_j
-      integer :: lhit, ia, nplot, k, iq
+      integer :: lhit, ia, k, iq
       real(dblprec) :: pi, qr
       character(len=30) :: filn
       !
@@ -1516,13 +1618,21 @@ contains
       !nplot=12
       !q=10.0_dblprec*q
       !
-      write(filn,'(''qm_restart.'',a8,''.out'')') simid
+      write(filn,'(''qm_restart.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn)
-      write(ofileno,*) 0
+      !write(ofileno,*) 0
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a,1x,a)') "# File type:", 'R'
+      write(ofileno,'(a,1x,a)') "# Simulation type:", 'Q'
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Timestep","ens","iatom","|Mom|","M_x","M_y","M_z"
       do k=1,Mensemble
          do ia=1,Natom
             lhit=lhit+1
             srvec=coord(:,ia)
+            !call wrap_coord_diff(Natom,coord,ia,1,srvec)
             !
             m_j=0.0_dblprec
             do iq=1,3
@@ -1534,12 +1644,14 @@ contains
             emom(1:3,ia,k)=m_j
             emomM(1:3,ia,k)=m_j*mmom(ia,k)
             !write(ofileno,'(2i8,4f14.6)') 1,lhit,mmom(ia,k),m_j
-            write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            !write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
          end do
       end do
       close(ofileno)
       !
       !
+      10003 format(i8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
       !
    end subroutine plot_q3
 
@@ -1557,7 +1669,7 @@ contains
       character(len=8), intent(in) :: simid  !< Name of simulation
       !
       real(dblprec), dimension(3) :: srvec, m_j
-      integer :: lhit, ia, nplot, k, iq
+      integer :: lhit, ia, k, iq
       real(dblprec) :: pi, qr
       character(len=30) :: filn
       !
@@ -1567,9 +1679,16 @@ contains
       !nplot=12
       !q=10.0_dblprec*q
       !
-      write(filn,'(''qm_restart.'',a8,''.out'')') simid
+      write(filn,'(''qm_restart.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn)
-      write(ofileno,*) 0
+      !write(ofileno,*) 0
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a,1x,a)') "# File type:", 'R'
+      write(ofileno,'(a,1x,a)') "# Simulation type:", 'Q'
+      write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
+      write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
+      write(ofileno,'(a)') repeat("#",80)
+      write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Timestep","ens","iatom","|Mom|","M_x","M_y","M_z"
       do k=1,Mensemble
          do ia=1,Natom
             lhit=lhit+1
@@ -1585,75 +1704,77 @@ contains
             emom(1:3,ia,k)=m_j
             emomM(1:3,ia,k)=m_j*mmom(ia,k)
             !write(ofileno,'(2i8,4f14.6)') 1,lhit,mmom(ia,k),m_j
-            write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            !write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+            write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
          end do
       end do
       close(ofileno)
       !
+      10003 format(es16.8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
       !
       !
    end subroutine plot_cube
 
-   !> Anisotropy
-   subroutine spinspiral_ani_field(Natom,Mensemble,NA,mmom,taniso,sb,hfield,energy)
-      !
-      implicit none
-      !
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
-      real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      real(dblprec), intent(inout), optional :: energy !< Total energy
-      !
-      !
-      integer :: iq,i
-      real(dblprec) :: tt1, tt2, tt3, totmom, qfac
-      real(dblprec), dimension(3) :: field
-      !
-      totmom=0.0_dblprec
-      do i=1,NA
-         do iq=1,nq
-            field=0.0_dblprec
-            if (taniso(i)==1.or.taniso(i)==7) then
-               ! Uniaxial anisotropy
-               tt1=s(1,iq)*ham%eaniso(1,i)+s(2,iq)*ham%eaniso(2,i)+s(3,iq)*ham%eaniso(3,i)
-               tt1=tt1*mmom(i,1)*theta(iq)
-
-               tt2=ham%kaniso(1,i)+2.0_dblprec*ham%kaniso(2,i)*(1-tt1*tt1)
-               !
-               tt3= 2.0_dblprec*tt1*tt2
-
-               field(1)  = field(1) - tt3*ham%eaniso(1,i)
-               field(2)  = field(2) - tt3*ham%eaniso(2,i)
-               field(3)  = field(3) - tt3*ham%eaniso(3,i)
-
-            end if
-            if (ham%taniso(i)==2.or.ham%taniso(i)==7) then
-               qfac=1.00
-               if(ham%taniso(i)==7) qfac=sb(i)
-               ! Cubic anisotropy
-               field(1) = field(1)  &
-                  + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(1,iq)*(mmom(i,1)*s(2,iq)**2+mmom(i,1)*s(3,iq)**2)*theta(iq)**3 &
-                  + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(1,iq)*mmom(i,1)*s(2,iq)**2*mmom(i,1)*s(3,iq)**2*theta(iq)**5
-               field(2) = field(2)  &
-                  + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(2,iq)*(mmom(i,1)*s(3,iq)**2+mmom(i,1)*s(1,iq)**2) *theta(iq)**3&
-                  + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(2,iq)*mmom(i,1)*s(3,iq)**2*mmom(i,1)*s(1,iq)**2*theta(iq)**5
-               field(3) = field(3)  &
-                  + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(3,iq)*(mmom(i,1)*s(1,iq)**2+mmom(i,1)*s(2,iq)**2) *theta(iq)**3&
-                  + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(3,iq)*mmom(i,1)*s(1,iq)**2*mmom(i,1)*s(2,iq)**2*theta(iq)**5
-               !
-            end if
-            energy=energy-(2.0_dblprec*field(1)*mmom(i,1)*theta(iq)*s(1,iq)+2.0_dblprec*field(1)*mmom(2,1)*theta(iq)*s(2,iq)+2.0_dblprec*field(3)*mmom(i,1)*theta(iq)*s(3,iq))
-            energy=energy+(hfield(1)*mmom(i,1)*theta(iq)*s(1,iq)+hfield(2)*mmom(i,1)*theta(iq)*s(2,iq)+hfield(3)*mmom(i,1)*theta(iq)*s(3,iq))/nq*0.5_dblprec
-
-         end do
-      end do
-      return
-      !
-   end subroutine spinspiral_ani_field
+!!!    !> Anisotropy
+!!!    subroutine spinspiral_ani_field(Natom,Mensemble,NA,mmom,taniso,sb,hfield,energy)
+!!!       !
+!!!       implicit none
+!!!       !
+!!!       integer, intent(in) :: Natom !< Number of atoms in system
+!!!       integer, intent(in) :: Mensemble !< Number of ensembles
+!!!       integer, intent(in) :: NA  !< Number of atoms in one cell
+!!!       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
+!!!       integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
+!!!       real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
+!!!       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
+!!!       real(dblprec), intent(inout), optional :: energy !< Total energy
+!!!       !
+!!!       !
+!!!       integer :: iq,i
+!!!       real(dblprec) :: tt1, tt2, tt3, totmom, qfac
+!!!       real(dblprec), dimension(3) :: field
+!!!       !
+!!!       totmom=0.0_dblprec
+!!!       do i=1,NA
+!!!          do iq=1,nq
+!!!             field=0.0_dblprec
+!!!             if (taniso(i)==1.or.taniso(i)==7) then
+!!!                ! Uniaxial anisotropy
+!!!                tt1=s(1,iq)*ham%eaniso(1,i)+s(2,iq)*ham%eaniso(2,i)+s(3,iq)*ham%eaniso(3,i)
+!!!                tt1=tt1*mmom(i,1)*theta(iq)
+!!! 
+!!!                tt2=ham%kaniso(1,i)+2.0_dblprec*ham%kaniso(2,i)*(1-tt1*tt1)
+!!!                !
+!!!                tt3= 2.0_dblprec*tt1*tt2
+!!! 
+!!!                field(1)  = field(1) - tt3*ham%eaniso(1,i)
+!!!                field(2)  = field(2) - tt3*ham%eaniso(2,i)
+!!!                field(3)  = field(3) - tt3*ham%eaniso(3,i)
+!!! 
+!!!             end if
+!!!             if (ham%taniso(i)==2.or.ham%taniso(i)==7) then
+!!!                qfac=1.00
+!!!                if(ham%taniso(i)==7) qfac=sb(i)
+!!!                ! Cubic anisotropy
+!!!                field(1) = field(1)  &
+!!!                   + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(1,iq)*(mmom(i,1)*s(2,iq)**2+mmom(i,1)*s(3,iq)**2)*theta(iq)**3 &
+!!!                   + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(1,iq)*mmom(i,1)*s(2,iq)**2*mmom(i,1)*s(3,iq)**2*theta(iq)**5
+!!!                field(2) = field(2)  &
+!!!                   + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(2,iq)*(mmom(i,1)*s(3,iq)**2+mmom(i,1)*s(1,iq)**2) *theta(iq)**3&
+!!!                   + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(2,iq)*mmom(i,1)*s(3,iq)**2*mmom(i,1)*s(1,iq)**2*theta(iq)**5
+!!!                field(3) = field(3)  &
+!!!                   + qfac*2.0_dblprec*ham%kaniso(1,i)*mmom(i,1)*s(3,iq)*(mmom(i,1)*s(1,iq)**2+mmom(i,1)*s(2,iq)**2) *theta(iq)**3&
+!!!                   + qfac*2.0_dblprec*ham%kaniso(2,i)*mmom(i,1)*s(3,iq)*mmom(i,1)*s(1,iq)**2*mmom(i,1)*s(2,iq)**2*theta(iq)**5
+!!!                !
+!!!             end if
+!!!             energy=energy-(2.0_dblprec*field(1)*mmom(i,1)*theta(iq)*s(1,iq)+2.0_dblprec*field(1)*mmom(2,1)*theta(iq)*s(2,iq)+2.0_dblprec*field(3)*mmom(i,1)*theta(iq)*s(3,iq))
+!!!             energy=energy+(hfield(1)*mmom(i,1)*theta(iq)*s(1,iq)+hfield(2)*mmom(i,1)*theta(iq)*s(2,iq)+hfield(3)*mmom(i,1)*theta(iq)*s(3,iq))/nq*0.5_dblprec
+!!! 
+!!!          end do
+!!!       end do
+!!!       return
+!!!       !
+!!!    end subroutine spinspiral_ani_field
 
    !> Rotation of vectors
    subroutine rotvec(s,m)
@@ -1725,131 +1846,131 @@ contains
       return
    end subroutine normalize
 
-   !> Update moment
-   subroutine updatrotmom_single(m_in,s_vec)
-      !
-      !
-      !.. Implicit Declarations ..
-      implicit none
-      !
-      !
-      !.. Formal Arguments ..
-      real(dblprec), dimension(3), intent(inout) :: m_in
-      real(dblprec), dimension(3), intent(in) :: s_vec
-      !
-      !
-      !.. Local Scalars ..
-      integer :: j
-      real(dblprec) :: alfa, beta
-      !
-      !.. Local Arrays ..
-      real(dblprec), dimension(3) :: v,vout, sv, mz
-      real(dblprec), dimension(3,3) :: Rx, Ry, Rz
-      !
-      !
-      ! ... Executable Statements ...
-      !
-      !
-      mz=(/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
-      do j=1,3
-         v(j)=s_vec(j)
-      end do
-      !
-      ! Plan B) User Euler rotation
-      !
-      call car2sph(v,sv)
-      alfa=0.0_dblprec*atan(1.0_dblprec)+sv(2)
-      beta=-0.0_dblprec*atan(1.0_dblprec)+sv(1)
-      ! Rx
-      Rx(1,1)=1.0_dblprec
-      Rx(2,1)=0.0_dblprec
-      Rx(3,1)=0.0_dblprec
-      Rx(1,2)=0.0_dblprec
-      Rx(2,2)=cos(alfa)
-      Rx(3,2)=sin(alfa)
-      Rx(1,3)=0.0_dblprec
-      Rx(2,3)=-sin(alfa)
-      Rx(3,3)=cos(alfa)
-      ! Ry
-      Ry(1,1)=cos(alfa)
-      Ry(2,1)=0.0_dblprec
-      Ry(3,1)=-sin(alfa)
-      Ry(1,2)=0.0_dblprec
-      Ry(2,2)=1.0_dblprec
-      Ry(3,2)=0.0_dblprec
-      Ry(1,3)=sin(alfa)
-      Ry(2,3)=0.0_dblprec
-      Ry(3,3)=cos(alfa)
-      !! Rz
-      Rz(1,1)=cos(beta)
-      Rz(2,1)=sin(beta)
-      Rz(3,1)=0.0_dblprec
-      Rz(1,2)=-sin(beta)
-      Rz(2,2)=cos(beta)
-      Rz(3,2)=0.0_dblprec
-      Rz(1,3)=0.0_dblprec
-      Rz(2,3)=0.0_dblprec
-      Rz(3,3)=1.0_dblprec
-      ! Rotate!
-      v=m_in
-      vout=matmul(Rz,matmul(Ry,v))
-      do j=1,3
-         m_in(j)=vout(j)
-      end do
-      return
-      !
-      ! ... Format Declarations ...
-      !
-   end subroutine updatrotmom_single
+!!!    !> Update moment
+!!!    subroutine updatrotmom_single(m_in,s_vec)
+!!!       !
+!!!       !
+!!!       !.. Implicit Declarations ..
+!!!       implicit none
+!!!       !
+!!!       !
+!!!       !.. Formal Arguments ..
+!!!       real(dblprec), dimension(3), intent(inout) :: m_in
+!!!       real(dblprec), dimension(3), intent(in) :: s_vec
+!!!       !
+!!!       !
+!!!       !.. Local Scalars ..
+!!!       integer :: j
+!!!       real(dblprec) :: alfa, beta
+!!!       !
+!!!       !.. Local Arrays ..
+!!!       real(dblprec), dimension(3) :: v,vout, sv, mz
+!!!       real(dblprec), dimension(3,3) :: Rx, Ry, Rz
+!!!       !
+!!!       !
+!!!       ! ... Executable Statements ...
+!!!       !
+!!!       !
+!!!       mz=(/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
+!!!       do j=1,3
+!!!          v(j)=s_vec(j)
+!!!       end do
+!!!       !
+!!!       ! Plan B) User Euler rotation
+!!!       !
+!!!       call car2sph(v,sv)
+!!!       alfa=0.0_dblprec*atan(1.0_dblprec)+sv(2)
+!!!       beta=-0.0_dblprec*atan(1.0_dblprec)+sv(1)
+!!!       ! Rx
+!!!       Rx(1,1)=1.0_dblprec
+!!!       Rx(2,1)=0.0_dblprec
+!!!       Rx(3,1)=0.0_dblprec
+!!!       Rx(1,2)=0.0_dblprec
+!!!       Rx(2,2)=cos(alfa)
+!!!       Rx(3,2)=sin(alfa)
+!!!       Rx(1,3)=0.0_dblprec
+!!!       Rx(2,3)=-sin(alfa)
+!!!       Rx(3,3)=cos(alfa)
+!!!       ! Ry
+!!!       Ry(1,1)=cos(alfa)
+!!!       Ry(2,1)=0.0_dblprec
+!!!       Ry(3,1)=-sin(alfa)
+!!!       Ry(1,2)=0.0_dblprec
+!!!       Ry(2,2)=1.0_dblprec
+!!!       Ry(3,2)=0.0_dblprec
+!!!       Ry(1,3)=sin(alfa)
+!!!       Ry(2,3)=0.0_dblprec
+!!!       Ry(3,3)=cos(alfa)
+!!!       !! Rz
+!!!       Rz(1,1)=cos(beta)
+!!!       Rz(2,1)=sin(beta)
+!!!       Rz(3,1)=0.0_dblprec
+!!!       Rz(1,2)=-sin(beta)
+!!!       Rz(2,2)=cos(beta)
+!!!       Rz(3,2)=0.0_dblprec
+!!!       Rz(1,3)=0.0_dblprec
+!!!       Rz(2,3)=0.0_dblprec
+!!!       Rz(3,3)=1.0_dblprec
+!!!       ! Rotate!
+!!!       v=m_in
+!!!       vout=matmul(Rz,matmul(Ry,v))
+!!!       do j=1,3
+!!!          m_in(j)=vout(j)
+!!!       end do
+!!!       return
+!!!       !
+!!!       ! ... Format Declarations ...
+!!!       !
+!!!    end subroutine updatrotmom_single
 
-   !> transforms cartesian (x,y,z) to spherical (Theta,Phi,R) coordinates
-   subroutine car2sph(C,S)
-      ! transforms cartesian (x,y,z) to spherical (Theta,Phi,R) coordinates
-      !
-      !
-      !.. Implicit Declarations ..
-      implicit none
-      !
-      !
-      !.. Formal Arguments ..
-      real(dblprec) :: X,Y,Z, THETA, PHI, D2, R2
-      real(dblprec), dimension(3), intent(in) :: C
-      real(dblprec), dimension(3), intent(out) :: S
-      !
-      !
-      ! ... Executable Statements ...
-      !
-      !
-      X = C(1)
-      Y = C(2)
-      Z = C(3)
-      D2 = X*X + Y*Y
-      R2 = X*X + Y*Y + Z*Z
-
-      IF ( D2 .EQ. 0_dblprec ) THEN
-         THETA = 0_dblprec
-      ELSE
-         THETA = ATAN2(Y,X)
-      END IF
-      PHI = ACOS(Z/R2)
-
-      S(1)=THETA
-      S(2)=PHI
-      S(3)=R2
-      return
-      !
-   end subroutine car2sph
+!!!    !> transforms cartesian (x,y,z) to spherical (Theta,Phi,R) coordinates
+!!!    subroutine car2sph(C,S)
+!!!       ! transforms cartesian (x,y,z) to spherical (Theta,Phi,R) coordinates
+!!!       !
+!!!       !
+!!!       !.. Implicit Declarations ..
+!!!       implicit none
+!!!       !
+!!!       !
+!!!       !.. Formal Arguments ..
+!!!       real(dblprec) :: X,Y,Z, THETA, PHI, D2, R2
+!!!       real(dblprec), dimension(3), intent(in) :: C
+!!!       real(dblprec), dimension(3), intent(out) :: S
+!!!       !
+!!!       !
+!!!       ! ... Executable Statements ...
+!!!       !
+!!!       !
+!!!       X = C(1)
+!!!       Y = C(2)
+!!!       Z = C(3)
+!!!       D2 = X*X + Y*Y
+!!!       R2 = X*X + Y*Y + Z*Z
+!!! 
+!!!       IF ( D2 .EQ. 0_dblprec ) THEN
+!!!          THETA = 0_dblprec
+!!!       ELSE
+!!!          THETA = ATAN2(Y,X)
+!!!       END IF
+!!!       PHI = ACOS(Z/R2)
+!!! 
+!!!       S(1)=THETA
+!!!       S(2)=PHI
+!!!       S(3)=R2
+!!!       return
+!!!       !
+!!!    end subroutine car2sph
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: qmc
    !> @ brief Energy minimization
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine qmc(Natom,Mensemble,NA,N1,N2,N3,coord,do_jtensor,exc_inter,do_dm,     &
-      do_pd,do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,     &
+   subroutine qmc(Natom,Mensemble,NA,N1,N2,N3,coord,     &
+      emomM,mmom,hfield,OPT_flag,     &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,do_anisotropy)
+      constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
+      macro_nlistsize)
       !
       use Constants, only: k_bolt, mub
       use InputData, only: Temp
@@ -1864,21 +1985,9 @@ contains
       integer, intent(in) :: N2
       integer, intent(in) :: N3
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      integer, intent(in) :: do_jtensor   !<  Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
-      character(len=1),intent(in) :: exc_inter !< Rescale Jij (Y/N)
-      integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_pd   !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_biqdm   !< Add Biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_bq   !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_chir  !< Add scalar chirality exchange (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
-      integer, intent(in) :: do_anisotropy
-      integer, dimension(Natom),intent(in) :: taniso !< Type of anisotropy (0-2)
-      real(dblprec), dimension(Natom),intent(in) :: sb !< Ratio between the anisotropies
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      character(len=1), intent(in) :: mult_axis
       !! +++ New variables due to optimization routines +++ !!
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
@@ -1949,11 +2058,11 @@ contains
       end do
 
       energy=0.0_dblprec
-      call effective_field(Natom,Mensemble,1,na,do_jtensor,do_anisotropy,exc_inter, &
-         do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,external_field,       &
+      call effective_field(Natom,Mensemble,1,na, &
+         emomM,mmom,external_field,       &
          time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,       &
          maxNoConstl,unitCellType,constlNCoup,constellations,                       &
-         constellationsNeighType,mult_axis,energy,Num_macro,cell_index,emomM_macro, &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
       old_energy=energy
       print *, 'Starting energy:',energy
@@ -2034,11 +2143,10 @@ contains
                   emomM(1:3,ja,k)=m_j
                end do
                ! Calculate energy for given q,s,theta combination
-               call effective_field(Natom,Mensemble,ia,ia,do_jtensor,do_anisotropy, &
-                  exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,   &
+               call effective_field(Natom,Mensemble,ia,ia,emomM,mmom,   &
                   external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                  constellations,constellationsNeighType,mult_axis,energy,Num_macro,&
+                  constellations,constellationsNeighType,energy,Num_macro,&
                   cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
             end do
          end do
@@ -2090,7 +2198,7 @@ contains
       integer, intent(in) :: ifile   !< File to read from
       !
       ! ... Local Variables ...
-      character(len=50) :: keyword, cache
+      character(len=50) :: keyword
       integer :: rd_len, i_err, i_errb
       logical :: comment
 
@@ -2122,14 +2230,25 @@ contains
          case('qm_max')
             read(ifile,*,iostat=i_err) q_max
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_type')
+            read(ifile,*,iostat=i_err) qm_type
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_rot')
+            read(ifile,*,iostat=i_err) qm_rot
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_oaxis')
+            read(ifile,*,iostat=i_err) qm_oaxis
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_qvec')
             read(ifile,*,iostat=i_err) q(:,1:nq)
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_svec')
             read(ifile,*,iostat=i_err) s(:,1:nq)
+            s(:,1)=s(:,1)/norm2(s(:,1)+dbl_tolerance)
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_nvec')
             read(ifile,*,iostat=i_err) n_vec
+            n_vec=n_vec/norm2(n_vec+dbl_tolerance)
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_nstep')
             read(ifile,*,iostat=i_err) nstep
@@ -2161,6 +2280,64 @@ subroutine qminimizer_init()
    n_vec(3)=1.0_dblprec
    s=0.0_dblprec
    nstep=1000
+   qm_rot='N'
+   qm_oaxis='N'
+
 end subroutine qminimizer_init
 
+subroutine set_nsvec(qm_type,q_vec,s_vec,n_vec)
+   use RandomNumbers, only : rng_uniform
+   use math_functions, only : f_cross_product
+
+   !
+   implicit none
+   !
+   character*1, intent(in) :: qm_type
+   real(dblprec), dimension(3), intent(in) :: q_vec
+   real(dblprec), dimension(3), intent(inout) :: s_vec
+   real(dblprec), dimension(3), intent(inout) :: n_vec
+   !
+   real(dblprec), dimension(3) :: r_vec
+   real(dblprec), dimension(3) :: c_vec
+   real(dblprec) :: v_norm, r_norm
+   !
+   if(qm_type=='C') then
+      n_vec = q_vec
+      v_norm=norm2(n_vec)
+      if(v_norm==0.0d0) then
+         n_vec(1)=0.0_dblprec;n_vec(2)=0.0_dblprec;n_vec(3)=1.0_dblprec
+      else
+         n_vec = n_vec/v_norm
+      end if
+
+      v_norm = 0.0_dblprec
+      do while (v_norm<1e-6) 
+         call rng_uniform(r_vec,3)
+         r_vec = 2.0_dblprec*r_vec - 1.0_dblprec
+         r_norm = norm2(r_vec)
+         r_vec = r_vec/r_norm
+
+         c_vec =  f_cross_product(n_vec,r_vec)
+         v_norm = norm2(c_vec)
+      end do
+      s_vec = c_vec/v_norm
+
+   else if(qm_type=='H') then
+      v_norm = 0.0_dblprec
+      do while (v_norm<1e-6) 
+         call rng_uniform(r_vec,3)
+         r_vec = 2.0_dblprec*r_vec - 1.0_dblprec
+         r_norm = norm2(r_vec)
+         r_vec = r_vec/r_norm
+
+         c_vec =  f_cross_product(q_vec,r_vec)
+         v_norm = norm2(c_vec)
+      end do
+      s_vec = c_vec/v_norm
+      n_vec = f_cross_product(q_vec,s_vec)
+      v_norm = norm2(n_vec)
+      n_vec = n_vec/v_norm
+   end if
+
+end subroutine set_nsvec
 end module qminimizer

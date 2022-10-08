@@ -1,13 +1,3 @@
-!> @author Scott Robert Ladd
-!> @copyright
-!!  ORIGINAL ALGORITHM COPYRIGHT
-!!  ============================
-!!  Copyright (C) 1997,2002 Makoto Matsumoto and Takuji Nishimura.
-!!  Any feedback is very welcome. For any question, comments, see
-!!  http://www.math.keio.ac.jp/matumoto/emt.html or email
-!!  matumoto@math.keio.ac.jp
-!> Copyright 2001, 2002, 2004 Scott Robert Ladd.
-!! All rights reserved, except as noted herein.
 module stdtypes
    !---------------------------------------------------------------------
    ! From the Algorithmic Conjurings of Scott Robert Ladd comes...

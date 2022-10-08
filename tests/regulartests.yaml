@@ -1,0 +1,355 @@
+caselist:
+  - workingdir: "./HeisChain"  # base directory both for running sd and for possible relative paths to output files.
+    run: "./runtest.sh"
+    name: "Heisenberg chain"
+    comparisons:
+      - outfile:   averages.HeisWire.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 1000
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [0.0125212146, 0.0243286358, 0.998725532, 0.999100271]
+            type: "Magnetization"
+
+      - outfile:   totenergy.HeisWire.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_Iter.", "E_tot",  "E_xc", "E_DM"]
+        testlist:
+          - select:
+              "#_Iter.": 1400 # zero-indexed
+            extract: ["E_tot"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            expected: [-4.99936339]
+            #expected: [-4.9993637]
+            type: "Total energy"
+
+      - outfile:   ams.HeisWire.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "E_q", "|dq|"]
+        testlist:
+          - select:
+             "#_q-point": 1    # zero-indexed
+            extract: ["E_q"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            expected: [432.05837413818]
+            #expected: [432.058520939595]
+            type: "AMS"
+
+      - outfile:   sqw.HeisWire.out
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_q-point", "q_x", "q_y", "q_z", "#_w", "S_x", "S_y", "S_z", "|S|"]
+        skiprows: 1
+        testlist:
+          - select:
+             "#_w": 23    # zero-indexed
+            extract: ["S_y"] #column number, zero-indexed
+            comparison_func: similar # default. Not be required unless you wish to exchange the default.
+            expected: [8.06611766e-10]
+            #expected: [8.03206622E-04]
+            ##expected: [7.89673390E-04]
+            type: "S(q,w)"
+
+  - workingdir: "./HeisChainAF"
+    run: "./runtest.sh"
+    name: "Anti-ferromagnetic Heisenberg chain"
+    comparisons:
+      - outfile:   ./averages.AF_WireT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 1000   #equivalently with the above headers specified
+            extract:  ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [ 0.0538882967, 0.0142337295, 0.00361204926, 0.0558533301]
+            #expected: [ 0.053847625, 0.0142264604, 0.00359875927, 0.0558113784]
+            type: "Magnetization"
+
+      - outfile:   ./projavgs.AF_WireT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "#_Atom", "M_avg", "M_avg_d", "M_avg_x", "M_avg_y", "M_avg_z"]
+        testlist:
+          - select:
+              "#_Iter.": 5000
+              "#_Atom" : 1
+            extract:  ["M_avg", "M_avg_x", "M_avg_y", "M_avg_z" ]
+            expected: [0.47725269, -0.383636422, -0.225160187, -0.172904932]
+            #expected: [0.477146753, -0.383561433, -0.225109781, -0.172844549]
+            type: "Sublattice 1"
+
+      - outfile:   ./projavgs.AF_WireT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "#_Atom", "M_avg", "M_avg_d", "M_avg_x", "M_avg_y", "M_avg_z"]
+        testlist:
+          - select:
+              "#_Iter.": 5000
+              "#_Atom" : 2
+            # "#_Iter.": 5000   #equivalently with the above headers specified
+            extract:  ["M_avg", "M_avg_x", "M_avg_y", "M_avg_z" ]
+            expected: [0.930466673, 0.750387815, 0.438670217, 0.332046379]
+            #expected: [0.930247129, 0.750232941, 0.438564127, 0.331921319]
+            type: "Sublattice 2"
+
+      - outfile:   ./totenergy.AF_WireT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "E_tot", "E_xc", "E_DM"]
+        testlist:
+          - select:
+              "#_Iter.": 1500    #equivalently with the above headers specified
+            extract: ["E_tot"]
+            expected: [-1.53826977]
+            #expected: [-1.53820788]
+            type: "Total energy"
+
+  - workingdir: "./HeisStripe"
+    run: "./runtest.sh"
+    name: "Heisenberg stripe"
+    comparisons:
+      - outfile:   averages.HeisStri.out
+        filehandler: csv_like
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 1190   #equivalently with the above headers specified
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [0.0267646384, 0.034416429, -0.00313586401, 0.0437112125]
+            #expected: [0.0267526575, 0.0344023364, -0.00313554954, 0.0436927581]
+            type: "Magnetization"
+
+      - outfile:   ./totenergy.HeisStri.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "E_tot",  "E_xc", "E_ani", "E_DM"]
+        testlist:
+          - select:
+              "#_Iter.": 1460    #equivalently with the above headers specified
+            extract: ["E_tot",  "E_xc",  "E_ani"]
+            expected: [-1.19366393, -1.18719839, -0.00646554288]
+            #expected: [-1.19326704, -1.18680044, -0.00646659923]
+            type: "Total energy"
+
+  - workingdir: "./kagome"
+    run: "./runtest.sh"
+    name: "Kagome lattice"
+    comparisons:
+      - outfile:   averages.kagome_T.out
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 13000
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected:  [1.72398594E+00, 1.01248641E+00, 2.29235822E-02 ,1.99944536E+00 ]
+            #expected:  [1.72398664E+00, 1.01248523E+00, 2.29228979E-02 ,1.99944536E+00 ]
+            type: "Magnetization"
+
+      - outfile:   trajectory.kagome_T.001.1.out
+        headers: ["#_Iter.", "Atom index", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 2400
+            extract: ["Atom index","M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected:  [2,     8.63004163E-01, 5.05165983E-01,-5.58067007E-03, 2.00000000E+00]
+            #expected:  [2,     8.63004223E-01, 5.05165880E-01,-5.58073198E-03, 2.00000000E+00]
+            type: "Trajectory"
+
+  - workingdir: "./SCsurf"  # base directory both for running sd and for possible relative paths to output files.
+    run: "./runtest.sh"
+    name: "Simple cubic monolayer"
+    comparisons:
+      - outfile:   averages.SCsurf_T.out
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter." : 800
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [2.10578282e-05, 2.37796755e-05, 0.000167030669, 0.000170023967]
+            type: "Magnetization"
+
+      - outfile:   sq.SCsurf_T.out
+        headers: ["#_Iq", "q_x", "q_y", "q_z",  "i", "C_x", "C_y", "C_z", "abs(C)", "sum_i C_i"]
+        testlist:
+          - select:
+              "#_Iq" : 17
+            extract: ["C_x", "C_y", "C_z"]
+            expected: [0.0935939674, 0.0307761503, 0.1191336]
+            type: "C(r)"
+
+  - workingdir: "./Cluster"
+    run: "./runtest.sh"
+    name: "Finite cluster"
+    comparisons:
+      - outfile:   averages.ClusterT.out
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 25000 # zero-indexed
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [0.0507836321, 0.00124796445, -0.0415898147, 0.0656524743]
+            #expected: [0.0520194212, 0.00120159059, -0.0395360818, 0.065349566]
+            type: "Magnetization"
+
+      - outfile:   ./totenergy.ClusterT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["#_Iter.", "E_tot", "E_xc", "E_ani", "E_DM", "E_pd", "E_bqdm", "E_bq", "E_dip", "E_bf"]
+        testlist:
+          - select:
+              "#_Iter.": 15000    #equivalently with the above headers specified
+            extract: ["E_tot",  "E_xc",  "E_ani", "E_bq"]
+            expected: [-4.04082234, -3.39086666, 0.00237801922, -0.652333705]
+            #expected: [-4.44023869, -3.39267976, -0.39662083, -0.650938102]
+            type: "Total energy"
+
+      - outfile:   ./blsdos.ClusterT.out
+        filehandler: csv_like #(default, space separated)
+        headers: ["Energy", "B_x", "B_y", "B_z", "B_tot"]
+        testlist:
+          - select:
+              "Energy": 33.085341    #equivalently with the above headers specified
+              #"Energy": 33.085339    #equivalently with the above headers specified
+            extract: ["B_x", "B_y", "B_z", "B_tot"]
+            expected: [ 268.55116,  364.59170, 269.49493, 526.94815]
+            #expected: [ 283.21416,  384.32106, 284.68203, 555.83882]
+            type: "BLS"
+
+  - workingdir: "./bccFe/"
+    run: "./runtest.sh"
+    name: "bcc Fe (SD)"
+    comparisons:
+      - outfile:   ./averages.S
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 0
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [1.55223493, 0.240634844, 0.771889276, 1.75018612]
+            #expected: [1.55265865, 0.240604816, 0.771548295, 1.75040748]
+            type: "Initial phase"
+          - select:
+              "#_Iter.": 2700
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [ 1.69336666, -0.0338763749, 0.61172735, 1.8007911]
+            #expected: [ 1.69380256, -0.0335385759, 0.611388726, 1.80107971]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.S
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 41
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+            #expected: [ 1.79305802, 3.21611532, 10.3570305, 0.666227328, 0.000412543152, 1.31005633]
+            expected: [1.7980927, 3.23410613, 10.4720508, 0.666264851, 0.000377665603, 1.23085304]
+            #expected: [ 1.79332725, 3.21707964, 10.3632221, 0.66622798, 0.000412443941, 1.30996477]
+            type: "Cumulants"
+
+  - workingdir: "./bccFe/"
+    run: "./nulltest.sh"
+    name: "bcc Fe (MC)"
+    comparisons:
+      - outfile:   ./averages.M
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 0
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [1.60393633, -0.790633521, -0.302402567, 1.81360426]
+            #expected: [0.614941833, -1.57183968, 0.407603124, 1.73636798]
+            #expected: [1.23219279, -0.0499870649, -1.25066058, 1.75640248]
+            #expected: [1.13411875, -0.323396818, -1.30886895, 1.7618027]
+            type: "Initial phase"
+          - select:
+              "#_Iter.": 2700
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [-0.011325332, -1.72463619, -0.148298609, 1.73103747]
+            #expected: [0.110767829, -1.72213336, 0.458177682, 1.78548022]
+            #expected: [-1.18147425, 0.855379731, -1.02595054, 1.78329201]
+            #expected: [-1.26146219, -0.500556348, -1.14576711, 1.77612662]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.M
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 41
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+            #expected: [1.76249727, 3.10747352, 9.66969891, 0.666207309, 0.000419814376, 0.957675189]
+            expected: [1.76174871, 3.10487416, 9.65398874, 0.666191396, 0.000434917008, 0.98593137]
+            #expected: [ 1.77065358, 3.1363647, 9.85134297, 0.666173299, 0.000448964654, 1.34379514]
+            #expected: [ 1.75776954, 3.09069538, 9.56395637, 0.666263333, 0.000367083352, 0.984011431 ]
+            #expected: [ 1.77171671, 3.13976066, 9.86783543, 0.666337379, 0.000304577761, 1.05547153 ]
+            type: "Cumulants"
+
+  - workingdir: "./bccFe/"
+    run: "./nulltest.sh"
+    name: "bcc Fe (HB)"
+    comparisons:
+      - outfile:   ./averages.H
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 0
+            extract: [ "M_avg"]
+            comparison_func: sloppy
+            #expected: [0.89478818, -1.50130613, -0.240591665, 1.7642138]
+            #expected: [1.77126523]
+            expected: [1.74887502]
+            type: "Initial phase"
+          - select:
+              "#_Iter.": 2700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected: [ 1.76487867]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.H
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 41
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            #expected: [1.77049394, 3.13523324, 9.83699967, 0.666418704, 0.000228055902, 1.02950443]
+            #expected: [1.76742264, 3.12534427, 9.78693218, 0.666012974]
+            #expected: [1.77025431, 3.13475322, 9.83870107, 0.666258821]
+            expected: [1.76731228, 3.12449683, 9.77644188, 0.666189962]
+            type: "Cumulants"
+
+  - workingdir: "./Solvers"  # base directory both for running sd and for possible relative paths to output files.
+    run: "./runtest.sh"
+    name: "SDE Solvers"
+    comparisons:
+      - outfile:   averages.1
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 8000
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [-0.136652492, 0.0180191027, -0.260168482, 0.294425255]
+            #expected: [-0.136625419, 0.0180562882, -0.260233323, 0.294472268]
+            type: "Midpoint"
+
+      - outfile:   averages.4
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 8000
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [-0.136772995, 0.018036773, -0.260200428, 0.294510509]
+            #expected: [-0.222469611, -0.0887422089, -0.166121482, 0.291486285]
+            #expected: [-0.222364777, -0.0886104379, -0.166163115, 0.291389919]
+            type: "Heun"
+
+      - outfile:   averages.5
+        filehandler: csv_like #(default, space separated csv-like)
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 8000
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected: [-0.13635776, 0.018097742, -0.260185475, 0.294308424]
+            #expected: [-0.13633113, 0.018134781, -0.260250341, 0.294355715]
+            type: "Depondt"
+

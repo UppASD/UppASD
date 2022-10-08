@@ -1,0 +1,2 @@
+recursive-include ASD_GUI/UI *.ui
+recursive-include ASD_GUI/TemplateStructurePic  *.png

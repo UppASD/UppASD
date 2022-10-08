@@ -234,8 +234,8 @@ make tests
 %make -f MakefileIfort
 %\end{verbatim}
 
-\noindent In addition to the source files, the UppASD distribution also contains several examples (in the directory \texttt{examples_revision_controlled/}), documentation, including this file (in  \texttt{docs/}) and routines and reference data (\texttt{codeTester/}) for validating the installation of the UppASD program.
-%Other than the \texttt{source} directory, the current UppASD distribution also contains an \texttt{examples_revision_controlled} directory, and a \texttt{docs} directory, in which this user manual is located. Included is also a directory \texttt{codeTester} that contains routines and reference data to validate the installation of the UppASD program.
+\noindent In addition to the source files, the UppASD distribution also contains several examples (in the directory \texttt{examples/}), documentation, including this file (in  \texttt{docs/}) and routines and reference data (\texttt{tests/}) for validating the installation of the UppASD program.
+%Other than the \texttt{source} directory, the current UppASD distribution also contains an \texttt{examples} directory, and a \texttt{docs} directory, in which this user manual is located. Included is also a directory \texttt{tests} that contains routines and reference data to validate the installation of the UppASD program.
 
 
 \section{Principles of the Code}
@@ -640,7 +640,7 @@ where $ (m_x, m_y, m_z)=\mathbf{m}$. UppASD is able to read in either Eq.~(\ref{
 \end{verbatim}
 \end{fBox}
 
-The first entry lists the atom number, whereas the second entry indicates if the uniaxial (\texttt{1}), cubic (\texttt{2}) or both (\texttt{7}) anisotropies are to be mounted. The third and fourth entries list the strength of $K_1$ and $K_2$, respectively. The fifth to seventh entries indicate the components of the vector $\mathbf{e}_i$. Finally, in the instance of the second entry being set to 7, the final entry indicates the ratio between  $K^{\mathrm{U}}_{\mathrm{ani}}$ and  $K^{\mathrm{C}}_{\mathrm{ani}}$.
+The first entry lists the atom number, whereas the second entry indicates if the uniaxial (\texttt{1}), cubic (\texttt{2}) or both (\texttt{7}) anisotropies are to be mounted. The second and third entries list the strength of $K_1$ and $K_2$, respectively. The fifth to seventh entries indicate the components of the vector $\mathbf{e}_i$. Finally, in the instance of the second entry being set to 7, the final entry indicates the ratio between  $K^{\mathrm{U}}_{\mathrm{ani}}$ and  $K^{\mathrm{C}}_{\mathrm{ani}}$.
 
 %%%%%%
 \litem{sym} Flag to determine the assumed symmetry of the system (\emph{0=none}, 1=cubic, 2=2d cubic (in $xy$ plane), 3=hexagonal). \\
@@ -1105,7 +1105,7 @@ First one must go to the root directory of the example:
 
 \begin{fBox} 
 \begin{Verbatim}
-cd examples_revision_controlled/SingleSpin
+cd examples/SingleSpin
 \end{Verbatim}
 \end{fBox}
 
@@ -1241,7 +1241,7 @@ For this step-by-step walkthrough, we will use the input files for Fe as example
 First of all, standing in the root directory, navigate to the input files of Fe:
 \begin{fBox} 
 \begin{Verbatim}
-cd examples_revision_controlled/Fe
+cd examples/Fe
 \end{Verbatim}
 \end{fBox}
 The program works in such a way that we need to repeat simulations for different temperatures. For the purpose, it is recommended to use a script that does simplify a lot of things but first we need to prepare the input files for that. We will create a "Base" directory where the raw input files are stored.
@@ -1312,7 +1312,7 @@ A very useful functionality of UppASD is the possibility to simulate the dispers
 In this tutorial we will show how to obtain the magnon spectra from ASD simulations of $S(\mathbf{q},\omega)$ as well as from linear spin wave theory, which gives the zero-temperature adiabatic magnon spectra of the same Hamiltonian used for the ASD simulations. The tutorial uses the simple example of a 1d-Heisenberg spin chain found among the examples provided with the UppASD distribution. 
 \begin{fBox} 
 \begin{Verbatim}
-cd examples_revision_controlled/HeisChain
+cd examples/HeisChain
 \end{Verbatim}
 \end{fBox}
 There, the input file \texttt{inpsd.dat} can be inspected and the following lines controls the sampling of the correlation function.

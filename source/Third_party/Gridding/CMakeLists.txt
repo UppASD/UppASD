@@ -1,1 +1,1 @@
-add_sources(table_tet_mesh.f90)
+target_sources(${UppASD_LIB} PRIVATE table_tet_mesh.f90)

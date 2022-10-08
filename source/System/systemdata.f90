@@ -1,9 +1,4 @@
 !> Data describing the simulated system
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module SystemData
    use Parameters
    use Profiling

@@ -3,8 +3,10 @@
 !> @brief
 !> The semi-implicit midpoint solver for the LLG-equations
 !> @details Ref: J.H. Mentink et al, J. Phys.: Condens. Matter, 22, 176001 (2010)
-!> @author
+!> @authors
 !> Johan Mentink
+!> Jonathan Chico
+!> Anders Bergman
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
@@ -319,6 +321,7 @@ contains
       return
 
    end subroutine modeulermpf
+
 
    !----------------------------------------------------------------------------
    ! SUBROUTINE: allocate_aux_midpoint_fields

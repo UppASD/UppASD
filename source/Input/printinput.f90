@@ -7,6 +7,9 @@ module PrintInput
    implicit none
    public
 
+   real(dblprec), dimension(3) :: fdum
+   integer, dimension(3) :: idum
+   character, dimension(3) :: cdum
 
 contains
 
@@ -23,20 +26,26 @@ contains
       implicit none
 
       !.. Local scalars
-      integer :: i, j, k, l, file_id
+      integer :: i, file_id
       character(len=20) :: filn
 
       !.. Executable statements
       file_id=ofileno
 
       ! Open outputfile
-      write (filn,'(''inp.'',a8,''.yaml'')') simid
+      write (filn,'(''inp.'',a,''.json'')') trim(simid)
       open(file_id, file=filn)
+      write (file_id,'(a)') '{'
       call print_header()
-      call print_constants()
+      !!! call print_constants()
       call print_input1()
       call print_simulation()
       call print_initmagnetization()
+      call json_key(file_id,'comment')
+      write(file_id,'(a)') '"Input data from UppASD simulation"'
+      write (file_id,'(a)') "  } "
+      close(file_id)
+      write (filn,'(''inp.'',a,''.out'')') trim(simid)
       call print_rotation()
       call print_demag()
       call print_mwf_info()
@@ -49,87 +58,86 @@ contains
 
 
       subroutine print_header()
-         write (file_id,'(a)') "#  UppASD Input data "
-         write (file_id,'(a, /20x ,a)') "simid:", simid
-         write (file_id,*)  " "
+         call json_key(file_id,'simid')
+         call json_string(file_id,simid)
       end subroutine print_header
 
-      subroutine print_constants()
-         use Constants, only : k_bolt, mub, mry
-         write (file_id,'(a)') "# Physical constants"
-         write (file_id,'(a, /20x ,es16.8)') "Boltzman constant:", k_bolt
-         write (file_id,'(a, /20x ,es16.8)') "Bohr magneton:", mub
-         !write (file_id,'(a,es16.8)') "mRy             ", mry
-         write (file_id,'(a)')  " "
-      end subroutine print_constants
+      !!! subroutine print_constants()
+      !!!    use Constants, only : k_bolt, mub
+      !!!    write (file_id,'(a)') "# Physical constants"
+      !!!    write (file_id,'(a, /20x ,es16.8)') "Boltzman constant:", k_bolt
+      !!!    write (file_id,'(a, /20x ,es16.8)') "Bohr magneton:", mub
+      !!!    !write (file_id,'(a,es16.8)') "mRy             ", mry
+      !!!    write (file_id,'(a)')  " "
+      !!! end subroutine print_constants
 
       subroutine print_input1()
          !
-         write (file_id,'(a)') "# Structure data"
-         write (file_id,'(a, /20x,i0,2x,i0,2x,i0)') "ncell:", N1, N2, N3
-         write (file_id,'(a, /20x    ,a,2x,a,2x,a)') "BC:", BC1, BC2, BC3
-         write (file_id,'(a, /20x,3es15.8/20x ,3es15.8,/20x ,3es15.8)') "cell:",C1, C2, C3
-         write (file_id,'(a)') "positions:"
-         do i=1,NA
-            write (file_id,'(20x,i0,2x,i0,2x,3es15.8)') anumb_inp(i), atype_inp(i), bas(1:3,i)
-         end do
-         write (file_id,'(a, /20x ,i0)') "NA:", NA
-         write (file_id,'(a, /20x ,i0)') "NT:", NT
-         write (file_id,'(a, /20x ,i0)') "Sym:", Sym
-         write (file_id,'(a, /20x ,i0)') "Natom:", Natom
-         write (file_id,*) " "
-         !!! write (file_id,'(a)') "Exchange"
+         ! ncell
+         call json_key(file_id,'ncell')
+         idum(1)=N1;idum(2)=N2;idum(3)=N3
+         call json_int(file_id,idum,3)
 
-         !!! ! Sort tensorial exchange (SKKR) input later
-         !!! if(do_jtensor/=1) then
+         ! bc
+         call json_key(file_id,'bc')
+         cdum(1)=BC1;cdum(2)=BC2;cdum(3)=BC3
+         call json_char(file_id,cdum,3)
 
-         !!!    do i=1,NT
-         !!!       if (do_ralloy==0) then
-         !!!          write (file_id,'(3i16,2es16.8)') i, atype_inp(i), nn(atype_inp(i)), ammom_inp(i,1,1), Landeg_ch(i,1,1)
-         !!!          do l=1,NN(atype_inp(i))
-         !!!             write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
-         !!!                redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(atype_inp(i),l,1,1,1)
-         !!!          end do
-         !!!       else
-         !!!          write (file_id,'(4i16)') i, atype_inp(i), nn(i), Nch(i)
-         !!!          do j=1,Nch(i)
-         !!!          end do
-         !!!          do j=1,Nch(i)
-         !!!             do k=1,Nch(i)
-         !!!                write (file_id,'(4i16,es16.8)') j, k
-         !!!                do l=1,NN(i)
-         !!!                   write (file_id,'(4es16.8)') redcoord(atype_inp(i),l,1), &
-         !!!                      redcoord(atype_inp(i),l,2), redcoord(atype_inp(i),l,3), jc(i,l,j,k,1)
-         !!!                end do
-         !!!             end do
-         !!!          end do
-         !!!       end if
-         !!!    end do
+         ! cell
+         call json_key(file_id,'cell')
+         write(file_id,'(a)') '['
+         !write (file_id,'(a, 20x,3es15.8/20x ,3es15.8,/20x ,3es15.8)') ' "cell" : ',C1, C2, C3
+         call json_float(file_id,C1,3)
+         call json_float(file_id,C2,3)
+         call json_float(file_id,C3,3,.true.)
+         write(file_id,'(25x,a)') '],'
 
-         !!! end if
+         ! positions
+         !!!write (file_id,'(a)') '  "positions" : '
+         !!!do i=1,NA
+         !!!   write (file_id,'(20x,i0,2x,i0,2x,3es15.8)') anumb_inp(i), atype_inp(i), bas(1:3,i)
+         !!!end do
 
-         !!! write (file_id,'(a)')  " "
-         !!! write (file_id,'(a)') "Anisotropy"
-         !!! do i=1,NT
-         !!!    write (file_id,'(6es16.8)') anisotropy(i,1,1), anisotropy(i,2,1), anisotropy(i,3,1), anisotropy(i,4,1), &
-         !!!       anisotropy(i,5,1),anisotropy(i,6,1)
-         !!! enddo
-         !!! write (file_id,'(a)')  " "
+         ! na
+         call json_key(file_id,'na')
+         call json_int(file_id,(/NA/),1)
+
+         ! nt
+         call json_key(file_id,'nt')
+         call json_int(file_id,(/NT/),1)
+
+         ! sym
+         call json_key(file_id,'sym')
+         call json_int(file_id,(/Sym/),1)
+
+         ! natom not used in input
+         !write (file_id,'(a, 20x ,i0)') '   "natom" :', Natom
+
       end subroutine print_input1
 
 
       subroutine print_simulation()
-         write (file_id,'(a)') "# Simulation parameters"
-         write (file_id,'(a, /20x ,i0)') "LLG:", llg
-         write (file_id,'(a, /20x ,i0)') "SDE:", SDEalgh
-         write (file_id,'(a, /20x ,i0)') "Mensemble:", Mensemble
-         write (file_id,'(a)')  " "
+         !write (file_id,'(a)') "# Simulation parameters"
+         ! llg
+         call json_key(file_id,'llg')
+         call json_int(file_id,(/llg/),1)
+
+         ! sdealgh
+         call json_key(file_id,'sdealgh')
+         call json_int(file_id,(/sdealgh/),1)
+
+         ! mensemble
+         call json_key(file_id,'mensemble')
+         call json_int(file_id,(/mensemble/),1)
+
       end subroutine print_simulation
 
 
       subroutine print_initmagnetization()
-         write (file_id,'(a)') "# Initial magnetization"
-         write (file_id,'(a, /20x,  i0)') "initmag:", initmag
+         !write (file_id,'(a)') "# Initial magnetization"
+         ! initmag
+         call json_key(file_id,'initmag')
+         call json_int(file_id,(/initmag/),1)
          !!! if(initmag==1) then
          !!!    write (file_id,'(a,i16)') "mseed           ", mseed
          !!! endif
@@ -139,15 +147,18 @@ contains
          !!!    write (file_id,'(a,es16.8)') "Phi0            ", phi0
          !!! endif
          if(initmag==3) then
-               write (file_id,'(a)') "moments:"
-            do i=1,NA
-               write (file_id,'(20x, 3es16.8)') aemom_inp(1,i,1,1), aemom_inp(2,i,1,1), aemom_inp(3,i,1,1)
+            call json_key(file_id,'moments')
+            write(file_id,'(a)') '['
+            do i=1,NA-1
+               call json_float(file_id,aemom_inp(:,i,1,1),3)
             enddo
+            call json_float(file_id,aemom_inp(:,i,1,1),3,.true.)
+            write(file_id,'(25x,a)') '],'
          endif
          if(initmag==4) then
-            write (file_id,'(a, /20x, a)') "restartfile:", adjustl(restartfile)
+            call json_key(file_id,'restartfile')
+            call json_string(file_id,restartfile)
          endif
-         write (file_id,*) "   "
       end subroutine print_initmagnetization
 
 
@@ -230,8 +241,8 @@ contains
          write (file_id,'(a)') "**************** Measurement phase              ****************"
          write (file_id,'(a,a)') "MC, SD, MEP                         ", mode
          write (file_id,'(a,a)') "Gradient				 ", grad
-         if(do_ewald.ne.'N')write (file_id,'(a,a)') "Ewald Summation                ", do_ewald
-         if(do_ewald.ne.'N') write(file_id,'(a,es16.8)') "Ewald Parameter                ", Ewald_alpha
+         if(ham_inp%do_ewald.ne.'N')write (file_id,'(a,a)') "Ewald Summation                ", ham_inp%do_ewald
+         if(ham_inp%do_ewald.ne.'N') write(file_id,'(a,es16.8)') "Ewald Parameter                ", ham_inp%Ewald_alpha
          if(grad.eq.'N') then
             write (file_id,'(a,es16.8)') "T               ", Temp
          end if
@@ -252,7 +263,126 @@ contains
          enddo
       end subroutine print_measurementphase
 
+
    end subroutine prninp
 
+         subroutine json_key(fileno,key)
+            implicit none
+            integer, intent(in) :: fileno
+            character(*), intent(in) :: key
+            !
+            write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
+         end subroutine json_key
+
+         subroutine json_string(fileno,val)
+            implicit none
+            integer, intent(in) :: fileno
+            character(*), intent(in) :: val
+            !
+            write(fileno,'(10x,a,a,a)') ' "',val,'",'
+         end subroutine json_string
+
+         subroutine json_char(fileno,val,nel,contflag)
+            implicit none
+            integer, intent(in) :: fileno
+            integer, intent(in) :: nel
+            character, dimension(nel), intent(in) :: val
+            logical, intent(in), optional :: contflag
+            !
+            integer :: iel
+            logical :: cont = .false.
+
+            !
+            if (present(contflag)) cont=contflag
+            !
+            if(nel==1) then
+               write(fileno,'(a,a,a)') ' "',val(1),'",'
+            else
+               write(fileno,'(10x,a)',advance='no') ' [ '
+               do iel=1,nel-1
+                  write(fileno,'(a,a,a)',advance='no') '"',val(iel),'" , '
+               end do
+               if (cont) then 
+                  write(fileno,'(a,a,a)') '"',val(iel),'" ] '
+               else
+                  write(fileno,'(a,a,a)') '"',val(iel),'" ], '
+               end if
+            end if
+         end subroutine json_char
+
+         subroutine json_float(fileno,val,nel,contflag)
+            implicit none
+            integer, intent(in) :: fileno
+            integer, intent(in) :: nel
+            real(dblprec), dimension(nel), intent(in) :: val
+            logical, intent(in), optional :: contflag
+            !
+            integer :: iel
+            logical :: cont
+            !
+            if(present(contflag)) then
+               cont=contflag
+            else
+               cont=.false.
+            endif
+            if(nel==1) then
+               write(fileno,'(g14.6,a)') val(1),','
+            else
+               write(fileno,'(10x,a)',advance='no') ' [ '
+               do iel=1,nel-1
+                  write(fileno,'(g14.6,a)',advance='no') val(iel),' , '
+               end do
+               if(cont) then
+                  write(fileno,'(g14.6,a)') val(iel),' ]  '
+               else
+                  write(fileno,'(g14.6,a)') val(iel),' ], '
+               end if
+            end if
+         end subroutine json_float
+
+         subroutine json_int(fileno,val,nel,contflag)
+            implicit none
+            integer, intent(in) :: fileno
+            integer, intent(in) :: nel
+            integer, dimension(nel), intent(in) :: val
+            logical, intent(in), optional :: contflag
+            !
+            integer :: iel
+            logical :: cont
+            if(present(contflag)) then
+               cont=contflag
+            else
+               cont=.false.
+            end if
+            !
+            if(nel==1) then
+               write(fileno,'(i8,a)') val(1),','
+            else
+               write(fileno,'(10x,a)',advance='no') ' [ '
+               do iel=1,nel-1
+                  write(fileno,'(i8,a)',advance='no') val(iel),' , '
+               end do
+               if(cont) then
+                   write(fileno,'(i8,a)') val(iel),' ]  '
+               else
+                   write(fileno,'(i8,a)') val(iel),' ], '
+                end if
+            end if
+         end subroutine json_int
+
+!!!          subroutine json_vector(fileno,val,nel)
+!!!             implicit none
+!!!             integer, intent(in) :: fileno
+!!!             integer, intent(in) :: nel
+!!!             real(dblprec), dimension(nel), intent(in) :: val
+!!!             !
+!!!             integer :: iel
+!!!             !
+!!!             write(fileno,'(a)',advance='no') ' [ '
+!!!             do iel=1,nel-1
+!!!                write(fileno,'(f12.6,a)',advance='no') val(iel),' , '
+!!!             end do
+!!!             write(fileno,'(f12.6,a)') val(iel),' ] '
+!!!          end subroutine json_vector
 
 end module PrintInput

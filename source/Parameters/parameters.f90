@@ -1,10 +1,5 @@
 !> Global parameters
 !> /note Keep the contents of this module to a minimum
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module Parameters
 
    implicit none
@@ -25,19 +20,34 @@ module Parameters
 
    public
 !!#ifdef ( __PATHSCALE__
-#if (defined __PATHSCALE__) || (defined __PGIF90__ ) || ( defined __GFORTRAN__ )
-contains
-
-   real(dblprec) function norm2(vec)
-      !
-      implicit none
-      !
-      real(dblprec), dimension(:), intent(in) :: vec
-      !
-      norm2=dsqrt(sum(vec*vec))
-      return
-      !
-   end function norm2
-#endif
+!!!#if (defined __PATHSCALE__) || (defined __PGIF90__ ) || ( defined __GFORTRAN__ )
+!!!#if (defined __PATHSCALE__) || (defined __PGIF90__ ) 
+!!!contains
+!!!
+!!!   real(dblprec) function norm2(vec)
+!!!      !
+!!!      implicit none
+!!!      !
+!!!      real(dblprec), dimension(:), intent(in) :: vec
+!!!      !
+!!!      norm2=sqrt(sum(vec*vec))
+!!!      return
+!!!      !
+!!!   end function norm2
+!!!#endif
+!!! #if (defined __PATHSCALE__) || (defined __PGIF90__ ) 
+!!! contains
+!!! 
+!!!    function compiler_version() result(cname)
+!!!       !
+!!!       implicit none
+!!!       !
+!!!       character*1 :: cname
+!!!       !
+!!!       cname=' '
+!!!       return
+!!!       !
+!!!    end function compiler_version
+!!! #endif
 
 end module

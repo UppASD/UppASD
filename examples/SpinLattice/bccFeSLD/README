@@ -1,0 +1,5 @@
+bccFeSLD       # bcc Fe with MM, LL and MML coupling. Uses cutoff in LL interaction
+
+	       # Gronbech-Jensen-Farago velocity-Verlet solver (initial and/or measurement phase)
+	       # Canonical velocity rescaling (measurement phase)
+	       # Fixed-point iteration implicit midpoint solver (measurement phase)	

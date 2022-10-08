@@ -32,6 +32,24 @@ import seekpath as spth
 #from google.colab import files
 
 ############################################################
+# Calculate reciprocal lattice
+############################################################
+def get_reciprocal_lattice(lattice):
+    a1=lattice[0,:]
+    a2=lattice[1,:]
+    a3=lattice[2,:]
+    vol=np.dot(a1,np.cross(a2,a3))
+
+    k1=np.cross(a2,a3)/vol
+    k2=np.cross(a3,a1)/vol
+    k3=np.cross(a1,a2)/vol
+    K=2.0*np.pi*np.asarray([k1,k2,k3]).reshape(3,3)
+
+    return K
+    
+
+
+############################################################
 # Read atom positions from UppASD position file
 ############################################################
 def read_posfile(posfile):
@@ -42,8 +60,8 @@ def read_posfile(posfile):
       for idx,line in enumerate(lines):
          line_data=line.rstrip('\n').split()
          if len(line_data)>0:
-            positions=np.vstack((positions,np.asarray(line_data[2:5])))
-            numbers=np.append(numbers,np.asarray(line_data[1]))
+            positions=np.vstack((positions,np.asarray(line_data[2:5]).astype(np.float64)))
+            numbers=np.append(numbers,np.asarray(line_data[1]).astype(np.int32))
       return positions,numbers
 
 
@@ -52,6 +70,7 @@ def read_posfile(posfile):
 # Read important keywords from UppASD inputfile `inpsd.dat`
 ############################################################
 def read_inpsd(ifile):
+   posfiletype = 'C'
    with open(ifile,'r') as infile:
       lines=infile.readlines()
       for idx,line in enumerate(lines):
@@ -74,6 +93,7 @@ def read_inpsd(ifile):
                 line_data=lines[idx+2].split()
                 cell=np.append(cell,np.asarray(line_data[0:3]))
                 lattice=np.vstack((lattice,np.asarray(line_data[0:3])))
+                lattice=lattice.astype(np.float64)
 
              # Find the size of the simulated cell
              if(line_data[0]=='ncell'):
@@ -86,15 +106,29 @@ def read_inpsd(ifile):
              if(line_data[0].strip()=='posfile'):
                 positions,numbers=read_posfile(line_data[1])
 
-   return lattice,positions,numbers,simid,mesh
+             # Read the type of coordinate representation
+             if(line_data[0].strip()=='posfiletype'):
+                posfiletype=line_data[1]
+
+   return lattice,positions,numbers,simid,mesh, posfiletype
 
 
 ############################################################
 # Open and read input files
 ############################################################
 ifile='inpsd.dat'
-lattice,positions,numbers,simid,mesh=read_inpsd(ifile)
+lattice,positions,numbers,simid,mesh,posfiletype=read_inpsd(ifile)
 
+
+############################################################
+# Convert positions to direct coordinates if needed
+############################################################
+if posfiletype=='C':
+    invlat=np.linalg.inv(lattice)
+    invpos=np.copy(positions)
+    for row in range(invpos.shape[0]):
+        invpos[row,:]=np.matmul(invlat.T,positions[row,:])
+    positions=np.copy(invpos)
 
 ############################################################
 # Get the spacegroup from spglib and print relevant info
@@ -116,6 +150,9 @@ print("\nSpacegroup:\n", spacegroup)
 kpath_obj=spth.get_path(cell)
 BZ=np.asarray(kpath_obj['reciprocal_primitive_lattice'])
 sympoints=kpath_obj['point_coords']
+print("\nPrimitive lattice:")
+plattice=np.asarray(kpath_obj['primitive_lattice'])
+print(tabulate(plattice,floatfmt=".4f"))
 
 dictlist=[]
 for key, value in sympoints.items():
@@ -143,19 +180,21 @@ mypath=mypath['explicit_kpoints_rel']
 # Then interpolate to get a path commensurate with the UppASD geometry
 nintp=mesh[0]
 lpath=[]
+#xpath=[] #mypath[0,:]
 xpath=mypath[0,:]
 for row in range(mypath.shape[0]-1):
+   nwaves=(mypath[row+1,:]-mypath[row,:])*mesh
+   nsteps=np.int32(np.max(np.abs(nwaves)))
    lpath.append([k for k,v in kpath_obj['point_coords'].items() if (v == mypath[row]).all()][0])
-   for iint in range(nintp):
-      ipart=(iint+1)/nintp
+   for iint in range(nsteps):
+      ipart=(iint+1)/(nsteps)
       xpath=np.append(xpath,mypath[row,:]*(1.0-ipart)+mypath[row+1,:]*ipart,axis=0)
-      if(iint<nintp-1):
+      if(iint<nsteps-1):
           lpath.append(' ')
 lpath.append([k for k,v in kpath_obj['point_coords'].items() if (v == mypath[mypath.shape[0]-1]).all()][0])
 np.savetxt('qfile.klabel',lpath,fmt='%s')
 
 xpath=xpath.reshape(int(xpath.shape[0]/3),3)
-
 
 # Save q-point mesh to file
 nq=xpath.shape[0]
@@ -163,6 +202,15 @@ with open('qfile.kpath','w') as qf:
    print("         ",nq,file=qf)
    for i,  gp in enumerate(xpath):
       print("%s     %s" % (' '.join(format(f, '10.8f') for f in gp),lpath[i]),file=qf)
+
+# Save q-point mesh to file
+xpath2d=xpath[xpath[:,2]==0]
+nq=xpath2d.shape[0]
+with open('qfile.kpath2d','w') as qf:
+   print("         ",nq,file=qf)
+   for i,  gp in enumerate(xpath):
+       if gp[2]==0:
+          print("%s     %s" % (' '.join(format(f, '10.8f') for f in gp),lpath[i]),file=qf)
 
 ###############################################################
 #### Get k-space path from seekpath  v2
@@ -204,7 +252,6 @@ with open('qfile.reduced','w') as qf:
    print("         ",irk_idx.size,file=qf)
    for i, (ir_gp_id, gp) in enumerate(zip(irk_idx, grid[irk_idx])):
       print("%s     %10.4f" % (' '.join(format(f, '10.8f') for f in gp/mesh), mult[i]),file=qf)
-
 
 ############################################################
 # Done!

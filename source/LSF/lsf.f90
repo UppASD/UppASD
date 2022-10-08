@@ -31,22 +31,20 @@ contains
    !> @author
    !! Lars Bergqvist
    !--------------------------------------------------------------------------
-   subroutine mc_update_LSF(Natom,Nchmax,Mensemble,nHam, conf_num,do_lsf,emomM, emom, mmom, temperature, temprescale,  &
-         extfield,mult_axis,mode,lsf_interpolate,lsf_field,lsf_window,lsf_metric,exc_inter,iflip_a,&
+   subroutine mc_update_LSF(Natom,Nchmax,Mensemble, do_lsf,emomM, emom, mmom, temperature, temprescale,  &
+         extfield,mode,lsf_interpolate,lsf_field,lsf_window,lsf_metric,exc_inter,iflip_a,&
          ind_mom_flag,do_dip,Num_macro,mmom_macro,emom_macro,emomM_macro,do_anisotropy)
 
       !
-      use RandomNumbers, only: rng_uniform,rng_uniformP, rng_gaussian, rng_gaussianP, use_vsl
+      use RandomNumbers, only: rng_uniform,rng_uniformP, rng_gaussian, rng_gaussianP
       use montecarlo_common
       use Constants,only : mub,k_bolt
 
       !.. Implicit declarations
       implicit none
       integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: nHam  !< Number of atoms in Hamiltonian
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: conf_num  !< number of configurations for LSF
       character(len=1), intent(in)  ::  do_lsf     !< Including LSF energy
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
@@ -54,7 +52,6 @@ contains
       real(dblprec), intent(in) :: temperature !< Temperature
       real(dblprec), intent(in) :: temprescale !< Temperature rescaling according to QHB
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
-      character(len=1), intent(in) :: mult_axis !< Multiple uniaxial anisotropies
       character(len=1) :: mode !< Simulation mode (M=MC, H=MC Heat Bath)
       character(len=1), intent(in)  ::  lsf_interpolate     !< Interpolate LSF or not
       character(len=1), intent(in)  ::  lsf_field           !< LSF field contribution (Local/Total)
@@ -72,7 +69,7 @@ contains
 
       !.. Local scalars
       !
-      integer :: i,ip,k,icell
+      integer :: i, k, icell
       real(dblprec) :: de, newmmom !< New trial magnitude of moment
       real(dblprec) :: macro_mag_trial,delta
       !
@@ -128,13 +125,13 @@ contains
       do i=1, Natom
          do k=1, Mensemble
             if (mode=='H') then
-               call calculate_field_wLSF(Natom,Nchmax,Mensemble, nHam, conf_num,emomM, emom, mmom, iflip_a(i),&
-                  newmmom_a(iflip_a(i),k),extfield, k,lsf_interpolate,lsf_field,totfield,exc_inter,do_anisotropy)
+               call calculate_field_wLSF(Natom,Nchmax,Mensemble,emomM, emom, mmom, iflip_a(i),&
+                  newmmom_a(iflip_a(i),k),extfield, k,lsf_interpolate,totfield,exc_inter,do_anisotropy)
                call flip_h(Natom, Mensemble, emom, emomM, newmmom_a(iflip_a(i),k), mmom(iflip_a(i),k), &
                   iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield,mflip(i,k))
             else
-               call calculate_energy_wLSF(Natom,Nchmax,Mensemble,nHam, conf_num,emomM,emom,mmom,&
-                  iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k),extfield,de,&
+               call calculate_energy_wLSF(Natom,Nchmax,Mensemble, emomM,emom,mmom,&
+                  iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k),de,&
                   k,lsf_interpolate,lsf_field,exc_inter,do_anisotropy)
             endif
             if(mode=='D') then
@@ -160,8 +157,8 @@ contains
    !> @author
    !! Lars Bergqvist and Fan Pan
    !--------------------------------------------------------------------------
-   subroutine calculate_energy_wLSF(Natom,Nchmax,Mensemble,nHam,conf_num,emomM,emom,mmom,iflip,&
-         newmom,newmmom, extfield,de,k,lsf_interpolate,lsf_field,exc_inter,do_anisotropy)
+   subroutine calculate_energy_wLSF(Natom,Nchmax,Mensemble,emomM,emom,mmom,iflip,&
+         newmom,newmmom, de,k,lsf_interpolate,lsf_field,exc_inter,do_anisotropy)
 
       use Constants, only : mub,mry
       !.. Implicit declarations
@@ -170,15 +167,12 @@ contains
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: nHam  !< Number of atoms in Hamiltonian
-      integer, intent(in) :: conf_num   !< Number of configurations for LSF
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(3), intent(in) :: newmom !< New trial unit moment
       real(dblprec), intent(in) :: newmmom !< New trial magnitude of moment
-      real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       real(dblprec), intent(out):: de  !< Energy difference
       integer, intent(in) :: k !< Current ensemble
       character(len=1),intent(in) :: lsf_interpolate !< Interpolate LSF or not
@@ -240,7 +234,7 @@ contains
       enddo
       ammom_inter(achtype(iflip),1) = mmom(iflip,k)
       ammom_inter(achtype(iflip),2) = newmmom
-      call do_interpolation_ncoup_and_lsf(Natom,Mensemble,nHam,Nchmax,conf_num, &
+      call do_interpolation_ncoup_and_lsf(Natom,Mensemble,Nchmax, &
          ammom_inter,iflip,ncoup_i,lsf_i,k,inttype,exc_inter,achtype(iflip),emom,2)
       ! effective field of the nearest neighbours surrounding site i
       if (lsf_field == 'L') then
@@ -334,8 +328,8 @@ contains
    !> @author
    !! Lars Bergqvist and Fan Pan
    !--------------------------------------------------------------------------
-   subroutine calculate_field_wLSF(Natom,Nchmax,Mensemble,nHam,conf_num,&
-         emomM,emom,mmom,iflip,newmmom,extfield,k,lsf_interpolate,lsf_field,totfield,&
+   subroutine calculate_field_wLSF(Natom,Nchmax,Mensemble,&
+         emomM,emom,mmom,iflip,newmmom,extfield,k,lsf_interpolate,totfield,&
          exc_inter,do_anisotropy)
 
       use Constants, only : mub,mry
@@ -345,8 +339,6 @@ contains
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: nHam  !< Number of atoms in system
-      integer, intent(in) :: conf_num   !< Number of configurations for LSF
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
@@ -355,7 +347,6 @@ contains
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       integer, intent(in) :: k !< Current ensemble
       character(len=1),intent(in) :: lsf_interpolate !< Interpolate LSF or not
-      character(len=1),intent(in) :: lsf_field       !< LSF field contribution (Local/Total)
       real(dblprec), dimension(3), intent(out) :: totfield !< Total field
       character(len=1),intent(in) :: exc_inter    !< Rescaling of exchange interactions (Y/N)
       integer, intent(in) :: do_anisotropy
@@ -368,7 +359,7 @@ contains
       !.. Local scalars
       integer :: inttype              !< (0/1) pick the nearest grids or do interpolation
       integer :: i, j, iflip_h
-      real(dblprec) :: tt, tta, ttb, fc, excscale, lsf_tf
+      real(dblprec) :: tt, tta, fc, excscale, lsf_tf
 
       !.. Local arrays
       integer(dblprec),dimension(nchmax) :: counter     ! counting for every Nchtype
@@ -406,7 +397,7 @@ contains
          endif
       enddo
       ammom_inter(achtype(iflip)) = newmmom
-      call do_interpolation_ncoup_and_lsf_gradient(Natom,Mensemble,nHam,Nchmax,conf_num, &
+      call do_interpolation_ncoup_and_lsf_gradient(Natom,Mensemble,Nchmax, &
          ammom_inter,iflip,ncoup_t,ncoup_tg,lsf_t,lsf_tf,k,inttype,exc_inter,achtype(iflip),emom)
 
       ! Find effective field surrounding site i
@@ -531,7 +522,8 @@ contains
          end do
          newmmom=tempmom(1)
       elseif (wind < 0.0_dblprec) then
-         newmmom = (ammom_hlim(achtype(ip))-ammom_llim(achtype(ip))-2.0_dblprec*dbl_tolerance)*rn+ammom_llim(achtype(ip))+dbl_tolerance
+         newmmom = (ammom_hlim(achtype(ip))-ammom_llim(achtype(ip))-2.0_dblprec*dbl_tolerance)*rn+ &
+            ammom_llim(achtype(ip))+dbl_tolerance
       else
          write(*,*) 'LSF_window must be specified'
       endif
@@ -546,31 +538,25 @@ contains
    !> @todo
    !> Reinstate site resolved energies
    !---------------------------------------------------------------------------
-   subroutine totalenergy_LSF(Natom, Nchmax, Mensemble, nHam, conf_num, emom, emomM, mmom,simid, &
-         plotenergy, mstep, extfield,eenergy, aenergy, fenergy, lsfenergy, exc_inter, &
-         do_lsf,inttype,lsf_field,Temp,site_energy)
+   subroutine totalenergy_LSF(Natom, Nchmax, Mensemble,emom, emomM, mmom, &
+         plotenergy, extfield,eenergy, aenergy, fenergy, lsfenergy, exc_inter, &
+         inttype,lsf_field,site_energy)
       use Constants
 
       implicit none
 
 
-      integer, intent(in) :: mstep   !< Current simulation step
       integer, intent(in) :: Natom   !< Number of atoms in system
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: Mensemble    !< Number of ensembles
-      integer, intent(in) :: nHam  !< Number of atoms in Hamiltonian
-      integer, intent(in) :: conf_num  !< number of configurations for LSF
       integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom     !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom    !< Current magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: extfield !< External magnetic field
-      character(len=8), intent(in) :: simid !< Name of simulation
-      character(len=1), intent(in)  ::  do_lsf     !< Including LSF energy
       character(len=1),intent(in) :: exc_inter !< Interpolation of Jij between FM/DLM
       integer, intent(in) :: inttype !< Interpolatation type in LSF
       character(len=1), intent(in) :: lsf_field       !< LSF field contribution (Local/Total)
-      real(dblprec), intent(in) :: Temp               !< Temperature
       real(dblprec),dimension(10,natom,Mensemble),intent(inout) :: site_energy
 
       !.. Subroutine output
@@ -582,9 +568,7 @@ contains
       !...Local variables
       integer :: i, j, k,i_h
       real(dblprec) :: fcinv,fc
-      real(dblprec) :: excscale !< Interpolation parameter FM/DLM
-      real(dblprec) :: ieenergy, exptemp
-      real(dblprec) :: xu1,xu2
+      real(dblprec) :: ieenergy
 
       !...Local arrays
       real(dblprec), dimension(Mensemble) :: tt
@@ -604,7 +588,7 @@ contains
       fc = mry/mub
 
       !$omp parallel do default(shared),private(i,j,k,i_h,nbsum,counter,ammom_inter,lsfE, &
-      !$omp tempk1,tempk2,xu1,xu2,ncoup_i,ttv,tt,aeatom,ieenergy,exptemp),&
+      !$omp tempk1,tempk2,ncoup_i,ttv,tt,aeatom,ieenergy),&
       !$omp reduction(+:lsfenergy,eenergy,aenergy,fenergy),schedule(auto),collapse(2)
       do i=1,natom
          do k=1,mensemble
@@ -623,7 +607,7 @@ contains
                endif
             enddo
             ammom_inter(achtype(i),1) = mmom(i,k)
-            call do_interpolation_ncoup_and_lsf(Natom,Mensemble,nHam,Nchmax,conf_num, &
+            call do_interpolation_ncoup_and_lsf(Natom,Mensemble,Nchmax, &
                ammom_inter,i,ncoup_i,lsfE,k,inttype,exc_inter,achtype(i),emom,1)
             !> effective field of the nearest neighbours surrounding site i
             if (lsf_field=='L') then
@@ -683,11 +667,10 @@ contains
    !> Interpolation to given values from precalculated grid of lsf energies
    !! and exchange parameters
    !---------------------------------------------------------------------------
-   subroutine allocate_lsfdata(NA, Nchmax, conf_num, flag)
+   subroutine allocate_lsfdata(Nchmax, conf_num, flag)
       !
       implicit none
       !
-      integer, intent(in) :: NA       !< Number of atoms in one cell
       integer, intent(in) :: Nchmax   !< Max number of chemical components on each site in cell
       integer, intent(in) :: conf_num !< Number of configurations for LSF
       integer, intent(in) :: flag     !< Allocate or deallocate (1/-1)
@@ -748,7 +731,7 @@ contains
       integer, intent(in) :: conf_num  !< Number of configurations for LSF
       !
       integer :: i_stat  !<, for, memory, allocation
-      integer :: i, j, k, tmp, num !< loop index
+      integer :: i, j, k, num
       logical,dimension(conf_num) :: mask
       real(dblprec),dimension(conf_num,nchmax) :: mint_tmp
 
@@ -792,7 +775,7 @@ contains
    end subroutine LSF_datareshape
 
    !> Interpolation of LSF energy and exchange interactions to given moment size from existing grid
-   subroutine do_interpolation_ncoup_and_lsf(Natom,Mensemble,nHam, Nchmax,conf_num,ammom_inter, &
+   subroutine do_interpolation_ncoup_and_lsf(Natom,Mensemble, Nchmax, ammom_inter, &
                    iflip,itp_noup,obj,k,inttype,exc_inter,chemtype,emom,nstep)
 
       !
@@ -800,10 +783,8 @@ contains
 
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles in system
-      integer, intent(in) :: nHam !< Number of atoms in Hamiltonian
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: k !< Current ensemble
-      integer, intent(in) :: conf_num   !< Number of configurations for LSF
       real(dblprec), intent(in), dimension(nchmax,nstep) :: ammom_inter !< moments at grids
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(ham%max_no_neigh,nstep),intent(out) :: itp_noup  !< Interpolated ncoup
@@ -848,9 +829,12 @@ contains
 #endif
                   do j=1,ham%nlistsize(iflip_h)
                      excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-                     itp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))+ &
-                        invtemp*((ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
-                        (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))))
+                     itp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(1))+ &
+                        excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))+ &
+                        invtemp*((ham%ncoupD(j,iflip_h,ac(2))+ &
+                        excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
+                        (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))) &
+                                        )
                   enddo
                   obj(:,istep)=LSF_energy(ac(1),:)+invtemp*(LSF_energy(ac(2),:)-LSF_energy(ac(1),:))
                endif
@@ -944,8 +928,10 @@ contains
 #endif
                do j=1,ham%nlistsize(iflip_h)
                   excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-                  itp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))*temp(1)
-                  tmp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))*temp(2)
+                  itp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(1))+ &
+                     excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))*temp(1)
+                  tmp_noup(j,istep)=(ham%ncoupD(j,iflip_h,ac(2))+ &
+                     excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))*temp(2)
                enddo
                itp_noup(:,istep)=0.5_dblprec*(itp_noup(:,istep)+tmp_noup(:,istep))
                obj(:,istep) = 0.5_dblprec*(LSF_energy(ac(1),:)*temp(1)+LSF_energy(ac(2),:)*temp(2))
@@ -989,7 +975,9 @@ contains
 #endif
                do j=1,ham%nlistsize(iflip_h)
                   excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-                  itp_noup(j,istep)=(ham%ncoupD(j,iflip_h,iconf)+excscale*(ham%ncoup(j,iflip_h,iconf)-ham%ncoupD(j,iflip_h,iconf)))*invtemp
+                  itp_noup(j,istep)= &
+                     (ham%ncoupD(j,iflip_h,iconf)+excscale*(ham%ncoup(j,iflip_h,iconf)-ham%ncoupD(j,iflip_h,iconf))) &
+                         *invtemp
                enddo
                obj(:,istep) = LSF_energy(iconf,:)*invtemp
             endif
@@ -999,7 +987,7 @@ contains
 
 
    !> Interpolation of LSF energy and exchange interactions to given moment size from existing grid
-   subroutine do_interpolation_ncoup_and_lsf_gradient(Natom,Mensemble,nHam,Nchmax,conf_num,ammom_inter, &
+   subroutine do_interpolation_ncoup_and_lsf_gradient(Natom,Mensemble,Nchmax,ammom_inter, &
          iflip,itp_noup,itp_noupg,obj,lsff,k,inttype,exc_inter,chemtype,emom)
 
       !
@@ -1007,10 +995,8 @@ contains
 
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles in system
-      integer, intent(in) :: nHam!< Number of atoms in Hamiltonian
       integer, intent(in) :: Nchmax  !< Number of chemical type
       integer, intent(in) :: k !< Current ensemble
-      integer, intent(in) :: conf_num   !< Number of configurations for LSF
       real(dblprec), intent(in), dimension(:) :: ammom_inter !< moments at grids
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(ham%max_no_neigh),intent(out) :: itp_noup  !< Interpolated ncoup
@@ -1028,8 +1014,6 @@ contains
       integer :: i, j, iconf, ii, jj, iflip_h
       real(dblprec),dimension(4) :: temp
       real(dblprec) :: invtemp,invtemp2
-      real(dblprec), dimension(ham%max_no_neigh,2) :: ncouptmp  !< Interpolated ncoup on boundary
-      real(dblprec), dimension(2,2) :: lsftmp
       real(dblprec) :: excscale !< Interpolaton parameter FM/DLM
 
       iflip_h=ham%aham(iflip)
@@ -1060,11 +1044,17 @@ contains
 #endif
                do j=1,ham%nlistsize(iflip_h)
                   excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-                  itp_noup(j)= (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))+ &
-                     invtemp*(  (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
-                     (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))))
-                  itp_noupg(j)=invtemp2*( (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
-                     ((ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))))
+                  itp_noup(j)= &
+                     (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))+ &
+                     invtemp*(  &
+                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
+                     (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))) &
+                             )
+                  itp_noupg(j)= &
+                     invtemp2*( &
+                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))- &
+                     (ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))) &
+                               )
                enddo
                obj(:)=LSF_energy(ac(1),:)+invtemp*(LSF_energy(ac(2),:)-LSF_energy(ac(1),:))
                lsff=-invtemp2*(LSF_energy(ac(2),1)-LSF_energy(ac(1),1))
@@ -1120,16 +1110,25 @@ contains
 #endif
                do j=1,ham%nlistsize(iflip_h)
                   excscale=abs(sum(emom(:,ham%nlist(j,iflip),k)*emom(:,iflip,k)))
-                  itp_noup(j)= ((ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))  *temp(1)+ &
-                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))  *temp(2))*temp(3)+ &
-                     ((ham%ncoupD(j,iflip_h,ac(3))+excscale*(ham%ncoup(j,iflip_h,ac(3))-ham%ncoupD(j,iflip_h,ac(3))))  *temp(1)+ &
-                     (ham%ncoupD(j,iflip_h,ac(4))+excscale*(ham%ncoup(j,iflip_h,ac(4))-ham%ncoupD(j,iflip_h,ac(4))))  *temp(2))*temp(4)
+                  itp_noup(j)= &
+                     ((ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))) &
+                         *temp(1)+ &
+                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))  &
+                         *temp(2))*temp(3)+ &
+                     ((ham%ncoupD(j,iflip_h,ac(3))+excscale*(ham%ncoup(j,iflip_h,ac(3))-ham%ncoupD(j,iflip_h,ac(3)))) &
+                          *temp(1)+ &
+                     (ham%ncoupD(j,iflip_h,ac(4))+excscale*(ham%ncoup(j,iflip_h,ac(4))-ham%ncoupD(j,iflip_h,ac(4))))  &
+                          *temp(2))*temp(4)
 
                   itp_noupg(j)=invtemp*( &
-                     ((ham%ncoupD(j,iflip_h,ac(3))+excscale*(ham%ncoup(j,iflip_h,ac(3))-ham%ncoupD(j,iflip_h,ac(3))))  *temp(1)+ &
-                     (ham%ncoupD(j,iflip_h,ac(4))+excscale*(ham%ncoup(j,iflip_h,ac(4))-ham%ncoupD(j,iflip_h,ac(4))))  *temp(2)) - &
-                     ((ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1))))  *temp(1)+ &
-                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))  *temp(2)))
+                     ((ham%ncoupD(j,iflip_h,ac(3))+excscale*(ham%ncoup(j,iflip_h,ac(3))-ham%ncoupD(j,iflip_h,ac(3))))  &
+                          *temp(1)+ &
+                     (ham%ncoupD(j,iflip_h,ac(4))+excscale*(ham%ncoup(j,iflip_h,ac(4))-ham%ncoupD(j,iflip_h,ac(4))))  &
+                          *temp(2)) - &
+                     ((ham%ncoupD(j,iflip_h,ac(1))+excscale*(ham%ncoup(j,iflip_h,ac(1))-ham%ncoupD(j,iflip_h,ac(1)))) &
+                          *temp(1)+ &
+                     (ham%ncoupD(j,iflip_h,ac(2))+excscale*(ham%ncoup(j,iflip_h,ac(2))-ham%ncoupD(j,iflip_h,ac(2))))  &
+                         *temp(2)))
                enddo
                obj(:)=(LSF_energy(ac(1),:)*temp(1)+LSF_energy(ac(2),:)*temp(2))*temp(3)+&
                   (LSF_energy(ac(3),:)*temp(1)+LSF_energy(ac(4),:)*temp(2))*temp(4)

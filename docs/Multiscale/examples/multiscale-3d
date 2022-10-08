@@ -1,0 +1,39 @@
+dimension 3
+coarse_grained_width 1.1
+part_coarse_grained_width 1.1
+damping_band_width 5.9
+padding_width 1.1
+periodic_boundary F F F
+universe_size 50 50 50
+finitediff_boxes 25 25 25
+atom_lattice_spacing 1.0
+damping_band_window_size 6.1 6.1 6.1
+continuous_exchange_coef 0.2936
+continuous_moment_magnitude 7.63
+format M
+
+atomistic_shape
+sphere 25.0 25.0 25.0 15.0
+
+hole_shape
+sphere 25.0 25.0 25.0 5.0
+
+unitcell_atoms 1.0 1.0 1.0 
+1 0.5 0.5 0.5 5.0 1.0 0.1 0.2
+
+exchange_atoms
+1 1  1.0 0.0 0.0 0.2936
+1 1 -1.0 0.0 0.0 0.2936
+1 1  0.0 1.0 0.0 0.2936
+1 1  0.0 -1.0 0.0 0.2936
+1 1  0.0 0.0 -1.0 0.2936
+1 1  0.0 0.0 1.0 0.2936
+
+exchange_coarse
+1 1  1.0 0.0 0.0 0.2936
+1 1 -1.0 0.0 0.0 0.2936
+1 1  0.0 1.0 0.0 0.2936
+1 1  0.0 -1.0 0.0 0.2936
+1 1  0.0 0.0 -1.0 0.2936
+1 1  0.0 0.0 1.0 0.2936
+

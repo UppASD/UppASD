@@ -1,4 +1,4 @@
-add_sources(mc_wolff.f90
+target_sources(${UppASD_LIB} PRIVATE mc_wolff.f90
 montecarlo.f90
 montecarlo_common.f90
 prn_spinice.f90

@@ -666,7 +666,7 @@ contains
       ! This is the microwave field which acts uniformly over the sample
       if(mwf=='Y'.or.mwf=='P') then
 
-         write (filn,'(''mwf.'',a8,''.out'')') simid
+         write (filn,'(''mwf.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
          do i=1, bcount_mwf
             if (real_time_measure=='Y') then
@@ -680,7 +680,7 @@ contains
          ! This is a microwave field which acts over selected atoms
       else if (mwf=='S'.or.mwf=='P') then
 
-         write (filn,'(''mwf.'',a8,''.out'')') simid
+         write (filn,'(''mwf.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
          do i=1, bcount_mwf
             do j=1, Natom
@@ -760,7 +760,7 @@ contains
       ! This is the microwave field which acts uniformly over the sample
       if(mwf_gauss=='Y'.or.mwf_gauss=='P') then
 
-         write (filn,'(''mwf_gauss.'',a8,''.out'')') simid
+         write (filn,'(''mwf_gauss.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
          do i=1, bcount_mwf_gauss
             if (real_time_measure=='Y') then
@@ -774,7 +774,7 @@ contains
          ! This is a microwave field which acts over selected atoms
       else if (mwf_gauss=='S'.or.mwf_gauss=='P') then
 
-         write (filn,'(''mwf_gauss.'',a8,''.out'')') simid
+         write (filn,'(''mwf_gauss.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
          do i=1, bcount_mwf_gauss
             do j=1, Natom
@@ -845,7 +845,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the frequency broadened gaussian shaped microwave field
-      write (filn,'(''mwf_gauss_s.'',a8,''.out'')') simid
+      write (filn,'(''mwf_gauss_s.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mwf_gauss_spatial
          do j=1, Natom
@@ -913,7 +913,7 @@ contains
       character(len=30) :: filn
 
       ! Print ot file the static gaussian shaped field
-      write (filn,'(''gauss.'',a8,''.out'')') simid
+      write (filn,'(''gauss.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mwf_gauss_spatial
          do j=1, Natom
@@ -981,7 +981,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving static gaussian shaped field
-      write (filn,'(''mov_gauss.'',a8,''.out'')') simid
+      write (filn,'(''mov_gauss.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mov_gauss
          do j=1, Natom
@@ -1049,7 +1049,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving static circular shaped field
-      write (filn,'(''mov_circle.'',a8,''.out'')') simid
+      write (filn,'(''mov_circle.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mov_circle
          do j=1, Natom
@@ -1117,7 +1117,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving microwave gaussian shaped field
-      write (filn,'(''mwf_mov_gauss.'',a8,''.out'')') simid
+      write (filn,'(''mwf_mov_gauss.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mwf_mov_gauss
          do j=1, Natom
@@ -1185,7 +1185,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving microwave circular shaped field
-      write (filn,'(''mwf_mov_circle.'',a8,''.out'')') simid
+      write (filn,'(''mwf_mov_circle.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mwf_mov_circle
          do j=1, Natom
@@ -1253,7 +1253,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving static cubic shaped field
-      write (filn,'(''mov_square.'',a8,''.out'')') simid
+      write (filn,'(''mov_square.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mov_square
          do j=1, Natom
@@ -1321,7 +1321,7 @@ contains
       character(len=30) :: filn
 
       ! Print to file the moving microwave cubic shaped field
-      write (filn,'(''mwf_mov_square.'',a8,''.out'')') simid
+      write (filn,'(''mwf_mov_square.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_mwf_mov_square
          do j=1, Natom

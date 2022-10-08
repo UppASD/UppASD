@@ -20,12 +20,11 @@ contains
    !> @brief Calculate the total static external field, including global and site
    !> dependent contributions
    !----------------------------------------------------------------------------
-   subroutine calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_fields, &
+   subroutine calc_external_fields(Natom,Mensemble,hfield,anumb,external_fields, &
       do_bpulse,sitefld,sitenatomfld)
       !
       implicit none
 
-      integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: do_bpulse  !< Add magnetic field pulse (0=no, 1-4 for different shapes)

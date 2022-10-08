@@ -38,9 +38,9 @@ contains
    !> @date 2017-08-21 - Jonathan Chico
    !> Added fixed moments variables
    !----------------------------------------------------------------------------
-   subroutine magninit(Natom,conf_num,Mensemble,NA,N1,N2,N3,initmag,Nchmax,         &
+   subroutine magninit(Natom,Mensemble,NA,N1,N2,N3,initmag,Nchmax,         &
       aemom_inp,anumb,do_ralloy,Natom_full,achtype,acellnumb,emom,emom2,emomM,mmom, &
-      rstep,theta0,phi0,restartfile,initrotang,initpropvec,initrotvec,coord,C1,C2,  &
+      rstep,theta0,phi0,mavg0,restartfile,initrotang,initpropvec,initrotvec,coord,C1,C2,  &
       C3,do_fixed_mom,Nred,red_atom_list,ind_list_full,ind_mom_flag,ind_mom,fix_num,&
       fix_list,read_ovf,do_mom_legacy,relaxed_if)
       !
@@ -66,12 +66,12 @@ contains
       integer, intent(in) :: Natom              !< Number of atoms in system
       integer, intent(in) :: Nchmax             !< Max number of chemical components on each site in cell
       integer, intent(in) :: initmag            !< Mode of initialization of magnetic moments (1-4)
-      integer, intent(in) :: conf_num           !< Number of configurations for LSF
       integer, intent(in) :: Mensemble          !< Number of ensembles
       integer, intent(in) :: do_ralloy          !< Random alloy simulation (0/1)
       integer, intent(in) :: Natom_full         !< Number of atoms for full system (=Natom if not dilute)
-      real(dblprec), intent(in) :: phi0         !< Cone angle phi
-      real(dblprec), intent(in) :: theta0       !< Cone angle theta
+      real(dblprec), intent(inout) :: phi0         !< Cone angle phi
+      real(dblprec), intent(inout) :: theta0       !< Cone angle theta
+      real(dblprec), intent(inout) :: mavg0        !< Average magnetization for cone
       real(dblprec), intent(in) :: initrotang   !< Rotation angle phase for initial spin spiral
       character(len=1), intent(in) :: read_ovf  !< Read the magnetization data in the ovf format
       character(len=1), intent(in) :: relaxed_if
@@ -153,9 +153,9 @@ contains
                      z=2.0_dblprec*(rn(3)-0.50_dblprec)
                      do while (x**2+y**2+z**2>1)
                         call rng_uniform(rn,3)
-                        x=rn(1)-0.50_dblprec
-                        y=rn(2)-0.50_dblprec
-                        z=rn(3)-0.50_dblprec
+                        x=1.0_dblprec*(rn(1)-0.50_dblprec)
+                        y=1.0_dblprec*(rn(2)-0.50_dblprec)
+                        z=1.0_dblprec*(rn(3)-0.50_dblprec)
                      end do
                      ! Normalize the spins directions
                      u(1) = x/sqrt(x**2+y**2+z**2)
@@ -186,6 +186,12 @@ contains
       !-------------------------------------------------------------------------
       else if (initmag==2) then
          write (*,'(2x,a)',advance='no') "Start random init spins in cone"
+
+         if (mavg0>=0.0_dblprec) then
+            phi0 = 2.0_dblprec * pi
+            theta0 = 2.0_dblprec*acos(mavg0) 
+            print *," MAgnetization avg:",mavg0,theta0
+         end if
          rstep=0
          do I3=0, N3-1
             do I2=0, N2-1
@@ -200,6 +206,7 @@ contains
                      u(1) = sin(theta0*theta)*cos(phi0*phi)
                      u(2) = sin(theta0*theta)*sin(phi0*phi)
                      u(3) = cos(theta0*theta)
+                     print '(3f12.5)',u
                      ! Check if the system is a random alloy
                      if(do_ralloy==0) then
                         do j=1, Mensemble
@@ -535,17 +542,14 @@ contains
    !----------------------------------------------------------------------------
    !> Set up the magnitude of magnetic moments, and Lande factors as well.
    !----------------------------------------------------------------------------
-   subroutine setup_moment(Natom,conf_num,Mensemble,NA,N1,N2,N3, Nchmax,ammom_inp,  &
-      Landeg_ch,Landeg,mmom,mmom0,mmomi,do_ralloy, Natom_full,achtype, acellnumb,   &
+   subroutine setup_moment(Natom,Mensemble,NA,N1,N2,N3, ammom_inp,  &
+      Landeg_ch,Landeg,mmom,mmom0,mmomi,do_ralloy,achtype, acellnumb,   &
       mconf)
       !
       implicit none
       !
       integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: conf_num !< Number of configurations for LSF
-      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
       integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
       integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: N1  !< Number of cell repetitions in x direction
       integer, intent(in) :: N2  !< Number of cell repetitions in y direction

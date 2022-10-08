@@ -8,8 +8,13 @@ module InputData
 
    use Parameters
    use Profiling
+   use InputDataType
 
    implicit none
+
+   ! Derived type for Hamiltonian input data (see InputDataType module)
+   type(ham_inp_t) :: ham_inp
+
    !---------------------------------------------------------------------------------
    ! Geometry and composition
    !---------------------------------------------------------------------------------
@@ -24,6 +29,8 @@ module InputData
    integer :: Natom_full                                    !< Number of atoms for full system (=Natom if not dilute)
    integer :: set_landeg                                    !< Set 'custom' value for gyromagnetic ration (1=yes,0=no)
    integer :: block_size                                    !< Size of the blocking parameter for the macro cell creation
+   integer :: metatype                                      !< Flag for finding metatypes according to Hamiltonian symmetry
+   integer :: metanumb                                      !< Flag for finding metatypes according to boundary conditions
    integer, dimension(:), allocatable :: acomp              !< Atom component
    integer, dimension(:), allocatable :: asite              !< Atom site
    integer, dimension(:), allocatable :: anumb_inp          !< Atom number in cell
@@ -49,6 +56,7 @@ module InputData
    character(len=1) :: do_mom_legacy   !< Flag to print/read moments in legacy output
    character(len=1) :: renorm_coll                            !< Flag to force collienar calculation of the susceptibility for induced moments
    character(len=1) :: ind_mom_flag                           !< Flag for whether induced magnetic moments are present or not
+   integer :: ind_mom_type                                    !< Flag to control how induced moments are treated (1=Bergman,2=Ebert)
    character(len=35) :: momfile                               !< File name for magnetic moments
    character(len=35) :: momfile_i                             !< File name for initial magn. configuration
    character(len=35) :: momfile_f                             !< File name for final magn. configuration
@@ -58,37 +66,14 @@ module InputData
    integer, dimension(:,:), allocatable :: ind_mom              !< Flag to decide whether a moment is induced or not
    real(dblprec), dimension(:,:,:), allocatable :: ammom_inp    !< Magnetic moment magnitudes from input (for alloys)
    real(dblprec), dimension(:,:,:,:), allocatable :: aemom_inp  !< Magnetic moment directions from input (for alloys)
-   !---------------------------------------------------------------------------------
-   ! Exchange data
-   !---------------------------------------------------------------------------------
+
    integer :: maptype                        !< Format for input data (1=direct format,2=bgfm style)
-   integer :: do_jtensor                     !< Use SKKR style exchange tensor (0=off, 1=on) --OLD: 2=with biquadratic exchange
-   logical :: calc_jtensor                   !< Calculate or read tensor from input (T/F)
-   logical :: map_multiple                   !< Allow for multiple couplings between atoms i and j (use only for small cells)
-   integer :: max_no_shells                  !< Actual maximum number of shells
-   integer, dimension(:), allocatable :: nn  !< Number of neighbour shells
-   real(dblprec), dimension(:,:,:), allocatable :: redcoord       !< Coordinates for Heisenberg exchange couplings
-   real(dblprec), dimension(:,:,:,:), allocatable :: jc_bq        !< Biquadratic exchange coupling
-   real(dblprec), dimension(:,:,:,:,:), allocatable :: jc         !< Exchange couplings
-   real(dblprec), dimension(:,:,:,:,:), allocatable :: jcD        !< Exchange couplings (DLM)
-   real(dblprec), dimension(:,:,:,:,:,:), allocatable :: jc_tens  !< Tensorial exchange couplings (SKKR)
-   character(len=1) :: exc_inter                         !< Interpolate Jij between FM and DLM states (Y(N)
+
+   !
    character(len=30) :: pre_jfile                        !< File name for exchange couplings
    character(len=30), dimension(:), allocatable :: jfile    !< File name for exchange couplings
    character(len=30), dimension(:), allocatable :: jfileD   !< File name for exchange couplings (DLM)
-   real(dblprec) :: jij_scale                               !< Rescale Jij couplings manually
-   !---------------------------------------------------------------------------------
-   ! Anisotropy data
-   !---------------------------------------------------------------------------------
-   integer :: do_anisotropy                                          !< Read anisotropy data (1/0)
-   real(dblprec) :: random_anisotropy_density                        !< Density for randomness in anisotropy
-   logical :: random_anisotropy                                      !< Put random anisotropy in the sample (T/F)
-   character(len=1) :: mult_axis                                     !< Flag to treat more than one anisotropy axis at the same time
-   character(len=35) :: kfile                                        !< File name for anisotropy data
-   integer, dimension(:,:), allocatable :: anisotropytype            !< Type of anisotropies (0-2)
-   integer, dimension(:,:), allocatable :: anisotropytype_diff       !< Type of anisotropies when one is considering more than one anisotropy axis
-   real(dblprec), dimension(:,:,:), allocatable :: anisotropy        !< Input data for anisotropies
-   real(dblprec), dimension(:,:,:), allocatable :: anisotropy_diff   !< Input data for the second anisotropy axis
+   
    !---------------------------------------------------------------------------------
    ! Parameters for energy minimization calculations
    !---------------------------------------------------------------------------------
@@ -127,65 +112,6 @@ module InputData
    !---------------------------------------------------------------------------------
    integer :: sample_num            !< Number of samples in the interpolated curve
    !---------------------------------------------------------------------------------
-   ! Dzyaloshinskii-Moriya data
-   !---------------------------------------------------------------------------------
-   integer :: do_dm                                      !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-   integer :: max_no_dmshells                            !< Actual maximum number of shells for DM interactions
-   character(len=35) :: dmfile                           !< File name for Dzyaloshinskii-Moriya data
-   real(dblprec) :: dm_scale                             !< Rescale Dij couplings manually
-   integer, dimension(:), allocatable :: dm_nn           !< No. shells of neighbours for DM
-   real(dblprec), dimension(:,:,:), allocatable :: dm_redcoord    !< Neighbour vectors for DM
-   real(dblprec), dimension(:,:,:,:,:), allocatable :: dm_inpvect !< Neighbour vectors for DM
-   !---------------------------------------------------------------------------------
-   ! Scalar chirality data
-   !---------------------------------------------------------------------------------
-   integer :: do_chir                                       !< Add scalar chirality (CHIR) term to Hamiltonian (0/1)
-   integer :: max_no_chirshells                             !< Actual maximum number of shells for CHIR interactions
-   character(len=35) :: chirfile                            !< File name for Pseudo-Dipolar data
-   integer, dimension(:), allocatable :: chir_nn            !< No. shells of neighbours for CHIR
-   real(dblprec), dimension(:,:,:,:), allocatable :: chir_inpval     !< Interactions for CHIR
-   real(dblprec), dimension(:,:,:,:), allocatable :: chir_redcoord   !< Neighbour vectors for CHIR
-   !---------------------------------------------------------------------------------
-   ! Pseudo-Dipolar data
-   !---------------------------------------------------------------------------------
-   integer :: do_pd                                      !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-   integer :: max_no_pdshells                            !< Actual maximum number of shells for PD interactions
-   character(len=35) :: pdfile                           !< File name for Pseudo-Dipolar data
-   integer, dimension(:), allocatable :: pd_nn           !< No. shells of neighbours for PD
-   real(dblprec), dimension(:,:,:), allocatable :: pd_redcoord       !< Neighbour vectors for PD
-   real(dblprec), dimension(:,:,:,:,:), allocatable :: pd_inpvect    !< Neighbour vectors for PD
-   !---------------------------------------------------------------------------------
-   ! Biquadratic DM data (BIQDM)
-   !---------------------------------------------------------------------------------
-   integer :: do_biqdm                                      !< Add BIQDM term to Hamiltonian (0/1)
-   integer :: max_no_biqdmshells                            !< Actual maximum number of shells for BIQDM interactions
-   character(len=35) :: biqdmfile                           !< File name for BIQDM data
-   integer, dimension(:), allocatable :: biqdm_nn           !< No. shells of neighbours for BIQDM
-   real(dblprec), dimension(:,:,:), allocatable :: biqdm_redcoord       !< Neighbour vectors for BIQDM
-   real(dblprec), dimension(:,:,:,:,:), allocatable :: biqdm_inpvect    !< Neighbour vectors for BIQDM
-   !---------------------------------------------------------------------------------
-   ! Biquadratic exchange data
-   !---------------------------------------------------------------------------------
-   integer :: do_bq                                   !< Add biquadratic (BQ) term to Hamiltonian (0/1)
-   integer :: max_no_bqshells                         !< Actual maximum number of shells for BQ interactions
-   character(len=35) :: bqfile                        !< File name for biquadratic data
-   integer, dimension(:), allocatable :: bq_nn        !< No. shells of neighbours for BQ
-   real(dblprec), dimension(:,:,:), allocatable :: bq_redcoord    !< Neighbour vectors for BQ
-   !---------------------------------------------------------------------------------
-   ! Dipole-dipole data
-   !---------------------------------------------------------------------------------
-   integer :: do_dip                      !< Calculate dipole-dipole contribution (0=Off, 1=Brute Force, 2=macrocell)
-   character(len=1) :: read_dipole        !< Flag to read the dipole-dipole tensor from file
-   character(len=1) :: print_dip_tensor   !< Flag to print the dipole tensor
-   character(len=30) :: qdip_files        !< Input file that contains the dipole-dipole tensor
-   !---------------------------------------------------------------------------------
-   ! Ewald summation data
-   !---------------------------------------------------------------------------------
-   character(len=1) :: do_ewald  !< Perform Ewald summation
-   integer, dimension(3) :: RMAX !< Maximum number of cells in real space taken into account
-   integer, dimension(3) :: KMAX !< Maximum number of cells in Fourier soace taken into account
-   real(dblprec) :: Ewald_alpha  !< Ewald parameter
-   !---------------------------------------------------------------------------------
    ! Simulation paramters
    !---------------------------------------------------------------------------------
    character(len=8) :: simid  !< Name of simulation
@@ -208,6 +134,7 @@ module InputData
    integer :: plotenergy       !< Calculate and plot energy (0/1)
    integer :: do_hoc_debug     !< Print higher order couplings debug information (0/1)
    integer :: do_prnstruct     !< Print Hamiltonian information (0/1)
+   integer :: do_storeham       !< Save a binary copy of the Heisenberg Hamiltonian (0/1)
    integer :: do_prn_poscar    !< Print geometry on POSCAR format (0/1)
    integer :: do_prn_elk       !< Print geometry on ELK format (0/1)
    integer :: do_read_elk      !< Read geometry on ELK format (0/1)
@@ -222,7 +149,7 @@ module InputData
    real(dblprec) :: relaxtime             !< Relaxation time for inertial regime (in LLG-I equation)
    real(dblprec) :: mplambda1             !< Damping parameter for measurement phase
    real(dblprec) :: mplambda2             !< Additional damping parameter measurement phase
-   character(len=1) :: mode               !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
+   character(len=2) :: mode               !< Simulation mode (S=SD, M=MC, H=MC Heat Bath, P=LD, C=SLD, G=GNEB)
    real(dblprec) , dimension(3) :: hfield !< Applied magnetic field
    !---------------------------------------------------------------------------------
    ! Damping data
@@ -246,7 +173,7 @@ module InputData
    !---------------------------------------------------------------------------------
    integer :: ipnphase           !< Number of SD initial phases
    integer :: ipmcnphase         !< Number of MC initial phases
-   character(len=1) :: ipmode    !< Simulation mode for initial phase (S=SD, M=MC, H=MC Heat Bath, G = EM)
+   character(len=2) :: ipmode    !< Simulation mode for initial phase (S=SD, M=MC, H=MC Heat Bath, G = EM)
    integer, dimension(:), allocatable :: ipnstep   !< Number of steps in initial phase
    integer, dimension(:), allocatable :: ipmcnstep !< Number of Monte Carlo steps for initial phase
    real(dblprec), dimension(3) :: iphfield         !< Applied magnetic field for initial phase
@@ -272,6 +199,7 @@ module InputData
    integer :: initneigh        !< Raman neighbour spin index
    real(dblprec) :: phi0       !< Cone angle phi
    real(dblprec) :: theta0     !< Cone angle theta
+   real(dblprec) :: mavg0      !< Net magnetization for initmag=2 (sets cone parameters)
    real(dblprec) :: initimp    !< Size of impurity magnetic moment
    real(dblprec) :: initconc   !< Concentration of vacancies or two magnon Raman spin flips
    real(dblprec) :: initrotang !< Rotation angle phase for initial spin spiral
@@ -346,6 +274,11 @@ module InputData
    !---------------------------------------------------------------------------------
    character(len=1) :: prn_ovf  !< Print the magnetization data in the ovf format
    character(len=1) :: read_ovf !< Read the magnetization data in the ovf format
+   ! Multiscale
+   logical            :: do_multiscale        !< .true. if multiscale is enabled
+   logical            :: do_prnmultiscale     !< .true. to print info from the multiscale setup.
+   character(len=260) :: multiscale_file_name !< multiscale configuration file
+   character(len=1)   :: multiscale_old_format!< read old input format
 
 contains
 
@@ -386,57 +319,71 @@ contains
       amp_rnd           = 0.0_dblprec
       amp_rnd_path      = 0.0_dblprec
       block_size        = 1
+      metatype          = 0
+      metanumb          = 0
       relaxed_if        = 'Y'
       fixed_if          = 'Y'
 
       !Induced moment data
       ind_mom_flag      = 'N'
+      ind_mom_type      =  1
       renorm_coll       = 'N'
       ind_tol           = 0.0010_dblprec
 
       !Exchange data
       maptype           = 1
-      exc_inter         = 'N'
-      map_multiple      = .false.
-      jij_scale         = 1.0_dblprec
+      ham_inp%exc_inter         = 'N'
+      ham_inp%map_multiple      = .false.
+      ham_inp%jij_scale         = 1.0_dblprec
+      ham_inp%ea_model          = .false.
+      ham_inp%ea_sigma          = 1.0_dblprec
 
       !Anisotropy data
-      kfile             = 'kfile'
-      do_anisotropy     = 0
-      mult_axis         = 'N'
+      ham_inp%kfile             = 'kfile'
+      ham_inp%do_anisotropy     = 0
+      ham_inp%mult_axis         = 'N'
 
       !Dzyaloshinskii-Moriya data
-      dmfile            = 'dmfile'
-      do_dm             = 0
-      dm_scale          = 1.0_dblprec
+      ham_inp%dmfile            = 'dmfile'
+      ham_inp%do_dm             = 0
+      ham_inp%dm_scale          = 1.0_dblprec
+
+      !Symmetric anisotropic data
+      ham_inp%safile            = 'safile'
+      ham_inp%do_sa             = 0
+      ham_inp%sa_scale          = 1.0_dblprec
 
       !Pseudo-Dipolar data
-      pdfile            = 'pdfile'
-      do_pd             = 0
+      ham_inp%pdfile            = 'pdfile'
+      ham_inp%do_pd             = 0
 
       !Biquadratic DM data
-      biqdmfile         = 'biqdmfile'
-      do_biqdm          = 0
+      ham_inp%biqdmfile         = 'biqdmfile'
+      ham_inp%do_biqdm          = 0
 
       !Biquadratic exchange data
-      bqfile            = 'bqfile'
-      do_bq             = 0
+      ham_inp%bqfile            = 'bqfile'
+      ham_inp%do_bq             = 0
+      
+      !Four-spin ring exchange data
+      ham_inp%ringfile          = 'ringfile'
+      ham_inp%do_ring           = 0
 
       !Tensorial exchange (SKKR) data
-      do_jtensor        = 0
-      calc_jtensor      = .true.
+      ham_inp%do_jtensor        = 0
+      ham_inp%calc_jtensor      = .true.
 
       !Dipole-dipole data
-      do_dip            = 0
-      print_dip_tensor  = 'N'
-      read_dipole       = 'N'
-      qdip_files        = 'qdip_file'
+      ham_inp%do_dip            = 0
+      ham_inp%print_dip_tensor  = 'N'
+      ham_inp%read_dipole       = 'N'
+      ham_inp%qdip_files        = 'qdip_file'
 
       !Ewald summation data
-      do_ewald          = 'N'
-      Ewald_alpha       = 0.0_dblprec
-      KMAX              = (/0,0,0/)
-      RMAX              = (/0,0,0/)
+      ham_inp%do_ewald          = 'N'
+      ham_inp%Ewald_alpha       = 0.0_dblprec
+      ham_inp%KMAX              = (/0,0,0/)
+      ham_inp%RMAX              = (/0,0,0/)
 
       !Parameters for energy minimization calculations
       minalgo           = 1
@@ -477,16 +424,19 @@ contains
       llg               = 1
       nstep             = 1
       SDEalgh           = 1
+      ipSDEalgh         = -1   !< Is set to SDEalgh input by default.
       aunits            = 'N'
       perp              = 'N'
 
       !Tasks
       compensate_drift  = 0
       do_prnstruct      = 0
+      do_storeham        = 0
       do_prn_poscar     = 0
       do_prn_elk        = 0
       do_read_elk       = 0
       do_hoc_debug      = 0
+      do_meminfo        = 0
       evolveout         = 0
       heisout           = 0
       mompar            = 0
@@ -524,6 +474,7 @@ contains
       initimp           = 0.0_dblprec
       theta0            = zero
       phi0              = zero
+      mavg0             = -1.0_dblprec
       roteul            = 0
       rotang            = (/zero,zero,zero/)
       initrotang        = 0.0_dblprec
@@ -575,6 +526,10 @@ contains
       ! I/O OVF
       prn_ovf           = 'N'
       read_ovf          = 'N'
+      !multi
+      do_multiscale      =.false.
+      do_prnmultiscale    =.false.
+      multiscale_old_format  ='N'
 
    end subroutine set_input_defaults
 
@@ -673,43 +628,43 @@ contains
 
       integer :: i,j,k,l,i_stat, i_all
 
-      allocate(jc_tmp(NT,max_no_shells,Nchmax,Nchmax),stat=i_stat)
+      allocate(jc_tmp(NT,ham_inp%max_no_shells,Nchmax,Nchmax),stat=i_stat)
       call memocc(i_stat,product(shape(jc_tmp))*kind(jc_tmp),'jc_tmp','reshape_hamiltonian')
-      allocate(redcoord_tmp(NT,max_no_shells,3),stat=i_stat)
+      allocate(redcoord_tmp(NT,ham_inp%max_no_shells,3),stat=i_stat)
       call memocc(i_stat,product(shape(redcoord_tmp))*kind(redcoord_tmp),'redcoord_tmp','reshape_hamiltonian')
 
       do l=1,Nchmax
          do k=1,Nchmax
-            do j=1,max_no_shells
+            do j=1,ham_inp%max_no_shells
                do i=1,NT
-                  jc_tmp(i,j,k,l)=jc(i,j,k,l,1)
+                  jc_tmp(i,j,k,l)=ham_inp%jc(i,j,k,l,1)
                end do
             end do
          end do
       end do
 
       do k=1,3
-         do j=1,max_no_shells
+         do j=1,ham_inp%max_no_shells
             do i=1,NT
-               redcoord_tmp(i,j,k)=redcoord(i,j,k)
+               redcoord_tmp(i,j,k)=ham_inp%redcoord(i,j,k)
             end do
          end do
       end do
 
-      i_all=-product(shape(jc))*kind(jc)
-      deallocate(jc,stat=i_stat)
+      i_all=-product(shape(ham_inp%jc))*kind(ham_inp%jc)
+      deallocate(ham_inp%jc,stat=i_stat)
       call memocc(i_stat,i_all,'jc','reshape_hamiltonian')
-      i_all=-product(shape(redcoord))*kind(redcoord)
-      deallocate(redcoord,stat=i_stat)
+      i_all=-product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord)
+      deallocate(ham_inp%redcoord,stat=i_stat)
       call memocc(i_stat,i_all,'redcoord','reshape_hamiltonian')
 
-      allocate(jc(NT,max_no_shells,Nchmax,Nchmax,1),stat=i_stat)
-      call memocc(i_stat,product(shape(jc))*kind(jc),'jc','reshape_hamiltonian')
-      allocate(redcoord(NT,max_no_shells,3),stat=i_stat)
-      call memocc(i_stat,product(shape(redcoord))*kind(redcoord),'redcoord','reshape_hamiltonian')
+      allocate(ham_inp%jc(NT,ham_inp%max_no_shells,Nchmax,Nchmax,1),stat=i_stat)
+      call memocc(i_stat,product(shape(ham_inp%jc))*kind(ham_inp%jc),'jc','reshape_hamiltonian')
+      allocate(ham_inp%redcoord(NT,ham_inp%max_no_shells,3),stat=i_stat)
+      call memocc(i_stat,product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord),'redcoord','reshape_hamiltonian')
 
-      jc(:,:,:,:,1)=jc_tmp
-      redcoord=redcoord_tmp
+      ham_inp%jc(:,:,:,:,1)=jc_tmp
+      ham_inp%redcoord=redcoord_tmp
 
       i_all=-product(shape(jc_tmp))*kind(jc_tmp)
       deallocate(jc_tmp,stat=i_stat)
@@ -720,5 +675,207 @@ contains
 
    end subroutine reshape_hamiltonianinput
 
+   !---------------------------------------------------------------------------------
+   ! subroutine: allocate_hamiltonianinput
+   !> @brief Allocate arrays for input for Hamiltonian
+   !---------------------------------------------------------------------------------
+   subroutine allocate_hamiltonianinput(ham_inp,no_shells, flag) !NA, limit_no_shells, Nchmax, flag)
+      use Parameters
+      use Profiling
+      use InputDataType
+
+      implicit none
+
+      integer, intent(in),optional :: no_shells !< Parameter limiting number of exchange coupling shells
+      integer, intent(in) :: flag  !< Allocate or deallocate (1/-1)
+      type(ham_inp_t), intent(inout) ::  ham_inp
+
+      integer :: i_all, i_stat
+
+      if(flag>0) then
+
+         if(ham_inp%do_jtensor==0) then
+            allocate(ham_inp%jc(NT,no_shells,Nchmax,Nchmax,conf_num),stat=i_stat)
+            call memocc(i_stat,product(shape(ham_inp%jc))*kind(ham_inp%jc),'jc','allocate_hamiltonianinput')
+            ham_inp%jc=0.0_dblprec
+            if(ham_inp%exc_inter=='Y') then
+               allocate(ham_inp%jcD(NT,no_shells,Nchmax,Nchmax,conf_num),stat=i_stat)
+               call memocc(i_stat,product(shape(ham_inp%jcD))*kind(ham_inp%jcD),'jcD','allocate_hamiltonianinput')
+               ham_inp%jcD=0.0_dblprec
+            endif
+         else
+            allocate(ham_inp%jc_tens(3,3,NT,no_shells,Nchmax,Nchmax),stat=i_stat)
+            call memocc(i_stat,product(shape(ham_inp%jc_tens))*kind(ham_inp%jc_tens),'jc_tens','allocate_hamiltonianinput')
+            ham_inp%jc_tens=0.0_dblprec
+         end if
+         allocate(ham_inp%nntype(NT,no_shells),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%nntype))*kind(ham_inp%nntype),'nntype','allocate_hamiltonianinput')
+         ham_inp%nntype=0
+         !print *,'Allocate nntype ', shape(ham_inp%nntype)
+         allocate(ham_inp%redcoord(NT,no_shells,3),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord),'redcoord','allocate_hamiltonianinput')
+         ham_inp%redcoord=0.0_dblprec
+         allocate(ham_inp%NN(NT),stat=i_stat)
+         !call allocate_nn(NT)
+         call memocc(i_stat,product(shape(ham_inp%NN))*kind(ham_inp%NN),'NN','allocate_hamiltonianinput')
+         ham_inp%NN=0
+         allocate(ham_inp%dm_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%dm_nn))*kind(ham_inp%dm_nn),'dm_nn','allocate_hamiltonianinput')
+         ham_inp%dm_nn=0
+         allocate(ham_inp%pd_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%pd_nn))*kind(ham_inp%pd_nn),'pd_nn','allocate_hamiltonianinput')
+         ham_inp%pd_nn=0
+         allocate(ham_inp%chir_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%chir_nn))*kind(ham_inp%chir_nn),'chir_nn','allocate_hamiltonianinput')
+         ham_inp%chir_nn=0
+         allocate(ham_inp%fourx_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%fourx_nn))*kind(ham_inp%fourx_nn),'fourx_nn','allocate_hamiltonianinput')
+         ham_inp%fourx_nn=0
+         allocate(ham_inp%biqdm_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%biqdm_nn))*kind(ham_inp%biqdm_nn),'biqdm_nn','allocate_hamiltonianinput')
+         ham_inp%biqdm_nn=0
+         allocate(ham_inp%bq_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%bq_nn))*kind(ham_inp%bq_nn),'bq_nn','allocate_hamiltonianinput')
+         ham_inp%bq_nn=0
+         allocate(ham_inp%ring_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%ring_nn))*kind(ham_inp%ring_nn),'ring_nn','allocate_hamiltonianinput')
+         ham_inp%ring_nn=0         
+         allocate(ham_inp%anisotropytype(NA,Nchmax),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%anisotropytype))*kind(ham_inp%anisotropytype),'anisotropytype','allocate_hamiltonianinput')
+         ham_inp%anisotropytype=0
+         allocate(ham_inp%anisotropy(NA,6,Nchmax),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%anisotropy))*kind(ham_inp%anisotropy),'anisotropy','allocate_hamiltonianinput')
+         ham_inp%anisotropy=0.0_dblprec
+
+         if (ham_inp%mult_axis=='Y') then
+            allocate(ham_inp%anisotropytype_diff(NA,Nchmax),stat=i_stat)
+            call memocc(i_stat,product(shape(ham_inp%anisotropytype_diff))*kind(ham_inp%anisotropytype_diff),'anisotropytype_diff','allocate_hamiltonianinput')
+            allocate(ham_inp%anisotropy_diff(NA,6,Nchmax),stat=i_stat)
+            call memocc(i_stat,product(shape(ham_inp%anisotropy_diff))*kind(ham_inp%anisotropy_diff),'anisotropy_diff','allocate_hamiltonianinput')
+            ham_inp%anisotropy_diff=0.0_dblprec
+         endif
+
+      else
+
+         if(ham_inp%do_jtensor/=1) then
+            i_all=-product(shape(ham_inp%jc))*kind(ham_inp%jc)
+            deallocate(ham_inp%jc,stat=i_stat)
+            call memocc(i_stat,i_all,'jc','allocate_hamiltonianinput')
+            if(ham_inp%exc_inter=='Y') then
+               deallocate(ham_inp%jcD,stat=i_stat)
+               call memocc(i_stat,i_all,'jcD','allocate_hamiltonianinput')
+            endif
+         else
+            i_all=-product(shape(ham_inp%jc_tens))*kind(ham_inp%jc_tens)
+            deallocate(ham_inp%jc_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'jc_tens','allocate_hamiltonianinput')
+         end if
+         i_all=-product(shape(ham_inp%dm_nn))*kind(ham_inp%dm_nn)
+         deallocate(ham_inp%dm_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'dm_nn','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%pd_nn))*kind(ham_inp%pd_nn)
+         deallocate(ham_inp%pd_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'pd_nn','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%biqdm_nn))*kind(ham_inp%biqdm_nn)
+         deallocate(ham_inp%biqdm_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'biqdm_nn','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%bq_nn))*kind(ham_inp%bq_nn)
+         deallocate(ham_inp%bq_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'bq_nn','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%ring_nn))*kind(ham_inp%ring_nn)
+         deallocate(ham_inp%ring_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'ring_nn','allocate_hamiltonianinput')         
+         i_all=-product(shape(ham_inp%NN))*kind(ham_inp%NN)
+         deallocate(ham_inp%NN,stat=i_stat)
+         call memocc(i_stat,i_all,'NN','allocate_hamiltonianinput')
+
+         if(allocated(jfile)) then
+            i_all=-product(shape(jfile))*kind(jfile)
+            deallocate(jfile,stat=i_stat)
+            call memocc(i_stat,i_all,'jfile','allocate_hamiltonianinput')
+         end if
+
+         i_all=-product(shape(ham_inp%anisotropy))*kind(ham_inp%anisotropy)
+         deallocate(ham_inp%anisotropy,stat=i_stat)
+         call memocc(i_stat,i_all,'anisotropy','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%anisotropytype))*kind(ham_inp%anisotropytype)
+         deallocate(ham_inp%anisotropytype,stat=i_stat)
+         call memocc(i_stat,i_all,'anisotropytype','allocate_hamiltonianinput')
+         if (ham_inp%mult_axis=='Y') then
+            i_all=-product(shape(ham_inp%anisotropy_diff))*kind(ham_inp%anisotropy_diff)
+            deallocate(ham_inp%anisotropy_diff,stat=i_stat)
+            call memocc(i_stat,i_all,'anisotropy_diff','allocate_hamiltonianinput')
+            i_all=-product(shape(ham_inp%anisotropytype_diff))*kind(ham_inp%anisotropytype_diff)
+            deallocate(ham_inp%anisotropytype_diff,stat=i_stat)
+            call memocc(i_stat,i_all,'ham_inp%anisotropytype_diff','allocate_hamiltonianinput')
+         endif
+
+         if (do_prn_elk /= 1) then
+            i_all=-product(shape(atype_inp))*kind(atype_inp)
+            deallocate(atype_inp,stat=i_stat)
+            call memocc(i_stat,i_all,'atype_inp','allocate_hamiltonianinput')
+         end if
+
+         i_all=-product(shape(anumb_inp))*kind(anumb_inp)
+         deallocate(anumb_inp,stat=i_stat)
+         call memocc(i_stat,i_all,'anumb_inp','allocate_hamiltonianinput')
+         if (allocated(ham_inp%dm_redcoord)) then
+            i_all=-product(shape(ham_inp%dm_redcoord))*kind(ham_inp%dm_redcoord)
+            deallocate(ham_inp%dm_redcoord,stat=i_stat)
+            call memocc(i_stat,i_all,'dm_redcoord','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%dm_inpvect)) then
+            i_all=-product(shape(ham_inp%dm_inpvect))*kind(ham_inp%dm_inpvect)
+            deallocate(ham_inp%dm_inpvect,stat=i_stat)
+            call memocc(i_stat,i_all,'dm_inpvect','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%pd_redcoord)) then
+            i_all=-product(shape(ham_inp%pd_redcoord))*kind(ham_inp%pd_redcoord)
+            deallocate(ham_inp%pd_redcoord,stat=i_stat)
+            call memocc(i_stat,i_all,'pd_redcoord','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%pd_inpvect)) then
+            i_all=-product(shape(ham_inp%pd_inpvect))*kind(ham_inp%pd_inpvect)
+            deallocate(ham_inp%pd_inpvect,stat=i_stat)
+            call memocc(i_stat,i_all,'pd_inpvect','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%chir_nn)) then
+            i_all=-product(shape(ham_inp%chir_nn))*kind(ham_inp%chir_nn)
+            deallocate(ham_inp%chir_nn,stat=i_stat)
+            call memocc(i_stat,i_all,'chir_nn','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%fourx_nn)) then
+            i_all=-product(shape(ham_inp%fourx_nn))*kind(ham_inp%fourx_nn)
+            deallocate(ham_inp%fourx_nn,stat=i_stat)
+            call memocc(i_stat,i_all,'fourx_nn','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%ring_redcoord_ij)) then
+            i_all=-product(shape(ham_inp%ring_redcoord_ij))*kind(ham_inp%ring_redcoord_ij)
+            deallocate(ham_inp%ring_redcoord_ij,stat=i_stat)
+            call memocc(i_stat,i_all,'ring_redcoord_ij','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%ring_redcoord_ik)) then
+            i_all=-product(shape(ham_inp%ring_redcoord_ik))*kind(ham_inp%ring_redcoord_ik)
+            deallocate(ham_inp%ring_redcoord_ik,stat=i_stat)
+            call memocc(i_stat,i_all,'ring_redcoord_ik','allocate_hamiltonianinput')
+         endif
+         if (allocated(ham_inp%ring_redcoord_il)) then
+            i_all=-product(shape(ham_inp%ring_redcoord_il))*kind(ham_inp%ring_redcoord_il)
+            deallocate(ham_inp%ring_redcoord_il,stat=i_stat)
+            call memocc(i_stat,i_all,'ring_redcoord_il','allocate_hamiltonianinput')
+         endif
+
+      end if
+
+   end subroutine allocate_hamiltonianinput
+
+   subroutine allocate_nn(i)
+      implicit none
+      integer, intent(in) :: i
+      integer :: i_stat
+      allocate(ham_inp%nn(i),stat=i_stat)
+      print *,'allocate_nn', allocated(ham_inp%nn),i_stat,shape(ham_inp%nn),i
+
+   end subroutine allocate_nn
 
 end module InputData

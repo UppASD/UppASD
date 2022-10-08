@@ -578,7 +578,7 @@ contains
       ! Remember to remove old data since the write statement appends new data to the file
 
       if(do_larmor_loc=='Y') then
-         write(filn,'(''larmor_loc.'',a8,''.out'')') simid
+         write(filn,'(''larmor_loc.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
          do k=1, bcount_larm
             do j=1,Mensemble
@@ -594,7 +594,7 @@ contains
          close(ofileno)
       end if
       if(do_larmor_dos=='Y') then
-         write(filn,'(''larmor_dos.'',a8,''.out'')') simid
+         write(filn,'(''larmor_dos.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
          allocate(larm_dos(0:larm_dos_size))
          larm_dos=0.0_dblprec
@@ -643,11 +643,11 @@ contains
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
 
-      write(filn,'(''befftot.'',a8,''.out'')') simid
+      write(filn,'(''befftot.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
 
       ! Write header to output files for first iteration
-      if(abs(indxb_beff (1))<dbl_tolerance) then
+      if(abs(indxb_beff (1))<=0.0e0_dblprec) then
          write (ofileno,'(a)') "# Iter.     Site     Replica      B_x             B_y             B_z             B"
       end if
 
@@ -694,11 +694,11 @@ contains
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
 
-      write(filn,'(''bintefftot.'',a8,''.out'')') simid
+      write(filn,'(''bintefftot.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
 
       ! Write header to output files for first iteration
-      if(abs(indxb_binteff (1))<dbl_tolerance) then
+      if(abs(indxb_binteff (1))<=0.0e0_dblprec) then
          write (ofileno,'(a)') "# Iter.     Site     Replica      B_SD_x      B_SD_y      B_SD_z      B_SD       &
             & B_SLD_x     B_SLD_y     B_SLD_z     B_SLD"
       end if
@@ -745,7 +745,7 @@ contains
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
 
-      write(filn,'(''torques.'',a8,''.out'')') simid
+      write(filn,'(''torques.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
       do k=1, bcount_torques
          do j=1,Mensemble
@@ -791,7 +791,7 @@ contains
 
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
-      write(filn,'(''thermfields.'',a8,''.out'')') simid
+      write(filn,'(''thermfields.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND')
       do k=1, bcount_therm
          do j=1,Mensemble

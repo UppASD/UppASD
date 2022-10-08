@@ -1,0 +1,16 @@
+Example of a Monte Carlo or atomisitic spin dynamics simulation of bcc Fe.
+
+Files:
+
+inpsd.dat   - Main input file
+
+posfile     - basis positions of atoms
+
+momfile     - magnetic moment
+
+Exchange interaction file (from SPR-KKR calculation)
+
+jASD1      -  Maptype 1 without symmetry (sym=0)
+jASD2      -  Maptype 2 without symmetry (sym=0)
+jASD1S     -  Maptype 1 with symmetry (put sym=1)
+jASD2S     -  Maptype 2 with symmetry (put sym=1)

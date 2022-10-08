@@ -142,13 +142,13 @@ contains
       do_dm_stiffness='N'
       prn_J0_matrix='N'
 
-      A_xc  		= 0.0_dblprec
-      M_sat 		= 0.0_dblprec
-      Dxc_fit		= 0.0_dblprec
-      cell_vol		= 0.0_dblprec
-      A_xc_lsq		= 0.0_dblprec
-      D_err_fit	= 0.0_dblprec
-      Dxc_fit_lsq	= 0.0_dblprec
+      A_xc        = 0.0_dblprec
+      M_sat       = 0.0_dblprec
+      Dxc_fit     = 0.0_dblprec
+      cell_vol    = 0.0_dblprec
+      A_xc_lsq    = 0.0_dblprec
+      D_err_fit   = 0.0_dblprec
+      Dxc_fit_lsq = 0.0_dblprec
 
    end subroutine init_stiffness
 
@@ -319,7 +319,7 @@ contains
       !.. Executable statements
 
       ! Open outputfile
-      write (filn,'(''micro_ASD.'',a8,''.out'')') simid
+      write (filn,'(''micro_ASD.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! Printing statements for different micromagnetic variables
@@ -360,9 +360,9 @@ contains
    !> @author
    !> Jonathan Chico
    !---------------------------------------------------------------------------------
-   subroutine print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,			&
-			A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,D_xc_stiffness_matrix_lsq,		&
-			A_xc_stiffness_matrix_lsq)
+   subroutine print_stiffness(A_xc,Dxc_fit,D_err_fit,D_xc_stiffness_matrix,         &
+         A_xc_stiffness_matrix,A_xc_lsq,Dxc_fit_lsq,D_xc_stiffness_matrix_lsq,      &
+         A_xc_stiffness_matrix_lsq)
 
       implicit none
 
@@ -417,7 +417,7 @@ contains
    !> Jonathan Chico
    !> @todo check the implementation of the wavelength making use of the tensorial forms
    !---------------------------------------------------------------------------------
-   subroutine print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,	&
+   subroutine print_dmi_stiffness(M_sat,DM0_mat,DM0_mat_lsq,D_xc_stiffness_matrix,  &
          D_xc_stiffness_matrix_lsq)
 
       use Constants
@@ -624,8 +624,8 @@ contains
    !> @author
    !> Lars Bergqvist
    !---------------------------------------------------------------------------------
-	subroutine print_random_stiffness(natom,NA,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,	&
-		J0_matrix_alloy)
+   subroutine print_random_stiffness(natom,NA,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy, &
+      J0_matrix_alloy)
 
       use Constants
       implicit none

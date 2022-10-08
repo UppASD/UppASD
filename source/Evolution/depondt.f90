@@ -1,8 +1,10 @@
+
 !-------------------------------------------------------------------------------
 !  MODULE: Depondt
 !> @brief
 !> The Depondt solver for the stochastic LLG-equation
-!> @author Anders Bergman
+!> @authors
+!> Anders Bergman
 !> @copyright
 !> GNU Public License.
 !> @details In principle the solver is of Heun type but uses rotations to
@@ -11,7 +13,7 @@
 !> @todo Replace unit length moment vectors emom with full lenght vector emomM
 !-------------------------------------------------------------------------------
 module Depondt
-
+   use Profiling
    use Parameters
    use Profiling
    !
@@ -22,9 +24,18 @@ module Depondt
    real(dblprec), dimension(:,:,:), allocatable :: bloc  !< Local effective field
    real(dblprec), dimension(:,:,:), allocatable :: bdup !< Resulting effective field
 
+   !!!   abstract interface
+   !!!     function Dmdt(atom,ensemble) result(d)
+   !!!       import :: dblprec
+   !!!       integer, intent(in) :: atom,ensemble
+   !!!       real(dblprec), dimension(3) :: d
+   !!!     end function Dmdt
+   !!!   end interface
+
    private
 
    public :: depondt_evolve_first, depondt_evolve_second, allocate_depondtfields
+   public :: rodmat
 
 contains
 
@@ -37,8 +48,8 @@ contains
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
    subroutine depondt_evolve_first(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
-      btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale,stt,      &
-      thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list)
+         btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale,stt,      &
+         thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list)
       !
       use Constants, only : k_bolt, gama, mub
       use RandomNumbers, only : rng_gaussian, rng_gaussianP
@@ -239,7 +250,7 @@ contains
       if(stt=='Y') then
          !$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
-            do ired=1,Nred
+            do ired=1,Natom
                i=red_atom_list(ired)
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+stt_fac*btorque(:,i,k)+she_fac*she_btorque(:,i,k)
@@ -321,6 +332,8 @@ contains
 
    end subroutine depondt_evolve_second
 
+
+
    !-----------------------------------------------------------------------------
    !  SUBROUTINE: rodmat
    !> @brief
@@ -364,252 +377,252 @@ contains
 
    end subroutine rodmat
 
-   !-----------------------------------------------------------------------------
-   !  SUBROUTINE: locmat
-   !> @brief
-   !> Creates the Rodrigues rotation matrix that rotates vector mvec to vector nvec
-   !> using the Euler-Rodrigues notation
-   !
-   !> @note
-   !> Assumes that the vectors mvec and nvec are normalized
-   !
-   !> @author Anders Bergman
-   !-----------------------------------------------------------------------------
-   subroutine locmat(mvec,nvec,R)
-      !
-      !
-      implicit none
+   !!!    !-----------------------------------------------------------------------------
+   !!!    !  SUBROUTINE: locmat
+   !!!    !> @brief
+   !!!    !> Creates the Rodrigues rotation matrix that rotates vector mvec to vector nvec
+   !!!    !> using the Euler-Rodrigues notation
+   !!!    !
+   !!!    !> @note
+   !!!    !> Assumes that the vectors mvec and nvec are normalized
+   !!!    !
+   !!!    !> @author Anders Bergman
+   !!!    !-----------------------------------------------------------------------------
+   !!!    subroutine locmat(mvec,nvec,R)
+   !!!       !
+   !!!       !
+   !!!       implicit none
+   !!! 
+   !!!       real(dblprec), dimension(3), intent(in) :: mvec  !< Vector to rotate from  (normalized)
+   !!!       real(dblprec), dimension(3), intent(in) :: nvec  !< Vector to rotate to  (normalized)
+   !!!       real(dblprec), dimension(3,3), intent(out) :: R !< Output rotation matrix
+   !!! 
+   !!! 
+   !!!       real(dblprec),dimension(3) :: crossvec
+   !!!       real(dblprec) :: dotp, angle
+   !!!       !R_t=rodmat(z,cross(z,mi),acos(dot(z,mi))/norm(cross(mi,z)));
+   !!! 
+   !!!       crossvec(1)=mvec(2)*nvec(3)-mvec(3)*nvec(2)
+   !!!       crossvec(2)=mvec(3)*nvec(1)-mvec(1)*nvec(3)
+   !!!       crossvec(3)=mvec(1)*nvec(2)-mvec(2)*nvec(1)
+   !!! 
+   !!!       dotp=mvec(1)*nvec(1)+mvec(2)*nvec(2)+mvec(3)*nvec(3)
+   !!!       angle=acos(dotp)
+   !!! 
+   !!!       call rodmat(crossvec,angle,R)
+   !!! 
+   !!!    end subroutine locmat
 
-      real(dblprec), dimension(3), intent(in) :: mvec  !< Vector to rotate from  (normalized)
-      real(dblprec), dimension(3), intent(in) :: nvec  !< Vector to rotate to  (normalized)
-      real(dblprec), dimension(3,3), intent(out) :: R !< Output rotation matrix
+   !!!   !-----------------------------------------------------------------------------
+   !!!   !  SUBROUTINE: invmat
+   !!!   !> @brief
+   !!!   !> Simple inversion of a 3x3 matrix
+   !!!   !
+   !!!   !> @author Anders Bergman
+   !!!   !-----------------------------------------------------------------------------
+   !!!   subroutine invmat(R,R_inv)
+   !!!      !
+   !!!      !
+   !!!      implicit none
+   !!!
+   !!!      real(dblprec), dimension(3,3), intent(in) :: R !< Input matrix
+   !!!      real(dblprec), dimension(3,3), intent(out):: R_inv !< Output inverse matrix
+   !!!
+   !!!      real(dblprec) :: det, invdet
+   !!!      real(dblprec), dimension(3,3) :: cofactt !< transpose of cofactor
+   !!!
+   !!!
+   !!!      det= R(1,1)*R(2,2)*R(3,3) &
+   !!!          -R(1,1)*R(2,3)*R(3,2) &
+   !!!          -R(1,2)*R(2,1)*R(3,3) &
+   !!!          +R(1,2)*R(2,3)*R(3,1) &
+   !!!          +R(1,3)*R(2,1)*R(3,2) &
+   !!!          -R(1,3)*R(2,2)*R(3,1)
+   !!!
+   !!!      if(det==0.0_dblprec) then
+   !!!         R_inv=R
+   !!!      else
+   !!!         invdet=1.0_dblprec*det
+   !!!
+   !!!         cofactt(1,1)= (R(2,2)*R(3,3)-R(2,3)*R(3,2))
+   !!!         cofactt(2,1)=-(R(2,1)*R(3,3)-R(2,3)*R(3,1))
+   !!!         cofactt(3,1)= (R(2,1)*R(3,2)-R(2,2)*R(3,1))
+   !!!         cofactt(1,2)=-(R(1,2)*R(3,3)-R(1,3)*R(3,2))
+   !!!         cofactt(2,2)= (R(1,1)*R(3,3)-R(1,3)*R(3,1))
+   !!!         cofactt(3,2)=-(R(1,1)*R(3,2)-R(1,2)*R(3,1))
+   !!!         cofactt(1,3)= (R(1,2)*R(2,3)-R(1,3)*R(2,2))
+   !!!         cofactt(2,3)=-(R(1,1)*R(2,3)-R(1,3)*R(2,1))
+   !!!         cofactt(3,3)= (R(1,1)*R(2,2)-R(1,2)*R(2,1))
+   !!!
+   !!!         R_inv=invdet*cofactt
+   !!!
+   !!!      end if
+   !!!
+   !!!      return
+   !!!
+   !!!   end subroutine invmat
 
+   !!!   !-----------------------------------------------------------------------------
+   !!!   !  SUBROUTINE: rodrigues
+   !!!   !> @brief
+   !!!   !> Performs a Rodrigues rotation of the magnetic moments
+   !!!   !> in the effective field.
+   !!!   !
+   !!!   !> @author Anders Bergman
+   !!!   !-----------------------------------------------------------------------------
+   !!!   subroutine rodrigues(Natom, Mensemble,emom, delta_t,lambda1_array)
+   !!!      !
+   !!!      use Constants, only : gama
+   !!!      !
+   !!!      implicit none
+   !!!
+   !!!      integer, intent(in) :: Natom !< Number of atoms in system
+   !!!      integer, intent(in) :: Mensemble !< Number of ensembles
+   !!!      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+   !!!      real(dblprec), intent(in) :: delta_t !< Time step
+   !!!      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
+   !!!      real(dblprec) :: v,Bnorm,hx,hy,hz
+   !!!      real(dblprec) :: u,cosv,sinv,lldamp
+   !!!
+   !!!      integer :: i,k
+   !!!
+   !!!      !$omp parallel do default(shared) private(ik,i,k,Bnorm,hx,hy,hz,v,lldamp,cosv,sinv,u) schedule(static) collapse(2)
+   !!!      do k=1,Mensemble
+   !!!         do i=1,Natom
+   !!!            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)**2)
+   !!!            Bnorm=bdup(1,i,k)**2+bdup(2,i,k)**2+bdup(3,i,k)**2
+   !!!            Bnorm=sqrt(Bnorm)
+   !!!            hx=bdup(1,i,k)/Bnorm
+   !!!            hy=bdup(2,i,k)/Bnorm
+   !!!            hz=bdup(3,i,k)/Bnorm
+   !!!            v=Bnorm*delta_t*gama*lldamp
+   !!!            cosv=cos(v)
+   !!!            sinv=sin(v)
+   !!!            u=1.0_dblprec-cosv
+   !!!            mrod(1,i,k)=hx*hx*u*emom(1,i,k)+cosv*emom(1,i,k)+hx*hy*u*emom(2,i,k)-hz*sinv*emom(2,i,k)+ &
+   !!!               hx*hz*u*emom(3,i,k)+hy*sinv*emom(3,i,k)
+   !!!            mrod(2,i,k)=hy*hx*u*emom(1,i,k)+hz*sinv*emom(1,i,k)+hy*hy*u*emom(2,i,k)+cosv*emom(2,i,k)+ &
+   !!!               hy*hz*u*emom(3,i,k)-hx*sinv*emom(3,i,k)
+   !!!            mrod(3,i,k)=hx*hz*u*emom(1,i,k)-hy*sinv*emom(1,i,k)+hz*hy*u*emom(2,i,k)+hx*sinv*emom(2,i,k)+ &
+   !!!               hz*hz*u*emom(3,i,k)+cosv*emom(3,i,k)
+   !!!         end do
+   !!!      end do
+   !!!      !$omp end parallel do
+   !!!
+   !!!   end subroutine rodrigues
 
-      real(dblprec),dimension(3) :: crossvec
-      real(dblprec) :: dotp, angle
-      !R_t=rodmat(z,cross(z,mi),acos(dot(z,mi))/norm(cross(mi,z)));
-
-      crossvec(1)=mvec(2)*nvec(3)-mvec(3)*nvec(2)
-      crossvec(2)=mvec(3)*nvec(1)-mvec(1)*nvec(3)
-      crossvec(3)=mvec(1)*nvec(2)-mvec(2)*nvec(1)
-
-      dotp=mvec(1)*nvec(1)+mvec(2)*nvec(2)+mvec(3)*nvec(3)
-      angle=acos(dotp)
-
-      call rodmat(crossvec,angle,R)
-
-   end subroutine locmat
-
-   !-----------------------------------------------------------------------------
-   !  SUBROUTINE: invmat
-   !> @brief
-   !> Simple inversion of a 3x3 matrix
-   !
-   !> @author Anders Bergman
-   !-----------------------------------------------------------------------------
-   subroutine invmat(R,R_inv)
-      !
-      !
-      implicit none
-
-      real(dblprec), dimension(3,3), intent(in) :: R !< Input matrix
-      real(dblprec), dimension(3,3), intent(out):: R_inv !< Output inverse matrix
-
-      real(dblprec) :: det, invdet
-      real(dblprec), dimension(3,3) :: cofactt !< transpose of cofactor
-
-
-      det= R(1,1)*R(2,2)*R(3,3) &
-          -R(1,1)*R(2,3)*R(3,2) &
-          -R(1,2)*R(2,1)*R(3,3) &
-          +R(1,2)*R(2,3)*R(3,1) &
-          +R(1,3)*R(2,1)*R(3,2) &
-          -R(1,3)*R(2,2)*R(3,1)
-
-      if(det==0.0_dblprec) then
-         R_inv=R
-      else
-         invdet=1.0_dblprec*det
-
-         cofactt(1,1)= (R(2,2)*R(3,3)-R(2,3)*R(3,2))
-         cofactt(2,1)=-(R(2,1)*R(3,3)-R(2,3)*R(3,1))
-         cofactt(3,1)= (R(2,1)*R(3,2)-R(2,2)*R(3,1))
-         cofactt(1,2)=-(R(1,2)*R(3,3)-R(1,3)*R(3,2))
-         cofactt(2,2)= (R(1,1)*R(3,3)-R(1,3)*R(3,1))
-         cofactt(3,2)=-(R(1,1)*R(3,2)-R(1,2)*R(3,1))
-         cofactt(1,3)= (R(1,2)*R(2,3)-R(1,3)*R(2,2))
-         cofactt(2,3)=-(R(1,1)*R(2,3)-R(1,3)*R(2,1))
-         cofactt(3,3)= (R(1,1)*R(2,2)-R(1,2)*R(2,1))
-
-         R_inv=invdet*cofactt
-
-      end if
-
-      return
-
-   end subroutine invmat
-
-   !-----------------------------------------------------------------------------
-   !  SUBROUTINE: rodrigues
-   !> @brief
-   !> Performs a Rodrigues rotation of the magnetic moments
-   !> in the effective field.
-   !
-   !> @author Anders Bergman
-   !-----------------------------------------------------------------------------
-   subroutine rodrigues(Natom, Mensemble,emom, delta_t,lambda1_array)
-      !
-      use Constants, only : gama
-      !
-      implicit none
-
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
-      real(dblprec), intent(in) :: delta_t !< Time step
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec) :: v,Bnorm,hx,hy,hz
-      real(dblprec) :: u,cosv,sinv,lldamp
-
-      integer :: ik,i,k
-
-      !$omp parallel do default(shared) private(ik,i,k,Bnorm,hx,hy,hz,v,lldamp,cosv,sinv,u) schedule(static) collapse(2)
-      do k=1,Mensemble
-         do i=1,Natom
-            lldamp=1.0_dblprec/(1.0_dblprec+lambda1_array(i)**2)
-            Bnorm=bdup(1,i,k)**2+bdup(2,i,k)**2+bdup(3,i,k)**2
-            Bnorm=sqrt(Bnorm)
-            hx=bdup(1,i,k)/Bnorm
-            hy=bdup(2,i,k)/Bnorm
-            hz=bdup(3,i,k)/Bnorm
-            v=Bnorm*delta_t*gama*lldamp
-            cosv=cos(v)
-            sinv=sin(v)
-            u=1.0_dblprec-cosv
-            mrod(1,i,k)=hx*hx*u*emom(1,i,k)+cosv*emom(1,i,k)+hx*hy*u*emom(2,i,k)-hz*sinv*emom(2,i,k)+ &
-               hx*hz*u*emom(3,i,k)+hy*sinv*emom(3,i,k)
-            mrod(2,i,k)=hy*hx*u*emom(1,i,k)+hz*sinv*emom(1,i,k)+hy*hy*u*emom(2,i,k)+cosv*emom(2,i,k)+ &
-               hy*hz*u*emom(3,i,k)-hx*sinv*emom(3,i,k)
-            mrod(3,i,k)=hx*hz*u*emom(1,i,k)-hy*sinv*emom(1,i,k)+hz*hy*u*emom(2,i,k)+hx*sinv*emom(2,i,k)+ &
-               hz*hz*u*emom(3,i,k)+cosv*emom(3,i,k)
-         end do
-      end do
-      !$omp end parallel do
-
-   end subroutine rodrigues
-
-   !-----------------------------------------------------------------------------
-   !  SUBROUTINE: thermfield
-   !> @brief
-   !> Calculates stochastic field
-   !
-   !> @author Anders Bergman
-   !-----------------------------------------------------------------------------
-   subroutine thermfield(Natom, Mensemble, lambda1_array, mmom, deltat,Temp_array,temprescale)
-      !
-      use Constants, only : k_bolt, gama, mub
-      use RandomNumbers, only : rng_gaussian
-
-      implicit none
-
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      real(dblprec), intent(in) :: deltat !< Time step
-      real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature (array)
-      real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
-
-      real(dblprec), dimension(Natom) :: Dp
-      real(dblprec) :: mu, sigma
-
-      integer :: i,k
-
-      !   LL equations ONE universal damping
-      Dp=(2.0_dblprec*lambda1_array*k_bolt)/(deltat*gama*mub)   !LLG
-
-      !   LLG equations ONE universal damping
-      call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
-      mu=0.0_dblprec
-
-      !$omp parallel do default(shared) private(k,i,sigma) collapse(2) schedule(static)
-      do k=1, Mensemble
-         do i=1, Natom
-            sigma=sqrt(Dp(i)*temprescale*Temp_array(i)/mmom(i,k))
-            btherm(:,i,k)=btherm(:,i,k)*sigma
-         end do
-      end do
-      !$omp end parallel do
-
-   end subroutine thermfield
-
-   !-----------------------------------------------------------------------------
-   !  SUBROUTINE: buildbeff
-   !> @brief
-   !> Constructs the effective field (including damping term)
-   !
-   !> @author Anders Bergman
-   !-----------------------------------------------------------------------------
-   subroutine buildbeff(Natom, Mensemble,lambda1_array,emom, btorque, stt,do_she,she_btorque,&
-      do_sot,sot_btorque)
-
-      implicit none
-      !
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque !< Spin transfer torque
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque !< SHE spin transfer torque
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque !< Spin orbit torque
-      character(len=1), intent(in) :: STT !< Treat spin transfer torque?
-      character(len=1), intent(in) :: do_she !< Treat SHE spin transfer torque
-      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      !
-      integer :: i,k
-
-      !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
-      do k=1,Mensemble
-         do i=1,Natom
-            bdup(1,i,k)=bloc(1,i,k)+lambda1_array(i)*emom(2,i,k)*bloc(3,i,k)-lambda1_array(i)*emom(3,i,k)*bloc(2,i,k)
-            bdup(2,i,k)=bloc(2,i,k)+lambda1_array(i)*emom(3,i,k)*bloc(1,i,k)-lambda1_array(i)*emom(1,i,k)*bloc(3,i,k)
-            bdup(3,i,k)=bloc(3,i,k)+lambda1_array(i)*emom(1,i,k)*bloc(2,i,k)-lambda1_array(i)*emom(2,i,k)*bloc(1,i,k)
-         end do
-      end do
-      !$omp end parallel do
-
-      if(stt/='N') then
-         !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
-         do k=1,Mensemble
-            do i=1,Natom
-               bdup(:,i,k)=bdup(:,i,k)+btorque(:,i,k)
-            end do
-         end do
-         !$omp end parallel do
-      endif
-
-      if(do_she/='N') then
-         !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
-         do k=1,Mensemble
-            do i=1,Natom
-               bdup(:,i,k)=bdup(:,i,k)+she_btorque(:,i,k)
-            end do
-         end do
-         !$omp end parallel do
-
-      end if
-      if(do_sot/='N') then
-         !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
-         do k=1,Mensemble
-            do i=1,Natom
-               bdup(:,i,k)=bdup(:,i,k)+sot_btorque(:,i,k)
-            end do
-         end do
-         !$omp end parallel do
-
-      end if
-
-   end subroutine buildbeff
+   !!!    !-----------------------------------------------------------------------------
+   !!!    !  SUBROUTINE: thermfield
+   !!!    !> @brief
+   !!!    !> Calculates stochastic field
+   !!!    !
+   !!!    !> @author Anders Bergman
+   !!!    !-----------------------------------------------------------------------------
+   !!!    subroutine thermfield(Natom, Mensemble, lambda1_array, mmom, deltat,Temp_array,temprescale)
+   !!!       !
+   !!!       use Constants, only : k_bolt, gama, mub
+   !!!       use RandomNumbers, only : rng_gaussian
+   !!! 
+   !!!       implicit none
+   !!! 
+   !!!       integer, intent(in) :: Natom !< Number of atoms in system
+   !!!       integer, intent(in) :: Mensemble !< Number of ensembles
+   !!!       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
+   !!!       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
+   !!!       real(dblprec), intent(in) :: deltat !< Time step
+   !!!       real(dblprec), dimension(Natom), intent(in) :: Temp_array  !< Temperature (array)
+   !!!       real(dblprec), intent(in) :: temprescale  !< Temperature rescaling from QHB
+   !!! 
+   !!!       real(dblprec), dimension(Natom) :: Dp
+   !!!       real(dblprec) :: mu, sigma
+   !!! 
+   !!!       integer :: i,k
+   !!! 
+   !!!       !   LL equations ONE universal damping
+   !!!       Dp=(2.0_dblprec*lambda1_array*k_bolt)/(deltat*gama*mub)   !LLG
+   !!! 
+   !!!       !   LLG equations ONE universal damping
+   !!!       call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
+   !!!       mu=0.0_dblprec
+   !!! 
+   !!!       !$omp parallel do default(shared) private(k,i,sigma) collapse(2) schedule(static)
+   !!!       do k=1, Mensemble
+   !!!          do i=1, Natom
+   !!!             sigma=sqrt(Dp(i)*temprescale*Temp_array(i)/mmom(i,k))
+   !!!             btherm(:,i,k)=btherm(:,i,k)*sigma
+   !!!          end do
+   !!!       end do
+   !!!       !$omp end parallel do
+   !!! 
+   !!!    end subroutine thermfield
+   !!! 
+   !!!    !-----------------------------------------------------------------------------
+   !!!    !  SUBROUTINE: buildbeff
+   !!!    !> @brief
+   !!!    !> Constructs the effective field (including damping term)
+   !!!    !
+   !!!    !> @author Anders Bergman
+   !!!    !-----------------------------------------------------------------------------
+   !!!    subroutine buildbeff(Natom, Mensemble,lambda1_array,emom, btorque, stt,do_she,she_btorque,&
+   !!!       do_sot,sot_btorque)
+   !!! 
+   !!!       implicit none
+   !!!       !
+   !!!       integer, intent(in) :: Natom !< Number of atoms in system
+   !!!       integer, intent(in) :: Mensemble !< Number of ensembles
+   !!!       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
+   !!!       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+   !!!       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque !< Spin transfer torque
+   !!!       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque !< SHE spin transfer torque
+   !!!       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque !< Spin orbit torque
+   !!!       character(len=1), intent(in) :: STT !< Treat spin transfer torque?
+   !!!       character(len=1), intent(in) :: do_she !< Treat SHE spin transfer torque
+   !!!       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+   !!!       !
+   !!!       integer :: i,k
+   !!! 
+   !!!       !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
+   !!!       do k=1,Mensemble
+   !!!          do i=1,Natom
+   !!!             bdup(1,i,k)=bloc(1,i,k)+lambda1_array(i)*emom(2,i,k)*bloc(3,i,k)-lambda1_array(i)*emom(3,i,k)*bloc(2,i,k)
+   !!!             bdup(2,i,k)=bloc(2,i,k)+lambda1_array(i)*emom(3,i,k)*bloc(1,i,k)-lambda1_array(i)*emom(1,i,k)*bloc(3,i,k)
+   !!!             bdup(3,i,k)=bloc(3,i,k)+lambda1_array(i)*emom(1,i,k)*bloc(2,i,k)-lambda1_array(i)*emom(2,i,k)*bloc(1,i,k)
+   !!!          end do
+   !!!       end do
+   !!!       !$omp end parallel do
+   !!! 
+   !!!       if(stt/='N') then
+   !!!          !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
+   !!!          do k=1,Mensemble
+   !!!             do i=1,Natom
+   !!!                bdup(:,i,k)=bdup(:,i,k)+btorque(:,i,k)
+   !!!             end do
+   !!!          end do
+   !!!          !$omp end parallel do
+   !!!       endif
+   !!! 
+   !!!       if(do_she/='N') then
+   !!!          !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
+   !!!          do k=1,Mensemble
+   !!!             do i=1,Natom
+   !!!                bdup(:,i,k)=bdup(:,i,k)+she_btorque(:,i,k)
+   !!!             end do
+   !!!          end do
+   !!!          !$omp end parallel do
+   !!! 
+   !!!       end if
+   !!!       if(do_sot/='N') then
+   !!!          !$omp parallel do default(shared) private(i,k) schedule(static) collapse(2)
+   !!!          do k=1,Mensemble
+   !!!             do i=1,Natom
+   !!!                bdup(:,i,k)=bdup(:,i,k)+sot_btorque(:,i,k)
+   !!!             end do
+   !!!          end do
+   !!!          !$omp end parallel do
+   !!! 
+   !!!       end if
+   !!! 
+   !!!    end subroutine buildbeff
 
    !-----------------------------------------------------------------------------
    !  SUBROUTINE: allocate_depondtfields
@@ -657,157 +670,5 @@ contains
       end if
    end subroutine allocate_depondtfields
 
-
-   !!!  !  First step of Depond solver, calculates the stochastic field and rotates the
-   !!!  !! magnetic moments according to the effective field
-   !!!  subroutine depondt_evolve_first_batched(Natom, Mensemble, lambda1_array, beff, b2eff, &
-   !!!  btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale, stt,thermal_field,do_she,she_btorque)
-   !!!    !
-   !!!    implicit none
-   !!!    !
-   !!!    integer, intent(in) :: Natom !< Number of atoms in system
-   !!!    integer, intent(in) :: Mensemble !< Number of ensembles
-   !!!    real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: b2eff !< Temporary storage of magnetic field
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque     !< Spin transfer torque
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque !< Spin Hall effect spin transfer torque
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom     !< Current unit moment vector
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2  !< Final (or temporary) unit moment vector
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
-   !!!    real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-   !!!    real(dblprec), intent(in) :: delta_t !< Time step
-   !!!    real(dblprec), dimension(Natom), intent(in) :: Temp_array !< Temperature (array)
-   !!!    real(dblprec), intent(inout) :: temprescale  !< Temperature rescaling from QHB
-   !!!    character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
-   !!!    character(len=1), intent(in) :: do_she !< Treat the spin hall effect transfer torque
-   !!!
-   !!!    integer :: i,k,ik
-   !!!
-   !!!    ! Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
-   !!!    ! Calculate stochastic field
-   !!!    call timing(0,'Evolution     ','OF')
-   !!!    call timing(0,'RNG           ','ON')
-   !!!
-   !!!    call thermfield(Natom, Mensemble, lambda1_array, mmom, delta_t, Temp_array,temprescale)
-   !!!
-   !!!    call timing(0,'RNG           ','OF')
-   !!!    call timing(0,'Evolution     ','ON')
-   !!!    ! Construct local field
-   !!!    !!!$omp parallel do default(shared) private(ik,i,k) schedule(static)
-   !!!    !!do ik=1,Natom*Mensemble
-   !!!    !!   i=mod(ik-1,Natom)+1
-   !!!    !!   k=int((ik-1)/Natom)+1
-   !!!    !$omp parallel do default(shared) private(ik,i,k) schedule(static) collapse(2)
-   !!!    do k=1,Mensemble
-   !!!    do i=1,Natom
-   !!!       !write(2630,'(1x,3f18.10,5x,4f18.10)') beff(1:3,i,k),btherm(1:3,i,k), sum(btherm(1:3,i,k)*btherm(1:3,i,k))**0.5_dblprec
-   !!!       bloc(:,i,k)=beff(:,i,k)+btherm(:,i,k)
-   !!!       thermal_field(:,i,k)=btherm(:,i,k)
-   !!!    end do
-   !!!    end do
-   !!!    !$omp end parallel do
-   !!!
-   !!!    ! Construct effective field (including damping term)
-   !!!    call buildbeff(Natom, Mensemble,lambda1_array,emom,btorque,stt,do_she,she_btorque)
-   !!!
-   !!!    ! Set up rotation matrices and perform rotations
-   !!!    call rodrigues(Natom, Mensemble,emom, delta_t,lambda1_array)
-   !!!
-   !!!    ! copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
-   !!!    !!$omp parallel do default(shared) private(ik,i,k) schedule(static)
-   !!!    !do ik=1,Natom*Mensemble
-   !!!    !   i=mod(ik-1,Natom)+1
-   !!!    !   k=int((ik-1)/Natom)+1
-   !!!    !$omp parallel do default(shared) private(ik,i,k) schedule(static), collapse(2)
-   !!!    do k=1,Mensemble
-   !!!       do i=1,Natom
-   !!!       emom2(:,i,k)=emom(:,i,k)
-   !!!       !      do k=1,Mensemble
-   !!!       !      do i=1,Natom
-   !!!       emomM(:,i,k)=mrod(:,i,k)*mmom(i,k)
-   !!!       !      end do
-   !!!       !      end do
-   !!!
-   !!!       emom(:,i,k)=mrod(:,i,k)
-   !!!
-   !!!       b2eff(:,i,k)=bdup(:,i,k)
-   !!!
-   !!!       end do
-   !!!    end do
-   !!!    !$omp end parallel do
-   !!!
-   !!!  end subroutine depondt_evolve_first_batched
-   !!!
-   !!!
-   !!!  !  Second step of Depond solver, calculates the corrected effective field from
-   !!!  !! the predicted effective fields. Rotates the moments in the corrected field
-   !!!  subroutine depondt_evolve_second_batched(Natom, Mensemble, lambda1_array, beff, b2eff, &
-   !!!       btorque, emom, emom2, delta_t, stt,do_she,she_btorque)
-   !!!    !
-   !!!    implicit none
-   !!!    !
-   !!!    integer, intent(in) :: Natom !< Number of atoms in system
-   !!!    integer, intent(in) :: Mensemble !< Number of ensembles
-   !!!    real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff !< Temporary storage of magnetic field
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque !< Spin transfer torque
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque !< SHE spin transfer torque
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
-   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2  !< Final (or temporary) unit moment vector
-   !!!    real(dblprec), intent(in) :: delta_t !< Time step
-   !!!    character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
-   !!!    character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
-   !!!    !
-   !!!    integer :: i,k,ik
-   !!!
-   !!!    ! Construct local field
-   !!!    !!!$omp parallel do default(shared) private(ik,i,k) schedule(static)
-   !!!    !!do ik=1,Natom*Mensemble
-   !!!    !!   i=mod(ik-1,Natom)+1
-   !!!    !!   k=int((ik-1)/Natom)+1
-   !!!    !$omp parallel do default(shared) private(ik,i,k) schedule(static) collapse(2)
-   !!!    do k=1,Mensemble
-   !!!       do i=1,Natom
-   !!!       bloc(:,i,k)=beff(:,i,k)+btherm(:,i,k)
-   !!!      end do
-   !!!    end do
-   !!!    !$omp end parallel do
-   !!!
-   !!!    ! Construct effective field (including damping term)
-   !!!    call buildbeff(Natom, Mensemble,lambda1_array,emom, btorque,stt,do_she,she_btorque)
-   !!!
-   !!!    ! Corrected field
-   !!!    !!!$omp parallel do default(shared) private(ik,i,k) schedule(static)
-   !!!    !!do ik=1,Natom*Mensemble
-   !!!    !!   i=mod(ik-1,Natom)+1
-   !!!    !!   k=int((ik-1)/Natom)+1
-   !!!    !$omp parallel do default(shared) private(ik,i,k) schedule(static) collapse(2)
-   !!!    do k=1,Mensemble
-   !!!    do i=1,Natom
-   !!!       bdup(:,i,k)=0.5_dblprec*bdup(:,i,k)+0.5_dblprec*b2eff(:,i,k)
-   !!!       emom(:,i,k)=emom2(:,i,k)
-   !!!    end do
-   !!!    end do
-   !!!    !$omp end parallel do
-   !!!
-   !!!    ! Final rotation
-   !!!    call rodrigues(Natom, Mensemble,emom, delta_t,lambda1_array)
-   !!!
-   !!!    !!!$omp parallel do default(shared) private(ik,i,k) schedule(static)
-   !!!    !!do ik=1,Natom*Mensemble
-   !!!    !!   i=mod(ik-1,Natom)+1
-   !!!    !!   k=int((ik-1)/Natom)+1
-   !!!    !$omp parallel do default(shared) private(ik,i,k) schedule(static) collapse(2)
-   !!!    do k=1,Mensemble
-   !!!      do i=1,Natom
-   !!!       emom2(:,i,k)=mrod(:,i,k)
-   !!!      end do
-   !!!    end do
-   !!!    !$omp end parallel do
-   !!!
-   !!!  end subroutine depondt_evolve_second_batched
 
 end module depondt

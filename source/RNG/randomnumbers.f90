@@ -1,11 +1,4 @@
 !> Library for random number generators
-!> @author
-!> Lars Bergqvist, Anders Bergman
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 #ifdef VSL
 include 'mkl_vsl.f90'
 #endif

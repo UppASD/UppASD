@@ -3,7 +3,7 @@
 !> @brief
 !> Routines for mounting the Hamiltonian, including exchange, DM, anisotropies
 !> @author
-!> Anders Bergman, Lars Bergqvist, Johan Hellsvik
+!> Anders Bergman, Lars Bergqvist, Johan Hellsvik,Nikos Ntallis
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
@@ -16,10 +16,12 @@ module HamiltonianInit
 
    integer, dimension(:,:,:,:), allocatable :: nme !< Neighbour map, elements
    integer, dimension(:,:,:), allocatable :: nm    !< Neighbour map
-   integer, dimension(:,:), allocatable :: nmdim   !< Dimension of neighbour map
+   integer, dimension(:,:,:), allocatable :: nm_ij, nm_ik, nm_il !< Neighbour maps for four-spin ring exchange (for sites j, k and l, respectively)
+   integer, dimension(:,:), allocatable :: nmdim  !< Dimension of neighbour map
+   integer, dimension(:,:), allocatable :: nmdim_ij, nmdim_ik, nmdim_il   !< Dimensions of neighbour maps for four-spin ring exchange
 
    private
-   public :: setup_hamiltonian!, setup_reduced_hamiltonian
+   public :: setup_hamiltonian, setup_anisotropies!, setup_reduced_hamiltonian
 
 contains
 
@@ -33,14 +35,8 @@ contains
    subroutine setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,         &
       Mensemble,nHam,Natom,achtype,atype_ch,asite_ch,achem_ch,acellnumb,            &
       acellnumbrev,atype,anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,sym,   &
-      do_jtensor,max_no_shells,nn,redcoord,jc,jcD,jc_tens,do_dm,max_no_dmshells,    &
-      dm_nn,dm_redcoord,dm_inpvect,do_anisotropy,random_anisotropy_density,         &
-      anisotropytype,anisotropytype_diff,anisotropy,anisotropy_diff,                &
-      random_anisotropy,mult_axis,mconf,conf_num,map_multiple,do_lsf,lsf_field,     &
-      exc_inter,do_bq,max_no_bqshells,bq_nn,bq_redcoord,jc_bq,do_biqdm,             &
-      max_no_biqdmshells,biqdm_nn,biqdm_redcoord,biqdm_inpvect,do_pd,               &
-      max_no_pdshells,pd_nn,pd_redcoord,pd_inpvect,do_dip,do_chir,max_no_chirshells,&
-      chir_nn,chir_redcoord,chir_inpval,ind_mom,ind_tol,ind_mom_flag,NA_clus,       &
+      mconf,conf_num,do_lsf,lsf_field,     &
+      ind_mom,ind_tol,ind_mom_flag,NA_clus,       &
       NT_clus,N1_clus,N2_clus,N3_clus,Natom_clus,Nchmax_clus,clus_expand,           &
       Natom_full_clus,max_no_shells_clus,max_no_dmshells_clus,NN_clus,dm_nn_clus,   &
       achtype_clus,atype_ch_clus,asite_ch_clus,achem_ch_clus,acellnumb_clus,        &
@@ -56,16 +52,19 @@ contains
       use LSF,             only : LSF_datareshape
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
-      use InputData,       only : jij_scale, dm_scale
+      use InputData,       only : ham_inp
+      !use InputData,       only : jij_scale, dm_scale, ea_model, ea_sigma
       use NeighbourMap,    only : setup_nm, setup_nm_nelem
       use InducedMoments
       use HamiltonianData, only : allocate_hamiltoniandata, allocate_anisotropies,  &
          allocate_dmhamiltoniandata, allocate_pdhamiltoniandata,                    &
          allocate_biqdmhamiltoniandata, allocate_bqhamiltoniandata,                 &
-         allocate_chirhamiltoniandata, ham
+         allocate_chirhamiltoniandata, allocate_ringhamiltoniandata, ham,           &
+         allocate_fourxhamiltoniandata, allocate_sahamiltoniandata
       use PrintHamiltonian
+      use LatticeHamiltonianInit, only : setup_neighbour_latticehamiltonian
       use DipoleManager, only : dipole_setup
-      use ErrorHandling
+      use InputData, only : ham_inp
 
       !.. Implicit declarations
       implicit none
@@ -101,61 +100,11 @@ contains
       character(len=1), intent(in) :: BC3  !< Boundary conditions in z-direction
       ! Heisenberg exchange variables
       integer, intent(in) :: sym              !< Symmetry of system (0-3)
-      integer, intent(in) :: do_jtensor       !< Use SKKR style exchange tensor (0=off, 1=on)
-      integer, intent(inout) :: max_no_shells !< Calculated maximum of shells for exchange
-      integer, dimension(:), intent(in) :: nn !< Number of neighbour shells for exchange
-      real(dblprec), dimension(:,:,:), intent(in) :: redcoord        !< Coordinates for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: jc          !< Exchange couplings (input)
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: jcD         !< Exchange couplings (input) (DLM)
-      real(dblprec), dimension(:,:,:,:,:,:), intent(in) :: jc_tens   !< Tensorial exchange (SKKR) couplings (input)
-      ! DMI variables
-      integer, intent(in) :: do_dm               !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_dmshells     !< Limit of number of shells for DM interactions
-      integer, dimension(:), intent(in) :: dm_nn !< Number of neighbour shells for DM
-      real(dblprec), dimension(:,:,:), intent(in) :: dm_redcoord    !< Coordinates for DM exchange couplings
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: dm_inpvect !< DM couplings
-      ! Anisotropy variables
-      integer, intent(in) :: do_anisotropy                           !< Read anisotropy data (1/0)
-      real(dblprec), intent(in) :: random_anisotropy_density         !< Density of random anisotropy
-      integer, dimension(:,:), intent(in) :: anisotropytype          !< Type of anisotropies (0-2)
-      integer, dimension(:,:), intent(in) :: anisotropytype_diff     !< Type of anisotropies (0-2)
-      real(dblprec), dimension(:,:,:), intent(in) :: anisotropy      !< Input data for anisotropies
-      real(dblprec), dimension(:,:,:), intent(in) :: anisotropy_diff !< Input data for anisotropies
-      logical, intent(in) :: random_anisotropy  !< Distribute anisotropy randomly
-      character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       ! LSF variables
       integer, intent(in) :: mconf                 !< LSF moment ground state conf
       integer, intent(in) :: conf_num              !< Number of configurations for LSF
-      logical, intent(in) :: map_multiple          !< Allow for multiple couplings between atoms i and j
       character(len=1), intent(in) ::  do_lsf      !< (Y/N) Do LSF for MC
       character(len=1), intent(in) ::  lsf_field   !< (T/L) LSF field term
-      character(len=1), intent(in) ::  exc_inter   !< Interpolation of Jij between FM/DLM (Y/N)
-      ! BQ interactions variables
-      integer, intent(in) :: do_bq               !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_bqshells     !< Limit of number of shells for BQ interactions
-      integer, dimension(:), intent(in) :: bq_nn !< Number of neighbour shells for BQ
-      real(dblprec), dimension(:,:,:), intent(in) :: bq_redcoord  !< Coordinates for BQ exchange couplings
-      real(dblprec), dimension(:,:,:,:), intent(in) :: jc_bq      !< Biquadratic exchange coupling (input)
-      ! BQDM interactions variables
-      integer, intent(in) :: do_biqdm               !< Add biquadratic DM (BIQDM) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_biqdmshells     !< Limit of number of shells for BIQDM interactions
-      integer, dimension(:), intent(in) :: biqdm_nn !< Number of neighbour shells for BIQDM
-      real(dblprec), dimension(:,:,:), intent(in) :: biqdm_redcoord      !< Coordinates for DM exchange couplings
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: biqdm_inpvect   !< BIQDM couplings
-      ! Pseudo-Dipolar interactions variables
-      integer, intent(in) :: do_pd               !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_pdshells     !< Limit of number of shells for PD interactions
-      integer, dimension(:), intent(in) :: pd_nn !< Number of neighbour shells for PD
-      real(dblprec), dimension(:,:,:), intent(in) :: pd_redcoord      !< Coordinates for PD exchange couplings
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: pd_inpvect   !< PD couplings
-      ! Scalar chirality interactions variables
-      integer, intent(in) :: do_chir               !< Add Scalar chirality (CHIR) term to Hamiltonian (0/1)
-      integer, intent(in) :: max_no_chirshells     !< Limit of number of shells for CHIR interactions
-      integer, dimension(:), intent(in) :: chir_nn !< Number of neighbour shells for CHIR
-      real(dblprec), dimension(:,:,:,:), intent(in) :: chir_redcoord      !< Coordinates for CHIR exchange couplings
-      real(dblprec), dimension(:,:,:,:), intent(in) :: chir_inpval    !< CHIR couplings
-      ! Dipolar interactions variables
-      integer, intent(in) :: do_dip !<  Calculate dipole-dipole contribution (0=Off, 1=Brute Force, 2=macrocell)
       ! Induced moments variables
       integer, dimension(NA,Nchmax), intent(in) :: ind_mom  !< Indication of whether a given moment is induced (1) or fixed (0)
       real(dblprec), intent(in) :: ind_tol                  !< Value for the tolerance between neighbouring shells
@@ -226,9 +175,10 @@ contains
       integer :: i_all, i_stat
 
       ! Variable currently used only to match with the extended call arguments in setup_nm_nelem
-      real(dblprec), dimension(27,NT,max_no_chirshells,NT,NT,48) :: chir_symtens
+      real(dblprec), dimension(27,NT,ham_inp%max_no_chirshells,NT,NT,48) :: chir_symtens
+      real(dblprec), dimension(27,NT,ham_inp%max_no_chirshells,NT,NT,48) :: fourx_symtens
 
-      integer, dimension(48,max_no_chirshells,na) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
+      integer, dimension(48,ham_inp%max_no_chirshells,na) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       
       ! Set the Hamiltonian dimension
       if (do_reduced=='Y') then
@@ -237,7 +187,7 @@ contains
          nHam=Natom
       end if
 
-      if (do_jtensor/=1) then
+      if (ham_inp%do_jtensor/=1) then
 
          ! Setup or import map
          if (.not.prev_map(simid)) then
@@ -269,7 +219,7 @@ contains
                ! Need to check if all the other variables such as ham%fs_ham%nlist and so on are consistent
                ! specially the atype_ch since right now the chermistry does not enter the cluster at all
 
-               call allocate_cluster_hamiltoniandata(do_jtensor,Natom_clus,conf_num,&
+               call allocate_cluster_hamiltoniandata(ham_inp%do_jtensor,Natom_clus,conf_num,&
                   ham_clus%max_no_neigh_clus,1)
 
                write (*,'(2x,a)',advance='no') 'Mount Heisenberg Hamiltonian for the cluster'
@@ -280,12 +230,12 @@ contains
                   ham%fs_nlist,ham%fs_nlistsize,do_ralloy,Natom_full_clus,          &
                   Nchmax_clus,atype_ch_clus,asite_ch_clus,achem_ch_clus,            &
                   ammom_inp_clus,1,1,do_sortcoup,do_lsf,ham%nind,lsf_field,         &
-                  map_multiple)
+                  ham_inp%map_multiple)
                write(*,'(a)') ' done'
 
                call deallocate_nm()
 
-               if (do_dm==1) then
+               if (ham_inp%do_dm==1) then
                   ! Allocate and mount DM Hamiltonian
                   write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange for the cluster'
                   call setup_nm(Natom_clus,NT_clus,NA_clus,N1_clus,N2_clus,N3_clus, &
@@ -306,13 +256,42 @@ contains
                      ham_clus%dmlist_clus,ham_clus%dm_vect_clus,nm,nmdim,           &
                      dm_inpvect_clus,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,       &
                      Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp_clus,3, &
-                     1,do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
+                     1,do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
 
                      !Re-scale DMI if needed
-                     if(dm_scale.ne.1.0_dblprec) ham%dm_vect=jij_scale*ham%dm_vect
+                     if(ham_inp%dm_scale.ne.1.0_dblprec) ham%dm_vect=ham_inp%dm_scale*ham%dm_vect
                   write(*,'(a)') ' done'
                   call deallocate_nm()
                endif
+
+               !!! if (ham_inp%do_sa==1) then
+               !!!    ! Allocate and mount DM Hamiltonian
+               !!!    write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange for the cluster'
+               !!!    call setup_nm(Natom_clus,NT_clus,NA_clus,N1_clus,N2_clus,N3_clus, &
+               !!!       C1_clus,C2_clus,C3_clus,BC1,BC2,BC3,block_size,atype_clus,     &
+               !!!       Bas_clus,ham_clus%max_no_saneigh_clus,max_no_sashells_clus,    &
+               !!!       max_no_equiv_clus,0,sa_nn_clus,sa_redcoord_clus,nm,nmdim,      &
+               !!!       do_ralloy,Natom_full_clus)
+               !!!    write(*,'(a)') ' done'
+
+               !!!    call allocate_cluster_sahamiltoniandata(Natom_clus,               &
+               !!!       ham_clus%max_no_saneigh_clus,1)
+               !!!    ! Transform data to general structure
+               !!!    write (*,'(2x,a)',advance='no') 'Mount Dzyaloshinskii-Moriya Hamiltonian for the cluster'
+               !!!    call setup_neighbour_hamiltonian(Natom_clus,conf_num,NT_clus,     &
+               !!!       NA_clus,Natom_clus,anumb_clus,atype_clus,                      &
+               !!!       ham_clus%max_no_saneigh_clus,max_no_equiv_clus,                &
+               !!!       max_no_sashells_clus,ham_clus%salistsize_clus,sa_nn_clus,      &
+               !!!       ham_clus%salist_clus,ham_clus%sa_vect_clus,nm,nmdim,           &
+               !!!       sa_inpvect_clus,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,       &
+               !!!       Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp_clus,3, &
+               !!!       1,do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
+
+               !!!       !Re-scale DMI if needed
+               !!!       if(ham_inp%sa_scale.ne.1.0_dblprec) ham%sa_vect=ham_inp%sa_scale*ham%sa_vect
+               !!!    write(*,'(a)') ' done'
+               !!!    call deallocate_nm()
+               !!! endif
                if (do_anisotropy_clus.eq.1) then
                   ! Setting up the anisotopies for the cluster
                   write(*,'(2x,a)',advance='no') "Set up anisotropies for the cluster"
@@ -335,8 +314,8 @@ contains
             !  Setup neighbor map
             write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
             call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
-               atype,Bas,ham%max_no_neigh,max_no_shells,max_no_equiv,sym,nn,        &
-               redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+               atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
+               ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
             write(*,'(a)') ' done'
 
             ! If one is doing the cluster method one could have that the impurity system
@@ -351,24 +330,24 @@ contains
             write (*,'(2x,a)',advance='no') 'Mount Heisenberg Hamiltonian'
             ! Actual call to allocate the hamiltonian data
             call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,  &
-               do_jtensor,do_lsf,1,lsf_field,exc_inter)
+               ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
 
             ! Setup the Hamiltonian look-up table
             call setup_aHam(Natom,anumb,do_reduced)
             !
             call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype, &
-               ham%max_no_neigh,max_no_equiv,max_no_shells,ham%nlistsize,nn,        &
-               ham%nlist,ham%ncoup,nm,nmdim,jc,ham%fs_nlist,ham%fs_nlistsize,       &
+               ham%max_no_neigh,max_no_equiv,ham_inp%max_no_shells,ham%nlistsize,ham_inp%nn,        &
+               ham%nlist,ham%ncoup,nm,nmdim,ham_inp%jc,ham%fs_nlist,ham%fs_nlistsize,       &
                do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,1,1,&
-               do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
+               do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
 
-            if (exc_inter=='Y') then
+            if (ham_inp%exc_inter=='Y') then
                call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,    &
-                  atype,ham%max_no_neigh,max_no_equiv,max_no_shells,ham%nlistsize,  &
-                  nn,ham%nlist,ham%ncoupD,nm,nmdim,jcD,ham%fs_nlist,                &
+                  atype,ham%max_no_neigh,max_no_equiv,ham_inp%max_no_shells,ham%nlistsize,  &
+                  ham_inp%nn,ham%nlist,ham%ncoupD,nm,nmdim,ham_inp%jcD,ham%fs_nlist,                &
                   ham%fs_nlistsize,do_ralloy, Natom_full, Nchmax,atype_ch,asite_ch, &
                   achem_ch,ammom_inp,1,1,do_sortcoup,do_lsf,ham%nind,lsf_field,     &
-                  map_multiple)
+                  ham_inp%map_multiple)
             endif
 
             write(*,'(a)') ' done'
@@ -377,7 +356,13 @@ contains
             call deallocate_nm()
 
             ! Re-scale Jij if needed
-            if(jij_scale.ne.1.0_dblprec) ham%ncoup=jij_scale*ham%ncoup
+            if(ham_inp%jij_scale.ne.1.0_dblprec) ham%ncoup=ham_inp%jij_scale*ham%ncoup
+
+            ! Randomize Jij if Edwards-Anderson model is enabled
+            if(ham_inp%ea_model) then
+               call randomize_exchange(NA,1,Natom,ham%max_no_neigh,ham%nlistsize, &
+                  ham%nlist,ham%ncoup,ham%aham,do_reduced,ham_inp%ea_sigma)
+            end if
 
             if(do_prnstruct==1.or.do_prnstruct==4) then
                write(*,'(2x,a)',advance='no') "Print exchange interaction strengths"
@@ -389,12 +374,12 @@ contains
 
             if (ind_mom_flag=='Y') then
                write(*,'(2x,a)',advance='no') 'Set up neighbour map for induced moments'
-               call induced_mapping(Natom,NT,NA,N1,N2,N3,sym,max_no_shells,nn,atype,&
-                  ham%ind_nlistsize,ham%ind_nlist,ham%fix_nlistsize,ham%fix_nlist,  &
+               call induced_mapping(Natom,NT,NA,N1,N2,N3,sym,ham_inp%max_no_shells,ham_inp%nn,atype,&
+                  ham%ind_nlistsize,ham%ind_nlist,  &
                   do_sortcoup,Nchmax,do_ralloy,     &
                   Natom_full,atype_ch,acellnumb,C1,C2,C3,Bas,BC1,BC2,BC3,ind_tol,   &
-                  redcoord,ind_mom,block_size,ham%ind_list_full,                    &
-                  ham%max_no_neigh_ind,ham%fix_num,ham%fix_list)
+                  ham_inp%redcoord,ind_mom,block_size,ham%ind_list_full,                    &
+                  ham%max_no_neigh_ind)
 
                write(*,'(a)') ' done'
                if (do_prnstruct==1) then
@@ -415,7 +400,7 @@ contains
             write (*,'(2x,a)',advance='no') 'Importing exchange mapping'
             call read_exchange_getdim(Natom, ham%max_no_neigh, simid)
             call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,  &
-            do_jtensor,do_lsf,1,lsf_field,exc_inter)
+            ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
             ! Setup the Hamiltonian look-up table
             call setup_aHam(Natom,anumb,do_reduced)
             call read_exchange(NA,nHam,Natom,Nchmax,conf_num,do_ralloy,Natom_full, &
@@ -427,23 +412,23 @@ contains
          !  Setup neighbor map and exchange tensor
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
          call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,     &
+            Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
          ! Transform data to general structure
          write (*,'(2x,a)',advance='no') 'Mount Heisenberg Hamiltonian in tensorial (SKKR) form'
          call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,     &
-            do_jtensor,do_lsf,1,lsf_field,exc_inter)
+            ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
 
          ! Setup the Hamiltonian look-up table
          call setup_aHam(Natom,anumb,do_reduced)
 
          call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam, anumb,atype,   &
-            ham%max_no_neigh,max_no_equiv,max_no_shells,ham%nlistsize,nn,ham%nlist, &
-            ham%j_tens,nm,nmdim,jc_tens,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,    &
+            ham%max_no_neigh,max_no_equiv,ham_inp%max_no_shells,ham%nlistsize,ham_inp%nn,ham%nlist, &
+            ham%j_tens,nm,nmdim,ham_inp%jc_tens,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,    &
             Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,9,1,do_sortcoup, &
-            do_lsf,ham%nind,lsf_field,map_multiple)
+            do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
          write(*,'(a)') ' done'
 
          ! Deallocate the large neighbour map.
@@ -461,43 +446,43 @@ contains
       ! End of tensor if
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Anisotropies
-      if (do_anisotropy==1) then
+      if (ham_inp%do_anisotropy==1) then
          write(*,'(2x,a)',advance='no') "Set up anisotropies"
-         call allocate_anisotropies(Natom,mult_axis,1)
-         call setup_anisotropies(Natom,NA,anumb,anisotropytype,ham%taniso,          &
-            ham%eaniso,ham%kaniso,ham%sb,anisotropy,mult_axis,anisotropytype_diff,  &
+         call allocate_anisotropies(Natom,ham_inp%mult_axis,1)
+         call setup_anisotropies(Natom,NA,anumb,ham_inp%anisotropytype,ham%taniso,          &
+            ham%eaniso,ham%kaniso,ham%sb,ham_inp%anisotropy,ham_inp%mult_axis,ham_inp%anisotropytype_diff,  &
             ham%taniso_diff,ham%eaniso_diff,ham%kaniso_diff,ham%sb_diff,            &
-            anisotropy_diff,random_anisotropy,random_anisotropy_density,do_ralloy,  &
+            ham_inp%anisotropy_diff,ham_inp%random_anisotropy,ham_inp%random_anisotropy_density,do_ralloy,  &
             Natom_full,Nchmax,achem_ch,ammom_inp,mconf)
          write(*,'(a)') ' done'
          ! Print anisotropies
-         if(do_prnstruct==1 .and. do_anisotropy == 1) then
+         if(do_prnstruct==1 .and. ham_inp%do_anisotropy == 1) then
             write(*,'(2x,a)',advance='no') "Print anisotropies"
-            call prn_anisotropy(Natom,NA,anisotropytype,ham%taniso,ham%eaniso,      &
+            call prn_anisotropy(Natom,NA,ham_inp%anisotropytype,ham%taniso,ham%eaniso,      &
             ham%kaniso,simid,Nchmax)
                write(*,'(a)') ' done'
             end if
       endif
       ! Setup the dipole-dipole interactions
-      if (do_dip>0) then
-         call dipole_setup(NA,N1,N2,N3,Natom,do_dip,Num_macro,Mensemble,            &
+      if (ham_inp%do_dip>0) then
+         call dipole_setup(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,Mensemble,            &
             max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,alat,C1,C2,C3, &
             Bas,coord,simid,read_dipole,print_dip_tensor,qdip_files,ham%Qdip,ham%Qdip_macro)
       endif
 
       ! Calculate mean field estimate of Tc
-      if(do_jtensor/=1.and.int(N1*N2*N3).ne.1) then
+      if(ham_inp%do_jtensor/=1.and.int(N1*N2*N3).ne.1) then
          write(*,'(2x,a)',advance='no') "Calculate mean-field estimate of Tc: "
          call estimate_tc_mfa(Natom,nHam,Nchmax,conf_num,NA,atype,anumb,Natom_full, &
             atype_ch,asite_ch,achem_ch,ham%nlistsize,ham%nlist,ham%max_no_neigh,    &
             ham%ncoup,ammom_inp,mconf,do_ralloy)
       end if
 
-      if(do_dm==1) then
+      if(ham_inp%do_dm==1) then
          ! Allocate and mount DM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange'
          call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_dmneigh,max_no_dmshells,max_no_equiv,0,dm_nn,dm_redcoord,&
+            Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
             nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -514,11 +499,15 @@ contains
          ! Transform data to general structure
          write (*,'(2x,a)',advance='no') 'Mount Dzyaloshinskii-Moriya Hamiltonian'
          call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
-            ham%max_no_dmneigh,max_no_equiv,max_no_dmshells,ham%dmlistsize,dm_nn,   &
-            ham%dmlist,ham%dm_vect,nm,nmdim,dm_inpvect,ham%fs_nlist,                &
+            ham%max_no_dmneigh,max_no_equiv,ham_inp%max_no_dmshells,ham%dmlistsize,ham_inp%dm_nn,   &
+            ham%dmlist,ham%dm_vect,nm,nmdim,ham_inp%dm_inpvect,ham%fs_nlist,                &
             ham%fs_nlistsize,do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,&
-            ammom_inp,3,1,do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
+            ammom_inp,3,1,do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
          write(*,'(a)') ' done'
+
+
+         !Re-scale DMI if needed
+         if(ham_inp%dm_scale.ne.1.0_dblprec) ham%dm_vect=ham_inp%dm_scale*ham%dm_vect
 
          ! Deallocate the large neighbour map.
          call deallocate_nm()
@@ -533,6 +522,50 @@ contains
          end if
       end if
 
+      if(ham_inp%do_sa==1) then
+         ! Allocate and mount SA Hamiltonian
+         write (*,'(2x,a)',advance='no') 'Set up neighbour map for symmetric anisotropic exchange'
+         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,0,ham_inp%sa_nn,ham_inp%sa_redcoord,&
+            nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         write(*,'(a)') ' done'
+
+         ! If one is doing the cluster method one could have that the impurity system
+         ! has more neighbours than the host system, and then one should enforce
+         ! that the number of neighbours corresponds to the largest system
+         if (do_cluster=='Y') then
+            tot_max_no_neigh=max(ham%max_no_saneigh,ham_clus%max_no_saneigh_clus,Natom_clus-1)
+            ham%max_no_saneigh=tot_max_no_neigh+clus_expand
+         endif
+
+         call allocate_sahamiltoniandata(Natom,nHam,ham%max_no_saneigh,1)
+
+         ! Transform data to general structure
+         write (*,'(2x,a)',advance='no') 'Mount symmetric anisotropic Hamiltonian'
+         call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
+            ham%max_no_saneigh,max_no_equiv,ham_inp%max_no_sashells,ham%salistsize,ham_inp%sa_nn,   &
+            ham%salist,ham%sa_vect,nm,nmdim,ham_inp%sa_inpvect,ham%fs_nlist,                &
+            ham%fs_nlistsize,do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,&
+            ammom_inp,3,1,do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
+         write(*,'(a)') ' done'
+
+
+         !Re-scale SA if needed
+         if(ham_inp%sa_scale.ne.1.0_dblprec) ham%sa_vect=ham_inp%sa_scale*ham%sa_vect
+
+         ! Deallocate the large neighbour map.
+         call deallocate_nm()
+
+         ! Print SA interactions
+         if((do_prnstruct==1.or.do_prnstruct==4).and.do_cluster/='Y') then
+            write(*,'(2x,a)',advance='no') "Print symmetric anisotropic interactions"
+            call prn_sacoup(NA,Natom,Nchmax,do_ralloy,Natom_full,ham%max_no_saneigh,&
+               anumb,atype,ham%salistsize,asite_ch,achem_ch,ham%salist,coord,       &
+               ammom_inp,ham%sa_vect,simid)
+            write(*,'(a)') ' done'
+         end if
+      end if
+
       ! If LSF
       if(do_lsf=='Y') then
          write (*,'(2x,a)',advance='no') 'Set up moments map for Longitudial Fluctuation'
@@ -540,30 +573,41 @@ contains
          write(*,'(a)') ' done'
       endif
 
-      if(do_pd==1) then
-         ! Allocate and mount PD Hamiltonian
+      if(ham_inp%do_pd==1) then
+        ! Allocate and mount PD Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Pseudo-Dipolar exchange'
          call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_pd_tot,max_no_pdshells,max_no_equiv,sym,pd_nn,pd_redcoord,nm,&
+            Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         !write(*,'(a)') ' done'
+
+          !call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+          !  Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
+          ! nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
          call allocate_pdhamiltoniandata(Natom,nHam,ham%nn_pd_tot,1)
-
+        
          ! Transform data to general structure
          write (*,'(2x,a)',advance='no') 'Mount Pseudo-Dipolar Hamiltonian'
          call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
-            ham%nn_pd_tot,max_no_equiv,max_no_pdshells,ham%pdlistsize,pd_nn,        &
-            ham%pdlist,ham%pd_vect,nm,nmdim,pd_inpvect,ham%fs_nlist,                &
+            ham%nn_pd_tot,max_no_equiv,ham_inp%max_no_pdshells,ham%pdlistsize,ham_inp%pd_nn,        &
+            ham%pdlist,ham%pd_vect,nm,nmdim,ham_inp%pd_inpvect,ham%fs_nlist,                &
             ham%fs_nlistsize,do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,&
-            ammom_inp,6,1,do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
+            ammom_inp,9,1,do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
          write(*,'(a)') ' done'
+
+           !setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
+            !ham%nn_pd_tot,max_no_equiv,max_no_pdshells,ham%pdlistsize,pd_nn,        &
+            !ham%pdlist,ham%pd_vect,nm,nmdim,pd_inpvect,ham%fs_nlist,                &
+            !ham%fs_nlistsize,do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,&
+            !ammom_inp,6,1,do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
 
          ! Deallocate the large neighbour map.
          call deallocate_nm()
 
          ! Print PD interactions
-         if(do_prnstruct==1.or.do_prnstruct==4) then
+         if(do_prnstruct==1 .or. do_prnstruct==4) then
             write(*,'(2x,a)',advance='no') "Print Pseudo-Dipolar interactions"
             call prn_pdcoup(Natom,ham%nn_pd_tot,ham%pdlistsize,ham%pdlist,          &
                ham%pd_vect,simid)
@@ -572,62 +616,82 @@ contains
 
       end if
 
-      if(do_chir==1) then
+      if(ham_inp%do_chir==1) then
 
-         call ErrorHandling_missing('Chiral interactions')
-         !!! ! Allocate and mount chir Hamiltonian
-         !!! write (*,'(2x,a)',advance='no') 'Set up neighbour map for MML interaction'
-         !!! call setup_nm_nelem(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,atype,Bas,   &
-         !!!    ham%nn_chir_tot,max_no_chirshells,max_no_equiv,0,chir_nn,chir_redcoord, &
-         !!!    nme,nmdim,2,do_ralloy,Natom_full,acellnumb,atype_ch)
+         ! Allocate and mount chir Hamiltonian
+         write (*,'(2x,a)',advance='no') 'Set up neighbour map for MML interaction'
+         call setup_nm_nelem(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,atype,Bas,   &
+            ham%nn_chir_tot,ham_inp%max_no_chirshells,max_no_equiv,0,ham_inp%chir_nn,ham_inp%chir_redcoord, &
+            nme,nmdim,2,do_ralloy,Natom_full,acellnumb,atype_ch, &
+            Nchmax, 27, .false., 3, 1, 1, ham_inp%chir_inpval, chir_symtens, nm_cell_symind)
 
-         !!! write(*,'(a)') ' done'
+         write(*,'(a)') ' done'
 
-         !!! call allocate_chirhamiltoniandata(Natom,nHam,ham%nn_chir_tot,1)
+         call allocate_chirhamiltoniandata(Natom,nHam,ham%nn_chir_tot,1)
 
-         !!! ! Transform data to general structure
-         !!! write (*,'(2x,a)',advance='no') 'Mount chir Hamiltonian'
-         !!! call setup_neighbour_latticehamiltonian(Natom,NT,NA,anumb,atype,           &
-         !!!    ham%nn_chir_tot,max_no_equiv,max_no_chirshells,2,1,1,ham%chirlistsize,  &
-         !!!    chir_nn,ham%chirlist,ham%chir_coup,nme,nmdim,chir_inpval,do_sortcoup,   &
-         !!!    'N',do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,1,1)
-         !!! write(*,'(a)') ' done'
+         ! Transform data to general structure
+         write (*,'(2x,a)',advance='no') 'Mount chir Hamiltonian'
+         call setup_neighbour_latticehamiltonian(Natom,NT,NA,anumb,atype,           &
+            ham%nn_chir_tot,max_no_equiv,ham_inp%max_no_chirshells,2,1,1,ham%chirlistsize,  &
+            ham_inp%chir_nn,ham%chirlist,ham%chir_coup, nme,nmdim,ham_inp%chir_inpval, nm_cell_symind, do_sortcoup,   &
+            'N',do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,1,1)
+         write(*,'(a)') ' done'
 
-         !!! ham%max_no_chirneigh=ham%nn_chir_tot
-         !!! ! Deallocate the large neighbour map.
-         !!! !call deallocate_nme()
-         !!! i_all=-product(shape(nme))*kind(nme)
-         !!! deallocate(nme,stat=i_stat)
-         !!! call memocc(i_stat,i_all,'nme','setup_hamiltonian')
+         ham%max_no_chirneigh=ham%nn_chir_tot
+         ! Deallocate the large neighbour map.
+         !call deallocate_nme()
+         i_all=-product(shape(nme))*kind(nme)
+         deallocate(nme,stat=i_stat)
+         call memocc(i_stat,i_all,'nme','setup_hamiltonian')
 
-         !!! call prn_chircoup(Natom,ham%max_no_chirneigh,ham%chirlistsize,ham%chirlist,&
-         !!!    ham%chir_coup,simid)
+         call prn_chircoup(Natom,ham%max_no_chirneigh,ham%chirlistsize,ham%chirlist,&
+            ham%chir_coup,simid)
 
-         !!! ham%chir_coup=ham%chir_coup*2.0_dblprec*mry/mub
-
-         !print *,'ham%nn_chir_tot', ham%nn_chir_tot
-         !print *,'ham%chirlistsize',ham%chirlistsize
-         !print *,'ham%chirlist',ham%chirlist
-         !print *,'ham%chir_coup',ham%chir_coup
-     !!!    ! Rescale chir couplings if needed
-     !!!    if(chir_scale.ne.1.0_dblprec) chir_tens=chir_scale*chir_tens
-
-     !!!    ! Print chir interactions
-     !!!    if(do_prnstruct==1.or.do_prnstruct==4) then
-     !!!       write(*,'(2x,a)',advance='no') "Print chir interactions"
-     !!!       call prn_chircoup(Natom, nn_chir_tot, chir_listsize, chir_list, chir_tens, simid)
-     !!!       write(*,'(a)') ' done'
-     !!!     call chk_chircoup(Natom, nn_chir_tot, chir_listsize, chir_list, chir_tens, simid)
-     !!!    end if
+         ham%chir_coup=ham%chir_coup*2.0_dblprec*mry/mub
 
       end if
 
-      if(do_biqdm==1) then
+      if(ham_inp%do_fourx==1) then
+
+         ! Allocate and mount fourx Hamiltonian
+         write (*,'(2x,a)',advance='no') 'Set up neighbour map for MML interaction'
+         call setup_nm_nelem(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,atype,Bas,   &
+            ham%nn_fourx_tot,ham_inp%max_no_fourxshells,max_no_equiv,0,ham_inp%fourx_nn,ham_inp%fourx_redcoord, &
+            nme,nmdim,2,do_ralloy,Natom_full,acellnumb,atype_ch, &
+            Nchmax, 27, .false., 3, 1, 1, ham_inp%fourx_inpval, fourx_symtens, nm_cell_symind)
+
+         write(*,'(a)') ' done'
+
+         call allocate_fourxhamiltoniandata(Natom,nHam,ham%nn_fourx_tot,1)
+
+         ! Transform data to general structure
+         write (*,'(2x,a)',advance='no') 'Mount fourx Hamiltonian'
+         call setup_neighbour_latticehamiltonian(Natom,NT,NA,anumb,atype,           &
+            ham%nn_fourx_tot,max_no_equiv,ham_inp%max_no_fourxshells,2,1,1,ham%fourxlistsize,  &
+            ham_inp%fourx_nn,ham%fourxlist,ham%fourx_coup, nme,nmdim,ham_inp%fourx_inpval, nm_cell_symind, do_sortcoup,   &
+            'N',do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,1,1)
+         write(*,'(a)') ' done'
+
+         ham%max_no_fourxneigh=ham%nn_fourx_tot
+         ! Deallocate the large neighbour map.
+         !call deallocate_nme()
+         i_all=-product(shape(nme))*kind(nme)
+         deallocate(nme,stat=i_stat)
+         call memocc(i_stat,i_all,'nme','setup_hamiltonian')
+
+         call prn_fourxcoup(Natom,ham%max_no_fourxneigh,ham%fourxlistsize,ham%fourxlist,&
+            ham%fourx_coup,simid)
+
+         ham%fourx_coup=ham%fourx_coup*2.0_dblprec*mry/mub
+
+      end if
+
+      if(ham_inp%do_biqdm==1) then
          ! Allocate and mount BIQDM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for BIQDM exchange'
          call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_biqdm_tot,max_no_biqdmshells,max_no_equiv,0,biqdm_nn,        &
-            biqdm_redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+            Bas,ham%nn_biqdm_tot,ham_inp%max_no_biqdmshells,max_no_equiv,0,ham_inp%biqdm_nn,        &
+            ham_inp%biqdm_redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
          call allocate_biqdmhamiltoniandata(Natom,nHam,ham%nn_biqdm_tot,1)
@@ -635,11 +699,11 @@ contains
          write (*,'(2x,a)',advance='no') 'Mount BIQDM Hamiltonian'
 
          call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
-            ham%nn_biqdm_tot,max_no_equiv,max_no_biqdmshells,ham%biqdmlistsize,     &
-            biqdm_nn,ham%biqdmlist,ham%biqdm_vect,nm,nmdim,biqdm_inpvect,           &
+            ham%nn_biqdm_tot,max_no_equiv,ham_inp%max_no_biqdmshells,ham%biqdmlistsize,     &
+            ham_inp%biqdm_nn,ham%biqdmlist,ham%biqdm_vect,nm,nmdim,ham_inp%biqdm_inpvect,           &
             ham%fs_nlist,ham%fs_nlistsize,do_ralloy,Natom_full,Nchmax,atype_ch,     &
             asite_ch,achem_ch,ammom_inp,1,2,do_sortcoup,do_lsf,ham%nind,lsf_field,  &
-            map_multiple)
+            ham_inp%map_multiple)
          write(*,'(a)') ' done'
 
          ! Deallocate the large neighbour map.
@@ -655,12 +719,12 @@ contains
 
       end if
 
-      if(do_bq==1) then
+      if(ham_inp%do_bq==1) then
 
          ! Allocate and mount BQ Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for biquadratic exchange'
          call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_bq_tot,max_no_bqshells,max_no_equiv,sym,bq_nn,bq_redcoord,nm,&
+            Bas,ham%nn_bq_tot,ham_inp%max_no_bqshells,max_no_equiv,sym,ham_inp%bq_nn,ham_inp%bq_redcoord,nm,&
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -669,10 +733,10 @@ contains
          ! Transform data to general structure
          write (*,'(2x,a)',advance='no') 'Mount biquadratic exchange Hamiltonian'
          call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam,anumb,atype,    &
-            ham%nn_bq_tot,max_no_equiv,max_no_bqshells,ham%bqlistsize,bq_nn,        &
-            ham%bqlist,ham%j_bq,nm,nmdim,jc_bq,ham%fs_nlist,ham%fs_nlistsize,       &
+            ham%nn_bq_tot,max_no_equiv,ham_inp%max_no_bqshells,ham%bqlistsize,ham_inp%bq_nn,        &
+            ham%bqlist,ham%j_bq,nm,nmdim,ham_inp%jc_bq,ham%fs_nlist,ham%fs_nlistsize,       &
             do_ralloy,Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,1,2,   &
-            do_sortcoup,do_lsf,ham%nind,lsf_field,map_multiple)
+            do_sortcoup,do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
          write(*,'(a)') ' done'
 
          ! Deallocate the large neighbour map.
@@ -686,6 +750,59 @@ contains
             write(*,'(a)') ' done'
          end if
       endif
+
+      if(ham_inp%do_ring==1) then
+         !		if(do_ralloy==1) then
+         !			write (*,*) 'Four-spin ring exchange is not supported for random alloys'
+         !			stop
+         !			else  
+
+         ! Allocate and mount four-spin ring Hamiltonian
+         write (*,'(2x,a)',advance='no') 'Set up neighbour map for four-spin ring exchange'
+
+         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,    &
+            Bas,ham%nn_ring_tot,ham_inp%max_no_ringshells,max_no_equiv,0,ham_inp%ring_nn,           &
+            ham_inp%ring_redcoord_ij,nm_ij,nmdim_ij,do_ralloy,Natom_full,acellnumb,atype_ch)
+         !       write (*,*) 'nm_ij=', nm_ij
+         !       write (*,*) 'nn_ring_tot=', nn_ring_tot
+         !       write (*,*) 'max_no_ringshells', max_no_ringshells
+         !       write (*,*) 'max_no_equiv=', max_no_equiv
+         !       write (*,*) 'ring_nn=', ring_nn
+
+         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,    &
+            Bas,ham%nn_ring_tot,ham_inp%max_no_ringshells,max_no_equiv,0,ham_inp%ring_nn,           &
+            ham_inp%ring_redcoord_ik,nm_ik,nmdim_ik,do_ralloy,Natom_full,acellnumb,atype_ch)
+         !       write (*,*) 'nm_ik=', nm_ik
+
+         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,    &
+            Bas,ham%nn_ring_tot,ham_inp%max_no_ringshells,max_no_equiv,0,ham_inp%ring_nn,           &
+            ham_inp%ring_redcoord_il,nm_il,nmdim_il,do_ralloy,Natom_full,acellnumb,atype_ch)
+         !       write (*,*) 'nm_il=', nm_il
+
+         write(*,'(a)') ' done'
+
+         call allocate_ringhamiltoniandata(Natom,nHam,ham%nn_ring_tot,1)
+
+         ! Transform data to general structure
+         write (*,'(2x,a)',advance='no') 'Mount ring exchange Hamiltonian'
+         call setup_ring_hamiltonian(Natom,NT,NA,anumb,ham%nn_ring_tot,               &
+            ham_inp%max_no_ringshells,max_no_equiv,ham_inp%ring_nn,ham%ringlist,ham%ringlistsize,   &
+            ham%j_ring,nm_ij,nm_ik,nm_il,ham_inp%jc_ring,ammom_inp)            
+         write(*,'(a)') ' done'
+         !write(*,*) 'ringlist=', ringlist
+         !write(*,*) 'j_ring=', j_ring      
+
+         ! Deallocate the large neighbour map.
+         call deallocate_ringnm()
+
+         !Print ring interactions
+         if(do_prnstruct==1.or.do_prnstruct==4) then
+            write(*,'(2x,a)',advance='no') 'Print ring exchange interactions'
+            call prn_ringcoup(Natom,ham%nn_ring_tot,ham%ringlist,ham%ringlistsize,   &
+               ham%j_ring,simid)
+            write(*,'(a)') ' done'
+         end if
+      end if 
 
    contains
 
@@ -721,7 +838,7 @@ contains
          character(len=20) :: filn
 
          !.. Executable statements
-         write (filn,'(''struct.'',a8,''.out'')') simid
+         write (filn,'(''struct.'',a,''.out'')') trim(simid)
          inquire(file=filn,exist=prev_map)
          return
       end function prev_map
@@ -1031,6 +1148,94 @@ contains
 
    end subroutine setup_neighbour_hamiltonian
 
+   subroutine setup_ring_hamiltonian(Natom,NT,NA,anumb,max_no_ringneigh,     &
+			   max_no_ringshells,max_no_equiv,ring_nn,ringlist,ringlistsize,  &
+			   j_ring,nm_ij,nm_ik,nm_il,jc_ring,ammom_inp)
+    !add nHam,ncoup,xc,atype,Nchmax,atype_ch,asite_ch,achem_ch, hdim,lexp?
+    !
+    use Constants
+    !
+    implicit none
+    !
+    integer, intent(in) :: Natom                               !< Number of atoms in system
+    integer, intent(in) :: NT                                  !< Number of types of atoms
+    integer, intent(in) :: NA                                  !< Number of atoms in one cell
+    integer, dimension(Natom), intent(in) :: anumb             !< Atom number in cell
+    integer, intent(in) :: max_no_ringneigh                    !< Calculated maximum number of neighbours for 4SR exchange
+    integer, intent(in) :: max_no_ringshells                   !< Calculated maximum number of shells for 4SR exchange
+    integer, intent(in) :: max_no_equiv                        !< Calculated maximum number of neighbours in one shell for 4SR
+    integer, dimension(NT), intent(in) :: ring_nn              !< Number of neighbour shells for 4SR exchange
+    integer, dimension(Natom,max_no_ringneigh,3), intent(out) :: ringlist   !< Neighbour list for 4SR exchange couplings
+    integer, dimension(Natom), intent(out) :: ringlistsize                  !< Size of neighbour list for 4SR exchange
+   ! integer, intent(in) :: hdim  !< Number of elements in Hamiltonian element (scalar or vector)
+   ! integer, intent(in) :: lexp  !< Order of the spin-interaction. Needed for proper rescaling (1=linear,2=quadratic)
+    real(dblprec), dimension(Natom,max_no_ringneigh), intent(out) :: j_ring !< 4SR exchange couplings
+    integer, dimension(Natom,max_no_ringshells,max_no_equiv), &
+    intent(in)                                              :: nm_ij, nm_ik, nm_il !< Neighbour map for 4SR (1st, 2nd and 3rd vectors)
+    real(dblprec), dimension(max_no_ringshells), intent(in) :: jc_ring             !< 4SR exchange couplings (input)
+    real(dblprec), dimension(NA,1), intent(in) :: ammom_inp                        !< Magnetic moment directions from input
+
+   !Internal variables
+    integer :: i, k, j, l, q, counter, counter1
+   !integer :: iatom, jatom, ichtype, jchtype
+    real(dblprec) :: fc,fc2
+    logical :: selfmap
+
+    j_ring = 0.0_dblprec
+    ! Factors for mRy energy conversion
+    fc = mry/mub
+    fc2 = 2.0_dblprec*mry/mub
+
+    ! Loop over atoms
+    !$omp parallel do default(shared) private(i,k)
+    do i=1, Natom
+       counter=1
+       ! Shells
+       do k=1, ring_nn(1)
+             
+             if (nm_ij(i,k,1)>0 .and. nm_ik(i,k,1)>0 .and. nm_il(i,k,1)>0) then
+                ringlist(i,counter,1) = nm_ij(i,k,1)
+                ringlist(i,counter,2) = nm_ik(i,k,1)
+                ringlist(i,counter,3) = nm_il(i,k,1)
+                j_ring(i,counter) = jc_ring(k) * fc2  &
+                           / ammom_inp(anumb(i),1) / ammom_inp(anumb(nm_ij(i,k,1)),1) &
+                          / ammom_inp(anumb(nm_ik(i,k,1)),1) / ammom_inp(anumb(nm_il(i,k,1)),1)
+                counter=counter+1              
+             end if
+       end do
+       ringlistsize(i)=counter-1
+    end do
+    !$omp end parallel do
+	do j=1,Natom
+       counter1=0
+         do l=1,ringlistsize(j)
+           selfmap=.false.
+           if (j==ringlist(j,l,1).or.j==ringlist(j,l,2).or.j==ringlist(j,l,3)) then
+                selfmap=.true.
+           end if
+           if (ringlist(j,l,1)==ringlist(j,l,2).or.ringlist(j,l,2)==ringlist(j,l,3).or. &
+                ringlist(j,l,1)==ringlist(j,l,3)) then
+                  selfmap=.true.
+           end if
+     
+           if (selfmap) then
+           write (*,*) " "
+           write (*,11011) j,l
+           end if
+           do q=1,counter1
+             if (ringlist(j,l,1)==ringlist(j,q,1).and.ringlist(j,l,2)==ringlist(j,q,2).and. &
+             ringlist(j,l,3)==ringlist(j,q,3)) then
+             write (*,'(2x,a)') 'Different shells give identical plaquettes for this system'
+             end if
+           end do
+          counter1=counter1+1
+         end do
+    end do
+	11011 format ("  Self-mapping occurs for atom",i4,4x,"in shell",i4)    
+    
+   end subroutine setup_ring_hamiltonian
+
+
    !> Finds the dimension of the Heisenberg Hamiltonian if read from file
    subroutine read_exchange_getdim(Natom,max_no_neigh,simid)
       !
@@ -1047,7 +1252,7 @@ contains
       character(len=18) :: dummy
       character(len=27) :: dummy2
       !.. Executable statements
-      write (filn,'(''struct.'',a8,''.out'')') simid
+      write (filn,'(''struct.'',a,''.out'')') trim(simid)
       open(ifileno, file=filn)
 
       ! Find max no. neighbours
@@ -1105,7 +1310,7 @@ contains
          stop
       endif
 
-      write (filn,'(''struct.'',a8,''.out'')') simid
+      write (filn,'(''struct.'',a,''.out'')') trim(simid)
       open(ifileno, file=filn)
 
       ncoup=0.0_dblprec
@@ -1193,7 +1398,7 @@ contains
       real(dblprec), dimension(:),allocatable :: ctemp
       real(dblprec), dimension(:,:),allocatable :: etemp
       real(dblprec) :: em,emin,fc2
-      integer :: i,j,k, i_stat, i_all,ia,iatom
+      integer :: i, j, k, i_stat, i_all, ia
       integer :: lwork, info
       real(dblprec),dimension(nchmax) :: xconc
       !
@@ -1338,6 +1543,27 @@ contains
 
    end subroutine deallocate_nm
 
+
+   subroutine deallocate_ringnm()
+
+    implicit none
+
+    integer :: i_stat, i_all
+
+    i_all=-product(shape(nm_ij))*kind(nm_ij)
+    deallocate(nm_ij,stat=i_stat)
+    call memocc(i_stat,i_all,'nm_ij','deallocate_ringnm')
+
+    i_all=-product(shape(nm_ik))*kind(nm_ik)
+    deallocate(nm_ik,stat=i_stat)
+    call memocc(i_stat,i_all,'nm_ik','deallocate_ringnm')
+
+    i_all=-product(shape(nm_il))*kind(nm_il)
+    deallocate(nm_il,stat=i_stat)
+    call memocc(i_stat,i_all,'nm_il','deallocate_ringnm')
+
+   end subroutine deallocate_ringnm
+
    !!!!> Copies ncoup data to reduced matrix
    !!!subroutine setup_reduced_hamiltonian(Natom,NA,conf_num)
 
@@ -1359,6 +1585,72 @@ contains
    !!!   end do
 
    !!!end subroutine setup_reduced_hamiltonian
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: randomize_exchange
+   !> @brief Randomize strength of exchange couplings
+   !> @details Loops over all couplings and multiplies the original value
+   !> with a Gaussian random number between (-1,1)
+   !----------------------------------------------------------------------------
+   subroutine randomize_exchange(NA,mdim,Natom,max_no_neigh,nlistsize,nlist,ncoup,aham,do_reduced,sigma)
+      
+      use RandomNumbers, only : rng_gaussian
+
+      implicit none
+
+      integer, intent(in) :: NA
+      integer, intent(in) :: mdim            !< dimension of the exchange coupling matrix (1=scalar or 9=3x3)
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: max_no_neigh    !< Calculated maximum of neighbours for exchange
+      integer, dimension(Natom), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh, Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(mdim,max_no_neigh, Natom), intent(inout) :: ncoup !< Heisenberg exchange couplings
+      integer, dimension(Natom), optional, intent(in) :: aham !< Hamiltonian look-up table
+      character(len=1), intent(in) :: do_reduced       !< Use reduced formulation of Hamiltonian (T/F)
+      real(dblprec),intent(in) :: sigma                  !< Standard deviaton for Gaussian RNG
+
+      !.. Local variables
+      integer :: iatom,jatom,ineigh,iham,ielem, jneigh, jham, jelem
+      real(dblprec), dimension(:,:,:), allocatable :: rng_arr
+
+      ! loop over neighbor list 
+      !!! if(do_reduced=='Y') then
+      !!!    allocate(rng_arr(mdim,max_no_neigh,NA))
+      !!!    call rng_gaussian(rng_arr,mdim*max_no_neigh*NA,1.0_dblprec)
+      !!!    do iham=1,NA
+      !!!       do ineigh=1,nlistsize(iham)
+      !!!          jatom=nlist(ineigh,iham)
+      !!!          do ielem=1,mdim
+      !!!             ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)*rng_arr(ielem,ineigh,iham)
+      !!!          enddoA
+      !!!       enddo
+      !!!    end do
+      !!! else
+      allocate(rng_arr(mdim,max_no_neigh,Natom))
+      call rng_gaussian(rng_arr,mdim*max_no_neigh*Natom,sigma)
+
+      do iatom=1,Natom
+         iham=aham(iatom)
+         do ineigh=1,nlistsize(iham)
+            jatom=nlist(ineigh,iatom)
+            do ielem=1,mdim
+               ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)*rng_arr(ielem,ineigh,iham)
+            enddo
+            ! Ensure symmetry Jij=Jji
+            jham=aham(jatom)
+            do jneigh=1,nlistsize(jham)
+               if (nlist(jneigh,jatom)==iatom) then
+                  do jelem=1,mdim
+                     ncoup(jelem,jneigh,jham)=ncoup(jelem,ineigh,iham)
+                  enddo
+               end if
+            end do
+         enddo
+      end do
+      !!! end if
+      !
+      deallocate(rng_arr)
+      !
+   end subroutine randomize_exchange
 
 
 end module HamiltonianInit

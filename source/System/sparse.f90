@@ -29,7 +29,7 @@ module Sparse
 
    private
 
-   public ::  setupSparseScalar,setupSparseBlock
+   public ::  setupSparseScalar,setupSparseBlock, setupSparseTensor
    public ::  effective_field_SparseScalar, effective_field_SparseBlock
 
 contains
@@ -47,7 +47,7 @@ contains
       real(dblprec), dimension(max_no_neigh,nHam,conf_num), intent(in) :: ncoup !< Heisenberg exchange couplings
       integer, dimension(nHam), intent(in) :: aham !< Hamiltonian look-up table
       !
-      integer :: i_atom,j_atom,j,nelem, ielem, i_ham, i_stat
+      integer :: i_atom, j_atom, j, nelem, ielem, i_ham
       !
       nelem=max_no_neigh*Natom
       call allocateSparse(Natom,nelem,1)
@@ -79,6 +79,45 @@ contains
 #endif
       !print *,Hscalar(1:ielem-1)
    end subroutine setupSparseScalar
+
+   subroutine setupSparseTensor(Natom,nHam,conf_num,max_no_neigh,nlist,nlistsize,j_tens, aham)
+      !
+      implicit none
+      !
+      integer, intent(in) :: Natom  !< Number of atoms in system
+      integer, intent(in) :: nHam   !< Number of atoms in Hamiltonian
+      !integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: conf_num !< Number of LSF configurations
+      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
+      integer, dimension(max_no_neigh,Natom), intent(in) :: nlist  !< Neighbour list for Heisenberg exchange couplings
+      integer, dimension(nHam), intent(in) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(3,3,max_no_neigh,nHam), intent(in) :: j_tens !< Heisenberg exchange couplings
+      integer, dimension(nHam), intent(in) :: aham !< Hamiltonian look-up table
+      !real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field !< External magnetic field
+      !
+      integer :: i_atom,j_atom,j,nelem, ielem, i_ham
+      !
+      nelem=(max_no_neigh)*Natom
+      call allocateSparse(Natom,nelem,1)
+      !
+      HBlock=0.0_dblprec;Hcolumns=0;HpointerB=0;HpointerE=0
+      !
+      ielem=0
+      !print *,'In setupBlock'
+      ielem=0
+      do i_atom=1,Natom
+         i_ham=aham(i_atom)
+         HpointerB(i_atom)=ielem
+         do j=1,nlistsize(i_ham)
+            j_atom=nlist(j,i_atom)
+            ielem=ielem+1
+            Hblock(:,:,ielem)=transpose(j_tens(:,:,j,i_ham))
+            Hcolumns(ielem)=j_atom-1
+         end do
+         HpointerE(i_atom)=ielem
+      end do
+      !!
+   end subroutine setupSparseTensor
 
    subroutine setupSparseBlock(Natom,nHam,conf_num,max_no_neigh,nlist,nlistsize,ncoup,max_no_dmneigh,dmlistsize,dmlist,dm_vect, aham)
       !
@@ -189,11 +228,8 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble),intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff !< Total effective field from application of Hamiltonian
       !
-      integer :: i , j,  k, idx, l,m,n
-      real(dblprec) :: mone=1.0_dblprec
-      real(dblprec) :: zero=0.0_dblprec
+      integer :: i, j, k, m, n
       character, dimension(6) :: matdescra
-      real(dblprec), dimension(Natom,3) :: emomM_t,beff_t
 
       !
       ! zero based
@@ -239,9 +275,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble),intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff !< Total effective field from application of Hamiltonian
       !
-      integer :: i , j,  k, idx, i_stat
-      real(dblprec) :: mone=1.0_dblprec
-      real(dblprec) :: zero=0.0_dblprec
+      integer :: i, j, k, idx
       character, dimension(6) :: matdescra
 
       !

@@ -1032,7 +1032,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''struct_kmc.'',a8,''.out'')') simid
+      write (filn,'(''struct_kmc.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
 
       ! print neighbor list - after sort

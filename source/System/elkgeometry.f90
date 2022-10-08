@@ -55,7 +55,7 @@ contains
       real(dblprec), dimension(:,:), allocatable :: Bas        !< Coordinates for basis atoms
    
       integer :: i, j, j0
-      integer :: flines, no_shells
+      integer :: flines
       integer :: isite, jsite
       character(len=30) :: filn, filn2, jfile
       real(dblprec) :: jcoup
@@ -215,8 +215,7 @@ contains
       !
       real(dblprec), dimension(:), allocatable :: atype_inp2
 
-      integer :: i, j
-      integer :: i_stat, i_err
+      integer :: i_stat
       integer :: isite, msite, ichem, iconf
 
       real(dblprec) :: scale, scale1, scale2, scale3
@@ -225,7 +224,6 @@ contains
       
       character(len=30) :: filn
 
-      real(dblprec), dimension(Natom) :: mom_col
 
       integer :: itype, mtype, iat, msite2, i_all, ifileno2
       real(dblprec), dimension(3) :: tmp, emomref
@@ -443,7 +441,7 @@ contains
      integer, intent(in) :: ifile   !< File to read from
      !
      ! ... Local Variables ...
-     character(len=50) :: keyword, cache
+     character(len=50) :: keyword
      integer :: rd_len, i_err, i_errb
      logical :: comment
 

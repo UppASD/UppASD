@@ -193,7 +193,7 @@ def guessEnvironmentSettings():
     print('  '+'; '.join('{}'.format(k) for k in prof_list))
 
     if (have_cuda):
-        nvcc=nvcc.decode("utf-8")
+        nvcc=nvcc.decode()
         print("                                              ")
         print("  Suggested CUDA paths: (please edit profile)" )
         print("    CUDA_INSTALL_PATH = ",nvcc[:-10] )

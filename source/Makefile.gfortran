@@ -75,7 +75,7 @@ $(PROG): $(OBJS)
 
 distfull:
 	tar cf ../UppASD_dist.tar ../source/Makefile.legacy \
-	../source/*.f90 ../examples_revision_controlled/ ../docs/Doxyfile ../docs/*.tex
+	../source/*.f90 ../examples/ ../docs/Doxyfile ../docs/*.tex
 	gzip --best ../UppASD_dist.tar
 
 distsmall:

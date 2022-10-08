@@ -442,6 +442,7 @@ contains
             site_mwffield(2,i)=mwfampl*mwffield_sites(2,i)*sin(mwffreq*mwftime*2*pi+field_site_phase(i))
             site_mwffield(3,i)=mwfampl*mwffield_sites(3,i)*sin(mwffreq*mwftime*2*pi+field_site_phase(i))
          enddo
+         !print '(5g20.6)', mwftime,sin(mwffreq*mwftime*2*pi+field_site_phase(i)),site_mwffield(:,1)
 
       else if (mwf=='W') then
          if(time<=mwf_pulse_time) then
@@ -1474,11 +1475,11 @@ contains
          ! If the size of the file is NATOM then there is no problem
          if (flines.ne.Natom) write(*,'(2x,a)') 'WARNING: Size of the MWFFIELD_SITES is not NATOM'
          ! Allocate the site-dependent field
-         allocate(mwffield_sites(3,flines),stat=i_stat)
+         allocate(mwffield_sites(3,Natom),stat=i_stat)
          call memocc(i_stat,product(shape(mwffield_sites))*kind(mwffield_sites),'mwffield_sites','read_local_mwf_fields')
          mwffield_sites=0.0_dblprec
 
-         allocate(field_site_phase(flines),stat=i_stat)
+         allocate(field_site_phase(Natom),stat=i_stat)
          call memocc(i_stat,product(shape(field_site_phase))*kind(field_site_phase),'field_site_phase','read_local_mwf_fields')
          field_site_phase=0.0_dblprec
 
@@ -1522,7 +1523,7 @@ contains
          ! If the size of the file is NATOM then there is no problem
          if (flines.ne.Natom) write(*,'(2x,a)') 'WARNING: Size of the GAUSS_MWFFIELD_SITES is not NATOM'
          ! Allocate the site-dependent field
-         allocate(gauss_mwffield_sites(3,flines),stat=i_stat)
+         allocate(gauss_mwffield_sites(3,Natom),stat=i_stat)
          call memocc(i_stat,product(shape(gauss_mwffield_sites))*kind(gauss_mwffield_sites),'gauss_mwffield_sites','read_local_mwf_fields')
          gauss_mwffield_sites=0.0_dblprec
 

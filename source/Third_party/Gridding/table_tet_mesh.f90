@@ -49,7 +49,7 @@ contains
 
       ! .. Local variables
       integer :: i,ierror
-      integer :: i_stat,i_all
+      integer :: i_stat
 
       ierror=0
       ! Determine the tet mesh.

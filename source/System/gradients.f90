@@ -7,7 +7,11 @@
 !> the same formulas as Schieback et. al, Eur. Phys. J. B 59, 429, (2007)
 !> Currently the torques are only calculated as their respective fields
 !> (i.e. missing the preceeding \f$\mathbf{m}\times\f$) since that is taken care of in the Depondt solver
-!> @author  A. Bergman
+!> @authors 
+!> A. Bergman
+!> E. Mendez
+!> N. Ntallis
+!> M. Pereiro  
 !> @copyright
 !> GNU Public License.
 !> @date August 2010 / April 2011
@@ -17,6 +21,7 @@ module Gradients
 
    use Parameters
    use Profiling
+   use InputData, only: do_multiscale
 
    implicit none
    real(dblprec), dimension(:,:,:), allocatable :: dxyz_vec
@@ -184,6 +189,10 @@ contains
 
    !> Calculate ((j * d/dr) m ) (which then ends up as one part of the spin transfer torque)
    subroutine differentiate_moments(Natom, Mensemble,emomM, dmomdr, sitenatomjvec)
+    
+    use MultiscaleGradients
+    use MultiscaleInterpolation
+    
 
       implicit none
 
@@ -197,6 +206,12 @@ contains
       real(dblprec) :: dx, dy, dz, d_mom_x, d_mom_y, d_mom_z
 
       dmomdr=0.0_dblprec
+  
+    if(do_multiscale) then       
+       call calculateMGradients(emomM,dmomdr)
+       call multiscaleInterpolateArray(dmomdr)
+    else
+       
 
       !$omp parallel do default(shared) private(iatom,k,jneigh,jatom,d_mom_x,dx,d_mom_y,dy,d_mom_z,dz)
       do iatom=1, Natom
@@ -235,9 +250,11 @@ contains
          end do
       end do
       !$omp end parallel do
-
+    endif
    end subroutine differentiate_moments
 
+
+   
 
    !> Calculate (dx m(r), dy m(r), and dz( m(r)  )
    subroutine grad_moments(Natom, Mensemble,emomM, grad_mom)

@@ -55,10 +55,10 @@ contains
       
       if (type=='R') then
       ! Write the name of the restartfile and the position of the writing of file
-         write (file_name,'(''restart.'',a8,''.out'')') simid
+         write (file_name,'(''restart.'',a,''.out'')') trim(simid)
       else if (type=='M') then
       ! Write the name of the moment and the position of the writing of file
-         write (file_name,'(''moment.'',a8,''.out'')') simid
+         write (file_name,'(''moment.'',a,''.out'')') trim(simid)
       endif
       ! Initialize segment
       call segment%initialize()
@@ -204,7 +204,7 @@ contains
 
       if (type=='R') then
       ! Write the name of the restartfile and the position of the writing of file
-         write (filn,'(''restart'',a,''.'',a8,''.out'')') suffix,simid
+         write (filn,'(''restart'',a,''.'',a,''.out'')') suffix,trim(simid)
          fil_pos="rewind"
          open(ofileno,file=filn,position=trim(fil_pos))
          write(ofileno,'(a)') repeat("#",80)
@@ -213,10 +213,10 @@ contains
          write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
          write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
          write(ofileno,'(a)') repeat("#",80)
-         write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
+         write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
       else if (type=='M') then
       ! Write the name of the moment and the position of the writing of file
-         write (filn,'(''moment'',a,''.'',a8,''.out'')') suffix,simid
+         write (filn,'(''moment'',a,''.'',a,''.out'')') suffix,trim(simid)
          fil_pos="append"
          if (mstep==0) then
             fil_pos="rewind"
@@ -227,7 +227,7 @@ contains
             write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
             write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
             write(ofileno,'(a)') repeat("#",80)
-            write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
+            write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
          else
             fil_pos="append"
             open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
@@ -273,7 +273,7 @@ contains
 
       if (type=='R') then
       ! Write the name of the restartfile and the position of the writing of file
-         write (filn,'(''restart'',a,''.'',a8,''.out'')') suffix,simid
+         write (filn,'(''restart'',a,''.'',a,''.out'')') suffix,trim(simid)
          fil_pos="rewind"
          open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
          write(ofileno,'(a)') repeat("#",80)
@@ -282,10 +282,10 @@ contains
          write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
          write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
          write(ofileno,'(a)') repeat("#",80)
-         write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
+         write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
       else if (type=='M') then
       ! Write the name of the moment and the position of the writing of file
-         write (filn,'(''moment'',a,''.'',a8,''.out'')') suffix,simid
+         write (filn,'(''moment'',a,''.'',a,''.out'')') suffix,trim(simid)
          if (time==0) then
             fil_pos="rewind"
             open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
@@ -295,7 +295,7 @@ contains
             write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
             write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
             write(ofileno,'(a)') repeat("#",80)
-            write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
+            write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
          else
             fil_pos="append"
             open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
@@ -732,7 +732,7 @@ contains
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''restart.'',a8,''.out'')') simid
+      write (filn,'(''restart.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn)
       write (ofileno,10002) mstep
 
@@ -772,7 +772,7 @@ contains
       integer :: ii,jj
       character(len=30) :: filn
 
-      write (filn,'(''moment.'',a8,''.out'')') simid
+      write (filn,'(''moment.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do ii=1, bcount_tottraj
          do jj=1, Natom
@@ -872,24 +872,41 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
 
-      integer :: ii, jj, dummy, ios
+      integer :: ii, jj, dummy, ios,NS
       logical :: exists
       real(dblprec) :: mmom_tmp
       real(dblprec), dimension(3) :: u,v,rn
 
       inquire(file=fname,exist=exists)
       if(exists) then
+         NS = number_of_strings(fname)
+         print *, "number of strings:",NS
+         !read first image
          open(ifileno, iostat=ios, file=fname, status="old")
-         do ii=1,Mensemble,(Mensemble-1)
-            do jj=1, Natom
+         do jj=1, Natom
                call rng_uniform(rn,3)
                u(:)=2.0_dblprec*(rn(:)-0.50_dblprec)
-               read (ifileno,*) dummy, dummy, emom(1,jj,ii), emom(2,jj,ii), emom(3,jj,ii), mmom(jj,ii)
-               v(1:3) = emom(1:3,jj,ii)+amp_rnd*u(1:3)
+               read (ifileno,*) dummy, dummy, emom(1,jj,1), emom(2,jj,1), emom(3,jj,1), mmom(jj,1)
+               v(1:3) = emom(1:3,jj,1)+amp_rnd*u(1:3)
                mmom_tmp = norm2(v)
-               emom(1:3,jj,ii) = v(1:3)/mmom_tmp
-               emomM(:,jj,ii)=emom(:,jj,ii)*mmom(jj,ii)
-            end do
+               emom(1:3,jj,1) = v(1:3)/mmom_tmp
+               emomM(:,jj,1)=emom(:,jj,1)*mmom(jj,1)
+         end do
+         close(ifileno)
+         !read final image
+         open(ifileno, iostat=ios, file=fname, status="old")
+         do jj=1,NS-Natom
+            read (ifileno,*) dummy, dummy, emom(1,1,Mensemble), emom(2,1,Mensemble),emom(3,1,Mensemble), mmom(1,Mensemble)
+         end do
+         
+         do jj=1, Natom
+               call rng_uniform(rn,3)
+               u(:)=2.0_dblprec*(rn(:)-0.50_dblprec)
+               read (ifileno,*) dummy, dummy, emom(1,jj,Mensemble), emom(2,jj,Mensemble),emom(3,jj,Mensemble), mmom(jj,Mensemble)
+               v(1:3) = emom(1:3,jj,Mensemble)+amp_rnd*u(1:3)
+               mmom_tmp = norm2(v)
+               emom(1:3,jj,Mensemble) = v(1:3)/mmom_tmp
+               emomM(:,jj,Mensemble)=emom(:,jj,Mensemble)*mmom(jj,Mensemble)
          end do
          do ii=2,Mensemble-1
             do jj=1, Natom
@@ -901,7 +918,25 @@ contains
          write(*,*) 'ERROR: File ',trim(adjustl(fname)), ' does not exist.'
          stop
       end if
+      CONTAINS
+      function number_of_strings(filename) result(N)
+         implicit none
+         CHARACTER(len=*) :: filename
+         INTEGER:: N
+         CHARACTER(len=200)   :: STRING
+         INTEGER :: ios !Input/Output Status
 
+         open(953,file=filename,iostat=ios, action='read', status='old')
+         
+         N=0
+         do while (ios/=-1)
+            READ(unit=953,fmt='(A)', iostat=ios) STRING
+            if (ios==-1) cycle
+            if (len(trim(STRING)) == 0) cycle
+            N=N+1
+         enddo
+         close(953)
+      end function number_of_strings
    end subroutine load_inifin_legacy
 
 end module Restart

@@ -1,9 +1,4 @@
 !> Spin-ice simulation routines
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module SetupSpinIce
 
    use Parameters
@@ -199,7 +194,7 @@ contains
       end do
       ! Open file for writing the coordinates
       if(do_prnstruct==4) then
-         write (filn,'(''c_ver.'',a8,''.out'')') simid
+         write (filn,'(''c_ver.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
       end if
 
@@ -325,7 +320,7 @@ contains
 
       character(len=30) :: filn
 
-      write(filn,'(''ICE_RULE.'',a8,''.out'')') simid
+      write(filn,'(''ICE_RULE.'',a,''.out'')') trim(simid)
       open (ofileno,file=filn,position='append')
 
       do vertex=1, Nvertex

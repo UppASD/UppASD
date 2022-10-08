@@ -8,7 +8,9 @@ module adaptivetimestepping
    use Parameters
    use Profiling
    use Constants
-   use Correlation, only : calc_corr_w, w, do_sc, sc_nstep
+   use Omegas, only : calc_corr_w
+!  use Correlation, only : sc, do_sc, uc
+!   use CorrelationType
 
    implicit none
 
@@ -25,7 +27,7 @@ contains
    !> Main driver for adaptive time stepping based on .....
    !---------------------------------------------------------------------------------
    subroutine adapt_time_step(Natom,Mensemble,beff,omega_max,larmor_numrev,larmor_thr,rstep,mstep,nstep,totalsimtime,&
-         therm_fields,do_sc,sc_step,sc_tidx,sd_phaseflag,adapt_time_interval,&
+         therm_fields,do_sc,sc_step,sc_nstep,sc_tidx,sd_phaseflag,adapt_time_interval,&
          adapt_step,adaptive_time_flag,deltat_correction_flag,delta_t)
 
       implicit none
@@ -38,6 +40,7 @@ contains
       integer, intent(in) :: adapt_step
       integer, intent(in) :: adapt_time_interval
       integer, intent(inout) :: sc_step                                       !< Sampling period between spin correlation measurements
+      integer, intent(inout) :: sc_nstep                                       !< Sampling period between spin correlation measurements
       integer, intent(inout) :: nstep                                   !< Number of steps in measurement phase
       character(len=1), intent(in) :: do_sc
 
@@ -56,7 +59,7 @@ contains
       if(adaptive_time_flag) then
          if (mod(mstep-rstep-1,adapt_time_interval)==0) then
             call calculate_timestep(Natom, Mensemble, beff, omega_max, larmor_numrev, larmor_thr, mstep, nstep, totalsimtime,&
-               therm_fields, sc_step, sc_tidx, sd_phaseflag, delta_t)
+               therm_fields, do_sc, sc_step, sc_nstep, sc_tidx, sd_phaseflag, delta_t)
          end if
       end if
 
@@ -64,7 +67,7 @@ contains
 
    !> Calculate new timestep
    subroutine calculate_timestep(Natom, Mensemble, beff, omega_max, larmor_numrev, larmor_thr, mstep, nstep, totalsimtime, &
-         therm_fields, sc_step, sc_tidx, sd_phaseflag,delta_t)
+         therm_fields, do_sc, sc_step, sc_nstep, sc_tidx, sd_phaseflag,delta_t)
 
       implicit none
 
@@ -72,8 +75,10 @@ contains
       integer, intent(in) :: Mensemble                                        !< Number of ensembles
       integer, intent(in) :: larmor_numrev                                    !< Number of time steps per revolution needed to suppress numerical damping
       integer, intent(in) :: mstep                                     !< Simulation parameters from 0sd from the MP
+      character(len=1), intent(in) :: do_sc
       integer, intent(in) :: sc_tidx                                          !< Current sampling time indicator
       integer, intent(inout) :: sc_step                                       !< Sampling period between spin correlation measurements
+      integer, intent(inout) :: sc_nstep                                      !< Sampling period between spin correlation measurements
       integer, intent(inout) :: nstep                                   !< Number of steps in measurement phase
 
       logical, intent(in) :: sd_phaseflag                                     !< Spin dynamics phase indicator
@@ -135,12 +140,12 @@ contains
          end if
          write(*,'(2x,a,i8,a,i8,a)') 'Current progress: ', mstep,'out of', nstep, 'steps completed.'
 
-         ! Perform correction of sampling correlation frequencies, if used, and while in the sd measurement phase only
+         !! Perform correction of sampling correlation frequencies, if used, and while in the sd measurement phase only
          if(do_sc=='C'.and.(.not.sd_phaseflag)) then
             sc_fact = int_frac ! Assuming the same fractional change between samples as the fractional change in delta t
-            sc_step = ceiling(sc_step/sc_fact)+1 ! Round off to closest upper integer and add 1, hence sc_step >= 2 (see 0sd.f90, line~1194)
+            !sc%sc_step = ceiling(sc%sc_step/sc_fact)+1 ! Round off to closest upper integer and add 1, hence sc_step >= 2 (see 0sd.f90, line~1194)
             write(*,'(2x,a,i8)') 'New spin correlation sampling period: ', sc_step
-            call calc_corr_w(delta_t) ! Perform frequency correction
+            !call calc_corr_w(delta_t,sc) ! Perform frequency correction
          end if
       end if
 

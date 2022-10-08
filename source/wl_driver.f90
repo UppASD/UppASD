@@ -45,18 +45,15 @@ contains
       use Energy,          only : calc_energy
       use InputData
       use FieldData,       only : external_field, sitefld, time_external_field,&
-         allocation_field_time, thermal_field, beff, beff1, beff2
+         allocation_field_time, beff, beff1, beff2
       use SystemData
       use MonteCarlo
       use DemagField
       use MomentData
       use FieldPulse
-      !use prn_averages
-      use ChemicalData,    only : achem_ch, asite_ch
       use MicroWaveField
       use CalculateFields
       use HamiltonianData
-      use ChemicalData, only : achtype
       use macrocells
       use optimizationRoutines
       use HamiltonianActions
@@ -67,12 +64,9 @@ contains
       !
       implicit none
       !
-      integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc, mcmstep, wl_count
-      integer :: ii, ipmcstep, iloop
-      character(len=30) :: filn
+      integer :: ipmcstep, iloop
 
 
-      !call timing(0,'Initial       ','ON')
       ! Allocate work arrays for MC
       call allocate_mcdata(Natom,1)
 
@@ -83,21 +77,11 @@ contains
          call randomize_spins(Natom,Mensemble,emom,emomM,mmom)
 
          ! Calculate the starting energy
-         call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,     &
-            exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,         &
+         call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,mult_axis,wl_totenergy,Num_macro,&
+            constellations,constellationsNeighType,wl_totenergy,Num_macro,&
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
-
-         !!! call calc_energy(nHam,mcmstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_dip,do_biqdm,conf_num,&
-         !!!    Mensemble,nHam,Num_macro,1,do_jtensor,plotenergy,Temp,1.0_dblprec,do_lsf,exc_inter,mult_axis,&
-         !!!    lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,&
-         !!!    emomM_macro,external_field,time_external_field,max_no_constellations,maxNoConstl,&
-         !!!    unitCellType,constlNCoup,constellations,OPT_flag,constellationsNeighType,&
-         !!!    wl_totenergy)
-
-         !!! wl_totenergy=wl_totenergy*natom
 
          !
          write(*,'(1x,a)') 'One-sided minimization in progress'
@@ -113,7 +97,7 @@ contains
          endif
 
          ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-         call calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_field,  &
+         call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,  &
             do_bpulse,sitefld,sitenatomfld)
 
          ! Perform MC sweeps
@@ -125,22 +109,14 @@ contains
             ! Metropolis sweeps
             ! print *,'call wl_warmup'
             call wl_warmup(Natom,Nchmax,Mensemble,nHam,mode,       &
-               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,           &
-               lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,     &
-               mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,do_dip,        &
+               conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,           &
+               lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd,  &
+            ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir, ham_inp%do_sa,&
+               ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,        &
                Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,        &
-               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,do_anisotropy)
+               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
 
-            !           ! Calculate and print m_avg
-            !           if(mcnstep>20) then
-            !              if(mod(mcmstep,mcnstep/20)==0) then
-
-            !              end if
-            !           else
-
-            !           end if
-
-            if(mod(mcmstep,mcnstep/10)==0) then
+            if(mod(ipmcstep,ipmcnstep(1)/10)==0) then
                ! Change order for Metropolis sweeps
                call choose_random_atom_x(Natom,iflip_a)
             end if
@@ -150,21 +126,11 @@ contains
          enddo
 
          ! Calculate the starting energy
-         call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,     &
-            exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,         &
+         call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,mult_axis,wl_totenergy,Num_macro,&
+            constellations,constellationsNeighType,wl_totenergy,Num_macro,&
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
-
-         !!! call calc_energy(nHam,mcmstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_dip,do_biqdm,conf_num,&
-         !!!    Mensemble,nHam,Num_macro,1,do_jtensor,plotenergy,Temp,1.0_dblprec,do_lsf,exc_inter,mult_axis,&
-         !!!    lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,&
-         !!!    emomM_macro,external_field,time_external_field,max_no_constellations,maxNoConstl,&
-         !!!    unitCellType,constlNCoup,constellations,OPT_flag,constellationsNeighType,&
-         !!!    wl_totenergy)
-
-         !!! wl_totenergy=wl_totenergy*natom
 
          if(wl_emax.ne.0.0_dblprec.and.wl_emin.ne.0.0_dblprec) then
             print *,"Energy inverval for Wang-Landau given in input file. No initial phase information used."
@@ -185,21 +151,17 @@ contains
       !wl_emin=-1.05_dblprec*maxval(abs(cwres))*natom/ry_ev
       wl_emin=wl_lcut*wl_emin
       wl_emax=wl_hcut*wl_emax
-      !wl_nhist=0
-!      if(wl_nhist==0) wl_nhist=int(natom*abs(wl_emax-wl_emin))
+      
       if(wl_nhist==0) wl_nhist=int(omp_get_max_threads()*abs(wl_emax-wl_emin))
       wl_estep=abs(wl_emax-wl_emin)/(wl_nhist)
       print '(1x,a,f10.2,a,f10.2,a)', ' Wang-Landau energy interval:',wl_emin,'<E<',wl_emax,' (mRy)'
       print '(1x,a,i9)', ' Number of bins in histogram:',wl_nhist
       print '(1x,a,f8.4)', ' Width of histogram bins:',wl_estep
       print '(1x,a,f6.4,a,f8.4,a)',' Broadening:',wl_sigma,' (x energy window) =',wl_sigma*wl_nhist*wl_estep,' (mRy)'
-      !     print *,'debug:',wl_emin+wl_estep*wl_nhist
-
-      !wl_maxT=3.0_dblprec*(2.0_dblprec*em/3.0_dblprec/k_bolt_ev/1000)
+   
       ! Deallocate work arrays
       call allocate_mcdata(Natom,-1)
 
-      !call timing(0,'Initial       ','OF')
 
    end subroutine wl_iphase
    !---------------------------------------------------------------------------
@@ -214,19 +176,16 @@ contains
       use Energy,          only : calc_energy
       use InputData
       use FieldData,       only : external_field, sitefld, time_external_field,&
-         allocation_field_time, thermal_field, beff, beff1, beff2
+         allocation_field_time, beff, beff1, beff2
       use SystemData
       use MonteCarlo
       use MonteCarlo_common, only : randomize_spins
       use DemagField
       use MomentData
       use FieldPulse
-      !use prn_averages
-      use ChemicalData,    only : achem_ch, asite_ch
       use MicroWaveField
       use CalculateFields
       use HamiltonianData
-      use ChemicalData, only : achtype
       use macrocells
       use optimizationRoutines
       use WangLandau
@@ -238,21 +197,19 @@ contains
       !
       integer :: wl_lhist_min, wl_lhist_max
       integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc,wl_count, ii
-      integer :: mcmstep, mcmstep_loc, mcmstep_glob
-      integer :: num_threads, ithread, i_stat, i_info, printloop
+      integer :: mcmstep, mcmstep_loc
+      integer :: num_threads, ithread, i_stat
       character(len=30) :: filn
-      real(dblprec) :: totenergy,flatness,testene,q_prefac,accrate
+      real(dblprec) :: totenergy, flatness, q_prefac, accrate
       real(dblprec) :: accrate_opt,a,b
       real(dblprec), dimension(3) :: m_avg
       real(dblprec), dimension(:), allocatable :: wl_finaldos, wl_finalhist
-      real(dblprec), dimension(:,:), allocatable :: wl_localdos, wl_localhist
       real(dblprec), dimension(:,:), allocatable :: wl_finalmhist
       real(dblprec), dimension(:,:,:), allocatable, save :: wl_emom
+
       !$omp threadprivate(wl_emom)
       real(dblprec), dimension(:,:,:), allocatable, save :: wl_emomM
       !$omp threadprivate(wl_emomM)
-      real(dblprec), dimension(:,:,:), allocatable, save :: ran_w
-      !$omp threadprivate(ran_w)
 
       call timing(0,'MonteCarlo    ','ON')
 
@@ -260,6 +217,7 @@ contains
       cgk_flag=0 ; scount_pulse=1 ; bcgk_flag=0 ; cgk_flag_pc=0
       accrate_opt=0.5_dblprec ; a=0.82988_dblprec ; b=0.014625_dblprec
       accrate=0.0_dblprec
+      totenergy = 0.0_dblprec
 
       ! Get number of available OpenMP threads
       num_threads=omp_get_max_threads()
@@ -272,15 +230,7 @@ contains
       call memocc(i_stat,product(shape(wl_finaldos))*kind(wl_finaldos),'wl_finaldos','wl_mphase')
       allocate(wl_finalmhist(3,wl_nhist),stat=i_stat)
       call memocc(i_stat,product(shape(wl_finalmhist))*kind(wl_finalmhist),'wl_finalmhist','wl_mphase')
-      !allocate(wl_localhist(wl_nhist,0:num_threads-1),stat=i_stat)
-      !call memocc(i_stat,product(shape(wl_localhist))*kind(wl_localhist),'wl_localhist','wl_mphase')
-      !wl_localhist=0.0_dblprec
-      !allocate(wl_localdos(wl_nhist,0:num_threads-1),stat=i_stat)
-      !call memocc(i_stat,product(shape(wl_localdos))*kind(wl_localdos),'wl_localdos','wl_mphase')
-      !wl_localdos=0.0_dblprec
       !$omp parallel
-      !allocate(ran_w(3,Natom,Mensemble),stat=i_stat)
-      !call memocc(i_stat,product(shape(ran_w))*kind(ran_w),'ran_w','wl_mphase')
       allocate(wl_emom(3,Natom,Mensemble),stat=i_stat)
       allocate(wl_emomM(3,Natom,Mensemble),stat=i_stat)
       !$omp end parallel
@@ -293,22 +243,8 @@ contains
       call allocate_wldata(Natom,Mensemble,1)
 
       ! Start with a fresh spin config.
-      !!! emom(:,:,:)=0.0_dblprec
-      !!! emom(3,:,:)=1.0_dblprec
-      !!! do iii=1,Mensemble
-      !!! do ii=1,Natom
-      !!!    emomM(:,ii,iii)=emom(:,ii,iii)*mmom(ii,iii)
-      !!! end do
-      !!! end do
       call randomize_spins(Natom,Mensemble,emom,emomM,mmom)
-      !!! open(unit=100,file='fort.777')
-      !!! read(100,*) emomm(:,:,1)
-      !!! do ii=1,natom
-      !!!    mmom(ii,1)=sqrt(sum(emomm(:,ii,1)**2))
-      !!!    emom(:,ii,1)=emomm(:,ii,1)/mmom(ii,1)
-      !!! end do
 
-      !!! totenergy=0.0_dblprec
       ! Calculate the starting energy
       beff=0.0_dblprec
       beff1=0.0_dblprec
@@ -327,13 +263,7 @@ contains
       wl_fac=1.0_dblprec
       wl_mhist=0.0_dblprec
       m_avg=0.0_dblprec
-      !wl_fac=exp(1.0_dblprec)
       wl_count=1
-
-      ! Not currently used
-      !     wl_direction=1.0_dblprec
-      ! To be read/set to default
-      !wl_nloop=30
 
       ! Setup order for Metropolis sweeps
       call choose_random_atom_x(Natom,iflip_a)
@@ -345,7 +275,7 @@ contains
       endif
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-      call calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_field,     &
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
 
       ! Calculate average magnetization for M_hist
@@ -365,14 +295,13 @@ contains
 
       wl_emom=emom
       wl_emomM=emomM
-      !print *,'randomize_spins', shape(wl_emom), ithread
+      
       call randomize_spins(Natom,Mensemble,wl_emom,wl_emomM,mmom)
-      !print *,'effective_field'
-      call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,        &
-         exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,wl_emomM,mmom,         &
+     
+      call effective_field(Natom,Mensemble,1,Natom,wl_emomM,mmom,         &
          external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
-         constellationsNeighType,mult_axis,totenergy,Num_macro,cell_index,          &
+         constellationsNeighType,totenergy,Num_macro,cell_index,          &
          emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
       !$omp barrier
@@ -380,8 +309,6 @@ contains
       print *, 'Starting energy for ensemble',ithread,': ', totenergy
       wl_hit=0.0_dblprec
       wl_miss=0.0_dblprec
-      !wl_localdos=1.0_dblprec
-      !wl_localhist=0.0_dblprec
       wl_fac=1.0_dblprec
       flatness=0.0_dblprec
       wl_stepsize=1.0_dblprec
@@ -390,19 +317,16 @@ contains
       mcmstep=1
       mcmstep_loc=1
 
-      !wl_localhist(:,ithread)=0.0_dblprec
-      !wl_localdos(:,ithread)=wl_dos
-      !do while(mcmstep<=mcnstep/num_threads.and.wl_count<=wl_nloop)
       do while(mcmstep<=mcnstep.and.wl_count<=wl_nloop)
 
          call wl_evolve(Natom,Nchmax,Mensemble,nHam,mode,conf_num, &
-            lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,lsf_interpolate,       &
-            do_jtensor,do_dm, do_pd, do_biqdm, do_bq,do_chir,mult_axis,iflip_a,     &
-            wl_emomM,wl_emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,             &
+            lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,lsf_interpolate,       &
+            ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
+            ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
+            ham_inp%mult_axis,iflip_a,wl_emomM,wl_emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,Num_macro,     &
             max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,    &
             emomM_macro,emom_macro,mmom_macro,wl_hist,wl_dos,totenergy,wl_mhist,    &
-            m_avg,wl_lhist_min,wl_lhist_max,do_anisotropy,wl_stepsize)
-         !wl_localhist(:,ithread),wl_localdos(:,ithread),totenergy,wl_mhist,m_avg,do_anisotropy)
+            m_avg,wl_lhist_min,wl_lhist_max,ham_inp%do_anisotropy,wl_stepsize)
 
 
          if(mod(mcmstep_loc,mcnstep/(num_threads*10))==0) then
@@ -418,17 +342,14 @@ contains
             wl_stepsize=min(1.0_dblprec,(log(a*accrate_opt+b)/log(a*accrate+b))*wl_stepsize+0.05_dblprec)
             !--------------------------------------------------------------------
             flatness=minval(wl_hist(2:wl_nhist-1))/(sum(wl_hist(2:wl_nhist-1)+1e-12)/(wl_nhist-2+1e-12))*100.0_dblprec
-            !            print '(1x,a,i8,a,f6.2,a,4g12.4)','Step:',mcmstep,', flatness:',flatness, '% ',&
-            !            maxval(wl_hist(2:wl_nhist-1)),minval(wl_hist(2:wl_nhist-1)),wl_hit/(1.0_dblprec*Natom*Mensemble*mcmstep*num_threads),sum((wl_hist(1:wl_nhist)-minval(wl_hist(1:wl_nhist)))*wl_estep)
             print '(1x,a,i8,a,f6.2,a,4g12.4)','Step:',mcmstep,', flatness:',flatness, '% ',&
                maxval(wl_hist(2:wl_nhist-1)),minval(wl_hist(2:wl_nhist-1)),accrate,wl_stepsize
-            !wl_hist=wl_hist*0.25_dblprec
+            
             wl_hit=0.0_dblprec ; wl_miss=0.0_dblprec
 
-            !if(mod(mcmstep,mcnstep/wl_nloop)==0) then
             if(flatness>70.0_dblprec+wl_count/2.and.maxval(wl_hist)>1.0_dblprec)  then
                ! Reset the WL histogram
-               write(filn,'(''wlhistogram.'',a8,''.out'')') simid
+               write(filn,'(''wlhistogram.'',a,''.out'')') trim(simid)
                open(ofileno,file=filn, position="append")
                do ii=1,wl_nhist
                   write(ofileno,'(1x,i4,i10,5g20.10)') wl_count,ii,                  &
@@ -443,35 +364,20 @@ contains
                wl_finalhist=wl_hist
                wl_finalmhist=wl_mhist
                wl_fac=wl_fac*0.5_dblprec
-               !wl_fac=wl_fac*0.9_dblprec
-               !           wl_flatness=minval(wl_hist)/(sum(wl_hist)/wl_nhist)
-               !           flatness=minval(wl_hist)/(sum(wl_hist)/wl_nhist)*100.0_dblprec
                write(*,'(1x,a,i3,a,f12.10,a,f12.6)') 'Wang-Landau histogram reset. Sweep: ',wl_count,',  Lambda: ',exp(wl_fac), ', Flatness: ',flatness
-               !write(*,'(1x,a,i3,a,f12.10,a,f12.6)') 'Wang-Landau histogram reset. Sweep: ',wl_count,',  Lambda: ',exp(wl_fac), ', Flatness: ',minval(wl_hist)/(sum(wl_hist)/wl_nhist)*100.0_dblprec
-               !!wl_dos=wl_dos/maxval(wl_dos)
-               !do ii=0,num_threads-1
-               !   wl_localhist(:,ii)=0.0_dblprec
-               !   wl_localdos(:,ii)=wl_dos
-               !end do
+               
                !!$omp atomic
                wl_hist=0.0_dblprec
                wl_mhist=0.0_dblprec
-               !              wl_hist=1
                wl_count=wl_count+1
                flatness=0.0_dblprec
                wl_hit=0.0_dblprec
                wl_miss=0.0_dblprec
                !
             end if
-            !!! !!$omp barrier
-            !!! do ii=0,num_threads-1
-            !!!    wl_localdos(:,ii)=wl_dos(:)
-            !!!    wl_localhist(:,ii)=wl_hist(:)
-            !!! end do
          end if
          !$omp end master
 
-         !print *,totenergy,omp_get_thread_num()
 
          mcmstep_loc=mcmstep_loc+1
          !!$omp atomic
@@ -490,15 +396,13 @@ contains
       end if
 
       wl_dos=wl_gfac*wl_dos
-      write(filn,'(''wlfinal.'',a8,''.out'')') simid
+      write(filn,'(''wlfinal.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn)
       do ii=1,wl_nhist
-         !write(ofileno,'(4g20.10)') wl_emin+ii*wl_estep,wl_dos(ii),wl_hist(ii),     &
          write(ofileno,'(4g20.10)') wl_ene(ii),wl_dos(ii),wl_hist(ii),     &
             sqrt(sum(wl_mhist(:,ii)**2))/Natom/(wl_hist(ii)+1.0e-12_dblprec)
       end do
       do ii=1,wl_nhist
-         !write(500,'(4g20.10)') wl_emin+ii*wl_estep,wl_mhist(:,ii)/wl_hist(ii)
          write(500,'(4g20.10)') wl_ene(ii),wl_mhist(:,ii)/wl_hist(ii)
       end do
       close(ofileno)

@@ -8,11 +8,6 @@
 !> [1] McLachlan et al, Phys. Rev. E 89, 061301(R) (2014) and
 !> [2] J. H. Mentink et al, J. Phys.: Condens. Matter, 22, 176001 (2010)
 !> @author Johan Hellsvik
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 !-------------------------------------------------------------------------------
 module SphMidpoint
    use Parameters
@@ -264,10 +259,6 @@ contains
 
       return
 
-      10001 format (a,6f16.12)
-      10002 format (a,i3,2x,a,6f16.12)
-      10003 format (a,f16.12,2x,a,f16.12)
-
    end subroutine sibt
 
    !----------------------------------------------------------------------------
@@ -482,9 +473,6 @@ contains
 
       return
 
-      10001 format (a,6f16.12)
-      10002 format (a,i3,2x,a,6f16.12)
-      10003 format (a,f16.12,2x,a,f16.12)
 
    end subroutine sibf
 
@@ -722,10 +710,6 @@ contains
 
       return
 
-      10001 format (a,6f16.12)
-      10002 format (a,i3,2x,a,6f16.12)
-      10003 format (a,f16.12,2x,a,f16.12)
-
    end subroutine sispht
 
    !-----------------------------------------------------------------------------
@@ -936,10 +920,6 @@ contains
 
       return
 
-      10001 format (a,6f16.12)
-      10002 format (a,i3,2x,a,6f16.12)
-      10003 format (a,f16.12,2x,a,f16.12)
-
    end subroutine sisphf
 
    !----------------------------------------------------------------------------
@@ -950,7 +930,7 @@ contains
    !> @note Jonathan Chico: Added terms dealing with STT, SHE and SOT fields
    !----------------------------------------------------------------------------
    subroutine imp_fp(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,emomM, &
-      mmom,deltat,thermal_field,SDEalgh,epsilon,converged,interrupt,mioninv,eeff,   &
+      mmom,deltat,SDEalgh,epsilon,converged,interrupt,mioninv,eeff,   &
       uvec,uvec2,vvec,vvec2)
 
       use Constants
@@ -981,7 +961,6 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: vvec2  !< Final (or temporary) ionic velocity
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: uvec2  !< Final (or temporary) ionic displacement
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field
       !
       ! ... Local variables ...
       integer :: i, j, ij
@@ -1283,12 +1262,6 @@ contains
          !$omp end parallel do
 
       end if
-
-      10001 format (a,6f16.10)
-      10002 format (a,i3,2x,a,6f16.12)
-      10003 format (a,f16.12,2x,a,f16.12)
-      10004 format (a,3es16.8)
-      10005 format (a,es16.8,a,es16.8,a,es16.8)
 
    end subroutine imp_fp
 

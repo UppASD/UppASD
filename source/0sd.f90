@@ -43,6 +43,7 @@
 program SD
 
    use uppasd
+   !use pyasd
    !
    implicit none
    !

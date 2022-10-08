@@ -38,11 +38,8 @@ contains
    !----------------------------------------------------------------------------
    subroutine evolve_first_lite(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,     &
       lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,temprescale,   &
-      beff,b2eff,thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,   &
-      mmomi,stt,do_site_damping,nlist,nlistsize,constellationsUnitVec,              &
-      constellationsUnitVec2,constellationsMag,constellations,unitCellType,OPT_flag,&
-      cos_thr,max_no_constellations,do_she,she_btorque,Nred,red_atom_list,          &
-      do_fixed_mom,do_sot,sot_btorque)
+      beff,b2eff,thermal_field,btorque,field1,field2,emom,emom2,emomM,mmom,   &
+      mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,do_sot,sot_btorque)
 
       implicit none
 
@@ -59,8 +56,7 @@ contains
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat spin hall effect torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      character(len=1), intent(in) :: do_fixed_mom 	!< Do Fixed moment calculation (Y/N)
-      character(len=1), intent(in) :: do_site_damping	!< Flag for site dependent damping in measurement phase
+      character(len=1), intent(in) :: do_site_damping !< Flag for site dependent damping in measurement phase
       integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(3), intent(in) :: field1 !< Average internal effective field
       real(dblprec), dimension(3), intent(in) :: field2 !< Average external effective field
@@ -70,7 +66,6 @@ contains
       real(dblprec), dimension(Natom), intent(in) :: Temp_array      !< Temperature
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom  !< Magnitude of magnetic moments
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmomi !< Inverse of magnitude of magnetic moments
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff2        !< External field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< Spin Hall effect transfer torque
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
@@ -84,20 +79,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2  !< Final (or temporary) unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
 
-      ! Optimization used variables
-      integer, intent(in)                            :: max_no_constellations  !< Max number of constellations for all ensembles
-      real(dblprec), intent(in)                      :: cos_thr   !< Cosine similarity threshold
-      logical, intent(in)                            :: OPT_flag  !< Optimization flag
-      integer, dimension(:), intent(in)              :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(:,:), intent(in)            :: nlist  !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:), intent(in)      :: constellationsMag  !< Magnitude of magnetic moments
-      real(dblprec), dimension(:,:,:), intent(in)    :: constellationsUnitVec !< Normalized constellation matrix It is used for efficient cosinus comparisons in evolve step
-      integer, dimension(:,:), intent(inout)         :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec2
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellations  !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
-
       ! .. Local variables
-      integer :: ij,i,j,k
       real(dblprec) :: lambdatol = 1d-12
 
       thermal_field=0.0_dblprec
@@ -222,10 +204,8 @@ contains
    !> Second step of solver, calculates the corrected solution. Only used for SDEalgh=1,5
    !----------------------------------------------------------------------------
    subroutine evolve_second_lite(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
-      delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,nlist,nlistsize,    &
-      constellationsUnitVec,constellationsUnitVec2,constellationsMag,constellations,&
-      unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque,Nred,  &
-      red_atom_list,do_fixed_mom,do_sot,sot_btorque)
+      delta_t,relaxtime,beff,b2eff,btorque,emom,emom2,stt,&
+      do_she,she_btorque,Nred,red_atom_list,do_sot,sot_btorque)
 
       implicit none
 
@@ -240,12 +220,10 @@ contains
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the spin hall effect spin transfer torque?
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      character(len=1), intent(in) :: do_fixed_mom !< Do Fixed moment calculation (Y/N)
       integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
       real(dblprec), dimension(Natom), intent(in) :: Landeg !< Gyromagnetic ratio
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array            !< Damping parameter
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff		!< Total effective field from application of Hamiltonian
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff2        !< External field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff      !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff        !< Temporary storage of magnetic field
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE generated spin transfer torque
@@ -254,19 +232,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom        !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2       !< Final (or temporary) unit moment vector
 
-      ! Optimization used variables
-      integer, intent(inout)                         :: max_no_constellations  !< Max number of constellations for all ensembles
-      real(dblprec), intent(in)                      :: cos_thr   !< Cosine similarity threshold
-      logical, intent(in)                            :: OPT_flag  !< Optimization flag
-      integer, dimension(:), intent(in)              :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(:,:), intent(in)            :: nlist  !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:), intent(in)      :: constellationsMag  !< Magnitude of magnetic moments
-      integer, dimension(:,:), intent(inout)         :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec !< Normalized constellation matrix It is used for efficient cosinus comparisons in evolve step
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec2
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellations  !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. Local variables
-      integer                                        :: i,j,k,ij
 
       !------------------------------------------------------------------------------
       ! Mentink's midpoint solver

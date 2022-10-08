@@ -65,7 +65,8 @@ contains
       real(dblprec), intent(in) :: delta_t !< Time step for real time measurement
       real(dblprec), intent(in), dimension(3,Natom) :: coord !< Coordinates for all the atoms
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(max_no_neigh,nHam), intent(in) :: ncoup !< Heisenberg exchange couplings
+      real(dblprec), dimension(:,:,:), intent(in) :: ncoup !< Heisenberg exchange couplings
+      !real(dblprec), dimension(max_no_neigh,nHam), intent(in) :: ncoup !< Heisenberg exchange couplings
       integer, dimension(Natom), intent(in) :: aham !< Hamiltonian look-up table
       character(len=8), intent(in) :: simid             !< Simulation ID
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
@@ -369,7 +370,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
       character(len=30) :: filn
 
       !.. Executable statements
-      write (filn,'(''magnon_curr.'',a8,''.out'')') simid
+      write (filn,'(''magnon_curr.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_current
          do j=1, Natom
@@ -388,7 +389,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
       end do
       close(ofileno)
 
-      write (filn,'(''heat_curr.'',a8,''.out'')') simid
+      write (filn,'(''heat_curr.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_current
          do j=1, Natom
@@ -407,7 +408,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
       end do
       close(ofileno)
 
-      write (filn,'(''heat_curr2.'',a8,''.out'')') simid
+      write (filn,'(''heat_curr2.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_current
          do j=1, Natom
@@ -426,7 +427,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
       end do
       close(ofileno)
 
-      write (filn,'(''psi_data.'',a8,''.out'')') simid
+      write (filn,'(''psi_data.'',a,''.out'')') trim(simid)
       open(ofileno, file=filn, position="append")
       do i=1, bcount_current
          do k=1, Mensemble
@@ -471,6 +472,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
          !Write buffer to file
          bcount_current=bcount_current-1
          call prn_site_currents(Natom, Mensemble, simid,real_time_measure)
+         bcount_current=1
       endif
 
    end subroutine flush_currents
@@ -493,7 +495,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
             allocate(heat_current(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(heat_current))*kind(heat_current),'heat_current','allocate_currents')
             allocate(heat_current2(3,Natom),stat=i_stat)
-            call memocc(i_stat,product(shape(heat_current2))*kind(heat_current2),'heat_current','allocate_currents')
+            call memocc(i_stat,product(shape(heat_current2))*kind(heat_current2),'heat_current2','allocate_currents')
 
             allocate(magnon_current(3,Natom),stat=i_stat)
             call memocc(i_stat,product(shape(magnon_current))*kind(magnon_current),'magnon_current','allocate_currents')
@@ -534,7 +536,7 @@ heat_current2(3,i)=heat_current2(3,i)+&
             allocate(heat_current_b(3,Natom,current_buff),stat=i_stat)
             call memocc(i_stat,product(shape(heat_current_b))*kind(heat_current_b),'heat_current_b','allocate_currents')
             allocate(psi_amp_b(Natom,Mensemble,current_buff),stat=i_stat)
-            call memocc(i_stat,product(shape(psi_amp_b))*kind(heat_current_b),'psi_amp_b','allocate_currents')
+            call memocc(i_stat,product(shape(psi_amp_b))*kind(psi_amp_b),'psi_amp_b','allocate_currents')
             allocate(psi_phase_b(Natom,Mensemble,current_buff),stat=i_stat)
             call memocc(i_stat,product(shape(psi_phase_b))*kind(psi_phase_b),'psi_phase_b','allocate_currents')
             allocate(heat_current2_b(3,Natom,current_buff),stat=i_stat)
@@ -573,6 +575,9 @@ heat_current2(3,i)=heat_current2(3,i)+&
             i_all=-product(shape(heat_current_b))*kind(heat_current_b)
             deallocate(heat_current_b,stat=i_stat)
             call memocc(i_stat,i_all,'heat_current_b','allocate_currents')
+            i_all=-product(shape(heat_current2_b))*kind(heat_current2_b)
+            deallocate(heat_current2_b,stat=i_stat)
+            call memocc(i_stat,i_all,'heat_current2_b','allocate_currents')
             i_all=-product(shape(magnon_current_b))*kind(magnon_current_b)
             deallocate(magnon_current_b,stat=i_stat)
             call memocc(i_stat,i_all,'magnon_current_b','allocate_currents')
@@ -594,6 +599,9 @@ heat_current2(3,i)=heat_current2(3,i)+&
             i_all=-product(shape(psi_dot))*kind(psi_dot)
             deallocate(psi_dot,stat=i_stat)
             call memocc(i_stat,i_all,'psi_dot','allocate_currents')
+            i_all=-product(shape(psi_dot2))*kind(psi_dot2)
+            deallocate(psi_dot2,stat=i_stat)
+            call memocc(i_stat,i_all,'psi_dot2','allocate_currents')
             i_all=-product(shape(psi_time))*kind(psi_time)
             deallocate(psi_time,stat=i_stat)
             call memocc(i_stat,i_all,'psi_time','allocate_currents')

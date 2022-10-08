@@ -27,6 +27,7 @@
 
 INCLUDE(${CMAKE_ROOT}/Modules/CheckCCompilerFlag.cmake)
 INCLUDE(${CMAKE_ROOT}/Modules/CheckCXXCompilerFlag.cmake)
+INCLUDE(${CMAKE_ROOT}/Modules/CheckFortranCompilerFlag.cmake)
 
 FUNCTION(SET_COMPILE_FLAG FLAGVAR FLAGVAL LANG)
 

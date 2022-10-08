@@ -1,10 +1,3 @@
-!> @brief
-!! Fake calls for CUDA functionalities
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module nocuda
    use Parameters
    implicit none

@@ -1,0 +1,41 @@
+README for the small, binary only, distribution
+of UppASD, Uppsala Atomistic Spin Dynamics code.
+
+CONTENTS
+The package is distributed in the file
+
+UppASDdistbin.tar.gz
+
+and contains the following directories and files:
+
+anisotropy:
+k.uniaxial - anisotropy parameters used by examples
+
+docs:
+UppASDmanual.pdf
+
+examples:
+bccFe_0K/
+bccFe_100K/  
+bccFeRI_uniani100K/
+pulseperpshort1/
+
+exchpar: 
+Landau.j - exchange parameters used by examples
+
+source:
+sd_Gfort_AMD64  - openMP executable for AMD64 systems (Gfortran)
+sd_PGF_AMD64  - openMP executable for AMD64 systems (PGF90)
+sd_Ifort_Xeon - openMP executable for Intel Xeon systems (Ifort)
+ 
+EXAMPLES
+The examples are briefly described in the manual.
+They are executed from prompt when standing in the 
+respective directory by writing
+../../sd_Gfort_AMD64,
+or
+../../sd_PGF_AMD64
+or
+../../sd_Ifort_Xeon
+
+

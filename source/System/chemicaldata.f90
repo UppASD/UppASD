@@ -1,10 +1,5 @@
 !> Data for treating random alloy systems
 !! @todo Consider moving allocation routine
-!> @copyright
-!! Copyright (C) 2008-2018 UppASD group
-!! This file is distributed under the terms of the
-!! GNU General Public License. 
-!! See http://www.gnu.org/copyleft/gpl.txt
 module ChemicalData
    use Parameters
    use Profiling

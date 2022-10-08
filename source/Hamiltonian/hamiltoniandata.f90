@@ -7,82 +7,12 @@
 module HamiltonianData
    use Profiling
    use Parameters
+   use HamiltonianDataType
    !
    implicit none
    !
-   ! From setup
-   type ham_t
-      integer, dimension(:), allocatable :: aHam !< Lookup-table for Hamiltonian
-      ! Variables for Heisenberg exchange
-      integer ::  max_no_neigh                                 !< Calculated maximum of neighbours for exchange
-      integer, dimension(:), allocatable :: nlistsize          !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(:,:), allocatable :: nlist            !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:,:), allocatable :: ncoup    !< Heisenberg exchange couplings
-      real(dblprec), dimension(:,:,:), allocatable :: ncoupD   !< Heisenberg exchange couplings (DLM)
-      real(dblprec), dimension(:,:,:,:), allocatable :: j_tens !< Exchange tensor (SKKR style)
-      !! Reduced variables for Heisenberg exchange
-      !integer :: NA_red                                          !< Number of reduced atoms
-      !integer, dimension(:), allocatable :: nlistsize_red        !< Size of neighbour list for Heisenberg exchange couplings (reduced)
-      !integer, dimension(:,:), allocatable :: nlist_red          !< Neighbour list for Heisenberg exchange couplings (reduced)
-      !real(dblprec), dimension(:,:,:), allocatable :: ncoup_red  !< Heisenberg exchange couplings (reduced)
-      !real(dblprec), dimension(:,:,:), allocatable :: ncoupD_red !< Heisenberg exchange couplings (DLM) (reduced)
-      ! Variables for DMI
-      integer ::  max_no_dmneigh                               !< Calculated maximum of neighbours for DM exchange
-      integer, dimension(:), allocatable :: dmlistsize         !< Size of neighbour list for DM
-      integer, dimension(:,:), allocatable :: dmlist           !< List of neighbours for DM
-      real(dblprec), dimension(:,:,:), allocatable :: dm_vect  !< Dzyaloshinskii-Moriya exchange vector
-      ! Variables for CHIR exchange
-      integer :: nn_chir_tot                                     !< Calculated number of neighbours with CHIR interactions
-      integer ::  max_no_chirneigh                               !< Calculated maximum of neighbours for CHIR exchange
-      integer, dimension(:), allocatable :: chirlistsize         !< Size of neighbour list for CHIR
-      integer, dimension(:,:,:), allocatable :: chirlist           !< List of neighbours for CHIR
-      real(dblprec), dimension(:,:), allocatable :: chir_coup  !< scalar chirality exchange coupling
-      ! Variables for PD exchange
-      integer :: nn_pd_tot                                     !< Calculated number of neighbours with PD interactions
-      integer ::  max_no_pdneigh                               !< Calculated maximum of neighbours for PD exchange
-      integer, dimension(:), allocatable :: pdlistsize         !< Size of neighbour list for PD
-      integer, dimension(:,:), allocatable :: pdlist           !< List of neighbours for PD
-      real(dblprec), dimension(:,:,:), allocatable :: pd_vect  !< Pseudo-Dipolar exchange vector
-      ! Variables for BIQDM interactions
-      integer :: nn_biqdm_tot                                     !< Calculated number of neighbours with BIQDM interactions
-      integer ::  max_no_biqdmneigh                               !< Calculated maximum of neighbours for BIQDM exchange
-      integer, dimension(:), allocatable :: biqdmlistsize         !< Size of neighbour list for BIQDM
-      integer, dimension(:,:), allocatable :: biqdmlist           !< List of neighbours for BIQDM
-      real(dblprec), dimension(:,:,:), allocatable :: biqdm_vect  !< BIQDM exchange vector
-      ! Variables for BQ interactions
-      integer :: nn_bq_tot                               !< Calculated number of neighbours with BQ interactions
-      integer, dimension(:), allocatable :: bqlistsize   !< Size of neighbour list for BQ
-      integer, dimension(:,:), allocatable :: bqlist     !< List of neighbours for BQ
-      real(dblprec), dimension(:,:), allocatable :: j_bq !< Biquadratic exchange couplings
-      ! Variables for anisotropy
-      integer, dimension(:), allocatable :: taniso                !< Type of anisotropy (0-2)
-      integer, dimension(:), allocatable :: taniso_diff           !< Type of anisotropy (0-2)
-      real(dblprec), dimension(:), allocatable :: sb              !< Ratio between Cubic and Uniaxial anisotropy
-      real(dblprec), dimension(:), allocatable :: sb_diff         !< Ratio between Cubic and Uniaxial anisotropy
-      real(dblprec), dimension(:,:), allocatable :: kaniso        !< Anisotropy constant
-      real(dblprec), dimension(:,:), allocatable :: kaniso_diff   !< Anisotropy constant
-      real(dblprec), dimension(:,:), allocatable :: eaniso        !< Unit anisotropy vector
-      real(dblprec), dimension(:,:), allocatable :: eaniso_diff   !< Unit anisotropy vector
-      ! Variables for induced moments
-      integer :: fix_num                                    !< Number of "fixed" moments
-      integer :: max_no_neigh_ind                           !< Number of nearest neighbours for the induced treatment
-      integer, dimension(:), allocatable :: fix_list        !< List containing the "fixed" moments
-      integer, dimension(:), allocatable :: ind_list_full   !< Indication of whether a given moment is induced/fixed 1/0
-      integer, dimension(:), allocatable :: ind_nlistsize   !< Size of the list for the induced moments
-      integer, dimension(:,:), allocatable :: ind_nlist     !< Neighbour list between induced moments and their first permanent moments
-      integer, dimension(:), allocatable :: fix_nlistsize   !< Size of the list for the permanent moments
-      integer, dimension(:,:), allocatable :: fix_nlist     !< Neighbour list between permanent moments and their first induced moments
-      real(dblprec), dimension(:), allocatable :: sus_ind   !< Scaling factor for the magneitc moment of the induced moments
-      ! Variables for LSF
-      integer, dimension(:), allocatable :: fs_nlistsize    !< Size of first shell neighbouring list for centered atom
-      integer, dimension(:,:), allocatable :: nind          !< Index of firstshell-neighbour-list corresponds to neighbour-list
-      integer, dimension(:,:), allocatable :: fs_nlist      !< First shell Neighbouring list for centered atom
-      ! Variables for dipolar
-      real(dblprec), dimension(:,:,:,:), allocatable :: Qdip         !< Matrix for dipole-dipole interaction
-      real(dblprec), dimension(:,:,:,:), allocatable :: Qdip_macro   !< Matrix for macro spin dipole-dipole interaction
-   end type ham_t
-
    type(ham_t) :: ham
+
    public
 
 contains
@@ -336,6 +266,38 @@ contains
 
    end subroutine allocate_dmhamiltoniandata
 
+   !> Allocate arrays for Symmetric anisotropic Hamiltonian
+   subroutine allocate_sahamiltoniandata(Natom,nHam, max_no_saneigh,flag)
+      implicit none
+
+      integer, optional, intent(in) :: Natom !< Number of atoms in system
+      integer, optional, intent(in) :: nHam !< Number of atoms in Hamiltonian
+      integer, optional, intent(in) :: max_no_saneigh !< Calculated number of neighbours with DM interactions
+      integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+
+      integer :: i_all, i_stat
+
+      if(flag>0) then
+         allocate(ham%salistsize(nHam),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%salistsize))*kind(ham%salistsize),'salistsize','allocate_sahamiltoniandata')
+         allocate(ham%salist(max_no_saneigh,Natom),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%salist))*kind(ham%salist),'salist','allocate_sahamiltoniandata')
+         allocate(ham%sa_vect(3,max_no_saneigh,nHam),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%sa_vect))*kind(ham%sa_vect),'sa_vect','allocate_sahamiltoniandata')
+      else
+         i_all=-product(shape(ham%salistsize))*kind(ham%salistsize)
+         deallocate(ham%salistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'salistsize','allocate_sahamiltoniandata')
+         i_all=-product(shape(ham%salist))*kind(ham%salist)
+         deallocate(ham%salist,stat=i_stat)
+         call memocc(i_stat,i_all,'salist','allocate_sahamiltoniandata')
+         i_all=-product(shape(ham%sa_vect))*kind(ham%sa_vect)
+         deallocate(ham%sa_vect,stat=i_stat)
+         call memocc(i_stat,i_all,'sa_vect','allocate_sahamiltoniandata')
+      end if
+
+   end subroutine allocate_sahamiltoniandata
+
 
    !> Allocate arrays for scalar chirality  Hamiltonian
    subroutine allocate_chirhamiltoniandata(Natom,nHam,nn_chir_tot,flag)
@@ -370,6 +332,39 @@ contains
    end subroutine allocate_chirhamiltoniandata
 
 
+   !> Allocate arrays for general four-spin Hamiltonian
+   subroutine allocate_fourxhamiltoniandata(Natom,nHam,nn_fourx_tot,flag)
+      implicit none
+
+      integer, optional, intent(in) :: Natom !< Number of atoms in system
+      integer, optional, intent(in) :: nHam  !< Number of atoms in Hamiltonian
+      integer, optional, intent(in) :: nn_fourx_tot !< Calculated number of neighbours with fourx interactions
+      integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+
+      integer :: i_all, i_stat
+
+      if(flag>0) then
+         allocate(ham%fourxlistsize(nHam),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%fourxlistsize))*kind(ham%fourxlistsize),'fourxlistsize','allocate_fourxhamiltoniandata')
+         allocate(ham%fourxlist(2,nn_fourx_tot,Natom),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%fourxlist))*kind(ham%fourxlist),'fourxlist','allocate_fourxhamiltoniandata')
+         allocate(ham%fourx_coup(nn_fourx_tot,nHam),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%fourx_coup))*kind(ham%fourx_coup),'fourx_coup','allocate_fourxhamiltoniandata')
+      else
+         i_all=-product(shape(ham%fourxlistsize))*kind(ham%fourxlistsize)
+         deallocate(ham%fourxlistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'fourxlistsize','allocate_fourxhamiltoniandata')
+         i_all=-product(shape(ham%fourxlist))*kind(ham%fourxlist)
+         deallocate(ham%fourxlist,stat=i_stat)
+         call memocc(i_stat,i_all,'fourxlist','allocate_fourxhamiltoniandata')
+         i_all=-product(shape(ham%fourx_coup))*kind(ham%fourx_coup)
+         deallocate(ham%fourx_coup,stat=i_stat)
+         call memocc(i_stat,i_all,'fourx_coup','allocate_fourxhamiltoniandata')
+      end if
+
+   end subroutine allocate_fourxhamiltoniandata
+
+
    !> Allocate arrays for Pseudo-Dipolar Hamiltonian
    subroutine allocate_pdhamiltoniandata(Natom,nHam,nn_pd_tot,flag)
       implicit none
@@ -386,7 +381,7 @@ contains
          call memocc(i_stat,product(shape(ham%pdlistsize))*kind(ham%pdlistsize),'pdlistsize','allocate_pdhamiltoniandata')
          allocate(ham%pdlist(nn_pd_tot,Natom),stat=i_stat)
          call memocc(i_stat,product(shape(ham%pdlist))*kind(ham%pdlist),'pdlist','allocate_pdhamiltoniandata')
-         allocate(ham%pd_vect(6,nn_pd_tot,nHam),stat=i_stat)
+         allocate(ham%pd_vect(9,nn_pd_tot,nHam),stat=i_stat)
          call memocc(i_stat,product(shape(ham%pd_vect))*kind(ham%pd_vect),'pd_vect','allocate_pdhamiltoniandata')
       else
          i_all=-product(shape(ham%pdlistsize))*kind(ham%pdlistsize)
@@ -469,6 +464,49 @@ contains
       end if
 
    end subroutine allocate_bqhamiltoniandata
+   
+   !----------------------------------------------------------------------------
+   !> @brief Allocate arrays for four-spin ring exchange Hamiltonian
+   !----------------------------------------------------------------------------
+   
+    subroutine allocate_ringhamiltoniandata(Natom,nHam,nn_ring_tot,flag)
+   
+    implicit none
+
+    integer, optional, intent(in) :: Natom !< Number of atoms in system
+    integer, optional, intent(in) :: nHam  !< Number of atoms in Hamiltonian
+    integer, optional, intent(in) :: nn_ring_tot !< Calculated number of neighbours with ring interactions
+    integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+    integer :: i_all, i_stat
+
+    if(flag>0) then
+
+       allocate(ham%ringlistsize(Natom),stat=i_stat)
+       call memocc(i_stat,product(shape(ham%ringlistsize))*kind(ham%ringlistsize),'ringlistsize','allocate_ringhamiltoniandata')
+      
+       allocate(ham%ringlist(Natom,nn_ring_tot,3),stat=i_stat)
+       call memocc(i_stat,product(shape(ham%ringlist))*kind(ham%ringlist),'ringlist','allocate_ringhamiltoniandata')
+      
+       allocate(ham%j_ring(nHam,nn_ring_tot),stat=i_stat)
+       call memocc(i_stat,product(shape(ham%j_ring))*kind(ham%j_ring),'j_ring','allocate_ringhamiltoniandata')
+
+    else
+
+       i_all=-product(shape(ham%ringlistsize))*kind(ham%ringlistsize)
+       deallocate(ham%ringlistsize,stat=i_stat)
+       call memocc(i_stat,i_all,'ringlistsize','allocate_ringhamiltoniandata')
+
+       i_all=-product(shape(ham%ringlist))*kind(ham%ringlist)
+       deallocate(ham%ringlist,stat=i_stat)
+       call memocc(i_stat,i_all,'ringlist','allocate_ringhamiltoniandata')
+
+       i_all=-product(shape(ham%j_ring))*kind(ham%j_ring)
+       deallocate(ham%j_ring,stat=i_stat)
+       call memocc(i_stat,i_all,'j_ring','allocate_ringhamiltoniandata')
+
+    end if
+
+  end subroutine allocate_ringhamiltoniandata
 
    !----------------------------------------------------------------------------
    !> @brief Allocate arrays for dipole matrix
@@ -519,13 +557,14 @@ contains
    end subroutine allocate_macro_dipole
 
 
-   subroutine scalar_to_tensor(nHam,do_dm)
+   subroutine scalar_to_tensor(nHam,do_dm,do_sa)
       !
       implicit none
       !
       !
       integer, intent(in) :: nHam  !< Number of atoms in Hamiltonian
       integer, intent(in) :: do_dm   !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_sa   !< Add Symmetric anisotropic (SA) term to Hamiltonian (0/1)
       !
       integer :: i,j, dn, jn, k
       !
@@ -546,8 +585,29 @@ contains
                   jn  = ham%nlist(k,i)
                   if(jn==dn) then
                      ham%j_tens(2,3,j,i) = ham%dm_vect(1,j,i)
-                     ham%j_tens(1,3,j,i) = ham%dm_vect(2,j,i)
+                     ham%j_tens(3,2,j,i) = -ham%dm_vect(1,j,i)
+                     ham%j_tens(1,3,j,i) = -ham%dm_vect(2,j,i)
+                     ham%j_tens(3,1,j,i) = ham%dm_vect(2,j,i)
                      ham%j_tens(1,2,j,i) = ham%dm_vect(3,j,i)
+                     ham%j_tens(2,1,j,i) = -ham%dm_vect(3,j,i)
+                  end if
+               end do
+            end do
+         end if
+
+         ! Symmetric anisotropic term
+         if(do_sa==1) then
+            do j=1,ham%salistsize(i)
+               dn  = ham%salist(j,i)
+               do k=1,ham%nlistsize(i)
+                  jn  = ham%nlist(k,i)
+                  if(jn==dn) then
+                     ham%j_tens(2,3,j,i) = ham%sa_vect(1,j,i)
+                     ham%j_tens(3,2,j,i) = ham%sa_vect(1,j,i)
+                     ham%j_tens(1,3,j,i) = ham%sa_vect(2,j,i)
+                     ham%j_tens(3,1,j,i) = ham%sa_vect(2,j,i)
+                     ham%j_tens(1,2,j,i) = ham%sa_vect(3,j,i)
+                     ham%j_tens(2,1,j,i) = ham%sa_vect(3,j,i)
                   end if
                end do
             end do

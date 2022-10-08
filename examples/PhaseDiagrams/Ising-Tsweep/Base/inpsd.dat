@@ -1,0 +1,42 @@
+simid  scHeis64 
+ncell  32 32 1
+BC        P P 0
+cell       1.000000000000    0.000000000000    0.000000000000
+           0.000000000000   1.000000000000    0.000000000000
+    0.000000000000    0.000000000000   10.0
+
+Sym       2                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile    ./posfile
+exchange   ./jfile
+momfile    ./momfile
+
+do_dip 0
+alat 3e-7
+
+
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode  I                                     Initial phase parameter
+ip_temp TEMP.001
+ip_mcNstep    50000                            --
+
+mode      I                                     S=SD, M=MC
+temp    TEMP.001
+mcNstep   20000
+
+
+do_avrg   Y                                     Measure averages
+avrg_step 100 
+
+plotenergy 1                                    Calculate energy of the system projected on the different Hamiltonian components
+
+do_cumu Y
+
+posfiletype D
+maptype 1
+plotenergy 1
+
+block_size 1
+do_sortcoup N
+

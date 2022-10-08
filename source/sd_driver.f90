@@ -119,7 +119,7 @@ contains
             endif
          endif
          ! Calculate external fields
-         call calc_external_fields(Natom,Mensemble,NA,iphfield,anumb,external_field,&
+         call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
             do_bpulse,sitefld,sitenatomfld)
 
 
@@ -174,7 +174,7 @@ contains
             call timing(0,'Initial       ','OF')
             call timing(0,'Hamiltonian   ','ON')
             if(do_sparse=='Y') then
-               if(do_dm==1) then
+               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
                   call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
                else
                   call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
@@ -184,12 +184,11 @@ contains
                beff=beff1+beff2
             else
 
-               call effective_field(Natom,Mensemble,1,Natom,do_jtensor,             &
-                  do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,&
-                  emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
-                  OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
-                  constlNCoup,constellations,constellationsNeighType,mult_axis,     &
-                  denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,&
+               call effective_field(Natom,Mensemble,1,Natom, &
+                  emomM,mmom,external_field,time_external_field,beff,beff1,    & 
+                  beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,      &
+                  constlNCoup,constellations,constellationsNeighType,      &
+                  denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
                   N3)
             end if
             call timing(0,'Hamiltonian   ','OF')
@@ -204,7 +203,7 @@ contains
                ! Perform first (predictor) step of SDE solver
                call timing(0,'Initial       ','OF')
                call timing(0,'Evolution     ','ON')
-               call evolve_first(Natom,Mensemble,Landeg,llg,SDEalgh,bn,             &
+               call evolve_first(Natom,Mensemble,Landeg,llg,ipSDEalgh,bn,             &
                   iplambda1_array(i,:),iplambda2_array(i,:),NA,compensate_drift,    &
                   ipdelta_t(i),relaxtime,ipTemp_array(:,i),temprescale,beff,b2eff,  &
                   thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,  &
@@ -212,15 +211,15 @@ contains
                   constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
                   constellations,unitCellType,OPT_flag,cos_thr,                     &
                   max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
-                  do_fixed_mom,'N',sot_btorque)
+                  'N',sot_btorque)
 
-               if(SDEalgh==1.or.SDEalgh==4.or.SDEalgh==5.or.SDEalgh==6.or.SDEalgh==7.or.SDEalgh==11) then
+               if(ipSDEalgh==1.or.ipSDEalgh==4.or.ipSDEalgh==5.or.ipSDEalgh==6.or.ipSDEalgh==7.or.ipSDEalgh==11) then
 
                   ! Apply Hamiltonian to obtain effective field
                   call timing(0,'Evolution     ','OF')
                   call timing(0,'Hamiltonian   ','ON')
                   if(do_sparse=='Y') then
-                     if(do_dm==1) then
+                      if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
                         call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
                      else
                         call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
@@ -229,12 +228,12 @@ contains
                      beff2=external_field+time_external_field
                      beff=beff1+beff2
                   else
-                     call effective_field(Natom,Mensemble,1,Natom,do_jtensor,       &
-                        do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir, &
-                        do_dip,emomM,mmom,external_field,time_external_field,beff,  &
-                        beff1,beff2,OPT_flag,max_no_constellations,maxNoConstl,     &
+                     call effective_field(Natom,Mensemble,1,Natom, &
+                        emomM,mmom,external_field,                   &
+                        time_external_field,beff,beff1,beff2,OPT_flag,              & 
+                        max_no_constellations,maxNoConstl,                          &
                         unitCellType,constlNCoup,constellations,                    &
-                        constellationsNeighType,mult_axis,denergy,Num_macro,        &
+                        constellationsNeighType,denergy,Num_macro,        &
                         cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
                   end if
                   call timing(0,'Hamiltonian   ','OF')
@@ -242,13 +241,13 @@ contains
                endif
 
                ! Perform second (corrector) step of SDE solver
-               call evolve_second(Natom,Mensemble,Landeg,llg,SDEalgh,bn,            &
+               call evolve_second(Natom,Mensemble,Landeg,llg,ipSDEalgh,bn,            &
                   iplambda1_array(i,:),ipdelta_t(i),relaxtime,beff,beff2,b2eff,     &
                   btorque,emom,emom2,'N',ham%nlist,ham%nlistsize,                   &
                   constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
                   constellations,unitCellType,OPT_flag,cos_thr,                     &
                   max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
-                  do_fixed_mom,'N',sot_btorque)
+                  'N',sot_btorque)
 
             ! Update magnetic moments after time evolution step
             call moment_update(Natom,Mensemble,mmom,mmom0,mmom2,emom,emom2,emomM,   &
@@ -276,7 +275,7 @@ contains
             ! If the macrospin dipole-dipole interaction is used one needs to re-calculate
             ! the macrospins
             !------------------------------------------------------------------------
-            if (do_dip==2) then
+            if (ham_inp%do_dip==2) then
                call calc_macro_mom(Natom,Num_macro,Mensemble,                       &
                   max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,mmom,    &
                   emom,emomM,mmom_macro,emom_macro,emomM_macro)
@@ -305,7 +304,6 @@ contains
       use BLS,                   only : calc_bls
       use Energy,                only : calc_energy
       use Sparse
-      use diamag
       use Damping
       use KMCData
       use FixedMom
@@ -321,7 +319,7 @@ contains
       use FieldPulse
       use SystemData,            only: coord
       use SystemData,            only : atype, anumb, Landeg
-      use Correlation,           only : correlation_wrapper
+      use Correlation
       use Temperature
       use SpinTorques
       use ChemicalData
@@ -332,6 +330,7 @@ contains
       !use InducedMoments,        only : renorm_ncoup_ind
       use MicroWaveField
       use SimulationData,        only : bn, rstep, mstep
+      use Math_functions, only : f_logstep
       use HamiltonianData
       use CalculateFields
       use AutoCorrelation,       only : autocorr_sample, do_autocorr
@@ -339,6 +338,7 @@ contains
       use HamiltonianActions
       use OptimizationRoutines
       use AdaptiveTimeStepping
+      use MetaTypes
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
@@ -378,19 +378,6 @@ contains
       call calc_bls(N1,N2,N3,C1,C2,C3,Natom,Mensemble,simid,coord,emomM,sstep,      &
          delta_t,0)
 
-      if(do_diamag=='Y') then
-         !print *,'N1,N2,N3,NT,NA,Natom',N1,N2,N3,NT,NA,Natom,nHam
-         !print *,'ham%max_no_neigh',ham%max_no_neigh
-         !print *,'ham%nlistsize', shape(ham%nlistsize)
-         !print *,'ham%nlist',shape(ham%nlist)
-         !print *,'ham%ncoup', shape(ham%ncoup)
-         !print *,'ham%kaniso',shape(ham%kaniso)
-         !call setup_infinite_hamiltonian(N1,N2,N3,NT,NA,Natom,nHam,Mensemble,conf_num,&
-         !   simid,emomM,mmom,do_dm)
-         call setup_tensor_hamiltonian(N1,N2,N3,NT,NA,Natom,Mensemble,simid,emomM,  &
-            mmom,do_dm)
-      end if
-
       !  Iniitialize magnetic field pulse
       if (do_bpulse.gt.0.and.do_bpulse.lt.5) then
          bpulse_time = delta_t*rstep
@@ -408,7 +395,7 @@ contains
       end if
 
       ! Calculate the external static fields, the can be calculated once and it does not needs to be calculated again
-      call calc_external_fields(Natom,Mensemble,NA,hfield,anumb,external_field,     &
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
       ! Adaptive Time Stepping Region
@@ -494,13 +481,13 @@ contains
             call timing(0,'Measurement   ','OF')
             call timing(0,'Energy        ','ON')
             if (mod(mstep-1,avrg_step)==0) then
-               call calc_energy(nHam,mstep,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,  &
-                  do_dip,do_biqdm,conf_num,Mensemble,Natom,Num_macro,1,do_jtensor,  &
-                  plotenergy,do_anisotropy,Temp,delta_t,do_lsf,exc_inter,mult_axis, &
-                  lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,     &
-                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,       &
-                  time_external_field,max_no_constellations,maxNoConstl,            &
-                  unitCellType,constlNCoup,constellations,OPT_flag,                 &
+               call calc_energy(nHam,mstep,Natom,Nchmax, &
+                  conf_num,Mensemble,Natom,Num_macro,1,         &
+                  plotenergy,Temp,delta_t,do_lsf,        &
+                  lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
+                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
+                  time_external_field,max_no_constellations,maxNoConstl,                   &
+                  unitCellType,constlNCoup,constellations,OPT_flag,                        &
                   constellationsNeighType,totene,NA,N1,N2,N3)
             end if
             call timing(0,'Energy        ','OF')
@@ -514,7 +501,7 @@ contains
          ! Spin correlation
          ! Sample magnetic moments for correlation functions
          call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,  &
-            NT,atype,Nchmax,achtype,cgk_flag,cgk_flag_p)
+            NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
          call calc_bls(N1,N2,N3,C1,C2,C3,Natom,Mensemble,simid,coord,emomM,mstep,   &
             delta_t,1)
@@ -537,7 +524,7 @@ contains
                if(plotenergy>0) then
                   write(*,'(a,f12.6)',advance='no') ". Ebar:", totene
                endif
-               sstep = logstep(mstep,logsamp)
+               sstep = f_logstep(mstep,logsamp)
                if(mod(sstep,cumu_step)==0)then
                   write(*,'(a,f8.5,a)',advance='no') ". U:",binderc,"."
                endif
@@ -579,7 +566,7 @@ contains
 
          ! Apply Hamiltonian to obtain effective field
          if(do_sparse=='Y') then
-            if(do_dm==1) then
+            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
                call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
             else
                call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
@@ -589,11 +576,10 @@ contains
             beff=beff1+beff2
          else
 
-            call effective_field(Natom,Mensemble,1,Natom,do_jtensor,do_anisotropy,  &
-               exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,      &
-               external_field,time_external_field,beff,beff1,beff2,OPT_flag,        &
+            call effective_field(Natom,Mensemble,1,Natom,emomM,   &
+               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-               constellations, constellationsNeighType, mult_axis,totenergy,        &
+               constellations, constellationsNeighType, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          end if
 
@@ -613,7 +599,7 @@ contains
                ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,          &
                constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,      &
                max_no_constellations,do_she,she_btorque,Nred,red_atom_list,         &
-               do_fixed_mom,do_sot,sot_btorque)
+               do_sot,sot_btorque)
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Hamiltonian   ','ON')
@@ -638,7 +624,7 @@ contains
 
             ! Apply Hamiltonian to obtain effective field
             if(do_sparse=='Y') then
-               if(do_dm==1) then
+               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
                   call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
                else
                   call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
@@ -650,13 +636,12 @@ contains
                !---------------------------------------------------------------------
                !! End of the induced moments treatment
                !---------------------------------------------------------------------
-               call effective_field(Natom,Mensemble,1,Natom,do_jtensor,             &
-                  do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,&
-                  emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
-                  OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
-                  constlNCoup,constellations,constellationsNeighType,mult_axis,     &
-                  totenergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1, &
-                  N2,N3)
+               call effective_field(Natom,Mensemble,1,Natom,  &
+                  emomM,mmom,external_field,time_external_field,     &
+                  beff,beff1,beff2,OPT_flag,max_no_constellations,maxNoConstl,      &
+                  unitCellType,constlNCoup,constellations,constellationsNeighType,  & 
+                  totenergy,Num_macro,cell_index,emomM_macro,             &
+                  macro_nlistsize,NA,N1,N2,N3)
             end if
 
          end if
@@ -674,7 +659,7 @@ contains
             ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
             constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
             max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
-            do_fixed_mom,do_sot,sot_btorque)
+            do_sot,sot_btorque)
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Moments       ','ON')
@@ -713,7 +698,7 @@ contains
          ! If the macrospin dipole-dipole interaction is used one needs to re-calculate
          ! the macrospins
          !----------------------------------------------------------------------------
-         if (do_dip==2) then
+         if (ham_inp%do_dip==2) then
             call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,  &
                macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,         &
                emom_macro,emomM_macro)
@@ -792,23 +777,20 @@ contains
       !use BLS,                   only : calc_bls
       use Energy,                only : calc_energy
       use Sparse
-      !use diamag
       use Damping
       !use KMCData
       use FixedMom
       !use Gradients
       use Evolution_lite
       use InputData
-      use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
+      use FieldData,             only : beff,beff1,beff2,beff3,b2eff,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
          thermal_field
       use macrocells
       use DemagField
       use MomentData
       use FieldPulse
-      use SystemData,            only: coord
-      use SystemData,            only : atype, anumb, Landeg
-      use Correlation,           only : correlation_wrapper
+      use SystemData,            only: coord, atype, Landeg
       use Temperature
       use SpinTorques
       use ChemicalData
@@ -818,10 +800,10 @@ contains
       use UpdateMoments
       !use InducedMoments,        only : renorm_ncoup_ind
       use MicroWaveField
+      use Math_functions, only : f_logstep
       use SimulationData,        only : bn, rstep, mstep
       use HamiltonianData
       use CalculateFields
-      use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use prn_trajectories
       use HamiltonianActions_lite
       use OptimizationRoutines
@@ -829,14 +811,14 @@ contains
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
-      integer :: cgk_flag,cgk_flag_p,adapt_step,cr_flag,spt_flag,ntmp
+      integer :: cgk_flag, cgk_flag_p, adapt_step, cr_flag, spt_flag
       integer :: bcgk_flag,cgk_flag_pc
       integer :: scount_pulse, sstep
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
       ! Used in order to separate between phases in an adaptive time step environment with spin correlation
       logical :: sd_phaseflag
 
-      real(dblprec) :: temprescale, temprescalegrad, totene, totenergy,dummy
+      real(dblprec) :: temprescale, temprescalegrad, totene, totenergy
 
       ! Spin correlation measurements allowed
       adapt_step = 0
@@ -899,7 +881,7 @@ contains
                if(plotenergy>0) then
                   write(*,'(a,f12.6)',advance='no') ". Ebar:", totene
                endif
-               sstep = logstep(mstep,logsamp)
+               sstep = f_logstep(mstep,logsamp)
                if(mod(sstep,cumu_step)==0)then
                   write(*,'(a,f8.5,a)',advance='no') ". U:",binderc,"."
                endif
@@ -923,9 +905,9 @@ contains
          !   beff=beff1+beff2
          !else
 
-          call effective_field_lite(Natom,Mensemble,1,Natom,do_jtensor,      &
-      do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
-      external_field,time_external_field,beff,beff1,beff2,mult_axis,totenergy,NA,N1,N2,N3)
+          call effective_field_lite(Natom,Mensemble,1,Natom,ham_inp%do_jtensor,      &
+      ham_inp%do_anisotropy,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham_inp%do_dip,emomM,mmom, &
+      external_field,time_external_field,beff,beff1,beff2,ham_inp%mult_axis,totenergy,NA,N1,N2,N3)
 !              call effective_field_lite(Natom,Mensemble,1,Natom,do_jtensor,             &
 !                 do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,&
 !                 emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
@@ -942,12 +924,9 @@ contains
             thermal_field=0.0_dblprec
             call evolve_first_lite(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
                lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,      &
-               temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,    &
-               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,ham%nlist,           &
-               ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,          &
-               constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,      &
-               max_no_constellations,do_she,she_btorque,Nred,red_atom_list,         &
-               do_fixed_mom,do_sot,sot_btorque)
+               temprescale,beff,b2eff,thermal_field,btorque,field1,field2,    &
+               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,         &
+               do_sot,sot_btorque)
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Hamiltonian   ','ON')
@@ -971,9 +950,9 @@ contains
                !! End of the induced moments treatment
                !---------------------------------------------------------------------
             !call effective_field_lite(Natom,Mensemble,1,Natom,emomM,mmom,external_field,beff,beff1,beff2,totenergy,NA,N1,N2,N3)
-          call effective_field_lite(Natom,Mensemble,1,Natom,do_jtensor,      &
-      do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
-      external_field,time_external_field,beff,beff1,beff2,mult_axis,totenergy,NA,N1,N2,N3)
+          call effective_field_lite(Natom,Mensemble,1,Natom,ham_inp%do_jtensor,      &
+      ham_inp%do_anisotropy,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham_inp%do_dip,emomM,mmom, &
+      external_field,time_external_field,beff,beff1,beff2,ham_inp%mult_axis,totenergy,NA,N1,N2,N3)
           !     call effective_field_lite(Natom,Mensemble,1,Natom,do_jtensor,             &
           !        do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,&
           !        emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
@@ -988,11 +967,8 @@ contains
 
          ! Perform second (corrector) step of SDE solver
          call evolve_second_lite(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
-            delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,              &
-            ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
-            constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
-            max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
-            do_fixed_mom,do_sot,sot_btorque)
+            delta_t,relaxtime,beff,b2eff,btorque,emom,emom2,stt,              &
+            do_she,she_btorque,Nred,red_atom_list,do_sot,sot_btorque)
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Moments       ','ON')
@@ -1070,5 +1046,181 @@ contains
       endif
       call timing(0,'Measurement   ','OF')
    end subroutine sd_mphaseCUDA
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Spin Dynamics minimal wrapper 
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------------
+   subroutine sd_minimal(emomM_io,emom_io,mmom_io,niter,sd_alg,sd_temp)
+      !
+      use QHB,                   only : qhb_rescale, do_qhb, qhb_mode
+      use Sparse
+      use Damping,               only : lambda1_array,lambda2_array
+      use FixedMom
+      use Evolution
+      use InputData
+      use FieldData,             only : beff,beff1,beff2,b2eff,sitefld,             &
+         external_field,field1,field2,thermal_field,time_external_field
+      use FieldPulse
+      use SystemData
+      use DemagField
+      use MomentData
+      use macrocells
+      use SpinTorques
+      use Temperature
+      use Measurements
+      use UpdateMoments
+      !use InducedMoments,        only : renorm_ncoup_ind
+      use MicroWaveField
+      use SimulationData,        only : bn
+      use HamiltonianData
+      use CalculateFields
+      use HamiltonianActions
+      use optimizationRoutines
+      use AdaptiveTimestepping
+      !
+      implicit none
+      !
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM_io
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom_io
+      real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom_io
+      integer, intent(in) :: sd_alg
+      real(dblprec), intent(in) :: sd_temp
+      integer, intent(in) :: niter
+
+      ! Adaptive time stepping
+      integer :: ipstep, ia, ik
+      real(dblprec) :: temprescale,temprescalegrad, dummy, denergy
+      real(dblprec) :: mavg
+
+      ! Copy inmoments to working array
+      do ik=1,Mensemble
+         do ia=1,Natom
+            emom(:,ia,ik)=emom_io(:,ia,ik)
+            mmom(ia,ik)=mmom_io(ia,ik)
+            emomM(:,ia,ik)=emomM_io(:,ia,ik)
+            mmomi(ia,ik) = 1.0_dblprec/mmom(ia,ik)
+         end do
+      end do
+
+
+      ! Rescaling of temperature according to Quantum Heat bath
+      temprescale=1.0_dblprec
+      temprescalegrad=0.0_dblprec
+      if (do_qhb=="Q" .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
+         if(qhb_mode=='MT') then
+            call calc_mavrg(Natom,Mensemble,emomM,mavg)
+            call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
+         else
+            call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
+         endif
+      endif
+      ! Calculate external fields
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
+         do_bpulse,sitefld,sitenatomfld)
+
+
+      ! Main initial loop
+      !--------------------------------------!
+      ipstep = 1
+      do while(ipstep.LE.niter)
+
+         if(do_sparse=='Y') then
+            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
+               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
+            else
+               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
+            end if
+            beff1=beff
+            beff2=external_field+time_external_field
+            beff=beff1+beff2
+         else
+
+            call effective_field(Natom,Mensemble,1,Natom, &
+               emomM,mmom,external_field,time_external_field,beff,beff1,    & 
+               beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,      &
+               constlNCoup,constellations,constellationsNeighType,      &
+               denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
+               N3)
+         end if
+
+         ! Try to see if this fixes the energy bouncing around. It did. This is need to avoid incremental temp.
+         thermal_field=0.0_dblprec
+
+         call evolve_first(Natom,Mensemble,Landeg,llg,sd_alg,bn,             &
+            lambda1_array,lambda2_array,NA,compensate_drift,    &
+            delta_t,relaxtime,Temp_array,temprescale,beff,b2eff,  &
+            thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,  &
+            mmomi,'N',do_site_damping,ham%nlist,ham%nlistsize,             &
+            constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
+            constellations,unitCellType,OPT_flag,cos_thr,                     &
+            max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
+            'N',sot_btorque)
+
+         if(sd_alg==1.or.sd_alg==4.or.sd_alg==5.or.sd_alg==6.or.sd_alg==7.or.sd_alg==11) then
+
+            if(do_sparse=='Y') then
+               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
+                  call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
+               else
+                  call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
+               end if
+               beff1=beff
+               beff2=external_field+time_external_field
+               beff=beff1+beff2
+            else
+               call effective_field(Natom,Mensemble,1,Natom, &
+                  emomM,mmom,external_field,                   &
+                  time_external_field,beff,beff1,beff2,OPT_flag,              & 
+                  max_no_constellations,maxNoConstl,                          &
+                  unitCellType,constlNCoup,constellations,                    &
+                  constellationsNeighType,denergy,Num_macro,        &
+                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            end if
+         endif
+
+         ! Perform second (corrector) step of SDE solver
+         call evolve_second(Natom,Mensemble,Landeg,llg,sd_alg,bn,            &
+            lambda1_array,delta_t,relaxtime,beff,beff2,b2eff,     &
+            btorque,emom,emom2,'N',ham%nlist,ham%nlistsize,                   &
+            constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
+            constellations,unitCellType,OPT_flag,cos_thr,                     &
+            max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
+            'N',sot_btorque)
+
+         ! Update magnetic moments after time evolution step
+         call moment_update(Natom,Mensemble,mmom,mmom0,mmom2,emom,emom2,emomM,   &
+            mmomi,mompar,initexc)
+
+         ipstep = ipstep + 1
+         !------------------------------------------------------------------------
+         !------------------------------------------------------------------------
+         ! If the macrospin dipole-dipole interaction is used one needs to re-calculate
+         ! the macrospins
+         !------------------------------------------------------------------------
+         if (ham_inp%do_dip==2) then
+            call calc_macro_mom(Natom,Num_macro,Mensemble,                       &
+               max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,mmom,    &
+               emom,emomM,mmom_macro,emom_macro,emomM_macro)
+         endif
+         !------------------------------------------------------------------------
+         ! End of the macrospin re-calculation
+         !------------------------------------------------------------------------
+
+      enddo
+
+      ! Copy working moments to outdata
+      do ik=1,Mensemble
+         do ia=1,Natom
+            emom_io(:,ia,ik)=emom(:,ia,ik)
+            mmom_io(ia,ik)=mmom(ia,ik)
+            emomM_io(:,ia,ik)=emomM(:,ia,ik)
+         end do
+      end do
+
+   end subroutine sd_minimal
 
 end module sd_driver

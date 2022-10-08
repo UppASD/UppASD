@@ -46,7 +46,7 @@ contains
    !> Evolves the path to the nearest MEP according to the GNEB+VPO algorithm
    !> @author Pavel Bessarab
    !---------------------------------------------------------------------------------
-   subroutine gneb_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_chir,do_dip,itrmax,&
+   subroutine gneb_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip,itrmax,&
       Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,       &
       max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
       mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,            &
@@ -68,6 +68,7 @@ contains
       integer, intent(in) :: do_dm          !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
       integer, intent(in) :: do_pd          !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
       integer, intent(in) :: do_bq          !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_ring        !< Add four-spin ring (4SR) term to Hamiltonian (0/1)      
       integer, intent(in) :: do_dip         !< Calculate dipole-dipole contribution (0/1)
       integer, intent(in) :: itrmax         !< Maximum number of iterations
       integer, intent(in) :: Nchmax         !< Max number of chemical components on each site in cell
@@ -137,21 +138,20 @@ contains
       !------------------------------------------------------------------------------
       print*,'! Calculation of the effective field'
       call timing(0,'Hamiltonian   ','ON')
-      call effective_field(Natom,nim,1,Natom,do_jtensor,do_anisotropy,exc_inter,    &
-         do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,external_field,       &
-         time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,    &
-         maxNoConstl, unitCellType, constlNCoup, constellations,                    &
-         constellationsNeighType, mult_axis,tenergy,Num_macro,cell_index,           &
+      call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
+         time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,     &
+         maxNoConstl, unitCellType, constlNCoup, constellations,                     &
+         constellationsNeighType,tenergy,Num_macro,cell_index,            &
          emomM_macro,macro_nlistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
 
-      call calc_energy(nHam,1,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,        &
-         do_biqdm,conf_num,nim,Natom,Num_macro,1,do_jtensor,plotenergy,             &
-         do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,lsf_field,    &
-         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,      &
-         emomM_macro,external_field,time_external_field,max_no_constellations,      &
-         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,              &
+      call calc_energy(nHam,1,Natom,Nchmax, &
+         conf_num,nim,Natom,Num_macro,1,plotenergy,              &
+         0.0_dblprec,delta_t,do_lsf,lsf_field,     &
+         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
+         emomM_macro,external_field,time_external_field,max_no_constellations,       &
+         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
          constellationsNeighType,tenergy,NA,N1,N2,N3)
 
        u(:) = ene%energy(:)*Natom
@@ -319,22 +319,21 @@ contains
 
          call timing(0,'Hamiltonian   ','ON')
          ! Calculation of the effective field
-         call effective_field(Natom,nim,1,Natom,do_jtensor,do_anisotropy,exc_inter, &
-            do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,external_field,    &
-            time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations, &
-            maxNoConstl, unitCellType, constlNCoup, constellations,                 &
-            constellationsNeighType, mult_axis,tenergy,Num_macro,cell_index,        &
+         call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field, &
+            time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,      &
+            maxNoConstl, unitCellType, constlNCoup, constellations,                      &
+            constellationsNeighType, tenergy,Num_macro,cell_index,             &
             emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
          ! Calculation of the total energy
         
-         call calc_energy(nHam,itr,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,   &
-            do_biqdm,conf_num,nim,Natom,Num_macro,1,do_jtensor,plotenergy,          &
-            do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,lsf_field, &
-            lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,   &
-            emomM_macro,external_field,time_external_field,max_no_constellations,   &
-            maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,           &
+         call calc_energy(nHam,itr,Natom,Nchmax,&
+            conf_num,nim,Natom,Num_macro,1,plotenergy,               &
+            0.0_dblprec,delta_t,do_lsf,lsf_field,      &
+            lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,        &
+            emomM_macro,external_field,time_external_field,max_no_constellations,        &
+            maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                &
             constellationsNeighType,tenergy,NA,N1,N2,N3)
 
          u(:) = ene%energy(:)*Natom
@@ -503,7 +502,7 @@ contains
    !> @details This tries to find the MEP by using a climbing image approach
    !> @author Pavel Bessarab
    !---------------------------------------------------------------------------------
-   subroutine gneb_ci_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_chir,do_dip,    &
+   subroutine gneb_ci_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip,&
       itrmax,Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,&
       max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
       mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag, cell_index,           &
@@ -525,6 +524,7 @@ contains
       integer, intent(in) :: do_dm           !< Add Dzyaloshinskii-Moriya (DM) term to Hamiltonian (0/1)
       integer, intent(in) :: do_pd           !< Add Pseudo-Dipolar (PD) term to Hamiltonian (0/1)
       integer, intent(in) :: do_bq           !< Add biquadratic exchange (BQ) term to Hamiltonian (0/1)
+      integer, intent(in) :: do_ring         !< Add four-spin ring (4SR) term to Hamiltonian (0/1)      
       integer, intent(in) :: do_dip          !< Calculate dipole-dipole contribution (0/1)
       integer, intent(in) :: itrmax          !< Maximum number of iterations
       integer, intent(in) :: Nchmax          !< Max number of chemical components on each site in cell
@@ -594,21 +594,20 @@ contains
       !------------------------------------------------------------------------------
       ! Calculation of the effective field
       call timing(0,'Hamiltonian   ','ON')
-      call effective_field(Natom,nim,1,Natom,do_jtensor,do_anisotropy,exc_inter,    &
-         do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,external_field,       &
-         time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,       &
-         maxNoConstl,unitCellType,constlNCoup,constellations,                       &
-         constellationsNeighType,mult_axis,tenergy,Num_macro,cell_index,emomM_macro,&
+      call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
+         time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,        &
+         maxNoConstl,unitCellType,constlNCoup,constellations,                        &
+         constellationsNeighType,tenergy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
       ! Calculate the total energy of the system
-      call calc_energy(nHam,1,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,        &
-         do_biqdm,conf_num,nim,Natom,Num_macro,1,do_jtensor,plotenergy,             &
-         do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,lsf_field,    &
-         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,      &
-         emomM_macro,external_field,time_external_field,max_no_constellations,      &
-         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,              &
+      call calc_energy(nHam,1,Natom,Nchmax, &
+         conf_num,nim,Natom,Num_macro,1,plotenergy,              &
+         0.0_dblprec,delta_t,do_lsf,lsf_field,     &
+         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
+         emomM_macro,external_field,time_external_field,max_no_constellations,       &
+         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
          constellationsNeighType,tenergy,NA,N1,N2,N3)
 !!!!!!!!!!!!!!!!!!!
       u(:) = ene%energy(:)*Natom
@@ -802,18 +801,17 @@ contains
 
          ! Calculation of the effective field
          call timing(0,'Hamiltonian   ','ON')
-         call effective_field(Natom,nim,1,Natom,do_jtensor,do_anisotropy,exc_inter, &
-            do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom,external_field,    &
-            time_external_field,beff, beff1, beff2, OPT_flag, max_no_constellations,&
-            maxNoConstl,unitCellType, constlNCoup, constellations,                  &
-            constellationsNeighType, mult_axis,tenergy,Num_macro,cell_index,        &
+         call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
+            time_external_field,beff, beff1, beff2, OPT_flag, max_no_constellations,    &
+            maxNoConstl,unitCellType, constlNCoup, constellations,                      &
+            constellationsNeighType, tenergy,Num_macro,cell_index,            &
             emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
          ! Calculate the total energy per spin of the system
-         call calc_energy(nHam,itr,do_dm,do_pd,do_bq,Natom,Nchmax,do_chir,do_dip,   &
-            do_biqdm,conf_num,nim,Natom,Num_macro,1,do_jtensor,plotenergy,          &
-            do_anisotropy,0.0_dblprec,delta_t,do_lsf,exc_inter,mult_axis,lsf_field, &
+         call calc_energy(nHam,itr,Natom,Nchmax,  &
+            conf_num,nim,Natom,Num_macro,1,plotenergy,   &
+            0.0_dblprec,delta_t,do_lsf,lsf_field, &
             lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,   &
             emomM_macro,external_field,time_external_field,max_no_constellations,   &
             maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,           &

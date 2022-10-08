@@ -189,7 +189,6 @@ contains
       Nchmax,Nch,achtype,acellnumb,acellnumbrev,chconc,atype_ch,asite_ch,achem_ch)
       !
       use RandomNumbers, only : rng_uniform
-      use Sorting, only : mergesort
       !
       implicit none
 
@@ -408,7 +407,7 @@ contains
 
       ! Open file for writing the coordinates
       if(do_prnstruct==1.or.do_prnstruct==2.or.do_prnstruct==4) then
-         write (filn,'(''coord.'',a8,''.out'')') simid
+         write (filn,'(''coord.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn)
       end if
       if(do_prn_poscar==1) then

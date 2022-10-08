@@ -28,7 +28,6 @@ docs/latex/**
 docs/html
 docs/html/**
 examples_revision_controlled/bccFe-Tsweep/T*
-examples/*
 source/make/user_profiles
 source/make/objs_c.make
 mod

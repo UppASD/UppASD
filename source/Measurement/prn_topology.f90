@@ -22,14 +22,22 @@ module prn_topology
    real(dblprec), dimension(:), allocatable :: skynob         !< Buffer for the skyrmion number
    real(dblprec), dimension(:,:), allocatable :: proj_skynob  !< Buffer for the skyrmion number
    real(dblprec), dimension(:,:), allocatable :: dens_skynob  !< Buffer fot the skyrmion density
+   real(dblprec), dimension(:,:), allocatable :: cmass_skynob  !< Buffer fot the skyrmion density
    real(dblprec), dimension(:,:,:), allocatable :: spol_buff  !< Buffer data for polarization vector
    real(dblprec), dimension(:,:,:,:), allocatable :: grad_mom !< Gradient of moments
    real(dblprec), dimension(:,:,:,:,:), allocatable :: proj_grad_mom !< Gradient of moments
+   real(dblprec) :: sk_num_cum=0.0_dblprec !< Cumulative sum of the skyrmion number
+   real(dblprec) :: sk2_num_cum=0.0_dblprec !< Cumulative sum of the skyrmion number squared
+   real(dblprec) :: sk_avrg=0.0_dblprec !< Cumulative average of the skyrmion number
+   real(dblprec) :: sk2_avrg=0.0_dblprec !< Cumulative average of the skyrmion number squared
+   real(dblprec) :: sk_var=0.0_dblprec !< Variance of the skyrmion number 
+   integer :: sk_num_num=0 !< Number of cumulative samples of the skyrmion number
 
    private
 
    public :: print_topology, flush_topology, allocate_topology,prn_topology_init
-   public :: skyno, skyno_step, skyno_buff, do_proj_skyno, do_skyno_den
+   public :: skyno, skyno_step, skyno_buff, do_proj_skyno, do_skyno_den, do_skyno_cmass
+   public :: sk_avrg, sk_var
 
 contains
 
@@ -61,24 +69,38 @@ contains
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
 
       ! Skyrmion Number
-      if (skyno=='Y') then
-         if (mod(sstep-1,skyno_step)==0) then
+      if (mod(sstep-1,skyno_step)==0) then
+         if (skyno=='Y') then
 
             ! Wite the total skyrmion number to the buffer
             call buffer_skyno(Natom, Mensemble,N1,N2,mstep-1,emomM,emom,            &
-                  bcount_skyno,delta_t,real_time_measure)
+               bcount_skyno,delta_t,real_time_measure)
 
             ! Write the type projected skyrmion number to the buffer
             if ( do_proj_skyno=='Y') then
-					call buffer_proj_skyno(NT,Natom, Mensemble,N1,N2,mstep-1,emomM,emom,	&
-					bcount_skyno,delta_t,real_time_measure,atype)
+               call buffer_proj_skyno(NT,Natom, Mensemble,N1,N2,mstep-1,emomM,emom,&
+                  bcount_skyno,delta_t,real_time_measure,atype)
             endif
             ! Write the site dependent skyrmion number to the buffer
             if (do_skyno_den=='Y') then
-               call buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep-1,emomM,emom,		&
+               call buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep-1,emomM,emom,&
                   bcount_skyno,delta_t,real_time_measure)
             endif
 
+         else if (skyno=='T') then
+            ! Wite the total skyrmion number to the buffer
+            call buffer_skyno_tri(Natom, Mensemble,N1,N2,mstep-1,emom,            &
+               bcount_skyno,delta_t,real_time_measure)
+            ! Write the site dependent skyrmion number to the buffer
+            if (do_skyno_den=='Y') then
+               call buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep-1,emomM,emom,&
+                  bcount_skyno,delta_t,real_time_measure)
+            endif
+
+         end if
+
+
+         if (skyno=='Y'.or.skyno=='T') then
             if (bcount_skyno==skyno_buff) then
                ! Print the buffer total skyrmion number to file
                call prn_skyno(simid,real_time_measure)
@@ -89,15 +111,17 @@ contains
                ! Print the  buffer skyrion density to file
                if (do_skyno_den=='Y') then
                   call prn_dens_skyno(simid,Natom,real_time_measure)
+                  if (do_skyno_cmass=='Y') then
+                     call prn_cmass_skyno(simid,Natom,real_time_measure)
+                  endif
                endif
 
                bcount_skyno=1
             else
                bcount_skyno=bcount_skyno+1
             endif
-         else
+         end if
 
-         endif
       end if
 
    end subroutine print_topology
@@ -125,7 +149,7 @@ contains
       if (flag>0) then
 
          bcount_skyno=1
-         if (skyno=='Y') then
+         if (skyno=='Y'.or.skyno=='T') then
             allocate(skynob(skyno_buff),stat=i_stat)
             call memocc(i_stat,product(shape(skynob))*kind(skynob),'skynob','allocate_topology')
             skynob=0.0_dblprec
@@ -149,13 +173,18 @@ contains
                allocate(dens_skynob(skyno_buff,Natom),stat=i_stat)
                call memocc(i_stat,product(shape(dens_skynob))*kind(dens_skynob),'dens_skynob','allocate_topology')
                dens_skynob=0.0_dblprec
+               if (do_skyno_cmass=='Y') then
+                  allocate(cmass_skynob(3,skyno_buff),stat=i_stat)
+                  call memocc(i_stat,product(shape(cmass_skynob))*kind(cmass_skynob),'cmass_skynob','allocate_topology')
+                  cmass_skynob=0.0_dblprec
+               endif
             endif
 
          endif
 
       else
 
-         if (skyno=='Y') then
+         if (skyno=='Y'.or.skyno=='T') then
             i_all=-product(shape(skynob))*kind(skynob)
             deallocate(skynob,stat=i_stat)
             call memocc(i_stat,i_all,'skynob','allocate_topology')
@@ -179,6 +208,11 @@ contains
                i_all=-product(shape(dens_skynob))*kind(dens_skynob)
                deallocate(dens_skynob,stat=i_stat)
                call memocc(i_stat,i_all,'dens_skynob','allocate_topology')
+               if (do_skyno_cmass=='Y') then
+                  i_all=-product(shape(cmass_skynob))*kind(cmass_skynob)
+                  deallocate(cmass_skynob,stat=i_stat)
+                  call memocc(i_stat,i_all,'cmass_skynob','allocate_topology')
+               endif
             endif
 
          endif
@@ -225,7 +259,7 @@ contains
       character(len=1), intent(in) :: real_time_measure  !< Measurements displayed in real time
 
       ! Skyrmion number
-      if (skyno=='Y') then
+      if (skyno=='Y'.or.skyno=='T') then
          bcount_skyno=bcount_skyno-1
          ! Write the total skyrmion number buffer to file
          call prn_skyno(simid,real_time_measure)
@@ -239,6 +273,7 @@ contains
          if (do_skyno_den=='Y') then
             call prn_dens_skyno(simid,Natom,real_time_measure)
          endif
+         bcount_skyno=1
       endif
 
    end subroutine flush_topology
@@ -262,27 +297,39 @@ contains
       ! Local variables
       integer :: k
       character(len=30) :: filn
+      real(dblprec) :: sk_avrg_prev
 
       ! write the skyrmion number
-      write(filn,'(''sknumber.'',a8,''.out'')') simid
+      write(filn,'(''sknumber.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
 
       ! Write header to output files for first iteration
       if(indxb_skyno(1)==0) then
             if (real_time_measure=='Y') then
-               write (ofileno,247) "Time[s]","Skx num"
+               write (ofileno,247) "Time[s]","Skx num", "Skx avg", "Skx std"
             else
-               write (ofileno,246) "# Iter","Skx num"
+               write (ofileno,246) "# Iter","Skx num", "Skx avg", "Skx std"
             endif
       end if
 
       do k=1, bcount_skyno
+         sk_num_cum = sk_num_cum + skynob(k)
+         sk_num_num = sk_num_num + 1
+         sk_avrg_prev = sk_avrg
+         sk_avrg = sk_avrg_prev + (skynob(k)-sk_avrg_prev)/sk_num_num
+         sk_var = sk_var + (skynob(k) - sk_avrg_prev) * (skynob(k) - sk_avrg)
+
          if (real_time_measure=='Y') then
-            write (ofileno,241) indxb_skyno(k), skynob(k)
+            write (ofileno,241) indxb_skyno(k), skynob(k), sk_avrg, sk_var/sk_num_num
+            !write (ofileno,241) indxb_skyno(k), skynob(k), sk_num_cum/sk_num_num
          else
-            write (ofileno,240) int(indxb_skyno(k)), skynob(k)
+            write (ofileno,240) int(indxb_skyno(k)), skynob(k), sk_avrg, sk_var/sk_num_num
+            !write (ofileno,240) int(indxb_skyno(k)), skynob(k), sk_num_cum/sk_num_num
          endif
       enddo
+      !        mean_old = mean
+      !        mean = mean_old + (w / w_sum) * (x - mean_old)
+
 
       close(ofileno)
 
@@ -290,10 +337,10 @@ contains
 
       write(*,*) "Error writing the skyrmion number file"
 
-      240 format(i8,2x,f10.4)
-      241 format(es16.4,2x,f10.4)
-      246 format(a8,2x,a10)
-      247 format(a16,2x,a10)
+      240 format(i8,2x,5f16.8)
+      241 format(es16.6,2x,5f16.8)
+      246 format(a8,2x,a10,2x,a10,2x,a10)
+      247 format(a16,2x,a10,2x,a10,2x,a10)
 
    end subroutine prn_skyno
 
@@ -321,9 +368,9 @@ contains
       do ii=1, NT
 
          if (ii>10) then
-            write(filn,'(''proj_sknumber.'',i2,''.'',a8,''.out'')') ii,simid
+            write(filn,'(''proj_sknumber.'',i2,''.'',a,''.out'')') ii,trim(simid)
          else
-            write(filn,'(''proj_sknumber.'',i1,''.'',a8,''.out'')') ii,simid
+            write(filn,'(''proj_sknumber.'',i1,''.'',a,''.out'')') ii,trim(simid)
 
          endif
          open(ofileno,file=filn, position="append")
@@ -361,6 +408,60 @@ contains
 
    !---------------------------------------------------------------------------------
    !> @brief
+   !> Printing the center of mass of the total topological charge
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------------
+   subroutine prn_cmass_skyno(simid,Natom,real_time_measure)
+      !
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in the sample
+      character(len=8), intent(in) :: simid !< Simulation name
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      ! Local variables
+      integer :: k,iatom
+      character(len=30) :: filn
+
+      ! write the site dependent skyrmion number
+      write(filn,'(''cmass_skynum.'',a,''.out'')') trim(simid)
+      open(ofileno,file=filn, position="append")
+
+      ! Write header to output files for first iteration
+      if(indxb_skyno(1)==0) then
+         if (real_time_measure=='Y') then
+            write (ofileno,247) "Time[s]","rSk_x","rSk_y","rSk_z"
+         else
+            write (ofileno,246) "# Iter", "rSk_x","rSk_y","rSk_z"
+         endif
+      end if
+
+      do k=1, bcount_skyno
+         if (real_time_measure=='Y') then
+               write (ofileno,245) indxb_skyno(k), cmass_skynob(:,k)
+         else
+               write (ofileno,244) int(indxb_skyno(k)), cmass_skynob(:,k)
+         endif
+      enddo
+
+      close(ofileno)
+
+      return
+
+      write(*,*) "Error writing the skyrmion number center of mass file"
+
+      244 format(i8,2x,3f16.8)
+      245 format(es16.4,2x,3f16.8)
+      246 format(a8,2x,3a10)
+      247 format(a16,2x,3a10)
+
+   end subroutine prn_cmass_skyno
+
+   !---------------------------------------------------------------------------------
+   !> @brief
    !> Printing the site dependent skyrmion number
    !
    !> @author
@@ -380,7 +481,7 @@ contains
       character(len=30) :: filn
 
       ! write the site dependent skyrmion number
-      write(filn,'(''dens_skynum.'',a8,''.out'')') simid
+      write(filn,'(''dens_skynum.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
 
       ! Write header to output files for first iteration
@@ -410,19 +511,19 @@ contains
 
       write(*,*) "Error writing the site dependent skyrmion number file"
 
-      244 format(i8,2x,i8,2x,f10.4)
-      246 format(a8,2x,a8,2x,a10)
-      245 format(es16.4,2x,i8,2x,f10.4)
-      247 format(a16,2x,a8,2x,a10)
+      244 format(i8,2x,i8,2x,e16.8)
+      246 format(a8,2x,a,2x,a10)
+      245 format(es16.4,2x,i8,2x,e16.8)
+      247 format(a16,2x,a,2x,a10)
 
    end subroutine prn_dens_skyno
 
    !---------------------------------------------------------------------------------
-	! SUBROUTINE buffer_skyno  
-	!> Buffer the skyrmion number
+        ! SUBROUTINE buffer_skyno  
+        !> Buffer the skyrmion number
    !---------------------------------------------------------------------------------
-	subroutine buffer_skyno(Natom, Mensemble,N1,N2,mstep,emomM,emom,bcount_skyno,		&
-		delta_t,real_time_measure)
+        subroutine buffer_skyno(Natom, Mensemble,N1,N2,mstep,emomM,emom,bcount_skyno,           &
+                delta_t,real_time_measure)
       !
       use Gradients
       use Topology
@@ -441,8 +542,7 @@ contains
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
       call grad_moments(Natom, Mensemble,emom, grad_mom)
-      skynob(bcount_skyno)=pontryagin_no(Natom, Mensemble,emomM, grad_mom)&
-         *(0.5_dblprec*(N1+N2))**0.5_dblprec
+      skynob(bcount_skyno)=pontryagin_no(Natom, Mensemble,emomM, grad_mom)
 
       if (real_time_measure=='Y') then
          indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)
@@ -453,10 +553,10 @@ contains
    end subroutine buffer_skyno
 
    !---------------------------------------------------------------------------------
-	! SUBROUTINE buffer_proj_skyno  
-	!> Buffer the projected skyrmion number
+        ! SUBROUTINE buffer_proj_skyno  
+        !> Buffer the projected skyrmion number
    !---------------------------------------------------------------------------------
-   subroutine buffer_proj_skyno(NT,Natom, Mensemble,N1,N2,mstep,emomM,emom,			&
+   subroutine buffer_proj_skyno(NT,Natom, Mensemble,N1,N2,mstep,emomM,emom,                     &
          bcount_skyno,delta_t,real_time_measure,atype)
       !
       use Gradients
@@ -478,8 +578,7 @@ contains
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
       call proj_grad_moments(NT,Natom, Mensemble,atype,emomM,proj_grad_mom)
-      proj_skynob(bcount_skyno,1:NT)=proj_pontryagin_no(NT,Natom,Mensemble,atype,emomM,proj_grad_mom)&
-         *(0.5_dblprec*(N1+N2))**0.5_dblprec
+      proj_skynob(bcount_skyno,1:NT)=proj_pontryagin_no(NT,Natom,Mensemble,atype,emomM,proj_grad_mom)
 
       if (real_time_measure=='Y') then
          indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)
@@ -496,11 +595,12 @@ contains
    !> @author
    !> Jonathan Chico
    !---------------------------------------------------------------------------------
-   subroutine buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep,emomM,emom,				&
+   subroutine buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep,emomM,emom,                                &
          bcount_skyno,delta_t,real_time_measure)
       !
       use Gradients
       use Topology
+      use SystemData, only : coord
 
       implicit none
 
@@ -517,16 +617,28 @@ contains
 
       ! .. Local variables
       integer :: iatom
+      !real(dblprec), dimension(3) :: skmass
+      !real(dblprec) :: sktot
 
       ! Call the calculation of the magnetization gradient
-      ! Is this necesary? it is already called for the total skyrmion number
-      call grad_moments(Natom, Mensemble,emom, grad_mom)
+      if (skyno=='Y') then
+         ! Is this necesary? it is already called for the total skyrmion number
+         call grad_moments(Natom, Mensemble,emom, grad_mom)
 
-      ! Loop over the atomic sites
-      do iatom=1,Natom
-         dens_skynob(bcount_skyno,iatom)=pontryagin_no_density(iatom,Natom, Mensemble,emomM, grad_mom)&
-            *(0.5_dblprec*(N1+N2))**0.5_dblprec
-      enddo
+         !skmass=0.0_dblprec
+         !sktot=0.0_dblprec
+         ! Loop over the atomic sites
+         do iatom=1,Natom
+            dens_skynob(bcount_skyno,iatom)=pontryagin_no_density(iatom,Natom, Mensemble,emomM, grad_mom)
+            !sktot=sktot+pontryagin_no_density(iatom,Natom, Mensemble,emomM, grad_mom)
+            !skmass(:)=skmass(:) + pontryagin_no_density(iatom,Natom, Mensemble,emomM, grad_mom)*coord(:,iatom)
+         enddo
+         !print '(a,3f12.6)' , '  SkMassC: ',skmass/sktot
+      else if (skyno=='T') then
+         do iatom=1,Natom
+            dens_skynob(bcount_skyno,iatom)=pontryagin_tri_dens(iatom,Natom, Mensemble,emom)
+         enddo
+      end if
 
       if (real_time_measure=='Y') then
          indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)
@@ -534,6 +646,81 @@ contains
          indxb_skyno(bcount_skyno)=mstep
       endif
 
+
+      if (do_skyno_cmass=='Y') then
+         call buffer_cmass(Natom, Mensemble, coord, emom, dens_skynob(bcount_skyno,:),bcount_skyno)
+      end if
    end subroutine buffer_dens_skyno
+
+   !---------------------------------------------------------------------------------
+        ! SUBROUTINE buffer_skyno_tri
+        !> Buffer the skyrmion number using triangular mesh
+   !---------------------------------------------------------------------------------
+        subroutine buffer_skyno_tri(Natom, Mensemble,N1,N2,mstep,emom,bcount_skyno,           &
+                delta_t,real_time_measure)
+      !
+      use Gradients
+      use Topology
+
+      implicit none
+
+      integer, intent(in) :: N1    !< Number of cell repetitions in x direction
+      integer, intent(in) :: N2    !< Number of cell repetitions in y direction
+      integer, intent(in) :: mstep !< Current simulation step
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble     !< Number of ensembles
+      integer, intent(in) :: bcount_skyno  !< Counter of buffer for skyrmion number
+      real(dblprec), intent(in) :: delta_t !< Current time step
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      skynob(bcount_skyno)=pontryagin_tri(Natom, Mensemble,emom)
+
+      if (real_time_measure=='Y') then
+         indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)
+      else
+         indxb_skyno(bcount_skyno)=mstep
+      endif
+
+   end subroutine buffer_skyno_tri
+
+   subroutine buffer_cmass(Natom, Mensemble, coord, mom_arr, topo_arr,bidx)
+      !
+      implicit none
+      !
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble     !< Number of ensembles
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: mom_arr
+      real(dblprec), dimension(Natom), intent(in) :: topo_arr
+      integer, intent(in) :: bidx  !< Index in buffer array
+      !
+      integer :: ia, ir, ik
+      real(dblprec), dimension(3) :: mx, my, mz, tp
+      real(dblprec) :: eps=1e-6_dblprec
+      !
+      mx = 0.0_dblprec
+      my = 0.0_dblprec
+      mz = 0.0_dblprec
+      tp = 0.0_dblprec
+      do ik=1, Mensemble
+         do ia=1, Natom
+            mx = mx + coord(:,ia) * mom_arr(1,ia,ik) 
+            my = my + coord(:,ia) * mom_arr(2,ia,ik) 
+            mz = mz + coord(:,ia) * mom_arr(3,ia,ik) 
+            tp = tp + coord(:,ia) * topo_arr(ia)
+         end do
+      end do
+      mx = mx/(sum(mom_arr(1,:,:))+eps)
+      my = my/(sum(mom_arr(2,:,:))+eps)
+      mz = mz/(sum(mom_arr(3,:,:))+eps)
+      !!! tp = tp/(sum(topo_arr)+eps)
+      cmass_skynob(:,bidx) = tp/(sum(topo_arr)+eps)
+      !
+      !!! print '(a, 3f12.6,f14.8)', 'Topological center of mass:', tp,(sum(topo_arr))
+      !!! print '(a, 3g20.6,i)', 'Topological center of mass:', cmass_skynob(:,bidx), bidx
+   end subroutine buffer_cmass
+
+
 
 end module prn_topology

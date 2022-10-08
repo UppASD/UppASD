@@ -1,0 +1,3 @@
+TrimerSLD      # Trimer SLD, atomic units, with different MML coupling,
+               # either of Aiji type or of Aijk type.
+               # optional use of point group symmetries for the couplings

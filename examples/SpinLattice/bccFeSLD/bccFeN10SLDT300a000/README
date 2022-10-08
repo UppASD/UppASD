@@ -1,0 +1,11 @@
+Settings for import of LL couplings on Phonopy format
+
+ll_phonopy  ./FORCE_CONSTANTS.666
+ll_phonopycoordfile  ./SPOSCAR.666.dat
+i0phonopy   130
+radius_phonopy  0.35
+scalefac_phonopy 6
+
+The llfile is not used but needs to present
+
+ll        ./llfile
