@@ -1,0 +1,30 @@
+[build-system]
+requires = [
+    "setuptools<60",
+    "wheel", 
+    "numpy>1.19", 
+    "f90wrap"]
+
+##[tool.flit.metadata]
+##module = "asd"
+##author = "Author Name"
+##author-email = "username@users.noreply.github.com"
+##home-page = "https://github.com/username/reponame"
+##
+##requires=['numpy', 'matplotlib (>=2.1)', 'vtk' ]
+##requires-python='>=3.6'
+
+[tool.cibuildwheel]
+# Install something required for the build
+# (you might want to use build-system.requires instead)
+before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
+#repair-wheel-command = ""
+#
+manylinux-x86_64-image = "manylinux_2_28"
+#manylinux-aarch64-image = "manylinux_2_28"
+#manylinux-ppc64le-image = "manylinux_2_28"
+#manylinux-s390x-image = "manylinux_2_28"
+
+[tool.cibuildwheel.linux]
+#test-requires = ["pip","setuptools", "wheel", "numpy", "f90wrap","build"]
+before-all = "yum install -y openblas-static blas-devel lapack-static fftw-static"
