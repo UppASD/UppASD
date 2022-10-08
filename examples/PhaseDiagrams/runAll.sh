@@ -2,16 +2,14 @@
 #!/bin/bash
 
 for n in \
-Mappings \
-PhaseDiagrams \
-SimpleSystems \
-SpecialFeatures \
-SpinLattice \
-SpinWaves
+Ising-Tsweep \
+SCsurface-Tsweep \
+bccFe-Tsweep \
+bccFe-qhb
 do
     cd $n
     echo Starts example $n
-    ./runAll.sh > out.log
+    time ./runme.sh > out.log
     echo Ends example $n
     cd ../
 done

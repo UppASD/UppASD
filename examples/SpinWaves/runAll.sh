@@ -2,16 +2,14 @@
 #!/bin/bash
 
 for n in \
-Mappings \
-PhaseDiagrams \
-SimpleSystems \
-SpecialFeatures \
-SpinLattice \
-SpinWaves
+ChiralSpiral \
+Kagome_ncAMS \
+Triangular_ncAMS \
+bccFe
 do
     cd $n
     echo Starts example $n
-    ./runAll.sh > out.log
+    time ../../../source/sd > out.log
     echo Ends example $n
     cd ../
 done

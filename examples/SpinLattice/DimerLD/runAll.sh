@@ -2,16 +2,14 @@
 #!/bin/bash
 
 for n in \
-Mappings \
-PhaseDiagrams \
-SimpleSystems \
-SpecialFeatures \
-SpinLattice \
-SpinWaves
+DimerauLDdamped \
+DimerauLDundamped \
+DimerpuLDdamped \
+DimerpuLDundamped
 do
     cd $n
     echo Starts example $n
-    ./runAll.sh > out.log
+    ../../../../source/sd > out.log
     echo Ends example $n
     cd ../
 done

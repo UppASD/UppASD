@@ -2,12 +2,12 @@
 #!/bin/bash
 
 for n in \
-Mappings \
-PhaseDiagrams \
-SimpleSystems \
-SpecialFeatures \
-SpinLattice \
-SpinWaves
+DimerLD \
+DimerSLD \
+TetramerSLD \
+Triang2DSLD \
+TrimerSLD \
+bccFeSLD
 do
     cd $n
     echo Starts example $n

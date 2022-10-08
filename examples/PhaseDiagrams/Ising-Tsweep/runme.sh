@@ -6,8 +6,8 @@ do
    echo "Temp: " $Temp
    cp Base/* T$Temp/
    cd T$Temp/
-   gsed -i "s/TEMP/$Temp/g" inpsd.dat
-   /Users/andersb/Jobb/UppASD_release/UppASD_release/source/sd > out
+   sed -i "s/TEMP/$Temp/g" inpsd.dat
+   ../../../../source/sd > out.log
    cd ..
 done
 exit

@@ -2,16 +2,13 @@
 #!/bin/bash
 
 for n in \
-Mappings \
-PhaseDiagrams \
-SimpleSystems \
-SpecialFeatures \
-SpinLattice \
-SpinWaves
+GNEB_HeisChain \
+SkyrmionLattice \
+SkyrmionTransport
 do
     cd $n
     echo Starts example $n
-    ./runAll.sh > out.log
+    time ../../../source/sd > out.log
     echo Ends example $n
     cd ../
 done
