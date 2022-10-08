@@ -691,7 +691,7 @@ contains
       !print *,'eig_val int',maxval(eig_val),minval(eig_val)
       ! Add offset to ensure positive definiteness, if needed.
       !dia_eps=0.0_dblprec
-      if(minval(eig_val)<0.0_dblprec) dia_eps=dia_eps-minval(eig_val)
+      !if(minval(eig_val)<0.0_dblprec) dia_eps=dia_eps-minval(eig_val)
       deallocate(cwork)
       deallocate(rwork)
       ! Add eps to diagonal to ensure positive definiteness

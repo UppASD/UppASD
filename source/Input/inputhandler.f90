@@ -75,6 +75,7 @@ contains
       ! ... Local Variables ...
       character(len=50) :: keyword,cache, string
       integer :: rd_len,i_err,i,i_stat,i_errb,ii, i_all
+      integer :: i_dum, j_dum, nlines
       logical :: comment
       real(dblprec) :: tmp
 
@@ -148,9 +149,11 @@ contains
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('positions')
-               if(na==0) then
-                  write(*,*) 'ERROR: ','natoms not set before reading ',keyword
+               read(ifile,*,iostat=i_err) nlines
+               if(na.ne.nlines.and.(.not.na==0)) then
+                  write(*,*) 'ERROR: ','natoms not consistent with ',keyword
                else
+                  if (na==0) na = nlines
                   allocate(atype_inp(na),stat=i_stat)
                   call memocc(i_stat,product(shape(atype_inp))*kind(atype_inp),'atype_inp','read_parameters')
                   allocate(anumb_inp(na),stat=i_stat)
@@ -196,6 +199,33 @@ contains
             !------------------------------------------------------------------------
             ! START OF VARIABLES FOR MOMENTS
             !------------------------------------------------------------------------
+
+            case('moments')
+               read(ifile,*,iostat=i_err) nlines
+               if(na.ne.nlines.and.(.not.na==0)) then
+                  write(*,*) 'ERROR: ','natoms not consistent with ',keyword
+               else
+                  if (na==0) na = nlines
+                  allocate(ammom_inp(na,nchmax,conf_num),stat=i_stat)
+                  call memocc(i_stat,product(shape(ammom_inp))*kind(ammom_inp),'ammom_inp','read_parameters')
+                  ammom_inp=0.0_dblprec
+
+                  allocate(aemom_inp(3,na,nchmax,conf_num),stat=i_stat)
+                  call memocc(i_stat,product(shape(aemom_inp))*kind(aemom_inp),'aemom_inp','read_parameters')
+                  aemom_inp=0.0_dblprec
+
+                  allocate(Landeg_ch(na,nchmax,conf_num),stat=i_stat)
+                  call memocc(i_stat,product(shape(Landeg_ch))*kind(Landeg_ch),'Landeg_ch','read_parameters')
+                  Landeg_ch=Landeg_glob
+
+                  do i=1,na
+                     read(ifileno,*,iostat=i_err) i_dum, j_dum, ammom_inp(i_dum,j_dum,1), &
+                        aemom_inp(1:3,i_dum,j_dum,1)
+                     tmp=norm2(aemom_inp(:,i_dum,j_dum,1))
+                     aemom_inp(1:3,i_dum,j_dum,1)=aemom_inp(1:3,i_dum,j_dum,1)/tmp
+                     if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+                  end do
+               end if
 
             case('momfile')
                read(ifile,'(a)',iostat=i_err) cache
@@ -1541,6 +1571,8 @@ contains
       real(dblprec),dimension(3) :: tmp
 
       ! Open input file
+      if (len(trim(posfile))==0) return
+
       open(ifileno, file=posfile)
       ! Check if input file is for random alloy
       flines=0
@@ -1736,6 +1768,8 @@ contains
       !
       integer :: i_err,isite,ichem,i_stat,iconf
       real(dblprec)  :: aemom_tmp
+
+      if (len(trim(momfile))==0) return
 
       iconf = 1
 

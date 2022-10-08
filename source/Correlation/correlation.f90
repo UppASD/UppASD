@@ -1665,18 +1665,18 @@ contains
 
 
          if(do_sc_dosonly/="Y") then
-            !!! ! Write S(q,w)
-            !!! write (filn,'(''sqt.'',a8,''.out'')') simid
-            !!! open(ofileno, file=filn)
-            !!! do iq=1,Nq
-            !!!    do iw=1,sc_tidx
-            !!!       write (ofileno,10005) iq,q(1,iq), q(2,iq),q(3,iq),iw, &
-            !!!          !real(corr_kt(1,iq,iw)), aimag(corr_kt(1,iq,iw)), abs(corr_kt(1,iq,iw)) , &
-            !!!          abs(corr_kt(1,iq,iw)),abs(corr_kt(2,iq,iw)),abs(corr_kt(3,iq,iw)), &
-            !!!          abs(corr_kt(1,iq,iw)**2+corr_kt(2,iq,iw)**2+corr_kt(3,iq,iw)**2)**0.5_dblprec
-            !!!    end do
-            !!! end do
-            !!! close(ofileno)
+            ! Write S(q,w)
+            write (filn,'(''sqt.'',a8,''.out'')') simid
+            open(ofileno, file=filn)
+            do iq=1,Nq
+               do iw=1,sc_tidx
+                  write (ofileno,10005) iq,q(1,iq), q(2,iq),q(3,iq),iw, &
+                     !real(corr_kt(1,iq,iw)), aimag(corr_kt(1,iq,iw)), abs(corr_kt(1,iq,iw)) , &
+                     abs(corr_kt(1,iq,iw)),abs(corr_kt(2,iq,iw)),abs(corr_kt(3,iq,iw)), &
+                     abs(corr_kt(1,iq,iw)**2+corr_kt(2,iq,iw)**2+corr_kt(3,iq,iw)**2)**0.5_dblprec
+               end do
+            end do
+            close(ofileno)
 
             ! Write S(q,w)
             write (filn,'(''sqw.'',a8,''.out'')') simid

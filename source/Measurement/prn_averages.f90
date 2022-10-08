@@ -1110,6 +1110,24 @@ contains
             write (ofileno,10004) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
                cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
             close(ofileno)
+
+            ! Open file
+            write (filn,'(''cumulants.'',a8,''.json'')') simid
+            open(ofileno, file=filn)
+
+            write(ofileno,'(a)') '{'
+            write(ofileno,'(a,f16.8,a)') '    "magnetization"   : ', avrgmt,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "binder_cumulant" : ', cumulant,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv,' ,'
+            if (avrgen.ne.0.0_dblprec) then
+               write(ofileno,'(a,f16.8)') '    "energy"          : ', avrgen
+            else
+               write(ofileno,'(a)') '    "energy"          :  None '
+            end if
+            write(ofileno,'(a)') '}'
+            close(ofileno)
+
          end if
       end if
 

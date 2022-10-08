@@ -23,10 +23,10 @@ PRINT:
 
 deps:
 	@if [ ! -d source/make/user_profiles ] ; then mkdir source/make/user_profiles ; fi
-	@python ./source/make/generateDependencies.py
+	@python3 ./source/make/generateDependencies.py
 
 probe:
-	@python ./source/make/suggestProfiles.py
+	@python3 ./source/make/suggestProfiles.py
 
 docs:
 	@if [ ! -d source/make/user_profiles ] ; then mkdir source/make/user_profiles ; fi
@@ -41,16 +41,16 @@ tests:
 	@echo ''
 
 asd-tests:
-	@cd ./codeTester; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
-	@cd ./codeTester; python -u ./bergtest.py --clean
+	@cd ./codeTester; python3 -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ./codeTester; python3 -u ./bergtest.py --clean
 
 gneb-tests:
-	@cd ./codeTester; python -u ./bergtest.py --file regressionIcelandGNEB.yaml | tee tests.log
-	@cd ./codeTester; python -u ./bergtest.py --clean
+	@cd ./codeTester; python3 -u ./bergtest.py --file regressionIcelandGNEB.yaml | tee tests.log
+	@cd ./codeTester; python3 -u ./bergtest.py --clean
 
 regression-test:
-	@cd ./codeTester; python -u ./bergtest.py --file regressionGotland.yaml | tee regression-tests.log
-	@cd ./codeTester; python -u ./bergtest.py --clean
+	@cd ./codeTester; python3 -u ./bergtest.py --file regressionGotland.yaml | tee regression-tests.log
+	@cd ./codeTester; python3 -u ./bergtest.py --clean
 
 # Clean all .mod and .o files as well as mod and obj folders
 clean:

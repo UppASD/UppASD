@@ -376,11 +376,11 @@ contains
       NT                = 0
       Sym               = 0
       do_sortcoup       = 'N'
-      posfile           = 'posfile'
+      posfile           = ''
       posfiletype       = 'C'
       alat              = 1.0_dblprec
       scalefac          = 1.0_dblprec
-      momfile           = 'momfile'
+      momfile           = ''
       momfile_i         = 'momfile_i'
       momfile_f         = 'momfile_f'
       amp_rnd           = 0.0_dblprec
