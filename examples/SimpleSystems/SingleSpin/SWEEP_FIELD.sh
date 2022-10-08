@@ -28,7 +28,7 @@ do
 
       echo -e "Performing simulation for bfield $bfield"
       # Running the ASD simulation
-      ../../../source/sd > out.out
+      ../../../../source/sd > out.out
       echo -e "done"
 
    cd ../
