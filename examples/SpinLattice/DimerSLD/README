@@ -1,0 +1,3 @@
+DimerSLD       # Dimer SLD, with zero lattice damping and zero Gilbert damping,
+               # using velocity-Verlet or fixed-point iteration implicit midpoint solver
+               # optional use of point group symmetries for the couplings

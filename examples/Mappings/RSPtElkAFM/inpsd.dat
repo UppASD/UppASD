@@ -1,0 +1,64 @@
+# Simulation name
+simid     SDMTRLNO
+
+# Cell geometry
+ncell     6        6        6
+BC        P         P         P
+scalefac  11.1011959745
+cell      1.000000000000000       0.000000000000000       0.000000000000000   
+          0.000000000000000       1.265060856243085       0.000000000000000   
+	  -0.056805245482962       0.000000000000000       1.347462616979422
+
+# Point group symmetry of the cell
+Sym       0
+
+# Additional files
+posfiletype  D
+maptype   3
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./JFILE
+do_prnstruct 1
+do_prn_poscar 1
+do_prn_elk 1
+
+# Initial magnetization
+Initmag   3
+#restartfile ./restart.dat
+
+# Initial phase
+ipSDEalgh  1
+ip_mode    S
+ip_nphase  3
+10000    1   1e-15   1.00   1e-12
+10000    1   1e-15   1.00   1e-13
+10000    1   1e-16   1.00   1e-14
+
+# Measurement phase
+mode      S
+Nstep     100000
+timestep  1d-15
+damping   1d0
+Temp      0
+
+# Sampling of average magnetization
+do_avrg   Y
+do_proj_avrg   Y
+avrg_step   10
+avrg_buff   10
+
+# Sampling of magnetic energies and temperature
+plotenergy   1
+do_spintemp  Y
+
+# Sampling of the adiabatic magnon spectra
+#do_ams      Y
+#do_magdos   Y
+
+# Sampling of the dynamic structure factor
+#do_sc Q
+#sc_nstep 1000
+#sc_step 10
+#sc_sep 10
+qpoints D
+qfile   ./QFILE

@@ -1,0 +1,37 @@
+# Brief description of contents of SLDexamples
+
+bccFeSLD       # bcc Fe with MM, LL and MML coupling. Uses cutoff in LL interaction
+
+	       # Variants available in the runbccFe*.sh scripts
+
+	       # Gronbech-Jensen-Farago velocity-Verlet solver (initial and/or measurement phase)
+	       # Canonical velocity rescaling (measurement phase)
+	       # Fixed-point iteration implicit midpoint solver (measurement phase)	
+
+DimerLD        # Dimer LD, atomic or physical units, zero or finite lattice damping
+
+DimerSLD       # Dimer SLD, with zero lattice damping and zero Gilbert damping,
+               # using velocity-Verlet or fixed-point iteration implicit midpoint solver
+               # optional use of point group symmetries for the couplings
+
+TetramerSLD    # Tetramer SLD, physical units, with different MML coupling,
+               # with zero lattice damping and zero Gilbert damping
+
+Triang2DSLD1   # triangular Lattice LD or SLD
+
+TrimerSLD      # Trimer SLD, atomic units, with different MML coupling,
+               # either of Aiji type or of Aijk type.
+               # optional use of point group symmetries for the couplings
+
+-------------------------------------------------------------------------
+To-do and status of examples 20200504
+
+1. Add Python matplotlib scripts for plotting
+
+2. The setup of Aijk in TrimerauSLD3site and TrimerauSLD3siteSym differs.
+Both examples are possibly proper and correct, but mmlfile3site could be
+changed to give the same mapping as mmlfile3site.sym.
+
+3. For bccFeSLD, the sym flag was earlier set to 1, but this is redundant
+given that the input files contain the full set of couplings.
+-------------------------------------------------------------------------

@@ -1,0 +1,60 @@
+simid  kagome_T 
+ncell    66 66 1
+BC         P P 0
+cell     1.000000000000    0.000000000000    0.000000000000
+        -0.500000000000    0.866025403784    0.000000000000
+         0.000000000000    0.000000000000    10.00000000000
+
+Sym        0
+
+posfile    ./posfile.direct
+posfiletype D
+momfile    ./momfile
+exchange   ./jfile.tensor
+
+maptype 2
+do_jtensor 1
+calc_jtensor F
+
+do_prnstruct 1
+
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+#restartfile ./start.tri
+
+ip_mode N
+ip_mcanneal 2
+10000 100.0001
+10000 0.0001
+
+mode      S                                     S=SD, M=MC
+temp      0.100
+Nstep     60000
+damping   0.001
+timestep  1e-16
+
+do_avrg   Y                                     Measure averages
+avrg_step 100
+
+
+plotenergy 1         
+
+use_vsl T
+
+do_reduced N
+
+do_ams Y
+do_diamag Y
+do_sc  Q
+sc_nstep 500
+sc_step 100
+do_sc_local_axis B
+sc_local_axis_mix 0.1
+sc_window_fun 2
+sc_average E
+do_sc_tens Y
+
+qpoints D
+qfile ./qfile.spinw
+
+
+nc_qvect 0.0 0 0

@@ -1,0 +1,26 @@
+Example of import with maptype 3 of RSPt Jij files
+and of export of magnetic supercell to Elk GEOMETRY.OUT format
+
+Input files
+inpsd.dat - Main input file. Lattice scalefac (scalefac) and
+vectors (cell). C.f. symt.inp
+posfile - Atomic positions. C.f RSPt symt.inp
+momfile - Magnetic moments
+JFILE - Jij from RSPt
+
+Output files:
+GEOMETRY.OUT - Lattice vectors, internal positions and spin configuration
+on Elk format
+jfile_cart - Jij with r_ij in Cartesian coordinates. C.f out.rspt
+POSCAR - Lattice vectors on internal positions on VASP format
+
+Reference files:
+1515486.cif
+symt.inp
+out.rspt
+
+Other files:
+plotams.m
+QFILE
+restart.dat
+

@@ -1,0 +1,33 @@
+simid bcFe0100
+ncell     10        10        10
+BC        P         P         P                 Boundary conditions (0=vacuum,P=periodic)
+Cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+
+Sym       1                                     Symmetry of lattice (0 for no, and 1 for cubic)
+
+do_prnstruct 1
+posfile ./posfile
+momfile ./momdata
+exchange ./jfile
+
+do_ralloy 1 
+
+LLG       1                                     Equation: 0=LL, 1=LLG
+SDEalgh   2                                     SDE-solver. 1=smpt, 2=heun, 3=heun3 
+tseed     1                                     Temperature seed value
+Mensemble 1                                     Number of samples in ensemble averaging
+
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+
+mode      S                                     M for MC and S for SD
+Temp      0100.000         K                    Temperature of the system
+damping   0.5       0.0                         Damping coefficient
+Nstep     10000                                 Number of time-steps
+timestep  1.000e-16        s                    The time step-size for the SDE-solver
+
+do_proj_avrg 1
+do_projch_avrg 1
+
+maptype 2

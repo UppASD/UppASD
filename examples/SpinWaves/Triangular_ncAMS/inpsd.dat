@@ -1,0 +1,69 @@
+simid  triang_T 
+ncell    66 66 1
+BC         P P 0
+cell     1.000000000000    0.000000000000    0.000000000000
+        -0.500000000000    0.866025403784    0.000000000000
+         0.000000000000    0.000000000000    10.00000000000
+
+Sym        3
+
+posfile    ./posfile.direct
+posfiletype D
+momfile    ./momfile
+exchange   ./jfile.tensor
+
+maptype 2
+do_jtensor 1
+calc_jtensor F
+
+do_prnstruct 2
+
+Initmag  3                                      (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode Q
+ip_nphase 1
+50000 0.00000 1.0d-16 5.0
+10000 300.0001 1.0d-16 5.0
+10000 100.0001 1.0d-16 5.0
+10000 10.0001  1.0d-16 5.0
+20000 1.0001   1.0d-16 5.0
+50000 0.00000 1.0d-16 5.0
+
+mode      S                                     S=SD, M=MC
+temp      0.1
+Nstep     60000
+damping   0.001
+timestep  1d-16
+
+do_avrg   Y                                     Measure averages
+avrg_step 100
+
+
+plotenergy 1         
+
+use_vsl T
+
+do_reduced N
+
+do_ams Y
+do_sc  Q
+sc_nstep 500
+sc_step 100
+do_sc_local_axis B
+sc_local_axis_mix 0.1
+sc_window_fun 2
+sc_average E
+do_sc_tens Y
+do_diamag Y
+qpoints D
+qfile ./qfile.spinw
+
+
+nc_qvect 0.330000      0.571577      0.000000
+nc_nvect 0.0 0.0 1.0
+
+qm_nvec 1 0 0
+qm_svec 0 1 0
+
+compensate_drift 1
+
