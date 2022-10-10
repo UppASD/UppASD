@@ -891,7 +891,7 @@ contains
 
          ! Open input file
          open(ifileno, file=magdosfile)
-         flines=0
+         flines=-1
          ! Pre-read file to get number of lines (frequencies)
          do
             read(ifileno,*,end=200)  dummy,dummy,dummy
@@ -904,6 +904,7 @@ contains
             allocate(magdos(magdos_freq,2),stat=i_stat)
             call memocc(i_stat,product(shape(magdos))*kind(magdos),'magdos','magdos_calc')
          end if
+         read(ifileno,*)
          do k=1,magdos_freq
             read(ifileno,*) magdos(k,1),magdos(k,2)
          enddo
@@ -947,7 +948,7 @@ contains
 
          magdos(:,2)=magdos(:,2)/(sum(magdos(:,2))*deltae)
         write(ofileno,'(a)') &
-            "           E(mev)         D(S(q,E))         Int(D(S))  "
+            "#          E(meV)         D(S(q,E))         Int(D(S))  "
          do k=1,magdos_freq
             write(ofileno,1001) magdos(k,1),magdos(k,2),sum(magdos(1:k,2))*deltae
          enddo
@@ -955,10 +956,10 @@ contains
       else    !S/B
          ! Open input file
          open(ifileno, file=magdosfile)
-         flines=0
+         flines=-1
          ! Pre-read file to get number of lines (frequencies)
          do
-            read(ifileno,*,end=300)  dummy,dummy,dummy,dummy,dummy
+            read(ifileno,*,end=300)  
             flines=flines+1
          end do
          300 continue
@@ -970,6 +971,7 @@ contains
             allocate(magdos(magdos_freq,2),stat=i_stat)
             call memocc(i_stat,product(shape(magdos))*kind(magdos),'magdos','magdos_calc')
          end if
+         read(ifileno,*) 
          do k=1,magdos_freq
             read(ifileno,*) magdos(k,1),mtemp(k,1),mtemp(k,2)
          enddo
