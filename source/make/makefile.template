@@ -26,7 +26,7 @@ MAKELOG = make.log
 CURRENT = .profile
 
 # List of available building configs (found in make/default-profiles/systemname.make)
-DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx gfortran-win64 ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-FC gfortran-wFC
+DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx gfortran-win64 ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-FC gfortran-wFC gfortran-ftn
 LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//'))
 #LOCAL_SYSTEMS := $(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//')
 SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
