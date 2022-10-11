@@ -4,7 +4,7 @@
 <!--![logo][logo]-->
 
 
-[![build status](https://gitlab.com/UppASD/UppASD/badges/master/pipeline.svg)](https://gitlab.com/UppASD/UppASD/pipelines)
+<!---[![build status](https://gitlab.com/UppASD/UppASD/badges/master/pipeline.svg)](https://gitlab.com/UppASD/UppASD/pipelines)--->
 
 The `UppASD` software package is a simulation suite to study magnetization dynamics by means of the atomistic version of the Landau-Lifshitz-Gilbert (LLG) equation.
 
@@ -39,7 +39,15 @@ make <profile>
 
 Where `<profile>` is a suitable compiler profile, i.e. `ifort`, `gfortran`, `gfortran-osx` and so on.   
 
-The binary is compiled as `./source/sd`
+---
+Quick-start alternative (using cmake):
+```python
+cmake -S . -B build   
+cmake --build build
+```
+
+---
+The binary is compiled to the `./bin/` directory. 
 
 Examples are provided in `./examples/`
 
@@ -49,7 +57,7 @@ The manual is found at `./docs/UppASDmanual.pdf`
 
 ---
 
-<h2>User Graphic Interface</h2>
+<h2>Graphical User Interface</h2>
 
 ---
 
@@ -61,44 +69,42 @@ This allows for:
 
 ***Requirements***
 - `Qt5`.
-- `python2.7` or higher.
+- `python3.6` or higher.
    - `pandas`
    - `numpy`
-   - `PYYaml`
+   - `PyYaml`
    - `matplotlib`
-   - `Enum`
 - `VTK7.0` or higher.
-
-***Installation Guide (anaconda)***
-
-One simplified way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
-
-After installing anaconda one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
-
-```
-conda create --name ASD_GUI_env python=3.6 vtk=8.1.0 numpy scipy matplotlib yaml pyyaml pandas
-source activate ASD_GUI_env
-conda install -c menpo enum 
-conda install -c qt5 pyqt5
-```
-This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
 
 ***Installation Guide (pip)***
 
-Another  way to install the prerequisites for the `ASD_GUI` can be done via `pip` and `virtualenv` environments.
+The recommended way to install the prerequisites for the `ASD_GUI` is currently to use `pip` and `virtualenv` environments.
 
 After installing `virtualenv` one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
 
 ```
 pip install virtualenv
-virtualenv ASD_GUI_env --python=python3.8
+virtualenv ASD_GUI_env 
 source ASD_GUI_env/bin/activate
 pip install numpy scipy matplotlib pandas pyqt5 vtk
 ```
 This will generate a virtual environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
 
+
+***Installation Guide (anaconda)***
+
+An alternative way to install the prerequisites for the `ASD_GUI` can be done via the `anaconda` framework and its environments.
+
+After installing anaconda one can create virtual environment where to host the `ASD_GUI`. This can be done in the following way:
+
+```
+conda create --name ASD_GUI_env python vtk numpy scipy matplotlib yaml pyyaml pandas pyqt
+source activate ASD_GUI_env
+```
+This will generate a conda environment named `ASD_GUI_env` which can be activated or deactivated to run the GUI.
+
 ---
-(C) 2008-2020 [UppASD group][2]
+(C) 2008-2022 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 [2]:http://www.physics.uu.se/research/materials-theory/ongoing-research/uppasd/
@@ -115,4 +121,4 @@ This will generate a virtual environment named `ASD_GUI_env` which can be activa
 [13]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.94.214410
 [14]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.094411
 [15]:https://www.nature.com/articles/ncomms5815
-[logo]:../docs/uppasd_rot.png
+[logo]:https://github.com/UppASD/UppASD/blob/master/docs/uppasd_rot.png
