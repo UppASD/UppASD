@@ -59,6 +59,8 @@ def guessEnvironmentSettings():
     ftn, errors = p.communicate()
     if (len(ftn)>0):
         have_ftn=True
+    else:
+        have_ftn=False
 
     p = sub.Popen(['which', 'ifort'],stdout=sub.PIPE,stderr=sub.PIPE)
     ifort, errors = p.communicate()
