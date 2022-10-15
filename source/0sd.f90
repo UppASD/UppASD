@@ -3,7 +3,7 @@
 !*                                                                *
 !*               Uppsala Atomic Spin Dynamics                     *
 !*                                                                *
-!*                   Version 5.0 Mar 2017                         *
+!*                   Version 6.0 Oct 2022                         *
 !*                                                                *
 !*       Anders Bergman                                           *
 !*       Johan Hellsvik             Lars Bergqvist                *

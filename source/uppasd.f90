@@ -3,7 +3,7 @@
 !*                                                                *
 !*               Uppsala Atomic Spin Dynamics                     *
 !*                                                                *
-!*                   Version 5.0 Mar 2017                         *
+!*                   Version 6.0 Oct 2022                         *
 !*                                                                *
 !*       Anders Bergman                                           *
 !*       Johan Hellsvik             Lars Bergqvist                *
@@ -1502,18 +1502,19 @@ contains
       write (*,'(1x, a)')    "--------------------------------------------------------------"
       write (*,'(1x, a)')    "            __  __          ___   _______    ____  ___        "
       write (*,'(1x, a)')    "           / / / /__  ___  / _ | / __/ _ \  / __/ / _ \       "
-      write (*,'(1x, a)')    "          / /_/ / _ \/ _ \/ __ |_\ \/ // / /__ \_/ // /       "
-      write (*,'(1x, a)')    "          \____/ .__/ .__/_/ |_/___/____/ /____(_)___/        "
+      write (*,'(1x, a)')    "          / /_/ / _ \/ _ \/ __ |_\ \/ // / / _ \_/ // /       "
+      write (*,'(1x, a)')    "          \____/ .__/ .__/_/ |_/___/____/  \___(_)___/        "
       write (*,'(1x, a)')    "              /_/  /_/                                        "
+      write (*,'(1x, a)')    "--------------------------------------------------------------"
+      write (*,'(1x, a)')    "               https://github.com/UppASD/UppASD               "
       write (*,'(1x, a)')    "--------------------------------------------------------------"
       write (*,'(1x, a)')    "             Division of Materials Theory                     "
       write (*,'(1x, a)')    "             Department of Physics and Astronomy              "
       write (*,'(1x, a)')    "             Uppsala University                               "
       write (*,'(1x, a)')    "             Sweden                                           "
-      write (*,'(1x, a)')  "------------------Development-version-------------------------"
+      write (*,'(1x, a)')    "---------------------Production-version-----------------------"
       ! Current logo using the Small Slant font from
-      ! http://patorjk.com/software/taag/#p=display&f=Small%20Slant&t=UppASD%205.0
-
+      ! http://patorjk.com/software/taag/#p=display&f=Small%20Slant&t=UppASD%206.0
       ! Print git repo version
 #if defined(VERSION)
       write (*,'(1x, a,a)')  "Git revision: ", VERSION
