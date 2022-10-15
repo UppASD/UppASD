@@ -1,0 +1,79 @@
+name: Build binaries Windows
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { icon: '⬛', sys: mingw32, env: i686 }
+          - { icon: '🟦', sys: mingw64, env: x86_64 }
+          - { icon: '🟨', sys: ucrt64,  env: ucrt-x86_64  } # Experimental!
+          #- { icon: '🟧', sys: clang64, env: clang-x86_64 } # Experimental!
+    name: 🚧${{ matrix.icon }} ${{ matrix.sys }}
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: '${{ matrix.icon }} Setup MSYS2 gcc'
+      if: ${{ matrix.sys != 'clang64' }}
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ${{matrix.sys}}
+        update: true
+        install: >-
+          git
+          make
+
+        pacboy: >-
+          toolchain:p
+          gcc-fortran:p
+          openblas:p
+          lapack:p
+          fftw:p
+          cmake:p
+          ninja:p
+          
+    - name: '${{ matrix.icon }} Setup MSYS2 clang'
+      if: ${{ matrix.sys == 'clang64' }}
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ${{matrix.sys}}
+        update: true
+        install: >-
+          git
+          make
+
+        pacboy: >-
+          toolchain:p
+          flang:p
+          openblas:p
+          lapack:p
+          fftw:p
+          cmake:p
+          ninja:p
+
+          
+    - name: '🚧 Build TOOL'
+      run: |
+        cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build 
+        ls ./bin
+        cp ./bin/sd.gfortran.exe ./bin/sd.gfortran.${{matrix.sys}}.${{matrix.env}}.exe
+        
+    - uses: actions/upload-artifact@v3
+      with:
+       path: ./bin/*.exe
