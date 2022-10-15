@@ -87,10 +87,10 @@ ENDIF(FCNAME STREQUAL "pgf90")
 # Define the executable name
 ##############################################################################################
 set(ASD_binary sd)
-if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-   string(APPEND CMAKE_Fortran_COMPILER ".exe")
-   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
-endif()
+#if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+#   string(APPEND CMAKE_Fortran_COMPILER ".exe")
+#   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
+#endif()
 # Find the vernacular compiler name
 string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
