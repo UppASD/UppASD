@@ -60,9 +60,9 @@ class ASDInputGen():
         from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
-        dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        #dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
         dlg.setDirectory('.')
-        if dlg.exec_():
+        if dlg.exec():
             if window.sender()==window.InpPosButtonSelect:
                 ASDInputGen.posfile_gotten=False
                 ASDInputGen.posfile=dlg.selectedFiles()[0]

@@ -53,4 +53,4 @@ if __name__ == '__main__':
     window.show()
     window.iren.Initialize() # Need this line to actually show the render inside Qt
     # Return
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
