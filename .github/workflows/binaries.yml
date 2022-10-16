@@ -4,12 +4,16 @@ on: [push, pull_request]
 
 jobs:
   build_wheels:
-    name: Build binary for ${{ matrix.os }}
+    name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
+        include:
+          - { icon: '🟦', os: macOS-latest ,sys: macos, arch: x86_64 } 
+          - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
+        #os: [ ubuntu-latest,  macOS-latest]
+        #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 
     steps:
       - name: Provide gfortran (macOS)
@@ -39,8 +43,12 @@ jobs:
         run: |
              cmake -S . -B build 
              cmake --build build
-             ls ./bin
+             mkdir ./dist
+             uname -a
+             echo ${{runner.name}}
+             cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
 
       - uses: actions/upload-artifact@v3
         with:
-          path: ./bin/*
+          name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+          path: ./dist/

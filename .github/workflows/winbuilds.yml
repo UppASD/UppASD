@@ -13,11 +13,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { icon: '⬛', sys: mingw32, env: i686 }
-          - { icon: '🟦', sys: mingw64, env: x86_64 }
-          - { icon: '🟨', sys: ucrt64,  env: ucrt-x86_64  } # Experimental!
-          #- { icon: '🟧', sys: clang64, env: clang-x86_64 } # Experimental!
-    name: 🚧${{ matrix.icon }} ${{ matrix.sys }}
+          - { icon: '⬛', sys: mingw32, arch: i686 }
+          - { icon: '🟦', sys: mingw64, arch: x86_64 }
+          - { icon: '🟨', sys: ucrt64,  arch: x86_64  } # Experimental!
+          #- { icon: '🟧', sys: clang64, arch: x86_64 } # Experimental!
+    name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }}
     defaults:
       run:
         shell: msys2 {0}
@@ -72,8 +72,11 @@ jobs:
         cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         cmake --build build 
         ls ./bin
-        cp ./bin/sd.gfortran.exe ./bin/sd.gfortran.${{matrix.sys}}.${{matrix.env}}.exe
+        cp ./bin/sd.gfortran.exe ./bin/sd.gfortran.${{matrix.sys}}.${{matrix.arch}}.exe
+        cp ./bin/sd.gfortran.exe ./bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
+        ls ./bin
         
     - uses: actions/upload-artifact@v3
       with:
-       path: ./bin/*.exe
+       name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+       path: ./bin/uppasd*.exe
