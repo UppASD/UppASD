@@ -7,10 +7,10 @@ Author
 ----------
 Jonathan Chico
 """
-import VTK_Viz.ASDVTKMomActors as ASDVTKMomActors
-import VTK_Viz.ASDVTKGenActors as ASDVTKGenActors
-import VTK_Viz.ASDVTKEneActors as ASDVTKEneActors
-import VTK_Viz.ASDVTKNeighActors as ASDVTKNeighActors
+from ASD_GUI.VTK_Viz import ASDVTKMomActors 
+from ASD_GUI.VTK_Viz import ASDVTKGenActors 
+from ASD_GUI.VTK_Viz import ASDVTKEneActors 
+from ASD_GUI.VTK_Viz import ASDVTKNeighActors 
 
 ################################################################################
 # @brief Class containing the majority of the actions to update the visualizer

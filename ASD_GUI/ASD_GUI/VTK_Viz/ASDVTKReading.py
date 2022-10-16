@@ -67,12 +67,11 @@ class ASDReading():
     #   - clus_info.*.out
     ############################################################################
     def getFileName(self,window):
-        from PyQt5 import QtWidgets
+        from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
-        dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
         dlg.setDirectory('.')
-        if dlg.exec_():
+        if dlg.exec():
             if window.sender()==window.actionCoordinate_File:
                 ASDReading.posfiles=dlg.selectedFiles()[0]
                 ASDReading.not_read_pos=True
@@ -99,7 +98,7 @@ class ASDReading():
     #--------------------------------------------------------------------------------
     def ReadingWrapper(self,mode,viz_type,file_names,window):
         import glob
-        import UI.ASDInputWindows
+        from ASD_GUI.UI import ASDInputWindows
 
         ASDReading.posfiles      = file_names[0]
         ASDReading.magnetization = file_names[1]
@@ -121,7 +120,7 @@ class ASDReading():
             if len(ASDReading.magnetization)>0:
                 ASDReading.MagFile = open(ASDReading.magnetization)
             else:
-                window.Res_Error_Window=UI.ASDInputWindows.Error_Window()
+                window.Res_Error_Window=ASDInputWindows.Error_Window()
                 window.Res_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
                 window.Res_Error_Window.ErrorMsg.setText("Error: No magnetic configuration file found!")
                 window.Res_Error_Window.show()
@@ -145,7 +144,7 @@ class ASDReading():
                         ASDReading.structfiles=ASDReading.structfiles[0]
                         ASDReading.structFile= ASDReading.structfiles
                     else:
-                        window.Neigh_Error_Window=UI.ASDInputWindows.Error_Window()
+                        window.Neigh_Error_Window=ASDInputWindows.Error_Window()
                         window.Neigh_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
                         window.Neigh_Error_Window.ErrorMsg.setText("Error: No 'struct.*.out' file found!")
                         window.Neigh_Error_Window.show()
@@ -165,7 +164,7 @@ class ASDReading():
                         ASDReading.dmdatafiles=ASDReading.dmdatafiles[0]
                         ASDReading.DMFile= ASDReading.dmdatafiles
                     else:
-                        window.DMNeigh_Error_Window=UI.ASDInputWindows.Error_Window()
+                        window.DMNeigh_Error_Window=ASDInputWindows.Error_Window()
                         window.DMNeigh_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
                         window.DMNeigh_Error_Window.ErrorMsg.setText("Error: No 'dmdata.*.out' file found!")
                         window.DMNeigh_Error_Window.show()
@@ -188,7 +187,7 @@ class ASDReading():
                     ASDReading.enefiles=ASDReading.enefiles[0]
                     ASDReading.eneFile= ASDReading.enefiles
                 else:
-                    window.Ene_Error_Window=UI.ASDInputWindows.Error_Window()
+                    window.Ene_Error_Window=ASDInputWindows.Error_Window()
                     window.Ene_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
                     window.Ene_Error_Window.ErrorMsg.setText("Error: No 'localenergy.*.out' file found!")
                     window.Ene_Error_Window.show()
@@ -207,7 +206,7 @@ class ASDReading():
                 ASDReading.posfiles=ASDReading.posfiles[0]
                 atomsFile = ASDReading.posfiles
             else:
-                window.Coord_Error_Window=UI.ASDInputWindows.Error_Window()
+                window.Coord_Error_Window=ASDInputWindows.Error_Window()
                 window.Coord_Error_Window.FunMsg.setText("Sorry But Our Princess is in Another Castle.")
                 window.Coord_Error_Window.ErrorMsg.setText("Error: No 'coord.*.out' file found!")
                 window.Coord_Error_Window.show()

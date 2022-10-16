@@ -57,7 +57,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="ModeSelector">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="ASD_VTK">
        <attribute name="title">
@@ -197,7 +197,7 @@
              <x>0</x>
              <y>0</y>
              <width>907</width>
-             <height>1860</height>
+             <height>1858</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="ASDInp_Layout">
@@ -1230,7 +1230,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>22</height>
+     <height>24</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -1398,7 +1398,7 @@
     <bool>true</bool>
    </property>
    <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
+    <set>QDockWidget::NoDockWidgetFeatures</set>
    </property>
    <property name="allowedAreas">
     <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
@@ -1949,7 +1949,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>600</height>
+          <height>495</height>
          </rect>
         </property>
         <property name="sizePolicy">
@@ -2271,7 +2271,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>600</height>
+          <height>495</height>
          </rect>
         </property>
         <attribute name="label">
@@ -2720,7 +2720,7 @@
                <item>
                 <widget class="QRadioButton" name="ClippPlaneXCheck">
                  <property name="enabled">
-                  <bool>true</bool>
+                  <bool>false</bool>
                  </property>
                  <property name="toolTip">
                   <string>Normal of the plane along the x direction</string>
@@ -2795,7 +2795,7 @@
                <item>
                 <widget class="QSlider" name="ClippingPlaneSlider">
                  <property name="enabled">
-                  <bool>true</bool>
+                  <bool>false</bool>
                  </property>
                  <property name="font">
                   <font>
@@ -3652,7 +3652,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>580</height>
+          <height>498</height>
          </rect>
         </property>
         <attribute name="label">
@@ -3841,7 +3841,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>580</height>
+          <height>384</height>
          </rect>
         </property>
         <attribute name="label">
@@ -3854,7 +3854,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>580</height>
+          <height>384</height>
          </rect>
         </property>
         <attribute name="label">
@@ -3943,7 +3943,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>580</height>
+          <height>384</height>
          </rect>
         </property>
         <attribute name="label">
@@ -4940,7 +4940,7 @@
           <x>0</x>
           <y>0</y>
           <width>322</width>
-          <height>546</height>
+          <height>350</height>
          </rect>
         </property>
         <attribute name="label">
@@ -6993,16 +6993,16 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="MeasurePhaseModeSelector"/>
   <buttongroup name="EneSelector"/>
-  <buttongroup name="MagDensSelector"/>
+  <buttongroup name="MeasurePhaseModeSelector"/>
   <buttongroup name="ColomapScaleBGroup"/>
-  <buttongroup name="SpinGlyphButtonGroup"/>
-  <buttongroup name="EneActorBGroup"/>
-  <buttongroup name="SpinProjSelector"/>
+  <buttongroup name="ProjAveButtonGroup"/>
   <buttongroup name="ClippingPlaneSelector"/>
   <buttongroup name="InitPhaseModeSelector"/>
+  <buttongroup name="MagDensSelector"/>
+  <buttongroup name="SpinGlyphButtonGroup"/>
+  <buttongroup name="EneActorBGroup"/>
   <buttongroup name="ColorMapSelector"/>
-  <buttongroup name="ProjAveButtonGroup"/>
+  <buttongroup name="SpinProjSelector"/>
  </buttongroups>
 </ui>

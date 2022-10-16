@@ -10,11 +10,11 @@ Author
 ----------
 Jonathan Chico
 """
-import Input_Creator.ASDInputGen as ASDInputGen
+import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
 from enum import Enum
-from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMainWindow
+from PyQt6 import QtWidgets
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QMainWindow
 
 class Backend(Enum):
     UppASD_VTK = 1
@@ -37,16 +37,17 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def __init__(self):
-        import PLOT.ASDPlots2D as ASDPlots2D
-        import UI.ASDInputWindows as ASDInputWindows
-        import VTK_Viz.ASDVTKReading as ASDVTKReading
-        import PLOT.ASDPlotsReading as ASDPlotsReading
-        import VTK_Viz.ASDVTKGenActors as ASDVTKGenActors
-        import VTK_Viz.ASDVTKVizOptions as ASDVTKVizOptions
+        from ASD_GUI.PLOT import ASDPlots2D 
+        from ASD_GUI.UI import ASDInputWindows 
+        from ASD_GUI.VTK_Viz import ASDVTKReading 
+        from ASD_GUI.PLOT import ASDPlotsReading 
+        from ASD_GUI.VTK_Viz import ASDVTKGenActors 
+        from ASD_GUI.VTK_Viz import ASDVTKVizOptions
         from matplotlib.figure import Figure
         from mpl_toolkits.mplot3d import Axes3D
         from vtk import vtkOpenGLRenderer,vtkInteractorStyleTrackballCamera
-        from matplotlib.backends.backend_qt5agg import FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvas
+        #from matplotlib.backends.backend_qt5agg import FigureCanvas
         from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
         super(UppASDVizMainWindow, self).__init__()
         #-----------------------------------------------------------------------
@@ -152,10 +153,10 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     def SetupUI(self):
         import os
-        from PyQt5 import uic
-        from PyQt5.QtGui import QIntValidator,QDoubleValidator
-        from PyQt5.QtWidgets import QToolBar,QVBoxLayout
-        from UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup,Plot_Menu_and_Toolbar_Setup,Input_Toolbar_Setup
+        from PyQt6 import uic
+        from PyQt6.QtGui import QIntValidator,QDoubleValidator
+        from PyQt6.QtWidgets import QToolBar,QVBoxLayout
+        from ASD_GUI.UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup,Plot_Menu_and_Toolbar_Setup,Input_Toolbar_Setup
         self.VTKToolBar = QToolBar()
         self.MatPlotToolbar = QToolBar()
         self.InputToolbar = QToolBar()
@@ -398,7 +399,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def check_for_restart(self):
-        import UI.ASDInputWindows as ASDInputWindows
+        import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
 
         everything_okay=True
         self.ASDInputGen.ASDInputGatherer(self)
@@ -443,7 +444,7 @@ class UppASDVizMainWindow(QMainWindow):
     # Function to select the appropriate data to plot
     ############################################################################
     def PlottingSelector(self):
-        from PyQt5.QtCore import QSignalBlocker
+        from PyQt6.QtCore import QSignalBlocker
         #-----------------------------------------------------------------------
         # Plot the spin-spin correlation function
         #-----------------------------------------------------------------------
@@ -496,7 +497,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def set_ams_checkboxes(self):
-        from PyQt5.QtWidgets import QCheckBox
+        from PyQt6.QtWidgets import QCheckBox
 
         self.AMSCheckboxes = dict()
         for ii in reversed(range(self.AMSDisplayLayout.count())):
@@ -588,11 +589,11 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     ############################################################################
     def ToggleInitPhase(self):
-        from UI.ASDMenuToolbar import UpdateUI
+        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
     def ToggleHessians(self):
-        from UI.ASDMenuToolbar import UpdateUI
+        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
     ############################################################################
@@ -638,8 +639,8 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
-        import PLOT.ASDPlots2D as ASDPlots2D
-        import UI.ASDInputWindows as ASDInputWindows
+        from ASD_GUI.PLOT import ASDPlots2D 
+        from ASD_GUI.UI import ASDInputWindows 
         #-----------------------------------------------------------------------
         # Plotting the spin-spin correlation function
         #-----------------------------------------------------------------------
@@ -783,7 +784,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def SaveFig(self):
-        from PyQt5.QtWidgets import QFileDialog
+        from PyQt6.QtWidgets import QFileDialog
         fig_name, _ = QFileDialog.getSaveFileName(self, 'Save File')
         if len(self.InpFigDPI.text())>0:
             dpi=int(self.InpFigDPI.text())
@@ -822,10 +823,10 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
 
         """
-        from PyQt5.QtWidgets import QLabel
-        import VTK_Viz.ASDVTKEneActors as ASDVTKEneActors
-        import VTK_Viz.ASDVTKMomActors as ASDVTKMomActors
-        import VTK_Viz.ASDVTKNeighActors as ASDVTKNeighActors
+        from PyQt6.QtWidgets import QLabel
+        from ASD_GUI.VTK_Viz import ASDVTKEneActors 
+        from ASD_GUI.VTK_Viz import ASDVTKMomActors 
+        from ASD_GUI.VTK_Viz import ASDVTKNeighActors
         try:
             self.ASDGenActors.scalar_bar_widget
         except:

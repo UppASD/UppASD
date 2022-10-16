@@ -11,7 +11,7 @@ Author
 ----------
 Jonathan Chico
 """
-from PyQt5.QtWidgets import QDialog
+from PyQt6.QtWidgets import QDialog
 
 ################################################################################
 # @brief Class responsible for the creation of the init phase window.
@@ -31,7 +31,7 @@ class InitPhase_Window(QDialog):
     """
     def __init__(self, parent=None):
         import os
-        from PyQt5 import uic
+        from PyQt6 import uic
         super(InitPhase_Window, self).__init__(parent)
         path = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(path, 'InitPhase_Creator.ui'), self)
@@ -57,7 +57,7 @@ class InitPhase_Window(QDialog):
         ----------
         Jonathan Chico
         """
-        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt6.QtWidgets import QTableWidgetItem
         # If the initial phase is MC
         if self.MCannealBox.isEnabled():
             if self.sender()==self.InitPhaseAddButton:
@@ -98,7 +98,7 @@ class InitPhase_Window(QDialog):
         ----------
         Jonathan Chico
         """
-        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt6.QtWidgets import QTableWidgetItem
         #----------------------------------------------------------------------------
         # Clean the table
         #----------------------------------------------------------------------------
@@ -161,7 +161,7 @@ class Error_Window(QDialog):
     """
     def __init__(self, parent=None):
         import os
-        from PyQt5 import uic
+        from PyQt6 import uic
         super(Error_Window, self).__init__(parent)
         path = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(path, 'Error_Msg.ui'), self)
@@ -193,8 +193,8 @@ class Restart_Window(QDialog):
         Jonathan Chico
         """
         import os
-        from PyQt5 import uic
-        from PyQt5.QtGui import QIntValidator
+        from PyQt6 import uic
+        from PyQt6.QtGui import QIntValidator
         super(Restart_Window, self).__init__(parent)
         #----------------------------------------------------------------------------
         # Load UI
@@ -245,7 +245,7 @@ class Restart_Window(QDialog):
         ----------
         Jonathan Chico
         """
-        from PyQt5.QtCore import QSignalBlocker
+        from PyQt6.QtCore import QSignalBlocker
         if self.sender()==self.DWOptBox:
             if self.DWOptBox.isChecked():
                 self.SkxOptBox.setChecked(False)
@@ -299,9 +299,9 @@ class Restart_Window(QDialog):
         """
         import pandas as pd
         import numpy as np
-        from PyQt5.QtGui import QIntValidator
+        from PyQt6.QtGui import QIntValidator
         from Input_Creator.ASDInputAux import create_coord
-        from PyQt5.QtWidgets import QFileDialog
+        from PyQt6.QtWidgets import QFileDialog
         # Read the posfile as defined
         self.Bas=pd.read_csv(inp_data.posfile,header=None,delim_whitespace=True,    \
         usecols=[2,3,4]).values
@@ -362,7 +362,7 @@ class Restart_Window(QDialog):
         """
         import numpy as np
         from Input_Creator.ASDInputAux import write_domain_wall,write_skyrmion,create_spiral
-        from PyQt5.QtWidgets import QFileDialog
+        from PyQt6.QtWidgets import QFileDialog
 
         if self.sender()==self.InpRestAppendButton:
             self.Mensemble=1
@@ -685,7 +685,7 @@ class Posfile_Window(QDialog):
     """
     def __init__(self, parent=None):
         import os
-        from PyQt5 import uic
+        from PyQt6 import uic
         super(Posfile_Window, self).__init__(parent)
         path = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(path, 'Posfile_Creator.ui'), self)
@@ -720,7 +720,7 @@ class Posfile_Window(QDialog):
         ----------
         Jonathan Chico
         """
-        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt6.QtWidgets import QTableWidgetItem
         if self.sender()==self.InPosAddRow:
             rowPosition = self.InPosTable.rowCount()
             self.InPosTable.insertRow(rowPosition)
@@ -815,7 +815,7 @@ class Momfile_Window(QDialog):
     """
     def __init__(self, parent=None):
         import os
-        from PyQt5 import uic
+        from PyQt6 import uic
         super(Momfile_Window, self).__init__(parent)
         path = os.path.dirname(os.path.abspath(__file__))
         uic.loadUi(os.path.join(path, 'Momfile_Creator.ui'), self)
@@ -846,7 +846,7 @@ class Momfile_Window(QDialog):
         ----------
         Jonathan Chico
         """
-        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt6.QtWidgets import QTableWidgetItem
         if self.sender()==self.InMomAddRow:
             rowPosition = self.InMomTable.rowCount()
             self.InMomTable.insertRow(rowPosition)

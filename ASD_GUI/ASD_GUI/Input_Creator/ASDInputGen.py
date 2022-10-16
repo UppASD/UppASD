@@ -29,7 +29,7 @@ class ASDInputGen():
     """
     def __init__(self):
         import collections
-        from PyQt5.QtGui import QIntValidator,QDoubleValidator
+        from PyQt6.QtGui import QIntValidator,QDoubleValidator
         ASDInputGen.UppASDKeywords=collections.OrderedDict()
         ASDInputGen.IntegerValidator = QIntValidator()
         ASDInputGen.IntegerValidator.setRange(0,99999999)
@@ -57,7 +57,7 @@ class ASDInputGen():
     # @author Jonathan Chico
     ############################################################################
     def getFileName(self,window):
-        from PyQt5 import QtWidgets
+        from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)

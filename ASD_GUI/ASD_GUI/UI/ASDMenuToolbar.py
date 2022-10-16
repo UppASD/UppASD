@@ -28,8 +28,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt5.QtGui import QDoubleValidator
-    from PyQt5.QtWidgets import QProgressBar,QLabel,QStyle,QToolButton
+    from PyQt6.QtGui import QDoubleValidator
+    from PyQt6.QtWidgets import QProgressBar,QLabel,QStyle,QToolButton
     window.VTKToolBar.setFixedHeight(24)
     window.ASD_VTK_Layout.insertWidget(0,window.VTKToolBar)
     #---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.PlayButton.setCheckable(True)
     window.PlayButton.setChecked(False)
     window.PlayButton.setEnabled(False)
-    window.PlayButton.setIcon(window.style().standardIcon(QStyle.SP_MediaPlay))
+    window.PlayButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
     window.PlayButton.setToolTip('Start/Pause the visualization of animations')
     window.PlayButton.setWhatsThis('Start/Pause the visualization of animations')
     window.PlayButton.setStatusTip('Start/Pause the visualization of animations')
@@ -106,7 +106,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     #---------------------------------------------------------------------------
     window.PauseButton = QToolButton()
     window.PauseButton.setEnabled(False)
-    window.PauseButton.setIcon(window.style().standardIcon(QStyle.SP_MediaPause))
+    window.PauseButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
     window.PauseButton.setToolTip('Pause the visualization of animations')
     window.PauseButton.setWhatsThis('Pause the visualization of animations')
     window.PauseButton.setStatusTip('Pause the visualization of animations')
@@ -116,7 +116,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     #---------------------------------------------------------------------------
     window.previousButton = QToolButton()
     window.previousButton.setEnabled(False)
-    window.previousButton.setIcon(window.style().standardIcon(QStyle.SP_MediaSkipBackward))
+    window.previousButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipBackward))
     window.previousButton.setToolTip('Go to the previous image')
     window.previousButton.setWhatsThis('Go to the previous image')
     window.previousButton.setStatusTip('Go to the previous image')
@@ -126,7 +126,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     #---------------------------------------------------------------------------
     window.nextButton = QToolButton()
     window.nextButton.setEnabled(False)
-    window.nextButton.setIcon(window.style().standardIcon(QStyle.SP_MediaSkipForward))
+    window.nextButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipForward))
     window.nextButton.setToolTip('Go to the next image')
     window.nextButton.setWhatsThis('Go to the next image')
     window.nextButton.setStatusTip('Go to the next image')
@@ -312,7 +312,7 @@ def Plot_Menu_and_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt5.QtWidgets import QToolButton
+    from PyQt6.QtWidgets import QToolButton
     window.MatPlotToolbar.setFixedHeight(24)
     window.ASD_PY_Layout.insertWidget(0,window.MatPlotToolbar)
     #---------------------------------------------------------------------------
@@ -439,7 +439,7 @@ def Input_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt5.QtWidgets import QToolButton
+    from PyQt6.QtWidgets import QToolButton
     window.InputToolbar.setFixedHeight(24)
     window.ASDInp_Layout.insertWidget(0,window.InputToolbar)
     #--------------------------------------------------------------------------------
@@ -513,7 +513,7 @@ def UpdateUI(window):
     ----------
     Jonathan Chico
     """
-    from PyQt5.QtCore import QSignalBlocker
+    from PyQt6.QtCore import QSignalBlocker
 
     if window.sender()==window.InpInitBox:
         if window.InpInitBox.isChecked():

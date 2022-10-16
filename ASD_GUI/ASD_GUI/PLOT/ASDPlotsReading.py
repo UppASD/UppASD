@@ -51,11 +51,11 @@ class ReadPlotData():
     # @author Jonathan Chico
     ############################################################################
     def getFileName(self,window):
-        from PyQt5 import QtWidgets
+        from PyQt6 import QtWidgets
         dlg = QtWidgets.QFileDialog()
-        dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        #dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
         dlg.setDirectory('.')
-        if dlg.exec_():
+        if dlg.exec():
             if window.sender()==window.actionYaml_File:
                 ReadPlotData.yamlfile=dlg.selectedFiles()[0]
                 ReadPlotData.not_read_yaml=True
@@ -87,7 +87,7 @@ class ReadPlotData():
     # @author Jonathan Chico
     ############################################################################
     def PlotReadingWrapper(self,file_names,window):
-        import UI.ASDInputWindows
+        from ASD_GUI.UI import ASDInputWindows
         import glob
         ReadPlotData.yamlfile   = file_names[0]
         ReadPlotData.amsfile    = file_names[1]
@@ -165,17 +165,17 @@ class ReadPlotData():
                 and window.SqwDispCheckBox.isChecked()) \
                 or (window.sender()==window.actionS_q_w and window.SqwDispCheckBox.isChecked()):
                     if ReadPlotData.sc_step==1:
-                        window.sc_step_Error_Window=UI.ASDInputWindows.Error_Window()
+                        window.sc_step_Error_Window=ASDInputWindows.Error_Window()
                         window.sc_step_Error_Window.FunMsg.setText("Expect the Unexpected")
                         window.sc_step_Error_Window.ErrorMsg.setText("Error: No sampling frequency set assuming 1 the scale of the plot might be wrong.")
                         window.sc_step_Error_Window.show()
                     if ReadPlotData.sc_nstep==1:
-                        window.sc_nstep_Error_Window=UI.ASDInputWindows.Error_Window()
+                        window.sc_nstep_Error_Window=ASDInputWindows.Error_Window()
                         window.sc_nstep_Error_Window.FunMsg.setText("Expect the Unexpected")
                         window.sc_nstep_Error_Window.ErrorMsg.setText("Error: No number frequencies set assuming 1 the scale of the plot might be wrong.")
                         window.sc_step_Error_Window.show()
                     if ReadPlotData.timestep==1:
-                        window.time_step_Error_Window=UI.ASDInputWindows.Error_Window()
+                        window.time_step_Error_Window=ASDInputWindows.Error_Window()
                         window.time_step_Error_Window.FunMsg.setText("Expect the Unexpected")
                         window.time_step_Error_Window.ErrorMsg.setText("Error: No time step set assuming 1 the scale of the plot might be wrong.")
                         window.time_step_Error_Window.show()
@@ -369,7 +369,8 @@ class ReadPlotData():
         import pandas as pd
         import numpy as np
         from scipy import signal
-        sqwa = pd.read_csv(filename,header=None,delim_whitespace=True).values
+        #sqwa = pd.read_csv(filename,header=None,delim_whitespace=True).values
+        sqwa = np.genfromtxt(filename)
         qd=int(sqwa[sqwa.shape[0]-1,0])
         ed=int(sqwa[sqwa.shape[0]-1,4])
         sqw_data=[]
