@@ -53,7 +53,7 @@ class ReadPlotData():
     def getFileName(self,window):
         from PyQt6 import QtWidgets
         dlg = QtWidgets.QFileDialog()
-        #dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
         dlg.setDirectory('.')
         if dlg.exec():
             if window.sender()==window.actionYaml_File:

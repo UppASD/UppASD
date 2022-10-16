@@ -70,6 +70,7 @@ class ASDReading():
         from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
         dlg.setDirectory('.')
         if dlg.exec():
             if window.sender()==window.actionCoordinate_File:
@@ -120,13 +121,22 @@ class ASDReading():
             if len(ASDReading.magnetization)>0:
                 ASDReading.MagFile = open(ASDReading.magnetization)
             else:
-                window.Res_Error_Window=ASDInputWindows.Error_Window()
-                window.Res_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
-                window.Res_Error_Window.ErrorMsg.setText("Error: No magnetic configuration file found!")
-                window.Res_Error_Window.show()
-                ASDReading.error_trap=True
-                print("Error: No magnetic configuration file selected!")
-                print("I'm sorry, Dave. I'm afraid I can't do that.")
+                print("No file name selected from menu. Trying to find a 'localenergy.*.out' file")
+                ASDReading.MagFiles=glob.glob("restart.*.out")
+                if len(ASDReading.MagFiles)>0:
+                    ASDReading.MagFile= open(ASDReading.MagFiles[0])
+                    window.Res_Info_Window=ASDInputWindows.Info_Window()
+                    window.Res_Info_Window.FunMsg.setText("Information: no magnetic configuration given")
+                    window.Res_Info_Window.InfoMsg.setText("File "+str(ASDReading.MagFiles[0])+" chosen as default.")
+                    window.Res_Info_Window.show()
+                else:
+                    window.Res_Error_Window=ASDInputWindows.Error_Window()
+                    window.Res_Error_Window.FunMsg.setText("I'm sorry, Dave. I'm afraid I can't do that.")
+                    window.Res_Error_Window.ErrorMsg.setText("Error: No magnetic configuration file found!")
+                    window.Res_Error_Window.show()
+                    ASDReading.error_trap=True
+                    print("Error: No magnetic configuration file selected!")
+                    print("I'm sorry, Dave. I'm afraid I can't do that.")
         #----------------------------------------------------------------------------
         # Neighbour type of visualization
         #----------------------------------------------------------------------------

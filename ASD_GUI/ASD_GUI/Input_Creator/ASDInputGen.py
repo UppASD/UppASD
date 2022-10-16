@@ -60,7 +60,7 @@ class ASDInputGen():
         from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
-        #dlg.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
         dlg.setDirectory('.')
         if dlg.exec():
             if window.sender()==window.InpPosButtonSelect:

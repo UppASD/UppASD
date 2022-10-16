@@ -169,6 +169,31 @@ class Error_Window(QDialog):
         return
 
 ################################################################################
+# @brief Class responsible for the creation of information windows.
+# @details Class responsible for the creation of information windows, this 
+# window contains a placeholder message that can be modified to display 
+# a more precise information message (not error)
+# @author Jonathan Chico, Anders Bergman
+################################################################################
+class Info_Window(QDialog):
+    """Class responsible for the creation of information windows, this
+    window contains a placeholder message that can be modified to display
+    a more precise information message (not error)
+
+    Author
+    ----------
+    Jonathan Chico, Anders Bergman
+    """
+    def __init__(self, parent=None):
+        import os
+        from PyQt6 import uic
+        super(Info_Window, self).__init__(parent)
+        path = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(os.path.join(path, 'Info_Msg.ui'), self)
+        self.InfoMsgAccept.clicked.connect(self.close)
+        return
+
+################################################################################
 ## @brief Class containing the definitions necessary for the creation of the window
 # responsible for the restartfile creation. As well as the definition of the
 # actions associated with that window.
