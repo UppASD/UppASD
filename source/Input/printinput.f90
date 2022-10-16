@@ -569,6 +569,8 @@ contains
       call yes_no_print(plotenergy,"totenergy: ",0,file_id)
       ! Cumulants
       call yes_no_print(do_cumu,"cumulants:",'Y',file_id)
+      ! Cumulants
+      call yes_no_print(do_prnstruct,"coord:",0,file_id)
 
       close(file_id)
 
