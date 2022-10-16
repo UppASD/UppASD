@@ -3918,7 +3918,7 @@
                </item>
               </layout>
              </widget>
-            </item>
+          </item>
             <item>
              <spacer name="verticalSpacer_14">
               <property name="orientation">
@@ -4103,7 +4103,7 @@
          </rect>
         </property>
         <attribute name="label">
-         <string>General Options</string>
+         <string>Figure Options</string>
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout_23">
          <item>
@@ -4154,7 +4154,7 @@
                <string>Options to save the figure</string>
               </property>
               <property name="title">
-               <string>Figure options</string>
+               <string>Saving options</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_55">
                <item row="0" column="0">
@@ -4183,6 +4183,126 @@
               </layout>
              </widget>
             </item>
+               <item>
+                <widget class="QLabel" name="ABLineLabel">
+                 <property name="frameShape">
+                  <enum>QFrame::NoFrame</enum>
+                 </property>
+                 <property name="text">
+                  <string>Line width</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSlider" name="ABLineWidth">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <italic>false</italic>
+                   <underline>false</underline>
+                   <strikeout>false</strikeout>
+                  </font>
+                 </property>
+                 <property name="toolTip">
+                  <string>Scale the width of the lines</string>
+                 </property>
+                 <property name="statusTip">
+                  <string>Scale the width of the lines</string>
+                 </property>
+                 <property name="whatsThis">
+                  <string>Scale the width of the lines</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>10</number>
+                 </property>
+                 <property name="pageStep">
+                  <number>1</number>
+                 </property>
+                 <property name="value">
+                  <number>2</number>
+                 </property>
+                 <property name="sliderPosition">
+                  <number>6</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="tickPosition">
+                  <enum>QSlider::TicksBelow</enum>
+                 </property>
+                 <property name="tickInterval">
+                  <number>5</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="ABMarkerLabel">
+                 <property name="frameShape">
+                  <enum>QFrame::NoFrame</enum>
+                 </property>
+                 <property name="text">
+                  <string>Marker Size</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSlider" name="ABMarkerSize">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <italic>false</italic>
+                   <underline>false</underline>
+                   <strikeout>false</strikeout>
+                  </font>
+                 </property>
+                 <property name="toolTip">
+                  <string>Scale the size of the markers</string>
+                 </property>
+                 <property name="statusTip">
+                  <string>Scale the size of the markers</string>
+                 </property>
+                 <property name="whatsThis">
+                  <string>Scale the size of the markers</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>10</number>
+                 </property>
+                 <property name="pageStep">
+                  <number>1</number>
+                 </property>
+                 <property name="value">
+                  <number>2</number>
+                 </property>
+                 <property name="sliderPosition">
+                  <number>0</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="tickPosition">
+                  <enum>QSlider::TicksBelow</enum>
+                 </property>
+                 <property name="tickInterval">
+                  <number>5</number>
+                 </property>
+                </widget>
+               </item>
             <item>
              <spacer name="verticalSpacer_13">
               <property name="orientation">

@@ -19,6 +19,8 @@ Jonathan Chico
 class Abstract2DPlot():
     def __init__(self):
         Abstract2DPlot.font_size=12
+        Abstract2DPlot.markersize=0
+        Abstract2DPlot.linewidth=3
         return
     ############################################################################
     # @brief Function to plot line and scatter plots.
@@ -31,10 +33,12 @@ class Abstract2DPlot():
         from matplotlib import cm as cm
         import numpy as np
         axis.cla()
+        # AB -> add figure properties
         colors=cm.Paired(np.linspace(0,1,len(data_x)+2))
+        print('AB  ->',Abstract2DPlot.markersize,self.markersize)
         for ii in range(0,len(data_x)):
-            axis.plot(data_x[ii],data_y[ii],lw=3,c=colors[ii],label=labels[ii],zorder=-1)
-            axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
+            axis.plot(data_x[ii],data_y[ii],lw=self.linewidth,c=colors[ii],label=labels[ii],zorder=-1,markersize=self.markersize,marker='o')
+            #axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
         axis.set_xlabel(ax_label[0],fontsize=Abstract2DPlot.font_size)
         axis.set_ylabel(ax_label[1],fontsize=Abstract2DPlot.font_size)
         axis.tick_params(axis='x', colors='black',labelsize=Abstract2DPlot.font_size,width=2)

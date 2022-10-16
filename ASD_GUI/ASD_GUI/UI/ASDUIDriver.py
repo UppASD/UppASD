@@ -557,6 +557,20 @@ class UppASDVizMainWindow(QMainWindow):
             self.MagDirIndx.append(3)
         self.PlottingWrapper()
     ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotLineChanger(self,value):
+        print('Slider slided:',self.ABLineWidth,value/2.0)
+        self.ASDPlots2D.linewidth=value/2.0
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotMarkerChanger(self,value):
+        print('Slider slided:',self.ABMarkerSize,value/2.0)
+        self.ASDPlots2D.markersize=value/2.0
+        self.PlottingWrapper()
+    ############################################################################
     # Plotting the components of the energy
     ############################################################################
     def PlotEneCompSelector(self):
