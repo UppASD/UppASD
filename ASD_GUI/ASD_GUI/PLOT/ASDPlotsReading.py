@@ -113,6 +113,7 @@ class ReadPlotData():
                 ReadPlotData.UppASDYamlInfo=ReadPlotData.yamlfile
                 # If the yaml file is found one must read it and find its data first
                 if ReadPlotData.not_read_yaml:
+                    print("File "+ReadPlotData.yamlfile+" found and read")
                     self.Yaml_Read_Wrapper(ReadPlotData.UppASDYamlInfo,window)
                     ReadPlotData.not_read_yaml=False
                     ReadPlotData.yaml_file_present=True

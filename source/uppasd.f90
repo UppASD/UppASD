@@ -1030,6 +1030,7 @@ contains
       write(*,'(1x,a)',advance='no') 'Write input data'
       ! Modify for SKKR stuff later
       call prninp()
+      call print_yaml()
       write(*,'(a)') ' done.'
       !
       ! 
