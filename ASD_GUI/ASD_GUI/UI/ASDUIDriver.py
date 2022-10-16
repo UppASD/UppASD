@@ -725,7 +725,7 @@ class UppASDVizMainWindow(QMainWindow):
                 curr_data_y=[]
                 curr_labels=[]
                 for ii in range(len(self.MagDirIndx)):
-                    curr_data_x.append(self.ASDPlotData.itr_data[self.MagDirIndx[ii]])
+                    curr_data_x.append(self.ASDPlotData.mitr_data[self.MagDirIndx[ii]])
                     curr_data_y.append(self.ASDPlotData.mag_data[self.MagDirIndx[ii]])
                     curr_labels.append(self.ASDPlotData.mag_labels[self.MagDirIndx[ii]])
                 if len(self.MagDirIndx)>0:
@@ -749,7 +749,7 @@ class UppASDVizMainWindow(QMainWindow):
                 curr_data_y=[]
                 curr_labels=[]
                 for ii in range(len(self.EneIndx)):
-                    curr_data_x.append(self.ASDPlotData.itr_data[self.EneIndx[ii]])
+                    curr_data_x.append(self.ASDPlotData.eitr_data[self.EneIndx[ii]])
                     curr_data_y.append(self.ASDPlotData.ene_data[self.EneIndx[ii]])
                     curr_labels.append(self.ASDPlotData.ene_labels[self.EneIndx[ii]])
                 if len(self.EneIndx)>0:

@@ -106,8 +106,8 @@ class ReadPlotData():
                 ReadPlotData.not_read_yaml=False
                 ReadPlotData.yaml_file_present=True
         else:
-            print("No file name selected from menu. Trying to find a 'asd.yaml' file")
-            ReadPlotData.yamlfile=glob.glob("asd.yaml")
+            print("No file name selected from menu. Trying to find a 'uppasd.simid.yaml' file")
+            ReadPlotData.yamlfile=glob.glob("uppasd.*.yaml")
             if len(ReadPlotData.yamlfile)>0:
                 ReadPlotData.yamlfile=ReadPlotData.yamlfile[0]
                 ReadPlotData.UppASDYamlInfo=ReadPlotData.yamlfile
@@ -133,7 +133,7 @@ class ReadPlotData():
                 else:
                     ReadPlotData.sc_nstep=1
 
-                ReadPlotData.hf_scale=ReadPlotData.h_mev/(ReadPlotData.timestep*1e-9*ReadPlotData.sc_step*ReadPlotData.sc_nstep)/2
+                ReadPlotData.hf_scale=ReadPlotData.h_mev/(ReadPlotData.timestep*1e-9*ReadPlotData.sc_step*ReadPlotData.sc_nstep)
                 #---------------------------------------------------------------
                 # Trying to find an ams file
                 #---------------------------------------------------------------
@@ -201,7 +201,7 @@ class ReadPlotData():
                 if window.sender()==window.actionAverages:
                     if len(ReadPlotData.averages)>0:
                         if ReadPlotData.not_read_averages:
-                            (ReadPlotData.mag_data,ReadPlotData.itr_data,           \
+                            (ReadPlotData.mag_data,ReadPlotData.mitr_data,           \
                             ReadPlotData.mag_labels)=                               \
                             self.read_gen_plot_data(ReadPlotData.averages)
                             if ReadPlotData.timestep!=1:
@@ -216,7 +216,7 @@ class ReadPlotData():
                         if len(ReadPlotData.averages)>0:
                             ReadPlotData.averages=ReadPlotData.averages[0]
                             if ReadPlotData.not_read_averages:
-                                (ReadPlotData.mag_data,ReadPlotData.itr_data,       \
+                                (ReadPlotData.mag_data,ReadPlotData.mitr_data,       \
                                 ReadPlotData.mag_labels)=                           \
                                 self.read_gen_plot_data(ReadPlotData.averages)
                                 if ReadPlotData.timestep!=1:
@@ -231,7 +231,7 @@ class ReadPlotData():
                 if window.sender()==window.actionTotEnergy:
                     if len(ReadPlotData.totenergy)>0:
                         if ReadPlotData.not_read_totenergy:
-                            (ReadPlotData.ene_data,ReadPlotData.itr_data,           \
+                            (ReadPlotData.ene_data,ReadPlotData.eitr_data,           \
                             ReadPlotData.ene_labels)=                               \
                             self.read_gen_plot_data(ReadPlotData.totenergy)
                             if ReadPlotData.timestep!=1:
@@ -246,7 +246,7 @@ class ReadPlotData():
                         if len(ReadPlotData.totenergy)>0:
                             ReadPlotData.totenergy=ReadPlotData.totenergy[0]
                             if ReadPlotData.not_read_totenergy:
-                                (ReadPlotData.ene_data,ReadPlotData.itr_data,       \
+                                (ReadPlotData.ene_data,ReadPlotData.eitr_data,       \
                                 ReadPlotData.ene_labels)=                           \
                                 self.read_gen_plot_data(ReadPlotData.totenergy)
                                 if ReadPlotData.timestep!=1:
@@ -286,7 +286,7 @@ class ReadPlotData():
         import glob
         with open(filename, 'r') as stream:
             try:
-                ReadPlotData.sim=yaml.load(stream)
+                ReadPlotData.sim=yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
         if "timestep" in ReadPlotData.sim["siminfo"]:
@@ -303,7 +303,7 @@ class ReadPlotData():
         #############################################################################
         if ReadPlotData.sim["measurables"]["averages"]:
             ReadPlotData.averages="averages."+ReadPlotData.sim["simid"]+".out"
-            (ReadPlotData.mag_data,ReadPlotData.itr_data,ReadPlotData.mag_labels)=  \
+            (ReadPlotData.mag_data,ReadPlotData.mitr_data,ReadPlotData.mag_labels)=  \
             self.read_gen_plot_data(ReadPlotData.averages)
             if ReadPlotData.timestep!=1:
                 ReadPlotData.mag_axes=['Time [ns]',r'Magnetization [$\mu_B$]']
@@ -315,7 +315,8 @@ class ReadPlotData():
         # Read the energy
         #############################################################################
         if ReadPlotData.sim["measurables"]["totenergy"]:
-            (ReadPlotData.ene_data,ReadPlotData.itr_data,ReadPlotData.ene_labels)=  \
+            ReadPlotData.totenergy="totenergy."+ReadPlotData.sim["simid"]+".out"
+            (ReadPlotData.ene_data,ReadPlotData.eitr_data,ReadPlotData.ene_labels)=  \
             self.read_gen_plot_data(ReadPlotData.totenergy)
             if ReadPlotData.timestep!=1:
                 ReadPlotData.ene_axes=['Time [ns]',r'Energy/spin [mRy]']
@@ -342,7 +343,7 @@ class ReadPlotData():
         # Read the Sqw
         #############################################################################
         if ReadPlotData.sim["measurables"]["sqw"]:
-            ReadPlotData.hf_scale=ReadPlotData.h_mev/(ReadPlotData.timestep*1e-9*ReadPlotData.sc_step)
+            ReadPlotData.hf_scale=ReadPlotData.h_mev/(ReadPlotData.timestep*1.0e-9*ReadPlotData.sc_step*ReadPlotData.sc_nstep)
             ReadPlotData.sqwfile="sqw."+ReadPlotData.sim["simid"]+".out"
             (ReadPlotData.sqw_data,ReadPlotData.sqw_labels,ReadPlotData.ax_limits)=\
             self.read_sqw(ReadPlotData.sqwfile)
@@ -409,16 +410,16 @@ class ReadPlotData():
         #-----------------------------------------------------------------------
         # Perform a convolution with a windowing function for each q-point
         #-----------------------------------------------------------------------
-        for iq in range(0,qd):
-            indx=np.where(sqwa[:,0]==(iq+1))
-            for ii in range(0,4):
-                #sqwa[indx[0],ii+5]=signal.convolve(sqwa[indx[0],ii+5],gauss,mode='same')
-                sqwa[indx[0],ii+5]=self.convolve(sqwa[indx[0],ii+5],gauss)
+        #for iq in range(0,qd):
+        #    indx=np.where(sqwa[:,0]==(iq+1))
+        #    for ii in range(0,4):
+        #        #sqwa[indx[0],ii+5]=signal.convolve(sqwa[indx[0],ii+5],gauss,mode='same')
+        #        sqwa[indx[0],ii+5]=self.convolve(sqwa[indx[0],ii+5],gauss)
         #-----------------------------------------------------------------------
         # Find the peaks and normalize the data
         #-----------------------------------------------------------------------
         for ii in range(5,len(sqwa[0])):
-            sqw=np.transpose((np.reshape(sqwa[:,ii],(qd,ed))[:,0:int(ed/2)]))
+            sqw=np.transpose((np.reshape(sqwa[:,ii],(qd,ed))[:,0:int(ed)]))
             sqw_peaks=np.argmax(sqw,axis=0)
             normMat=np.diag(1.0/np.amax(sqw,axis=0))
             sqw=np.matmul(sqw,normMat)
@@ -476,7 +477,7 @@ class ReadPlotData():
     #################################################################################
     def read_gen_plot_data(self,filename):
         import pandas as pd
-        data_df=pd.read_csv(filename,header=0,delim_whitespace=True)
+        data_df=pd.read_csv(filename,header=0,delim_whitespace=True, escapechar='#')
         data=data_df.values
         t_data=[]
         itr_data=[]
