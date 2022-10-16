@@ -359,6 +359,34 @@ class ReadPlotData():
             ReadPlotData.not_read_ams=False
             ReadPlotData.ams_file_present=True
         return
+
+    ############################################################################
+    # @brief Create a Gaussian kernel (normalized) for future convolutions
+    # @author Anders Bergman
+    ############################################################################
+    def gaussian(self,M,std):
+        import numpy as np
+        x=np.linspace(0,M)
+        y=(1.0)/(std*np.sqrt(2.0*np.pi))*np.exp(-0.5*x*x/std**2)
+        # For consistency with scipy.signal - skip normalization as per below
+        # y_0=np.exp(-0.5*x*x/std**2)
+        return y
+
+    ############################################################################
+    # @brief Convolute a function with a kernel
+    # @author Anders Bergman
+    ############################################################################
+    def convolve(self,func,kern):
+        import numpy as np
+        n=func.shape[0]+kern.shape[0]
+        F=np.fft.fft(func,n=n)
+        G=np.fft.fft(kern,n=n)
+        FG=F*G
+        zpos=int((kern.shape[0]-1)/2.0)
+        return np.real(np.fft.ifft(FG))[zpos:zpos+func.shape[0]]
+
+
+
     ############################################################################
     # @brief Read the data for the \f$\mathbf{S}(\mathbf{q},\omega)\f$ and postprocess it for plotting
     # @details Reads the data and it post-process it to ensure that the spin-spin
@@ -366,16 +394,17 @@ class ReadPlotData():
     # @author Anders Bergman and Jonathan Chico
     ############################################################################
     def read_sqw(self,filename):
-        import pandas as pd
+        #import pandas as pd
         import numpy as np
-        from scipy import signal
+        #from scipy import signal
         #sqwa = pd.read_csv(filename,header=None,delim_whitespace=True).values
         sqwa = np.genfromtxt(filename)
         qd=int(sqwa[sqwa.shape[0]-1,0])
         ed=int(sqwa[sqwa.shape[0]-1,4])
         sqw_data=[]
         sigma=1.50
-        gauss=signal.gaussian(ed,std=sigma)
+        #gauss=signal.gaussian(ed,std=sigma)
+        gauss=self.gaussian(ed,sigma)
         ax_limits=[min(sqwa[:,0]),max(sqwa[:,0]),min(sqwa[:,4])*ReadPlotData.hf_scale,max(sqwa[:,4])*ReadPlotData.hf_scale]
         #-----------------------------------------------------------------------
         # Perform a convolution with a windowing function for each q-point
@@ -383,7 +412,8 @@ class ReadPlotData():
         for iq in range(0,qd):
             indx=np.where(sqwa[:,0]==(iq+1))
             for ii in range(0,4):
-                sqwa[indx[0],ii+5]=signal.convolve(sqwa[indx[0],ii+5],gauss,mode='same')
+                #sqwa[indx[0],ii+5]=signal.convolve(sqwa[indx[0],ii+5],gauss,mode='same')
+                sqwa[indx[0],ii+5]=self.convolve(sqwa[indx[0],ii+5],gauss)
         #-----------------------------------------------------------------------
         # Find the peaks and normalize the data
         #-----------------------------------------------------------------------

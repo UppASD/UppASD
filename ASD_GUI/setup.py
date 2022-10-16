@@ -22,7 +22,6 @@ setup(
             'PyYAML',
             'setuptools',
             'vtk>=9.0.0',
-            'scipy',
             ]
         )
 
