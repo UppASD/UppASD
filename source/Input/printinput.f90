@@ -50,7 +50,7 @@ contains
       ! Print header
       call print_header()
       ! Print physical constants 
-      !!! call print_constants()
+      ! call print_constants()
 
       ! Print general system info
       call print_input1()
@@ -80,10 +80,10 @@ contains
       close(file_id)
 
       ! Print unported outputs to old text format
-      write (filn,'(''inp.'',a,''.out'')') trim(simid)
-      open(file_id, file=filn)
-      call print_mwf_info()
-      close(file_id)
+      !write (filn,'(''inp.'',a,''.out'')') trim(simid)
+      !open(file_id, file=filn)
+      !call print_mwf_info()
+      !close(file_id)
 
 
    CONTAINS
@@ -93,14 +93,12 @@ contains
          call json_write(file_id,simid,key='simid')
       end subroutine print_header
 
-      !!! subroutine print_constants()
-      !!!    use Constants, only : k_bolt, mub
-      !!!    write (file_id,'(a)') "# Physical constants"
-      !!!    write (file_id,'(a, /20x ,es16.8)') "Boltzman constant:", k_bolt
-      !!!    write (file_id,'(a, /20x ,es16.8)') "Bohr magneton:", mub
-      !!!    !write (file_id,'(a,es16.8)') "mRy             ", mry
+      subroutine print_constants()
+             call json_write(file_id,(/k_bolt/),1,key='k_bolt')
+             call json_write(file_id,(/mub/),1,key='muB')
+             call json_write(file_id,(/mry/),1,key='mRy')
       !!!    write (file_id,'(a)')  " "
-      !!! end subroutine print_constants
+      end subroutine print_constants
 
       subroutine print_input1()
          !
@@ -115,16 +113,21 @@ contains
          ! cell
          call json_key(file_id,'cell')
          write(file_id,'(a)') '['
-         call json_float(file_id,C1,3,indflag=.true.)
-         call json_float(file_id,C2,3,indflag=.true.)
-         call json_float(file_id,C3,3,indflag=.true.,contflag=.true.)
+         call json_write(file_id,C1,3,indflag=.true.)
+         call json_write(file_id,C2,3,indflag=.true.)
+         call json_write(file_id,C3,3,indflag=.true.,contflag=.true.)
          write(file_id,'(25x,a)') '],'
 
          ! positions
-         !!!write (file_id,'(a)') '  "positions" : '
-         !!!do i=1,NA
-         !!!   write (file_id,'(20x,i0,2x,i0,2x,3es15.8)') anumb_inp(i), atype_inp(i), bas(1:3,i)
-         !!!end do
+         call json_write(file_id,anumb_inp,NA,key='anumb_inp')
+         call json_write(file_id,atype_inp,NA,key='atype_inp')
+         call json_key(file_id,'bas')
+         write(file_id,'(a)') '['
+         do i=1,NA-1
+            call json_write(file_id,bas(:,i),3,indflag=.true.)
+         end do
+         call json_write(file_id,bas(:,NA),3,indflag=.true.,contflag=.true.)
+         write(file_id,'(25x,a)') '],'
 
          ! na
          call json_write(file_id,(/NA/),1,key='na')
@@ -171,9 +174,9 @@ contains
             call json_key(file_id,'moments')
             write(file_id,'(a)') '['
             do i=1,NA-1
-               call json_float(file_id,aemom_inp(:,i,1,1),3,indflag=.true.)
+               call json_write(file_id,aemom_inp(:,i,1,1),3,indflag=.true.)
             enddo
-            call json_float(file_id,aemom_inp(:,i,1,1),3,contflag=.true.,indflag=.true.)
+            call json_write(file_id,aemom_inp(:,i,1,1),3,contflag=.true.,indflag=.true.)
             write(file_id,'(25x,a)') '],'
          endif
          if(initmag==4) then

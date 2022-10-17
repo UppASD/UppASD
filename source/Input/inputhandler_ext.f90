@@ -520,7 +520,7 @@ contains
                ! Add entry if not found earlier
                ham_inp%nn(itype)=ham_inp%nn(itype)+1
                ham_inp%nntype(itype,ham_inp%nn(itype))=atype_inp(jsite)
-               write(2000,'(2i6, 2i4, 2i8)') isite, ham_inp%nn(itype),ham_inp%nntype(itype,ham_inp%nn(itype))
+               !write(2000,'(2i6, 2i4, 2i8)') isite, ham_inp%nn(itype),ham_inp%nntype(itype,ham_inp%nn(itype))
                ham_inp%redcoord(itype,ham_inp%nn(itype),1:3)=r_red(1:3)
                if(do_ralloy==0) then
                   ham_inp%jc(itype,ham_inp%nn(itype),ichem,jtype,ii)=j_tmp
