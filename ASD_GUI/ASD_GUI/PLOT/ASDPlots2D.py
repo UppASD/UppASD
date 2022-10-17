@@ -35,7 +35,6 @@ class Abstract2DPlot():
         axis.cla()
         # AB -> add figure properties
         colors=cm.Paired(np.linspace(0,1,len(data_x)+2))
-        print('AB  ->',Abstract2DPlot.markersize,self.markersize)
         for ii in range(0,len(data_x)):
             axis.plot(data_x[ii],data_y[ii],lw=self.linewidth,c=colors[ii],label=labels[ii],zorder=-1,markersize=self.markersize,marker='o')
             #axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
@@ -99,7 +98,55 @@ class Correlation_Plots():
         from matplotlib import cm as cm
         Correlation_Plots.font_size=12
         Correlation_Plots.cmap=[cm.coolwarm,cm.Spectral,cm.inferno]
+        Correlation_Plots.sigma_w=0.0
+        Correlation_Plots.w_max=1.0
+        Correlation_Plots.w_min=1.0
         return
+    ############################################################################
+    # @brief Create a Gaussian kernel (normalized) for future convolutions
+    # @author Anders Bergman
+    ############################################################################
+    def gaussian(self,M,std):
+        import numpy as np
+        x=np.linspace(-self.w_max/2.0,self.w_max/2.0,M)
+        y=(1.0)/(std*np.sqrt(2.0*np.pi))*np.exp(-0.5*x*x/std**2)
+        # For consistency with scipy.signal - skip normalization as per below
+        # y_0=np.exp(-0.5*x*x/std**2)
+        return y
+
+    ############################################################################
+    # @brief Convolute a function with a kernel
+    # @author Anders Bergman
+    ############################################################################
+    def convolve(self,func,kern):
+        import numpy as np
+        n=func.shape[0]+kern.shape[0]
+        F=np.fft.fft(func,n=n)
+        G=np.fft.fft(kern,n=n)
+        FG=F*G
+        zpos=int((kern.shape[0]-1)/2.0)
+        return np.real(np.fft.ifft(FG))[zpos:zpos+func.shape[0]]
+
+    def sqw_convolve(self,sqwa):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        #-----------------------------------------------------------------------
+        # Perform a convolution with a windowing function for each q-point
+        #-----------------------------------------------------------------------
+        ed=sqwa.shape[0]
+        qd=sqwa.shape[1]
+        gauss=self.gaussian(ed,self.sigma_w)
+        sqw_in=np.copy(sqwa)
+        for iq in range(0,qd):
+            sqw_in[:,iq]=self.convolve(sqw_in[:,iq],gauss)
+        #-----------------------------------------------------------------------
+        # Find the peaks and normalize the data
+        #-----------------------------------------------------------------------
+        sqw_peaks=np.argmax(sqw_in,axis=0)
+        normMat=np.diag(1.0/np.amax(sqw_in,axis=0))
+        sqw_out=np.matmul(sqw_in,normMat)
+        return sqw_out
+
     ############################################################################
     # @brief Function to plot the spin-spin correlation function obtained from the
     # sqw.simid.out file.
@@ -108,6 +155,12 @@ class Correlation_Plots():
     ############################################################################
     def Sqw_Plot(self,axis,sqw_data,proj,sqw_labels,col_indx,ax_limits):
         axis.cla()
+        import numpy as np
+        # Energy maximim 
+        self.w_max=ax_limits[3]
+        self.w_min=self.w_max/sqw_data[proj].shape[0]
+        # Setting the Gaussian smearing to minimum relevant value (0 is not good..)
+        self.sigma_w=np.maximum(self.sigma_w,self.w_max/sqw_data[proj].shape[0])
         #-----------------------------------------------------------------------
         # Axis properties
         #-----------------------------------------------------------------------
@@ -121,7 +174,7 @@ class Correlation_Plots():
         #-----------------------------------------------------------------------
         # Plotting the S(q,w)
         #-----------------------------------------------------------------------
-        axis.imshow(sqw_data[proj],origin='lower',aspect='auto',interpolation='lanczos',\
+        axis.imshow(self.sqw_convolve(sqw_data[proj]),origin='lower',aspect='auto',interpolation='quadric',\
         cmap=Correlation_Plots.cmap[col_indx],extent=ax_limits)
         axis.set_xlim(ax_limits[0],ax_limits[1])
         axis.set_ylim(ax_limits[2],ax_limits[3])
@@ -137,15 +190,19 @@ class Correlation_Plots():
     col_indx,ax_limits):
         import numpy as np
         axis.cla()
+        # Energy maximim 
+        self.w_max=ax_limits[3]
+        # Setting the Gaussian smearing to minimum relevant value (0 is not good..)
+        self.sigma_w=np.maximum(self.sigma_w,self.w_max/sqw_data[proj].shape[0])
         #-----------------------------------------------------------------------
         # Plotting the S(q,w) and AMS
         #-----------------------------------------------------------------------
-        axis.imshow(sqw_data[proj],origin='lower',extent=ax_limits,aspect='auto',\
+        axis.imshow(self.sqw_convolve(sqw_data[proj]),origin='lower',extent=ax_limits,aspect='auto',\
         interpolation='quadric',cmap=Correlation_Plots.cmap[col_indx])
         axis.set_xlim(ax_limits[0],ax_limits[1])
         axis.set_ylim(ax_limits[2],ax_limits[3])
         for ii in range(len(ams_data_y)):
-            ams_data_x[ii]=np.arange(ax_limits[0]+1,ax_limits[1],1)
+            ams_data_x[ii]=np.arange(ax_limits[0],ax_limits[1]+1,1)
             if ii==0:
                 axis.plot(ams_data_x[ii],ams_data_y[ii], c='b',lw=3,label='AMS')
             else:

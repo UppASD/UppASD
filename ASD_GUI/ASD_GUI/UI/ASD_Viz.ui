@@ -3817,6 +3817,66 @@
               </property>
              </widget>
             </item>
+               <item>
+                <widget class="QLabel" name="ABCorrSmLabel">
+                 <property name="frameShape">
+                  <enum>QFrame::NoFrame</enum>
+                 </property>
+                 <property name="text">
+                  <string>S(q,w) broadening</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSlider" name="ABCorrWidth">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <italic>false</italic>
+                   <underline>false</underline>
+                   <strikeout>false</strikeout>
+                  </font>
+                 </property>
+                 <property name="toolTip">
+                  <string>Scale the S(q,w) broadening</string>
+                 </property>
+                 <property name="statusTip">
+                  <string>Scale the S(q,w) broadening</string>
+                 </property>
+                 <property name="whatsThis">
+                  <string>Scale the S(q,w) broadening</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>20</number>
+                 </property>
+                 <property name="pageStep">
+                  <number>1</number>
+                 </property>
+                 <property name="value">
+                  <number>10</number>
+                 </property>
+                 <property name="sliderPosition">
+                  <number>0</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="tickPosition">
+                  <enum>QSlider::TicksBelow</enum>
+                 </property>
+                 <property name="tickInterval">
+                  <number>2</number>
+                 </property>
+                </widget>
+               </item>
             <item>
              <spacer name="verticalSpacer_12">
               <property name="orientation">
