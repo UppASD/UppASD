@@ -21,6 +21,8 @@ class Abstract2DPlot():
         Abstract2DPlot.font_size=12
         Abstract2DPlot.markersize=0
         Abstract2DPlot.linewidth=3
+        Abstract2DPlot.xgrid=False
+        Abstract2DPlot.ygrid=False
         return
     ############################################################################
     # @brief Function to plot line and scatter plots.
@@ -32,16 +34,18 @@ class Abstract2DPlot():
     def LinePlot(self,axis,data_x,data_y,labels,ax_label):
         from matplotlib import cm as cm
         import numpy as np
-        axis.cla()
         # AB -> add figure properties
+        axis.cla()
         colors=cm.Paired(np.linspace(0,1,len(data_x)+2))
         for ii in range(0,len(data_x)):
             axis.plot(data_x[ii],data_y[ii],lw=self.linewidth,c=colors[ii],label=labels[ii],zorder=-1,markersize=self.markersize,marker='o')
             #axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
+        axis.xaxis.grid(visible=self.xgrid,which='major')
+        axis.yaxis.grid(visible=self.ygrid,which='major')
         axis.set_xlabel(ax_label[0],fontsize=Abstract2DPlot.font_size)
         axis.set_ylabel(ax_label[1],fontsize=Abstract2DPlot.font_size)
-        axis.tick_params(axis='x', colors='black',labelsize=Abstract2DPlot.font_size,width=2)
-        axis.tick_params(axis='y', colors='black',labelsize=Abstract2DPlot.font_size,width=2)
+        axis.tick_params(axis='x', colors='black',which='minor',labelsize=Abstract2DPlot.font_size,width=2)
+        axis.tick_params(axis='y', colors='black',which='minor',labelsize=Abstract2DPlot.font_size,width=2)
         axis.legend(fontsize=Abstract2DPlot.font_size)
         for ax in ['top','bottom','left','right']:
             axis.spines[ax].set_linewidth(3)

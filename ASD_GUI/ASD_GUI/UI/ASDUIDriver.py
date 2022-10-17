@@ -569,6 +569,18 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDPlots2D.markersize=value/2.0
         self.PlottingWrapper()
     ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotXGridToggle(self):
+        self.ASDPlots2D.xgrid=not self.ASDPlots2D.xgrid
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotYGridToggle(self):
+        self.ASDPlots2D.ygrid=not self.ASDPlots2D.ygrid
+        self.PlottingWrapper()
+    ############################################################################
     # Changing the width of S(q,w) plots
     ############################################################################
     def SqwWidthChanger(self,value):

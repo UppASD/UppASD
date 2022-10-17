@@ -4180,77 +4180,6 @@
                                  </property>
                                  <layout class="QVBoxLayout" name="verticalLayout_22">
                                     <item>
-                                       <widget class="QGroupBox" name="PlotGenOpts">
-                                          <property name="title">
-                                             <string>Plotting options</string>
-                                          </property>
-                                          <layout class="QGridLayout" name="gridLayout_51">
-                                             <item row="0" column="1">
-                                                <widget class="QLineEdit" name="InpPlotDt">
-                                                   <property name="placeholderText">
-                                                      <string>1e-16</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="0">
-                                                <widget class="QLabel" name="InpPlotDtLabel">
-                                                   <property name="text">
-                                                      <string>Time step</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="2">
-                                                <widget class="QLabel" name="secLabel">
-                                                   <property name="text">
-                                                      <string>s</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item>
-                                       <widget class="QGroupBox" name="InpFigOptBox">
-                                          <property name="toolTip">
-                                             <string>Options to save the figure</string>
-                                          </property>
-                                          <property name="statusTip">
-                                             <string>Options to save the figure</string>
-                                          </property>
-                                          <property name="whatsThis">
-                                             <string>Options to save the figure</string>
-                                          </property>
-                                          <property name="title">
-                                             <string>Saving options</string>
-                                          </property>
-                                          <layout class="QGridLayout" name="gridLayout_55">
-                                             <item row="0" column="0">
-                                                <widget class="QLabel" name="InpFigDPILabel">
-                                                   <property name="text">
-                                                      <string>dpi</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="1">
-                                                <widget class="QLineEdit" name="InpFigDPI">
-                                                   <property name="toolTip">
-                                                      <string>Set the dpi of the saved figure</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Set the dpi of the saved figure</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Set the dpi of the saved figure</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>800</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item>
                                        <widget class="QLabel" name="ABLineLabel">
                                           <property name="frameShape">
                                              <enum>QFrame::NoFrame</enum>
@@ -4368,6 +4297,131 @@
                                           <property name="tickInterval">
                                              <number>5</number>
                                           </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QGroupBox" name="MomOptGroup">
+                                          <property name="statusTip">
+                                             <string>Optional visualizations for plots</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Optional visualizations for plots</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Grid options</string>
+                                          </property>
+                                          <layout class="QGridLayout" name="ABGridLayout1">
+                                             <item row="0" column="0">
+                                                <widget class="QCheckBox" name="ABXMajGrid">
+                                                   <property name="toolTip">
+                                                      <string>Toggle on/off x-axis grid lines</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Toggle on/off x-axis grid lines</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Toggle on/off x-axis grid lines</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>x-axis grid lines</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="1">
+                                                <widget class="QCheckBox" name="ABYMajGrid">
+                                                   <property name="toolTip">
+                                                      <string>Toggle on/off y-axis grid lines</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Toggle on/off y-axis grid lines</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Toggle on/off y-axis grid lines</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>y-axis grid lines</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+
+                                    <item>
+                                       <widget class="QGroupBox" name="PlotGenOpts">
+                                          <property name="title">
+                                             <string>Plotting options</string>
+                                          </property>
+                                          <layout class="QGridLayout" name="gridLayout_51">
+                                             <item row="0" column="1">
+                                                <widget class="QLineEdit" name="InpPlotDt">
+                                                   <property name="placeholderText">
+                                                      <string>1e-16</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="0">
+                                                <widget class="QLabel" name="InpPlotDtLabel">
+                                                   <property name="text">
+                                                      <string>Time step</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="2">
+                                                <widget class="QLabel" name="secLabel">
+                                                   <property name="text">
+                                                      <string>s</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QGroupBox" name="InpFigOptBox">
+                                          <property name="toolTip">
+                                             <string>Options to save the figure</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Options to save the figure</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Options to save the figure</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Saving options</string>
+                                          </property>
+                                          <layout class="QGridLayout" name="gridLayout_55">
+                                             <item row="0" column="0">
+                                                <widget class="QLabel" name="InpFigDPILabel">
+                                                   <property name="text">
+                                                      <string>dpi</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="1">
+                                                <widget class="QLineEdit" name="InpFigDPI">
+                                                   <property name="toolTip">
+                                                      <string>Set the dpi of the saved figure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Set the dpi of the saved figure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Set the dpi of the saved figure</string>
+                                                   </property>
+                                                   <property name="placeholderText">
+                                                      <string>800</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
                                        </widget>
                                     </item>
                                     <item>

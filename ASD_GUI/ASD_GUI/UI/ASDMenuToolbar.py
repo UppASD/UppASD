@@ -402,6 +402,8 @@ def Plot_Menu_and_Toolbar_Setup(window):
     window.Plot_M_tot.toggled.connect(window.PlotMagDirSelector)
     window.ABLineWidth.valueChanged.connect(window.PlotLineChanger)
     window.ABMarkerSize.valueChanged.connect(window.PlotMarkerChanger)
+    window.ABXMajGrid.toggled.connect(window.PlotXGridToggle)
+    window.ABYMajGrid.toggled.connect(window.PlotYGridToggle)
     #--------------------------------------------------------------------------------
     # Setting energy actions
     #--------------------------------------------------------------------------------
