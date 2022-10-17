@@ -395,7 +395,7 @@ def Plot_Menu_and_Toolbar_Setup(window):
     window.Sqw_2.toggled.connect(window.SQW_Proj_Select)
     window.AMSDispCheckBox.toggled.connect(window.PlottingWrapper)
     window.SqwDispCheckBox.toggled.connect(window.PlottingWrapper)
-    window.ABCorrWidth.valueChanged.connect(window.SqwWidthChanger)
+    window.ABCorrWidth.sliderMoved.connect(window.SqwWidthChanger)
     window.Plot_M_x.toggled.connect(window.PlotMagDirSelector)
     window.Plot_M_y.toggled.connect(window.PlotMagDirSelector)
     window.Plot_M_z.toggled.connect(window.PlotMagDirSelector)

@@ -569,10 +569,11 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDPlots2D.markersize=value/2.0
         self.PlottingWrapper()
     ############################################################################
-    # Changing the marker size of the lines
+    # Changing the width of S(q,w) plots
     ############################################################################
     def SqwWidthChanger(self,value):
         self.ASDCorrelationPlots.sigma_w=self.ASDCorrelationPlots.w_min*value
+        self.ABCorrWidthTX.setText(f'{self.ASDCorrelationPlots.w_min*value:.3f}')
         self.PlottingWrapper()
     ############################################################################
     # Plotting the components of the energy

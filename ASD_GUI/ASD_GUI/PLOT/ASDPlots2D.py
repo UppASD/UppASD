@@ -192,6 +192,7 @@ class Correlation_Plots():
         axis.cla()
         # Energy maximim 
         self.w_max=ax_limits[3]
+        self.w_min=self.w_max/sqw_data[proj].shape[0]
         # Setting the Gaussian smearing to minimum relevant value (0 is not good..)
         self.sigma_w=np.maximum(self.sigma_w,self.w_max/sqw_data[proj].shape[0])
         #-----------------------------------------------------------------------
