@@ -23,6 +23,7 @@ class Abstract2DPlot():
         Abstract2DPlot.linewidth=3
         Abstract2DPlot.xgrid=False
         Abstract2DPlot.ygrid=False
+        Abstract2DPlot.amsgrid=False
         return
     ############################################################################
     # @brief Function to plot line and scatter plots.
@@ -44,6 +45,7 @@ class Abstract2DPlot():
         for ii in range(0,len(data_x)):
             axis.plot(data_x[ii],data_y[ii],lw=self.linewidth,c=colors[ii],label=labels[ii],zorder=-1,markersize=self.markersize,marker='o')
             #axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
+
         axis.xaxis.grid(visible=self.xgrid,which='major')
         axis.yaxis.grid(visible=self.ygrid,which='major')
         axis.set_xlabel(ax_label[0],fontsize=Abstract2DPlot.font_size)
@@ -54,9 +56,14 @@ class Abstract2DPlot():
         for ax in ['top','bottom','left','right']:
             axis.spines[ax].set_linewidth(3)
 
-        if len(tick_idx)>0 and len(tick_labels)>0:
+        if  self.amsgrid and tick_idx and tick_labels:
             axis.set_xticks(tick_idx,tick_labels)
-            axis.xaxis.grid(visible=True,which='major',color='k')
+            axis.xaxis.grid(visible=self.amsgrid,which='major',color='k')
+            axis.autoscale(enable=True, axis='x', tight=True)
+            axis.set_ylim([0,None])
+        else:
+            axis.xaxis.grid(visible=self.amsgrid)
+            axis.autoscale(enable=True, axis='x', tight=False)
 
         return
     ############################################################################
@@ -114,6 +121,7 @@ class Correlation_Plots():
         Correlation_Plots.sigma_w=0.0
         Correlation_Plots.w_max=1.0
         Correlation_Plots.w_min=1.0
+        Correlation_Plots.grid = False
         return
     ############################################################################
     # @brief Create a Gaussian kernel (normalized) for future convolutions
@@ -177,7 +185,6 @@ class Correlation_Plots():
         #-----------------------------------------------------------------------
         # Axis properties
         #-----------------------------------------------------------------------
-        axis.set_xlabel('q',fontsize=Correlation_Plots.font_size)
         axis.set_ylabel(sqw_labels[proj],fontsize=Correlation_Plots.font_size)
         axis.set_xticks([])
         axis.tick_params(axis='x', colors='black',labelsize=Correlation_Plots.font_size,width=2)
@@ -191,9 +198,13 @@ class Correlation_Plots():
         cmap=Correlation_Plots.cmap[col_indx],extent=ax_limits)
         axis.set_xlim(ax_limits[0],ax_limits[1])
         axis.set_ylim(ax_limits[2],ax_limits[3])
-        if len(q_idx)>0 and len(q_labels)>0:
+        if self.grid and len(q_idx)>0 and len(q_labels)>0:
             axis.set_xticks(q_idx,q_labels)
-            axis.xaxis.grid(visible=True,which='major',color='k')
+            axis.xaxis.grid(visible=self.grid,which='major',color='k')
+            axis.set_xlabel('',fontsize=Correlation_Plots.font_size)
+        else:
+            axis.xaxis.grid(visible=self.grid)
+            axis.set_xlabel('q',fontsize=Correlation_Plots.font_size)
         return
     ############################################################################
     # @brief Function to plot the spin-spin correlation function obtained from the
@@ -235,7 +246,11 @@ class Correlation_Plots():
         for ax in ['top','bottom','left','right']:
             axis.spines[ax].set_linewidth(3)
         axis.legend(fontsize=Correlation_Plots.font_size)
-        if len(q_idx)>0 and len(q_labels)>0:
+
+        if self.grid and len(q_idx)>0 and len(q_labels)>0:
             axis.set_xticks(q_idx,q_labels)
-            axis.xaxis.grid(visible=True,which='major',color='k')
+            axis.xaxis.grid(visible=self.grid,which='major',color='k')
+            axis.set_xlabel('',fontsize=Correlation_Plots.font_size)
+        else:
+            axis.xaxis.grid(visible=self.grid)
         return

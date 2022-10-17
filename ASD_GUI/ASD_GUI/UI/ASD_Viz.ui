@@ -3881,6 +3881,25 @@
                                                    </property>
                                                 </widget>
                                              </item>
+                                             <item row="1" column="0">
+                                                <widget class="QCheckBox" name="ABAMSGrid">
+                                                   <property name="toolTip">
+                                                      <string>Toggle on/off symmetry lines</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Toggle on/off symmetry lines</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Toggle on/off symmetry lines</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>magnon symmetry lines</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                           </layout>
                                        </widget>
                                     </item>
@@ -4300,7 +4319,7 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="MomOptGroup">
+                                       <widget class="QGroupBox" name="ABOptGroup">
                                           <property name="statusTip">
                                              <string>Optional visualizations for plots</string>
                                           </property>

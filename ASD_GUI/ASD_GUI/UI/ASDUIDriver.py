@@ -582,6 +582,18 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDPlots2D.ygrid=not self.ASDPlots2D.ygrid
         self.PlottingWrapper()
     ############################################################################
+    #  Toggling SQW grid lines on/off
+    ############################################################################
+    def PlotSQWGridToggle(self):
+        self.ASDCorrelationPlots.grid = not self.ASDCorrelationPlots.grid
+        self.PlottingWrapper()
+    ############################################################################
+    #  Toggling SQW grid lines on/off
+    ############################################################################
+    def PlotAMSGridToggle(self):
+        self.ASDPlots2D.amsgrid = not self.ASDPlots2D.amsgrid
+        self.PlottingWrapper()
+    ############################################################################
     # Changing the width of S(q,w) plots
     ############################################################################
     def SqwWidthChanger(self,value):
