@@ -31,9 +31,13 @@ class Abstract2DPlot():
     # by a Paired colormap whose size is determined by the size of the array.
     # @author Jonathan Chico
     ############################################################################
-    def LinePlot(self,axis,data_x,data_y,labels,ax_label):
+    def LinePlot(self,axis,data_x,data_y,labels,ax_label,**kwargs):
         from matplotlib import cm as cm
         import numpy as np
+
+        tick_labels = kwargs.get('tick_labels',None)
+        tick_idx = kwargs.get('tick_idx',None)
+
         # AB -> add figure properties
         axis.cla()
         colors=cm.Paired(np.linspace(0,1,len(data_x)+2))
@@ -49,6 +53,11 @@ class Abstract2DPlot():
         axis.legend(fontsize=Abstract2DPlot.font_size)
         for ax in ['top','bottom','left','right']:
             axis.spines[ax].set_linewidth(3)
+
+        if len(tick_idx)>0 and len(tick_labels)>0:
+            axis.set_xticks(tick_idx,tick_labels)
+            axis.xaxis.grid(visible=True,which='major',color='k')
+
         return
     ############################################################################
     # @brief Function to plot a 3D representation of a magnetic moment trajectory.
@@ -157,7 +166,7 @@ class Correlation_Plots():
     #
     # @author Jonathan Chico
     ############################################################################
-    def Sqw_Plot(self,axis,sqw_data,proj,sqw_labels,col_indx,ax_limits):
+    def Sqw_Plot(self,axis,sqw_data,proj,sqw_labels,col_indx,ax_limits,q_labels,q_idx):
         axis.cla()
         import numpy as np
         # Energy maximim 
@@ -182,6 +191,9 @@ class Correlation_Plots():
         cmap=Correlation_Plots.cmap[col_indx],extent=ax_limits)
         axis.set_xlim(ax_limits[0],ax_limits[1])
         axis.set_ylim(ax_limits[2],ax_limits[3])
+        if len(q_idx)>0 and len(q_labels)>0:
+            axis.set_xticks(q_idx,q_labels)
+            axis.xaxis.grid(visible=True,which='major',color='k')
         return
     ############################################################################
     # @brief Function to plot the spin-spin correlation function obtained from the
@@ -191,7 +203,7 @@ class Correlation_Plots():
     # @author Jonathan Chico
     ############################################################################
     def AMS_Sqw_Plot(self,axis,sqw_data,proj,sqw_labels,ams_data_x,ams_data_y,hf_scale,\
-    col_indx,ax_limits):
+    col_indx,ax_limits,q_labels,q_idx):
         import numpy as np
         axis.cla()
         # Energy maximim 
@@ -223,4 +235,7 @@ class Correlation_Plots():
         for ax in ['top','bottom','left','right']:
             axis.spines[ax].set_linewidth(3)
         axis.legend(fontsize=Correlation_Plots.font_size)
+        if len(q_idx)>0 and len(q_labels)>0:
+            axis.set_xticks(q_idx,q_labels)
+            axis.xaxis.grid(visible=True,which='major',color='k')
         return

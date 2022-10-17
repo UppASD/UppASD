@@ -289,6 +289,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.plotfile_names[3]=self.ASDPlotData.averages
         self.plotfile_names[4]=self.ASDPlotData.trajectory
         self.plotfile_names[5]=self.ASDPlotData.totenergy
+        self.plotfile_names[6]=self.ASDPlotData.qfile
         self.SqwProjBox.setEnabled(False)
         self.SqwColorMapSelect.setEnabled(False)
         self.AveOpts.setEnabled(False)
@@ -699,7 +700,7 @@ class UppASDVizMainWindow(QMainWindow):
                 if self.ASDPlotData.sqw_file_present:
                     self.ASDCorrelationPlots.Sqw_Plot(self.Plotting_ax,self.ASDPlotData.sqw_data,\
                     self.SQW_proj_indx,self.ASDPlotData.sqw_labels,self.plot2D_cmap_indx,\
-                    self.ASDPlotData.ax_limits)
+                    self.ASDPlotData.ax_limits,self.ASDPlotData.q_labels,self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(False)
                     self.AMSDisplayOpts.setEnabled(False)
                 else:
@@ -715,7 +716,8 @@ class UppASDVizMainWindow(QMainWindow):
             elif self.AMSDispCheckBox.isChecked() and not self.SqwDispCheckBox.isChecked():
                 if self.ASDPlotData.ams_file_present:
                     self.ASDPlots2D.LinePlot(self.Plotting_ax,self.ams_data_x,\
-                    self.ams_data_y,self.ams_label,self.ASDPlotData.ams_ax_label)
+                    self.ams_data_y,self.ams_label,self.ASDPlotData.ams_ax_label,\
+                    tick_labels=self.ASDPlotData.q_labels,tick_idx=self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:
@@ -733,7 +735,7 @@ class UppASDVizMainWindow(QMainWindow):
                     self.ASDCorrelationPlots.AMS_Sqw_Plot(self.Plotting_ax,self.ASDPlotData.sqw_data,\
                     self.SQW_proj_indx,self.ASDPlotData.sqw_labels,self.ams_data_x,\
                     self.ams_data_y,self.ASDPlotData.hf_scale,self.plot2D_cmap_indx,\
-                    self.ASDPlotData.ax_limits)
+                    self.ASDPlotData.ax_limits,self.ASDPlotData.q_labels,self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:

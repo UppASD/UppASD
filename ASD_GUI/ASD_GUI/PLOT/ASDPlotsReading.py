@@ -44,6 +44,10 @@ class ReadPlotData():
         ReadPlotData.ene_file_present=False
         ReadPlotData.yaml_file_present=False
         ReadPlotData.trajectory_file_present=False
+
+        ReadPlotData.qfile=[]
+        ReadPlotData.q_labels=[]
+        ReadPlotData.q_idx=[]
         return
 
     ############################################################################
@@ -95,6 +99,7 @@ class ReadPlotData():
         ReadPlotData.averages   = file_names[3]
         ReadPlotData.trajectory = file_names[4]
         ReadPlotData.totenergy  = file_names[5]
+        ReadPlotData.qfile      = file_names[6]
 
         if len(ReadPlotData.yamlfile)>0:
             ReadPlotData.UppASDYamlInfo=ReadPlotData.yamlfile
@@ -299,6 +304,10 @@ class ReadPlotData():
         if "sc_step" in ReadPlotData.sim["siminfo"]:
             ReadPlotData.sc_nstep=int(ReadPlotData.sim["siminfo"]["sc_nstep"])
             window.InpSqwSCNStep.setText(str(ReadPlotData.sc_nstep))
+        if "qfile" in ReadPlotData.sim["siminfo"]:
+            ReadPlotData.qfile=ReadPlotData.sim["siminfo"]["qfile"]
+            (ReadPlotData.q_data,ReadPlotData.q_labels,ReadPlotData.q_idx)=self.read_qfile(ReadPlotData.qfile)
+
         #############################################################################
         # Read the averages
         #############################################################################
@@ -448,4 +457,29 @@ class ReadPlotData():
             t_data.append(data[:,ii])
             data_labels.append(str('$'+data_df.columns[ii]+'$'))
         return t_data,itr_data,data_labels
+
+    #################################################################################
+    # Read qpoints file to get axis labels
+    #################################################################################
+    def read_qfile(self,filename):
+        import numpy as np
+        qpts=np.genfromtxt(filename,skip_header=1,usecols=(0,1,2))
+        axlab=[]
+        axidx=[]
+
+        # Optional reading of symmetry points
+        with open(filename,'r') as f:
+            f.readline()
+            qpts_xtra=f.readlines()
+        
+        for idx,row in enumerate(qpts_xtra):
+            rs=row.split()
+            if len(rs)==4:
+                axlab.append(rs[3])
+                axidx.append(idx+1)
+
+        axlab=['$\Gamma$' if x[0]=='G' else '{}'.format(x) for x in axlab]
+
+        return qpts, axlab, axidx
+
 
