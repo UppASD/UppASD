@@ -51,7 +51,9 @@ The binary is compiled to the `./bin/` directory.
 
 Examples are provided in `./examples/`
 
-The manual is found at `./docs/UppASDmanual.pdf` 
+The code is documented in the [UppASD manual](https://uppasd.github.io/UppASD-manual/).
+
+A tutorial with examples and exercises on atomistic spin-dynamics are contained in the [UppASD tutorial](https://uppasd.github.io/UppASD-tutorial/).
 
 **Developers please look at the development guidelines in the `CONTRIBUTING.md` file, about how to make your contributions to UppASD.**
 
