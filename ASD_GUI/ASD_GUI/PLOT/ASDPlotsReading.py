@@ -155,7 +155,10 @@ class ReadPlotData():
                             ReadPlotData.ams_file_present=True
                     else:
                         print("No file name selected from menu. Trying to find a 'ams.*.out' file")
-                        ReadPlotData.amsfile=glob.glob("ams.*.out")
+                        # AB read nc-ams by default
+                        ReadPlotData.amsfile=glob.glob("ncams.*.out")
+                        if len(ReadPlotData.amsfile)==0:
+                            ReadPlotData.amsfile=glob.glob("ams.*.out")
                         if len(ReadPlotData.amsfile)>0:
                             ReadPlotData.amsfile=ReadPlotData.amsfile[0]
                             if ReadPlotData.not_read_ams:
@@ -360,9 +363,38 @@ class ReadPlotData():
             ReadPlotData.not_read_sqw=False
             ReadPlotData.sqw_file_present=True
         #############################################################################
-        # Read the AMS
+        # Read the AMS (defaulting to nc-ams)
         #############################################################################
-        if ReadPlotData.sim["measurables"]["ams"]:
+        if ReadPlotData.sim["measurables"]["nc-ams"]:
+            ReadPlotData.amsfile="ncams-q."+ReadPlotData.sim["simid"]+".out"
+            (mq_ams_data_x,mq_ams_data_y,mq_ams_ax_label,mq_ams_label)=\
+            self.read_ams(ReadPlotData.amsfile)
+
+            ReadPlotData.amsfile="ncams+q."+ReadPlotData.sim["simid"]+".out"
+            (pq_ams_data_x,pq_ams_data_y,pq_ams_ax_label,pq_ams_label)=\
+            self.read_ams(ReadPlotData.amsfile)
+
+            ReadPlotData.amsfile="ncams."+ReadPlotData.sim["simid"]+".out"
+            (ReadPlotData.ams_data_x,ReadPlotData.ams_data_y,ReadPlotData.ams_ax_label,\
+            ReadPlotData.ams_label)=\
+            self.read_ams(ReadPlotData.amsfile)
+
+            if not (ReadPlotData.ams_data_y[0]==pq_ams_data_y[0]).all() or \
+                    not (ReadPlotData.ams_data_y[0]==mq_ams_data_y[0]).all():
+                        ReadPlotData.ams_data_y=ReadPlotData.ams_data_y+pq_ams_data_y+ \
+                                mq_ams_data_y
+                        ReadPlotData.ams_data_x=ReadPlotData.ams_data_x+pq_ams_data_x+ \
+                                mq_ams_data_x
+                        ReadPlotData.ams_ax_label=ReadPlotData.ams_ax_label+pq_ams_ax_label+ \
+                                mq_ams_ax_label
+                        ReadPlotData.ams_label=ReadPlotData.ams_label+pq_ams_label+ \
+                                mq_ams_label
+
+
+
+            ReadPlotData.not_read_ams=False
+            ReadPlotData.ams_file_present=True
+        elif ReadPlotData.sim["measurables"]["ams"]:
             ReadPlotData.amsfile="ams."+ReadPlotData.sim["simid"]+".out"
             (ReadPlotData.ams_data_x,ReadPlotData.ams_data_y,ReadPlotData.ams_ax_label,\
             ReadPlotData.ams_label)=\
