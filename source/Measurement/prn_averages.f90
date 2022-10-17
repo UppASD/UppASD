@@ -1070,8 +1070,8 @@ contains
                write(ofileno,'(a,f16.8,a)') '    "skyrmion_num"    : ', sk_avrg,' ,'
                write(ofileno,'(a,f16.8,a)') '    "skyrmion_std"    : ', sqrt(sk_var),' ,'
             else
-               write(ofileno,'(a)') '    "skyrmion_num"    :  null,'
-               write(ofileno,'(a)') '    "skyrmion_std"    :  null,'
+               write(ofileno,'(a)') '    "skyrmion_num"    :  null ,'
+               write(ofileno,'(a)') '    "skyrmion_std"    :  null ,'
             end if
             write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
             write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv

@@ -75,8 +75,7 @@ contains
       call print_correlation_info()
 
       ! print comment and close file
-      call json_key(file_id,'comment')
-      write(file_id,'(a)') '"Input data from UppASD simulation"'
+      call json_write(file_id,'Input data from UppASD simulation',key='comment',contflag=.true.)
       write (file_id,'(a)') "  } "
       close(file_id)
 
@@ -91,8 +90,7 @@ contains
 
 
       subroutine print_header()
-         call json_key(file_id,'simid')
-         call json_string(file_id,simid)
+         call json_write(file_id,simid,key='simid')
       end subroutine print_header
 
       !!! subroutine print_constants()
@@ -107,19 +105,16 @@ contains
       subroutine print_input1()
          !
          ! ncell
-         call json_key(file_id,'ncell')
          idum(1)=N1;idum(2)=N2;idum(3)=N3
-         call json_int(file_id,idum,3)
+         call json_write(file_id,idum,3,key='ncell')
 
          ! bc
-         call json_key(file_id,'bc')
          cdum(1)=BC1;cdum(2)=BC2;cdum(3)=BC3
-         call json_char(file_id,cdum,3)
+         call json_write(file_id,cdum,3,key='bc')
 
          ! cell
          call json_key(file_id,'cell')
          write(file_id,'(a)') '['
-         !write (file_id,'(a, 20x,3es15.8/20x ,3es15.8,/20x ,3es15.8)') ' "cell" : ',C1, C2, C3
          call json_float(file_id,C1,3,indflag=.true.)
          call json_float(file_id,C2,3,indflag=.true.)
          call json_float(file_id,C3,3,indflag=.true.,contflag=.true.)
@@ -132,16 +127,13 @@ contains
          !!!end do
 
          ! na
-         call json_key(file_id,'na')
-         call json_int(file_id,(/NA/),1)
+         call json_write(file_id,(/NA/),1,key='na')
 
          ! nt
-         call json_key(file_id,'nt')
-         call json_int(file_id,(/NT/),1)
+         call json_write(file_id,(/NT/),1,key='nt')
 
          ! sym
-         call json_key(file_id,'sym')
-         call json_int(file_id,(/Sym/),1)
+         call json_write(file_id,(/Sym/),1,key='sym')
 
          ! natom not used in input
          !write (file_id,'(a, 20x ,i0)') '   "natom" :', Natom
@@ -152,16 +144,13 @@ contains
       subroutine print_simulation()
          !write (file_id,'(a)') "# Simulation parameters"
          ! llg
-         call json_key(file_id,'llg')
-         call json_int(file_id,(/llg/),1)
+         call json_write(file_id,(/llg/),1,key='llg')
 
          ! sdealgh
-         call json_key(file_id,'sdealgh')
-         call json_int(file_id,(/sdealgh/),1)
+         call json_write(file_id,(/sdealgh/),1,key='sdealgh')
 
          ! mensemble
-         call json_key(file_id,'mensemble')
-         call json_int(file_id,(/mensemble/),1)
+         call json_write(file_id,(/mensemble/),1,key='mensemble')
 
       end subroutine print_simulation
 
@@ -169,16 +158,15 @@ contains
       subroutine print_initmagnetization()
          !write (file_id,'(a)') "# Initial magnetization"
          ! initmag
-         call json_key(file_id,'initmag')
-         call json_int(file_id,(/initmag/),1)
-         !!! if(initmag==1) then
-         !!!    write (file_id,'(a,i16)') "mseed           ", mseed
-         !!! endif
-         !!! if(initmag==2) then
-         !!!    write (file_id,'(a,i16)') "mseed           ", mseed
-         !!!    write (file_id,'(a,es16.8)') "Theta0          ", theta0
-         !!!    write (file_id,'(a,es16.8)') "Phi0            ", phi0
-         !!! endif
+         call json_write(file_id,(/initmag/),1,key='initmag')
+         if(initmag==1) then
+             call json_write(file_id,(/mseed/),1,key='mseed')
+         endif
+         if(initmag==2) then
+            call json_write(file_id,(/mseed/),1,key='mseed')
+            call json_write(file_id,(/theta0/),1,key='theta0')
+            call json_write(file_id,(/phi0/),1,key='phi0')
+         endif
          if(initmag==3) then
             call json_key(file_id,'moments')
             write(file_id,'(a)') '['
@@ -189,46 +177,21 @@ contains
             write(file_id,'(25x,a)') '],'
          endif
          if(initmag==4) then
-            call json_key(file_id,'restartfile')
-            call json_string(file_id,restartfile)
+            call json_write(file_id,restartfile,key='restartfile')
          endif
       end subroutine print_initmagnetization
 
 
       subroutine print_rotation()
-         call json_key(file_id,"roteul")
-         call json_int(file_id,(/roteul/),1)
-         call json_key(file_id,"rotang")
-         call json_float(file_id,rotang,3)
+         call json_write(file_id,(/roteul/),1,key='roteul')
+         call json_write(file_id,rotang,3,key='rotang')
       end subroutine print_rotation
 
-      !!! subroutine print_rotation()
-      !!!    write (file_id,'(a)') "**************** Rotation parameters            ****************"
-      !!!    write (file_id,'(a,i16)') "Rotation        ", roteul
-      !!!    write (file_id,'(a,3es16.8)') "Rotation Angle  ", rotang(1), rotang(2), rotang(3)
-      !!!    write (file_id,*) " "
-      !!! end subroutine print_rotation
-
-
       subroutine print_demag()
-
-         call json_key(file_id,'demag')
-         call json_char(file_id,(/demag/),1)
-         call json_key(file_id,'demagfield')
-         call json_char(file_id,(/demag1,demag2,demag3/),3)
-         call json_key(file_id,'demagvol')
-         call json_float(file_id,(/demagvol/),1)
+         call json_write(file_id,(/demag/),1,key='demag')
+         call json_write(file_id,(/demag1,demag2,demag3/),3,key='demagfield')
+         call json_write(file_id,(/demagvol/),1,key='demagvol')
       end subroutine print_demag
-
-      !!! subroutine print_demag()
-      !!!    write (file_id,'(a)') "**************** Demagnetization field          ****************"
-      !!!    write (file_id,'(a,a,a,a,a,a)') "Demag                          ", demag1, '               ', &
-      !!!       demag2, '               ', demag3
-      !!!    write (file_id,'(a,a)') "Demag                          ", demag
-      !!!    write (file_id,'(a,es16.8)') "Volume          ", demagvol
-      !!!    write (file_id,*) " "
-      !!! end subroutine print_demag
-
 
       subroutine print_mwf_info()
          write (file_id,'(a)') "**************** Micro-wave field               ****************"
@@ -264,135 +227,82 @@ contains
 
       subroutine print_initialphase()
 
-         call json_key(file_id,'ip_mode')
-         call json_string(file_id,ipmode)
+         call json_write(file_id,ipmode,key='ip_mode')
 
-         call json_key(file_id,'ip_hfield')
-         call json_float(file_id,iphfield,3)
+         call json_write(file_id,iphfield,3,key='ip_hfield')
 
          if(mode .eq. 'S' .or. mode .eq. 'R' .or. mode .eq. 'L') then
-            call json_key(file_id,'ip_nphase')
-            call json_int(file_id,(/ipnphase/),1)
+            call json_write(file_id,(/ipnphase/),1,key='ip_nphase')
 
             if (ipnphase>0) then
-               call json_key(file_id,'ip_nstep')
-               call json_int(file_id,ipnstep,ipnphase)
+               call json_write(file_id,ipnstep,ipnphase,key='ip_nstep')
 
-               call json_key(file_id,'ip_timestep')
-               call json_float(file_id,ipdelta_t,ipnphase)
+               call json_write(file_id,ipdelta_t,ipnphase,key='ip_timestep')
 
-               call json_key(file_id,'ip_damping')
-               call json_float(file_id,iplambda1,ipnphase)
+               call json_write(file_id,iplambda1,ipnphase,key='ip_damping')
             end if
 
          else if (mode .eq. 'M' .or. mode .eq. 'H' .or. mode .eq. 'I') then
-            call json_key(file_id,'ip_mcanneal')
-            call json_int(file_id,(/ipmcnphase/),1)
+            call json_write(file_id,(/ipmcnphase/),1,key='ip_mcanneal')
 
             if (ipmcnphase>0) then
-               call json_key(file_id,'ip_mcnstep')
-               call json_int(file_id,ipmcnstep,ipmcnphase)
+               call json_write(file_id,ipmcnstep,ipmcnphase,key='ip_mcnstep')
 
-               call json_key(file_id,'ip_temp')
-               call json_float(file_id,ipTemp,ipmcnphase)
+               call json_write(file_id,ipTemp,ipmcnphase,key='ip_temp')
             end if
          end if
 
       end subroutine print_initialphase
 
-      !!! subroutine print_initialphase()
-      !!!    write (file_id,'(a)') "**************** Initial phase                  ****************"
-      !!!    write (file_id,'(a,a)') "MC, SD, EM                       ", ipmode
-      !!!    write (file_id,'(a,3es16.8)') "Field           ", iphfield(1), iphfield(2), iphfield(3)
-      !!!    if(ipmode.eq.'M' .or. ipmode.eq.'H') then
-      !!!       write (file_id,'(a,i16)') "nphase          ", ipmcnphase
-      !!!       write (file_id,'(a)') "MC steps, T :"
-      !!!       do i=1,ipmcnphase
-      !!!          write (file_id,'(i16,es16.8)') ipmcnstep(i), ipTemp(i)
-      !!!       enddo
-      !!!    elseif(ipmode.eq.'S') then
-      !!!       write (file_id,'(a,i16)') "nphase          ", ipnphase
-      !!!       write(file_id,'(a)') "Nstep         dt            T        lambda1      lambda2 "
-      !!!       if (ipnphase>0) then
-      !!!          do i=1,ipnphase
-      !!!             write(file_id,'(i10,5es12.5)') ipnstep(i),ipdelta_t(i), iptemp(i), iplambda1(i), iplambda2(i)
-      !!!          enddo
-      !!!       endif
-      !!!    endif
-      !!!    write (file_id,'(a)') " "
-      !!! end subroutine print_initialphase
-
-
       subroutine print_measurementphase()
 
-         call json_key(file_id,'mode')
-         call json_char(file_id,(/mode/),1)
+         call json_write(file_id,(/mode/),1,key='mode')
 
-         call json_key(file_id,'temp')
-         call json_float(file_id,(/temp/),1)
+         call json_write(file_id,(/temp/),1,key='temp')
 
-         call json_key(file_id,'hfield')
-         call json_float(file_id,hfield,3)
+         call json_write(file_id,hfield,3,key='hfield')
 
          if(mode .eq. 'S' .or. mode .eq. 'R' .or. mode .eq. 'L') then
-            call json_key(file_id,'nstep')
-            call json_int(file_id,(/nstep/),1)
+            call json_write(file_id,(/nstep/),1,key='nstep')
 
-            call json_key(file_id,'timestep')
-            call json_float(file_id,(/delta_t/),1)
+            call json_write(file_id,(/delta_t/),1,key='timestep')
 
-            call json_key(file_id,'damping')
-            call json_float(file_id,(/mplambda1/),1)
+            call json_write(file_id,(/mplambda1/),1,key='damping')
          else if (mode .eq. 'M' .or. mode .eq. 'H' .or. mode .eq. 'I') then
-            call json_key(file_id,'mcnstep')
-            call json_int(file_id,(/mcnstep/),1)
+            call json_write(file_id,(/mcnstep/),1,key='mcnstep')
          end if
 
-         call json_key(file_id,'real_time_measure')
-         call json_char(file_id,(/real_time_measure/),1)
+         call json_write(file_id,(/real_time_measure/),1,key='real_time_measure')
 
-         call json_key(file_id,'do_avrg')
-         call json_char(file_id,(/do_avrg/),1)
+         call json_write(file_id,(/do_avrg/),1,key='do_avrg')
          if(do_avrg .eq. 'Y') then
-            call json_key(file_id,'avrg_step')
-            call json_int(file_id,(/avrg_step/),1)
+            call json_write(file_id,(/avrg_step/),1,key='avrg_step')
          end if
 
-         call json_key(file_id,'do_tottraj')
-         call json_char(file_id,(/do_tottraj/),1)
+         call json_write(file_id,(/do_tottraj/),1,key='do_tottraj')
          if(do_tottraj .eq. 'Y') then
-            call json_key(file_id,'tottraj_step')
-            call json_int(file_id,(/tottraj_step/),1)
+            call json_write(file_id,(/tottraj_step/),1,key='tottraj_step')
          end if
 
-         call json_key(file_id,'do_cumu')
-         call json_char(file_id,(/do_cumu/),1)
+         call json_write(file_id,(/do_cumu/),1,key='do_cumu')
          if(do_cumu .eq. 'Y') then
-            call json_key(file_id,'cumu_step')
-            call json_int(file_id,(/cumu_step/),1)
+            call json_write(file_id,(/cumu_step/),1,key='cumu_step')
          end if
 
-         call json_key(file_id,'plotenergy')
-         call json_int(file_id,(/plotenergy/),1)
+         call json_write(file_id,(/plotenergy/),1,key='plotenergy')
          !if(plotenergy>0) then
-         !   call json_key(file_id,'ene_step')
-         !   call json_int(file_id,(/ene_step/),1)
+         !   call json_write(file_id,(/ene_step/),1,key='ene_step')
          !end if
 
-         call json_key(file_id,'do_spintemp')
-         call json_char(file_id,(/do_spintemp/),1)
+         call json_write(file_id,(/do_spintemp/),1,key='do_spintemp')
          if(do_spintemp .eq. 'Y') then
-            call json_key(file_id,'spintemp_step')
-            call json_int(file_id,(/spintemp_step/),1)
+            call json_write(file_id,(/spintemp_step/),1,key='spintemp_step')
          end if
-
-         call json_key(file_id,'ntraj')
-         call json_int(file_id,(/ntraj/),1)
+         
+         call json_write(file_id,(/ntraj/),1,key='ntraj')
          if(ntraj>0) then
-            call json_key(file_id,'traj_atom')
-            call json_int(file_id,traj_atom,ntraj)
-            call json_key(file_id,'traj_step')
-            call json_int(file_id,traj_step,ntraj)
+            call json_write(file_id,traj_atom,ntraj,key='traj_atom')
+            call json_write(file_id,traj_step,ntraj,key='traj_step')
          end if
       end subroutine print_measurementphase
 
@@ -402,57 +312,41 @@ contains
          use Correlation_utils
          use Omegas
 
-         call json_key(file_id,'do_sc')
-         call json_string(file_id,do_sc)
+         call json_write(file_id,do_sc,key='do_sc')
 
          if (do_sc .ne. 'N') then
 
             if (do_sc .eq. 'Y' .or. do_sc .eq. 'C') then
-               call json_key(file_id,'sc_sep')
-               call json_int(file_id,(/sc%sc_sep/),1)
+               call json_write(file_id,(/sc%sc_sep/),1,key='sc_sep')
             end if
 
             if (do_sc .eq. 'Y' .or. do_sc .eq. 'Q') then
-               call json_key(file_id,'sc_step')
-               call json_int(file_id,(/sc%sc_step/),1)
-
-               call json_key(file_id,'sc_nstep')
-               call json_int(file_id,(/sc%sc_nstep/),1)
+               call json_write(file_id,(/sc%sc_step/),1,key='sc_step')
+               call json_write(file_id,(/sc%sc_nstep/),1,key='sc_nstep')
             end if
 
-            call json_key(file_id,'do_sc_local_axis')
-            call json_string(file_id,sc%do_sc_local_axis)
+            call json_write(file_id,sc%do_sc_local_axis,key='do_sc_local_axis')
 
-            call json_key(file_id,'sc_local_axis_mix')
-            call json_float(file_id,(/sc%sc_local_axis_mix/),1)
+            call json_write(file_id,(/sc%sc_local_axis_mix/),1,key='sc_local_axis_mix')
 
-            call json_key(file_id,'sc_window_fun')
-            call json_int(file_id,(/sc_window_fun/),1)
+            call json_write(file_id,(/sc_window_fun/),1,key='sc_window_fun')
 
-            call json_key(file_id,'sc_average')
-            call json_string(file_id,sc%sc_average)
+            call json_write(file_id,sc%sc_average,key='sc_average')
 
-            call json_key(file_id,'qpoints')
-            call json_string(file_id,qpoints)
+            call json_write(file_id,qpoints,key='qpoints')
 
-            call json_key(file_id,'qfile')
-            call json_string(file_id,qfile)
+            call json_write(file_id,qfile,key='qfile')
 
-            call json_key(file_id,'do_conv')
-            call json_string(file_id,do_conv)
+            call json_write(file_id,do_conv,key='do_conv')
 
             if (do_conv .ne. 'N') then
-               call json_key(file_id,'sigma_q')
-               call json_float(file_id,(/sigma_q/),1)
+               call json_write(file_id,(/sigma_q/),1,key='sigma_q')
 
-               call json_key(file_id,'sigma_w')
-               call json_float(file_id,(/sigma_w/),1)
+               call json_write(file_id,(/sigma_w/),1,key='sigma_w')
 
-               call json_key(file_id,'lorentz_q')
-               call json_float(file_id,(/LQfactor/),1)
+               call json_write(file_id,(/LQfactor/),1,key='lorentz_q')
 
-               call json_key(file_id,'lorenrz_w')
-               call json_float(file_id,(/LWfactor/),1)
+               call json_write(file_id,(/LWfactor/),1,key='lorentz_w')
 
             end if
 
@@ -460,34 +354,6 @@ contains
          end if
 
       end subroutine print_correlation_info
-
-      !!! subroutine print_measurementphase()
-      !!!    use Temperature, only : grad
-
-      !!!    write (file_id,'(a)') "**************** Measurement phase              ****************"
-      !!!    write (file_id,'(a,a)') "MC, SD, MEP                         ", mode
-      !!!    write (file_id,'(a,a)') "Gradient				 ", grad
-      !!!    if(ham_inp%do_ewald.ne.'N')write (file_id,'(a,a)') "Ewald Summation                ", ham_inp%do_ewald
-      !!!    if(ham_inp%do_ewald.ne.'N') write(file_id,'(a,es16.8)') "Ewald Parameter                ", ham_inp%Ewald_alpha
-      !!!    if(grad.eq.'N') then
-      !!!       write (file_id,'(a,es16.8)') "T               ", Temp
-      !!!    end if
-      !!!    write (file_id,'(a,3es16.8)') "Field           ", hfield(1), hfield(2), hfield(3)
-      !!!    if(mode.eq.'M') then
-      !!!       write (file_id,'(a,i16)') "Nstep           ", mcnstep
-      !!!       write (file_id,'(a,2i16)') "Step, Buffer    ", mcavrg_step, mcavrg_buff
-      !!!    elseif(mode.eq.'S') then
-      !!!       write (file_id,'(a,2es16.8)') "Lambda          ", mplambda1, mplambda2
-      !!!       write (file_id,'(a,i16)') "Nstep           ", Nstep
-      !!!       write (file_id,'(a,es16.8)') "delta_t         ", delta_t
-      !!!    endif
-      !!!    write (file_id,'(a)') "   "
-      !!!    write (file_id,'(a,a,2i16)') "Tottraj                        ", do_tottraj, tottraj_step, tottraj_buff
-      !!!    write (file_id,'(a,i16)')    "No. trajectories", ntraj
-      !!!    do i=1,ntraj
-      !!!       write (file_id,'(a,3i16)')   "Atom Trajectory ", traj_atom(i), traj_step(i), traj_buff(i)
-      !!!    enddo
-      !!! end subroutine print_measurementphase
 
 
    end subroutine prninp

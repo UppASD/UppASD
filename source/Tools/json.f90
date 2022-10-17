@@ -10,6 +10,11 @@ module json
    implicit none
    public
 
+
+   interface json_write
+      module procedure  json_string, json_char, json_float, json_int
+   end interface json_write
+
 contains
          subroutine json_key(fileno,key)
             implicit none
@@ -19,19 +24,33 @@ contains
             write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
          end subroutine json_key
 
-         subroutine json_string(fileno,val)
+         subroutine json_string(fileno,val,key,contflag)
             implicit none
             integer, intent(in) :: fileno
+            character(*), intent(in), optional :: key
             character(*), intent(in) :: val
+            logical, intent(in), optional :: contflag
             !
-            write(fileno,'(1x,a,a,a)') ' "',val,'" ,'
+            logical :: cont 
+            !
+            cont = .false.
+            if (present(contflag)) cont=contflag
+            !
+            if(present(key)) write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
+            if (cont) then
+               write(fileno,'(1x,a,a,a)') ' "',trim(val),'" '
+            else 
+               write(fileno,'(1x,a,a,a)') ' "',trim(val),'" ,'
+            end if
          end subroutine json_string
 
-         subroutine json_char(fileno,val,nel,contflag,indflag)
+         subroutine json_char(fileno,val,nel,key,contflag,indflag)
             implicit none
             integer, intent(in) :: fileno
+            character(*), intent(in),optional :: key
             integer, intent(in) :: nel
             character, dimension(nel), intent(in) :: val
+
             logical, intent(in), optional :: contflag
             logical, intent(in), optional :: indflag
             !
@@ -39,6 +58,8 @@ contains
             logical :: cont 
             logical :: ind 
 
+            !
+            if(present(key)) write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
             !
             cont = .false.
             if (present(contflag)) cont=contflag
@@ -64,18 +85,22 @@ contains
             end if
          end subroutine json_char
 
-         subroutine json_float(fileno,val,nel,contflag,indflag)
+         subroutine json_float(fileno,val,nel,key,contflag,indflag)
             implicit none
             integer, intent(in) :: fileno
+            character(*), intent(in),optional :: key
             integer, intent(in) :: nel
             real(dblprec), dimension(nel), intent(in) :: val
             logical, intent(in), optional :: contflag
             logical, intent(in), optional :: indflag
             !
+            !
             integer :: iel
             logical :: cont
             logical :: ind
             !
+            if(present(key)) write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
+
             cont = .false.
             if(present(contflag)) cont=contflag
             ind = .false.
@@ -100,9 +125,10 @@ contains
             end if
          end subroutine json_float
 
-         subroutine json_int(fileno,val,nel,contflag,indflag)
+         subroutine json_int(fileno,val,nel,key,contflag,indflag)
             implicit none
             integer, intent(in) :: fileno
+            character(*), intent(in),optional :: key
             integer, intent(in) :: nel
             integer, dimension(nel), intent(in) :: val
             logical, intent(in), optional :: contflag
@@ -111,6 +137,8 @@ contains
             integer :: iel
             logical :: cont
             logical :: ind
+
+            if(present(key)) write(fileno,'(a20,a)',advance='no') '"'//trim(key)//'"','  :  '
 
             cont = .false.
             if(present(contflag)) cont=contflag
