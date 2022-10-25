@@ -93,5 +93,5 @@ sources:
 	@cd tests ; ./cleanAll.sh ; cd ..
 	@tar cf ./UppASD_src.tar ./CMakeLists.txt \
 	./source/*.f90 ./source/CMakeLists.txt ./source/*/CMakeLists.txt ./source/*/*.f90 ./source/gpu_files/ \
-	./source/Third_party/  ./cmake
+	./source/Third_party/  ./cmake tests
 	@gzip --best -f ./UppASD_src.tar

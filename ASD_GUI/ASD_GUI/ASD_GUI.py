@@ -36,8 +36,8 @@ Author
 Jonathan Chico
 """
 import sys
-from PyQt5.QtWidgets import QApplication
-from UI.ASDUIDriver import UppASDVizMainWindow
+from PyQt6.QtWidgets import QApplication
+from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 
 ################################################################################
 ## @brief Main executable class to run the ASD_Visualizer
@@ -53,4 +53,4 @@ if __name__ == '__main__':
     window.show()
     window.iren.Initialize() # Need this line to actually show the render inside Qt
     # Return
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

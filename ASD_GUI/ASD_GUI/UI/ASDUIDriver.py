@@ -10,11 +10,11 @@ Author
 ----------
 Jonathan Chico
 """
-import Input_Creator.ASDInputGen as ASDInputGen
+import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
 from enum import Enum
-from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMainWindow
+from PyQt6 import QtWidgets
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QMainWindow
 
 class Backend(Enum):
     UppASD_VTK = 1
@@ -37,16 +37,17 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def __init__(self):
-        import PLOT.ASDPlots2D as ASDPlots2D
-        import UI.ASDInputWindows as ASDInputWindows
-        import VTK_Viz.ASDVTKReading as ASDVTKReading
-        import PLOT.ASDPlotsReading as ASDPlotsReading
-        import VTK_Viz.ASDVTKGenActors as ASDVTKGenActors
-        import VTK_Viz.ASDVTKVizOptions as ASDVTKVizOptions
+        from ASD_GUI.PLOT import ASDPlots2D 
+        from ASD_GUI.UI import ASDInputWindows 
+        from ASD_GUI.VTK_Viz import ASDVTKReading 
+        from ASD_GUI.PLOT import ASDPlotsReading 
+        from ASD_GUI.VTK_Viz import ASDVTKGenActors 
+        from ASD_GUI.VTK_Viz import ASDVTKVizOptions
         from matplotlib.figure import Figure
         from mpl_toolkits.mplot3d import Axes3D
         from vtk import vtkOpenGLRenderer,vtkInteractorStyleTrackballCamera
-        from matplotlib.backends.backend_qt5agg import FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvas
+        #from matplotlib.backends.backend_qt5agg import FigureCanvas
         from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
         super(UppASDVizMainWindow, self).__init__()
         #-----------------------------------------------------------------------
@@ -64,8 +65,8 @@ class UppASDVizMainWindow(QMainWindow):
         #-----------------------------------------------------------------------
         self.plot2D_cmap_indx=0
         self.SQW_proj_indx=0
-        self.MagDirIndx=range(4)
-        self.EneIndx=range(11)
+        self.MagDirIndx=[3] #range(4)
+        self.EneIndx=[0] #range(11)
         #-----------------------------------------------------------------------
         # Call the classes defining several needed functions for the reading of
         # data and the visualization
@@ -152,10 +153,10 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     def SetupUI(self):
         import os
-        from PyQt5 import uic
-        from PyQt5.QtGui import QIntValidator,QDoubleValidator
-        from PyQt5.QtWidgets import QToolBar,QVBoxLayout
-        from UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup,Plot_Menu_and_Toolbar_Setup,Input_Toolbar_Setup
+        from PyQt6 import uic
+        from PyQt6.QtGui import QIntValidator,QDoubleValidator
+        from PyQt6.QtWidgets import QToolBar,QVBoxLayout
+        from ASD_GUI.UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup,Plot_Menu_and_Toolbar_Setup,Input_Toolbar_Setup
         self.VTKToolBar = QToolBar()
         self.MatPlotToolbar = QToolBar()
         self.InputToolbar = QToolBar()
@@ -288,6 +289,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.plotfile_names[3]=self.ASDPlotData.averages
         self.plotfile_names[4]=self.ASDPlotData.trajectory
         self.plotfile_names[5]=self.ASDPlotData.totenergy
+        self.plotfile_names[6]=self.ASDPlotData.qfile
         self.SqwProjBox.setEnabled(False)
         self.SqwColorMapSelect.setEnabled(False)
         self.AveOpts.setEnabled(False)
@@ -398,7 +400,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def check_for_restart(self):
-        import UI.ASDInputWindows as ASDInputWindows
+        import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
 
         everything_okay=True
         self.ASDInputGen.ASDInputGatherer(self)
@@ -443,7 +445,7 @@ class UppASDVizMainWindow(QMainWindow):
     # Function to select the appropriate data to plot
     ############################################################################
     def PlottingSelector(self):
-        from PyQt5.QtCore import QSignalBlocker
+        from PyQt6.QtCore import QSignalBlocker
         #-----------------------------------------------------------------------
         # Plot the spin-spin correlation function
         #-----------------------------------------------------------------------
@@ -496,7 +498,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def set_ams_checkboxes(self):
-        from PyQt5.QtWidgets import QCheckBox
+        from PyQt6.QtWidgets import QCheckBox
 
         self.AMSCheckboxes = dict()
         for ii in reversed(range(self.AMSDisplayLayout.count())):
@@ -556,6 +558,49 @@ class UppASDVizMainWindow(QMainWindow):
             self.MagDirIndx.append(3)
         self.PlottingWrapper()
     ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotLineChanger(self,value):
+        self.ASDPlots2D.linewidth=value/2.0
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotMarkerChanger(self,value):
+        self.ASDPlots2D.markersize=value/2.0
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotXGridToggle(self):
+        self.ASDPlots2D.xgrid=not self.ASDPlots2D.xgrid
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the marker size of the lines
+    ############################################################################
+    def PlotYGridToggle(self):
+        self.ASDPlots2D.ygrid=not self.ASDPlots2D.ygrid
+        self.PlottingWrapper()
+    ############################################################################
+    #  Toggling SQW grid lines on/off
+    ############################################################################
+    def PlotSQWGridToggle(self):
+        self.ASDCorrelationPlots.grid = not self.ASDCorrelationPlots.grid
+        self.PlottingWrapper()
+    ############################################################################
+    #  Toggling SQW grid lines on/off
+    ############################################################################
+    def PlotAMSGridToggle(self):
+        self.ASDPlots2D.amsgrid = not self.ASDPlots2D.amsgrid
+        self.PlottingWrapper()
+    ############################################################################
+    # Changing the width of S(q,w) plots
+    ############################################################################
+    def SqwWidthChanger(self,value):
+        self.ASDCorrelationPlots.sigma_w=self.ASDCorrelationPlots.w_min*value
+        self.ABCorrWidthTX.setText(f'{self.ASDCorrelationPlots.w_min*value:.3f}')
+        self.PlottingWrapper()
+    ############################################################################
     # Plotting the components of the energy
     ############################################################################
     def PlotEneCompSelector(self):
@@ -588,11 +633,11 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     ############################################################################
     def ToggleInitPhase(self):
-        from UI.ASDMenuToolbar import UpdateUI
+        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
     def ToggleHessians(self):
-        from UI.ASDMenuToolbar import UpdateUI
+        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
     ############################################################################
@@ -638,8 +683,8 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
-        import PLOT.ASDPlots2D as ASDPlots2D
-        import UI.ASDInputWindows as ASDInputWindows
+        from ASD_GUI.PLOT import ASDPlots2D 
+        from ASD_GUI.UI import ASDInputWindows 
         #-----------------------------------------------------------------------
         # Plotting the spin-spin correlation function
         #-----------------------------------------------------------------------
@@ -667,7 +712,7 @@ class UppASDVizMainWindow(QMainWindow):
                 if self.ASDPlotData.sqw_file_present:
                     self.ASDCorrelationPlots.Sqw_Plot(self.Plotting_ax,self.ASDPlotData.sqw_data,\
                     self.SQW_proj_indx,self.ASDPlotData.sqw_labels,self.plot2D_cmap_indx,\
-                    self.ASDPlotData.ax_limits)
+                    self.ASDPlotData.ax_limits,self.ASDPlotData.q_labels,self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(False)
                     self.AMSDisplayOpts.setEnabled(False)
                 else:
@@ -683,7 +728,8 @@ class UppASDVizMainWindow(QMainWindow):
             elif self.AMSDispCheckBox.isChecked() and not self.SqwDispCheckBox.isChecked():
                 if self.ASDPlotData.ams_file_present:
                     self.ASDPlots2D.LinePlot(self.Plotting_ax,self.ams_data_x,\
-                    self.ams_data_y,self.ams_label,self.ASDPlotData.ams_ax_label)
+                    self.ams_data_y,self.ams_label,self.ASDPlotData.ams_ax_label,\
+                    tick_labels=self.ASDPlotData.q_labels,tick_idx=self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:
@@ -701,7 +747,7 @@ class UppASDVizMainWindow(QMainWindow):
                     self.ASDCorrelationPlots.AMS_Sqw_Plot(self.Plotting_ax,self.ASDPlotData.sqw_data,\
                     self.SQW_proj_indx,self.ASDPlotData.sqw_labels,self.ams_data_x,\
                     self.ams_data_y,self.ASDPlotData.hf_scale,self.plot2D_cmap_indx,\
-                    self.ASDPlotData.ax_limits)
+                    self.ASDPlotData.ax_limits,self.ASDPlotData.q_labels,self.ASDPlotData.q_idx)
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:
@@ -724,7 +770,7 @@ class UppASDVizMainWindow(QMainWindow):
                 curr_data_y=[]
                 curr_labels=[]
                 for ii in range(len(self.MagDirIndx)):
-                    curr_data_x.append(self.ASDPlotData.itr_data[self.MagDirIndx[ii]])
+                    curr_data_x.append(self.ASDPlotData.mitr_data[self.MagDirIndx[ii]])
                     curr_data_y.append(self.ASDPlotData.mag_data[self.MagDirIndx[ii]])
                     curr_labels.append(self.ASDPlotData.mag_labels[self.MagDirIndx[ii]])
                 if len(self.MagDirIndx)>0:
@@ -748,7 +794,7 @@ class UppASDVizMainWindow(QMainWindow):
                 curr_data_y=[]
                 curr_labels=[]
                 for ii in range(len(self.EneIndx)):
-                    curr_data_x.append(self.ASDPlotData.itr_data[self.EneIndx[ii]])
+                    curr_data_x.append(self.ASDPlotData.eitr_data[self.EneIndx[ii]])
                     curr_data_y.append(self.ASDPlotData.ene_data[self.EneIndx[ii]])
                     curr_labels.append(self.ASDPlotData.ene_labels[self.EneIndx[ii]])
                 if len(self.EneIndx)>0:
@@ -783,7 +829,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def SaveFig(self):
-        from PyQt5.QtWidgets import QFileDialog
+        from PyQt6.QtWidgets import QFileDialog
         fig_name, _ = QFileDialog.getSaveFileName(self, 'Save File')
         if len(self.InpFigDPI.text())>0:
             dpi=int(self.InpFigDPI.text())
@@ -822,10 +868,10 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
 
         """
-        from PyQt5.QtWidgets import QLabel
-        import VTK_Viz.ASDVTKEneActors as ASDVTKEneActors
-        import VTK_Viz.ASDVTKMomActors as ASDVTKMomActors
-        import VTK_Viz.ASDVTKNeighActors as ASDVTKNeighActors
+        from PyQt6.QtWidgets import QLabel
+        from ASD_GUI.VTK_Viz import ASDVTKEneActors 
+        from ASD_GUI.VTK_Viz import ASDVTKMomActors 
+        from ASD_GUI.VTK_Viz import ASDVTKNeighActors
         try:
             self.ASDGenActors.scalar_bar_widget
         except:
