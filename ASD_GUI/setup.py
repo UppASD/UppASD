@@ -3,12 +3,12 @@ import json
 
 setup(
         name = 'asd_gui',
-        version = '0.9',
+        version = '1.1.0',
         description = 'The UppASD GUI',
         url = 'https://github.com/UppASD/UppASD',
         author = 'Jonathan P. Chico',
         author_email = 'uppasd@physics.uu.se',
-        license = 'GPLv2',
+        license = 'GPLv3',
         packages=find_packages(),
         package_dir={'ASD_GUI.UI': 'ASD_GUI/UI'},
         package_data={'ASD_GUI': ['*.ui']},
