@@ -65,8 +65,8 @@ class UppASDVizMainWindow(QMainWindow):
         #-----------------------------------------------------------------------
         self.plot2D_cmap_indx=0
         self.SQW_proj_indx=0
-        self.MagDirIndx=range(4)
-        self.EneIndx=range(11)
+        self.MagDirIndx=[3] #range(4)
+        self.EneIndx=[0] #range(11)
         #-----------------------------------------------------------------------
         # Call the classes defining several needed functions for the reading of
         # data and the visualization

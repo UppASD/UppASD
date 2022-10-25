@@ -150,7 +150,6 @@ class Correlation_Plots():
 
     def sqw_convolve(self,sqwa):
         import numpy as np
-        import matplotlib.pyplot as plt
         #-----------------------------------------------------------------------
         # Perform a convolution with a windowing function for each q-point
         #-----------------------------------------------------------------------

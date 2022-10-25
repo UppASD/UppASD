@@ -3968,7 +3968,7 @@
                                                       <string>X Projection</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -3978,7 +3978,7 @@
                                                       <string>Y Projection</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -3988,7 +3988,7 @@
                                                       <string>Z Projection</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4064,7 +4064,7 @@
                                                       <string>Exchange</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4074,7 +4074,7 @@
                                                       <string>Anisotropy</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4084,7 +4084,7 @@
                                                       <string>Dzyaloshinskii-Moriya</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4094,7 +4094,7 @@
                                                       <string>Pseudo Dipolar</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4104,7 +4104,7 @@
                                                       <string>Biquadratic DM</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4114,7 +4114,7 @@
                                                       <string>Biquadratic</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4124,7 +4124,7 @@
                                                       <string>Dipolar</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4134,7 +4134,7 @@
                                                       <string>Zeeman</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4144,7 +4144,7 @@
                                                       <string>LSF</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -4154,7 +4154,7 @@
                                                       <string>Chiral</string>
                                                    </property>
                                                    <property name="checked">
-                                                      <bool>true</bool>
+                                                      <bool>false</bool>
                                                    </property>
                                                 </widget>
                                              </item>

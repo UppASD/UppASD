@@ -477,7 +477,6 @@ class ReadPlotData():
     #################################################################################
     def read_gen_plot_data(self,filename):
         import pandas as pd
-        print(filename)
         data_df=pd.read_csv(filename,header=0,delim_whitespace=True, escapechar='#')
         data=data_df.values
         t_data=[]
