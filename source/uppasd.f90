@@ -1026,12 +1026,6 @@ contains
             Bas,sym,simid,coord)
       endif
 
-      ! Print input
-      write(*,'(1x,a)',advance='no') 'Write input data'
-      ! Modify for SKKR stuff later
-      call prninp()
-      call print_yaml()
-      write(*,'(a)') ' done.'
       !
       ! 
       i=max(nstep,mcnstep)
@@ -1091,7 +1085,13 @@ contains
             write(*,'(a)')" done."
          end if
 
+      ! Print input
+      write(*,'(1x,a)',advance='no') 'Write input data'
+      call prninp()
+      call print_yaml()
+      write(*,'(a)') ' done.'
       write (*,'(1x,a)') "Set up Hamiltonian"
+
       ! Set up Hamiltonian, containing exchange, anisotropy, and optional terms
       ! like DM and dipolar interactions.
       !!! call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Mensemble,  &

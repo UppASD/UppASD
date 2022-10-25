@@ -368,6 +368,7 @@ contains
       use prn_averages
       use prn_trajectories
       use Correlation
+      use qvectors, only : qfile, qpoints
       use AMS, only : do_ams
       use diamag, only: do_diamag
 
@@ -419,6 +420,9 @@ contains
       end if
       if (do_sc .eq. 'Y' .or. do_sc .eq. 'C') then
          call yaml_print("sc_sep:",sc%sc_sep,file_id)
+      end if
+      if (qpoints .eq. 'F' .or. qpoints .eq. 'D' .or. qpoints .eq. 'B') then
+         call yaml_print("qfile:",trim(qfile),file_id)
       end if
 
       write(file_id,'(a)') "measurables:"

@@ -1625,8 +1625,9 @@ subroutine setup_Jtens2_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
    !
    real(dblprec), dimension(3) :: q_vec
    real(dblprec), dimension(3) :: dist
+   real(dblprec), dimension(3) :: amv
    real(dblprec), dimension(3) :: z
-   real(dblprec), dimension(3,3) :: R_n, J_n
+   real(dblprec), dimension(3,3) :: R_n, J_n, A_n
    complex(dblprec)  :: FTfac, im
    integer :: iq, ia, ja, j, jat, ih
    !
@@ -1644,36 +1645,53 @@ subroutine setup_Jtens2_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
       else
          q_vec=0.0_dblprec
       end if
-      !print '(2x,a,i5,3f18.8)' , 'q=',iq, q_vec
 
       do ia=1,NA
          ih=ham%aHam(ia)
          ! Jij exchange
          do j=1,ham%nlistsize(ih)
             ja=ham%nlist(j,ia)
-            !jat=atype(ja)
+
             jat=mod(ja-1,NA)+1
             call f_wrap_coord_diff(Natom,coord,ia,ja,dist)
 
-            !call find_R(R_n,z,emomM(:,ja,1))
-            !call find_R(R_m,emomM(:,jat,1),z)
             call find_R(R_n,emomM(:,jat,1),emomM(:,ja,1))
-            !call find_R(R_n,emomM(:,ia,1),emomM(:,ja/natom+1,1))
-            !!!J_n=0.0_dblprec
-            !!!J_n(1,1)=ham%ncoup(j,ih,1)
-            !!!J_n(2,2)=ham%ncoup(j,ih,1)
-            !!!J_n(3,3)=ham%ncoup(j,ih,1)
+
             J_n=ham%j_tens(:,:,j,ih)
 
             FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
 
             Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
 
-            !!!print '(a,i4,11f10.4)', 'Jn atom: ', ia, real(J_n)
-            !!!print '(a,i4,11f10.4)', 'Rn atom: ', ia, real(R_n)
-            !!!print '(a,i4,11f10.4)', 'Jn*Rn  : ', ia, real(matmul(J_n,R_n))
-            !!!print '(a,i4,11f10.4)', 'Jq atom: ', ia, real(Jtens_q(:,:,ia,jat,iq)), FTfac
          end do
+         ! Anisotropies (on-site interactions)
+         ! Anisotropy
+         if (ham_inp%do_anisotropy==1) then
+            A_n = 0.0_dblprec
+            if (ham%taniso(ia)==1) then
+               ! Uniaxial anisotropy
+               !call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               amv = ham%eaniso(:,ia)
+               !A_n = + 4.0_dblprec * ham%kaniso(1,ia)*ani2tens(amv)
+               A_n = - 2.0_dblprec * ham%kaniso(1,ia)*ani2tens(amv)
+               if (ham_inp%mult_axis=='Y') then
+                  amv = ham%eaniso_diff(:,ia)
+                  A_n = A_n - 2.0_dblprec * ham%kaniso_diff(1,ia) * ani2tens(amv)
+               end if
+            elseif (ham%taniso(ia)==2) then
+               ! Cubic anisotropy
+               !call cubic_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               print *,'cub not supported yet'
+            elseif (ham%taniso(ia)==7)then
+               ! Uniaxial and cubic anisotropy
+               !call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               !tfield=0.0_dblprec
+               !call cubic_anisotropy_field(i, k, tfield,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               !beff_q=beff_q+tfield*ham%sb(i)
+               print *,'both not supported yet'
+            endif
+            Jtens_q(:,:,ia,ia,iq)=Jtens_q(:,:,ia,ia,iq)+A_n !*FTfac
+         endif
       end do
 
 
