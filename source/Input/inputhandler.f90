@@ -52,7 +52,7 @@ contains
    subroutine read_parameters(ifile)
       use FileParser
       use LatticeInputData, only : iplattdamp
-      use QHB,                only : do_qhb, qhb_mode, tcurie
+      use QHB,                only : do_qhb, qhb_mode, tcurie, do_mix, mix_mode
       use KMCData
       use clusters
       use FixedMom,           only : do_fixed_mom
@@ -1283,7 +1283,17 @@ contains
             case('tcurie')
                read(ifile,*,iostat=i_err) tcurie
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+			
+			! Mix scheme inside QHB module
+			
+			case('do_mix')
+               read(ifile,*,iostat=i_err) do_qhb
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('mix_mode')
+               read(ifile,*,iostat=i_err) qhb_mode
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+			   
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR QHB
             !------------------------------------------------------------------------

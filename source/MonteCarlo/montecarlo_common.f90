@@ -143,6 +143,7 @@ contains
 
       use Constants
       use InputData, only: ind_mom_type
+      use QHB, only : mix_beta, mix_mode, qhb_mode
 
       !.. Implicit declarations
       implicit none
@@ -187,7 +188,14 @@ contains
       real(dblprec) :: beta,des,lmetric
       real(dblprec), dimension(3) :: ave_mom
 
-      beta=1.0_dblprec/k_bolt/(temprescale*Temperature+1.0d-15)
+      !< 2022-11 New feature: Mixing scheme
+      if(do_mix=='Y'.and.de>0.0_dblprec) then
+         call mix_beta(Temperature,temprescale,de,mix_mode,qhb_mode,beta)
+      else
+         beta=1.0_dblprec/k_bolt/(temprescale*Temperature+1.0d-15)
+      endif
+      !!!!!
+
       if (do_lsf=='N'.and.ind_mom_flag=='N') then
          if(de<=0.0_dblprec .or. flipprob<exp(-beta*de)) then
             emom(:,iflip,k)=newmom(:)
