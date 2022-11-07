@@ -152,7 +152,7 @@ contains
       mix_mode= 'LI'
    end subroutine init_mix
    
-   subroutine mix_beta(temperature,temprescale,de,m_mode,q_mode,beta_new)
+   subroutine mix_beta(temperature,temprescale,de,beta_new)
     ! Mixing statistics scheme for Metropolis algorithm where the probability
     ! of acceptance of the new state (W) is given by:
     !
@@ -169,8 +169,6 @@ contains
       real(dblprec),intent(in) :: temperature ! Simulation temperature
       real(dblprec),intent(in) :: temprescale ! Temperature rescaling factor
       real(dblprec),intent(in) :: de ! Energy diference in Ry
-      character(len=2),intent(in) :: m_mode ! Mixing mode
-      character(len=2),intent(in) :: q_mode ! QHB mode (TC choice)
       real(dblprec),intent(out) :: beta_new !Beta mix [output]
 
       real(dblprec) :: tcrit ! Temperature free parameter in mixing
@@ -186,12 +184,12 @@ contains
       ! 'SI' - TODO(?) Sigmoide function would imply more free parameters :(
       !
       ! Linear Mixing
-      if (m_mode=='LI') then
-         if (q_mode=='TM') then
+      if (mix_mode=='LI') then
+         if (qhb_mode=='TM') then
             tcrit=tcmfa
-         elseif(q_mode=='TR') then
+         elseif(qhb_mode=='TR') then
             tcrit=tcrpa
-         elseif(q_mode=='TC') then
+         elseif(qhb_mode=='TC') then
             tcrit=tcurie
          endif
 
