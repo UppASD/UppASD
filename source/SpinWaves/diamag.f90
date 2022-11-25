@@ -55,7 +55,7 @@ contains
       diamag_mix=0.030_dblprec
       diamag_thresh=1.0d-8
       diamag_nfreq=200
-      !diamag_eps=-1.0_dblprec
+      diamag_eps=-1.0_dblprec
       !diamag_qvect=0.0_dblprec
       !diamag_nvect(1:2)=0.0_dblprec;diamag_nvect(3)=1.0_dblprec
 
@@ -827,7 +827,8 @@ contains
       ! Follow Toth-Lake recipe for R'
       R_prime(3,:)=mom_hat
       !if(abs(mom_hat(3))==1.0_dblprec) then  !if m=00+-1 then R_2=0+-10
-      if(abs(mom_hat(3)-1.0_dblprec)<0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)
+      !if(abs(mom_hat(3)-1.0_dblprec)<0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)
+      if(abs(mom_hat(3))>0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)
 
          R_prime(2,:)=f_cross_product(x_hat,mom_hat)
 
@@ -855,6 +856,7 @@ contains
 
       u=R_prime(1,:)+im*R_prime(2,:)
       v=R_prime(3,:)
+
       !
       return
       !
