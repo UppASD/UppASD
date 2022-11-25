@@ -230,6 +230,12 @@ contains
 
          ! Same seed as for Monte-Carlo
          Ncell = N1*N2*N3
+
+         ! For rnd planes version
+         if  (do_rplanes_only==1) then
+                 Ncell = N1*N2
+         endif
+
          allocate(atoms(Ncell,Na),stat=i_stat)
          call memocc(i_stat,product(shape(atoms))*kind(atoms),'atoms','setup_chemicaldata')
          allocate(atoms2(Ncell),stat=i_stat)
