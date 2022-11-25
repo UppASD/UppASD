@@ -234,7 +234,7 @@ contains
 
          call json_write(file_id,iphfield,3,key='ip_hfield')
 
-         if(mode .eq. 'S' .or. mode .eq. 'R' .or. mode .eq. 'L') then
+         if(ipmode .eq. 'S' .or. ipmode .eq. 'R' .or. ipmode .eq. 'L') then
             call json_write(file_id,(/ipnphase/),1,key='ip_nphase')
 
             if (ipnphase>0) then
@@ -245,7 +245,7 @@ contains
                call json_write(file_id,iplambda1,ipnphase,key='ip_damping')
             end if
 
-         else if (mode .eq. 'M' .or. mode .eq. 'H' .or. mode .eq. 'I') then
+         else if (ipmode .eq. 'M' .or. ipmode .eq. 'H' .or. ipmode .eq. 'I') then
             call json_write(file_id,(/ipmcnphase/),1,key='ip_mcanneal')
 
             if (ipmcnphase>0) then

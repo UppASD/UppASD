@@ -708,7 +708,8 @@ subroutine f_wrap_coord_diff(Natom,coord,i_atom,j_atom,cdiff)
    integer :: x,y,z
    integer :: xmin,xmax,ymin,ymax,zmin,zmax
    !
-   odiff=coord(:,i_atom) - coord(:,j_atom)
+   odiff=coord(:,j_atom) - coord(:,i_atom)
+   !odiff=coord(:,i_atom) - coord(:,j_atom)
    !onorm=norm2(odiff)
    !
    xmax=0;xmin=0;ymax=0;ymin=0;zmax=0;zmin=0
