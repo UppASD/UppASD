@@ -1564,26 +1564,36 @@ contains
       write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
       write(ofileno,'(a)') repeat("#",80)
       write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Timestep","ens","iatom","|Mom|","M_x","M_y","M_z"
-      do k=1,Mensemble
-         do ia=1,Natom
-            lhit=lhit+1
-            !srvec=coord(:,ia)
-            call f_wrap_coord_diff(Natom,coord,ia,1,srvec)
-            !
-            m_j=0.0_dblprec
-            do iq=1,1!nq
-               call set_nsvec(qm_type,q(:,iq),s(:,iq),n_vec)
-               qr=q(1,iq)*srvec(1)+q(2,iq)*srvec(2)+q(3,iq)*srvec(3)
-               m_j=m_j+n_vec*cos(2*pi*qr+phi(iq))+s(:,iq)*sin(2*pi*qr+phi(iq))
+      if(qm_rot == 'Y') then
+         do k=1,Mensemble
+            do ia=1,Natom
+               emom(1:3,ia,k)=emomM(1:3,ia,k)/mmom(ia,k)
+               m_j=emom(1:3,ia,k)
+               write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
             end do
-            call normalize(m_j)
-            emom(1:3,ia,k)=m_j
-            emomM(1:3,ia,k)=m_j*mmom(ia,k)
-            !write(ofileno,'(2i8,4f14.6)') 1,lhit,mmom(ia,k),m_j
-            !write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
-            write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
          end do
-      end do
+      else
+         do k=1,Mensemble
+            do ia=1,Natom
+               lhit=lhit+1
+               !srvec=coord(:,ia)
+               call f_wrap_coord_diff(Natom,coord,ia,1,srvec)
+               !
+               m_j=0.0_dblprec
+               do iq=1,1!nq
+                  call set_nsvec(qm_type,q(:,iq),s(:,iq),n_vec)
+                  qr=q(1,iq)*srvec(1)+q(2,iq)*srvec(2)+q(3,iq)*srvec(3)
+                  m_j=m_j+n_vec*cos(2*pi*qr+phi(iq))+s(:,iq)*sin(2*pi*qr+phi(iq))
+               end do
+               call normalize(m_j)
+               emom(1:3,ia,k)=m_j
+               emomM(1:3,ia,k)=m_j*mmom(ia,k)
+               !write(ofileno,'(2i8,4f14.6)') 1,lhit,mmom(ia,k),m_j
+               !write(ofileno,'(2i8,4f14.6)') 1,ia,mmom(ia,k),m_j
+               write(ofileno,10003) 0,1,ia,mmom(ia,k),m_j
+            end do
+         end do
+      end if
       close(ofileno)
       !
       10003 format(i8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)

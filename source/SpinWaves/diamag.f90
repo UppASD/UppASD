@@ -449,10 +449,10 @@ contains
       if(info==0) then  ! Positive-definit matrix, Colpa diagonalization ok
       else
          print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
-         print '(2f10.6)',real(K_mat)
-         print *,'-----------------'
-         print '(2f10.6)',aimag(K_mat)
-         print *,'-----------------'
+         !print '(2f10.6)',real(K_mat)
+         !print *,'-----------------'
+         !print '(2f10.6)',aimag(K_mat)
+         !print *,'-----------------'
       end if
       do ia=1,hdim
          do ja=ia+1,hdim

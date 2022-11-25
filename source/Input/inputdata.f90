@@ -725,6 +725,9 @@ contains
          allocate(ham_inp%pd_nn(NT),stat=i_stat)
          call memocc(i_stat,product(shape(ham_inp%pd_nn))*kind(ham_inp%pd_nn),'pd_nn','allocate_hamiltonianinput')
          ham_inp%pd_nn=0
+         allocate(ham_inp%sa_nn(NT),stat=i_stat)
+         call memocc(i_stat,product(shape(ham_inp%sa_nn))*kind(ham_inp%sa_nn),'sa_nn','allocate_hamiltonianinput')
+         ham_inp%sa_nn=0
          allocate(ham_inp%chir_nn(NT),stat=i_stat)
          call memocc(i_stat,product(shape(ham_inp%chir_nn))*kind(ham_inp%chir_nn),'chir_nn','allocate_hamiltonianinput')
          ham_inp%chir_nn=0
@@ -776,6 +779,9 @@ contains
          i_all=-product(shape(ham_inp%pd_nn))*kind(ham_inp%pd_nn)
          deallocate(ham_inp%pd_nn,stat=i_stat)
          call memocc(i_stat,i_all,'pd_nn','allocate_hamiltonianinput')
+         i_all=-product(shape(ham_inp%sa_nn))*kind(ham_inp%sa_nn)
+         deallocate(ham_inp%sa_nn,stat=i_stat)
+         call memocc(i_stat,i_all,'sa_nn','allocate_hamiltonianinput')
          i_all=-product(shape(ham_inp%biqdm_nn))*kind(ham_inp%biqdm_nn)
          deallocate(ham_inp%biqdm_nn,stat=i_stat)
          call memocc(i_stat,i_all,'biqdm_nn','allocate_hamiltonianinput')

@@ -47,8 +47,8 @@ do_diamag Y
 do_sc  Q
 sc_nstep 500
 sc_step 100
-do_sc_local_axis B
-sc_local_axis_mix 0.1
+do_sc_local_axis Y
+sc_local_axis_mix 0.0
 sc_window_fun 2
 sc_average E
 do_sc_tens Y
