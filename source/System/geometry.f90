@@ -303,6 +303,7 @@ contains
                         else
                                 achem_ch(iatom)=achtype(i)
                         end if
+                     end if
                   end do
                end do
             end do
