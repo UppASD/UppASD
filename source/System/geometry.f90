@@ -223,7 +223,7 @@ contains
       integer, dimension(:,:), allocatable :: atoms
       integer, dimension(:,:), allocatable :: qch
       integer, dimension(:), allocatable :: ns, ne
-      integer, dimension(:), allocatable :: atoms2, atoms2T
+      !integer, dimension(:), allocatable :: atoms2, atoms2T
       real(dblprec), dimension(:), allocatable :: rn
 
       if (do_ralloy==1) then
@@ -232,16 +232,17 @@ contains
          Ncell = N1*N2*N3
 
          ! For rnd planes version
-         if  (do_rplanes_only==1) then
-                 Ncell = N1*N2
+         if  (do_ralloy==2) then
+                 Ncell = N3
          endif
 
          allocate(atoms(Ncell,Na),stat=i_stat)
          call memocc(i_stat,product(shape(atoms))*kind(atoms),'atoms','setup_chemicaldata')
-         allocate(atoms2(Ncell),stat=i_stat)
-         call memocc(i_stat,product(shape(atoms2))*kind(atoms2),'atoms2','setup_chemicaldata')
-         allocate(atoms2T(Ncell),stat=i_stat)
-         call memocc(i_stat,product(shape(atoms2T))*kind(atoms2T),'atoms2T','setup_chemicaldata')
+         ! Not used
+         !allocate(atoms2(Ncell),stat=i_stat)
+         !call memocc(i_stat,product(shape(atoms2))*kind(atoms2),'atoms2','setup_chemicaldata')
+         !allocate(atoms2T(Ncell),stat=i_stat)
+         !call memocc(i_stat,product(shape(atoms2T))*kind(atoms2T),'atoms2T','setup_chemicaldata')
          allocate(qch(Nchmax,Na),stat=i_stat)
          call memocc(i_stat,product(shape(qch))*kind(qch),'qch','setup_chemicaldata')
          allocate(rn(Ncell),stat=i_stat)
@@ -297,8 +298,11 @@ contains
                         acellnumbrev(iatom) = i
                         asite_ch(iatom)=I0
                         atype_ch(iatom)=atype(i)
-                        achem_ch(iatom)=achtype(i)
-                     end if
+                        if  (do_ralloy==2) then
+                                achem_ch(iatom)=achtype(I3)
+                        else
+                                achem_ch(iatom)=achtype(i)
+                        end if
                   end do
                end do
             end do
@@ -310,12 +314,12 @@ contains
          i_all=-product(shape(atoms))*kind(atoms)
          deallocate(atoms,stat=i_stat)
          call memocc(i_stat,i_all,'atoms','setup_chemicaldata')
-         i_all=-product(shape(atoms2))*kind(atoms2)
-         deallocate(atoms2,stat=i_stat)
-         call memocc(i_stat,i_all,'atoms2','setup_chemicaldata')
-         i_all=-product(shape(atoms2T))*kind(atoms2T)
-         deallocate(atoms2T,stat=i_stat)
-         call memocc(i_stat,i_all,'atoms2T','setup_chemicaldata')
+         !i_all=-product(shape(atoms2))*kind(atoms2)
+         !deallocate(atoms2,stat=i_stat)
+         !call memocc(i_stat,i_all,'atoms2','setup_chemicaldata')
+         !i_all=-product(shape(atoms2T))*kind(atoms2T)
+         !deallocate(atoms2T,stat=i_stat)
+         !call memocc(i_stat,i_all,'atoms2T','setup_chemicaldata')
          i_all=-product(shape(qch))*kind(qch)
          deallocate(qch,stat=i_stat)
          call memocc(i_stat,i_all,'qch','setup_chemicaldata')
