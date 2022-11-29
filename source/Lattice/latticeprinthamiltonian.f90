@@ -58,7 +58,7 @@ contains
             do I1=0, N1-1
                do I0=1, NA
                   i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                  if (do_ralloy==1) i = acellnumb(i)
+                  if (do_ralloy==1.or.do_ralloy==2) i = acellnumb(i)
                   if (i==0) cycle
                   write (18,*) "------------------------------------------------------"
                   if (do_ralloy==0) then
@@ -348,7 +348,7 @@ contains
             do I1=0, N1-1
                do I0=1, NA
                   i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-                  if (do_ralloy==1) i = acellnumb(i)
+                  if (do_ralloy==1.or.do_ralloy==2) i = acellnumb(i)
                   if (i==0) cycle
                   write (18,*) "------------------------------------------------------"
                   if (do_ralloy==0) then
