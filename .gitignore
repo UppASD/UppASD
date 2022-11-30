@@ -45,3 +45,4 @@ source/Makefile
 inp.*.yaml
 *.gcno
 fort.*
+bin/sd.gfortran

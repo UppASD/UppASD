@@ -227,6 +227,7 @@ contains
       real(dblprec), dimension(:), allocatable :: rn
 
       if (do_ralloy==1.or.do_ralloy==2) then
+      !if (do_ralloy==1) then
 
          ! Same seed as for Monte-Carlo
          Ncell = N1*N2*N3
@@ -278,8 +279,20 @@ contains
             end do
             do ich=1,Nch(ia)
                do i=ns(ich),ne(ich)
-                  A1=(atoms(i,ia)-1)*Na+ia
-                  achtype(A1)=ich
+               ! For random planes, garantee that chemical species in
+               ! z plane are fixed
+                  if  (do_ralloy==2) then
+                     do I2=0, N2-1
+                        do I1=0, N1-1
+                           A1=ia+I1*NA+I2*N1*NA+(atoms(i,ia)-1)*N2*N1*NA
+                           achtype(A1)=ich
+                        end do
+                     end do
+               ! Bulk alloy
+                  else
+                     A1=(atoms(i,ia)-1)*Na+ia
+                     achtype(A1)=ich
+                  end if
                end do
             end do
          end do
@@ -298,11 +311,7 @@ contains
                         acellnumbrev(iatom) = i
                         asite_ch(iatom)=I0
                         atype_ch(iatom)=atype(i)
-                        if  (do_ralloy==2) then
-                                achem_ch(iatom)=achtype(I3)
-                        else
-                                achem_ch(iatom)=achtype(i)
-                        end if
+                        achem_ch(iatom)=achtype(i)
                      end if
                   end do
                end do
