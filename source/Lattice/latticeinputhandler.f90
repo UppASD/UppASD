@@ -585,6 +585,7 @@ contains
       !SLDTODO check if use of NT and Nchmax is consistent with use in Input/inputhandler
       allocate(ll_inptens(9,NT,max_no_llshells,NT,NT),stat=i_stat)
       call memocc(i_stat,product(shape(ll_inptens))*kind(ll_inptens),'ll_inptens','read_lldata')
+      ll_inptens=0.0_dblprec
 
       ! Read force coupling tensors
       ! Isite, Jsite, Ichem, Jchem
@@ -601,8 +602,8 @@ contains
 
          ! Find type of site
          itype=atype_inp(isite)
-         jtype=1
-         !jtype=atype_inp(jsite)
+         !jtype=1
+         jtype=atype_inp(jsite)
 
          if(maptype==2) then
             ! Calculate proper neighbour vector (from "bgfm")
@@ -650,6 +651,10 @@ contains
       enddo
       close (ifileno)
 
+      !!! print '(2x,i4)',1
+      !!! print '(9f10.6)',ll_inptens(:,1,:,:,:)
+      !!! print '(2x,i4)',2
+      !!! print '(9f10.6)',ll_inptens(:,2,:,:,:)
    end subroutine read_lldata
 
 

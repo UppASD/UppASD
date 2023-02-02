@@ -486,7 +486,6 @@ contains
             end do
          end do
          close(ifileno)
-         print *,sym_mats
 
          ! Reads symmetry operations from file, type specific sets of symmetry elements
       else if(isym==5) then
@@ -681,8 +680,9 @@ contains
       integer, intent(in) :: couptensrank !< Rank of coupling tensor
       integer, intent(in) :: invsym !< Flag for inversion symmetry of coupling tensor
       integer, intent(in) :: timesym !< Flag for time reversal symmetry of coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax), intent(in) :: couptens !< Coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT), intent(in) :: couptens !< Coupling tensor
+      !real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,1), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
       integer, dimension(48,max_no_shells,na), intent(out) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       !
       integer :: i0
@@ -1104,8 +1104,8 @@ contains
       integer, intent(in) :: couptensrank !< Rank of coupling tensor
       integer, intent(in) :: invsym !< Inversion symmetry of coupling tensor
       integer, intent(in) :: timesym !< Time reversal symmetry of coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax), intent(in) :: couptens !< Coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,max_no_equiv), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT), intent(in) :: couptens !< Coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
 
       ! This flag is not needed. Keep for the time being.
       logical :: do_tens_sym
@@ -1156,10 +1156,10 @@ contains
                      write(*,'(a,3f10.6)') 'nncoord  ', nncoord(1:3,ielem,1,ishell,itype)
                   end do
                end if
-               do counter=1,1
-               !do counter=1,max_no_equiv
-                  do ich=1,Nchmax
-                     do jch=1,Nchmax
+               !do counter=1,1
+               do counter=1,max_no_equiv
+                  do ich=1,NT
+                     do jch=1,NT
                         fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
                            couptens(1:hdim,itype,ishell,ich,jch)
                      end do
@@ -1221,8 +1221,8 @@ contains
                         end do
                      end if
                      if(do_tens_sym) then
-                        do ich=1,Nchmax
-                           do jch=1,Nchmax
+                        do ich=1,NT
+                           do jch=1,NT
                               if(do_hoc_debug==1) then
                                  write(*,*) 'isym ', isym, 'couptensrank ', couptensrank
                                  write(*,'(a)') 'couptens(1:hdim,itype,ishell,ich,jch) '
