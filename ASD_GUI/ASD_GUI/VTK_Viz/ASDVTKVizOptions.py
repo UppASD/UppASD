@@ -467,6 +467,14 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinarrow.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
             renWin.Render()
+        if keyword=='CenterOn':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToCenter()
+            renWin.Render()
+
+        if keyword=='CenterOff':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToDefault()
+            renWin.Render()
+
         if keyword=='Cones':
             try:
                 del ASDVizOptions.MomActors.spinsphere

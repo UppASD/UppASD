@@ -219,6 +219,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
+    window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
     #---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     #---------------------------------------------------------------------------

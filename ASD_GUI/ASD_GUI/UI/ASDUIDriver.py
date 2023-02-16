@@ -1239,18 +1239,29 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
+        print('Button: ')
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cubes')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinSphereButton:
             if self.SpinSphereButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Spheres')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinArrowButton:
             if self.SpinArrowButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Arrows')
+                self.SpinCenterCheck.setChecked(False)
+                self.SpinCenterCheck.setEnabled(True)
         if self.sender() == self.SpinConeButton:
             if self.SpinConeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cones')
+                self.SpinCenterCheck.setEnabled(False)
+        if self.sender() == self.SpinCenterCheck:
+            if self.SpinCenterCheck.isChecked():
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOn')
+            else:
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOff')
         self.renWin.Render()
         return
     ############################################################################

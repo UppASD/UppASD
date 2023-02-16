@@ -1756,7 +1756,7 @@
                                                       <bool>true</bool>
                                                    </property>
                                                    <property name="title">
-                                                      <string>Spin Glyph Selector</string>
+                                                      <string>Spin Glyph Options</string>
                                                    </property>
                                                    <layout class="QVBoxLayout" name="SpinSelectBoxLayout">
                                                       <item>
@@ -1838,6 +1838,24 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
+
+                                                      <item>
+                                                         <widget class="QCheckBox" name="SpinCenterCheck">
+                                                            <property name="toolTip">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Center arrows</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+
                                                    </layout>
                                                 </widget>
                                              </item>
