@@ -267,6 +267,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ClippPlaneZCheck.toggled.connect(window.clipperHandler)
     window.ClippingPlaneSlider.valueChanged.connect(window.clipperHandler)
     window.GlyphQualitySlider.valueChanged.connect(window.Quality_control)
+    window.FXAACheck.toggled.connect(window.FXAA_control)
+    window.FXAACheck.toggled.connect(window.UpdateRenderer)
+    window.SSAOCheck.toggled.connect(window.SSAO_control)
+    window.SSAOCheck.toggled.connect(window.UpdateRenderer)
     #---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     #---------------------------------------------------------------------------

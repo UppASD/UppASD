@@ -285,9 +285,9 @@ class ASDMomActors():
         ASDMomActors.vector = vtk.vtkLODActor()
         ASDMomActors.vector.SetMapper(arrowMapper)
         ASDMomActors.vector.GetProperty().SetSpecular(0.3)
-        ASDMomActors.vector.GetProperty().SetSpecularPower(60)
-        ASDMomActors.vector.GetProperty().SetAmbient(0.2)
-        ASDMomActors.vector.GetProperty().SetDiffuse(0.8)
+        ASDMomActors.vector.GetProperty().SetSpecularPower(50)
+        ASDMomActors.vector.GetProperty().SetAmbient(0.9)
+        ASDMomActors.vector.GetProperty().SetDiffuse(0.5)
         ASDMomActors.vector.GetProperty().SetColor(0, 0, 0)
         ASDMomActors.vector.VisibilityOff()
         #-----------------------------------------------------------------------
@@ -343,7 +343,7 @@ class ASDMomActors():
         ASDMomActors.Atoms = vtk.vtkLODActor()
         ASDMomActors.Atoms.SetMapper(ASDMomActors.AtomMapper)
         ASDMomActors.Atoms.GetProperty().SetInterpolationToGouraud()
-        ASDMomActors.Atoms.GetProperty().SetAmbient(0.5)
+        ASDMomActors.Atoms.GetProperty().SetAmbient(0.8)
         ASDMomActors.Atoms.GetProperty().SetDiffuse(0.5)
         ASDMomActors.Atoms.GetProperty().SetColor(colors.GetColor3d("Silver"))
         if window.AtomsBox.isChecked():

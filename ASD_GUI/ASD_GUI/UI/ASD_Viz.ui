@@ -1936,16 +1936,16 @@
                                                       <number>0</number>
                                                    </property>
                                                    <property name="maximum">
-                                                      <number>25</number>
+                                                      <number>50</number>
                                                    </property>
                                                    <property name="pageStep">
                                                       <number>1</number>
                                                    </property>
                                                    <property name="value">
-                                                      <number>5</number>
+                                                      <number>10</number>
                                                    </property>
                                                    <property name="sliderPosition">
-                                                      <number>5</number>
+                                                      <number>10</number>
                                                    </property>
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>
@@ -3180,11 +3180,24 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="GlyphQualityBox">
+                                       <widget class="QGroupBox" name="VizQualityBox">
                                           <property name="title">
-                                             <string>Glyph quality</string>
+                                             <string>Visualization quality</string>
                                           </property>
                                           <layout class="QVBoxLayout" name="verticalLayout_25">
+                                             <item>
+                                                <widget class="QLabel" name="GlyphQualitySliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Glyph quality</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                              <item>
                                                 <widget class="QSlider" name="GlyphQualitySlider">
                                                    <property name="sliderPosition">
@@ -3198,6 +3211,47 @@
                                                    </property>
                                                 </widget>
                                              </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="SSAOCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Enable SSAO</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="FXAACheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Enable FXAA</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
                                           </layout>
                                        </widget>
                                     </item>

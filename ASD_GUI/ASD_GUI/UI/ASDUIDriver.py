@@ -1337,8 +1337,21 @@ class UppASDVizMainWindow(QMainWindow):
         png_mode=self.actionSave_png.isChecked(),pov_mode=self.actionSave_pov.isChecked())
         self.number_of_screenshots=self.number_of_screenshots+1
         return
+    ############################################################################
+    # Function that calls for updating the glyph resolutions
+    ############################################################################
     def Quality_control(self,value):
         self.ASDVizOpt.GlyphQualityUpdate(value=value,viz_type=self.viz_type,mode=self.mode,renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling FXAA
+    ############################################################################
+    def FXAA_control(self, check):
+        self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling FXAA
+    ############################################################################
+    def SSAO_control(self, check):
+        self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
     #--------------------------------------------------------------------------------
     # @brief Playback control for the animation of different movies, either for moments
     # or energies.

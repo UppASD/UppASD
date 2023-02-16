@@ -325,7 +325,7 @@ class ASDVizOptions():
     ############################################################################
     def ChangeAtomsSize(self,value):
         print('Atom size ', value, value/10.0)
-        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(2.00*value/10.0)
+        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(1.00*value/10.0)
         return
     ############################################################################
     # Set the size of the atoms via the slider
@@ -365,9 +365,40 @@ class ASDVizOptions():
         ASDVizOptions.NeighActors.AtomsActor.GetProperty().SetOpacity(value*0.1)
         return
 
+    ############################################################################
+    # Toggle SSAO on/off
+    ############################################################################
+    def toggle_SSAO(self,check, ren):
+        print('Toggling SSAO', check)
+        if check:
+            ren.UseSSAOOn()
+            ren.SetSSAOKernelSize(256)
+            ren.SetSSAORadius(2.0)
+            ren.SetSSAOBias(0.5)
+            ren.SSAOBlurOn()
+        else:
+            ren.UseSSAOOff()
+        return
+
+    ############################################################################
+    # Toggle FXAA on/off
+    ############################################################################
+    def toggle_FXAA(self,check, ren, renWin):
+        print('Toggling FXAA', check)
+        if check:
+            ren.UseFXAAOn()
+            ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
+            renWin.SetMultiSamples(4)
+        else:
+            ren.UseFXAAOff()
+        return
+
+    ############################################################################
+    # Update glyph resolution
+    ############################################################################
     def GlyphQualityUpdate(self,value,viz_type,mode,renWin):
         if viz_type=='M':
-            try: 
+            try:
                 ASDVizOptions.MomActors.spinarrow.SetTipResolution(value)
                 ASDVizOptions.MomActors.spinarrow.SetShaftResolution(value)
             except:
