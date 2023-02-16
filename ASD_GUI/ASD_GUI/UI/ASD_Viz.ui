@@ -1863,6 +1863,165 @@
                                        </widget>
                                     </item>
                                     <item>
+                                       <widget class="QGroupBox" name="AtomsBox">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="sizePolicy">
+                                             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                                                <horstretch>0</horstretch>
+                                                <verstretch>0</verstretch>
+                                             </sizepolicy>
+                                          </property>
+                                          <property name="contextMenuPolicy">
+                                             <enum>Qt::DefaultContextMenu</enum>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Atoms</string>
+                                          </property>
+                                          <property name="flat">
+                                             <bool>false</bool>
+                                          </property>
+                                          <property name="checkable">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="checked">
+                                             <bool>false</bool>
+                                          </property>
+                                          <layout class="QVBoxLayout" name="AtomBoxLayout">
+                                             <item>
+                                                <widget class="QLabel" name="AtomSizeSliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Atom Size</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="AtomSize">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="font">
+                                                      <font>
+                                                         <italic>false</italic>
+                                                         <underline>false</underline>
+                                                         <strikeout>false</strikeout>
+                                                      </font>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>25</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>1</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>5</number>
+                                                   </property>
+                                                   <property name="sliderPosition">
+                                                      <number>5</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>5</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QLabel" name="AtomOpaqSliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Atom opacity</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="AtomOpaq">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="font">
+                                                      <font>
+                                                         <italic>false</italic>
+                                                         <underline>false</underline>
+                                                         <strikeout>false</strikeout>
+                                                      </font>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>1</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>10</number>
+                                                   </property>
+                                                   <property name="sliderPosition">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>10</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
                                        <widget class="QGroupBox" name="MomOptGroup">
                                           <property name="enabled">
                                              <bool>true</bool>

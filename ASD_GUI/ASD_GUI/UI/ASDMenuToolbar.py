@@ -221,6 +221,15 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
     window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
     #---------------------------------------------------------------------------
+    # Adding the actions to the atoms
+    #---------------------------------------------------------------------------
+    window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
+    window.AtomsBox.toggled.connect(window.UpdateRenderer)
+    window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
+    window.AtomSize.valueChanged.connect(window.UpdateRenderer)
+    window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
+    window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
+    #---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     #---------------------------------------------------------------------------
     window.NeighAtomCheck.toggled.connect(window.ASDVizOpt.toggle_NAtoms)

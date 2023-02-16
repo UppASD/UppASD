@@ -226,6 +226,15 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.Spins.VisibilityOff()
         return
     ############################################################################
+    # Toggle the atomic spheres
+    ############################################################################
+    def toggle_atoms(self,check):
+        if check:
+            ASDVizOptions.MomActors.Atoms.VisibilityOn()
+        else:
+            ASDVizOptions.MomActors.Atoms.VisibilityOff()
+        return
+    ############################################################################
     # Toggle the magnetization density
     ############################################################################
     def toggle_density(self,check):
@@ -310,6 +319,20 @@ class ASDVizOptions():
     ############################################################################
     def ChangeSpinsSize(self,value):
         ASDVizOptions.MomActors.SpinMapper.SetScaleFactor(0.50*value/10)
+        return
+    ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsSize(self,value):
+        print('Atom size ', value, value/10.0)
+        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(2.00*value/10.0)
+        return
+    ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsOpaq(self,value):
+        print('Change opacity', value, value*0.01)
+        ASDVizOptions.MomActors.Atoms.GetProperty().SetOpacity(value*0.01)
         return
     ############################################################################
     # Toggle the atoms for the neighbour map

@@ -320,6 +320,37 @@ class ASDMomActors():
             ASDMomActors.Spins.VisibilityOn()
         else:
             ASDMomActors.Spins.VisibilityOff()
+        #-----------------------------------------------------------------------
+        # Setting information for the atoms
+        #-----------------------------------------------------------------------
+        # Create vectors
+        ASDMomActors.AtomSphere = vtk.vtkSphereSource()
+        ASDMomActors.AtomSphere.SetRadius(0.10)
+        ASDMomActors.AtomSphere.SetThetaResolution(24)
+        ASDMomActors.AtomSphere.SetPhiResolution(24)
+        # Create the mapper for the atoms
+        ASDMomActors.AtomMapper = vtk.vtkGlyph3DMapper()
+        ASDMomActors.AtomMapper.SetSourceConnection(ASDMomActors.AtomSphere.GetOutputPort())
+        ASDMomActors.AtomMapper.SetInputData(ASDMomActors.src_spins)
+        ASDMomActors.AtomMapper.SetScaleFactor(1.00)
+        ASDMomActors.AtomMapper.SetScaleModeToNoDataScaling()
+        ASDMomActors.AtomMapper.ScalarVisibilityOff()
+        #ASDMomActors.AtomMapper.SetLookupTable(self.lut)
+        #ASDMomActors.AtomMapper.SetColorModeToMapScalars()
+        ASDMomActors.AtomMapper.Update()
+        # Define the sphere actor for the atoms
+        colors = vtk.vtkNamedColors()
+        ASDMomActors.Atoms = vtk.vtkLODActor()
+        ASDMomActors.Atoms.SetMapper(ASDMomActors.AtomMapper)
+        ASDMomActors.Atoms.GetProperty().SetInterpolationToGouraud()
+        ASDMomActors.Atoms.GetProperty().SetAmbient(0.5)
+        ASDMomActors.Atoms.GetProperty().SetDiffuse(0.5)
+        ASDMomActors.Atoms.GetProperty().SetColor(colors.GetColor3d("Silver"))
+        if window.AtomsBox.isChecked():
+            ASDMomActors.Atoms.VisibilityOn()
+        else:
+            ASDMomActors.Atoms.VisibilityOff()
+
         if (ASDdata.kmc_flag):
             #-------------------------------------------------------------------
             # Setting data structures for the KMC particle visualization
@@ -359,6 +390,7 @@ class ASDMomActors():
         ren.AddActor(ASDMomActors.Spins)
         ren.AddActor(ASDMomActors.vector)
         ren.AddActor(ASDMomActors.contActor)
+        ren.AddActor(ASDMomActors.Atoms)
         #If the KMC particles are present add them to the renderer
         if ASDdata.kmc_flag:
             ren.AddActor(ASDMomActors.KMC_part_actor)
