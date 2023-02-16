@@ -1758,8 +1758,8 @@
                                                    <property name="title">
                                                       <string>Spin Glyph Options</string>
                                                    </property>
-                                                   <layout class="QVBoxLayout" name="SpinSelectBoxLayout">
-                                                      <item>
+                                                   <layout class="QGridLayout" name="SpinSelectBoxLayout">
+                                                      <item row="0" column="0">
                                                          <widget class="QRadioButton" name="SpinArrowButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be arrows</string>
@@ -1781,7 +1781,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="1" column="0">
                                                          <widget class="QRadioButton" name="SpinConeButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be cones</string>
@@ -1800,7 +1800,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="2" column="0">
                                                          <widget class="QRadioButton" name="SpinCubeButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be cubes</string>
@@ -1819,7 +1819,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="3" column="0">
                                                          <widget class="QRadioButton" name="SpinSphereButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be spheres</string>
@@ -1839,7 +1839,7 @@
                                                          </widget>
                                                       </item>
 
-                                                      <item>
+                                                      <item row="0" column="1">
                                                          <widget class="QCheckBox" name="SpinCenterCheck">
                                                             <property name="toolTip">
                                                                <string>Center arrows in middle or base</string>
