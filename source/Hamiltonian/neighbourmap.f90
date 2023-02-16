@@ -83,8 +83,8 @@ contains
       logical :: is_periodic,is_dilute, typematch, tolmatch
 
       ! Set tolerance
-      tol=0.00050_dblprec**2
-      !tol=0.001_dblprec
+      !tol=0.00050_dblprec**2
+      tol=0.0001_dblprec
 
       if(present(nntype)) print *, 'nntype', shape(nntype)
 

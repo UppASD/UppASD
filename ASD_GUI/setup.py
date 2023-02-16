@@ -3,7 +3,7 @@ import json
 
 setup(
         name = 'asd_gui',
-        version = '1.1.0',
+        version = '1.1.1',
         description = 'The UppASD GUI',
         url = 'https://github.com/UppASD/UppASD',
         author = 'Jonathan P. Chico',

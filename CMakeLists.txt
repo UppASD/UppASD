@@ -310,15 +310,30 @@ INCLUDE(${CMAKE_MODULE_PATH}/git-watcher.cmake)
 # Add CUDA flags and preprocessor commands
 ##############################################################################################
 if (USE_CUDA) 
+
    ENABLE_LANGUAGE(C CUDA CXX)
-   find_package(CUDA)
+   find_package(CUDAToolkit)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
-   add_subdirectory(gpu_files)
+   add_subdirectory(${SRC}/gpu_files)
    add_compile_definitions(CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
 
-   message(STATUS "Matched compiler:${current_compiler}.  ${CMAKE_Fortran_COMPILER}")
+   # Set preprocessing flags indicating compiler
+   string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+
+   # Find CUDA arch on local machine
+   include(FindCUDA/select_compute_arch)
+   CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+   string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+   string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+   string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+   SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+
 else ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Tools/nocuda.f90)
 endif (USE_CUDA)

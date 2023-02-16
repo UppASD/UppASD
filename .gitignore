@@ -43,3 +43,5 @@ codeTester/extractoutput.pyc
 codeTester/tests.log
 source/Makefile
 inp.*.yaml
+*.gcno
+fort.*

@@ -680,9 +680,9 @@ contains
       ! Exchange
       do j=1,ham%nlistsize(iflip)
          !befftemp = befftemp +matmul(ham%j_tens(:,:,j,iflip),emomM(:,ham%nlist(j,iflip),k))
-         befftemp = befftemp -  ham%j_tens(:,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k)  &
-                             -  ham%j_tens(:,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k)  &
-                             -  ham%j_tens(:,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
+         befftemp = befftemp +  ham%j_tens(:,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k)  &
+                             +  ham%j_tens(:,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k)  &
+                             +  ham%j_tens(:,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
          !!! befftemp(1) = befftemp(1)+ ham%j_tens(1,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
          !!!    ham%j_tens(1,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k) + ham%j_tens(1,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
          !!! befftemp(2) = befftemp(2)+ ham%j_tens(2,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
