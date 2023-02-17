@@ -312,9 +312,11 @@ class ASDMomActors():
         # Define the vector actor for the spins
         ASDMomActors.Spins = vtk.vtkLODActor()
         ASDMomActors.Spins.SetMapper(ASDMomActors.SpinMapper)
-        ASDMomActors.Spins.GetProperty().SetSpecular(0.3)
-        ASDMomActors.Spins.GetProperty().SetSpecularPower(60)
-        ASDMomActors.Spins.GetProperty().SetAmbient(0.2)
+        ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
+        #ASDMomActors.Spins.GetProperty().SetInterpolationToGouraud()
+        #ASDMomActors.Spins.GetProperty().SetSpecular(0.3)
+        #ASDMomActors.Spins.GetProperty().SetSpecularPower(60)
+        ASDMomActors.Spins.GetProperty().SetAmbient(0.8)
         ASDMomActors.Spins.GetProperty().SetDiffuse(0.8)
         if window.SpinsBox.isChecked():
             ASDMomActors.Spins.VisibilityOn()
@@ -343,8 +345,9 @@ class ASDMomActors():
         ASDMomActors.Atoms = vtk.vtkLODActor()
         ASDMomActors.Atoms.SetMapper(ASDMomActors.AtomMapper)
         ASDMomActors.Atoms.GetProperty().SetInterpolationToGouraud()
+        #ASDMomActors.Atoms.GetProperty().SetInterpolationToPBR()
         ASDMomActors.Atoms.GetProperty().SetAmbient(0.8)
-        ASDMomActors.Atoms.GetProperty().SetDiffuse(0.5)
+        ASDMomActors.Atoms.GetProperty().SetDiffuse(0.8)
         ASDMomActors.Atoms.GetProperty().SetColor(colors.GetColor3d("Silver"))
         if window.AtomsBox.isChecked():
             ASDMomActors.Atoms.VisibilityOn()

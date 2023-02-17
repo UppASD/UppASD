@@ -1265,6 +1265,36 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
     ############################################################################
+    # Function to change the shading of the glyphs that display the individual 
+    # magnetic moments
+    ############################################################################
+    def ChangeShading(self):
+        """Function to change the type of glyphs that display the individual magnetic
+        moments
+
+        Author
+        ----------
+        Anders Bergman, Jonathan Chico
+        """
+        if self.sender() == self.FlatShadeButton:
+            if self.FlatShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Flat')
+                
+        if self.sender() == self.GouraudShadeButton:
+            if self.GouraudShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Gouraud')
+                
+        if self.sender() == self.PBRShadeButton:
+            if self.PBRShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='PBR')
+                
+        if self.sender() == self.PhongShadeButton:
+            if self.PBRShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Phong')
+                
+        self.renWin.Render()
+        return
+    ############################################################################
     # Update the neighbours
     ############################################################################
     def NeighbourControl(self):

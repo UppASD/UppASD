@@ -320,6 +320,22 @@ class ASDVizOptions():
     def ChangeSpinsSize(self,value):
         ASDVizOptions.MomActors.SpinMapper.SetScaleFactor(0.50*value/10)
         return
+
+    ############################################################################
+    # Set the interpolation of the spin glyphs
+    ############################################################################
+    def ChangeSpinShade(self,renWin,keyword):
+        if keyword=='Flat':
+            ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToFlat()
+        elif keyword=='Gouraud':
+            ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToGouraud()
+        elif keyword=='PBR':
+            ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
+        elif keyword=='Phong':
+            ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPhong()
+        renWin.Render()
+        return
+
     ############################################################################
     # Set the size of the atoms via the slider
     ############################################################################
@@ -369,22 +385,45 @@ class ASDVizOptions():
     # Toggle SSAO on/off
     ############################################################################
     def toggle_SSAO(self,check, ren):
-        print('Toggling SSAO', check)
+
         if check:
             ren.UseSSAOOn()
             ren.SetSSAOKernelSize(256)
             ren.SetSSAORadius(2.0)
             ren.SetSSAOBias(0.5)
             ren.SSAOBlurOn()
+
         else:
             ren.UseSSAOOff()
         return
 
     ############################################################################
+    # Toggle HDRI on/off
+    ############################################################################
+    def toggle_HDRI(self,check, ren, renWin):
+        import vtk
+        from vtkmodules.vtkIOImage import vtkHDRReader
+
+        if check:
+            reader = vtkHDRReader()
+            reader.SetFileName('/Users/andersb/Downloads/hdr_hanza.pic')
+            reader.Update()
+            texture = vtk.vtkTexture()
+            texture.MipmapOn()
+            texture.InterpolateOn()
+            texture.SetInputConnection(reader.GetOutputPort())
+
+            ren.UseImageBasedLightingOn()
+            ren.SetEnvironmentTexture(texture)
+        else:
+            ren.UseImageBasedLightingOff()
+        return
+
+
+    ############################################################################
     # Toggle FXAA on/off
     ############################################################################
     def toggle_FXAA(self,check, ren, renWin):
-        print('Toggling FXAA', check)
         if check:
             ren.UseFXAAOn()
             ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)

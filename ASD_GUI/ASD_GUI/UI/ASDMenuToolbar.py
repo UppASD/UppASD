@@ -221,6 +221,13 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
     window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
     #---------------------------------------------------------------------------
+    # Adding shading actions to the spins
+    #---------------------------------------------------------------------------
+    window.FlatShadeButton.toggled.connect(window.ChangeShading)
+    window.GouraudShadeButton.toggled.connect(window.ChangeShading)
+    window.PhongShadeButton.toggled.connect(window.ChangeShading)
+    window.PBRShadeButton.toggled.connect(window.ChangeShading)
+    #---------------------------------------------------------------------------
     # Adding the actions to the atoms
     #---------------------------------------------------------------------------
     window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
