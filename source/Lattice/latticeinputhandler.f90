@@ -683,7 +683,7 @@ contains
 
       ! Open input files
       open(801, file=ll_phonopyfile)
-      open(102, file=ll_phonopycoordfile)
+      open(104, file=ll_phonopycoordfile)
 
       !read(801,*) tmpreal, Natom_phonopy
       read(801,*) Natom_phonopy
@@ -714,7 +714,7 @@ contains
 
       do i=1,Natom_phonopy
          ! SLDTODO remove the running index that right now goes into the first column of POSCAR.dat files
-         read(102,*) atomindex_phonopy(i), ll_coord_phonopy(1:3,i)
+         read(104,*) atomindex_phonopy(i), ll_coord_phonopy(1:3,i)
          r_tmp(1:3) = scalefac_phonopy * ll_coord_phonopy(1:3,i)
          cart_coord_phonopy(1,i)=r_tmp(1)*C1(1)+r_tmp(2)*C2(1)+r_tmp(3)*C3(1)
          cart_coord_phonopy(2,i)=r_tmp(1)*C1(2)+r_tmp(2)*C2(2)+r_tmp(3)*C3(2)
@@ -722,7 +722,7 @@ contains
       end do
       
       close(801)
-      close(102)
+      close(104)
 
       ll_inptens_phonopy0 = 0_dblprec
       ll_inptens_phonopy1 = 0_dblprec
@@ -1834,7 +1834,7 @@ contains
       integer :: i
 
       ! Open input file
-      !    open(101, file=trim(filename(1))) ! Number of shells
+      !    open(103, file=trim(filename(1))) ! Number of shells
       ! Check if input file is for random alloy
       flines=0
       mtype=0
