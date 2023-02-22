@@ -226,6 +226,15 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.Spins.VisibilityOff()
         return
     ############################################################################
+    # Toggle the atomic spheres
+    ############################################################################
+    def toggle_atoms(self,check):
+        if check:
+            ASDVizOptions.MomActors.Atoms.VisibilityOn()
+        else:
+            ASDVizOptions.MomActors.Atoms.VisibilityOff()
+        return
+    ############################################################################
     # Toggle the magnetization density
     ############################################################################
     def toggle_density(self,check):
@@ -312,6 +321,20 @@ class ASDVizOptions():
         ASDVizOptions.MomActors.SpinMapper.SetScaleFactor(0.50*value/10)
         return
     ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsSize(self,value):
+        print('Atom size ', value, value/10.0)
+        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(1.00*value/10.0)
+        return
+    ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsOpaq(self,value):
+        print('Change opacity', value, value*0.01)
+        ASDVizOptions.MomActors.Atoms.GetProperty().SetOpacity(value*0.01)
+        return
+    ############################################################################
     # Toggle the atoms for the neighbour map
     ############################################################################
     def toggle_NAtoms(self,check):
@@ -342,9 +365,40 @@ class ASDVizOptions():
         ASDVizOptions.NeighActors.AtomsActor.GetProperty().SetOpacity(value*0.1)
         return
 
+    ############################################################################
+    # Toggle SSAO on/off
+    ############################################################################
+    def toggle_SSAO(self,check, ren):
+        print('Toggling SSAO', check)
+        if check:
+            ren.UseSSAOOn()
+            ren.SetSSAOKernelSize(256)
+            ren.SetSSAORadius(2.0)
+            ren.SetSSAOBias(0.5)
+            ren.SSAOBlurOn()
+        else:
+            ren.UseSSAOOff()
+        return
+
+    ############################################################################
+    # Toggle FXAA on/off
+    ############################################################################
+    def toggle_FXAA(self,check, ren, renWin):
+        print('Toggling FXAA', check)
+        if check:
+            ren.UseFXAAOn()
+            ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
+            renWin.SetMultiSamples(4)
+        else:
+            ren.UseFXAAOff()
+        return
+
+    ############################################################################
+    # Update glyph resolution
+    ############################################################################
     def GlyphQualityUpdate(self,value,viz_type,mode,renWin):
         if viz_type=='M':
-            try: 
+            try:
                 ASDVizOptions.MomActors.spinarrow.SetTipResolution(value)
                 ASDVizOptions.MomActors.spinarrow.SetShaftResolution(value)
             except:
@@ -467,6 +521,14 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinarrow.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
             renWin.Render()
+        if keyword=='CenterOn':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToCenter()
+            renWin.Render()
+
+        if keyword=='CenterOff':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToDefault()
+            renWin.Render()
+
         if keyword=='Cones':
             try:
                 del ASDVizOptions.MomActors.spinsphere
