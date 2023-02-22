@@ -8,7 +8,7 @@ SHELL = /bin/sh
 PROG = sd
 
 # List of available building configs (found in make/default-profiles/systemname.make)
-DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-win64 gfortran-FC gfortran-ftn crayftn-ftn
+DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-win64 gfortran-FC gfortran-ftn crayftn-ftn aocc-ftn
 LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls ./source/make/user_profiles/*.make | sed 's/..source.make.user_profiles.//' | sed 's/.make//'))
 SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
 
