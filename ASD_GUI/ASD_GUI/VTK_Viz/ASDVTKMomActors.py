@@ -314,10 +314,10 @@ class ASDMomActors():
         ASDMomActors.Spins.SetMapper(ASDMomActors.SpinMapper)
         ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
         #ASDMomActors.Spins.GetProperty().SetInterpolationToGouraud()
-        #ASDMomActors.Spins.GetProperty().SetSpecular(0.3)
+        ASDMomActors.Spins.GetProperty().SetSpecular(0.5)
         #ASDMomActors.Spins.GetProperty().SetSpecularPower(60)
-        ASDMomActors.Spins.GetProperty().SetAmbient(0.8)
-        ASDMomActors.Spins.GetProperty().SetDiffuse(0.8)
+        ASDMomActors.Spins.GetProperty().SetAmbient(0.5)
+        ASDMomActors.Spins.GetProperty().SetDiffuse(0.5)
         if window.SpinsBox.isChecked():
             ASDMomActors.Spins.VisibilityOn()
         else:
@@ -458,7 +458,7 @@ class ASDMomActors():
         #-----------------------------------------------------------------------
         # Update the general actors
         #-----------------------------------------------------------------------
-        window.ProgressBar.setValue((window.current_time-1)*100/(ASDdata.number_time_steps-1))
+        window.ProgressBar.setValue(int((window.current_time-1)*100/(ASDdata.number_time_steps-1)))
         window.ProgressLabel.setText('   {:}%'.format(int(window.ProgressBar.value())))
         time_label=str('{: 4.2f}'\
         .format(float(window.TimeStepLineEdit.text())*ASDdata.time_sep[window.current_time-1]*1e9))+' ns'
