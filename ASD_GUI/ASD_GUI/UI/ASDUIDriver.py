@@ -1289,7 +1289,7 @@ class UppASDVizMainWindow(QMainWindow):
                 self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='PBR')
                 
         if self.sender() == self.PhongShadeButton:
-            if self.PBRShadeButton.isChecked():
+            if self.PhongShadeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Phong')
                 
         self.renWin.Render()
@@ -1378,10 +1378,41 @@ class UppASDVizMainWindow(QMainWindow):
     def FXAA_control(self, check):
         self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
     ############################################################################
-    # Function that calls for toggling FXAA
+    # Function that calls for toggling SSAO
     ############################################################################
     def SSAO_control(self, check):
         self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
+    ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecular_control(self, value):
+        self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling ambient scattering
+    ############################################################################
+    def RenAmbient_control(self, value):
+        self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling diffuse scattering
+    ############################################################################
+    def RenDiffuse_control(self, value):
+        self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Occlusion value
+    ############################################################################
+    def PBROcclusion_control(self, value):
+        self.ASDVizOpt.PBROcclusionUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRRoughness_control(self, value):
+        self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRMetallic_control(self, value):
+        self.ASDVizOpt.PBRMetallicUpdate(value=value, renWin=self.renWin)
+
     #--------------------------------------------------------------------------------
     # @brief Playback control for the animation of different movies, either for moments
     # or energies.

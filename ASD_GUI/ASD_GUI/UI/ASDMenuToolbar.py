@@ -278,6 +278,12 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.FXAACheck.toggled.connect(window.UpdateRenderer)
     window.SSAOCheck.toggled.connect(window.SSAO_control)
     window.SSAOCheck.toggled.connect(window.UpdateRenderer)
+    window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
+    window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
+    window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
+    window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
+    window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
+    window.PBRMetallicSlider.valueChanged.connect(window.PBRMetallic_control)
     #---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     #---------------------------------------------------------------------------
