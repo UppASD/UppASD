@@ -219,6 +219,23 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
+    window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
+    #---------------------------------------------------------------------------
+    # Adding shading actions to the spins
+    #---------------------------------------------------------------------------
+    window.FlatShadeButton.toggled.connect(window.ChangeShading)
+    window.GouraudShadeButton.toggled.connect(window.ChangeShading)
+    window.PhongShadeButton.toggled.connect(window.ChangeShading)
+    window.PBRShadeButton.toggled.connect(window.ChangeShading)
+    #---------------------------------------------------------------------------
+    # Adding the actions to the atoms
+    #---------------------------------------------------------------------------
+    window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
+    window.AtomsBox.toggled.connect(window.UpdateRenderer)
+    window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
+    window.AtomSize.valueChanged.connect(window.UpdateRenderer)
+    window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
+    window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
     #---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     #---------------------------------------------------------------------------
@@ -257,6 +274,20 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ClippPlaneZCheck.toggled.connect(window.clipperHandler)
     window.ClippingPlaneSlider.valueChanged.connect(window.clipperHandler)
     window.GlyphQualitySlider.valueChanged.connect(window.Quality_control)
+    window.FXAACheck.toggled.connect(window.FXAA_control)
+    window.FXAACheck.toggled.connect(window.UpdateRenderer)
+    window.SSAOCheck.toggled.connect(window.SSAO_control)
+    window.SSAOCheck.toggled.connect(window.UpdateRenderer)
+    window.HDRICheck.toggled.connect(window.HDRI_control)
+    window.HDRICheck.toggled.connect(window.UpdateRenderer)
+    window.HDRIButtonSelect.clicked.connect(window.getHDRIFile)
+    window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
+    window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
+    window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
+    window.RenSpecularPowerSlider.valueChanged.connect(window.RenSpecularPower_control)
+    window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
+    window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
+    window.PBRMetallicSlider.valueChanged.connect(window.PBRMetallic_control)
     #---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     #---------------------------------------------------------------------------

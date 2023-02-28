@@ -60,6 +60,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.VTKWidgetPresent=False
         self.can_plot_ams=False
         self.can_plot_sqw=False
+        self.hdrifile=[]
+        self.hdrifile_gotten = False
         #-----------------------------------------------------------------------
         # Plotting global variables
         #-----------------------------------------------------------------------
@@ -1239,18 +1241,59 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
+        print('Button: ')
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cubes')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinSphereButton:
             if self.SpinSphereButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Spheres')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinArrowButton:
             if self.SpinArrowButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Arrows')
+                self.SpinCenterCheck.setChecked(False)
+                self.SpinCenterCheck.setEnabled(True)
         if self.sender() == self.SpinConeButton:
             if self.SpinConeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cones')
+                self.SpinCenterCheck.setEnabled(False)
+        if self.sender() == self.SpinCenterCheck:
+            if self.SpinCenterCheck.isChecked():
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOn')
+            else:
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOff')
+        self.renWin.Render()
+        return
+    ############################################################################
+    # Function to change the shading of the glyphs that display the individual 
+    # magnetic moments
+    ############################################################################
+    def ChangeShading(self):
+        """Function to change the type of glyphs that display the individual magnetic
+        moments
+
+        Author
+        ----------
+        Anders Bergman, Jonathan Chico
+        """
+        if self.sender() == self.FlatShadeButton:
+            if self.FlatShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Flat')
+                
+        if self.sender() == self.GouraudShadeButton:
+            if self.GouraudShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Gouraud')
+                
+        if self.sender() == self.PBRShadeButton:
+            if self.PBRShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='PBR')
+                
+        if self.sender() == self.PhongShadeButton:
+            if self.PhongShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Phong')
+                
         self.renWin.Render()
         return
     ############################################################################
@@ -1326,8 +1369,71 @@ class UppASDVizMainWindow(QMainWindow):
         png_mode=self.actionSave_png.isChecked(),pov_mode=self.actionSave_pov.isChecked())
         self.number_of_screenshots=self.number_of_screenshots+1
         return
+    ############################################################################
+    # Function that calls for updating the glyph resolutions
+    ############################################################################
     def Quality_control(self,value):
         self.ASDVizOpt.GlyphQualityUpdate(value=value,viz_type=self.viz_type,mode=self.mode,renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling FXAA
+    ############################################################################
+    def FXAA_control(self, check):
+        self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling SSAO
+    ############################################################################
+    def SSAO_control(self, check):
+        self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
+    ############################################################################
+    # Function that calls for toggling HDRI
+    ############################################################################
+    def HDRI_control(self, check):
+        self.ASDVizOpt.toggle_HDRI(check=check,ren=self.ren, hdrifile=self.hdrifile)
+    ############################################################################
+    # Finding the file name for the input file generation
+    ############################################################################
+    def getHDRIFile(self):
+        self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
+        self.hdrifile_gotten = len(self.hdrifile)>0
+        if self.hdrifile_gotten:
+                self.HDRICheck.setEnabled(True)
+        return
+    ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecular_control(self, value):
+        self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecularPower_control(self, value):
+        self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling ambient scattering
+    ############################################################################
+    def RenAmbient_control(self, value):
+        self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling diffuse scattering
+    ############################################################################
+    def RenDiffuse_control(self, value):
+        self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Occlusion value
+    ############################################################################
+    def PBROcclusion_control(self, value):
+        self.ASDVizOpt.PBROcclusionUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRRoughness_control(self, value):
+        self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRMetallic_control(self, value):
+        self.ASDVizOpt.PBRMetallicUpdate(value=value, renWin=self.renWin)
+
     #--------------------------------------------------------------------------------
     # @brief Playback control for the animation of different movies, either for moments
     # or energies.

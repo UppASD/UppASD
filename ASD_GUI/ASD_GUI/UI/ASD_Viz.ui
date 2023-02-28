@@ -1756,10 +1756,10 @@
                                                       <bool>true</bool>
                                                    </property>
                                                    <property name="title">
-                                                      <string>Spin Glyph Selector</string>
+                                                      <string>Spin Glyph Options</string>
                                                    </property>
-                                                   <layout class="QVBoxLayout" name="SpinSelectBoxLayout">
-                                                      <item>
+                                                   <layout class="QGridLayout" name="SpinSelectBoxLayout">
+                                                      <item row="0" column="0">
                                                          <widget class="QRadioButton" name="SpinArrowButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be arrows</string>
@@ -1781,7 +1781,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="1" column="0">
                                                          <widget class="QRadioButton" name="SpinConeButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be cones</string>
@@ -1800,7 +1800,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="2" column="0">
                                                          <widget class="QRadioButton" name="SpinCubeButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be cubes</string>
@@ -1819,7 +1819,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item>
+                                                      <item row="3" column="0">
                                                          <widget class="QRadioButton" name="SpinSphereButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be spheres</string>
@@ -1838,7 +1838,184 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
+
+                                                      <item row="0" column="1">
+                                                         <widget class="QCheckBox" name="SpinCenterCheck">
+                                                            <property name="toolTip">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Center arrows in middle or base</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Center arrows</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+
                                                    </layout>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QGroupBox" name="AtomsBox">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="sizePolicy">
+                                             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                                                <horstretch>0</horstretch>
+                                                <verstretch>0</verstretch>
+                                             </sizepolicy>
+                                          </property>
+                                          <property name="contextMenuPolicy">
+                                             <enum>Qt::DefaultContextMenu</enum>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Options for the visualization of the atoms</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Atoms</string>
+                                          </property>
+                                          <property name="flat">
+                                             <bool>false</bool>
+                                          </property>
+                                          <property name="checkable">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="checked">
+                                             <bool>false</bool>
+                                          </property>
+                                          <layout class="QVBoxLayout" name="AtomBoxLayout">
+                                             <item>
+                                                <widget class="QLabel" name="AtomSizeSliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Atom Size</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="AtomSize">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="font">
+                                                      <font>
+                                                         <italic>false</italic>
+                                                         <underline>false</underline>
+                                                         <strikeout>false</strikeout>
+                                                      </font>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Scale the size of the atoms</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>50</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>1</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>10</number>
+                                                   </property>
+                                                   <property name="sliderPosition">
+                                                      <number>10</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>5</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QLabel" name="AtomOpaqSliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Atom opacity</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="AtomOpaq">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="font">
+                                                      <font>
+                                                         <italic>false</italic>
+                                                         <underline>false</underline>
+                                                         <strikeout>false</strikeout>
+                                                      </font>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Scale the opacity of the atoms</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>1</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>10</number>
+                                                   </property>
+                                                   <property name="sliderPosition">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>10</number>
+                                                   </property>
                                                 </widget>
                                              </item>
                                           </layout>
@@ -3003,11 +3180,24 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="GlyphQualityBox">
+                                       <widget class="QGroupBox" name="VizQualityBox">
                                           <property name="title">
-                                             <string>Glyph quality</string>
+                                             <string>Visualization quality</string>
                                           </property>
                                           <layout class="QVBoxLayout" name="verticalLayout_25">
+                                             <item>
+                                                <widget class="QLabel" name="GlyphQualitySliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Glyph quality</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                              <item>
                                                 <widget class="QSlider" name="GlyphQualitySlider">
                                                    <property name="sliderPosition">
@@ -3021,9 +3211,613 @@
                                                    </property>
                                                 </widget>
                                              </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="SSAOCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off screen-space ambient occlusion (SSAO)</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Enable SSAO</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="FXAACheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off fast approximate anti-aliasing (FXAA)</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Enable FXAA</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="HDRICheck">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off image based lighting (HDRI)</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off image based lighting (HDRI)</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off image based lighting (HDRI)</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Enable image based lighting</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                                              <item>
+                                                                  <widget class="QPushButton" name="HDRIButtonSelect">
+                                                                     <property name="toolTip">
+                                                                        <string>Select HDR image</string>
+                                                                     </property>
+                                                                     <property name="statusTip">
+                                                                        <string>Select HDR image</string>
+                                                                     </property>
+                                                                     <property name="whatsThis">
+                                                                        <string>Select HDR image</string>
+                                                                     </property>
+                                                                     <property name="text">
+                                                                        <string>Select HDR image</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+
+
                                           </layout>
                                        </widget>
                                     </item>
+
+                                             <item>
+                                                <widget class="QGroupBox" name="SpinShadeSelectBox">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="title">
+                                                      <string>Spin Shading Options</string>
+                                                   </property>
+                                                   <layout class="QGridLayout" name="ShadeSelectBoxLayout">
+                                                      <item>
+                                                         <widget class="QRadioButton" name="FlatShadeButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the interpolation of the glyphs to flat</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the interpolation of the glyphs to flat</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the interpolation of the glyphs to flat</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Flat</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>false</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinShadeButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QRadioButton" name="GouraudShadeButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the interpolation of the glyphs to Gouraud</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the interpolation of the glyphs to Gouraud</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the interpolation of the glyphs to Gouraud</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Gouraud</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinShadeButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QRadioButton" name="PhongShadeButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the interpolation of the glyphs to phong</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the interpolation of the glyphs to phong</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the interpolation of the glyphs to phong</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Phong</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>false</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinShadeButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="AmbientLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Ambient</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="RenAmbientSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Ambient scattering</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Ambient scattering</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Ambient scattering</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>60</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>60</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="DiffuseLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Diffuse</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="RenDiffuseSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Diffuse scattering</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Diffuse scattering</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Diffuse scattering</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>40</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>40</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="SpecularLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Specular</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="RenSpecularSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Specular shading of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Specular shading of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Specular shading of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>40</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>40</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="SpecularPowerLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Specular power</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="RenSpecularPowerSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>80</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>80</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QRadioButton" name="PBRShadeButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Physically Based Rendering</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>false</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinShadeButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+
+                                                      <item>
+                                                         <widget class="QLabel" name="OcclusionLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Occlusion</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="PBROcclusionSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Occlusion of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Occlusion of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Occlusion of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="RoughnessLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Roughness</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="PBRRoughnessSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Roughness of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Roughness of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Roughness of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="MetallicLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Metallic</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="PBRMetallicSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Metallic scattering</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Metallic scattering</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Metallic scattering</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+
+                                                   </layout>
+                                                </widget>
+                                             </item>
                                     <item>
                                        <spacer name="verticalSpacer_4">
                                           <property name="orientation">
@@ -7261,6 +8055,7 @@
       <buttongroup name="InitPhaseModeSelector"/>
       <buttongroup name="MagDensSelector"/>
       <buttongroup name="SpinGlyphButtonGroup"/>
+      <buttongroup name="SpinShadeButtonGroup"/>
       <buttongroup name="EneActorBGroup"/>
       <buttongroup name="ColorMapSelector"/>
       <buttongroup name="SpinProjSelector"/>

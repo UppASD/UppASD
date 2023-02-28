@@ -37,7 +37,7 @@ Quick-start:
 make <profile>
 ```
 
-Where `<profile>` is a suitable compiler profile, i.e. `ifort`, `gfortran`, `gfortran-osx` and so on.   
+Where `<profile>` is a suitable compiler profile, i.e. `ifort`, `gfortran`, `gfortran-osx`, `gfortran-ftn`, `aocc-ftn` and so on.   
 
 ---
 Quick-start alternative (using cmake):
@@ -116,7 +116,7 @@ This will generate a conda environment named `ASD_GUI_env` which can be activate
 _Note: The anaconda approach might not work untill the conda repositories update `pyqt` to support `Qt6`._ 
 
 ---
-(C) 2008-2022 [UppASD group][2]
+(C) 2008-2023 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 [2]:http://www.physics.uu.se/research/materials-theory/ongoing-research/uppasd/

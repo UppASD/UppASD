@@ -33,7 +33,7 @@ extractors is a list with values corresponding to the keys portion of the select
         print ("%s not found. (Working from %s)" % (filepath, os.getcwd()))
         return None
     #with open(filepath, 'rb') as csvfile:
-    with open(filepath, 'rU') as csvfile:
+    with open(filepath, 'rt') as csvfile:
         linereader = csv.reader(islice(csvfile,skiprows,None),
                                 delimiter=' ',
                                 quotechar='|',

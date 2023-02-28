@@ -25,6 +25,7 @@ class ASDVizOptions():
     EneActors=ASDVTKEneActors.ASDEneActors()
     MomActors=ASDVTKMomActors.ASDMomActors()
     NeighActors=ASDVTKNeighActors.ASDNeighActors()
+
     ############################################################################
     # @ brief A function that takes a renderwindow and saves its contents to a .png file
     # @author Anders Bergman
@@ -226,6 +227,15 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.Spins.VisibilityOff()
         return
     ############################################################################
+    # Toggle the atomic spheres
+    ############################################################################
+    def toggle_atoms(self,check):
+        if check:
+            ASDVizOptions.MomActors.Atoms.VisibilityOn()
+        else:
+            ASDVizOptions.MomActors.Atoms.VisibilityOff()
+        return
+    ############################################################################
     # Toggle the magnetization density
     ############################################################################
     def toggle_density(self,check):
@@ -311,6 +321,113 @@ class ASDVizOptions():
     def ChangeSpinsSize(self,value):
         ASDVizOptions.MomActors.SpinMapper.SetScaleFactor(0.50*value/10)
         return
+
+    ############################################################################
+    # Set the interpolation of the spin glyphs
+    ############################################################################
+    def ChangeSpinShade(self,renWin,keyword):
+        if keyword=='Flat':
+            if hasattr(ASDVizOptions.MomActors,'Spins'):
+                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToFlat()
+        elif keyword=='Gouraud':
+            if hasattr(ASDVizOptions.MomActors,'Spins'):
+                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToGouraud()
+            if hasattr(ASDVizOptions.MomActors,'Atoms'):
+                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToGouraud()
+        elif keyword=='PBR':
+            if hasattr(ASDVizOptions.MomActors,'Spins'):
+                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
+                ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(0.5)
+
+            if hasattr(ASDVizOptions.MomActors,'Atoms'):
+                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
+                ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(0.5)
+        elif keyword=='Phong':
+            if hasattr(ASDVizOptions.MomActors,'Spins'):
+                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPhong()
+            if hasattr(ASDVizOptions.MomActors,'Atoms'):
+                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPhong()
+
+        renWin.Render()
+        return
+
+    ############################################################################
+    # Set the ambient scattering of the spin glyphs
+    ############################################################################
+    def RenAmbientUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetAmbient(float(value*0.01))
+        renWin.Render()
+        return
+    ############################################################################
+    # Set the diffuse scattering of the spin glyphs
+    ############################################################################
+    def RenDiffuseUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetDiffuse(float(value*0.01))
+        renWin.Render()
+        return
+    ############################################################################
+    # Set the specular scattering of the spin glyphs
+    ############################################################################
+    def RenSpecularUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetSpecular(float(value*0.01))
+        renWin.Render()
+        return
+
+    ############################################################################
+    # Set the specular scattering of the spin glyphs
+    ############################################################################
+    def RenSpecularPowerUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetSpecularPower(float(value))
+        renWin.Render()
+        return
+
+    ############################################################################
+    # Set the PBR occlusion value of the spin glyphs
+    ############################################################################
+    def PBROcclusionUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetOcclusionStrength(float(value*0.01))
+        if hasattr(ASDVizOptions.MomActors, 'Atoms'):
+            ASDVizOptions.MomActors.Atoms.GetProperty().SetOcclusionStrength(float(value*0.01))
+        renWin.Render()
+        return
+    ############################################################################
+    # Set the PBR roughness value of the spin glyphs
+    ############################################################################
+    def PBRRoughnessUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetRoughness(float(value*0.01))
+        if hasattr(ASDVizOptions.MomActors, 'Atoms'):
+            ASDVizOptions.MomActors.Atoms.GetProperty().SetRoughness(float(value*0.01))
+        renWin.Render()
+        return
+    ############################################################################
+    # Set the PBR metallic value of the spin glyphs
+    ############################################################################
+    def PBRMetallicUpdate(self,value,renWin):
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(float(value*0.01))
+        if hasattr(ASDVizOptions.MomActors, 'Atoms'):
+            ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(float(value*0.01))
+        renWin.Render()
+        return
+
+    ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsSize(self,value):
+        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(1.00*value/10.0)
+        return
+    ############################################################################
+    # Set the size of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsOpaq(self,value):
+        ASDVizOptions.MomActors.Atoms.GetProperty().SetOpacity(value*0.01)
+        return
     ############################################################################
     # Toggle the atoms for the neighbour map
     ############################################################################
@@ -342,9 +459,95 @@ class ASDVizOptions():
         ASDVizOptions.NeighActors.AtomsActor.GetProperty().SetOpacity(value*0.1)
         return
 
+    ############################################################################
+    ## @brief Function to find the needed file names for the input file created.
+    # @author Jonathan Chico
+    ############################################################################
+    def getHDRIFileName(self,window):
+        from PyQt6 import QtWidgets
+
+        dlg = QtWidgets.QFileDialog()
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+        hdrifile = dlg.getOpenFileName(caption="Open HDR file", directory= '.', filter="HDR images (*.pic *.hdr)")[0]
+        ### dlg.setDirectory('.')
+        ### if dlg.exec():
+        ###     hdrifile=dlg.selectedFiles()[0]
+
+        return hdrifile
+    ############################################################################
+    # Toggle HDRI on/off
+    ############################################################################
+    def toggle_HDRI(self,check, ren, hdrifile):
+        import vtk
+        from vtkmodules.vtkIOImage import vtkHDRReader
+
+        if check:
+            reader = vtkHDRReader()
+            #reader.SetFileName('/Users/andersb/Downloads/warehouse_4k.pic')
+            ##reader.SetFileName('/Users/andersb/Downloads/SoftBox.pic')
+            #reader.SetFileName('/Users/andersb/Downloads/hdr_hanza.pic')
+            #reader.SetFileName('/Users/andersb/Downloads/LightBox.pic')
+            reader.SetFileName(hdrifile)
+            reader.Update()
+
+            texture = vtk.vtkTexture()
+            texture.InterpolateOn()
+            texture.MipmapOn()
+            texture.SetColorModeToDirectScalars()
+            texture.SetInputConnection(reader.GetOutputPort())
+
+            #skybox = vtk.vtkOpenGLSkybox()
+            #skybox.SetTexture(texture)
+            #ren.AddActor(skybox)
+ 
+            #ren.RemoveAllLights()
+            ren.AutomaticLightCreationOff()
+            ren.UseImageBasedLightingOn()
+            ren.UseSphericalHarmonicsOn()
+            ren.SetEnvironmentTexture(texture)
+        else:
+            ren.UseSphericalHarmonicsOff()
+            ren.UseImageBasedLightingOff()
+            ren.AutomaticLightCreationOn()
+        return
+
+    ############################################################################
+    # Toggle SSAO on/off
+    ############################################################################
+    def toggle_SSAO(self,check, ren):
+
+        if check:
+            ren.UseSSAOOn()
+            ren.SetSSAOKernelSize(512)
+            ren.SetSSAORadius(2.0)
+            ren.SetSSAOBias(0.5)
+            ren.SSAOBlurOn()
+
+            #self.toggle_HDRI(check=check,ren=ren)
+
+        else:
+            ren.UseSSAOOff()
+        return
+
+
+    ############################################################################
+    # Toggle FXAA on/off
+    ############################################################################
+    def toggle_FXAA(self,check, ren, renWin):
+        if check:
+            ren.UseFXAAOn()
+            ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
+            renWin.SetMultiSamples(4)
+        else:
+            ren.UseFXAAOff()
+        return
+
+    ############################################################################
+    # Update glyph resolution
+    ############################################################################
     def GlyphQualityUpdate(self,value,viz_type,mode,renWin):
         if viz_type=='M':
-            try: 
+            try:
                 ASDVizOptions.MomActors.spinarrow.SetTipResolution(value)
                 ASDVizOptions.MomActors.spinarrow.SetShaftResolution(value)
             except:
@@ -467,6 +670,14 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinarrow.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
             renWin.Render()
+        if keyword=='CenterOn':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToCenter()
+            renWin.Render()
+
+        if keyword=='CenterOff':
+            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToDefault()
+            renWin.Render()
+
         if keyword=='Cones':
             try:
                 del ASDVizOptions.MomActors.spinsphere
