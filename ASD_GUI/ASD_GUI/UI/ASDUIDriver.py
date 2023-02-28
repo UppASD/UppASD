@@ -1388,6 +1388,11 @@ class UppASDVizMainWindow(QMainWindow):
     def RenSpecular_control(self, value):
         self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
     ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecularPower_control(self, value):
+        self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
+    ############################################################################
     # Function that calls for toggling ambient scattering
     ############################################################################
     def RenAmbient_control(self, value):

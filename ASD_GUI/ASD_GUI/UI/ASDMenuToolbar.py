@@ -281,6 +281,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
+    window.RenSpecularPowerSlider.valueChanged.connect(window.RenSpecularPower_control)
     window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
     window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
     window.PBRMetallicSlider.valueChanged.connect(window.PBRMetallic_control)

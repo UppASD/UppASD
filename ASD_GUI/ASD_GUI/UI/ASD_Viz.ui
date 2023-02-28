@@ -3265,7 +3265,7 @@
                                                       <string>Spin Shading Options</string>
                                                    </property>
                                                    <layout class="QGridLayout" name="ShadeSelectBoxLayout">
-                                                      <item row="0" column="0">
+                                                      <item>
                                                          <widget class="QRadioButton" name="FlatShadeButton">
                                                             <property name="toolTip">
                                                                <string>Set the interpolation of the glyphs to flat</string>
@@ -3287,7 +3287,7 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item row="1" column="0">
+                                                      <item>
                                                          <widget class="QRadioButton" name="GouraudShadeButton">
                                                             <property name="toolTip">
                                                                <string>Set the interpolation of the glyphs to Gouraud</string>
@@ -3302,14 +3302,14 @@
                                                                <string>Gouraud</string>
                                                             </property>
                                                             <property name="checked">
-                                                               <bool>false</bool>
+                                                               <bool>true</bool>
                                                             </property>
                                                             <attribute name="buttonGroup">
                                                                <string notr="true">SpinShadeButtonGroup</string>
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item row="2" column="0">
+                                                      <item>
                                                          <widget class="QRadioButton" name="PhongShadeButton">
                                                             <property name="toolTip">
                                                                <string>Set the interpolation of the glyphs to phong</string>
@@ -3331,29 +3331,6 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item row="3" column="0">
-                                                         <widget class="QRadioButton" name="PBRShadeButton">
-                                                            <property name="toolTip">
-                                                               <string>Set the interpolation of the glyphs to PBR</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Set the interpolation of the glyphs to PBR</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Set the interpolation of the glyphs to PBR</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>Physically Based Rendering</string>
-                                                            </property>
-                                                            <property name="checked">
-                                                               <bool>false</bool>
-                                                            </property>
-                                                            <attribute name="buttonGroup">
-                                                               <string notr="true">SpinShadeButtonGroup</string>
-                                                            </attribute>
-                                                         </widget>
-                                                      </item>
-
                                                       <item>
                                                          <widget class="QLabel" name="AmbientLabel">
                                                             <property name="frameShape">
@@ -3398,10 +3375,10 @@
                                                                <number>20</number>
                                                             </property>
                                                             <property name="value">
-                                                               <number>50</number>
+                                                               <number>60</number>
                                                             </property>
                                                             <property name="sliderPosition">
-                                                               <number>50</number>
+                                                               <number>60</number>
                                                             </property>
                                                             <property name="orientation">
                                                                <enum>Qt::Horizontal</enum>
@@ -3458,10 +3435,10 @@
                                                                <number>20</number>
                                                             </property>
                                                             <property name="value">
-                                                               <number>50</number>
+                                                               <number>40</number>
                                                             </property>
                                                             <property name="sliderPosition">
-                                                               <number>50</number>
+                                                               <number>40</number>
                                                             </property>
                                                             <property name="orientation">
                                                                <enum>Qt::Horizontal</enum>
@@ -3500,13 +3477,13 @@
                                                                </font>
                                                             </property>
                                                             <property name="toolTip">
-                                                               <string>Occlusion of glyphs</string>
+                                                               <string>Specular shading of glyphs</string>
                                                             </property>
                                                             <property name="statusTip">
-                                                               <string>Occlusion of glyphs</string>
+                                                               <string>Specular shading of glyphs</string>
                                                             </property>
                                                             <property name="whatsThis">
-                                                               <string>Occlusion of glyphs</string>
+                                                               <string>Specular shading of glyphs</string>
                                                             </property>
                                                             <property name="minimum">
                                                                <number>0</number>
@@ -3518,10 +3495,10 @@
                                                                <number>20</number>
                                                             </property>
                                                             <property name="value">
-                                                               <number>50</number>
+                                                               <number>40</number>
                                                             </property>
                                                             <property name="sliderPosition">
-                                                               <number>50</number>
+                                                               <number>40</number>
                                                             </property>
                                                             <property name="orientation">
                                                                <enum>Qt::Horizontal</enum>
@@ -3534,6 +3511,89 @@
                                                             </property>
                                                          </widget>
                                                       </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="SpecularPowerLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Specular power</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="RenSpecularPowerSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Specular power of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>80</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>80</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QRadioButton" name="PBRShadeButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the interpolation of the glyphs to PBR</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Physically Based Rendering</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>false</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinShadeButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+
                                                       <item>
                                                          <widget class="QLabel" name="OcclusionLabel">
                                                             <property name="frameShape">

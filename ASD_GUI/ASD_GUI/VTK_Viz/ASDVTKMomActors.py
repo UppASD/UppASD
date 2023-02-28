@@ -312,12 +312,12 @@ class ASDMomActors():
         # Define the vector actor for the spins
         ASDMomActors.Spins = vtk.vtkLODActor()
         ASDMomActors.Spins.SetMapper(ASDMomActors.SpinMapper)
-        ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
-        #ASDMomActors.Spins.GetProperty().SetInterpolationToGouraud()
-        ASDMomActors.Spins.GetProperty().SetSpecular(0.5)
-        #ASDMomActors.Spins.GetProperty().SetSpecularPower(60)
-        ASDMomActors.Spins.GetProperty().SetAmbient(0.5)
-        ASDMomActors.Spins.GetProperty().SetDiffuse(0.5)
+        #ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
+        ASDMomActors.Spins.GetProperty().SetInterpolationToGouraud()
+        ASDMomActors.Spins.GetProperty().SetSpecular(0.4)
+        ASDMomActors.Spins.GetProperty().SetSpecularPower(80)
+        ASDMomActors.Spins.GetProperty().SetAmbient(0.6)
+        ASDMomActors.Spins.GetProperty().SetDiffuse(0.4)
         if window.SpinsBox.isChecked():
             ASDMomActors.Spins.VisibilityOn()
         else:
