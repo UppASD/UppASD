@@ -60,6 +60,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.VTKWidgetPresent=False
         self.can_plot_ams=False
         self.can_plot_sqw=False
+        self.hdrifile=[]
+        self.hdrifile_gotten = False
         #-----------------------------------------------------------------------
         # Plotting global variables
         #-----------------------------------------------------------------------
@@ -1382,6 +1384,20 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     def SSAO_control(self, check):
         self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
+    ############################################################################
+    # Function that calls for toggling HDRI
+    ############################################################################
+    def HDRI_control(self, check):
+        self.ASDVizOpt.toggle_HDRI(check=check,ren=self.ren, hdrifile=self.hdrifile)
+    ############################################################################
+    # Finding the file name for the input file generation
+    ############################################################################
+    def getHDRIFile(self):
+        self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
+        self.hdrifile_gotten = len(self.hdrifile)>0
+        if self.hdrifile_gotten:
+                self.HDRICheck.setEnabled(True)
+        return
     ############################################################################
     # Function that calls for toggling specular scattering
     ############################################################################

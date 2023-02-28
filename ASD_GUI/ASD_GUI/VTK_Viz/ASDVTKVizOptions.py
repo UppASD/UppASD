@@ -25,6 +25,7 @@ class ASDVizOptions():
     EneActors=ASDVTKEneActors.ASDEneActors()
     MomActors=ASDVTKMomActors.ASDMomActors()
     NeighActors=ASDVTKNeighActors.ASDNeighActors()
+
     ############################################################################
     # @ brief A function that takes a renderwindow and saves its contents to a .png file
     # @author Anders Bergman
@@ -336,8 +337,11 @@ class ASDVizOptions():
         elif keyword=='PBR':
             if hasattr(ASDVizOptions.MomActors,'Spins'):
                 ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
+                ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(0.5)
+
             if hasattr(ASDVizOptions.MomActors,'Atoms'):
                 ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
+                ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(0.5)
         elif keyword=='Phong':
             if hasattr(ASDVizOptions.MomActors,'Spins'):
                 ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPhong()
@@ -456,9 +460,24 @@ class ASDVizOptions():
         return
 
     ############################################################################
+    ## @brief Function to find the needed file names for the input file created.
+    # @author Jonathan Chico
+    ############################################################################
+    def getHDRIFileName(self,window):
+        from PyQt6 import QtWidgets
+
+        dlg = QtWidgets.QFileDialog()
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+        hdrifile = dlg.getOpenFileName(caption="Open HDR file", directory= '.', filter="HDR images (*.pic *.hdr)")[0]
+        ### dlg.setDirectory('.')
+        ### if dlg.exec():
+        ###     hdrifile=dlg.selectedFiles()[0]
+
+        return hdrifile
+    ############################################################################
     # Toggle HDRI on/off
     ############################################################################
-    def toggle_HDRI(self,check, ren):
+    def toggle_HDRI(self,check, ren, hdrifile):
         import vtk
         from vtkmodules.vtkIOImage import vtkHDRReader
 
@@ -466,8 +485,9 @@ class ASDVizOptions():
             reader = vtkHDRReader()
             #reader.SetFileName('/Users/andersb/Downloads/warehouse_4k.pic')
             ##reader.SetFileName('/Users/andersb/Downloads/SoftBox.pic')
-            reader.SetFileName('/Users/andersb/Downloads/hdr_hanza.pic')
+            #reader.SetFileName('/Users/andersb/Downloads/hdr_hanza.pic')
             #reader.SetFileName('/Users/andersb/Downloads/LightBox.pic')
+            reader.SetFileName(hdrifile)
             reader.Update()
 
             texture = vtk.vtkTexture()
@@ -503,7 +523,7 @@ class ASDVizOptions():
             ren.SetSSAOBias(0.5)
             ren.SSAOBlurOn()
 
-            self.toggle_HDRI(check=check,ren=ren)
+            #self.toggle_HDRI(check=check,ren=ren)
 
         else:
             ren.UseSSAOOff()
