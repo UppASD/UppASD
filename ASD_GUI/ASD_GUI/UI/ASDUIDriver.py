@@ -1136,7 +1136,6 @@ class UppASDVizMainWindow(QMainWindow):
     def set_lut_db(self, mapnum):
         from vtkmodules.vtkCommonColor import  vtkColorSeries, vtkNamedColors
 
-        print('LUT mapnumber', mapnum)
         colorSeries = vtkColorSeries()
         
         if mapnum <= 3:
@@ -1181,7 +1180,6 @@ class UppASDVizMainWindow(QMainWindow):
         elif mapnum ==22: # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET3)
 
-        print('map:',colorSeries.GetColorSchemeName())
         if mapnum > 3:
             colorSeries.BuildLookupTable(self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
         self.ASDVizOpt.lut.Build()

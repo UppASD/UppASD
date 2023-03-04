@@ -183,10 +183,6 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # Adding the actions to the colormaps
     #---------------------------------------------------------------------------
     window.ColorMapBox.activated.connect(window.set_lut_db)
-    window.ColorMapCM.toggled.connect(window.set_lut)
-    window.ColorMapBB.toggled.connect(window.set_lut)
-    window.ColorMapRdGy.toggled.connect(window.set_lut)
-    window.ColorMapSpectral.toggled.connect(window.set_lut)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
     #---------------------------------------------------------------------------

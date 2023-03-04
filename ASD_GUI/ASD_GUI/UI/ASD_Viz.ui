@@ -3024,20 +3024,27 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="ColorMapComboBox">
+                                       <widget class="QGroupBox" name="ColorMapOptBox">
                                           <property name="enabled">
                                              <bool>true</bool>
                                           </property>
                                           <property name="statusTip">
-                                             <string>Colormap</string>
+                                             <string>Options to select the different colormaps</string>
                                           </property>
                                           <property name="whatsThis">
-                                             <string>Colormap</string>
+                                             <string>Options to select the different colormaps</string>
                                           </property>
                                           <property name="title">
-                                             <string>Colormap</string>
+                                             <string>Colormap Options</string>
                                           </property>
                                           <layout class="QVBoxLayout" name="ColormapOptLayout">
+                                             <item>
+                                                <widget class="QLabel" name="ColormapLabel">
+                                                   <property name="text">
+                                                      <string>Colormap</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                              <item>
                                                    <widget class="QComboBox" name="ColorMapBox">
                                                    <property name="toolTip">
@@ -3168,103 +3175,6 @@
                                                     </item>
                                                    </widget>
                                                 </item>
-                                          </layout>
-                                          </widget>
-                                    </item>
-                                    <item>
-                                       <widget class="QGroupBox" name="ColorMapOptBox">
-                                          <property name="enabled">
-                                             <bool>true</bool>
-                                          </property>
-                                          <property name="statusTip">
-                                             <string>Options to select the different colormaps</string>
-                                          </property>
-                                          <property name="whatsThis">
-                                             <string>Options to select the different colormaps</string>
-                                          </property>
-                                          <property name="title">
-                                             <string>Colormap Options</string>
-                                          </property>
-                                          <layout class="QVBoxLayout" name="ColormapOptLayout">
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapCM">
-                                                   <property name="toolTip">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Coolwarm Colormap</string>
-                                                   </property>
-                                                   <property name="checked">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapBB">
-                                                   <property name="toolTip">
-                                                      <string>Black Body colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Black Body colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Black Body colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Black Body Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapRdGy">
-                                                   <property name="toolTip">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>RdGy Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapSpectral">
-                                                   <property name="toolTip">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Spectral Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
                                              <item>
                                                 <widget class="QGroupBox" name="ColormapScaleBox">
                                                    <property name="toolTip">
