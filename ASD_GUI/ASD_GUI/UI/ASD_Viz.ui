@@ -3024,6 +3024,154 @@
                                        </widget>
                                     </item>
                                     <item>
+                                       <widget class="QGroupBox" name="ColorMapComboBox">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Colormap</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Colormap</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Colormap</string>
+                                          </property>
+                                          <layout class="QVBoxLayout" name="ColormapOptLayout">
+                                             <item>
+                                                   <widget class="QComboBox" name="ColorMapBox">
+                                                   <property name="toolTip">
+                                                      <string>Colormap name</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Colormap name</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Colormap name</string>
+                                                   </property>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Coolwarm</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Blackbody</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>RdGy</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Spectral</string>
+                                                     </property>
+                                                    </item>
+
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Spectrum</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Warm</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Cool</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Blues</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Wildflower</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Citrus</string>
+                                                     </property>
+                                                    </item>
+
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer PuOr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BrBuGr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BuGr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer YeOrBr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BuPu</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Spectral</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Accent</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Dark</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Pastel v1</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Pastel v2</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v1</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v2</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v3</string>
+                                                     </property>
+                                                    </item>
+                                                   </widget>
+                                                </item>
+                                          </layout>
+                                          </widget>
+                                    </item>
+                                    <item>
                                        <widget class="QGroupBox" name="ColorMapOptBox">
                                           <property name="enabled">
                                              <bool>true</bool>
@@ -3267,7 +3415,29 @@
                                                       <string>Turn on/off image based lighting (HDRI)</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Enable image based lighting</string>
+                                                      <string>Enable HDR lighting</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="SkyBoxCheck">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Show skybox</string>
                                                    </property>
                                                    <property name="checked">
                                                       <bool>false</bool>
@@ -3290,7 +3460,6 @@
                                                                      </property>
                                                                   </widget>
                                                                </item>
-
 
                                           </layout>
                                        </widget>

@@ -318,6 +318,7 @@ class ASDMomActors():
         ASDMomActors.Spins.GetProperty().SetSpecularPower(80)
         ASDMomActors.Spins.GetProperty().SetAmbient(0.6)
         ASDMomActors.Spins.GetProperty().SetDiffuse(0.4)
+        ASDMomActors.Spins.GetProperty().SetEdgeTint(0.0,0.0,0.0)
         if window.SpinsBox.isChecked():
             ASDMomActors.Spins.VisibilityOn()
         else:
@@ -353,6 +354,13 @@ class ASDMomActors():
             ASDMomActors.Atoms.VisibilityOn()
         else:
             ASDMomActors.Atoms.VisibilityOff()
+
+        #-----------------------------------------------------------------------
+        # Setting information for the skybox actor
+        #-----------------------------------------------------------------------
+        ASDMomActors.SkyBox = vtk.vtkSkybox()
+        ASDMomActors.SkyBox.VisibilityOff()
+        ren.AddActor(ASDMomActors.SkyBox)
 
         if (ASDdata.kmc_flag):
             #-------------------------------------------------------------------
@@ -450,6 +458,7 @@ class ASDMomActors():
             ASDMomActors.src.GetPointData().SetScalars(ASDdata.colors[2])
         if window.SpinZ.isChecked():
             ASDMomActors.src_spins.GetPointData().SetScalars(ASDdata.colors[2])
+        print('AB data: ', ASDMomActors.src_spins.GetPointData().GetScalars())
         #-----------------------------------------------------------------------
         # Update the vectors
         #-----------------------------------------------------------------------

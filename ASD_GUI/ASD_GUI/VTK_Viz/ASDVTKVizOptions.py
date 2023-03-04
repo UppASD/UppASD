@@ -21,10 +21,13 @@ from ASD_GUI.VTK_Viz import ASDVTKNeighActors
 # @author Jonathan Chico
 ################################################################################
 class ASDVizOptions():
+    from vtkmodules.vtkCommonCore import vtkLookupTable 
     GenActors=ASDVTKGenActors.ASDGenActors()
     EneActors=ASDVTKEneActors.ASDEneActors()
     MomActors=ASDVTKMomActors.ASDMomActors()
     NeighActors=ASDVTKNeighActors.ASDNeighActors()
+
+    lut = vtkLookupTable()
 
     ############################################################################
     # @ brief A function that takes a renderwindow and saves its contents to a .png file
@@ -337,8 +340,8 @@ class ASDVizOptions():
         elif keyword=='PBR':
             if hasattr(ASDVizOptions.MomActors,'Spins'):
                 ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
+                print('Roughness: ',ASDVizOptions.MomActors.Spins.GetProperty().GetRoughness())
                 ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(0.5)
-
             if hasattr(ASDVizOptions.MomActors,'Atoms'):
                 ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
                 ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(0.5)
@@ -356,7 +359,7 @@ class ASDVizOptions():
     ############################################################################
     def RenAmbientUpdate(self,value,renWin):
         if hasattr(ASDVizOptions.MomActors, 'Spins'):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetAmbient(float(value*0.01))
+            ASDVizOptions.MomActors.Spins.GetProperty().SetAmbient(float(value*0.02))
         renWin.Render()
         return
     ############################################################################
@@ -388,7 +391,7 @@ class ASDVizOptions():
     ############################################################################
     # Set the PBR occlusion value of the spin glyphs
     ############################################################################
-    def PBROcclusionUpdate(self,value,renWin):
+    def PBROcclusionUpdate(self,value,ren, renWin):
         if hasattr(ASDVizOptions.MomActors, 'Spins'):
             ASDVizOptions.MomActors.Spins.GetProperty().SetOcclusionStrength(float(value*0.01))
         if hasattr(ASDVizOptions.MomActors, 'Atoms'):
@@ -477,38 +480,64 @@ class ASDVizOptions():
     ############################################################################
     # Toggle HDRI on/off
     ############################################################################
-    def toggle_HDRI(self,check, ren, hdrifile):
-        import vtk
+    def toggle_SkyBox(self,check, ren, renWin, hdrifile):
         from vtkmodules.vtkIOImage import vtkHDRReader
+        from vtkmodules.vtkRenderingCore import vtkTexture
 
         if check:
             reader = vtkHDRReader()
-            #reader.SetFileName('/Users/andersb/Downloads/warehouse_4k.pic')
-            ##reader.SetFileName('/Users/andersb/Downloads/SoftBox.pic')
-            #reader.SetFileName('/Users/andersb/Downloads/hdr_hanza.pic')
-            #reader.SetFileName('/Users/andersb/Downloads/LightBox.pic')
             reader.SetFileName(hdrifile)
             reader.Update()
 
-            texture = vtk.vtkTexture()
+            texture = vtkTexture()
             texture.InterpolateOn()
             texture.MipmapOn()
             texture.SetColorModeToDirectScalars()
             texture.SetInputConnection(reader.GetOutputPort())
 
-            #skybox = vtk.vtkOpenGLSkybox()
-            #skybox.SetTexture(texture)
-            #ren.AddActor(skybox)
+            #self.MomActors.Spins.SetTexture(texture)
+
+            self.MomActors.SkyBox.SetTexture(texture)
+            self.MomActors.SkyBox.SetProjectionToSphere()
+            self.MomActors.SkyBox.VisibilityOn()
+        else:
+            self.MomActors.SkyBox.VisibilityOff()
+
+        renWin.Render()
+
+        return
+    ############################################################################
+    # Toggle HDRI on/off
+    ############################################################################
+    def toggle_HDRI(self,check, ren, renWin, hdrifile):
+        #import vtk
+        from vtkmodules.vtkIOImage import vtkHDRReader
+        from vtkmodules.vtkRenderingCore import vtkTexture
+
+        if check:
+            reader = vtkHDRReader()
+            reader.SetFileName(hdrifile)
+            reader.Update()
+
+            texture = vtkTexture()
+            texture.InterpolateOn()
+            texture.MipmapOn()
+            texture.SetColorModeToDirectScalars()
+            texture.SetInputConnection(reader.GetOutputPort())
+
  
             #ren.RemoveAllLights()
             ren.AutomaticLightCreationOff()
             ren.UseImageBasedLightingOn()
             ren.UseSphericalHarmonicsOn()
             ren.SetEnvironmentTexture(texture)
+
         else:
             ren.UseSphericalHarmonicsOff()
             ren.UseImageBasedLightingOff()
             ren.AutomaticLightCreationOn()
+
+        renWin.Render()
         return
 
     ############################################################################
@@ -542,6 +571,40 @@ class ASDVizOptions():
             ren.UseFXAAOff()
         return
 
+    ############################################################################
+    # Toggle shadows on/off
+    ############################################################################
+    ### def toggle_Shadows(self,check, ren, renWin):
+    ###     from vtkmodules.vtkRenderingOpenGL2 import (
+    ###         vtkCameraPass,
+    ###         vtkOpaquePass,
+    ###         vtkRenderPassCollection,
+    ###         vtkSequencePass,
+    ###         vtkShadowMapPass
+    ###     )
+    ###     print('Toggle shadows', check)
+    ###     if check:
+    ###         seq = vtkSequencePass()
+    
+    ###         passes = vtkRenderPassCollection()
+    
+    ###         shadows = vtkShadowMapPass()
+    ###         passes.AddItem(shadows.GetShadowMapBakerPass())
+    ###         passes.AddItem(shadows)
+    
+    ###         opaque = vtkOpaquePass()
+    ###         passes.AddItem(opaque)
+    
+    ###         seq.SetPasses(passes)
+    
+    ###         camera_p = vtkCameraPass()
+    ###         camera_p.SetDelegatePass(seq)
+    
+    ###         # Tell the renderer to use our render pass pipeline.
+    ###         ren.SetPass(camera_p)
+    ###         renWin.Render()
+
+    ###     return
     ############################################################################
     # Update glyph resolution
     ############################################################################
@@ -642,7 +705,7 @@ class ASDVizOptions():
             except:
                 pass
             ASDVizOptions.MomActors.spinsphere = vtk.vtkSphereSource()
-            ASDVizOptions.MomActors.spinsphere.SetRadius(1.00)
+            ASDVizOptions.MomActors.spinsphere.SetRadius(0.50)
             ASDVizOptions.MomActors.spinsphere.SetThetaResolution(20)
             ASDVizOptions.MomActors.spinsphere.SetPhiResolution(20)
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinsphere.GetOutputPort())
@@ -740,7 +803,7 @@ class ASDVizOptions():
         #-----------------------------------------------------------------------
         if window.sender()== window.ColorMapCM and window.ColorMapCM.isChecked():
             ASDVizOptions.transfer_func.SetColorSpaceToDiverging()
-            if (flag2D and viz_type=='M') or (flag2D and viz_type=='E') or viz_type=='N':
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
                 ASDVizOptions.transfer_func.AddRGBPoint(0, 0.230, 0.299, 0.754)
                 ASDVizOptions.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
             else:
@@ -751,11 +814,16 @@ class ASDVizOptions():
         #-----------------------------------------------------------------------
         if window.sender()== window.ColorMapBB and window.ColorMapBB.isChecked():
             ASDVizOptions.transfer_func.SetColorSpaceToRGB();
-            if (flag2D and viz_type=='M') or (flag2D and viz_type=='E') or viz_type=='N':
-                ASDVizOptions.transfer_func.AddRGBPoint(0.0, 0.0, 0.0, 0.0);
-                ASDVizOptions.transfer_func.AddRGBPoint(0.4, 0.9, 0.0, 0.0);
-                ASDVizOptions.transfer_func.AddRGBPoint(0.8, 0.9, 0.9, 0.0);
-                ASDVizOptions.transfer_func.AddRGBPoint(1.0, 1.0, 1.0, 1.0);
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                #ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.0, 0.0, 0.0);
+                #ASDVizOptions.transfer_func.AddRGBPoint(0.25, 0.9, 0.0, 0.0);
+                #ASDVizOptions.transfer_func.AddRGBPoint(0.75, 0.9, 0.9, 0.0);
+                #ASDVizOptions.transfer_func.AddRGBPoint(1.00, 1.0, 1.0, 1.0);
+                ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.000, 0.000, 0.000);
+                ASDVizOptions.transfer_func.AddRGBPoint(0.39, 0.698, 0.133, 0.133);
+                ASDVizOptions.transfer_func.AddRGBPoint(0.58, 0.890, 0.412, 0.020);
+                ASDVizOptions.transfer_func.AddRGBPoint(0.89, 0.902, 0.902, 0.208);
+                ASDVizOptions.transfer_func.AddRGBPoint(1.00, 1.000, 1.000, 1.000);
             else:
                 ASDVizOptions.transfer_func.AddRGBPoint(-1.0, 0.0, 0.0, 0.0);
                 ASDVizOptions.transfer_func.AddRGBPoint(-0.5, 0.9, 0.0, 0.0);
@@ -766,7 +834,7 @@ class ASDVizOptions():
         #-----------------------------------------------------------------------
         if window.sender()== window.ColorMapRdGy and window.ColorMapRdGy.isChecked():
             ASDVizOptions.transfer_func.SetColorSpaceToDiverging()
-            if (flag2D and viz_type=='M') or (flag2D and viz_type=='E') or viz_type=='N':
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
                 ASDVizOptions.transfer_func.AddRGBPoint(0.0, 0.79216, 0.00000, 0.12549)
                 ASDVizOptions.transfer_func.AddRGBPoint(0.5, 1.00000, 1.00000, 1.00000)
                 ASDVizOptions.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
@@ -779,7 +847,7 @@ class ASDVizOptions():
         #-----------------------------------------------------------------------
         if window.sender()== window.ColorMapSpectral and window.ColorMapSpectral.isChecked():
             ASDVizOptions.transfer_func.SetColorSpaceToRGB()
-            if (flag2D and viz_type=='M') or (flag2D and viz_type=='E') or viz_type=='N':
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
                 ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.61961, 0.00392, 0.25882)
                 ASDVizOptions.transfer_func.AddRGBPoint(0.25, 0.95686, 0.42745, 0.26275)
                 ASDVizOptions.transfer_func.AddRGBPoint(0.50, 1.00000, 1.00000, 0.74902)
@@ -797,6 +865,7 @@ class ASDVizOptions():
         for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
             cc = ASDVizOptions.transfer_func.GetColor(ss)
             ASDVizOptions.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
+        ASDVizOptions.lut.SetTableRange(0.0,1.0)
         ASDVizOptions.lut.Build()
         #-----------------------------------------------------------------------
         # Color the actors depending of the type of visualization
@@ -829,4 +898,106 @@ class ASDVizOptions():
         # Render the scene
         #-----------------------------------------------------------------------
         renWin.Render()
+        return
+
+    ############################################################################
+    # @brief Select the type of colormap that will be used for the different actors
+    # @details Select the type of colormap that will be used for the different actors
+    # It allows the user to choose between the following color schemes:
+    #
+    #   - Coolwarm
+    #   - RdGy
+    #   - Spectral
+    #   - BlackBody
+    # @author Jonathan Chico
+    ############################################################################
+    def set_colormap_db(self,mapnum,window,flag2D,viz_type,renWin):
+        """Select the type of colormap that will be used for the different actors
+        It allows the user to choose between the following color schemes:
+            * Coolwarm (mapnum 0)
+            * RdGy (mapnum 1)
+            * Spectral (mapnum 2)
+            * BlackBody (mapnum 3)
+
+        Args:
+            window: QMainWindow where the visualizations are being carried out.
+            flag2D: (logical) identifier indicating whether the system is in 2D or 3D.
+            viz_type: (str) identifier for the different types of visualization possible in the VTK API.
+            renWin: current VTK rendering window.
+
+        Author
+        ----------
+        Jonathan Chico
+        """
+        
+        import vtk
+
+        #self.lut = vtk.vtkLookupTable()
+        num_colors = 256
+        self.lut.SetNumberOfTableValues(num_colors)
+        self.transfer_func = vtk.vtkColorTransferFunction()
+        #-----------------------------------------------------------------------
+        # Set the color map to be given by the diverging Coolwarm scheme by Kenneth Moreland
+        #-----------------------------------------------------------------------
+        if mapnum == 0:
+            self.transfer_func.SetColorSpaceToDiverging()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0, 0.230, 0.299, 0.754)
+                self.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
+            else:
+                self.transfer_func.AddRGBPoint(-1, 0.230, 0.299, 0.754)
+                self.transfer_func.AddRGBPoint( 1, 0.706, 0.016, 0.150)
+        #-----------------------------------------------------------------------
+        # Set the color to be given by the black body function
+        #-----------------------------------------------------------------------
+        if mapnum == 1:
+            self.transfer_func.SetColorSpaceToRGB();
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.00, 0.000, 0.000, 0.000);
+                self.transfer_func.AddRGBPoint(0.39, 0.698, 0.133, 0.133);
+                self.transfer_func.AddRGBPoint(0.58, 0.890, 0.412, 0.020);
+                self.transfer_func.AddRGBPoint(0.89, 0.902, 0.902, 0.208);
+                self.transfer_func.AddRGBPoint(1.00, 1.000, 1.000, 1.000);
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 0.0, 0.0, 0.0);
+                self.transfer_func.AddRGBPoint(-0.5, 0.9, 0.0, 0.0);
+                self.transfer_func.AddRGBPoint( 0.5, 0.9, 0.9, 0.0);
+                self.transfer_func.AddRGBPoint( 1.0, 1.0, 1.0, 1.0);
+        #-----------------------------------------------------------------------
+        # Set the color map to be given by the diverging RdGy
+        #-----------------------------------------------------------------------
+        if mapnum == 2:
+            self.transfer_func.SetColorSpaceToDiverging()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 0.79216, 0.00000, 0.12549)
+                self.transfer_func.AddRGBPoint(0.5, 1.00000, 1.00000, 1.00000)
+                self.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 0.79216, 0.00000, 0.12549)
+                self.transfer_func.AddRGBPoint( 0.0, 1.00000, 1.00000, 1.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 0.25098, 0.25098, 0.25098)
+        #-----------------------------------------------------------------------
+        # Set the color map to be given by the diverging spectral clor map
+        #-----------------------------------------------------------------------
+        if mapnum == 3:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.00, 0.61961, 0.00392, 0.25882)
+                self.transfer_func.AddRGBPoint(0.25, 0.95686, 0.42745, 0.26275)
+                self.transfer_func.AddRGBPoint(0.50, 1.00000, 1.00000, 0.74902)
+                self.transfer_func.AddRGBPoint(0.75, 0.40000, 0.76078, 0.64706)
+                self.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
+            else:
+                self.transfer_func.AddRGBPoint(-1.00, 0.61961, 0.00392, 0.25882)
+                self.transfer_func.AddRGBPoint(-0.50, 0.95686, 0.42745, 0.26275)
+                self.transfer_func.AddRGBPoint( 0.00, 1.00000, 1.00000, 0.74902)
+                self.transfer_func.AddRGBPoint( 0.50, 0.40000, 0.76078, 0.64706)
+                self.transfer_func.AddRGBPoint( 1.00, 0.36863, 0.30980, 0.63529)
+        #-----------------------------------------------------------------------
+        # Construct the lut with the selected colomap
+        #-----------------------------------------------------------------------
+        for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
+            cc = self.transfer_func.GetColor(ss)
+            self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
+        self.lut.Build()
         return

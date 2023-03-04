@@ -182,6 +182,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     #---------------------------------------------------------------------------
     # Adding the actions to the colormaps
     #---------------------------------------------------------------------------
+    window.ColorMapBox.activated.connect(window.set_lut_db)
     window.ColorMapCM.toggled.connect(window.set_lut)
     window.ColorMapBB.toggled.connect(window.set_lut)
     window.ColorMapRdGy.toggled.connect(window.set_lut)
@@ -281,6 +282,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.HDRICheck.toggled.connect(window.HDRI_control)
     window.HDRICheck.toggled.connect(window.UpdateRenderer)
     window.HDRIButtonSelect.clicked.connect(window.getHDRIFile)
+    window.SkyBoxCheck.toggled.connect(window.SkyBox_control)
+    window.SkyBoxCheck.toggled.connect(window.UpdateRenderer)
+    #window.ShadowCheck.toggled.connect(window.Shadow_control)
+    #window.ShadowCheck.toggled.connect(window.UpdateRenderer)
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
