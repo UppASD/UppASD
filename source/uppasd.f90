@@ -1186,7 +1186,7 @@ contains
          call cluster_creation(NT,ham_inp%do_dm,Natom,initmag,conf_num,Mensemble,    &
             do_ralloy,Natom_full,ham_inp%do_jtensor,do_prnstruct,do_anisotropy_clus,        &
             index_clus,atype_clus,anumb_clus,coord,coord_clus,simid,mult_axis_clus, &
-            atype,anumb,asite_ch,achem_ch,mmom,emom,     &
+            atype,anumb,asite_ch,achem_ch,mmom,mmomi,emom,     &
             emomM,Landeg)
          call allocate_clusdata(flag=-1)
          if (do_ralloy/=0) call allocate_chemicaldata_clus(flag=-1)

@@ -149,7 +149,7 @@ contains
    subroutine cluster_creation(NT,do_dm,Natom,initmag,conf_num,Mensemble,    &
       do_ralloy,Natom_full,do_jtensor,do_prnstruct,do_anisotropy_clus,index_clus,   &
       atype_clus,anumb_clus,coord,coord_clus,simid,mult_axis_clus,atype,anumb,      &
-      asite_ch,achem_ch,mmom,emom,emomM,Landeg)
+      asite_ch,achem_ch,mmom,mmomi,emom,emomM,Landeg)
 
       use Profiling
       use Parameters
@@ -183,6 +183,7 @@ contains
       integer, dimension(Natom_full), intent(inout)   :: achem_ch    !< Chemical type of atoms (reduced list)
       real(dblprec), dimension(Natom), intent(inout) :: Landeg  !< Gyromagnetic ratio
       real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom     !< Magnitude of magnetic moments
+      real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmomi     !< Inverse magnitude of magnetic moments
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       ! .. Local variables
@@ -207,7 +208,8 @@ contains
                emom(1,iatom,ens)=aemom_inp_clus(1,anumb_clus(iclus),1,1)
                emom(2,iatom,ens)=aemom_inp_clus(2,anumb_clus(iclus),1,1)
                emom(3,iatom,ens)=aemom_inp_clus(3,anumb_clus(iclus),1,1)
-               mmom(iatom,ens)=ammom_inp_clus(anumb_clus(iclus),1,1)
+               mmom(iatom,ens)=abs(ammom_inp_clus(anumb_clus(iclus),1,1))
+               mmomi(iatom,ens)=1.0_dblprec/mmom(iatom,ens)
                emomM(1,iatom,ens)=emom(1,iatom,ens)*mmom(iatom,ens)
                emomM(2,iatom,ens)=emom(2,iatom,ens)*mmom(iatom,ens)
                emomM(3,iatom,ens)=emom(3,iatom,ens)*mmom(iatom,ens)
@@ -215,7 +217,8 @@ contains
             ! Otherwise the directions are unchanged
          else
             do ens=1, Mensemble
-               mmom(iatom,ens)=ammom_inp_clus(atype_clus(iclus),1,1)
+               mmom(iatom,ens)=abs(ammom_inp_clus(atype_clus(iclus),1,1))
+               mmomi(iatom,ens)=1.0_dblprec/mmom(iatom,ens)
                emomM(1,iatom,ens)=emom(1,iatom,ens)*mmom(iatom,ens)
                emomM(2,iatom,ens)=emom(2,iatom,ens)*mmom(iatom,ens)
                emomM(3,iatom,ens)=emom(3,iatom,ens)*mmom(iatom,ens)
