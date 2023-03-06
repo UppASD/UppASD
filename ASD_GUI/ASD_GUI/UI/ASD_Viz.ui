@@ -3039,84 +3039,142 @@
                                           </property>
                                           <layout class="QVBoxLayout" name="ColormapOptLayout">
                                              <item>
-                                                <widget class="QRadioButton" name="ColorMapCM">
-                                                   <property name="toolTip">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergent Coolwarm colormap</string>
-                                                   </property>
+                                                <widget class="QLabel" name="ColormapLabel">
                                                    <property name="text">
-                                                      <string>Coolwarm Colormap</string>
+                                                      <string>Colormap</string>
                                                    </property>
-                                                   <property name="checked">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
                                                 </widget>
                                              </item>
                                              <item>
-                                                <widget class="QRadioButton" name="ColorMapBB">
+                                                   <widget class="QComboBox" name="ColorMapBox">
                                                    <property name="toolTip">
-                                                      <string>Black Body colormap</string>
+                                                      <string>Colormap name</string>
                                                    </property>
                                                    <property name="statusTip">
-                                                      <string>Black Body colormap</string>
+                                                      <string>Colormap name</string>
                                                    </property>
                                                    <property name="whatsThis">
-                                                      <string>Black Body colormap</string>
+                                                      <string>Colormap name</string>
                                                    </property>
-                                                   <property name="text">
-                                                      <string>Black Body Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapRdGy">
-                                                   <property name="toolTip">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergetn RdGy colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>RdGy Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QRadioButton" name="ColorMapSpectral">
-                                                   <property name="toolTip">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Divergent Spectral colormap</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Spectral Colormap</string>
-                                                   </property>
-                                                   <attribute name="buttonGroup">
-                                                      <string notr="true">ColorMapSelector</string>
-                                                   </attribute>
-                                                </widget>
-                                             </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Coolwarm</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Blackbody</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>RdGy</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Spectral</string>
+                                                     </property>
+                                                    </item>
+
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Spectrum</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Warm</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Cool</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Blues</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Wildflower</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>VTK Citrus</string>
+                                                     </property>
+                                                    </item>
+
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer PuOr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BrBuGr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BuGr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer YeOrBr</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer BuPu</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Spectral</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Accent</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Dark</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Pastel v1</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Pastel v2</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v1</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v2</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>ColorBrewer Qualitative v3</string>
+                                                     </property>
+                                                    </item>
+                                                   </widget>
+                                                </item>
                                              <item>
                                                 <widget class="QGroupBox" name="ColormapScaleBox">
                                                    <property name="toolTip">
@@ -3179,6 +3237,46 @@
                                           </layout>
                                        </widget>
                                     </item>
+                                    <item>
+                                       <spacer name="verticalSpacer_4">
+                                          <property name="orientation">
+                                             <enum>Qt::Vertical</enum>
+                                          </property>
+                                          <property name="sizeHint" stdset="0">
+                                             <size>
+                                                <width>20</width>
+                                                <height>68</height>
+                                             </size>
+                                          </property>
+                                       </spacer>
+                                    </item>
+                                 </layout>
+                              </widget>
+                           </item>
+                        </layout>
+                     </widget>
+                     <widget class="QWidget" name="AdvViz_Page">
+                        <property name="geometry">
+                           <rect>
+                              <x>0</x>
+                              <y>0</y>
+                              <width>322</width>
+                              <height>495</height>
+                           </rect>
+                        </property>
+                        <attribute name="label">
+                           <string>Advanced Viz. Options</string>
+                        </attribute>
+                        <layout class="QGridLayout" name="gridLayout_6">
+                           <item row="0" column="0">
+                              <widget class="QGroupBox" name="NeighMainBox">
+                                 <property name="enabled">
+                                    <bool>true</bool>
+                                 </property>
+                                 <property name="title">
+                                    <string/>
+                                 </property>
+                                 <layout class="QVBoxLayout" name="verticalLayout_10">
                                     <item>
                                        <widget class="QGroupBox" name="VizQualityBox">
                                           <property name="title">
@@ -3267,7 +3365,29 @@
                                                       <string>Turn on/off image based lighting (HDRI)</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Enable image based lighting</string>
+                                                      <string>Enable HDR lighting</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="SkyBoxCheck">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off skybox</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Show skybox</string>
                                                    </property>
                                                    <property name="checked">
                                                       <bool>false</bool>
@@ -3290,7 +3410,6 @@
                                                                      </property>
                                                                   </widget>
                                                                </item>
-
 
                                           </layout>
                                        </widget>
@@ -3818,19 +3937,6 @@
                                                    </layout>
                                                 </widget>
                                              </item>
-                                    <item>
-                                       <spacer name="verticalSpacer_4">
-                                          <property name="orientation">
-                                             <enum>Qt::Vertical</enum>
-                                          </property>
-                                          <property name="sizeHint" stdset="0">
-                                             <size>
-                                                <width>20</width>
-                                                <height>68</height>
-                                             </size>
-                                          </property>
-                                       </spacer>
-                                    </item>
                                  </layout>
                               </widget>
                            </item>

@@ -1133,9 +1133,68 @@ class UppASDVizMainWindow(QMainWindow):
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
     ############################################################################
+    def set_lut_db(self, mapnum):
+        from vtkmodules.vtkCommonColor import  vtkColorSeries, vtkNamedColors
+
+        colorSeries = vtkColorSeries()
+        
+        if mapnum <= 3:
+            self.ASDVizOpt.set_colormap_db(window=self,mapnum=mapnum, \
+               flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
+        elif mapnum == 4: # Spectrum
+            colorSeries.SetColorScheme(vtkColorSeries.SPECTRUM)
+        elif mapnum == 5: # Warm
+            colorSeries.SetColorScheme(vtkColorSeries.WARM)
+        elif mapnum == 6: # Cool
+            colorSeries.SetColorScheme(vtkColorSeries.COOL)
+        elif mapnum == 7: # Blues
+            colorSeries.SetColorScheme(vtkColorSeries.BLUES)
+        elif mapnum == 8: # Wildflower
+            colorSeries.SetColorScheme(vtkColorSeries.WILD_FLOWER)
+        elif mapnum == 9: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.CITRUS)
+        elif mapnum ==10: # BREWER_DIVERGING_PURPLE_ORANGE_11
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
+        elif mapnum ==11: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11)
+        elif mapnum ==12: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
+        elif mapnum ==13: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9)
+        elif mapnum ==14: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
+        elif mapnum ==15: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
+        elif mapnum ==16: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
+        elif mapnum ==17: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_DARK2)
+        elif mapnum ==18: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
+        elif mapnum ==19: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
+        elif mapnum ==20: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET1)
+        elif mapnum ==21: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET2)
+        elif mapnum ==22: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET3)
+
+        if mapnum > 3:
+            colorSeries.BuildLookupTable(self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
+        self.ASDVizOpt.lut.Build()
+
+        self.renWin.Render()
+        return
+    ############################################################################
+    # @brief Set the lookup table for the actors
+    # @details Set the lookup table for the actors, it also allows for the change
+    # of the scale type for the plotting, either linear or logarithmic scale.
+    # @author Jonathan Chico
+    ############################################################################
     def set_lut(self):
-        self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
-        viz_type=self.viz_type,renWin=self.renWin)
+        #self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
+        #viz_type=self.viz_type,renWin=self.renWin)
         if self.sender()==self.LinearScale and self.LinearScale.isChecked():
             self.ASDVizOpt.lut.SetScaleToLinear()
         if self.sender()==self.LogScale and self.LogScale.isChecked():
@@ -1385,10 +1444,25 @@ class UppASDVizMainWindow(QMainWindow):
     def SSAO_control(self, check):
         self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
     ############################################################################
+    # Function that calls for toggling shadows
+    ############################################################################
+    #def Shadow_control(self, check):
+    #    self.ASDVizOpt.toggle_Shadows(check=check,ren=self.ren, renWin=self.renWin)
+    
+    ############################################################################
     # Function that calls for toggling HDRI
     ############################################################################
     def HDRI_control(self, check):
-        self.ASDVizOpt.toggle_HDRI(check=check,ren=self.ren, hdrifile=self.hdrifile)
+        self.ASDVizOpt.toggle_HDRI(check=check,ren=self.ren,renWin=self.renWin,
+                                        hdrifile=self.hdrifile)
+        return
+    ############################################################################
+    # Function that calls for toggling skybox
+    ############################################################################
+    def SkyBox_control(self, check):
+        self.ASDVizOpt.toggle_SkyBox(check=check,ren=self.ren,renWin=self.renWin,
+                                        hdrifile=self.hdrifile)
+        return
     ############################################################################
     # Finding the file name for the input file generation
     ############################################################################
@@ -1396,7 +1470,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
         self.hdrifile_gotten = len(self.hdrifile)>0
         if self.hdrifile_gotten:
-                self.HDRICheck.setEnabled(True)
+            self.HDRICheck.setEnabled(True)
+            self.SkyBoxCheck.setEnabled(True)
         return
     ############################################################################
     # Function that calls for toggling specular scattering
@@ -1422,7 +1497,7 @@ class UppASDVizMainWindow(QMainWindow):
     # Function that calls for toggling PBR Occlusion value
     ############################################################################
     def PBROcclusion_control(self, value):
-        self.ASDVizOpt.PBROcclusionUpdate(value=value, renWin=self.renWin)
+        self.ASDVizOpt.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
     ############################################################################
     # Function that calls for toggling PBR Roughness value
     ############################################################################
