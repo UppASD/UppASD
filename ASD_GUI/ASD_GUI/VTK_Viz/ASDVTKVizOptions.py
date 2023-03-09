@@ -462,93 +462,156 @@ class ASDVizOptions():
         return
 
     ############################################################################
-    ## @brief Function to find the needed file names for the input file created.
-    # @author Jonathan Chico
+    ## @brief Function to find the needed file names for the HDR file
     ############################################################################
     def getHDRIFileName(self,window):
         from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
-        hdrifile = dlg.getOpenFileName(caption="Open HDR file", directory= '.', filter="HDR images (*.pic *.hdr)")[0]
-
+        hdrifile = dlg.getOpenFileName(caption="Open HDR file",
+                        directory= '.', filter="HDR images (*.pic *.hdr)")[0]
         return hdrifile
+
     ############################################################################
-    # Toggle ORM texture 
+    ## @brief Function to find the needed file names for the texture files
     ############################################################################
-    def toggle_ORMTex(self,check, ren, renWin):
+    def getTextureFileName(self,window):
+        from PyQt6 import QtWidgets
+
+        dlg = QtWidgets.QFileDialog()
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+        texturefile = dlg.getOpenFileName(caption="Open texture file", 
+                                directory= '.', filter="Images (*.png)")[0]
+        return texturefile
+
+    ############################################################################
+    # Toggle surface texture 
+    ############################################################################
+    def toggle_Texture(self,check, ren, renWin, texfile):
         import vtk
-        #from vtkmodules.vtkIOImage import vtkPNGeader
-        #from vtkmodules.vtkRenderingCore import vtkTexture
 
         if check:
 
-            basename='OldIron01'
-            #basename='RustyMetalPanel01'
-            #basename='MetalTiles04'
-            #basename='BatteredMetal01'
-            dirname='/Users/andersb/Downloads/'+basename+'_MR_1K/'
-            #dirname='/Users/andersb/Downloads/'+basename+'_packed_1K/'
-            ormname=basename+'_1K_ORM.png'
-            #albname=basename+'_1K_BaseColor.png'
-            albname=basename+'_1K_Albedo.png'
-            #norname=basename+'_1K_NormHeight.png'
-            norname=basename+'_1K_Normal.png'
-            material_reader = vtk.vtkPNGReader()
-            material_reader.SetFileName(dirname+ormname)
-
-            material = vtk.vtkTexture()
-            material.InterpolateOn()
-            material.SetInputConnection(material_reader.GetOutputPort())
-
             albedo_reader = vtk.vtkPNGReader()
-            albedo_reader.SetFileName(dirname+albname)
+            albedo_reader.SetFileName(texfile)
 
             albedo = vtk.vtkTexture()
             albedo.UseSRGBColorSpaceOn()
             albedo.InterpolateOn()
             albedo.SetInputConnection(albedo_reader.GetOutputPort())
 
-            normal_reader = vtk.vtkPNGReader()
-            normal_reader.SetFileName(dirname+norname)
-
-            normal = vtk.vtkTexture()
-            normal.InterpolateOn()
-            normal.SetInputConnection(normal_reader.GetOutputPort())
-
-            #anisotropy_reader = vtk.vtkPNGReader()
-            #anisotropy_reader.SetFileName(parameters['anisotropy'])
-
-            #anisotropy = vtk.vtkTexture()
-            #anisotropy.InterpolateOn()
-            #anisotropy.SetInputConnection(anisotropy_reader.GetOutputPort())
-
-            colors = vtk.vtkNamedColors()
-
-            #self.MomActors.Spins.GetProperty().SetMetallic(1.0)
-            #self.MomActors.Spins.GetProperty().SetRoughness(1.0)
-            #self.MomActors.Spins.GetProperty().SetAnisotropy(1.0)
-            #self.MomActors.Spins.GetProperty().SetAnisotropyRotation(1.0)
-            #self.MomActors.Spins.GetProperty().SetColor(colors.GetColor3d('White'))
             self.MomActors.Spins.GetProperty().SetBaseColorTexture(albedo)
-            self.MomActors.Spins.GetProperty().SetORMTexture(material)
-            self.MomActors.Spins.GetProperty().SetNormalTexture(normal)
-
+        else:
+            self.MomActors.Spins.GetProperty().RemoveTexture('albedoTex')
 
 
         renWin.Render()
 
         return
     ############################################################################
+    # Toggle ORM texture 
+    ############################################################################
+    def toggle_ORMTexture(self,check, ren, renWin, texfile):
+        import vtk
+
+        if check:
+
+            material_reader = vtk.vtkPNGReader()
+            material_reader.SetFileName(texfile)
+
+            material = vtk.vtkTexture()
+            material.InterpolateOn()
+            material.SetInputConnection(material_reader.GetOutputPort())
+
+            self.MomActors.Spins.GetProperty().SetORMTexture(material)
+        else:
+            self.MomActors.Spins.GetProperty().RemoveTexture('materialTex')
+
+        renWin.Render()
+
+        return
+    ############################################################################
+    # Toggle anisotropy texture 
+    ############################################################################
+    def toggle_ATexture(self,check, ren, renWin, texfile):
+        import vtk
+
+        if check:
+
+            anisotropy_reader = vtk.vtkPNGReader()
+            anisotropy_reader.SetFileName(texfile)
+
+            anisotropy = vtk.vtkTexture()
+            anisotropy.InterpolateOn()
+            anisotropy.SetInputConnection(anisotropy_reader.GetOutputPort())
+
+            self.MomActors.Spins.GetProperty().SetAnisotropyTexture(anisotropy)
+
+        else:
+            self.MomActors.Spins.GetProperty().RemoveTexture('anisotropyTex')
+
+        renWin.Render()
+
+        return
+    ############################################################################
+    # Toggle normal texture 
+    ############################################################################
+    def toggle_NTexture(self,check, ren, renWin, texfile):
+        import vtk
+
+        if check:
+
+            normal_reader = vtk.vtkPNGReader()
+            normal_reader.SetFileName(texfile)
+
+            normal = vtk.vtkTexture()
+            normal.InterpolateOn()
+            normal.SetInputConnection(normal_reader.GetOutputPort())
+            
+            self.MomActors.Spins.GetProperty().SetNormalTexture(normal)
+
+        else:
+            self.MomActors.Spins.GetProperty().RemoveTexture('normalTex')
+
+        renWin.Render()
+
+        return
+    ############################################################################
+    # Toggle ORM texture 
+    ############################################################################
+    def toggle_ETexture(self,check, ren, renWin, texfile):
+        import vtk
+
+        if check:
+
+            emissive_reader = vtk.vtkPNGReader()
+            emissive_reader.SetFileName(texfile)
+
+            emissive = vtk.vtkTexture()
+            emissive.InterpolateOn()
+            emissive.SetInputConnection(emissive_reader.GetOutputPort())
+
+            self.MomActors.Spins.GetProperty().SetEmissiveTexture(emissive)
+
+
+        else:
+            self.MomActors.Spins.GetProperty().RemoveTexture('emissiveTex')
+
+        renWin.Render()
+
+        return
+
+    ############################################################################
     # Toggle Skybox on/off
     ############################################################################
-    def toggle_SkyBox(self,check, ren, renWin, hdrifile):
+    def toggle_SkyBox(self,check, ren, renWin, sky_file):
         from vtkmodules.vtkIOImage import vtkHDRReader
         from vtkmodules.vtkRenderingCore import vtkTexture
 
         if check:
             reader = vtkHDRReader()
-            reader.SetFileName(hdrifile)
+            reader.SetFileName(sky_file)
             reader.Update()
 
             texture = vtkTexture()
@@ -800,8 +863,16 @@ class ASDVizOptions():
                 pass
             ASDVizOptions.MomActors.spinsphere = vtk.vtkTexturedSphereSource()
             ASDVizOptions.MomActors.spinsphere.SetRadius(0.50)
-            ASDVizOptions.MomActors.spinsphere.SetThetaResolution(20)
-            ASDVizOptions.MomActors.spinsphere.SetPhiResolution(20)
+            ASDVizOptions.MomActors.spinsphere.SetThetaResolution(12)
+            ASDVizOptions.MomActors.spinsphere.SetPhiResolution(12)
+
+            # Placeholder comment for testing tangent extraction for normal textures
+            #tritri = vtk.vtkTriangleFilter()
+            #tritri.SetInputConnection(ASDVizOptions.MomActors.spinsphere.GetOutputPort())
+            #tritan = vtk.vtkPolyDataTangents()
+            #tritan.SetInputConnection(tritri.GetOutputPort())
+            #ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(tritan.GetOutputPort())
+
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinsphere.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.ClampingOn()
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
@@ -825,8 +896,8 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.spinarrow = vtk.vtkArrowSource()
             ASDVizOptions.MomActors.spinarrow.SetTipRadius(0.20)
             ASDVizOptions.MomActors.spinarrow.SetShaftRadius(0.10)
-            ASDVizOptions.MomActors.spinarrow.SetTipResolution(20)
-            ASDVizOptions.MomActors.spinarrow.SetShaftResolution(20)
+            ASDVizOptions.MomActors.spinarrow.SetTipResolution(12)
+            ASDVizOptions.MomActors.spinarrow.SetShaftResolution(12)
 
             # Calculate normals for shading
             ASDVizOptions.MomActors.spinarrownormals = vtk.vtkPolyDataNormals()
@@ -867,7 +938,7 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.spincones = vtk.vtkConeSource()
             ASDVizOptions.MomActors.spincones.SetRadius(0.50)
             ASDVizOptions.MomActors.spincones.SetHeight(1.00)
-            ASDVizOptions.MomActors.spincones.SetResolution(20)
+            ASDVizOptions.MomActors.spincones.SetResolution(12)
 
             # Calculate normals for shading
             ASDVizOptions.MomActors.spinconenormals = vtk.vtkPolyDataNormals()

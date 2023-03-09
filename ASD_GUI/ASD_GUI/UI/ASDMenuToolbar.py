@@ -284,6 +284,19 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SkyBoxCheck.toggled.connect(window.UpdateRenderer)
     #window.ShadowCheck.toggled.connect(window.Shadow_control)
     #window.ShadowCheck.toggled.connect(window.UpdateRenderer)
+    # Texture controls
+    window.TextureSelect.clicked.connect(window.getTextureFile)
+    window.ORMTextureSelect.clicked.connect(window.getORMTextureFile)
+    window.NTextureSelect.clicked.connect(window.getNTextureFile)
+    window.ATextureSelect.clicked.connect(window.getATextureFile)
+    window.ETextureSelect.clicked.connect(window.getETextureFile)
+    #
+    window.TextureCheck.toggled.connect(window.Texture_control)
+    window.ORMTextureCheck.toggled.connect(window.ORMTexture_control)
+    window.NTextureCheck.toggled.connect(window.NTexture_control)
+    window.ATextureCheck.toggled.connect(window.ATexture_control)
+    window.ETextureCheck.toggled.connect(window.ETexture_control)
+    #
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)

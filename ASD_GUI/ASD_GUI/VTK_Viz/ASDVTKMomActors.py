@@ -296,8 +296,8 @@ class ASDMomActors():
         ASDMomActors.spinarrow = vtk.vtkArrowSource()
         ASDMomActors.spinarrow.SetTipRadius(0.20)
         ASDMomActors.spinarrow.SetShaftRadius(0.10)
-        ASDMomActors.spinarrow.SetTipResolution(20)
-        ASDMomActors.spinarrow.SetShaftResolution(20)
+        ASDMomActors.spinarrow.SetTipResolution(12)
+        ASDMomActors.spinarrow.SetShaftResolution(12)
         # Calculate normals for shading
         ASDMomActors.spinarrownormals = vtk.vtkPolyDataNormals()
         ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
@@ -338,8 +338,9 @@ class ASDMomActors():
         # Create vectors
         ASDMomActors.AtomSphere = vtk.vtkTexturedSphereSource()
         ASDMomActors.AtomSphere.SetRadius(0.10)
-        ASDMomActors.AtomSphere.SetThetaResolution(24)
-        ASDMomActors.AtomSphere.SetPhiResolution(24)
+        ASDMomActors.AtomSphere.SetThetaResolution(12)
+        ASDMomActors.AtomSphere.SetPhiResolution(12)
+
         
         # Create the mapper for the atoms
         ASDMomActors.AtomMapper = vtk.vtkGlyph3DMapper()
@@ -351,6 +352,7 @@ class ASDMomActors():
         #ASDMomActors.AtomMapper.SetLookupTable(self.lut)
         #ASDMomActors.AtomMapper.SetColorModeToMapScalars()
         ASDMomActors.AtomMapper.Update()
+        print(ASDMomActors.AtomSphere.GetOutput())
         # Define the sphere actor for the atoms
         colors = vtk.vtkNamedColors()
         ASDMomActors.Atoms = vtk.vtkLODActor()
@@ -381,8 +383,8 @@ class ASDMomActors():
             # Atom sphere
             KMC_part = vtk.vtkSphereSource()
             KMC_part.SetRadius(1.75)
-            KMC_part.SetThetaResolution(40)
-            KMC_part.SetPhiResolution(40)
+            KMC_part.SetThetaResolution(12)
+            KMC_part.SetPhiResolution(12)
             # Atom glyph
             KMC_part_mapper = vtk.vtkGlyph3DMapper()
             KMC_part_mapper.SetInputData(ASDMomActors.KMC_src)

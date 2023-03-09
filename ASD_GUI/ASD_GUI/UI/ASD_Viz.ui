@@ -2740,7 +2740,7 @@
                            </rect>
                         </property>
                         <attribute name="label">
-                           <string>General Viz. Options</string>
+                           <string>Display Options</string>
                         </attribute>
                         <layout class="QGridLayout" name="gridLayout_4">
                            <item row="0" column="0">
@@ -2872,6 +2872,53 @@
                                                          </widget>
                                                       </item>
                                                    </layout>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QGroupBox" name="VizQualityBox">
+                                          <property name="title">
+                                             <string>Visualization quality</string>
+                                          </property>
+                                          <layout class="QVBoxLayout" name="verticalLayout_25">
+                                             <item>
+                                                <widget class="QLabel" name="GlyphQualitySliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Glyph quality</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="GlyphQualitySlider">
+                                                   <property name="sliderPosition">
+                                                      <number>12</number>
+                                                   </property>
+                                                            <property name="minimum">
+                                                               <number>4</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>64</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>8</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>12</number>
+                                                            </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
                                                 </widget>
                                              </item>
                                           </layout>
@@ -3337,7 +3384,7 @@
                            </rect>
                         </property>
                         <attribute name="label">
-                           <string>Advanced Viz. Options</string>
+                           <string>Shading Options</string>
                         </attribute>
                         <layout class="QGridLayout" name="gridLayout_6">
                            <item row="0" column="0">
@@ -3355,33 +3402,6 @@
                                              <string>Visualization quality</string>
                                           </property>
                                           <layout class="QVBoxLayout" name="verticalLayout_25">
-                                             <item>
-                                                <widget class="QLabel" name="GlyphQualitySliderLabel">
-                                                   <property name="frameShape">
-                                                      <enum>QFrame::NoFrame</enum>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Glyph quality</string>
-                                                   </property>
-                                                   <property name="alignment">
-                                                      <set>Qt::AlignCenter</set>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QSlider" name="GlyphQualitySlider">
-                                                   <property name="sliderPosition">
-                                                      <number>20</number>
-                                                   </property>
-                                                   <property name="orientation">
-                                                      <enum>Qt::Horizontal</enum>
-                                                   </property>
-                                                   <property name="tickPosition">
-                                                      <enum>QSlider::TicksBelow</enum>
-                                                   </property>
-                                                </widget>
-                                             </item>
-
                                              <item>
                                                 <widget class="QCheckBox" name="SSAOCheck">
                                                    <property name="toolTip">
@@ -4014,6 +4034,240 @@
                            </item>
                         </layout>
                      </widget>
+
+                     <widget class="QWidget" name="Texure_Page">
+                        <property name="geometry">
+                           <rect>
+                              <x>0</x>
+                              <y>0</y>
+                              <width>322</width>
+                              <height>495</height>
+                           </rect>
+                        </property>
+                        <attribute name="label">
+                           <string>Texturing Options</string>
+                        </attribute>
+                        <layout class="QGridLayout" name="gridLayout_16">
+                           <item row="0" column="0">
+                              <widget class="QGroupBox" name="TextureMainBox">
+                                 <property name="enabled">
+                                    <bool>true</bool>
+                                 </property>
+                                 <property name="title">
+                                    <string/>
+                                 </property>
+                                 <layout class="QVBoxLayout" name="Texture_Layout">
+
+                                             <item>
+                                                <widget class="QCheckBox" name="TextureCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off surface texure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off surface texure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off surface texure</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Use surface texture</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
+                                             <item>
+                                                <widget class="QCheckBox" name="ORMTextureCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off ORM texure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off ORM texure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off ORM texure</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Use ORM texture</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                  <property name="enabled">
+                                                     <bool>false</bool>
+                                                  </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="NTextureCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off normal texure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off normal texure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off normal texure</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Use normal texture</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                  <property name="enabled">
+                                                     <bool>false</bool>
+                                                  </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="ETextureCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off emissive texure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off emissive texure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off emissive texure</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Use emissive texture</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                  <property name="enabled">
+                                                     <bool>false</bool>
+                                                  </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="ATextureCheck">
+                                                   <property name="toolTip">
+                                                      <string>Turn on/off anisotropy texure</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Turn on/off anisotropy texure</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Turn on/off anisotropy texure</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Use anisotropy texture</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                  <property name="enabled">
+                                                     <bool>false</bool>
+                                                  </property>
+                                                </widget>
+                                             </item>
+                                    <item>
+                                       <widget class="QPushButton" name="TextureSelect">
+                                          <property name="toolTip">
+                                             <string>Select surface texture image</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Select surface texture image</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Select surface texture image</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Select surface texture image</string>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QPushButton" name="ORMTextureSelect">
+                                          <property name="toolTip">
+                                             <string>Select ORM texture image</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Select ORM texture image</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Select ORM texture image</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Select ORM texture image</string>
+                                          </property>
+                                       </widget>
+                                   </item>
+                                    <item>
+                                       <widget class="QPushButton" name="NTextureSelect">
+                                          <property name="toolTip">
+                                             <string>Select normal texture image</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Select normal texture image</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Select normal texture image</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Select normal texture image</string>
+                                          </property>
+                                       </widget>
+                                   </item>
+                                    <item>
+                                       <widget class="QPushButton" name="ETextureSelect">
+                                          <property name="toolTip">
+                                             <string>Select emissive texture image</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Select emissive texture image</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Select emissive texture image</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Select emissive texture image</string>
+                                          </property>
+                                       </widget>
+                                   </item>
+                                    <item>
+                                       <widget class="QPushButton" name="ATextureSelect">
+                                          <property name="toolTip">
+                                             <string>Select anisotropy texture image</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Select anisotropy texture image</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Select anisotropy texture image</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Select anisotropy texture image</string>
+                                          </property>
+                                       </widget>
+                                   </item>
+                                 </layout>
+                              </widget>
+                           </item>
+                                    <item>
+                                       <spacer name="verticalSpacer_2">
+                                          <property name="orientation">
+                                             <enum>Qt::Vertical</enum>
+                                          </property>
+                                          <property name="sizeHint" stdset="0">
+                                             <size>
+                                                <width>20</width>
+                                                <height>40</height>
+                                             </size>
+                                          </property>
+                                       </spacer>
+                                    </item>
+                        </layout>
+                     </widget>
+
                      <widget class="QWidget" name="Camera_Page">
                         <property name="geometry">
                            <rect>

@@ -1445,10 +1445,35 @@ class UppASDVizMainWindow(QMainWindow):
     def FXAA_control(self, check):
         self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
     ############################################################################
-    # Function that calls for toggling FXAA
+    # Function that calls for toggling surface texture
     ############################################################################
-    def ORMTex_control(self, check):
-        self.ASDVizOpt.toggle_ORMTex(check=check,ren=self.ren,renWin=self.renWin)
+    def Texture_control(self, check):
+        self.ASDVizOpt.toggle_Texture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.texturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ORMTexture_control(self, check):
+        self.ASDVizOpt.toggle_ORMTexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.ORMtexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def NTexture_control(self, check):
+        self.ASDVizOpt.toggle_NTexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Ntexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ETexture_control(self, check):
+        self.ASDVizOpt.toggle_ETexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Etexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ATexture_control(self, check):
+        self.ASDVizOpt.toggle_ATexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Atexturefile)
     ############################################################################
     # Function that calls for toggling SSAO
     ############################################################################
@@ -1475,7 +1500,7 @@ class UppASDVizMainWindow(QMainWindow):
                                         hdrifile=self.hdrifile)
         return
     ############################################################################
-    # Finding the file name for the input file generation
+    # Finding the file name for the HDR file
     ############################################################################
     def getHDRIFile(self):
         self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
@@ -1483,6 +1508,51 @@ class UppASDVizMainWindow(QMainWindow):
         if self.hdrifile_gotten:
             self.HDRICheck.setEnabled(True)
             self.SkyBoxCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the texture image
+    ############################################################################
+    def getTextureFile(self):
+        self.texturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.texturefile_gotten = len(self.texturefile)>0
+        if self.texturefile_gotten:
+            self.TextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the ORM texture image
+    ############################################################################
+    def getORMTextureFile(self):
+        self.ORMtexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.ORMtexturefile_gotten = len(self.ORMtexturefile)>0
+        if self.ORMtexturefile_gotten:
+            self.ORMTextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the normal texture image
+    ############################################################################
+    def getNTextureFile(self):
+        self.Ntexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Ntexturefile_gotten = len(self.Ntexturefile)>0
+        if self.Ntexturefile_gotten:
+            self.NTextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the anisotropy texture image
+    ############################################################################
+    def getATextureFile(self):
+        self.Atexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Atexturefile_gotten = len(self.Atexturefile)>0
+        if self.Atexturefile_gotten:
+            self.ATextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the emissive texture image
+    ############################################################################
+    def getETextureFile(self):
+        self.Etexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Etexturefile_gotten = len(self.Etexturefile)>0
+        if self.Etexturefile_gotten:
+            self.ETextureCheck.setEnabled(True)
         return
     ############################################################################
     # Function that calls for toggling specular scattering
