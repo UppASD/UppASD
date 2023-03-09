@@ -183,6 +183,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # Adding the actions to the colormaps
     #---------------------------------------------------------------------------
     window.ColorMapBox.activated.connect(window.set_lut_db)
+    window.ColorConstantBox.activated.connect(window.set_lut_db)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
     #---------------------------------------------------------------------------
@@ -212,6 +213,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinsBox.toggled.connect(window.UpdateRenderer)
     window.SpinArrowButton.toggled.connect(window.ChangeGlyphs)
     window.SpinCubeButton.toggled.connect(window.ChangeGlyphs)
+    window.SpinBarButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSphereButton.toggled.connect(window.ChangeGlyphs)
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)

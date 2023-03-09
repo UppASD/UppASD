@@ -118,6 +118,28 @@ class ASDMomActors():
         ASDMomActors.camera_focal[0]=ASDMomActors.xmid
         ASDMomActors.camera_focal[1]=ASDMomActors.ymid
         ASDMomActors.camera_focal[2]=ASDMomActors.zmid
+        #-----------------------------------------------------------------------
+        # Data structures for the spins
+        #-----------------------------------------------------------------------
+        # Passing the data from the full system to the PolyData
+        ASDMomActors.src_spins=vtk.vtkPolyData()
+        ASDMomActors.src_spins.SetPoints(ASDdata.coord)
+        ASDMomActors.src_spins.GetPointData().SetScalars(ASDdata.colors[2])
+        ASDMomActors.src_spins.GetPointData().SetVectors(ASDdata.moments)
+        scalar_range_spins = ASDMomActors.src_spins.GetScalarRange()
+        #-----------------------------------------------------------------------
+        ASDMomActors.ungrid=vtk.vtkUnstructuredGrid()
+        ASDMomActors.ungrid.SetPoints(ASDdata.coord)
+        ASDMomActors.ungrid.GetPointData().SetScalars(ASDMomActors.src.GetPointData().GetScalars())
+        #writer = vtk.vtkUnstructuredGridWriter()
+        #writer.SetFileName('out.vtk')
+        #writer.SetInputData(ASDMomActors.ungrid)
+        #writer.Write()
+        #ASDMomActors.ungrid.SetPoints(ASDdata.coord)
+        #ASDMomActors.ungrid.GetPointData().SetScalars(ASDdata.colors[2])
+        #ASDMomActors.ungrid.GetPointData().SetVectors(ASDdata.moments)
+
+        #-----------------------------------------------------------------------
         # The delaunay tessellation seems to be the best way to transform the point cloud
         # to a surface for volume rendering, the problem is that it is too slow for large
         # data sets, meaning that the best option is first to prune out the data to ensure
@@ -160,6 +182,9 @@ class ASDMomActors():
             #-------------------------------------------------------------------
             ASDMomActors.MagDensMethod = vtk.vtkGaussianSplatter()
             ASDMomActors.MagDensMethod.SetInputData(ASDMomActors.src)
+            #print( ASDMomActors.MagDensMethod.GetSampleDimensions())
+            #ASDMomActors.MagDensMethod.SetSampleDimensions([10,10,2])
+            #print( ASDMomActors.MagDensMethod.GetSampleDimensions())
             #-------------------------------------------------------------------
             # Options for the Gaussian splatter. These determine the quality of the
             # rendering, increasing the radius smoothens out the volume but performance
@@ -167,7 +192,7 @@ class ASDMomActors():
             #-------------------------------------------------------------------
             dist=(np.asarray(ASDMomActors.src.GetPoint(0))-np.asarray(ASDMomActors.src.GetPoint(1)))
             norm=np.sqrt(dist.dot(dist))
-            if norm<1:
+            if norm<10:
                 rad_fac=0.040
             else:
                 rad_fac=0.40
@@ -224,8 +249,15 @@ class ASDMomActors():
             ASDMomActors.volumeProperty.SetGradientOpacity(volumeGradientOpacity)
             ASDMomActors.volumeProperty.SetScalarOpacity(funcOpacityScalar)
             # Volume Mapper
+            #ASDMomActors.MagDensMethod = vtk.vtkDataSetTriangleFilter()
+            #ASDMomActors.MagDensMethod.SetInputData(ASDMomActors.ungrid)
+            #ASDMomActors.MagDensMethod.Update()
+
             ASDMomActors.MagDensMap = vtk.vtkSmartVolumeMapper()
+            #ASDMomActors.MagDensMap = vtk.vtkUnstructuredGridVolumeRayCastMapper()
             ASDMomActors.MagDensMap.SetInputConnection(ASDMomActors.MagDensMethod.GetOutputPort())
+            #ASDMomActors.MagDensMap.Update()
+
             # Volume Actor
             ASDMomActors.MagDensActor = vtk.vtkVolume()
             ASDMomActors.MagDensActor.SetMapper(ASDMomActors.MagDensMap)
@@ -234,15 +266,7 @@ class ASDMomActors():
                 ASDMomActors.MagDensActor.VisibilityOn()
             else:
                 ASDMomActors.MagDensActor.VisibilityOff()
-        #-----------------------------------------------------------------------
-        # Data structures for the spins
-        #-----------------------------------------------------------------------
-        # Passing the data from the full system to the PolyData
-        ASDMomActors.src_spins=vtk.vtkPolyData()
-        ASDMomActors.src_spins.SetPoints(ASDdata.coord)
-        ASDMomActors.src_spins.GetPointData().SetScalars(ASDdata.colors[2])
-        ASDMomActors.src_spins.GetPointData().SetVectors(ASDdata.moments)
-        scalar_range_spins = ASDMomActors.src_spins.GetScalarRange()
+            ASDMomActors.MagDensActor.Update()
         #-----------------------------------------------------------------------
         # Data structures for the contours
         #-----------------------------------------------------------------------
@@ -264,32 +288,7 @@ class ASDMomActors():
         ASDMomActors.contActor.GetProperty().SetColor(0, 0, 0)
         ASDMomActors.contActor.GetProperty().SetLineWidth(1.0)
         ASDMomActors.contActor.VisibilityOff()
-        #-----------------------------------------------------------------------
-        # Setting information of the directions
-        #-----------------------------------------------------------------------
-        # Create vectors
-        arrow = vtk.vtkArrowSource()
-        arrow.SetTipRadius(0.20)
-        arrow.SetShaftRadius(0.10)
-        arrow.SetTipResolution(20)
-        arrow.SetShaftResolution(20)
-        # Create the mapper for the spins
-        arrowMapper = vtk.vtkGlyph3DMapper()
-        arrowMapper.SetSourceConnection(arrow.GetOutputPort())
-        arrowMapper.SetInputData(ASDMomActors.src)
-        arrowMapper.SetScaleFactor(0.50)
-        arrowMapper.SetScalarVisibility(False)
-        arrowMapper.SetScaleModeToNoDataScaling()
-        arrowMapper.Update()
-        # Define the vector actor for the spins
-        ASDMomActors.vector = vtk.vtkLODActor()
-        ASDMomActors.vector.SetMapper(arrowMapper)
-        ASDMomActors.vector.GetProperty().SetSpecular(0.3)
-        ASDMomActors.vector.GetProperty().SetSpecularPower(50)
-        ASDMomActors.vector.GetProperty().SetAmbient(0.9)
-        ASDMomActors.vector.GetProperty().SetDiffuse(0.5)
-        ASDMomActors.vector.GetProperty().SetColor(0, 0, 0)
-        ASDMomActors.vector.VisibilityOff()
+        
         #-----------------------------------------------------------------------
         # Setting information of the spins
         #-----------------------------------------------------------------------
@@ -299,9 +298,18 @@ class ASDMomActors():
         ASDMomActors.spinarrow.SetShaftRadius(0.10)
         ASDMomActors.spinarrow.SetTipResolution(20)
         ASDMomActors.spinarrow.SetShaftResolution(20)
+        # Calculate normals for shading
+        ASDMomActors.spinarrownormals = vtk.vtkPolyDataNormals()
+        ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+
+        ASDMomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
+        ASDMomActors.spinarrownormalstmap.SetInputConnection(ASDMomActors.spinarrownormals.GetOutputPort())
+        ASDMomActors.spinarrownormalstmap.PreventSeamOn()
+
         # Create the mapper for the spins
         ASDMomActors.SpinMapper = vtk.vtkGlyph3DMapper()
-        ASDMomActors.SpinMapper.SetSourceConnection(ASDMomActors.spinarrow.GetOutputPort())
+        ASDMomActors.SpinMapper.SetSourceConnection(ASDMomActors.spinarrownormalstmap.GetOutputPort())
+
         ASDMomActors.SpinMapper.SetInputData(ASDMomActors.src_spins)
         ASDMomActors.SpinMapper.SetScalarRange(scalar_range_spins)
         ASDMomActors.SpinMapper.SetScaleFactor(0.50)
@@ -309,6 +317,7 @@ class ASDMomActors():
         ASDMomActors.SpinMapper.SetLookupTable(self.lut)
         ASDMomActors.SpinMapper.SetColorModeToMapScalars()
         ASDMomActors.SpinMapper.Update()
+        
         # Define the vector actor for the spins
         ASDMomActors.Spins = vtk.vtkLODActor()
         ASDMomActors.Spins.SetMapper(ASDMomActors.SpinMapper)
@@ -327,10 +336,11 @@ class ASDMomActors():
         # Setting information for the atoms
         #-----------------------------------------------------------------------
         # Create vectors
-        ASDMomActors.AtomSphere = vtk.vtkSphereSource()
+        ASDMomActors.AtomSphere = vtk.vtkTexturedSphereSource()
         ASDMomActors.AtomSphere.SetRadius(0.10)
         ASDMomActors.AtomSphere.SetThetaResolution(24)
         ASDMomActors.AtomSphere.SetPhiResolution(24)
+        
         # Create the mapper for the atoms
         ASDMomActors.AtomMapper = vtk.vtkGlyph3DMapper()
         ASDMomActors.AtomMapper.SetSourceConnection(ASDMomActors.AtomSphere.GetOutputPort())
@@ -399,7 +409,7 @@ class ASDMomActors():
         else:
             ren.AddViewProp(ASDMomActors.MagDensActor)
         ren.AddActor(ASDMomActors.Spins)
-        ren.AddActor(ASDMomActors.vector)
+        #ren.AddActor(ASDMomActors.vector)
         ren.AddActor(ASDMomActors.contActor)
         ren.AddActor(ASDMomActors.Atoms)
         #If the KMC particles are present add them to the renderer
@@ -419,6 +429,7 @@ class ASDMomActors():
         #-----------------------------------------------------------------------
         iren.Start()
         renWin.Render()
+        print(' Done')
         return;
     ############################################################################
     # @brief Update the magnetic moments for the visualization

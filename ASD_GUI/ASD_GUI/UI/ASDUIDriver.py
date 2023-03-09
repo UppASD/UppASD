@@ -1137,6 +1137,9 @@ class UppASDVizMainWindow(QMainWindow):
         from vtkmodules.vtkCommonColor import  vtkColorSeries, vtkNamedColors
 
         colorSeries = vtkColorSeries()
+
+        if self.sender()==self.ColorConstantBox:
+            mapnum = -mapnum - 1
         
         if mapnum <= 3:
             self.ASDVizOpt.set_colormap_db(window=self,mapnum=mapnum, \
@@ -1300,7 +1303,10 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
-        print('Button: ')
+        if self.sender() == self.SpinBarButton:
+            if self.SpinBarButton.isChecked():
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Bars')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cubes')
@@ -1438,6 +1444,11 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     def FXAA_control(self, check):
         self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling FXAA
+    ############################################################################
+    def ORMTex_control(self, check):
+        self.ASDVizOpt.toggle_ORMTex(check=check,ren=self.ren,renWin=self.renWin)
     ############################################################################
     # Function that calls for toggling SSAO
     ############################################################################

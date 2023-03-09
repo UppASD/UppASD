@@ -1801,6 +1801,25 @@
                                                          </widget>
                                                       </item>
                                                       <item row="2" column="0">
+                                                         <widget class="QRadioButton" name="SpinSphereButton">
+                                                            <property name="toolTip">
+                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Spheres</string>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">SpinGlyphButtonGroup</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="3" column="0">
                                                          <widget class="QRadioButton" name="SpinCubeButton">
                                                             <property name="toolTip">
                                                                <string>Set the glyph of the spins to be cubes</string>
@@ -1819,19 +1838,19 @@
                                                             </attribute>
                                                          </widget>
                                                       </item>
-                                                      <item row="3" column="0">
-                                                         <widget class="QRadioButton" name="SpinSphereButton">
+                                                      <item row="4" column="0">
+                                                         <widget class="QRadioButton" name="SpinBarButton">
                                                             <property name="toolTip">
-                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                               <string>Set the glyph of the spins to be bars</string>
                                                             </property>
                                                             <property name="statusTip">
-                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                               <string>Set the glyph of the spins to be bars</string>
                                                             </property>
                                                             <property name="whatsThis">
-                                                               <string>Set the glyph of the spins to be spheres</string>
+                                                               <string>Set the glyph of the spins to be bars</string>
                                                             </property>
                                                             <property name="text">
-                                                               <string>Spheres</string>
+                                                               <string>Bars</string>
                                                             </property>
                                                             <attribute name="buttonGroup">
                                                                <string notr="true">SpinGlyphButtonGroup</string>
@@ -3234,6 +3253,59 @@
                                                    </layout>
                                                 </widget>
                                              </item>
+
+                                             <item>
+                                                <widget class="QLabel" name="ColorConstantLabel">
+                                                   <property name="text">
+                                                      <string>Single color</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+
+                                             <item>
+                                                   <widget class="QComboBox" name="ColorConstantBox">
+                                                   <property name="toolTip">
+                                                      <string>Color name</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Color name</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Color name</string>
+                                                   </property>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>White</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Grey</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Black</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Red</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Green</string>
+                                                     </property>
+                                                    </item>
+                                                    <item>
+                                                     <property name="text">
+                                                      <string>Blue</string>
+                                                     </property>
+                                                    </item>
+                                                   </widget>
+                                                </item>
+
                                           </layout>
                                        </widget>
                                     </item>

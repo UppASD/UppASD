@@ -340,7 +340,6 @@ class ASDVizOptions():
         elif keyword=='PBR':
             if hasattr(ASDVizOptions.MomActors,'Spins'):
                 ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
-                print('Roughness: ',ASDVizOptions.MomActors.Spins.GetProperty().GetRoughness())
                 ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(0.5)
             if hasattr(ASDVizOptions.MomActors,'Atoms'):
                 ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
@@ -472,13 +471,76 @@ class ASDVizOptions():
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
         hdrifile = dlg.getOpenFileName(caption="Open HDR file", directory= '.', filter="HDR images (*.pic *.hdr)")[0]
-        ### dlg.setDirectory('.')
-        ### if dlg.exec():
-        ###     hdrifile=dlg.selectedFiles()[0]
 
         return hdrifile
     ############################################################################
-    # Toggle HDRI on/off
+    # Toggle ORM texture 
+    ############################################################################
+    def toggle_ORMTex(self,check, ren, renWin):
+        import vtk
+        #from vtkmodules.vtkIOImage import vtkPNGeader
+        #from vtkmodules.vtkRenderingCore import vtkTexture
+
+        if check:
+
+            basename='OldIron01'
+            #basename='RustyMetalPanel01'
+            #basename='MetalTiles04'
+            #basename='BatteredMetal01'
+            dirname='/Users/andersb/Downloads/'+basename+'_MR_1K/'
+            #dirname='/Users/andersb/Downloads/'+basename+'_packed_1K/'
+            ormname=basename+'_1K_ORM.png'
+            #albname=basename+'_1K_BaseColor.png'
+            albname=basename+'_1K_Albedo.png'
+            #norname=basename+'_1K_NormHeight.png'
+            norname=basename+'_1K_Normal.png'
+            material_reader = vtk.vtkPNGReader()
+            material_reader.SetFileName(dirname+ormname)
+
+            material = vtk.vtkTexture()
+            material.InterpolateOn()
+            material.SetInputConnection(material_reader.GetOutputPort())
+
+            albedo_reader = vtk.vtkPNGReader()
+            albedo_reader.SetFileName(dirname+albname)
+
+            albedo = vtk.vtkTexture()
+            albedo.UseSRGBColorSpaceOn()
+            albedo.InterpolateOn()
+            albedo.SetInputConnection(albedo_reader.GetOutputPort())
+
+            normal_reader = vtk.vtkPNGReader()
+            normal_reader.SetFileName(dirname+norname)
+
+            normal = vtk.vtkTexture()
+            normal.InterpolateOn()
+            normal.SetInputConnection(normal_reader.GetOutputPort())
+
+            #anisotropy_reader = vtk.vtkPNGReader()
+            #anisotropy_reader.SetFileName(parameters['anisotropy'])
+
+            #anisotropy = vtk.vtkTexture()
+            #anisotropy.InterpolateOn()
+            #anisotropy.SetInputConnection(anisotropy_reader.GetOutputPort())
+
+            colors = vtk.vtkNamedColors()
+
+            #self.MomActors.Spins.GetProperty().SetMetallic(1.0)
+            #self.MomActors.Spins.GetProperty().SetRoughness(1.0)
+            #self.MomActors.Spins.GetProperty().SetAnisotropy(1.0)
+            #self.MomActors.Spins.GetProperty().SetAnisotropyRotation(1.0)
+            #self.MomActors.Spins.GetProperty().SetColor(colors.GetColor3d('White'))
+            self.MomActors.Spins.GetProperty().SetBaseColorTexture(albedo)
+            self.MomActors.Spins.GetProperty().SetORMTexture(material)
+            self.MomActors.Spins.GetProperty().SetNormalTexture(normal)
+
+
+
+        renWin.Render()
+
+        return
+    ############################################################################
+    # Toggle Skybox on/off
     ############################################################################
     def toggle_SkyBox(self,check, ren, renWin, hdrifile):
         from vtkmodules.vtkIOImage import vtkHDRReader
@@ -494,8 +556,6 @@ class ASDVizOptions():
             texture.MipmapOn()
             texture.SetColorModeToDirectScalars()
             texture.SetInputConnection(reader.GetOutputPort())
-
-            #self.MomActors.Spins.SetTexture(texture)
 
             self.MomActors.SkyBox.SetTexture(texture)
             self.MomActors.SkyBox.SetProjectionToSphere()
@@ -556,8 +616,8 @@ class ASDVizOptions():
 
         else:
             ren.UseSSAOOff()
-        return
 
+        return
 
     ############################################################################
     # Toggle FXAA on/off
@@ -687,10 +747,44 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.spincube.SetXLength(1.0)
             ASDVizOptions.MomActors.spincube.SetYLength(1.0)
             ASDVizOptions.MomActors.spincube.SetZLength(1.0)
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+
+            # Calculate TCoords for texturing
+            ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
+            ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+            ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
+
+            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.ClampingOn()
             ASDVizOptions.MomActors.SpinMapper.OrientOff()
             renWin.Render()
+        if keyword=='Bars':
+            try:
+                del ASDVizOptions.MomActors.spinarrow
+            except:
+                pass
+            try:
+                del ASDVizOptions.MomActors.spinsphere
+            except:
+                pass
+            try:
+                del ASDVizOptions.MomActors.spincones
+            except:
+                pass
+            ASDVizOptions.MomActors.spincube=vtk.vtkCubeSource()
+            ASDVizOptions.MomActors.spincube.SetXLength(2.0)
+            ASDVizOptions.MomActors.spincube.SetYLength(0.4)
+            ASDVizOptions.MomActors.spincube.SetZLength(0.4)
+
+            # Calculate TCoords for texturing
+            ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToCylinder()
+            ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+            ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
+
+            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
+            ASDVizOptions.MomActors.SpinMapper.ClampingOn()
+            ASDVizOptions.MomActors.SpinMapper.OrientOn()
+            renWin.Render()
+
         if keyword=='Spheres':
             try:
                 del ASDVizOptions.MomActors.spinarrow
@@ -704,13 +798,14 @@ class ASDVizOptions():
                 del ASDVizOptions.MomActors.spincones
             except:
                 pass
-            ASDVizOptions.MomActors.spinsphere = vtk.vtkSphereSource()
+            ASDVizOptions.MomActors.spinsphere = vtk.vtkTexturedSphereSource()
             ASDVizOptions.MomActors.spinsphere.SetRadius(0.50)
             ASDVizOptions.MomActors.spinsphere.SetThetaResolution(20)
             ASDVizOptions.MomActors.spinsphere.SetPhiResolution(20)
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinsphere.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.ClampingOn()
-            ASDVizOptions.MomActors.SpinMapper.OrientOff()
+            ASDVizOptions.MomActors.SpinMapper.OrientOn()
+            #ASDVizOptions.MomActors.SpinMapper.OrientOff()
             renWin.Render()
         if keyword=='Arrows':
             try:
@@ -725,13 +820,27 @@ class ASDVizOptions():
                 del ASDVizOptions.MomActors.spincones
             except:
                 pass
+
+            # Create vectors
             ASDVizOptions.MomActors.spinarrow = vtk.vtkArrowSource()
             ASDVizOptions.MomActors.spinarrow.SetTipRadius(0.20)
             ASDVizOptions.MomActors.spinarrow.SetShaftRadius(0.10)
-            ASDVizOptions.MomActors.spinarrow.SetTipResolution(10)
-            ASDVizOptions.MomActors.spinarrow.SetShaftResolution(10)
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinarrow.GetOutputPort())
+            ASDVizOptions.MomActors.spinarrow.SetTipResolution(20)
+            ASDVizOptions.MomActors.spinarrow.SetShaftResolution(20)
+
+            # Calculate normals for shading
+            ASDVizOptions.MomActors.spinarrownormals = vtk.vtkPolyDataNormals()
+            ASDVizOptions.MomActors.spinarrownormals.SetInputConnection(ASDVizOptions.MomActors.spinarrow.GetOutputPort())
+
+            # Calculate TCoords for texturing
+            ASDVizOptions.MomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
+            ASDVizOptions.MomActors.spinarrownormalstmap.SetInputConnection(ASDVizOptions.MomActors.spinarrownormals.GetOutputPort())
+            ASDVizOptions.MomActors.spinarrownormalstmap.PreventSeamOn()
+
+            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinarrownormalstmap.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
+            ASDVizOptions.MomActors.SpinMapper.Update()
+
             renWin.Render()
         if keyword=='CenterOn':
             ASDVizOptions.MomActors.spinarrow.SetArrowOriginToCenter()
@@ -754,12 +863,24 @@ class ASDVizOptions():
                 del ASDVizOptions.MomActors.spinarrow
             except:
                 pass
+
             ASDVizOptions.MomActors.spincones = vtk.vtkConeSource()
             ASDVizOptions.MomActors.spincones.SetRadius(0.50)
             ASDVizOptions.MomActors.spincones.SetHeight(1.00)
-            ASDVizOptions.MomActors.spincones.SetResolution(10)
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincones.GetOutputPort())
+            ASDVizOptions.MomActors.spincones.SetResolution(20)
+
+            # Calculate normals for shading
+            ASDVizOptions.MomActors.spinconenormals = vtk.vtkPolyDataNormals()
+            ASDVizOptions.MomActors.spinconenormals.SetInputConnection(ASDVizOptions.MomActors.spincones.GetOutputPort())
+
+            # Calculate TCoords for texturing
+            ASDVizOptions.MomActors.spinconeormalstmap = vtk.vtkTextureMapToCylinder()
+            ASDVizOptions.MomActors.spinconeormalstmap.SetInputConnection(ASDVizOptions.MomActors.spinconenormals.GetOutputPort())
+            ASDVizOptions.MomActors.spinconeormalstmap.PreventSeamOn()
+
+            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spinconeormalstmap.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.OrientOn()
+            ASDVizOptions.MomActors.SpinMapper.Update()
             renWin.Render()
         return
     ############################################################################
@@ -934,6 +1055,8 @@ class ASDVizOptions():
 
         #self.lut = vtk.vtkLookupTable()
         num_colors = 256
+        if mapnum < 0:
+            num_colors = 2
         self.lut.SetNumberOfTableValues(num_colors)
         self.transfer_func = vtk.vtkColorTransferFunction()
         #-----------------------------------------------------------------------
@@ -994,6 +1117,55 @@ class ASDVizOptions():
                 self.transfer_func.AddRGBPoint( 0.50, 0.40000, 0.76078, 0.64706)
                 self.transfer_func.AddRGBPoint( 1.00, 0.36863, 0.30980, 0.63529)
         #-----------------------------------------------------------------------
+        # High-jacking this scheme for Single colors
+        if mapnum == -1:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 1.00000, 1.00000, 1.00000)
+                self.transfer_func.AddRGBPoint(1.0, 1.00000, 1.00000, 1.00000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 1.00000, 1.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 1.00000, 1.00000, 1.00000)
+        if mapnum == -2:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 0.50000, 0.50000, 0.50000)
+                self.transfer_func.AddRGBPoint(1.0, 0.50000, 0.50000, 0.50000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 0.50000, 0.50000, 0.50000)
+                self.transfer_func.AddRGBPoint( 1.0, 0.50000, 0.50000, 0.50000)
+        if mapnum == -3:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 0.00000, 0.00000, 0.00000)
+                self.transfer_func.AddRGBPoint(1.0, 0.00000, 0.00000, 0.00000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 0.00000, 0.00000, 0.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 0.00000, 0.00000, 0.00000)
+        if mapnum == -4:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 1.00000, 0.00000, 0.00000)
+                self.transfer_func.AddRGBPoint(1.0, 1.00000, 0.00000, 0.00000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 0.00000, 0.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 1.00000, 0.00000, 0.00000)
+        if mapnum == -5:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 0.00000, 1.00000, 0.00000)
+                self.transfer_func.AddRGBPoint(1.0, 0.00000, 1.00000, 0.00000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 0.00000, 1.00000, 0.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 0.00000, 1.00000, 0.00000)
+        if mapnum == -6:
+            self.transfer_func.SetColorSpaceToRGB()
+            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+                self.transfer_func.AddRGBPoint(0.0, 0.00000, 0.00000, 1.00000)
+                self.transfer_func.AddRGBPoint(1.0, 0.00000, 0.00000, 1.00000)
+            else:
+                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 0.00000, 1.00000)
+                self.transfer_func.AddRGBPoint( 1.0, 1.00000, 0.00000, 1.00000)
         # Construct the lut with the selected colomap
         #-----------------------------------------------------------------------
         for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
