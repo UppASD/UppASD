@@ -2916,15 +2916,6 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="VizQualityBox">
-                                          <property name="title">
-                                             <string>Visualization quality</string>
-                                          </property>
-                                          <layout class="QVBoxLayout" name="verticalLayout_25">
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item>
                                        <widget class="QGroupBox" name="ClippBox">
                                           <property name="enabled">
                                              <bool>true</bool>
@@ -3301,57 +3292,165 @@
                                                 </widget>
                                              </item>
 
-                                             <item>
-                                                <widget class="QLabel" name="ColorConstantLabel">
+                                    <item>
+                                       <widget class="QGroupBox" name="SingleColorBox">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Single color control </string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Single color control </string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Single color control </string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Single color</string>
+                                          </property>
+                                          <property name="checkable">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="checked">
+                                             <bool>false</bool>
+                                          </property>
+                                          <layout class="QGridLayout" name="SingleColorLayout">
+                                             <item column="0" row="0">
+                                                <widget class="QLabel" name="RGBRedColorLabel">
                                                    <property name="text">
-                                                      <string>Single color</string>
+                                                      <string>Red</string>
                                                    </property>
                                                 </widget>
                                              </item>
-
-                                             <item>
-                                                   <widget class="QComboBox" name="ColorConstantBox">
+                                             <item column="1" row="0">
+                                                <widget class="QSlider" name="RGBRedColorSlider">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
                                                    <property name="toolTip">
-                                                      <string>Color name</string>
+                                                      <string>Amount of red component in single color</string>
                                                    </property>
                                                    <property name="statusTip">
-                                                      <string>Color name</string>
+                                                      <string>Amount of red component in single color</string>
                                                    </property>
                                                    <property name="whatsThis">
-                                                      <string>Color name</string>
+                                                      <string>Amount of red component in single color</string>
                                                    </property>
-                                                    <item>
-                                                     <property name="text">
-                                                      <string>White</string>
-                                                     </property>
-                                                    </item>
-                                                    <item>
-                                                     <property name="text">
-                                                      <string>Grey</string>
-                                                     </property>
-                                                    </item>
-                                                    <item>
-                                                     <property name="text">
-                                                      <string>Black</string>
-                                                     </property>
-                                                    </item>
-                                                    <item>
-                                                     <property name="text">
-                                                      <string>Red</string>
-                                                     </property>
-                                                    </item>
-                                                    <item>
-                                                     <property name="text">
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="0" row="1">
+                                                <widget class="QLabel" name="RGBGreenColorLabel">
+                                                   <property name="text">
                                                       <string>Green</string>
-                                                     </property>
-                                                    </item>
-                                                    <item>
-                                                     <property name="text">
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="1">
+                                                <widget class="QSlider" name="RGBGreenColorSlider">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Amount of green component in single color</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Amount of green component in single color</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Amount of green component in single color</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="0" row="2">
+                                                <widget class="QLabel" name="RGBBlueColorLabel">
+                                                   <property name="text">
                                                       <string>Blue</string>
-                                                     </property>
-                                                    </item>
-                                                   </widget>
-                                                </item>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="2">
+                                                <widget class="QSlider" name="RGBBlueColorSlider">
+                                                   <property name="enabled">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Amount of blue component in single color</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Amount of blue component in single color</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Amount of blue component in single color</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
 
                                           </layout>
                                        </widget>

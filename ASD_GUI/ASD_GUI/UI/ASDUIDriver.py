@@ -1128,6 +1128,35 @@ class UppASDVizMainWindow(QMainWindow):
                 print('Viewing the localenergy file')
         return
     ############################################################################
+    # @brief Enable rgb-values for single color
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_singlecolor(self, check):
+        if check:
+            self.RGBRedColorSlider.setEnabled(True)
+            self.RGBGreenColorSlider.setEnabled(True)
+            self.RGBBlueColorSlider.setEnabled(True)
+        else:
+            self.RGBRedColorSlider.setEnabled(False)
+            self.RGBGreenColorSlider.setEnabled(False)
+            self.RGBBlueColorSlider.setEnabled(False)
+
+        return
+    ############################################################################
+    # @brief Enable rgb-values for single color
+    # @author Anders Bergman
+    ############################################################################
+    def set_singlecolor(self, value):
+
+        rgb = [ self.RGBRedColorSlider.value(),
+                self.RGBGreenColorSlider.value(),
+                self.RGBBlueColorSlider.value()]
+
+        self.ASDVizOpt.set_RGBcolor(window=self,rgb=rgb ,
+           flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
+
+        return
+    ############################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
     # of the scale type for the plotting, either linear or logarithmic scale.
@@ -1138,9 +1167,6 @@ class UppASDVizMainWindow(QMainWindow):
 
         colorSeries = vtkColorSeries()
 
-        if self.sender()==self.ColorConstantBox:
-            mapnum = -mapnum - 1
-        
         if mapnum <= 3:
             self.ASDVizOpt.set_colormap_db(window=self,mapnum=mapnum, \
                flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
@@ -1497,7 +1523,7 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
     def SkyBox_control(self, check):
         self.ASDVizOpt.toggle_SkyBox(check=check,ren=self.ren,renWin=self.renWin,
-                                        hdrifile=self.hdrifile)
+                                       skyboxfile=self.hdrifile)
         return
     ############################################################################
     # Finding the file name for the HDR file

@@ -183,7 +183,13 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # Adding the actions to the colormaps
     #---------------------------------------------------------------------------
     window.ColorMapBox.activated.connect(window.set_lut_db)
-    window.ColorConstantBox.activated.connect(window.set_lut_db)
+    window.SingleColorBox.toggled.connect(window.toggle_singlecolor)
+    window.RGBRedColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBRedColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBGreenColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBGreenColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBBlueColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBBlueColorSlider.valueChanged.connect(window.UpdateRenderer)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
     #---------------------------------------------------------------------------

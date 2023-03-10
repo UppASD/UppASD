@@ -622,13 +622,13 @@ class ASDVizOptions():
     ############################################################################
     # Toggle Skybox on/off
     ############################################################################
-    def toggle_SkyBox(self,check, ren, renWin, sky_file):
+    def toggle_SkyBox(self,check, ren, renWin, skyboxfile):
         from vtkmodules.vtkIOImage import vtkHDRReader
         from vtkmodules.vtkRenderingCore import vtkTexture
 
         if check:
             reader = vtkHDRReader()
-            reader.SetFileName(sky_file)
+            reader.SetFileName(skyboxfile)
             reader.Update()
 
             texture = vtkTexture()
@@ -1154,8 +1154,6 @@ class ASDVizOptions():
 
         #self.lut = vtk.vtkLookupTable()
         num_colors = 256
-        if mapnum < 0:
-            num_colors = 2
         self.lut.SetNumberOfTableValues(num_colors)
         self.transfer_func = vtk.vtkColorTransferFunction()
         #-----------------------------------------------------------------------
@@ -1225,50 +1223,42 @@ class ASDVizOptions():
             else:
                 self.transfer_func.AddRGBPoint(-1.0, 1.00000, 1.00000, 1.00000)
                 self.transfer_func.AddRGBPoint( 1.0, 1.00000, 1.00000, 1.00000)
-        if mapnum == -2:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
-                self.transfer_func.AddRGBPoint(0.0, 0.50000, 0.50000, 0.50000)
-                self.transfer_func.AddRGBPoint(1.0, 0.50000, 0.50000, 0.50000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 0.50000, 0.50000, 0.50000)
-                self.transfer_func.AddRGBPoint( 1.0, 0.50000, 0.50000, 0.50000)
-        if mapnum == -3:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
-                self.transfer_func.AddRGBPoint(0.0, 0.00000, 0.00000, 0.00000)
-                self.transfer_func.AddRGBPoint(1.0, 0.00000, 0.00000, 0.00000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 0.00000, 0.00000, 0.00000)
-                self.transfer_func.AddRGBPoint( 1.0, 0.00000, 0.00000, 0.00000)
-        if mapnum == -4:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
-                self.transfer_func.AddRGBPoint(0.0, 1.00000, 0.00000, 0.00000)
-                self.transfer_func.AddRGBPoint(1.0, 1.00000, 0.00000, 0.00000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 0.00000, 0.00000)
-                self.transfer_func.AddRGBPoint( 1.0, 1.00000, 0.00000, 0.00000)
-        if mapnum == -5:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
-                self.transfer_func.AddRGBPoint(0.0, 0.00000, 1.00000, 0.00000)
-                self.transfer_func.AddRGBPoint(1.0, 0.00000, 1.00000, 0.00000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 0.00000, 1.00000, 0.00000)
-                self.transfer_func.AddRGBPoint( 1.0, 0.00000, 1.00000, 0.00000)
-        if mapnum == -6:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
-                self.transfer_func.AddRGBPoint(0.0, 0.00000, 0.00000, 1.00000)
-                self.transfer_func.AddRGBPoint(1.0, 0.00000, 0.00000, 1.00000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 0.00000, 1.00000)
-                self.transfer_func.AddRGBPoint( 1.0, 1.00000, 0.00000, 1.00000)
         # Construct the lut with the selected colomap
         #-----------------------------------------------------------------------
         for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
             cc = self.transfer_func.GetColor(ss)
             self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
+        self.lut.Build()
+        return
+
+    ############################################################################
+    # @brief Setup a single color colormap 
+    # @details Used since glyphs are colored after colormaps and not single colors
+    # @author Anders Bergman
+    ############################################################################
+    def set_RGBcolor(self,rgb,window,flag2D,viz_type,renWin):
+        
+        import vtk
+
+
+        num_colors = 2
+        red = rgb[0]/255.0
+        green = rgb[1]/255.0
+        blue = rgb[2]/255.0
+        print(' Test: ', rgb, red, green, blue)
+        self.lut.SetNumberOfTableValues(num_colors)
+        self.transfer_func = vtk.vtkColorTransferFunction()
+        self.transfer_func.SetColorSpaceToRGB();
+        if (viz_type=='M') or (viz_type=='E') or viz_type=='N':
+            self.transfer_func.AddRGBPoint(0.00, red, green, blue)
+            self.transfer_func.AddRGBPoint(1.00, red, green, blue)
+        else:
+            self.transfer_func.AddRGBPoint(-1.0, red, green, blue)
+            self.transfer_func.AddRGBPoint( 1.0, red, green, blue)
+
+        for ii,ss in enumerate([float(xx)/float(num_colors) for xx in range(num_colors)]):
+            cc = self.transfer_func.GetColor(ss)
+            self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
+
         self.lut.Build()
         return
