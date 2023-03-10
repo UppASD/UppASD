@@ -1575,6 +1575,11 @@ class UppASDVizMainWindow(QMainWindow):
     def RenDiffuse_control(self, value):
         self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
     ############################################################################
+    # Function that calls for toggling PBR Emission value
+    ############################################################################
+    def PBREmission_control(self, value):
+        self.ASDVizOpt.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+    ############################################################################
     # Function that calls for toggling PBR Occlusion value
     ############################################################################
     def PBROcclusion_control(self, value):

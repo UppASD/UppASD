@@ -3846,66 +3846,6 @@
                                                       </item>
 
                                                       <item>
-                                                         <widget class="QLabel" name="OcclusionLabel">
-                                                            <property name="frameShape">
-                                                               <enum>QFrame::NoFrame</enum>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>Occlusion</string>
-                                                            </property>
-                                                            <property name="alignment">
-                                                               <set>Qt::AlignCenter</set>
-                                                            </property>
-                                                         </widget>
-                                                      </item>
-                                                      <item>
-                                                         <widget class="QSlider" name="PBROcclusionSlider">
-                                                            <property name="enabled">
-                                                               <bool>true</bool>
-                                                            </property>
-                                                            <property name="font">
-                                                               <font>
-                                                                  <italic>false</italic>
-                                                                  <underline>false</underline>
-                                                                  <strikeout>false</strikeout>
-                                                               </font>
-                                                            </property>
-                                                            <property name="toolTip">
-                                                               <string>Occlusion of glyphs</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Occlusion of glyphs</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Occlusion of glyphs</string>
-                                                            </property>
-                                                            <property name="minimum">
-                                                               <number>0</number>
-                                                            </property>
-                                                            <property name="maximum">
-                                                               <number>100</number>
-                                                            </property>
-                                                            <property name="pageStep">
-                                                               <number>20</number>
-                                                            </property>
-                                                            <property name="value">
-                                                               <number>50</number>
-                                                            </property>
-                                                            <property name="sliderPosition">
-                                                               <number>50</number>
-                                                            </property>
-                                                            <property name="orientation">
-                                                               <enum>Qt::Horizontal</enum>
-                                                            </property>
-                                                            <property name="tickPosition">
-                                                               <enum>QSlider::TicksBelow</enum>
-                                                            </property>
-                                                            <property name="tickInterval">
-                                                               <number>5</number>
-                                                            </property>
-                                                         </widget>
-                                                      </item>
-                                                      <item>
                                                          <widget class="QLabel" name="RoughnessLabel">
                                                             <property name="frameShape">
                                                                <enum>QFrame::NoFrame</enum>
@@ -3998,6 +3938,126 @@
                                                             </property>
                                                             <property name="whatsThis">
                                                                <string>Metallic scattering</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="EmissionLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Emission</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="PBREmissionSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Emission of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Emission of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Emission of glyphs</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>0</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>100</number>
+                                                            </property>
+                                                            <property name="pageStep">
+                                                               <number>20</number>
+                                                            </property>
+                                                            <property name="value">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="sliderPosition">
+                                                               <number>50</number>
+                                                            </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QLabel" name="OcclusionLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Occlusion</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="PBROcclusionSlider">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="font">
+                                                               <font>
+                                                                  <italic>false</italic>
+                                                                  <underline>false</underline>
+                                                                  <strikeout>false</strikeout>
+                                                               </font>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Occlusion of glyphs</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Occlusion of glyphs</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Occlusion of glyphs</string>
                                                             </property>
                                                             <property name="minimum">
                                                                <number>0</number>

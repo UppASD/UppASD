@@ -298,17 +298,27 @@ class ASDMomActors():
         ASDMomActors.spinarrow.SetShaftRadius(0.10)
         ASDMomActors.spinarrow.SetTipResolution(12)
         ASDMomActors.spinarrow.SetShaftResolution(12)
+        
+        tritri = vtk.vtkTriangleFilter()
+        tritri.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+
         # Calculate normals for shading
         ASDMomActors.spinarrownormals = vtk.vtkPolyDataNormals()
-        ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+        ASDMomActors.spinarrownormals.SetInputConnection(tritri.GetOutputPort())
+        #ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+
 
         ASDMomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
         ASDMomActors.spinarrownormalstmap.SetInputConnection(ASDMomActors.spinarrownormals.GetOutputPort())
         ASDMomActors.spinarrownormalstmap.PreventSeamOn()
 
+        tantan = vtk.vtkPolyDataTangents()
+        tantan.SetInputConnection(ASDMomActors.spinarrownormalstmap.GetOutputPort())
+
         # Create the mapper for the spins
         ASDMomActors.SpinMapper = vtk.vtkGlyph3DMapper()
         ASDMomActors.SpinMapper.SetSourceConnection(ASDMomActors.spinarrownormalstmap.GetOutputPort())
+        #ASDMomActors.SpinMapper.SetSourceConnection(tantan.GetOutputPort())
 
         ASDMomActors.SpinMapper.SetInputData(ASDMomActors.src_spins)
         ASDMomActors.SpinMapper.SetScalarRange(scalar_range_spins)

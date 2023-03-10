@@ -388,6 +388,17 @@ class ASDVizOptions():
         return
 
     ############################################################################
+    # Set the PBR emission value of the spin glyphs
+    ############################################################################
+    def PBREmissionUpdate(self,value,ren, renWin):
+        emvec = [float(value*0.01), float(value*0.01), float(value*0.01)]
+        if hasattr(ASDVizOptions.MomActors, 'Spins'):
+            ASDVizOptions.MomActors.Spins.GetProperty().SetEmissiveFactor(emvec)
+        if hasattr(ASDVizOptions.MomActors, 'Atoms'):
+            ASDVizOptions.MomActors.Atoms.GetProperty().SetEmissiveFactor(emvec)
+        renWin.Render()
+        return
+    ############################################################################
     # Set the PBR occlusion value of the spin glyphs
     ############################################################################
     def PBROcclusionUpdate(self,value,ren, renWin):
@@ -497,9 +508,10 @@ class ASDVizOptions():
             albedo_reader.SetFileName(texfile)
 
             albedo = vtk.vtkTexture()
+            albedo.SetInputConnection(albedo_reader.GetOutputPort())
             albedo.UseSRGBColorSpaceOn()
             albedo.InterpolateOn()
-            albedo.SetInputConnection(albedo_reader.GetOutputPort())
+            albedo.MipmapOn()
 
             self.MomActors.Spins.GetProperty().SetBaseColorTexture(albedo)
         else:
@@ -521,8 +533,9 @@ class ASDVizOptions():
             material_reader.SetFileName(texfile)
 
             material = vtk.vtkTexture()
-            material.InterpolateOn()
             material.SetInputConnection(material_reader.GetOutputPort())
+            material.InterpolateOn()
+            material.MipmapOn()
 
             self.MomActors.Spins.GetProperty().SetORMTexture(material)
         else:
@@ -543,8 +556,9 @@ class ASDVizOptions():
             anisotropy_reader.SetFileName(texfile)
 
             anisotropy = vtk.vtkTexture()
-            anisotropy.InterpolateOn()
             anisotropy.SetInputConnection(anisotropy_reader.GetOutputPort())
+            anisotropy.InterpolateOn()
+            anisotropy.MipmapOn()
 
             self.MomActors.Spins.GetProperty().SetAnisotropyTexture(anisotropy)
 
@@ -567,6 +581,7 @@ class ASDVizOptions():
 
             normal = vtk.vtkTexture()
             normal.InterpolateOn()
+            normal.MipmapOn()
             normal.SetInputConnection(normal_reader.GetOutputPort())
             
             self.MomActors.Spins.GetProperty().SetNormalTexture(normal)
@@ -589,8 +604,10 @@ class ASDVizOptions():
             emissive_reader.SetFileName(texfile)
 
             emissive = vtk.vtkTexture()
-            emissive.InterpolateOn()
             emissive.SetInputConnection(emissive_reader.GetOutputPort())
+            emissive.UseSRGBColorSpaceOn()
+            emissive.InterpolateOn()
+            emissive.MipmapOn()
 
             self.MomActors.Spins.GetProperty().SetEmissiveTexture(emissive)
 
@@ -811,12 +828,13 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.spincube.SetYLength(1.0)
             ASDVizOptions.MomActors.spincube.SetZLength(1.0)
 
-            # Calculate TCoords for texturing
-            ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
-            ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
-            ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
+            ## Calculate TCoords for texturing
+            #ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
+            #ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+            #ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
+            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+            #ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.ClampingOn()
             ASDVizOptions.MomActors.SpinMapper.OrientOff()
             renWin.Render()
@@ -838,10 +856,20 @@ class ASDVizOptions():
             ASDVizOptions.MomActors.spincube.SetYLength(0.4)
             ASDVizOptions.MomActors.spincube.SetZLength(0.4)
 
-            # Calculate TCoords for texturing
+            ### Calculate TCoords for texturing
             ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToCylinder()
             ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
-            ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
+            #ASDVizOptions.MomActors.spincubetmap.AutomaticCylinderGenerationOff()
+            #ASDVizOptions.MomActors.spincubetmap.SetPoint1([ 1.0,0.0,0.0])
+            #ASDVizOptions.MomActors.spincubetmap.SetPoint2([-1.0,0.0,0.0])
+
+            ## Calculate TCoords for texturing
+            #ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
+            #ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
+            ##ASDVizOptions.MomActors.spincubetmap.AutomaticSphereGenerationOff()
+            ##ASDVizOptions.MomActors.spincubetmap.SetCenter([ 0.0,0.0,0.0])
+
+            ASDVizOptions.MomActors.spincubetmap.PreventSeamOff()
 
             ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
             ASDVizOptions.MomActors.SpinMapper.ClampingOn()
