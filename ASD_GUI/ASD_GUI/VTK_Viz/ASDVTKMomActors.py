@@ -352,7 +352,6 @@ class ASDMomActors():
         #ASDMomActors.AtomMapper.SetLookupTable(self.lut)
         #ASDMomActors.AtomMapper.SetColorModeToMapScalars()
         ASDMomActors.AtomMapper.Update()
-        print(ASDMomActors.AtomSphere.GetOutput())
         # Define the sphere actor for the atoms
         colors = vtk.vtkNamedColors()
         ASDMomActors.Atoms = vtk.vtkLODActor()
@@ -471,7 +470,6 @@ class ASDMomActors():
             ASDMomActors.src.GetPointData().SetScalars(ASDdata.colors[2])
         if window.SpinZ.isChecked():
             ASDMomActors.src_spins.GetPointData().SetScalars(ASDdata.colors[2])
-        print('AB data: ', ASDMomActors.src_spins.GetPointData().GetScalars())
         #-----------------------------------------------------------------------
         # Update the vectors
         #-----------------------------------------------------------------------
