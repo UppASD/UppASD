@@ -62,6 +62,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.can_plot_sqw=False
         self.hdrifile=[]
         self.hdrifile_gotten = False
+        self.bwBackground = False
+        self.bwSinglecolor = False
         #-----------------------------------------------------------------------
         # Plotting global variables
         #-----------------------------------------------------------------------
@@ -257,13 +259,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.CamMainBox.setEnabled(False)
         self.MagMainGroup.setEnabled(False)
         self.NeighMainBox.setEnabled(False)
-        self.GenVizOptMainBox.setEnabled(False)
+        self.SceneOptMainBox.setEnabled(False)
         self.SpinGlyphSelectBox.setEnabled(True)
         self.ClippBox.setEnabled(False)
         self.ClippBox.setChecked(False)
         self.ClusBox.setVisible(False)
         self.KMCCheck.setVisible(False)
-        self.GenVizOptMainBox.setEnabled(True)
+        self.SceneOptMainBox.setEnabled(True)
         self.CamMainBox.setEnabled(True)
         self.actionSave_pov.setEnabled(True)
         self.actionSave_png.setEnabled(True)
@@ -1143,10 +1145,53 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
     ############################################################################
-    # @brief Enable rgb-values for single color
+    # @brief Toggle grayscale background on/off
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_bwSinglecolor(self, check):
+
+        self.bwSinglecolor = check
+        rgb = [ self.RGBRedColorSlider.value(),
+                self.RGBGreenColorSlider.value(),
+                self.RGBBlueColorSlider.value()]
+        bw = int(sum(rgb)/3)
+
+        if check:
+            self.RGBRedColorSlider.setValue(bw)
+            self.RGBGreenColorSlider.setValue(bw)
+            self.RGBRedColorSlider.setValue(bw)
+
+
+        return
+    ############################################################################
+    # @brief Toggle grayscale background on/off
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_bwBackground(self, check):
+
+        self.bwBackground = check
+        rgb = [   self.RGBRedBackgroundSlider.value(),
+                self.RGBGreenBackgroundSlider.value(),
+                 self.RGBBlueBackgroundSlider.value()]
+        bw = int(sum(rgb)/3)
+
+        if check:
+            self.RGBRedBackgroundSlider.setValue(bw)
+            self.RGBGreenBackgroundSlider.setValue(bw)
+            self.RGBRedBackgroundSlider.setValue(bw)
+
+
+        return
+    ############################################################################
+    # @brief Update rgb-values for single color coloring
     # @author Anders Bergman
     ############################################################################
     def set_singlecolor(self, value):
+
+        if self.bwSinglecolor:
+            self.RGBRedColorSlider.setValue(value)
+            self.RGBGreenColorSlider.setValue(value)
+            self.RGBBlueColorSlider.setValue(value)
 
         rgb = [ self.RGBRedColorSlider.value(),
                 self.RGBGreenColorSlider.value(),
@@ -1154,6 +1199,25 @@ class UppASDVizMainWindow(QMainWindow):
 
         self.ASDVizOpt.set_RGBcolor(window=self,rgb=rgb ,
            flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
+
+        return
+    ############################################################################
+    # @brief Update rgb-values for the background
+    # @author Anders Bergman
+    ############################################################################
+    def set_background(self, value):
+
+        if self.bwBackground:
+            self.RGBRedBackgroundSlider.setValue(value)
+            self.RGBGreenBackgroundSlider.setValue(value)
+            self.RGBBlueBackgroundSlider.setValue(value)
+
+        rgb = [ self.RGBRedBackgroundSlider.value(),
+                self.RGBGreenBackgroundSlider.value(),
+                self.RGBBlueBackgroundSlider.value()]
+
+
+        self.ASDVizOpt.set_RGBbackground(rgb=rgb, ren=self.ren,renWin=self.renWin)
 
         return
     ############################################################################

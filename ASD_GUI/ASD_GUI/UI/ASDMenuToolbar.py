@@ -190,8 +190,19 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RGBGreenColorSlider.valueChanged.connect(window.UpdateRenderer)
     window.RGBBlueColorSlider.valueChanged.connect(window.set_singlecolor)
     window.RGBBlueColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.BWSinglecolorCheck.clicked.connect(window.toggle_bwSinglecolor)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
+    #---------------------------------------------------------------------------
+    # Adding the actions to the background
+    #---------------------------------------------------------------------------
+    window.RGBRedBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBRedBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBGreenBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBGreenBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBBlueBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBBlueBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.BWBackgroundCheck.clicked.connect(window.toggle_bwBackground)
     #---------------------------------------------------------------------------
     # Adding the actions to the moment options
     #---------------------------------------------------------------------------

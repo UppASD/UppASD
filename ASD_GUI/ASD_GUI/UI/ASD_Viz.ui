@@ -2768,7 +2768,7 @@
                            </item>
                         </layout>
                      </widget>
-                     <widget class="QWidget" name="GeneralOptPage">
+                     <widget class="QWidget" name="SceneOptPage">
                         <property name="geometry">
                            <rect>
                               <x>0</x>
@@ -2778,17 +2778,17 @@
                            </rect>
                         </property>
                         <attribute name="label">
-                           <string>Display Options</string>
+                           <string>Scene Options</string>
                         </attribute>
                         <layout class="QGridLayout" name="gridLayout_4">
                            <item row="0" column="0">
-                              <widget class="QGroupBox" name="GenVizOptMainBox">
+                              <widget class="QGroupBox" name="SceneOptMainBox">
                                  <property name="title">
                                     <string/>
                                  </property>
                                  <layout class="QVBoxLayout" name="verticalLayout">
                                     <item>
-                                       <widget class="QGroupBox" name="GenOptBox">
+                                       <widget class="QGroupBox" name="SceneOptBox">
                                           <property name="enabled">
                                              <bool>true</bool>
                                           </property>
@@ -2801,7 +2801,7 @@
                                           <property name="title">
                                              <string>General Options</string>
                                           </property>
-                                          <layout class="QVBoxLayout" name="GenOptLayout">
+                                          <layout class="QVBoxLayout" name="SceneOptLayout">
                                              <item>
                                                 <widget class="QCheckBox" name="ScalarBarCheck">
                                                    <property name="toolTip">
@@ -3081,19 +3081,213 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="QGroupBox" name="ColorMapOptBox">
+                                       <widget class="QGroupBox" name="BackgroundColorBox">
                                           <property name="enabled">
                                              <bool>true</bool>
                                           </property>
+                                          <property name="toolTip">
+                                             <string>Background color control </string>
+                                          </property>
                                           <property name="statusTip">
-                                             <string>Options to select the different colormaps</string>
+                                             <string>Background color control </string>
                                           </property>
                                           <property name="whatsThis">
-                                             <string>Options to select the different colormaps</string>
+                                             <string>Background color control </string>
                                           </property>
                                           <property name="title">
-                                             <string>Colormap Options</string>
+                                             <string>Background color</string>
                                           </property>
+                                          <layout class="QGridLayout" name="BackgroundColorLayout">
+                                             <item column="0" row="0">
+                                                <widget class="QLabel" name="RGBRedBackgroundLabel">
+                                                   <property name="text">
+                                                      <string>Red</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="0">
+                                                <widget class="QSlider" name="RGBRedBackgroundSlider">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Amount of red in background</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Amount of red in background</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Amount of red in background</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="0" row="1">
+                                                <widget class="QLabel" name="RGBGreenBackgroundLabel">
+                                                   <property name="text">
+                                                      <string>Green</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="1">
+                                                <widget class="QSlider" name="RGBGreenBackgroundSlider">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Amount of green in background</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Amount of green in background</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Amount of green in background</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="0" row="2">
+                                                <widget class="QLabel" name="RGBBlueBackgroundLabel">
+                                                   <property name="text">
+                                                      <string>Blue</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="2">
+                                                <widget class="QSlider" name="RGBBlueBackgroundSlider">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Amount of blue in background</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Amount of blue in background</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Amount of blue in background</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>0</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>255</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>16</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="BWBackgroundCheck">
+                                                   <property name="toolTip">
+                                                      <string>Set the background color to grayscale</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Set the background color to grayscale</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Set the background color to grayscale</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Grayscale background</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <spacer name="verticalSpacer_4">
+                                          <property name="orientation">
+                                             <enum>Qt::Vertical</enum>
+                                          </property>
+                                          <property name="sizeHint" stdset="0">
+                                             <size>
+                                                <width>20</width>
+                                                <height>68</height>
+                                             </size>
+                                          </property>
+                                       </spacer>
+                                    </item>
+                                 </layout>
+                              </widget>
+                           </item>
+                        </layout>
+                     </widget>
+                     <widget class="QWidget" name="ColorOptPage">
+                        <property name="geometry">
+                           <rect>
+                              <x>0</x>
+                              <y>0</y>
+                              <width>354</width>
+                              <height>685</height>
+                           </rect>
+                        </property>
+                        <attribute name="label">
+                           <string>Colormap Options</string>
+                        </attribute>
+                        <layout class="QGridLayout" name="gridLayout_4c">
+                           <item row="0" column="0">
+                              <widget class="QGroupBox" name="ColorOptMainBox">
+                                 <property name="title">
+                                    <string/>
+                                 </property>
                                           <layout class="QVBoxLayout" name="ColormapOptLayout">
                                              <item>
                                                 <widget class="QLabel" name="ColormapLabel">
@@ -3448,13 +3642,29 @@
                                                    </property>
                                                 </widget>
                                              </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="BWSinglecolorCheck">
+                                                   <property name="toolTip">
+                                                      <string>Set the glyph color to grayscale</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Set the glyph color to grayscale</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Set the glyph color to grayscale</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Grayscale</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                           </layout>
                                        </widget>
                                     </item>
 
-                                          </layout>
-                                       </widget>
-                                    </item>
                                     <item>
                                        <spacer name="verticalSpacer_4">
                                           <property name="orientation">

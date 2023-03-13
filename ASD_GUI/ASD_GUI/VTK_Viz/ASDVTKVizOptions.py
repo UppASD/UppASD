@@ -1232,6 +1232,17 @@ class ASDVizOptions():
         return
 
     ############################################################################
+    # @brief Set the background color given RGB values
+    # @author Anders Bergman
+    ############################################################################
+    def set_RGBbackground(self,rgb,ren,renWin):
+
+        nrgb = [ i/255.0 for i in rgb ]
+        ren.SetBackground(nrgb)
+
+
+        return
+    ############################################################################
     # @brief Setup a single color colormap 
     # @details Used since glyphs are colored after colormaps and not single colors
     # @author Anders Bergman
@@ -1245,7 +1256,7 @@ class ASDVizOptions():
         red = rgb[0]/255.0
         green = rgb[1]/255.0
         blue = rgb[2]/255.0
-        print(' Test: ', rgb, red, green, blue)
+
         self.lut.SetNumberOfTableValues(num_colors)
         self.transfer_func = vtk.vtkColorTransferFunction()
         self.transfer_func.SetColorSpaceToRGB();
