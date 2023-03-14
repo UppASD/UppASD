@@ -11,6 +11,7 @@ module Evolution_cpu
    use LLGI
    use Depondt
    use MidPoint
+   use MidPoint_cpu
    use Profiling
    use Constants,             only : gama
    use Fielddata,             only : thermal_field

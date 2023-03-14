@@ -52,6 +52,7 @@ contains
       use FixedMom
       use Gradients
       use Evolution
+      use Evolution_cpu
       use InputData
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
@@ -79,6 +80,7 @@ contains
       use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use prn_trajectories
       use HamiltonianActions
+      use HamiltonianActions_cpu
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use MetaTypes

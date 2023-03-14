@@ -46,6 +46,7 @@ module uppasd
    use iso_fortran_env
    use iso_c_binding
    use SD_driver
+   use SD_driver_cpu
    use WL_driver
    use MC_driver
    use MS_driver
