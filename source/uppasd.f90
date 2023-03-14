@@ -297,6 +297,10 @@ contains
          call print_siminfo()
          if (gpu_mode==0) then !FORTRAN
             call sd_mphase() ! Spin Dynamics measurement phase
+         elseif (gpu_mode==3) then ! OpenMP CPU
+            call sd_mphase_cpu
+         elseif (gpu_mode==4) then ! OpenMP GPU
+            !call sd_mphase_gpu
          else ! C++ or CUDA
             call sd_mphaseCUDA()
          endif
