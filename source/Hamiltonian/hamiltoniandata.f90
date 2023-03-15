@@ -13,6 +13,7 @@ module HamiltonianData
    !
    type(ham_t) :: ham
 
+   !$omp declare target (ham)
    public
 
 contains
