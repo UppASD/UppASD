@@ -471,7 +471,6 @@ class ASDVizOptions():
     def AtomOpacityUpdate(self,value):
         ASDVizOptions.NeighActors.AtomsActor.GetProperty().SetOpacity(value*0.1)
         return
-
     ############################################################################
     ## @brief Function to find the needed file names for the HDR file
     ############################################################################
@@ -483,7 +482,6 @@ class ASDVizOptions():
         hdrifile = dlg.getOpenFileName(caption="Open HDR file",
                         directory= '.', filter="HDR images (*.pic *.hdr)")[0]
         return hdrifile
-
     ############################################################################
     ## @brief Function to find the needed file names for the texture files
     ############################################################################
@@ -495,7 +493,6 @@ class ASDVizOptions():
         texturefile = dlg.getOpenFileName(caption="Open texture file", 
                                 directory= '.', filter="Images (*.png)")[0]
         return texturefile
-
     ############################################################################
     # Toggle surface texture 
     ############################################################################
@@ -583,10 +580,28 @@ class ASDVizOptions():
             normal.InterpolateOn()
             normal.MipmapOn()
             normal.SetInputConnection(normal_reader.GetOutputPort())
-            
+
+            self.MomActors.SpinShader=self.MomActors.Spins.GetShaderProperty()
+
+            self.MomActors.SpinShader.AddVertexShaderReplacement(
+                    "//VTK::Normal::Dec", # replace the normal block
+                    True, # before the standard replacements
+                    "//VTK::Normal::Dec\n" # we still want the default
+                    "in vec3 tangentMC;\n"
+                    "out vec3 tangentVCVSOutput;\n",
+                    False # only do it once
+                )
+            self.MomActors.SpinShader.AddVertexShaderReplacement(
+                    "//VTK::Normal::Impl", # replace the normal block
+                    True, # before the standard replacements
+                    "//VTK::Normal::Impl\n" # we still want the default
+                    "  tangentVCVSOutput = normalMatrix * tangentMC;\n",
+                    False # only do it once
+                )
             self.MomActors.Spins.GetProperty().SetNormalTexture(normal)
 
         else:
+            self.MomActors.SpinShader.ClearAllVertexShaderReplacements()
             self.MomActors.Spins.GetProperty().RemoveTexture('normalTex')
 
         renWin.Render()
@@ -618,7 +633,6 @@ class ASDVizOptions():
         renWin.Render()
 
         return
-
     ############################################################################
     # Toggle Skybox on/off
     ############################################################################
@@ -679,7 +693,6 @@ class ASDVizOptions():
 
         renWin.Render()
         return
-
     ############################################################################
     # Toggle SSAO on/off
     ############################################################################
@@ -688,9 +701,9 @@ class ASDVizOptions():
         if check:
             ren.UseSSAOOn()
             ren.SetSSAOKernelSize(512)
-            ren.SetSSAORadius(2.0)
-            ren.SetSSAOBias(0.5)
-            ren.SSAOBlurOn()
+            ren.SetSSAORadius(3.0)
+            ren.SetSSAOBias(0.1)
+            ren.SSAOBlurOff()
 
             #self.toggle_HDRI(check=check,ren=ren)
 
@@ -698,7 +711,53 @@ class ASDVizOptions():
             ren.UseSSAOOff()
 
         return
+    ############################################################################
+    # Toggle automatic focal point determination on/off
+    ############################################################################
+    def setFocalDisk(self,value, ren, renWin):
 
+        ren.GetActiveCamera().SetFocalDisk(value/200.0)
+
+        renWin.Render()
+        
+    ############################################################################
+    # Toggle automatic focal point determination on/off
+    ############################################################################
+    def toggle_autoFocus(self,check, renWin):
+
+        if check:
+            self.dofPass.AutomaticFocalDistanceOn()
+        else:
+            self.dofPass.AutomaticFocalDistanceOff()
+
+        renWin.Render()
+        return
+    ############################################################################
+    # Toggle depth of field focus on/off
+    ############################################################################
+    def toggle_Focus(self,check, ren, renWin):
+        import vtk
+
+        if check:
+            # create the basic VTK render steps
+            self.basicPasses = vtk.vtkRenderStepsPass()
+
+            self.dofPass = vtk.vtkDepthOfFieldPass()
+            self.dofPass.AutomaticFocalDistanceOff()
+            self.dofPass.SetDelegatePass(self.basicPasses)
+
+            # Tell the renderer to use our render pass pipeline.
+            ren.GetActiveCamera().SetFocalDisk(0.5)
+            ren.SetPass(self.dofPass)
+
+            renWin.Render()
+
+        else:
+            print('DOF render pass can not be disabled.')
+            ren.ReleaseGraphicsResources(renWin)
+
+
+        return
     ############################################################################
     # Toggle FXAA on/off
     ############################################################################
@@ -710,7 +769,6 @@ class ASDVizOptions():
         else:
             ren.UseFXAAOff()
         return
-
     ############################################################################
     # Toggle shadows on/off
     ############################################################################

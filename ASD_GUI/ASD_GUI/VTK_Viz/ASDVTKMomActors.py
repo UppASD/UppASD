@@ -299,26 +299,23 @@ class ASDMomActors():
         ASDMomActors.spinarrow.SetTipResolution(12)
         ASDMomActors.spinarrow.SetShaftResolution(12)
         
-        tritri = vtk.vtkTriangleFilter()
-        tritri.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+        ASDMomActors.spinarrowtriangles = vtk.vtkTriangleFilter()
+        ASDMomActors.spinarrowtriangles.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
 
         # Calculate normals for shading
         ASDMomActors.spinarrownormals = vtk.vtkPolyDataNormals()
-        ASDMomActors.spinarrownormals.SetInputConnection(tritri.GetOutputPort())
-        #ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrow.GetOutputPort())
+        ASDMomActors.spinarrownormals.SetInputConnection(ASDMomActors.spinarrowtriangles.GetOutputPort())
 
+        ASDMomActors.spinarrowtcoords = vtk.vtkTextureMapToCylinder()
+        ASDMomActors.spinarrowtcoords.SetInputConnection(ASDMomActors.spinarrownormals.GetOutputPort())
+        ASDMomActors.spinarrowtcoords.PreventSeamOn()
 
-        ASDMomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
-        ASDMomActors.spinarrownormalstmap.SetInputConnection(ASDMomActors.spinarrownormals.GetOutputPort())
-        ASDMomActors.spinarrownormalstmap.PreventSeamOn()
-
-        tantan = vtk.vtkPolyDataTangents()
-        tantan.SetInputConnection(ASDMomActors.spinarrownormalstmap.GetOutputPort())
+        ASDMomActors.spinarrowtangents = vtk.vtkPolyDataTangents()
+        ASDMomActors.spinarrowtangents.SetInputConnection(ASDMomActors.spinarrowtcoords.GetOutputPort())
 
         # Create the mapper for the spins
         ASDMomActors.SpinMapper = vtk.vtkGlyph3DMapper()
-        ASDMomActors.SpinMapper.SetSourceConnection(ASDMomActors.spinarrownormalstmap.GetOutputPort())
-        #ASDMomActors.SpinMapper.SetSourceConnection(tantan.GetOutputPort())
+        ASDMomActors.SpinMapper.SetSourceConnection(ASDMomActors.spinarrowtangents.GetOutputPort())
 
         ASDMomActors.SpinMapper.SetInputData(ASDMomActors.src_spins)
         ASDMomActors.SpinMapper.SetScalarRange(scalar_range_spins)
@@ -329,7 +326,8 @@ class ASDMomActors():
         ASDMomActors.SpinMapper.Update()
         
         # Define the vector actor for the spins
-        ASDMomActors.Spins = vtk.vtkLODActor()
+        ASDMomActors.Spins = vtk.vtkActor()
+        #ASDMomActors.Spins = vtk.vtkLODActor()
         ASDMomActors.Spins.SetMapper(ASDMomActors.SpinMapper)
         #ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
         ASDMomActors.Spins.GetProperty().SetInterpolationToGouraud()
@@ -342,6 +340,8 @@ class ASDMomActors():
             ASDMomActors.Spins.VisibilityOn()
         else:
             ASDMomActors.Spins.VisibilityOff()
+
+
         #-----------------------------------------------------------------------
         # Setting information for the atoms
         #-----------------------------------------------------------------------

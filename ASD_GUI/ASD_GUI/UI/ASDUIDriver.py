@@ -1164,6 +1164,29 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
     ############################################################################
+    # @brief Toggle depth of field focus
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_focus(self, check):
+        self.ASDVizOpt.toggle_Focus(check=check,ren=self.ren, renWin=self.renWin)
+
+    ############################################################################
+    # @brief Toggle focal disk
+    # @author Anders Bergman
+    ############################################################################
+    def FocalDisk_control(self, value):
+        self.ASDVizOpt.setFocalDisk(value=value,ren=self.ren, renWin=self.renWin)
+
+
+    ############################################################################
+    # @brief Toggle depth of field focus
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_autofocus(self, check):
+        self.ASDVizOpt.toggle_autoFocus(check=check, renWin=self.renWin)
+
+
+    ############################################################################
     # @brief Toggle grayscale background on/off
     # @author Anders Bergman
     ############################################################################
