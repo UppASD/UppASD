@@ -6,12 +6,12 @@
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
-module Evolution_cpu
+module Evolution_gpu
 
    use LLGI
    use Depondt
    use MidPoint
-   use MidPoint_cpu
+   use MidPoint_gpu
    use Profiling
    use Constants,             only : gama
    use Fielddata,             only : thermal_field
@@ -27,7 +27,7 @@ module Evolution_cpu
 
    private
 
-   public :: evolve_first_cpu, evolve_second_cpu
+   public :: evolve_first_gpu, evolve_second_gpu
 
 contains
 
@@ -36,7 +36,7 @@ contains
    !> @brief
    !> First step of solver, calculates the predictor. Only step for SDEalgh=2,3
    !----------------------------------------------------------------------------
-   subroutine evolve_first_cpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,     &
+   subroutine evolve_first_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,     &
       lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,temprescale,   &
       beff,b2eff,thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,   &
       mmomi,stt,do_site_damping,nlist,nlistsize,constellationsUnitVec,              &
@@ -152,7 +152,7 @@ contains
          call timing(0,'RNG           ','OF')
          call timing(0,'Evolution     ','ON')
 
-         call smodeulermpt_cpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+         call smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
             emomM,mmom,delta_t,thermal_field,STT,do_she,do_sot,btorque,she_btorque, &
             sot_btorque,Nred,red_atom_list)
       end if
@@ -172,14 +172,14 @@ contains
          !$omp end parallel do
       end if
 
-   end subroutine evolve_first_cpu
+   end subroutine evolve_first_gpu
 
    !----------------------------------------------------------------------------
    !  SUBROUTINE: evolve_second
    !> @brief
    !> Second step of solver, calculates the corrected solution. Only used for SDEalgh=1,5
    !----------------------------------------------------------------------------
-   subroutine evolve_second_cpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
+   subroutine evolve_second_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
       delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,nlist,nlistsize,    &
       constellationsUnitVec,constellationsUnitVec2,constellationsMag,constellations,&
       unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque,Nred,  &
@@ -254,7 +254,7 @@ contains
       ! Mentink's midpoint solver
       !------------------------------------------------------------------------------
       if(SDEalgh==1) then
-         call modeulermpf_cpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff, emom,emom2, &
+         call modeulermpf_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff, emom,emom2, &
             delta_t,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,red_atom_list)
       end if
       !------------------------------------------------------------------------------
@@ -273,6 +273,6 @@ contains
          !$omp end parallel do
       end if
 
-   end subroutine evolve_second_cpu
+   end subroutine evolve_second_gpu
 
-end module Evolution_cpu
+end module Evolution_gpu

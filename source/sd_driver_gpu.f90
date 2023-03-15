@@ -52,7 +52,7 @@ contains
       use FixedMom
       use Gradients
       use Evolution
-      use Evolution_cpu
+      use Evolution_gpu
       use InputData
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
@@ -337,7 +337,7 @@ contains
             endif
             ! Check if this changes
             thermal_field=0.0_dblprec
-            call evolve_first_cpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
+            call evolve_first_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
                lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,      &
                temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,    &
                emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,ham%nlist,           &
@@ -399,7 +399,7 @@ contains
          end if
 
          ! Perform second (corrector) step of SDE solver
-         call evolve_second_cpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
+         call evolve_second_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
             delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,              &
             ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
             constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &

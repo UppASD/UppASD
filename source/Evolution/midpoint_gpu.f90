@@ -10,7 +10,7 @@
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
-module Midpoint_cpu
+module Midpoint_gpu
 
    use Profiling
    use Parameters
@@ -31,7 +31,7 @@ contains
    !> First step of midpoint solver
    !> @note Jonathan Chico: Added Zhang-Li spin transfer torque term into the field
    !----------------------------------------------------------------------------
-   subroutine smodeulermpt_cpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+   subroutine smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
       emomM,mmom,deltat,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
       sot_btorque,Nred,red_atom_list)
 
@@ -144,14 +144,14 @@ contains
       !$omp end parallel do
       return
 
-   end subroutine smodeulermpt_cpu
+   end subroutine smodeulermpt_gpu
 
    !-----------------------------------------------------------------------------
    !  SUBROUTINE: modeulermpf
    !> @brief
    !> Second step of midpoint solver
    !-----------------------------------------------------------------------------
-   subroutine modeulermpf_cpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,  &
+   subroutine modeulermpf_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,  &
       deltat,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,red_atom_list)
 
       use Constants
@@ -251,7 +251,7 @@ contains
 
       return
 
-   end subroutine modeulermpf_cpu
+   end subroutine modeulermpf_gpu
 
 
    !----------------------------------------------------------------------------
@@ -259,7 +259,7 @@ contains
    !> @brief Allocation of auxilary fields for the treatment of STT and SOT based torques
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
-   subroutine allocate_aux_midpoint_fields_cpu(flag,Natom,Mensemble)
+   subroutine allocate_aux_midpoint_fields_gpu(flag,Natom,Mensemble)
 
       implicit none
 
@@ -279,6 +279,6 @@ contains
          call memocc(i_stat,i_all,'btorque_full','allocate_aux_midpoint_fields')
       endif
 
-   end subroutine allocate_aux_midpoint_fields_cpu
+   end subroutine allocate_aux_midpoint_fields_gpu
 
-end module midpoint_cpu
+end module midpoint_gpu
