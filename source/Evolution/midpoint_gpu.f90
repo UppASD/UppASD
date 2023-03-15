@@ -86,8 +86,7 @@ contains
 
       btorque_full=0.0_dblprec
 
-      !$omp parallel do default(shared) schedule(static) &
-      !$omp private(ired,i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
+      !$omp target teams distribute parallel do simd collapse(2) private(ired,i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
             i=red_atom_list(ired)
@@ -141,7 +140,7 @@ contains
             emomM(:,i,j)=et(:)*mmom(i,j)
          enddo
       enddo
-      !$omp end parallel do
+      !$omp end target teams distribute parallel do simd
       return
 
    end subroutine smodeulermpt_gpu
@@ -202,8 +201,7 @@ contains
 
       btorque_full=0.0_dblprec
 
-      !$omp parallel do default(shared) schedule(static) &
-      !$omp private(ired,i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp),collapse(2)
+      !$omp target teams distribute parallel do simd collapse(2) private(ired,i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
             i=red_atom_list(ired)
@@ -247,7 +245,7 @@ contains
 
          end do
       end do
-      !$omp end parallel do
+      !$omp end target teams distribute parallel do simd
 
       return
 
