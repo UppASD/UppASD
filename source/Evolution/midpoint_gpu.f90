@@ -86,6 +86,13 @@ contains
 
       btorque_full=0.0_dblprec
 
+      ! Call parameters
+      !$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !$omp target enter data map(to:beff,emom2,emomM,thermal_field)
+      ! Local variables
+      !!!$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg,et)
       !$omp target teams distribute parallel do simd collapse(2) private(ired,i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
@@ -201,6 +208,13 @@ contains
 
       btorque_full=0.0_dblprec
 
+      ! Call parameters
+      !$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !!!$omp target enter data map(to:beff,emom2,emomM,thermal_field)
+      ! Local variables
+      !!!$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg,et)
       !$omp target teams distribute parallel do simd collapse(2) private(ired,i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
