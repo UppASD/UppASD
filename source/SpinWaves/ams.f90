@@ -1143,7 +1143,7 @@ end subroutine init_ams
 !-----------------------------------------------------------------------------
 subroutine calculate_random_ams()
    use iso_fortran_env
-   use Montecarlo, only : choose_random_atom_x
+   !use Montecarlo, only : choose_random_atom_x
    use InputData,          only : N1,N2,N3,NA,NT,Natom,simid,hfield,gsconf_num,nchmax,ammom_inp,do_ralloy, ham_inp
 
    implicit none

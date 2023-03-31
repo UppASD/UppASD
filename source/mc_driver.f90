@@ -242,7 +242,8 @@ contains
       use HamiltonianData
       use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use ChemicalData, only : achtype
-      use QHB, only : qhb_rescale, do_qhb, qhb_mode
+      use QHB, only : qhb_rescale, do_qhb, qhb_mode, qhb_Tmix_prn,&
+             do_qhb_mix, qhb_Tmix_cumu 
       !use InducedMoments,        only : renorm_ncoup_ind
       use macrocells
       use optimizationRoutines
@@ -356,6 +357,9 @@ contains
          !   emomM,emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,max_num_atom_macro_cell, &
          !   cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,           &
          !   mmom_macro,do_anisotropy)
+         
+         ! Calculate Tmix (classic+quantum Tsim)
+         call qhb_Tmix_cumu(mcmstep,cumu_step)
 
          ! Calculate and print m_avg
          if(mcnstep>20) then
@@ -364,6 +368,9 @@ contains
                call calc_mavrg(Natom,Mensemble,emomM,mavg)
                write(*,'(2x,a,i3,a,f10.6)',advance='no') &
                   "MP MC ",mcmstep*100/(mcnstep),"% done. Mbar:",mavg
+               if(do_qhb_mix=='Y') then
+                  write(*,'(a,f7.2)',advance='no') ". Tmix:",qhb_Tmix_prn
+               end if 
                if(plotenergy>0) then
                   write(*,'(a,f12.6,a,f8.5,a)') ". Ebar:", totene,". U:",binderc,"."
                else

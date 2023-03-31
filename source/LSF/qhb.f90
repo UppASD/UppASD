@@ -11,8 +11,12 @@ module QHB
    real(dblprec)    :: tcurie
 
    ! Mixing scheme flags
-   character(LEN=1) :: do_mix                  !< Do mixing statistics scheme (N/Y)
-   character(LEN=2) :: mix_mode                !< Mixing function (LI/...) only LI/ implemented
+   character(LEN=1) :: do_qhb_mix                  !< Do mixing statistics scheme (N/Y)
+   character(LEN=2) :: qhb_mix_mode                !< Mixing function (LI/...) only LI/ implemented
+   real(dblprec) :: qhb_Tmix = 0                  !< Mix sampling temperature (dE dependent)
+   real(dblprec) :: qhb_Tmix_buff = 0
+   real(dblprec) :: qhb_Tmix_prn = -1
+
    public
 
 contains
@@ -148,8 +152,8 @@ contains
    subroutine init_mix()
       !
       implicit none
-      do_mix = 'N'
-      mix_mode= 'LI'
+      do_qhb_mix = 'N'
+      qhb_mix_mode= 'LI'
    end subroutine init_mix
    
    subroutine mix_beta(temperature,temprescale,de,beta_new)
@@ -178,13 +182,13 @@ contains
 
       beta_qhb=1.0_dblprec/k_bolt/(temprescale*temperature+1.0d-15)
       beta_classic=1.0_dblprec/k_bolt/(temperature+1.0d-15)
-
+      
       ! Mixing functions - control how quantum W and classic W are mixed
       ! 'LI' - Linear mixing
       ! 'SI' - TODO(?) Sigmoide function would imply more free parameters :(
       !
       ! Linear Mixing
-      if (mix_mode=='LI') then
+      if (qhb_mix_mode=='LI') then
          if (qhb_mode=='TM') then
             tcrit=tcmfa
          elseif(qhb_mode=='TR') then
@@ -202,9 +206,26 @@ contains
       endif
       ! end of mixing functions block  
 
-      beta_new=log(alpha*(exp(de*(beta_classic-beta_qhb))-1)+1)
-      beta_new=(beta_new/de)+beta_qhb
-  
+      beta_new=log(alpha*(exp(-de*(beta_classic-beta_qhb))-1)+1)
+      beta_new=-(beta_new/de)+beta_qhb
+      
+      ! Calculates and stores Tmix from beta_new
+      qhb_Tmix=(1.0_dblprec/k_bolt/beta_new) 
+
    end subroutine mix_beta
-   
+
+   subroutine qhb_Tmix_cumu(mcmstep,cumu_step)
+       integer, intent(in) :: mcmstep, cumu_step
+
+       qhb_Tmix_buff = qhb_Tmix_buff + qhb_Tmix
+       
+       if (mod(mcmstep, cumu_step) == 0) then
+          qhb_Tmix_prn = qhb_Tmix_buff/cumu_step
+          qhb_Tmix_buff = 0
+       endif
+
+   end subroutine qhb_Tmix_cumu
+
+
+
 end module qhb
