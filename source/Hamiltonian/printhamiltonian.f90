@@ -128,14 +128,16 @@ contains
                   if (do_ralloy==0) then
                      ! Calculate the coupling so that it has the same units than the jfile
                      tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
-                     (ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     !(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
+                     abs(ammom_inp(anumb(iatom),1)*ammom_inp(anumb(jatom),1))
                      ! Print the data
                      write (ofileno,10003) iatom,jatom,atype(iatom),atype(jatom),   &
                      tmp_rij(1:3),tmp_coup,tmp_rij_norm
                   else
                      ! Calculate the coupling so that it has the same units than the jfile
                      tmp_coup=ncoup(1:mdim,ineigh,alist(iatom))*fc2_inv*            &
-                     (ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     !(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
+                     abs(ammom_inp(asite_ch(iatom),achem_ch(iatom))*ammom_inp(asite_ch(jatom),achem_ch(jatom)))
                      ! Print the data
                      write (ofileno,10004) iatom,jatom,atype(iatom),atype(jatom),   &
                      achem_ch(iatom),achem_ch(jatom),tmp_rij(1:3),tmp_coup,         &

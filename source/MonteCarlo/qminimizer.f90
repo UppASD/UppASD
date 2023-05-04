@@ -31,6 +31,7 @@ module qminimizer
    real(dblprec), dimension(3) :: theta, phi
    real(dblprec) :: theta_glob
    !
+   character*1 :: qm_cellrot   !< Rotate each cell instead of each atom 
    character*1 :: qm_rot   !< Rotate magnetic texture instead of pure spin spirals
    character*1 :: qm_oaxis !< Ensure that the rotational axis is perpendicular to m
    character*1 :: qm_type  !< Which type of qm_axis to use (C)ycloidal, (H)elical, or (G)eneral
@@ -810,6 +811,7 @@ contains
       !
       integer :: i_stat, i_all
       !
+      integer :: ia_cell
       !
       pi=4._dblprec*ATAN(1._dblprec)
       theta_glob_best=0.0_dblprec
@@ -837,7 +839,8 @@ contains
       write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy(mRy)  "
      
     
-      if (qm_rot=='Y') then
+      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
+         !print '(3f12.5)', emomM
          allocate(emomM_start(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(emomM_start))*kind(emomM_start),'emomM_start','sweep_q2')
          emomM_start=emomM
@@ -929,6 +932,27 @@ contains
 
                emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
             end do
+         elseif (qm_cellrot=='Y') then
+            do ia=1,Natom
+               !
+               !ia_cell=ia/NA+1
+               ia_cell=((ia-1)/NA)*NA+1
+
+               call f_wrap_coord_diff(Natom,coord,ia_cell,countstart+1,srvec)
+               !
+               qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
+               !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
+               qr=2.0_dblprec*pi*qr
+
+               call rodmat(n_vec,qr,R_mat)
+
+               !print '(a,2i4,3x,3f12.6)','---------------',ia,ia_cell,q(:,1)
+               !print '(3f10.4)', R_mat
+               !print *,'---------------'
+
+               emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+            end do
+            !print '(3f12.5)', emomM
          else
             call set_nsvec(qm_type,q(:,1),s(:,1),n_vec)
             !call set_nsvec(qm_type,qpts(:,iq),s(:,1),n_vec)
@@ -1032,7 +1056,27 @@ contains
       close(ofileno)
       close(ofileno2)
       !
-      if (qm_rot=='Y') then
+      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
+            do ia=1,Natom
+               !
+               ia_cell=((ia-1)/NA)*NA+1
+
+               call f_wrap_coord_diff(Natom,coord,ia_cell,countstart+1,srvec)
+               !
+               qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
+               !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
+               qr=2.0_dblprec*pi*qr
+
+               call rodmat(n_vec,qr,R_mat)
+               !print *,'---------------',ia,ia_cell
+               !print '(3f10.4)', n_vec
+               !print *,'---------------'
+               !print '(3f10.4)', R_mat
+               !print *,'---------------'
+
+               emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+            end do
+            !print '(3f12.5)', emomM
          i_all=-product(shape(emomM_start))*kind(emomM_start)
          deallocate(emomM_start,stat=i_stat)
          call memocc(i_stat,i_all,'emomM_start','emomM_start')
@@ -1564,7 +1608,7 @@ contains
       write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
       write(ofileno,'(a)') repeat("#",80)
       write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Timestep","ens","iatom","|Mom|","M_x","M_y","M_z"
-      if(qm_rot == 'Y') then
+      if(qm_rot == 'Y'.or.qm_cellrot == 'Y') then
          do k=1,Mensemble
             do ia=1,Natom
                emom(1:3,ia,k)=emomM(1:3,ia,k)/mmom(ia,k)
@@ -2243,6 +2287,9 @@ contains
          case('qm_type')
             read(ifile,*,iostat=i_err) qm_type
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_cellrot')
+            read(ifile,*,iostat=i_err) qm_cellrot
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_rot')
             read(ifile,*,iostat=i_err) qm_rot
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -2290,8 +2337,10 @@ subroutine qminimizer_init()
    n_vec(3)=1.0_dblprec
    s=0.0_dblprec
    nstep=1000
+   qm_cellrot='N'
    qm_rot='N'
    qm_oaxis='N'
+   qm_type='N'
 
 end subroutine qminimizer_init
 

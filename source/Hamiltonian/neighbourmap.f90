@@ -84,7 +84,8 @@ contains
 
       ! Set tolerance
       !tol=0.00050_dblprec**2
-      tol=0.0001_dblprec
+      !tol=0.0001_dblprec
+      tol=0.01_dblprec
 
       if(present(nntype)) print *, 'nntype', shape(nntype)
 
@@ -167,15 +168,18 @@ contains
          ! Shell
          do ishell=1,NN(itype)
             counter=0
+               if(do_hoc_debug==1) then
+                  write(*,'(a,i4)') '   ishell ', ishell
+               endif
 
             ! Symmetry equivalent sites in shell
             do inei=1,nmdimt(ishell,itype)
 
-               if(do_hoc_debug==1) then
-                  write(*,'(a,i4)') 'counter ', counter
-                  write(*,'(a,i4,a,3f10.6)') ' inei ', inei, '   nncoord ', nncoord(1:3,inei,ishell,itype)
-                  !write(*,'(a,i4,a,i4,a,3f10.6)') ' ielem ', ielem, ' inei ', inei, '   nncoord ', nncoord(1:3,ielem,inei,ishell,itype)
-               end if
+               !if(do_hoc_debug==1) then
+               !   write(*,'(a,i4)') 'counter ', counter
+               !   write(*,'(a,i4,a,3f10.6)') ' inei ', inei, '   nncoord ', nncoord(1:3,inei,ishell,itype)
+               !   !write(*,'(a,i4,a,i4,a,3f10.6)') ' ielem ', ielem, ' inei ', inei, '   nncoord ', nncoord(1:3,ielem,inei,ishell,itype)
+               !end if
 
                ! Coordinate vector in cartesian coordinates
                cvec(1)=nncoord(1,inei,ishell,itype)+Bas(1,i0)
@@ -547,7 +551,8 @@ contains
 
       ! Tolerance
       ! To be tuned!
-      tol=0.00050_dblprec
+      !tol=0.00050_dblprec
+      tol=0.01_dblprec
 
       nncoord = 0.0_dblprec
       if(do_hoc_debug==1) then
@@ -704,7 +709,8 @@ contains
       logical, dimension(3) :: elemhit
 
       ! Set tolerance
-      tol=0.0005_dblprec**2
+      !tol=0.0005_dblprec**2
+      tol=0.01_dblprec
 
       ! calculate max.no. of shells of neighbours
       nndim=0
@@ -861,9 +867,9 @@ contains
                         if(max_no_equiv>=counter) then
                            nm_cell(ielem,counter,ishell,i0)=ia
                            nm_cell_symind(counter,ishell,i0)=inei
-                           if(do_hoc_debug==1) then
-                              write(*,'(a,i4,a,i4,a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
-                           end if
+                           !if(do_hoc_debug==1) then
+                           !   write(*,'(a,i4,a,i4,a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
+                           !end if
                            if(N1*N2*N3>1) then
                               nm_trunk(1,ielem,counter,ishell,i0)=nint(bsf(1))
                               nm_trunk(2,ielem,counter,ishell,i0)=nint(bsf(2))
@@ -874,6 +880,7 @@ contains
                   end do
 
                end do
+               print *,'---------------------------'
 
                ! Check that each of the 1, 2 or 3 neighbours have been found
                if(nelem == 1) hit = elemhit(1)
@@ -1127,7 +1134,8 @@ contains
 
       ! Tolerance
       ! To be tuned!
-      tol=0.00050_dblprec
+      !tol=0.00050_dblprec
+      tol=0.01_dblprec
 
       do_tens_sym = .true.
 
