@@ -135,7 +135,8 @@ if posfiletype=='C':
 ############################################################
 print("\nStructural data for UppASD simulation ",simid)
 cell=(lattice,positions,numbers)
-spacegroup = spg.get_spacegroup(cell, symprec=1e-5)
+#spacegroup = spg.get_spacegroup(cell, symprec=1e-5)
+spacegroup = spg.get_spacegroup(cell)
 print("\nLattice:")
 print(tabulate(lattice,floatfmt=".4f"))
 print("\nAtomic positions:")
