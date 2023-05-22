@@ -1,0 +1,53 @@
+# Test case based on
+# SLDexamples/bccFe3TM
+simid     bccFe3TM
+ncell     20        20        20                System size            
+BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
+cell      -1.0000000000000003    1.0000000000000003    1.0000000000000003         
+           1.0000000000000003   -1.0000000000000003    1.0000000000000003
+           1.0000000000000003    1.0000000000000003   -1.0000000000000003
+Sym       1                                     Symmetry of lattice
+do_N3     Y
+
+posfiletype  D
+posfile   ./posfile
+momfile   ./momfileFe
+exchange  ./jfileDIr6dir.cut
+Initmag   3
+
+
+ipSDEalgh   1
+ip_mode    S
+ip_nphase  1
+5000 300.0 1.0e-15 0.5
+
+
+SDEalgh   1
+mode      S
+Nstep     10000
+timestep  1e-15
+damping   0.5
+lattdamp  1.00e-12
+Temp      300
+
+do_avrg   Y
+avrg_step   100
+
+plotenergy   1
+do_spintemp Y
+do_cumu Y
+
+# 3TM data below
+do_3tm Y
+P_pulse     100           #Power/heat of the pulse  (J/m^2) (Area measure -> divided by fixed thicknes in code)
+t0_pulse    1.0e-12       #Center of the pulse  (s)
+sigma_pulse 0.02e-12      #Width of the pulse (s)
+G_cool      5.0e18        #Cooling rate (only on electron bath) (J/s)
+Temp_final  300           #End temperature  (K)
+gamma_Ce    6.0e3         #Heat capacity prefactor for electrons  (J/m^3/K^2) (because C_e = gamma * Te)
+Cl          2.2e6         #Heat capacity for lattice  (J/m^3/K) (constant)
+Cs          0.7e6         #Heat capacity for spins  (J/m^3/K) (constant)
+Gel         8.0e17        #Electron-lattice transfer rate (W/m^3/K)
+Ges         6.0e17        #Electron-spin transfer rate (W/m^3/K)
+Gsl         0.3e17        #Spin-lattice transfer rate (W/m^3/K)
+
