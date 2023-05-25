@@ -53,7 +53,7 @@ gneb-tests:
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 regression-test:
-	@cd ./tests; python3 -u ./bergtest.py --file regressionHisingen.yaml | tee regression-tests.log
+	@cd ./tests; python3 -u ./bergtest.py --file regressionResaro.yaml | tee regression-tests.log
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 # Clean all .mod and .o files as well as mod and obj folders

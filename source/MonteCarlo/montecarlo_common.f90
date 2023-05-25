@@ -400,20 +400,12 @@ contains
       zarg=sqrt(sum(zfc(:)*zfc(:)))
       zctheta=zfc(3)/zarg
       zstheta=sqrt(1.0_dblprec-zctheta*zctheta)
-      !if (zstheta < 1.d-2) then
-      if (zstheta < 1.d-6) then
-         !zctheta=0.999950_dblprec
-         !zctheta=0.999999995_dblprec
-         zctheta=0.9999999999995_dblprec
-         zstheta=1.d-6
-         !zcphi=1.0_dblprec
-         !zsphi=0.0_dblprec
-         zcphi=zfc(1)/(zarg*zstheta)
-         zsphi=zfc(2)/(zarg*zstheta)
-      else
-         zcphi=zfc(1)/(zarg*zstheta)
-         zsphi=zfc(2)/(zarg*zstheta)
+      if (zstheta < 1.0e-14_dblprec) then
+         zstheta=1.0e-14_dblprec
+         !zctheta=sign(1.0_dblprec-zstheta**2, zfc(3))
       endif
+      zcphi=zfc(1)/(zarg*zstheta)
+      zsphi=zfc(2)/(zarg*zstheta)
       !ctheta=1.50_dblprec
       !do while (abs(ctheta)>1.0_dblprec)
       !   call rng_uniform(q,1)
@@ -618,16 +610,16 @@ contains
       ! DM interaction
       if (do_dm==1) then
          do j=1,ham%dmlistsize(iflip_h)
-            e_c=e_c+ham%dm_vect(1,j,iflip_h)*(emomM(2,iflip,k)*emomM(3,ham%dmlist(j,iflip),k)- &
-               emom(3,iflip,k)*emomM(2,ham%dmlist(j,iflip),k))+ &
+            e_c=e_c-ham%dm_vect(1,j,iflip_h)*(emomM(2,iflip,k)*emomM(3,ham%dmlist(j,iflip),k)- &
+               emom(3,iflip,k)*emomM(2,ham%dmlist(j,iflip),k))- &
                ham%dm_vect(2,j,iflip_h)*(emomM(3,iflip,k)*emomM(1,ham%dmlist(j,iflip),k)- &
-               emomM(1,iflip,k)*emomM(3,ham%dmlist(j,iflip),k))+ &
+               emomM(1,iflip,k)*emomM(3,ham%dmlist(j,iflip),k))- &
                ham%dm_vect(3,j,iflip_h)*(emom(1,iflip,k)*emomM(2,ham%dmlist(j,iflip),k)- &
                emomM(2,iflip,k)*emomM(1,ham%dmlist(j,iflip),k))
-            e_t=e_t+ham%dm_vect(1,j,iflip_h)*(trialmom(2)*emomM(3,ham%dmlist(j,iflip),k)- &
-               trialmom(3)*emomM(2,ham%dmlist(j,iflip),k))+ &
+            e_t=e_t-ham%dm_vect(1,j,iflip_h)*(trialmom(2)*emomM(3,ham%dmlist(j,iflip),k)- &
+               trialmom(3)*emomM(2,ham%dmlist(j,iflip),k))- &
                ham%dm_vect(2,j,iflip_h)*(trialmom(3)*emomM(1,ham%dmlist(j,iflip),k)- &
-               trialmom(1)*emomM(3,ham%dmlist(j,iflip),k))+ &
+               trialmom(1)*emomM(3,ham%dmlist(j,iflip),k))- &
                ham%dm_vect(3,j,iflip_h)*(trialmom(1)*emomM(2,ham%dmlist(j,iflip),k)- &
                trialmom(2)*emomM(1,ham%dmlist(j,iflip),k))
 

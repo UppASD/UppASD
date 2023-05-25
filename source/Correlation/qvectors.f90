@@ -197,6 +197,7 @@ contains
       enddo
       qmin(1)=minloc(dq,1)
       qmin(2)=minloc(dq,1,abs(dq-dq(qmin(1)))> 0.0_dblprec)
+      if(qmin(2)==0) qmin(2)=qmin(1)
 
       close(ifileno)
       open(ofileno,file='qpoints.out',status='replace')

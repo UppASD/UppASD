@@ -351,11 +351,11 @@ contains
 !         !$omp simd reduction(+:field)
 #endif
          do j=1,ham%dmlistsize(ih)
-            field(1) = field(1) - ham%dm_vect(3,j,ih)*emomM(2,ham%dmlist(j,i),k) +&
+            field(1) = field(1) + ham%dm_vect(3,j,ih)*emomM(2,ham%dmlist(j,i),k) -&
                ham%dm_vect(2,j,ih)*emomM(3,ham%dmlist(j,i),k)
-            field(2) = field(2) - ham%dm_vect(1,j,ih)*emomM(3,ham%dmlist(j,i),k) +&
+            field(2) = field(2) + ham%dm_vect(1,j,ih)*emomM(3,ham%dmlist(j,i),k) -&
                ham%dm_vect(3,j,ih)*emomM(1,ham%dmlist(j,i),k)
-            field(3) = field(3) - ham%dm_vect(2,j,ih)*emomM(1,ham%dmlist(j,i),k) +&
+            field(3) = field(3) + ham%dm_vect(2,j,ih)*emomM(1,ham%dmlist(j,i),k) -&
                ham%dm_vect(1,j,ih)*emomM(2,ham%dmlist(j,i),k)
          end do
 
