@@ -503,6 +503,7 @@ contains
       iflip_h=ham%aham(iflip)
 
       if (do_jtensor==1) then
+         beff_t = 0.0_dblprec
          do j=1,ham%nlistsize(iflip_h)
             beff_t = beff_t +  ham%j_tens(:,1,j,iflip_h)*emomM(1,ham%nlist(j,iflip),k)  &
                           +  ham%j_tens(:,2,j,iflip_h)*emomM(2,ham%nlist(j,iflip),k)  &
