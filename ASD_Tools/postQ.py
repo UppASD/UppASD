@@ -23,8 +23,8 @@ def is_close(A,B):
 hbar=6.582119514e-13
 ry_ev=13.605693009
 
-sigma_q = 0.5
-sigma_w  = 4.0
+sigma_q = 0.5 # 0.5
+sigma_w  = 1.0 # 4.0
 
 
 ############################################################
@@ -155,20 +155,21 @@ lattice,positions,numbers,simid,mesh,timestep,sc_step,sc_nstep,qfile=read_inpsd(
 # Read adiabatic magnon spectra
 ############################################################
 got_ams=os.path.isfile('ams.'+simid+'.out')
+got_ncams=os.path.isfile('ncams.'+simid+'.out')
+got_ncams_mq=os.path.isfile('ncams-q.'+simid+'.out')
+got_ncams_pq=os.path.isfile('ncams+q.'+simid+'.out')
 if got_ams:
     ams=np.loadtxt('ams.'+simid+'.out')
     ams_dist_col=ams.shape[1]-1
-else: 
-    got_ncams=os.path.isfile('ncams.'+simid+'.out')
-    if got_ncams:
-        ams=np.loadtxt('ncams.'+simid+'.out')
-        ams_dist_col=ams.shape[1]-1
-        got_ncams_pq=os.path.isfile('ncams+q.'+simid+'.out')
-        if got_ncams_pq:
-            ams_pq=np.loadtxt('ncams+q.'+simid+'.out')
-        got_ncams_mq=os.path.isfile('ncams-q.'+simid+'.out')
-        if got_ncams_mq:
-            ams_mq=np.loadtxt('ncams-q.'+simid+'.out')
+#else: 
+    #got_ncams=os.path.isfile('ncams.'+simid+'.out')
+if got_ncams:
+    ams=np.loadtxt('ncams.'+simid+'.out')
+    ams_dist_col=ams.shape[1]-1
+if got_ncams_pq:
+    ams_pq=np.loadtxt('ncams+q.'+simid+'.out')
+if got_ncams_mq:
+    ams_mq=np.loadtxt('ncams-q.'+simid+'.out')
 
 # Set the x-vector
 q_vecs=ams[:,0]
@@ -339,22 +340,51 @@ else:
 ############################################################
 # Plot the AMS
 ############################################################
-plt.figure(figsize=[8,5])
+if got_ams or got_ncams:
+    plt.figure(figsize=[8,5])
+    
+    plt.plot(q_vecs[:],ams[:,1:ams_dist_col])
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx,axlab)
+    #plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=True)
+    plt.ylim(0)
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams.png')
 
+    plt.close()
 
-plt.plot(q_vecs[:],ams[:,1:ams_dist_col])
-ala=plt.xticks()
+if got_ncams:
 
+    plt.figure(figsize=[8,5])
+    
 
-plt.xticks(axidx,axlab)
-#plt.xlabel('q')
-plt.ylabel('Energy (meV)')
+    plt.plot(q_vecs[:],   ams[:,1:ams_dist_col],label='E(q)')
+    if got_ncams_pq:
+        plt.plot(q_vecs[:],ams_pq[:,1:ams_dist_col],label='E(q+q$_0$)')
+    if got_ncams_mq:
+        plt.plot(q_vecs[:],ams_mq[:,1:ams_dist_col],label='E(q-q$_0$)')
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx,axlab)
+    #plt.xlabel('q')
+    plt.legend()
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=True)
+    plt.ylim(0)
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams_q.png')
 
-plt.autoscale(tight=True)
-plt.ylim(0)
-plt.grid(visible=True,which='major',axis='x')
-#plt.show()
-plt.savefig('ams.png')
+    plt.close()
+
 
 
 # In[ ]:
