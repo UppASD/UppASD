@@ -433,16 +433,16 @@ if(BUILD_PYTHON)
          )
 
       # Uncomment if f90wrap needs to be invoked
-      #set(F90wrap_sources 
-      #   ${SRC}/pyasd.f90 
-      #   ${SRC}/uppasd.f90 
-      #   ${SRC}/Input/inputdatatype.f90
-      #   ${SRC}/Input/inputdata.f90
-      #   ${SRC}/Input/inputhandler.f90
-      #   ${SRC}/Input/inputhandler_ext.f90
-      #   ${SRC}/System/momentdata.f90 
-      #   ${SRC}/System/simulationdata.f90
-      #   )
+      set(F90wrap_sources 
+         ${SRC}/pyasd.f90 
+         ${SRC}/uppasd.f90 
+         ${SRC}/Input/inputdatatype.f90
+         ${SRC}/Input/inputdata.f90
+         ${SRC}/Input/inputhandler.f90
+         ${SRC}/Input/inputhandler_ext.f90
+         ${SRC}/System/momentdata.f90 
+         ${SRC}/System/simulationdata.f90
+         )
       set(F2PY_sources 
          ${SRC}/f90wrap/f90wrap_pyasd.f90
          ${SRC}/f90wrap/f90wrap_uppasd.f90
@@ -504,7 +504,7 @@ if(BUILD_PYTHON)
       add_custom_target ( ${UppASD_F90w}  ALL
          DEPENDS ${UppASD_LIB} 
          # Uncomment if f90wrap needs to be invoked
-         #DEPENDS ${UppASD_LIB} ${F2PY_sources}
+         DEPENDS ${UppASD_LIB} ${F2PY_sources}
          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
          COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${CMAKE_BINARY_DIR} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
          COMMENT "Generating Python modules"
