@@ -16,7 +16,8 @@ from enum import Enum
 from PyQt6 import QtWidgets
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMainWindow
-
+import uppasd as asd
+import os.path as path
 
 class Backend(Enum):
     UppASD_VTK = 1
@@ -151,6 +152,33 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDInputGen.clean_var()
         self.ASDInputGen.write_inpsd()
         return
+
+    ############################################################################
+    # @breif Function to run simulation using the uppasd module.
+    # @author Erik Karpelin
+    ############################################################################
+
+    def RunSimulation(self):
+        if path.isfile('inpsd.dat') == False:
+            print('inpsd.dat not found, creating from asd_gui')
+            self.WriteInputFile()
+        else:
+            OverwriteInpsd = str(input('inpsd.dat found, overwrite? [Y/N]  ')).lower()
+            if OverwriteInpsd == 'y':
+                self.WriteInputFile()
+        asd.pyasd.runuppasd()
+        return
+    
+    ############################################################################
+    # @breif Relay function to handle the structure templates.
+    # @author Erik Karpelin
+    ############################################################################
+
+    def SetStructureTemplate(self, structure):
+        self.ASDInputGen.SetStructureTemplate(self, structure)
+        return
+
+
     ############################################################################
     # @brief Initialize the UI and set the relevant actions
     # @details Initialize the UI and set the relevant actions. Defines the Toolbars

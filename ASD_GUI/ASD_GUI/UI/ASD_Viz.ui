@@ -913,7 +913,7 @@
                                              <string>Creation of input files via templates</string>
                                           </property>
                                           <property name="title">
-                                             <string>Structure templates (to be implemented)</string>
+                                             <string>Structure templates</string>
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_52">
                                              <item row="0" column="1">
@@ -1033,6 +1033,35 @@
                                                 </widget>
                                              </item>
                                              <item row="0" column="4">
+                                                <widget class="QPushButton" name="InpTemplateHCPButton">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string/>
+                                                   </property>
+                                                   <property name="icon">
+                                                      <iconset>
+                                                         <normaloff>../TemplateStructurePic/pp_hcp.png</normaloff>../TemplateStructurePic/pp_hcp.png</iconset>
+                                                   </property>
+                                                   <property name="iconSize">
+                                                      <size>
+                                                         <width>100</width>
+                                                         <height>100</height>
+                                                      </size>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="5">
                                                 <spacer name="horizontalSpacer_4">
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>
@@ -1154,6 +1183,22 @@
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_50">
                                              <item row="1" column="1">
+                                                <widget class="QPushButton" name="InpRunSimButton">
+                                                   <property name="toolTip">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Run Simulation!</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="1" column="2">
                                                 <widget class="QPushButton" name="InpDoneButton">
                                                    <property name="toolTip">
                                                       <string>Setup of the inpsd.dat done write file</string>
@@ -1165,7 +1210,7 @@
                                                       <string>Setup of the inpsd.dat done write file</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Done!</string>
+                                                      <string>Generate inpsd.dat</string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -1182,7 +1227,7 @@
                                                    </property>
                                                 </spacer>
                                              </item>
-                                             <item row="1" column="2">
+                                             <item row="1" column="3">
                                                 <widget class="QPushButton" name="InpCancelButton">
                                                    <property name="toolTip">
                                                       <string>Reset values to default</string>

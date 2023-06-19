@@ -569,6 +569,18 @@ def Input_Toolbar_Setup(window):
     window.InpInitMag6Check.clicked.connect(window.ToggleHessians)
     window.InpInitMag4Check.clicked.connect(window.ToggleHessians)
     window.InpInitmag7Check.clicked.connect(window.ToggleHessians)
+
+    # New button to run simulation, added by Erik Karpelin
+    window.InpRunSimButton.clicked.connect(window.RunSimulation)
+
+    # Button for Structure Templates, added by Erik Karpelin
+    window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
+    window.InpTemplateBCCButton.clicked.connect(lambda: window.SetStructureTemplate('bcc'))
+    window.InpTemplateBCC2TypesButton.clicked.connect(lambda: window.SetStructureTemplate('bcc2'))
+    window.InpTemplateFCCButton.clicked.connect(lambda: window.SetStructureTemplate('fcc'))
+
+
+
     return
 #------------------------------------------------------------------------------------
 # @brief Function to update the UI objects.

@@ -17,6 +17,7 @@ Jonathan Chico
 # that one keeps only the minimal set of input variables needed.
 # @author Jonathan Chico
 ################################################################################
+
 class ASDInputGen():
     """Class containing the structures needed for the creation of the inpsd.dat
     via the GUI. It defines all the variables set in the GUI as part of a dictionary
@@ -27,480 +28,615 @@ class ASDInputGen():
     ----------
     Jonathan Chico
     """
+
     def __init__(self):
         import collections
-        from PyQt6.QtGui import QIntValidator,QDoubleValidator
-        ASDInputGen.UppASDKeywords=collections.OrderedDict()
+        from PyQt6.QtGui import QIntValidator, QDoubleValidator
+        ASDInputGen.UppASDKeywords = collections.OrderedDict()
         ASDInputGen.IntegerValidator = QIntValidator()
-        ASDInputGen.IntegerValidator.setRange(0,99999999)
+        ASDInputGen.IntegerValidator.setRange(0, 99999999)
         ASDInputGen.PosDoubleValidator = QDoubleValidator()
-        ASDInputGen.PosDoubleValidator.setRange(0,99999999.9999)
+        ASDInputGen.PosDoubleValidator.setRange(0, 99999999.9999)
         ASDInputGen.PosDoubleValidator.setDecimals(10)
         ASDInputGen.DoubleValidator = QDoubleValidator()
         ASDInputGen.DoubleValidator.setDecimals(10)
-        ASDInputGen.momfile=[]
-        ASDInputGen.momfile_in=[]
-        ASDInputGen.momfile_fi=[]
-        ASDInputGen.posfile=[]
-        ASDInputGen.jfile=[]
-        ASDInputGen.dmfile=[]
-        ASDInputGen.kfile=[]
-        ASDInputGen.restartfile=[]
-        ASDInputGen.pdfile=[]
-        ASDInputGen.bqfile=[]
-        ASDInputGen.bqdmfile=[]
-        ASDInputGen.momfile_gotten=False
-        ASDInputGen.posfile_gotten=False
+        ASDInputGen.momfile = []
+        ASDInputGen.momfile_in = []
+        ASDInputGen.momfile_fi = []
+        ASDInputGen.posfile = []
+        ASDInputGen.jfile = []
+        ASDInputGen.dmfile = []
+        ASDInputGen.kfile = []
+        ASDInputGen.restartfile = []
+        ASDInputGen.pdfile = []
+        ASDInputGen.bqfile = []
+        ASDInputGen.bqdmfile = []
+        ASDInputGen.momfile_gotten = False
+        ASDInputGen.posfile_gotten = False
         return
     ############################################################################
-    ## @brief Function to find the needed file names for the input file created.
+    # @brief Function to find the needed file names for the input file created.
     # @author Jonathan Chico
     ############################################################################
-    def getFileName(self,window):
+
+    def getFileName(self, window):
         from PyQt6 import QtWidgets
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
         dlg.setDirectory('.')
         if dlg.exec():
-            if window.sender()==window.InpPosButtonSelect:
-                ASDInputGen.posfile_gotten=False
-                ASDInputGen.posfile=dlg.selectedFiles()[0]
-                ASDInputGen.posfile_gotten=True
-            if window.sender()==window.InpMomButtonSelect:
-                ASDInputGen.momfile_gotten=False
-                ASDInputGen.momfile=dlg.selectedFiles()[0]
-                ASDInputGen.momfile_gotten=True
-            if window.sender()==window.InpInitMag4ReadButton:
-                ASDInputGen.restartfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpXCCheck and window.InpXCCheck.isChecked():
-                ASDInputGen.jfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpDMCheck and window.InpDMCheck.isChecked():
-                ASDInputGen.dmfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpMAECheck and window.InpMAECheck.isChecked():
-                ASDInputGen.kfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpPseudoCheck and window.InpPseudoCheck.isChecked():
-                ASDInputGen.pdfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpBqCheck and window.InpBqCheck.isChecked():
-                ASDInputGen.bqfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpBqDMCheck and window.InpBqDMCheck.isChecked():
-                ASDInputGen.bqdmfile=dlg.selectedFiles()[0]
-            if window.sender()==window.InpSetIniMomfileButton:
-                ASDInputGen.momfile_in=dlg.selectedFiles()[0] 
-            if window.sender()==window.InpSetFinMomfileButton:
-                ASDInputGen.momfile_fi=dlg.selectedFiles()[0] 
+            if window.sender() == window.InpPosButtonSelect:
+                ASDInputGen.posfile_gotten = False
+                ASDInputGen.posfile = dlg.selectedFiles()[0]
+                ASDInputGen.posfile_gotten = True
+            if window.sender() == window.InpMomButtonSelect:
+                ASDInputGen.momfile_gotten = False
+                ASDInputGen.momfile = dlg.selectedFiles()[0]
+                ASDInputGen.momfile_gotten = True
+            if window.sender() == window.InpInitMag4ReadButton:
+                ASDInputGen.restartfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpXCCheck and window.InpXCCheck.isChecked():
+                ASDInputGen.jfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpDMCheck and window.InpDMCheck.isChecked():
+                ASDInputGen.dmfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpMAECheck and window.InpMAECheck.isChecked():
+                ASDInputGen.kfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpPseudoCheck and window.InpPseudoCheck.isChecked():
+                ASDInputGen.pdfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpBqCheck and window.InpBqCheck.isChecked():
+                ASDInputGen.bqfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpBqDMCheck and window.InpBqDMCheck.isChecked():
+                ASDInputGen.bqdmfile = dlg.selectedFiles()[0]
+            if window.sender() == window.InpSetIniMomfileButton:
+                ASDInputGen.momfile_in = dlg.selectedFiles()[0]
+            if window.sender() == window.InpSetFinMomfileButton:
+                ASDInputGen.momfile_fi = dlg.selectedFiles()[0]
         return
     ############################################################################
     # @brief Updating the file names in the input data when files are generated by the GUI.
     # @author Jonathan Chico
     ############################################################################
-    def update_file_name(self,window):
-        if window.sender()==window.Posfile_Window.InpPosDone:
-            ASDInputGen.posfile=window.Posfile_Window.posfile_name
-        if window.sender()==window.Momfile_Window.InpMomDone:
-            ASDInputGen.momfile=window.Momfile_Window.momfile_name
-        if window.sender()==window.Restart_Window.InpRestartDone:
-            ASDInputGen.restartfile=window.Restart_Window.restartfile_name
+
+    def update_file_name(self, window):
+        if window.sender() == window.Posfile_Window.InpPosDone:
+            ASDInputGen.posfile = window.Posfile_Window.posfile_name
+        if window.sender() == window.Momfile_Window.InpMomDone:
+            ASDInputGen.momfile = window.Momfile_Window.momfile_name
+        if window.sender() == window.Restart_Window.InpRestartDone:
+            ASDInputGen.restartfile = window.Restart_Window.restartfile_name
         return
     ############################################################################
-    ## @brief Function to get the information needed for the inpsd.dat from the
+    # @brief Function to get the information needed for the inpsd.dat from the
     # GUI to pass it to the dictionary.
     # @author Jonathan Chico
     ############################################################################
-    def ASDInputGatherer(self,window):
+
+    def ASDInputGatherer(self, window):
+
         # Find the simulation name
-        if len(window.InpLineEditSimid.text())>0:
-            ASDInputGen.UppASDKeywords['general']['simid']=\
-            str(window.InpLineEditSimid.text())
+        if len(window.InpLineEditSimid.text()) > 0:
+            ASDInputGen.UppASDKeywords['general']['simid'] =\
+                str(window.InpLineEditSimid.text())
+            
         # Obtain the lattice constant of the system
-        if len(window.InpLineEditAlat.text())>0:
-            ASDInputGen.UppASDKeywords['geometry']['alat']=\
-            float(self.text_to_num(window.InpLineEditAlat.text()))
+        if len(window.InpLineEditAlat.text()) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['alat'] =\
+                float(self.text_to_num(window.InpLineEditAlat.text()))
+            
         # The number of repetitions of the unit cell
-        if len(window.InpN1.text())>0:
-            ASDInputGen.UppASDKeywords['geometry']['ncell'][0]=\
-            int(self.text_to_num(window.InpN1.text()))
-        if len(window.InpN2.text())>0:
-            ASDInputGen.UppASDKeywords['geometry']['ncell'][1]=\
-            int(self.text_to_num(window.InpN2.text()))
-        if len(window.InpN3.text())>0:
-            ASDInputGen.UppASDKeywords['geometry']['ncell'][2]=\
-            int(self.text_to_num(window.InpN3.text()))
+        if len(window.InpN1.text()) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['ncell'][0] =\
+                int(self.text_to_num(window.InpN1.text()))
+        if len(window.InpN2.text()) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['ncell'][1] =\
+                int(self.text_to_num(window.InpN2.text()))
+        if len(window.InpN3.text()) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['ncell'][2] =\
+                int(self.text_to_num(window.InpN3.text()))
+            
         # Set the boundary conditions
         if window.InpPBCCheckC1.isChecked():
-            ASDInputGen.UppASDKeywords['geometry']['BC'][0]='P'
+            ASDInputGen.UppASDKeywords['geometry']['BC'][0] = 'P'
         else:
-            ASDInputGen.UppASDKeywords['geometry']['BC'][0]=0
+            ASDInputGen.UppASDKeywords['geometry']['BC'][0] = 0
         if window.InpPBCCheckC2.isChecked():
-            ASDInputGen.UppASDKeywords['geometry']['BC'][1]='P'
+            ASDInputGen.UppASDKeywords['geometry']['BC'][1] = 'P'
         else:
-            ASDInputGen.UppASDKeywords['geometry']['BC'][1]=0
+            ASDInputGen.UppASDKeywords['geometry']['BC'][1] = 0
         if window.InpPBCCheckC3.isChecked():
-            ASDInputGen.UppASDKeywords['geometry']['BC'][2]='P'
+            ASDInputGen.UppASDKeywords['geometry']['BC'][2] = 'P'
         else:
-            ASDInputGen.UppASDKeywords['geometry']['BC'][2]=0
+            ASDInputGen.UppASDKeywords['geometry']['BC'][2] = 0
+
         # Filling up the lattice vectors
-        ASDInputGen.UppASDKeywords['geometry']['cell']=\
-        [[float(self.text_to_num(window.InpLineEditC1_x.text())),\
-        float(self.text_to_num(window.InpLineEditC1_y.text())),\
-        float(self.text_to_num(window.InpLineEditC1_z.text()))],\
-        [float(self.text_to_num(window.InpLineEditC2_x.text())),\
-        float(self.text_to_num(window.InpLineEditC2_y.text())),\
-        float(self.text_to_num(window.InpLineEditC2_z.text()))],\
-        [float(self.text_to_num(window.InpLineEditC3_x.text())),\
-        float(self.text_to_num(window.InpLineEditC3_y.text())),\
-        float(self.text_to_num(window.InpLineEditC3_z.text()))]]
+        ASDInputGen.UppASDKeywords['geometry']['cell'] =\
+            [[float(self.text_to_num(window.InpLineEditC1_x.text())),
+              float(self.text_to_num(window.InpLineEditC1_y.text())),
+              float(self.text_to_num(window.InpLineEditC1_z.text()))],
+             [float(self.text_to_num(window.InpLineEditC2_x.text())),
+              float(self.text_to_num(window.InpLineEditC2_y.text())),
+              float(self.text_to_num(window.InpLineEditC2_z.text()))],
+             [float(self.text_to_num(window.InpLineEditC3_x.text())),
+                float(self.text_to_num(window.InpLineEditC3_y.text())),
+                float(self.text_to_num(window.InpLineEditC3_z.text()))]]
+        
         # Check for random alloys
         if window.InpCheckRandAlloy.isChecked():
-            ASDInputGen.UppASDKeywords['geometry']['do_ralloy']=1
+            ASDInputGen.UppASDKeywords['geometry']['do_ralloy'] = 1
         else:
-            ASDInputGen.UppASDKeywords['geometry']['do_ralloy']=0
-        if len(ASDInputGen.posfile)>0:
-            ASDInputGen.UppASDKeywords['geometry']['posfile']=ASDInputGen.posfile
+            ASDInputGen.UppASDKeywords['geometry']['do_ralloy'] = 0
+        if len(ASDInputGen.posfile) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['posfile'] = ASDInputGen.posfile
         else:
             print('No posfile name given, assuming "./posfile"')
-        if len(ASDInputGen.momfile)>0:
-            ASDInputGen.UppASDKeywords['geometry']['momfile']=ASDInputGen.momfile
+        if len(ASDInputGen.momfile) > 0:
+            ASDInputGen.UppASDKeywords['geometry']['momfile'] = ASDInputGen.momfile
         else:
             print('No momfile name given, assuming "./momfile"')
+
         # Check for Hamiltonian interactions
         if window.InpXCCheck.isChecked():
-            if len(ASDInputGen.jfile)>0:
-                ASDInputGen.UppASDKeywords['Hamiltonian']['exchange']=ASDInputGen.jfile
+            if len(ASDInputGen.jfile) > 0:
+                ASDInputGen.UppASDKeywords['Hamiltonian']['exchange'] = ASDInputGen.jfile
             else:
                 print('No exchange file name given, assuming "./jfile"')
         if window.InpDMCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['dm']=ASDInputGen.dmfile
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['dm'] = ASDInputGen.dmfile
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm'] = 1
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm'] = 0
         if window.InpMAECheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['anisotropy']=ASDInputGen.kfile
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['anisotropy'] = ASDInputGen.kfile
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy'] = 1
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy'] = 0
         if window.InpPseudoCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['pd']=ASDInputGen.pdfile
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['pd'] = ASDInputGen.pdfile
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd'] = 1
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd'] = 0
         if window.InpBqCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['bq']=ASDInputGen.bqfile
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['bq'] = ASDInputGen.bqfile
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq'] = 1
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq'] = 0
         if window.InpBqCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['biqdm']=ASDInputGen.bqdmfile
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['biqdm'] = ASDInputGen.bqdmfile
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm'] = 1
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm'] = 0
+
         # Filling up the magnetic field in the measurement phase
-        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield']=\
-        [float(self.text_to_num(window.InpBextMeasure_x.text())),\
-        float(self.text_to_num(window.InpBextMeasure_y.text())),\
-        float(self.text_to_num(window.InpBextMeasure_z.text()))]
+        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'] =\
+            [float(self.text_to_num(window.InpBextMeasure_x.text())),
+             float(self.text_to_num(window.InpBextMeasure_y.text())),
+             float(self.text_to_num(window.InpBextMeasure_z.text()))]
+        
         # Filling up the magnetic field in the initial phase
-        ASDInputGen.UppASDKeywords['Hamiltonian']['ip_hfield']=\
-        [float(self.text_to_num(window.InpBextInit_x.text())),\
-        float(self.text_to_num(window.InpBextInit_y.text())),\
-        float(self.text_to_num(window.InpBextInit_z.text()))]
+        ASDInputGen.UppASDKeywords['Hamiltonian']['ip_hfield'] =\
+            [float(self.text_to_num(window.InpBextInit_x.text())),
+             float(self.text_to_num(window.InpBextInit_y.text())),
+             float(self.text_to_num(window.InpBextInit_z.text()))]
+        
         # Damping for an SD measurement phase
-        if len(window.InpASDLLGDamp.text())>0:
-            ASDInputGen.UppASDKeywords['LLG_mphase']['damping']=\
-            float(self.text_to_num(window.InpASDLLGDamp.text()))
+        if len(window.InpASDLLGDamp.text()) > 0:
+            ASDInputGen.UppASDKeywords['LLG_mphase']['damping'] =\
+                float(self.text_to_num(window.InpASDLLGDamp.text()))
+            
         # Time step for an SD measurement phase
-        if len(window.InpASDLLGDT.text())>0:
-            ASDInputGen.UppASDKeywords['LLG_mphase']['timestep']=\
-            float(self.text_to_num(window.InpASDLLGDT.text()))
+        if len(window.InpASDLLGDT.text()) > 0:
+            ASDInputGen.UppASDKeywords['LLG_mphase']['timestep'] =\
+                float(self.text_to_num(window.InpASDLLGDT.text()))
+            
         # Number of steps for an SD measurement phase
-        ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep']=\
-        int(self.text_to_num(window.InpASDLLGSteps.text()))
+        ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep'] =\
+            int(self.text_to_num(window.InpASDLLGSteps.text()))
+        
         # Number of MC steps in the measurement phase
-        ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep']=\
-        int(self.text_to_num(window.InpMCSteps.text()))
+        ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep'] =\
+            int(self.text_to_num(window.InpMCSteps.text()))
+        
         # Number of ensembles in the simulation
-        if len(window.InpMensemble.text())>0:
-            ASDInputGen.UppASDKeywords['Mag']['Mensemble']=\
-            int(self.text_to_num(window.InpMensemble.text()))
+        if len(window.InpMensemble.text()) > 0:
+            ASDInputGen.UppASDKeywords['Mag']['Mensemble'] =\
+                int(self.text_to_num(window.InpMensemble.text()))
+            
         # Check if the trajectories will be printed
         if window.InpGlobalTrajBox.isChecked():
-            ASDInputGen.UppASDKeywords['trajectories']['do_tottraj']='Y'
+            ASDInputGen.UppASDKeywords['trajectories']['do_tottraj'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['trajectories']['do_tottraj']='N'
+            ASDInputGen.UppASDKeywords['trajectories']['do_tottraj'] = 'N'
+
         # Information about the printing of the trajectories
-        if len(window.InitTTrajStep.text())>0:
-            ASDInputGen.UppASDKeywords['trajectories']['tottraj_step']=\
-            int(self.text_to_num(window.InitTTrajStep.text()))
-        if len(window.InitTTrajBuff.text())>0:
-            ASDInputGen.UppASDKeywords['trajectories']['tottraj_buff']=\
-            int(self.text_to_num(window.InitTTrajBuff.text()))
+        if len(window.InitTTrajStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['trajectories']['tottraj_step'] =\
+                int(self.text_to_num(window.InitTTrajStep.text()))
+        if len(window.InitTTrajBuff.text()) > 0:
+            ASDInputGen.UppASDKeywords['trajectories']['tottraj_buff'] =\
+                int(self.text_to_num(window.InitTTrajBuff.text()))
+            
         # Check if the cumulants will be printed
         if window.InpCumuBox.isChecked():
-            ASDInputGen.UppASDKeywords['cumulants']['do_cumu']='Y'
+            ASDInputGen.UppASDKeywords['cumulants']['do_cumu'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['cumulants']['do_cumu']='N'
+            ASDInputGen.UppASDKeywords['cumulants']['do_cumu'] = 'N'
+
         # Options for the printing of the cumulants
-        if len(window.InpCumuStep.text())>0:
-            ASDInputGen.UppASDKeywords['cumulants']['cumu_step']=\
-            int(self.text_to_num(window.InpCumuStep.text()))
-        if len(window.InpCumuBuff.text())>0:
-            ASDInputGen.UppASDKeywords['cumulants']['cumu_buff']=\
-            int(self.text_to_num(window.InpCumuBuff.text()))
+        if len(window.InpCumuStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['cumulants']['cumu_step'] =\
+                int(self.text_to_num(window.InpCumuStep.text()))
+        if len(window.InpCumuBuff.text()) > 0:
+            ASDInputGen.UppASDKeywords['cumulants']['cumu_buff'] =\
+                int(self.text_to_num(window.InpCumuBuff.text()))
+            
         # Check if the averages should be printed
         if window.InpAveBox.isChecked():
-            ASDInputGen.UppASDKeywords['averages']['do_avrg']='Y'
+            ASDInputGen.UppASDKeywords['averages']['do_avrg'] = 'Y'
         if not window.InpAveBox.isChecked():
-            ASDInputGen.UppASDKeywords['averages']['do_avrg']='N'
+            ASDInputGen.UppASDKeywords['averages']['do_avrg'] = 'N'
+        
         # Options for the printing of the averages
-        if len(window.InpAveStep.text())>0:
-            ASDInputGen.UppASDKeywords['averages']['avrg_step']=\
-            int(self.text_to_num(window.InpAveStep.text()))
-        if len(window.InpAveBuff.text())>0:
-            ASDInputGen.UppASDKeywords['averages']['avrg_buff']=\
-            int(self.text_to_num(window.InpAveBuff.text()))
+        if len(window.InpAveStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['averages']['avrg_step'] =\
+                int(self.text_to_num(window.InpAveStep.text()))
+        if len(window.InpAveBuff.text()) > 0:
+            ASDInputGen.UppASDKeywords['averages']['avrg_buff'] =\
+                int(self.text_to_num(window.InpAveBuff.text()))
+        
         # Check if the site projected average will be printed
         if window.InpSiteAveCheck.isChecked():
-            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']='A'
+            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg'] = 'A'
+        
         # Check if the type projected average will be printed
         elif window.InpTypeAveCheck.isChecked():
-            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']='Y'
+            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']='N'
+            ASDInputGen.UppASDKeywords['averages']['do_proj_avrg'] = 'N'
+        
         # Check if the chemically projected average will be printed
         if window.InpChemAveCheck.isChecked():
-            ASDInputGen.UppASDKeywords['averages']['do_projch_avrg']='Y'
+            ASDInputGen.UppASDKeywords['averages']['do_projch_avrg'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['averages']['do_projch_avrg']='N'
+            ASDInputGen.UppASDKeywords['averages']['do_projch_avrg'] = 'N'
+        
         # Check if the dynamical structure factor will be calculated
         if window.ImpSqwBox.isChecked():
-            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']='Q'
+            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] = 'Q'
         if not window.ImpSqwBox.isChecked():
-            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']='N'
+            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] = 'N'
+        
         # Check if the static correlation is calculated
         if window.InpScCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']='C'
+            ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] = 'C'
+        
         # Options for the structure factor
-        if len(window.InpScStep.text())>0:
-            ASDInputGen.UppASDKeywords['Mag_corr']['sc_step']=\
-            int(self.text_to_num(window.InpScStep.text()))
-        if len(window.InpScNStep.text())>0:
-            ASDInputGen.UppASDKeywords['Mag_corr']['sc_nstep']=\
-            int(self.text_to_num(window.InpScNStep.text()))
+        if len(window.InpScStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['Mag_corr']['sc_step'] =\
+                int(self.text_to_num(window.InpScStep.text()))
+        if len(window.InpScNStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['Mag_corr']['sc_nstep'] =\
+                int(self.text_to_num(window.InpScNStep.text()))
+        
         # Check if the AMS will be printed
         if window.InpAMSCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']='Y'
+            ASDInputGen.UppASDKeywords['Mag_corr']['do_ams'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']='N'
+            ASDInputGen.UppASDKeywords['Mag_corr']['do_ams'] = 'N'
+        
         # Check if the STT is going to be considered
         if window.InpSTTBox.isChecked():
             if window.InpZhangLiCheck.isChecked():
-                ASDInputGen.UppASDKeywords['spintorque']['stt']='A'
+                ASDInputGen.UppASDKeywords['spintorque']['stt'] = 'A'
             if window.InpSlonwceskiCheck.isChecked():
-                ASDInputGen.UppASDKeywords['spintorque']['stt']='Y'
+                ASDInputGen.UppASDKeywords['spintorque']['stt'] = 'Y'
             # Check if the SHE is considered
             if window.InpSHEBox.isChecked():
-                ASDInputGen.UppASDKeywords['spintorque']['do_she']='Y'
+                ASDInputGen.UppASDKeywords['spintorque']['do_she'] = 'Y'
             else:
-                ASDInputGen.UppASDKeywords['spintorque']['do_she']='N'
+                ASDInputGen.UppASDKeywords['spintorque']['do_she'] = 'N'
         else:
-            ASDInputGen.UppASDKeywords['spintorque']['stt']='N'
+            ASDInputGen.UppASDKeywords['spintorque']['stt'] = 'N'
+       
         # Non-adiabatic parameter for the STT
-        ASDInputGen.UppASDKeywords['spintorque']['adibeta']=\
-        float(self.text_to_num(window.InpBeta.text()))
+        ASDInputGen.UppASDKeywords['spintorque']['adibeta'] =\
+            float(self.text_to_num(window.InpBeta.text()))
+       
         # Fill up the spin current vector for the STT
-        ASDInputGen.UppASDKeywords['spintorque']['jvec']=\
-        [float(self.text_to_num(window.InpJvec_x.text())),\
-        float(self.text_to_num(window.InpJvec_y.text())),\
-        float(self.text_to_num(window.InpJvec_z.text()))]
+        ASDInputGen.UppASDKeywords['spintorque']['jvec'] =\
+            [float(self.text_to_num(window.InpJvec_x.text())),
+             float(self.text_to_num(window.InpJvec_y.text())),
+             float(self.text_to_num(window.InpJvec_z.text()))]
+       
         # Parameters for the SHE
-        ASDInputGen.UppASDKeywords['spintorque']['thick_ferro']=\
-        float(self.text_to_num(window.InpSheThickness.text()))
-        ASDInputGen.UppASDKeywords['spintorque']['she_angle']=\
-        float(self.text_to_num(window.InpShe.text()))
+        ASDInputGen.UppASDKeywords['spintorque']['thick_ferro'] =\
+            float(self.text_to_num(window.InpSheThickness.text()))
+        ASDInputGen.UppASDKeywords['spintorque']['she_angle'] =\
+            float(self.text_to_num(window.InpShe.text()))
+       
         # Check if SOT is going to be considered
         if window.InpSOTBox.isChecked():
-            ASDInputGen.UppASDKeywords['spintorque']['do_sot']='Y'
+            ASDInputGen.UppASDKeywords['spintorque']['do_sot'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['spintorque']['do_sot']='N'
+            ASDInputGen.UppASDKeywords['spintorque']['do_sot'] = 'N'
+       
         # Parameters for the SOT
-        ASDInputGen.UppASDKeywords['spintorque']['sot_field']=\
-        float(self.text_to_num(window.InpSOTFL.text()))
-        ASDInputGen.UppASDKeywords['spintorque']['sot_damping']=\
-        float(self.text_to_num(window.InpSOTDL.text()))
+        ASDInputGen.UppASDKeywords['spintorque']['sot_field'] =\
+            float(self.text_to_num(window.InpSOTFL.text()))
+        ASDInputGen.UppASDKeywords['spintorque']['sot_damping'] =\
+            float(self.text_to_num(window.InpSOTDL.text()))
+       
         # Fill up the spin polarization vector for the SOT
-        ASDInputGen.UppASDKeywords['spintorque']['sot_pol_vec']=\
-        [float(self.text_to_num(window.InpSOTPol_x.text())),\
-        float(self.text_to_num(window.InpSOTPol_y.text())),\
-        float(self.text_to_num(window.InpSOTPol_z.text()))]
-        ASDInputGen.UppASDKeywords['LLG_mphase']['SDEAlgh']=\
-        int(window.InpASDLLGAlgh.value())
+        ASDInputGen.UppASDKeywords['spintorque']['sot_pol_vec'] =\
+            [float(self.text_to_num(window.InpSOTPol_x.text())),
+             float(self.text_to_num(window.InpSOTPol_y.text())),
+             float(self.text_to_num(window.InpSOTPol_z.text()))]
+        ASDInputGen.UppASDKeywords['LLG_mphase']['SDEAlgh'] =\
+            int(window.InpASDLLGAlgh.value())
+       
         # Set the symmetry of the exchange Hamiltonian
-        ASDInputGen.UppASDKeywords['Hamiltonian']['Sym']=\
-        int(window.InpPairSym.value())
+        ASDInputGen.UppASDKeywords['Hamiltonian']['Sym'] =\
+            int(window.InpPairSym.value())
+       
         # Set the maptype of the pairwise Hamiltonian
-        ASDInputGen.UppASDKeywords['Hamiltonian']['maptype']=\
-        int(window.ImpPairMaptype.value())
+        ASDInputGen.UppASDKeywords['Hamiltonian']['maptype'] =\
+            int(window.ImpPairMaptype.value())
+       
         # Check if the dipole-dipole interaction should be considered
         if window.InpDipBruteForceCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] = 1
         if window.InpDipMacroCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']=2
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] = 2
         if window.InpDipFFTCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']=3
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] = 3
         if not window.InpDipBox.isChecked():
-            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']=0
+            ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] = 0
+       
         # Check which mode is going to be used for the measurement phase
         if window.InpMeasureLLG.isChecked():
-            ASDInputGen.UppASDKeywords['general']['mode']='S'
+            ASDInputGen.UppASDKeywords['general']['mode'] = 'S'
         if window.InpMeasureMCMet.isChecked():
-            ASDInputGen.UppASDKeywords['general']['mode']='M'
+            ASDInputGen.UppASDKeywords['general']['mode'] = 'M'
         if window.InpMeasureMCHeat.isChecked():
-            ASDInputGen.UppASDKeywords['general']['mode']='H'
+            ASDInputGen.UppASDKeywords['general']['mode'] = 'H'
         if window.InpMeasureGNEB.isChecked():
-            ASDInputGen.UppASDKeywords['general']['mode']='G'
+            ASDInputGen.UppASDKeywords['general']['mode'] = 'G'
             if window.InpGNEBMeasureBox.isChecked():
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb']='Y'
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol']=              \
-                float(self.text_to_num(window.InpGNEBMEPTol.text()))
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_itrmax']=            \
-                int(self.text_to_num(window.InpGNEBMEPSteps.text()))
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['eig_zero']=              \
-                float(self.text_to_num(window.InpMinEig.text()))
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb'] = 'Y'
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol'] =              \
+                    float(self.text_to_num(window.InpGNEBMEPTol.text()))
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_itrmax'] =            \
+                    int(self.text_to_num(window.InpGNEBMEPSteps.text()))
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['eig_zero'] =              \
+                    float(self.text_to_num(window.InpMinEig.text()))
             else:
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb']='N'
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb'] = 'N'
             if window.InpMeasureGNEBCI.isChecked():
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci']='Y'
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol_ci']=           \
-                float(self.text_to_num(window.InpGNEBCITol.text()))
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci'] = 'Y'
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol_ci'] =           \
+                    float(self.text_to_num(window.InpGNEBCITol.text()))
             else:
-                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci']='N'
+                ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci'] = 'N'
+       
         # Check which is the initial magnetization of the system
         if window.InpInitmag1Check.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=1
+            ASDInputGen.UppASDKeywords['Mag']['initmag'] = 1
         if window.InpInitmag2Box.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=2
+            ASDInputGen.UppASDKeywords['Mag']['initmag'] = 2
         if window.InpInitmag3Check.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=3
+            ASDInputGen.UppASDKeywords['Mag']['initmag'] = 3
         if window.InpInitMag4Check.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=4
-            if len(ASDInputGen.restartfile)>0:
-                ASDInputGen.UppASDKeywords['Mag']['restartfile']=ASDInputGen.restartfile
+            ASDInputGen.UppASDKeywords['Mag']['initmag'] = 4
+            if len(ASDInputGen.restartfile) > 0:
+                ASDInputGen.UppASDKeywords['Mag']['restartfile'] = ASDInputGen.restartfile
             else:
                 print('No restartfile name given assuming "./restart.dummy.dat"')
-                ASDInputGen.UppASDKeywords['Mag']['restartfile']='./restart.dummy.dat'
+                ASDInputGen.UppASDKeywords['Mag']['restartfile'] = './restart.dummy.dat'
         if window.InpInitmag7Check.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=7
-            if len(ASDInputGen.restartfile)>0:
-                ASDInputGen.UppASDKeywords['Mag']['restartfile']=ASDInputGen.restartfile
+            ASDInputGen.UppASDKeywords['Mag']['maginit'] = 7
+            if len(ASDInputGen.restartfile) > 0:
+                ASDInputGen.UppASDKeywords['Mag']['restartfile'] = ASDInputGen.restartfile
             else:
                 print('No restartfile name given assuming "./restart.dummy.dat"')
-                ASDInputGen.UppASDKeywords['Mag']['restartfile']='./restart.dummy.dat'
+                ASDInputGen.UppASDKeywords['Mag']['restartfile'] = './restart.dummy.dat'
         if window.InpInitMag6Check.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['maginit']=6
-            if len(ASDInputGen.momfile_in)>0:
-                ASDInputGen.UppASDKeywords['Mag']['momfile_i']=ASDInputGen.momfile_in
+            ASDInputGen.UppASDKeywords['Mag']['maginit'] = 6
+            if len(ASDInputGen.momfile_in) > 0:
+                ASDInputGen.UppASDKeywords['Mag']['momfile_i'] = ASDInputGen.momfile_in
             else:
                 print('No momfile_i name given assuming "./momfile_i.dat"')
-                ASDInputGen.UppASDKeywords['Mag']['momfile_i']='./momfile_i.dat'
-            if len(ASDInputGen.momfile_fi)>0:
-                ASDInputGen.UppASDKeywords['Mag']['momfile_f']=ASDInputGen.momfile_fi
+                ASDInputGen.UppASDKeywords['Mag']['momfile_i'] = './momfile_i.dat'
+            if len(ASDInputGen.momfile_fi) > 0:
+                ASDInputGen.UppASDKeywords['Mag']['momfile_f'] = ASDInputGen.momfile_fi
             else:
                 print('No momfile_f name given assuming "./momfile_f.dat"')
-                ASDInputGen.UppASDKeywords['Mag']['momfile_f']='./momfile_f.dat'
+                ASDInputGen.UppASDKeywords['Mag']['momfile_f'] = './momfile_f.dat'
         if window.InpIniFinCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['initpath']=1
+            ASDInputGen.UppASDKeywords['Mag']['initpath'] = 1
         if window.InpFullPathChek.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['initpath']=2
+            ASDInputGen.UppASDKeywords['Mag']['initpath'] = 2
         if window.InpRelGNEBCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Mag']['relaxed_if']='Y'
+            ASDInputGen.UppASDKeywords['Mag']['relaxed_if'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['Mag']['relaxed_if']='N'
+            ASDInputGen.UppASDKeywords['Mag']['relaxed_if'] = 'N'
+       
         # Check which is the initial phase of the calculation
         if window.InpInitBox.isChecked():
             if window.InpInitLLG.isChecked():
-                ASDInputGen.UppASDKeywords['general']['ip_mode']='S'
-                ASDInputGen.UppASDKeywords['LLG_iphase']['ip_nphase']=\
-                window.init_phase_data[0]
-                ASDInputGen.UppASDKeywords['LLG_iphase']['']=window.init_phase_data[1:]
+                ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'S'
+                ASDInputGen.UppASDKeywords['LLG_iphase']['ip_nphase'] =\
+                    window.init_phase_data[0]
+                ASDInputGen.UppASDKeywords['LLG_iphase'][''] = window.init_phase_data[1:]
             if window.InpInitMcMet.isChecked():
-                ASDInputGen.UppASDKeywords['general']['ip_mode']='M'
-                ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal']=\
-                window.init_phase_data[0]
-                ASDInputGen.UppASDKeywords['MC_iphase']['']=window.init_phase_data[1:]
+                ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'M'
+                ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal'] =\
+                    window.init_phase_data[0]
+                ASDInputGen.UppASDKeywords['MC_iphase'][''] = window.init_phase_data[1:]
             if window.InpInitMcHeat.isChecked():
-                ASDInputGen.UppASDKeywords['general']['ip_mode']='H'
-                ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal']=\
-                window.init_phase_data[0]
-                ASDInputGen.UppASDKeywords['MC_iphase']['']=window.init_phase_data[1:]
+                ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'H'
+                ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal'] =\
+                    window.init_phase_data[0]
+                ASDInputGen.UppASDKeywords['MC_iphase'][''] = window.init_phase_data[1:]
             if window.InpInitVPO.isChecked():
-                ASDInputGen.UppASDKeywords['general']['ip_mode']='G'
-                ASDInputGen.UppASDKeywords['VPO_iphase']['min_itrmax']  = window.init_phase_data[0][0]
-                ASDInputGen.UppASDKeywords['VPO_iphase']['spring']      = window.init_phase_data[0][1]
-                ASDInputGen.UppASDKeywords['VPO_iphase']['vpo_mass']    = window.init_phase_data[0][2]
-                ASDInputGen.UppASDKeywords['VPO_iphase']['vpo_dt']      = window.init_phase_data[0][3]
-                ASDInputGen.UppASDKeywords['VPO_iphase']['min_ftol']    = window.init_phase_data[0][4]
+                ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'G'
+                ASDInputGen.UppASDKeywords['VPO_iphase']['min_itrmax'] = window.init_phase_data[0][0]
+                ASDInputGen.UppASDKeywords['VPO_iphase']['spring'] = window.init_phase_data[0][1]
+                ASDInputGen.UppASDKeywords['VPO_iphase']['vpo_mass'] = window.init_phase_data[0][2]
+                ASDInputGen.UppASDKeywords['VPO_iphase']['vpo_dt'] = window.init_phase_data[0][3]
+                ASDInputGen.UppASDKeywords['VPO_iphase']['min_ftol'] = window.init_phase_data[0][4]
         else:
-            ASDInputGen.UppASDKeywords['general']['ip_mode']='N'
+            ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'N'
+       
         # Check if the energy will be printed
         if window.InpEneTotalEneCheck.isChecked():
-            ASDInputGen.UppASDKeywords['energy']['plotenergy']=1
+            ASDInputGen.UppASDKeywords['energy']['plotenergy'] = 1
         if window.InpEneSiteEneCheck.isChecked():
-            ASDInputGen.UppASDKeywords['energy']['plotenergy']=2
+            ASDInputGen.UppASDKeywords['energy']['plotenergy'] = 2
         if not window.InpEneTotalEneCheck.isChecked() and not window.InpEneSiteEneCheck.isChecked():
-            ASDInputGen.UppASDKeywords['energy']['plotenergy']=0
+            ASDInputGen.UppASDKeywords['energy']['plotenergy'] = 0
+       
         # Check if the skyrmion number should be printed
         if window.SkxNumBox.isChecked():
-            ASDInputGen.UppASDKeywords['topology']['skyrno']='Y'
+            ASDInputGen.UppASDKeywords['topology']['skyrno'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['topology']['skyrno']='N'
+            ASDInputGen.UppASDKeywords['topology']['skyrno'] = 'N'
+       
         # Check for the Hessian options
         if window.HessFinCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin']='Y'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin']='N'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin'] = 'N'
         if window.HessInitCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini']='Y'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini']='N'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini'] = 'N'
         if window.HessSPCheck.isChecked():
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']='Y'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp'] = 'Y'
         else:
-            ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']='N'
+            ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp'] = 'N'
+       
         # Options for the printing of the skyrmion number
-        if len(window.InpSkxStep.text())>0:
-            ASDInputGen.UppASDKeywords['topology']['skyno_step']=\
-            int(self.text_to_num(window.InpSkxStep.text()))
-        if len(window.InitSkxBuff.text())>0:
-            ASDInputGen.UppASDKeywords['topology']['skyno_buff']=\
-            int(self.text_to_num(window.InitSkxBuff.text()))
-        if len(window.InpDipBlockSizeLineEdit.text())>0:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['block_size']=\
-            int(self.text_to_num(window.InpDipBlockSizeLineEdit.text()))
+        if len(window.InpSkxStep.text()) > 0:
+            ASDInputGen.UppASDKeywords['topology']['skyno_step'] =\
+                int(self.text_to_num(window.InpSkxStep.text()))
+        if len(window.InitSkxBuff.text()) > 0:
+            ASDInputGen.UppASDKeywords['topology']['skyno_buff'] =\
+                int(self.text_to_num(window.InitSkxBuff.text()))
+        if len(window.InpDipBlockSizeLineEdit.text()) > 0:
+            ASDInputGen.UppASDKeywords['Hamiltonian']['block_size'] =\
+                int(self.text_to_num(window.InpDipBlockSizeLineEdit.text()))
         else:
-            ASDInputGen.UppASDKeywords['Hamiltonian']['block_size']=1
+            ASDInputGen.UppASDKeywords['Hamiltonian']['block_size'] = 1
+      
+        #########################################################################
+        # Other input previously not read by the InputGen. Added by Erik Karpelin
+        #########################################################################
+
+        if len(window.InpASDLLGTemp.text()) > 0:
+            ASDInputGen.UppASDKeywords['general']['Temp'] = \
+                int(self.text_to_num(window.InpASDLLGTemp.text()))
+          
+        if len(window.InpMCTemp.text()) > 0:
+            ASDInputGen.UppASDKeywords['general']['Temp'] = \
+                int(self.text_to_num(window.InpMCTemp.text()))
+          
+        if window.InpSingleTrajBox.isChecked():
+            # ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] = 'C'
+            pass
+       
         return
+    
     ############################################################################
-    ## @brief Function to ensure that if there is no entry it is set to zero
+    # @brief Function handling the structure template by writing the disired 
+    # structure to the UI.
+    # @author Erik Karpelin
+    ############################################################################
+
+    def SetStructureTemplate(self, window, structure):
+        import numpy as np
+
+        ASDInputGen.posfile_gotten = True
+        ASDInputGen.posfile = ['./posfile']
+
+        QtLineEdits = np.array([[window.InpLineEditC1_x, window.InpLineEditC1_y, window.InpLineEditC1_z],
+                                [window.InpLineEditC2_x, window.InpLineEditC2_y, window.InpLineEditC2_z],
+                                [window.InpLineEditC3_x, window.InpLineEditC3_y, window.InpLineEditC3_z]])
+
+        SimpleCubic = BodyCentric = np.array([['1.000', '0.000', '0.000'],
+                                            ['0.000', '1.000', '0.000'],
+                                            ['0.000', '0.000', '1.000']])
+        
+        FaceCentered = np.array([['0.000', '0.500', '0.500'],
+                                ['0.500', '0.000', '0.500'],
+                                ['0.500', '0.500', '0.000']])
+
+        self.ClearBasisVectors(QtLineEdits) # Clear basis vectors
+        
+        if structure == 'sc':
+            self.InsertBasisvectors(QtLineEdits, SimpleCubic)
+            Positions = '1 1    0.000   0.000   0.000'
+        
+        if structure == 'bcc':
+            self.InsertBasisvectors(QtLineEdits, BodyCentric)
+            Positions = '1 1    0.000   0.000   0.000\n'\
+                        '2 1    0.500   0.500   0.500'
+            
+        if structure == 'bcc2':
+            self.InsertBasisvectors(QtLineEdits, BodyCentric)
+            Positions = '1 1    0.000   0.000   0.000\n'\
+                        '2 2    0.500   0.500   0.500'
+            
+        if structure == 'fcc':
+            self.InsertBasisvectors(QtLineEdits, FaceCentered)
+            Positions = '1 1    0.000   0.000   0.000'
+
+        self.GenerateFile('posfile', Positions)
+
+        return
+    
+    def InsertBasisvectors(self, QtLineEdits, BasisVectors): # Helper function
+        for i, row in enumerate(QtLineEdits):
+            for j, object in enumerate(row):
+                object.insert(BasisVectors[i,j])
+        return
+    
+    def ClearBasisVectors(self, QtLineEdits): # Helper function
+        for row in QtLineEdits:
+            for object in row:
+                object.clear()
+        return
+
+    def GenerateFile(self, filename, string): # Helper function
+        file = open(filename, 'w')
+        file.write(string)
+        file.close()
+        return
+    
+    ############################################################################
+    # @brief Function to ensure that if there is no entry it is set to zero
     # @author Jonathan Chico
     ############################################################################
-    def text_to_num(self,text):
-        if len(text)>0:
-            num=float(text)
+
+    def text_to_num(self, text):
+        if len(text) > 0:
+            num = float(text)
         else:
-            num=0.0
+            num = 0.0
         return num
     ############################################################################
-    ## @brief Function to constrain the data that can be put into the line-edits.
+    # @brief Function to constrain the data that can be put into the line-edits.
     # @details The GUI has several editable entries, to ensure that one can only
     # set the correct type of data validators are defined to ensure that only the
     # correct data types can be entered.
     # @author Jonathan Chico
     ############################################################################
-    def ASDInputConstrainer(self,window):
+
+    def ASDInputConstrainer(self, window):
         window.InpN1.setValidator(ASDInputGen.IntegerValidator)
         window.InpN2.setValidator(ASDInputGen.IntegerValidator)
         window.InpN3.setValidator(ASDInputGen.IntegerValidator)
-        window.InpDipBlockSizeLineEdit.setValidator(ASDInputGen.IntegerValidator)
+        window.InpDipBlockSizeLineEdit.setValidator(
+            ASDInputGen.IntegerValidator)
         window.InpMensemble.setValidator(ASDInputGen.IntegerValidator)
         window.InpASDLLGSteps.setValidator(ASDInputGen.IntegerValidator)
         window.InpMCSteps.setValidator(ASDInputGen.IntegerValidator)
@@ -551,256 +687,285 @@ class ASDInputGen():
         window.InpScStep.setValidator(ASDInputGen.IntegerValidator)
         return
     ############################################################################
-    ## @brief Creates a dictionary with the entries needed to generate the inpsd.dat
+    # @brief Creates a dictionary with the entries needed to generate the inpsd.dat
     # @details The dictionary is created and default values are setup so that a
     # minimal simulation can be run.
     # @author Jonathan Chico
     ############################################################################
+
     def ASDSetDefaults(self):
         import collections
         # General simulation variables
-        ASDInputGen.UppASDKeywords['general']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['general']['simid']='_UppASD_'
-        ASDInputGen.UppASDKeywords['general']['mode']='S'
-        ASDInputGen.UppASDKeywords['general']['ip_mode']='N'
-        ASDInputGen.UppASDKeywords['general']['Temp']=0.001
+        ASDInputGen.UppASDKeywords['general'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['general']['simid'] = '_UppASD_'
+        ASDInputGen.UppASDKeywords['general']['mode'] = 'S'
+        ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'N'
+        ASDInputGen.UppASDKeywords['general']['Temp'] = 0.001
         # Geometry variables
-        ASDInputGen.UppASDKeywords['geometry']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['geometry']['ncell']=[1,1,1]
-        ASDInputGen.UppASDKeywords['geometry']['BC']=['P','P','P']
-        ASDInputGen.UppASDKeywords['geometry']['cell']=[[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]]
-        ASDInputGen.UppASDKeywords['geometry']['posfile']='./posfile'
-        ASDInputGen.UppASDKeywords['geometry']['momfile']='./momfile'
-        ASDInputGen.UppASDKeywords['geometry']['do_ralloy']=0
-        ASDInputGen.UppASDKeywords['geometry']['alat']=3e-10
+        ASDInputGen.UppASDKeywords['geometry'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['geometry']['ncell'] = [1, 1, 1]
+        ASDInputGen.UppASDKeywords['geometry']['BC'] = ['P', 'P', 'P']
+        ASDInputGen.UppASDKeywords['geometry']['cell'] = [
+            [1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
+        ASDInputGen.UppASDKeywords['geometry']['posfile'] = './posfile'
+        ASDInputGen.UppASDKeywords['geometry']['momfile'] = './momfile'
+        ASDInputGen.UppASDKeywords['geometry']['do_ralloy'] = 0
+        ASDInputGen.UppASDKeywords['geometry']['alat'] = 3e-10
         # Hamiltonian variables
-        ASDInputGen.UppASDKeywords['Hamiltonian']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['Hamiltonian']['maptype']=2
-        ASDInputGen.UppASDKeywords['Hamiltonian']['Sym']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['exchange']='./jfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['dm']='./dmfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['anisotropy']='./kfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['pd']='./pdfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['bq']='./bqfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['biqdm']='./biqdmfile'
-        ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']=0
-        ASDInputGen.UppASDKeywords['Hamiltonian']['block_size']=1
-        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield']=[0.0,0.0,0.0]
-        ASDInputGen.UppASDKeywords['Hamiltonian']['ip_hfield']=[0.0,0.0,0.0]
+        ASDInputGen.UppASDKeywords['Hamiltonian'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['Hamiltonian']['maptype'] = 2
+        ASDInputGen.UppASDKeywords['Hamiltonian']['Sym'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['exchange'] = './jfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['dm'] = './dmfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['anisotropy'] = './kfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['pd'] = './pdfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['bq'] = './bqfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['biqdm'] = './biqdmfile'
+        ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] = 0
+        ASDInputGen.UppASDKeywords['Hamiltonian']['block_size'] = 1
+        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'] = [0.0, 0.0, 0.0]
+        ASDInputGen.UppASDKeywords['Hamiltonian']['ip_hfield'] = [
+            0.0, 0.0, 0.0]
         # LLG measure  variables
-        ASDInputGen.UppASDKeywords['LLG_mphase']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['LLG_mphase']['SDEAlgh']=1
-        ASDInputGen.UppASDKeywords['LLG_mphase']['damping']=0.01
-        ASDInputGen.UppASDKeywords['LLG_mphase']['timestep']=1e-16
-        ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep']=1000
+        ASDInputGen.UppASDKeywords['LLG_mphase'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['LLG_mphase']['SDEAlgh'] = 1
+        ASDInputGen.UppASDKeywords['LLG_mphase']['damping'] = 0.01
+        ASDInputGen.UppASDKeywords['LLG_mphase']['timestep'] = 1e-16
+        ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep'] = 1000
         # LLG measure  variables
-        ASDInputGen.UppASDKeywords['GNEB_mphase']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb']='N'
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci']='N'
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol']=0.001
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol_ci']=0.00000001
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_itrmax']=10000000
-        ASDInputGen.UppASDKeywords['GNEB_mphase']['eig_zero']=0.0001
+        ASDInputGen.UppASDKeywords['GNEB_mphase'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb'] = 'N'
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['do_gneb_ci'] = 'N'
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol'] = 0.001
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_ftol_ci'] = 0.00000001
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['mep_itrmax'] = 10000000
+        ASDInputGen.UppASDKeywords['GNEB_mphase']['eig_zero'] = 0.0001
         # LLG initial phase variables
-        ASDInputGen.UppASDKeywords['LLG_iphase']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['LLG_iphase']['ip_nphase']=0
+        ASDInputGen.UppASDKeywords['LLG_iphase'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['LLG_iphase']['ip_nphase'] = 0
         # VPO initial phase variables
-        ASDInputGen.UppASDKeywords['VPO_iphase']=collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['VPO_iphase'] = collections.OrderedDict()
         # MC measure variables
-        ASDInputGen.UppASDKeywords['MC_mphase']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep']=10000
+        ASDInputGen.UppASDKeywords['MC_mphase'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep'] = 10000
         # MC initial phase variables
-        ASDInputGen.UppASDKeywords['MC_iphase']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal']=0
+        ASDInputGen.UppASDKeywords['MC_iphase'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['MC_iphase']['ip_mcanneal'] = 0
         # Magnetization variables
-        ASDInputGen.UppASDKeywords['Mag']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['Mag']['Mensemble']=1
-        ASDInputGen.UppASDKeywords['Mag']['maginit']=3
-        ASDInputGen.UppASDKeywords['Mag']['restartfile']='./restart.dummy.dat'
+        ASDInputGen.UppASDKeywords['Mag'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['Mag']['Mensemble'] = 1
+        ASDInputGen.UppASDKeywords['Mag']['maginit'] = 3
+        ASDInputGen.UppASDKeywords['Mag']['restartfile'] = './restart.dummy.dat'
         # Correlation variables
-        ASDInputGen.UppASDKeywords['Mag_corr']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']='N'
-        ASDInputGen.UppASDKeywords['Mag_corr']['sc_step']=10
-        ASDInputGen.UppASDKeywords['Mag_corr']['sc_nstep']=100
-        ASDInputGen.UppASDKeywords['Mag_corr']['qpoints']='F'
-        ASDInputGen.UppASDKeywords['Mag_corr']['qfile']='./qfile'
-        ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']='N'
+        ASDInputGen.UppASDKeywords['Mag_corr'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] = 'N'
+        ASDInputGen.UppASDKeywords['Mag_corr']['sc_step'] = 10
+        ASDInputGen.UppASDKeywords['Mag_corr']['sc_nstep'] = 100
+        ASDInputGen.UppASDKeywords['Mag_corr']['qpoints'] = 'F'
+        ASDInputGen.UppASDKeywords['Mag_corr']['qfile'] = './qfile'
+        ASDInputGen.UppASDKeywords['Mag_corr']['do_ams'] = 'N'
         # Spin-Torques variables
-        ASDInputGen.UppASDKeywords['spintorque']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['spintorque']['stt']='N'
-        ASDInputGen.UppASDKeywords['spintorque']['adibeta']=0.01
-        ASDInputGen.UppASDKeywords['spintorque']['jvec']=[0.0,0.0,0.0]
-        ASDInputGen.UppASDKeywords['spintorque']['do_sot']='N'
-        ASDInputGen.UppASDKeywords['spintorque']['do_she']='N'
-        ASDInputGen.UppASDKeywords['spintorque']['sot_field']=0.0
-        ASDInputGen.UppASDKeywords['spintorque']['sot_damping']=0.0
-        ASDInputGen.UppASDKeywords['spintorque']['sot_pol_vec']=[0.0,0.0,0.0]
-        ASDInputGen.UppASDKeywords['spintorque']['thick_ferro']=1.0
-        ASDInputGen.UppASDKeywords['spintorque']['she_angle']=0.0
+        ASDInputGen.UppASDKeywords['spintorque'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['spintorque']['stt'] = 'N'
+        ASDInputGen.UppASDKeywords['spintorque']['adibeta'] = 0.01
+        ASDInputGen.UppASDKeywords['spintorque']['jvec'] = [0.0, 0.0, 0.0]
+        ASDInputGen.UppASDKeywords['spintorque']['do_sot'] = 'N'
+        ASDInputGen.UppASDKeywords['spintorque']['do_she'] = 'N'
+        ASDInputGen.UppASDKeywords['spintorque']['sot_field'] = 0.0
+        ASDInputGen.UppASDKeywords['spintorque']['sot_damping'] = 0.0
+        ASDInputGen.UppASDKeywords['spintorque']['sot_pol_vec'] = [
+            0.0, 0.0, 0.0]
+        ASDInputGen.UppASDKeywords['spintorque']['thick_ferro'] = 1.0
+        ASDInputGen.UppASDKeywords['spintorque']['she_angle'] = 0.0
         # Prn avrg variables
-        ASDInputGen.UppASDKeywords['averages']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['averages']['do_avrg']='Y'
-        ASDInputGen.UppASDKeywords['averages']['avrg_step']=1000
-        ASDInputGen.UppASDKeywords['averages']['avrg_buff']=100
-        ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']='N'
-        ASDInputGen.UppASDKeywords['averages']['do_projch_avrg']='N'
+        ASDInputGen.UppASDKeywords['averages'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['averages']['do_avrg'] = 'Y'
+        ASDInputGen.UppASDKeywords['averages']['avrg_step'] = 1000
+        ASDInputGen.UppASDKeywords['averages']['avrg_buff'] = 100
+        ASDInputGen.UppASDKeywords['averages']['do_proj_avrg'] = 'N'
+        ASDInputGen.UppASDKeywords['averages']['do_projch_avrg'] = 'N'
         # Prn tottraj variables
-        ASDInputGen.UppASDKeywords['trajectories']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['trajectories']['do_tottraj']='N'
-        ASDInputGen.UppASDKeywords['trajectories']['tottraj_step']=1000
-        ASDInputGen.UppASDKeywords['trajectories']['tottraj_buff']=100
+        ASDInputGen.UppASDKeywords['trajectories'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['trajectories']['do_tottraj'] = 'N'
+        ASDInputGen.UppASDKeywords['trajectories']['tottraj_step'] = 1000
+        ASDInputGen.UppASDKeywords['trajectories']['tottraj_buff'] = 100
         # Prn cumulants variables
-        ASDInputGen.UppASDKeywords['cumulants']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['cumulants']['do_cumu']='Y'
-        ASDInputGen.UppASDKeywords['cumulants']['cumu_step']=1000
-        ASDInputGen.UppASDKeywords['cumulants']['cumu_buff']=100
+        ASDInputGen.UppASDKeywords['cumulants'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['cumulants']['do_cumu'] = 'Y'
+        ASDInputGen.UppASDKeywords['cumulants']['cumu_step'] = 1000
+        ASDInputGen.UppASDKeywords['cumulants']['cumu_buff'] = 100
         # Prn skyrmion
-        ASDInputGen.UppASDKeywords['topology']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['topology']['skyrno']='N'
-        ASDInputGen.UppASDKeywords['topology']['skyno_step']=1000
-        ASDInputGen.UppASDKeywords['topology']['skyno_buff']=100
+        ASDInputGen.UppASDKeywords['topology'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['topology']['skyrno'] = 'N'
+        ASDInputGen.UppASDKeywords['topology']['skyno_step'] = 1000
+        ASDInputGen.UppASDKeywords['topology']['skyno_buff'] = 100
         # Prn energy
-        ASDInputGen.UppASDKeywords['energy']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['energy']['plotenergy']=1
+        ASDInputGen.UppASDKeywords['energy'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['energy']['plotenergy'] = 1
         # Hessian
-        ASDInputGen.UppASDKeywords['Hessians']=collections.OrderedDict()
-        ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini']='N'
-        ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin']='N'
-        ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']='N'
+        ASDInputGen.UppASDKeywords['Hessians'] = collections.OrderedDict()
+        ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini'] = 'N'
+        ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin'] = 'N'
+        ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp'] = 'N'
         return
     ############################################################################
-    ## @brief Function to clean the input generator dictionary to remove empty entries
+    # @brief Function to clean the input generator dictionary to remove empty entries
     # @details The function makes sute to eliminate un-needed entries to get the
     # minimal inpsd.dat
     # @author Jonathan Chico
     ############################################################################
+
     def clean_var(self):
-        tol=1e-10
-        if ASDInputGen.UppASDKeywords['spintorque']['stt']=='N' and ASDInputGen.UppASDKeywords['spintorque']['do_she']=='N':
+        tol = 1e-10
+        if ASDInputGen.UppASDKeywords['spintorque']['stt'] == 'N' and ASDInputGen.UppASDKeywords['spintorque']['do_she'] == 'N':
             del ASDInputGen.UppASDKeywords['spintorque']['jvec']
-        if ASDInputGen.UppASDKeywords['spintorque']['stt']=='N':
+        if ASDInputGen.UppASDKeywords['spintorque']['stt'] == 'N':
             del ASDInputGen.UppASDKeywords['spintorque']['adibeta']
             del ASDInputGen.UppASDKeywords['spintorque']['stt']
-        if ASDInputGen.UppASDKeywords['spintorque']['do_she']=='N':
+        if ASDInputGen.UppASDKeywords['spintorque']['do_she'] == 'N':
             del ASDInputGen.UppASDKeywords['spintorque']['she_angle']
             del ASDInputGen.UppASDKeywords['spintorque']['thick_ferro']
             del ASDInputGen.UppASDKeywords['spintorque']['do_she']
-        if ASDInputGen.UppASDKeywords['spintorque']['do_sot']=='N':
+        if ASDInputGen.UppASDKeywords['spintorque']['do_sot'] == 'N':
             del ASDInputGen.UppASDKeywords['spintorque']['sot_pol_vec']
             del ASDInputGen.UppASDKeywords['spintorque']['sot_damping']
             del ASDInputGen.UppASDKeywords['spintorque']['sot_field']
             del ASDInputGen.UppASDKeywords['spintorque']['do_sot']
         # S(q,w) and AMS flags
-        if ASDInputGen.UppASDKeywords['Mag_corr']['qpoints']!='F':
+        if ASDInputGen.UppASDKeywords['Mag_corr']['qpoints'] != 'F':
             del ASDInputGen.UppASDKeywords['Mag_corr']['qfile']
-        if ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']=='N' and ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']=='N':
+        if ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] == 'N' and ASDInputGen.UppASDKeywords['Mag_corr']['do_ams'] == 'N':
             del ASDInputGen.UppASDKeywords['Mag_corr']['qfile']
             del ASDInputGen.UppASDKeywords['Mag_corr']['qpoints']
-        if ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']=='N':
+        if ASDInputGen.UppASDKeywords['Mag_corr']['do_sc'] == 'N':
             del ASDInputGen.UppASDKeywords['Mag_corr']['sc_step']
             del ASDInputGen.UppASDKeywords['Mag_corr']['sc_nstep']
             del ASDInputGen.UppASDKeywords['Mag_corr']['do_sc']
-        if ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']=='N':
+        if ASDInputGen.UppASDKeywords['Mag_corr']['do_ams'] == 'N':
             del ASDInputGen.UppASDKeywords['Mag_corr']['do_ams']
         # dipolar flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']!=2:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] != 2:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['block_size']
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_dip']
         # DMI flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_dm']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['dm']
         # Anisotropy flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_anisotropy']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['anisotropy']
         # Biquadratic interaction flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_bq']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['bq']
         # Pseudo dipolar flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_pd']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['pd']
         # Biquadratic DM interaction flags
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm']==0:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm'] == 0:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['do_biqdm']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['biqdm']
         # IP Mode flags
-        if ASDInputGen.UppASDKeywords['general']['ip_mode']=='N':
+        if ASDInputGen.UppASDKeywords['general']['ip_mode'] == 'N':
             del ASDInputGen.UppASDKeywords['general']['ip_mode']
             del ASDInputGen.UppASDKeywords['Hamiltonian']['ip_hfield']
             del ASDInputGen.UppASDKeywords['MC_iphase']
             del ASDInputGen.UppASDKeywords['LLG_iphase']
             del ASDInputGen.UppASDKeywords['VPO_iphase']
         else:
-            if ASDInputGen.UppASDKeywords['general']['ip_mode']!='M' and ASDInputGen.UppASDKeywords['general']['ip_mode']!='H':
+            if ASDInputGen.UppASDKeywords['general']['ip_mode'] != 'M' and ASDInputGen.UppASDKeywords['general']['ip_mode'] != 'H':
                 del ASDInputGen.UppASDKeywords['MC_iphase']
-            if ASDInputGen.UppASDKeywords['general']['ip_mode']!='S':
+            if ASDInputGen.UppASDKeywords['general']['ip_mode'] != 'S':
                 del ASDInputGen.UppASDKeywords['LLG_iphase']
-            if ASDInputGen.UppASDKeywords['general']['ip_mode']!='G':
+            if ASDInputGen.UppASDKeywords['general']['ip_mode'] != 'G':
                 del ASDInputGen.UppASDKeywords['VPO_iphase']
         # Mode flags
-        if ASDInputGen.UppASDKeywords['general']['mode']!='M' and ASDInputGen.UppASDKeywords['general']['mode']!='H':
+        if ASDInputGen.UppASDKeywords['general']['mode'] != 'M' and ASDInputGen.UppASDKeywords['general']['mode'] != 'H':
             del ASDInputGen.UppASDKeywords['MC_mphase']
-        if ASDInputGen.UppASDKeywords['general']['mode']!='S':
+        if ASDInputGen.UppASDKeywords['general']['mode'] != 'S':
             del ASDInputGen.UppASDKeywords['LLG_mphase']
-        if ASDInputGen.UppASDKeywords['general']['mode']!='G':
+        if ASDInputGen.UppASDKeywords['general']['mode'] != 'G':
             del ASDInputGen.UppASDKeywords['GNEB_mphase']
         # Maginit flags
-        if ASDInputGen.UppASDKeywords['Mag']['maginit']!=4 and ASDInputGen.UppASDKeywords['Mag']['maginit']!=7:
+        if ASDInputGen.UppASDKeywords['Mag']['maginit'] != 4 and ASDInputGen.UppASDKeywords['Mag']['maginit'] != 7:
             del ASDInputGen.UppASDKeywords['Mag']['restartfile']
         # Measurement field flag
-        if ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][0]**2+\
-        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][1]**2+\
-        ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][2]**2< tol:
+        if ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][0]**2 +\
+                ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][1]**2 +\
+                ASDInputGen.UppASDKeywords['Hamiltonian']['hfield'][2]**2 < tol:
             del ASDInputGen.UppASDKeywords['Hamiltonian']['hfield']
         # Random alloy flags
-        if ASDInputGen.UppASDKeywords['geometry']['do_ralloy']==0:
+        if ASDInputGen.UppASDKeywords['geometry']['do_ralloy'] == 0:
             del ASDInputGen.UppASDKeywords['geometry']['do_ralloy']
         # Prn trajectories
-        if ASDInputGen.UppASDKeywords['trajectories']['do_tottraj']=='N':
+        if ASDInputGen.UppASDKeywords['trajectories']['do_tottraj'] == 'N':
             del ASDInputGen.UppASDKeywords['trajectories']
         # Prn averages
-        if ASDInputGen.UppASDKeywords['averages']['do_avrg']=='N':
+        if ASDInputGen.UppASDKeywords['averages']['do_avrg'] == 'N':
             del ASDInputGen.UppASDKeywords['averages']
         # Prn topology
-        if ASDInputGen.UppASDKeywords['topology']['skyrno']=='N':
+        if ASDInputGen.UppASDKeywords['topology']['skyrno'] == 'N':
             del ASDInputGen.UppASDKeywords['topology']
         # Prn cumulants
-        if ASDInputGen.UppASDKeywords['cumulants']['do_cumu']=='N':
+        if ASDInputGen.UppASDKeywords['cumulants']['do_cumu'] == 'N':
             del ASDInputGen.UppASDKeywords['cumulants']
         # Prn averages
-        if ASDInputGen.UppASDKeywords['averages']['do_avrg']=='N':
+        if ASDInputGen.UppASDKeywords['averages']['do_avrg'] == 'N':
             del ASDInputGen.UppASDKeywords['averages']
         else:
-            if ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']=='N':
+            if ASDInputGen.UppASDKeywords['averages']['do_proj_avrg'] == 'N':
                 del ASDInputGen.UppASDKeywords['averages']['do_proj_avrg']
-            if ASDInputGen.UppASDKeywords['averages']['do_projch_avrg']=='N':
+            if ASDInputGen.UppASDKeywords['averages']['do_projch_avrg'] == 'N':
                 del ASDInputGen.UppASDKeywords['averages']['do_projch_avrg']
         # Hessians
-        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini']=='N':
+        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini'] == 'N':
             del ASDInputGen.UppASDKeywords['Hessians']['do_hess_ini']
-        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin']=='N':
+        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin'] == 'N':
             del ASDInputGen.UppASDKeywords['Hessians']['do_hess_fin']
-        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']=='N':
+        if ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp'] == 'N':
             del ASDInputGen.UppASDKeywords['Hessians']['do_hess_sp']
-        if ASDInputGen.UppASDKeywords['Mag']['relaxed_if']=='N':
+        if ASDInputGen.UppASDKeywords['Mag']['relaxed_if'] == 'N':
             del ASDInputGen.UppASDKeywords['Mag']['relaxed_if']
-        #for name in ASDInputGen.UppASDKeywords:
+        # for name in ASDInputGen.UppASDKeywords:
         #    if len(ASDInputGen.UppASDKeywords[name])==0:
         #        del ASDInputGen.UppASDKeywords[name]
         return
     ############################################################################
-    ## @brief Function to write a standard inpsd.dat and a inpsd.yaml file
+    # @brief Function to write a standard inpsd.dat and a inpsd.yaml file
     # @author Jonathan Chico
     ############################################################################
+    def new_write_inpsd(self):
+        import collections
+        import yaml
+
+        yaml.add_representer(collections.OrderedDict, lambda dumper, data: dumper.represent_mapping(
+            'tag:yaml.org,2002:map', data.items()))
+        with open('inpsd.yaml', 'w') as outfile:
+            yaml.dump(ASDInputGen.UppASDKeywords,
+                      outfile, default_flow_style=False)
+            
+        inpsd_file = open('inpsd.dat', 'w')
+
+        for name in ASDInputGen.UppASDKeywords:
+            for descriptor in ASDInputGen.UppASDKeywords[name]:
+                current = ASDInputGen.UppASDKeywords[name][descriptor]
+
+                if len(descriptor) > 0:
+                        inpsd_file.write('{descriptor}  '.format(**locals()))
+
+                line = []
+
+            return
+
+
     def write_inpsd(self):
         """Function to write a standard inpsd.dat and a inpsd.yaml file
 
@@ -810,34 +975,41 @@ class ASDInputGen():
         """
         import collections
         import yaml
-        yaml.add_representer(collections.OrderedDict, lambda dumper, data: dumper.represent_mapping('tag:yaml.org,2002:map', data.items()))
-        with open('inpsd.yaml', 'w') as outfile:
-            yaml.dump(ASDInputGen.UppASDKeywords, outfile, default_flow_style=False)
 
-        inpsd_file=open('inpsd.dat','w')
+        print(ASDInputGen.UppASDKeywords.items())
+
+        yaml.add_representer(collections.OrderedDict, lambda dumper, data: dumper.represent_mapping(
+            'tag:yaml.org,2002:map', data.items()))
+        with open('inpsd.yaml', 'w') as outfile:
+            yaml.dump(ASDInputGen.UppASDKeywords,
+                      outfile, default_flow_style=False)
+
+        inpsd_file = open('inpsd.dat', 'w')
         for name in ASDInputGen.UppASDKeywords:
             for descriptor in ASDInputGen.UppASDKeywords[name]:
-                current=ASDInputGen.UppASDKeywords[name][descriptor]
-                if isinstance(current,list):
-                    if len(descriptor)>0:
+                current = ASDInputGen.UppASDKeywords[name][descriptor]
+                if isinstance(current, list):
+                    if len(descriptor) > 0:
                         inpsd_file.write('{descriptor}  '.format(**locals()))
                     for ii in range(len(current)):
-                        line=current[ii]
-                        if isinstance(line,list):
+                        line = current[ii]
+                        if isinstance(line, list):
                             for jj in range(len(line)):
-                                entry=line[jj]
-                                inpsd_file.write('{entry}  '.format(**locals()))
+                                entry = line[jj]
+                                inpsd_file.write(
+                                    '{entry}  '.format(**locals()))
                             inpsd_file.write('\n')
                         else:
                             inpsd_file.write('{line}  '.format(**locals()))
                     inpsd_file.write('\n')
-                elif isinstance(current,tuple):
+                elif isinstance(current, tuple):
                     inpsd_file.write('{descriptor} '.format(**locals()))
                     for ii in range(len(current)):
-                        entry=current[ii]
+                        entry = current[ii]
                         inpsd_file.write('{entry}  '.format(**locals()))
                     inpsd_file.write('\n')
                 else:
-                    inpsd_file.write('{descriptor}  {current}\n'.format(**locals()))
+                    inpsd_file.write(
+                        '{descriptor}  {current}\n'.format(**locals()))
             inpsd_file.write('\n')
         return
