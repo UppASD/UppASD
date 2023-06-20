@@ -16,8 +16,6 @@ from enum import Enum
 from PyQt6 import QtWidgets
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMainWindow
-import uppasd as asd
-import os.path as path
 
 class Backend(Enum):
     UppASD_VTK = 1
@@ -159,6 +157,9 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def RunSimulation(self):
+        import uppasd as asd 
+        import os.path as path
+
         if path.isfile('inpsd.dat') == False:
             print('inpsd.dat not found, creating from asd_gui')
             self.WriteInputFile()
@@ -177,7 +178,15 @@ class UppASDVizMainWindow(QMainWindow):
     def SetStructureTemplate(self, structure):
         self.ASDInputGen.SetStructureTemplate(self, structure)
         return
-
+    
+    ############################################################################
+    # @breif Relay function to handle the reset button.
+    # @author Erik Karpelin
+    ############################################################################
+    
+    def ResetInputs(self):
+        self.ASDInputGen.ResetInputs(self)
+        return
 
     ############################################################################
     # @brief Initialize the UI and set the relevant actions

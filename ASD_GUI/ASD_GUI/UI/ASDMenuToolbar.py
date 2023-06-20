@@ -572,12 +572,14 @@ def Input_Toolbar_Setup(window):
 
     # New button to run simulation, added by Erik Karpelin
     window.InpRunSimButton.clicked.connect(window.RunSimulation)
+    window.InpCancelButton.clicked.connect(window.ResetInputs)
 
     # Button for Structure Templates, added by Erik Karpelin
     window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
     window.InpTemplateBCCButton.clicked.connect(lambda: window.SetStructureTemplate('bcc'))
     window.InpTemplateBCC2TypesButton.clicked.connect(lambda: window.SetStructureTemplate('bcc2'))
     window.InpTemplateFCCButton.clicked.connect(lambda: window.SetStructureTemplate('fcc'))
+    window.InpTemplateHCPButton.clicked.connect(lambda: window.SetStructureTemplate('hcp'))
 
 
 

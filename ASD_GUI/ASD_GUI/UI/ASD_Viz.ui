@@ -1051,7 +1051,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_hcp.png</normaloff>../TemplateStructurePic/pp_hcp.png</iconset>
+                                                         <normaloff>../TemplateStructurePic/pp_hcp.jpg</normaloff>../TemplateStructurePic/pp_hcp.jpg</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1239,7 +1239,7 @@
                                                       <string>Reset values to default</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Cancel</string>
+                                                      <string>Reset</string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -6690,7 +6690,7 @@
                                                       <string>Set the magnetic moments randomly distributed by given cone angles</string>
                                                    </property>
                                                    <property name="title">
-                                                      <string>Cone angles</string>
+                                                      <string>Cone angles (to be implemented)</string>
                                                    </property>
                                                    <property name="checkable">
                                                       <bool>true</bool>
@@ -8089,7 +8089,7 @@
                                     <item>
                                        <widget class="QGroupBox" name="InpTrajBox">
                                           <property name="title">
-                                             <string>Trajectories</string>
+                                             <string>Trajectories (to be implemented)</string>
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_19">
                                              <item row="1" column="0">
@@ -8107,7 +8107,7 @@
                                                       <item>
                                                          <widget class="QPushButton" name="InpNTrajButton">
                                                             <property name="text">
-                                                               <string>Setup</string>
+                                                               <string>Setup (to be implemented)</string>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -8235,7 +8235,7 @@
                                              <item row="3" column="0">
                                                 <widget class="QPushButton" name="InpSqQpoints">
                                                    <property name="text">
-                                                      <string>Set q-points</string>
+                                                      <string>Set q-points (to be implemented)</string>
                                                    </property>
                                                 </widget>
                                              </item>
