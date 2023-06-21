@@ -153,6 +153,10 @@ class UppASDVizMainWindow(QMainWindow):
 
     ############################################################################
     # @breif Function to run simulation using the uppasd module.
+    # @detailed This function first checks if a inpsd.dat-file is present in the 
+    # current directory. If it is, it asks if it should overwrite it, otherwise it
+    # creates an inpsd.dat from the GUI inputs. The function then runs the simulation
+    # using the uppasd python module. 
     # @author Erik Karpelin
     ############################################################################
 
@@ -401,7 +405,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.InpInitMag4CreateButton:
             self.check_for_restart()
         if self.sender() == self.InpPosButtonCreate:
-            self.Momfile_Window.posfile_gotten = False
+            self.Posfile_Window.posfile_gotten = False
             if self.InpCheckRandAlloy.isChecked():
                 self.Posfile_Window.InPosBox.setEnabled(False)
                 self.Posfile_Window.InPosBox.setVisible(False)
