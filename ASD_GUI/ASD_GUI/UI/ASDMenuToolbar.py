@@ -536,7 +536,7 @@ def Input_Toolbar_Setup(window):
     # Set actions
     #--------------------------------------------------------------------------------
     window.InpDoneButton.clicked.connect(window.WriteInputFile)
-    window.InpXCCheck.toggled.connect(window.getInpFile)
+    #window.InpXCCheck.toggled.connect(window.getInpFile)
     window.InpDMCheck.toggled.connect(window.getInpFile)
     window.InpMAECheck.toggled.connect(window.getInpFile)
     window.InpPseudoCheck.toggled.connect(window.getInpFile)
@@ -569,6 +569,28 @@ def Input_Toolbar_Setup(window):
     window.InpInitMag6Check.clicked.connect(window.ToggleHessians)
     window.InpInitMag4Check.clicked.connect(window.ToggleHessians)
     window.InpInitmag7Check.clicked.connect(window.ToggleHessians)
+
+    # Below is code to handle new buttons, or buttons that previously had
+    # no functionality. Added by Erik Karpelin. 
+
+    # Button to reset all inputs
+    window.InpCancelButton.clicked.connect(window.ResetInputs)
+
+    # New button to run simulation
+    window.InpRunSimButton.clicked.connect(window.RunSimulation)
+
+    # Button for Structure Templates
+    window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
+    window.InpTemplateBCCButton.clicked.connect(lambda: window.SetStructureTemplate('bcc'))
+    window.InpTemplateBCC2TypesButton.clicked.connect(lambda: window.SetStructureTemplate('bcc2'))
+    window.InpTemplateFCCButton.clicked.connect(lambda: window.SetStructureTemplate('fcc'))
+    window.InpTemplateHCPButton.clicked.connect(lambda: window.SetStructureTemplate('hcp'))
+
+    # Buttons to create and select jfile
+    window.InpJfileButtonSelect.clicked.connect(window.getInpFile)
+
+
+
     return
 #------------------------------------------------------------------------------------
 # @brief Function to update the UI objects.

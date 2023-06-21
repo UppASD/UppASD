@@ -882,6 +882,47 @@
                                                             </layout>
                                                          </widget>
                                                       </item>
+                                                      <item row="2" column="1">
+                                                         <widget class="QGroupBox" name="InpPosBox">
+                                                            <property name="title">
+                                                               <string>Exchange file</string>
+                                                            </property>
+                                                            <layout class="QHBoxLayout" name="horizontalLayout_2">
+                                                               <item>
+                                                                  <widget class="QPushButton" name="InpJfileButtonSelect">
+                                                                     <property name="toolTip">
+                                                                        <string>Select jfile from system</string>
+                                                                     </property>
+                                                                     <property name="statusTip">
+                                                                        <string>Select jfile from system</string>
+                                                                     </property>
+                                                                     <property name="whatsThis">
+                                                                        <string>Select jfile from system</string>
+                                                                     </property>
+                                                                     <property name="text">
+                                                                        <string>Select jfile</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+                                                               <item>
+                                                                  <widget class="QPushButton" name="InpJfileButtonCreate">
+                                                                     <property name="toolTip">
+                                                                        <string>Create jfile manually</string>
+                                                                     </property>
+                                                                     <property name="statusTip">
+                                                                        <string>Create jfile manually</string>
+                                                                     </property>
+                                                                     <property name="whatsThis">
+                                                                        <string>Create jfile manually</string>
+                                                                     </property>
+                                                                     <property name="text">
+                                                                        <string>Create jfile</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+                                                            </layout>
+                                                         </widget>
+                                                      </item>
                                                    </layout>
                                                 </widget>
                                              </item>
@@ -913,7 +954,7 @@
                                              <string>Creation of input files via templates</string>
                                           </property>
                                           <property name="title">
-                                             <string>Structure templates (to be implemented)</string>
+                                             <string>Structure templates</string>
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_52">
                                              <item row="0" column="1">
@@ -1033,6 +1074,35 @@
                                                 </widget>
                                              </item>
                                              <item row="0" column="4">
+                                                <widget class="QPushButton" name="InpTemplateHCPButton">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Create hexagonal compact packing system</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string/>
+                                                   </property>
+                                                   <property name="icon">
+                                                      <iconset>
+                                                         <normaloff>../TemplateStructurePic/pp_hcp.jpg</normaloff>../TemplateStructurePic/pp_hcp.jpg</iconset>
+                                                   </property>
+                                                   <property name="iconSize">
+                                                      <size>
+                                                         <width>100</width>
+                                                         <height>100</height>
+                                                      </size>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="5">
                                                 <spacer name="horizontalSpacer_4">
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>
@@ -1154,6 +1224,22 @@
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_50">
                                              <item row="1" column="1">
+                                                <widget class="QPushButton" name="InpRunSimButton">
+                                                   <property name="toolTip">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Button to run simulation</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Run Simulation!</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="1" column="2">
                                                 <widget class="QPushButton" name="InpDoneButton">
                                                    <property name="toolTip">
                                                       <string>Setup of the inpsd.dat done write file</string>
@@ -1165,7 +1251,7 @@
                                                       <string>Setup of the inpsd.dat done write file</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Done!</string>
+                                                      <string>Generate inpsd.dat</string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -1182,7 +1268,7 @@
                                                    </property>
                                                 </spacer>
                                              </item>
-                                             <item row="1" column="2">
+                                             <item row="1" column="3">
                                                 <widget class="QPushButton" name="InpCancelButton">
                                                    <property name="toolTip">
                                                       <string>Reset values to default</string>
@@ -1194,7 +1280,7 @@
                                                       <string>Reset values to default</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Cancel</string>
+                                                      <string>Reset</string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -6645,7 +6731,7 @@
                                                       <string>Set the magnetic moments randomly distributed by given cone angles</string>
                                                    </property>
                                                    <property name="title">
-                                                      <string>Cone angles</string>
+                                                      <string>Cone angles (to be implemented)</string>
                                                    </property>
                                                    <property name="checkable">
                                                       <bool>true</bool>
@@ -8044,7 +8130,7 @@
                                     <item>
                                        <widget class="QGroupBox" name="InpTrajBox">
                                           <property name="title">
-                                             <string>Trajectories</string>
+                                             <string>Trajectories (to be implemented)</string>
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_19">
                                              <item row="1" column="0">
@@ -8062,7 +8148,7 @@
                                                       <item>
                                                          <widget class="QPushButton" name="InpNTrajButton">
                                                             <property name="text">
-                                                               <string>Setup</string>
+                                                               <string>Setup (to be implemented)</string>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -8190,7 +8276,7 @@
                                              <item row="3" column="0">
                                                 <widget class="QPushButton" name="InpSqQpoints">
                                                    <property name="text">
-                                                      <string>Set q-points</string>
+                                                      <string>Set q-points (to be implemented)</string>
                                                    </property>
                                                 </widget>
                                              </item>
