@@ -89,6 +89,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.Posfile_Window = ASDInputWindows.Posfile_Window()
         self.Momfile_Window = ASDInputWindows.Momfile_Window()
         self.InitPhase_Window = ASDInputWindows.InitPhase_Window()
+        self.Jfile_Window = ASDInputWindows.Jfile_Window()
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -150,17 +151,17 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDInputGen.clean_var()
         self.ASDInputGen.write_inpsd()
         return
-
-    ############################################################################
-    # @breif Function to run simulation using the uppasd module.
-    # @detailed This function first checks if a inpsd.dat-file is present in the 
-    # current directory. If it is, it asks if it should overwrite it, otherwise it
-    # creates an inpsd.dat from the GUI inputs. The function then runs the simulation
-    # using the uppasd python module. 
-    # @author Erik Karpelin
+    
     ############################################################################
 
     def RunSimulation(self):
+        """
+        Run simulation using the uppasd module. Checks if a inpsd.dat file
+        is present in current directory and asks for overwrite. 
+
+        Author: Erik Karpelin
+        """
+
         import uppasd as asd 
         import os.path as path
 
@@ -173,22 +174,14 @@ class UppASDVizMainWindow(QMainWindow):
                 self.WriteInputFile()
         asd.pyasd.runuppasd()
         return
-    
-    ############################################################################
-    # @breif Relay function to handle the structure templates.
-    # @author Erik Karpelin
-    ############################################################################
 
     def SetStructureTemplate(self, structure):
+        """Relay function to handle the structure templates."""
         self.ASDInputGen.SetStructureTemplate(self, structure)
         return
     
-    ############################################################################
-    # @breif Relay function to handle the reset button.
-    # @author Erik Karpelin
-    ############################################################################
-    
     def ResetInputs(self):
+        """Relay function to handle the reset button."""
         self.ASDInputGen.ResetInputs(self)
         return
 
@@ -239,6 +232,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDInputGen.ASDSetDefaults()
         self.Posfile_Window.InpPosDone.clicked.connect(self.update_names)
         self.Momfile_Window.InpMomDone.clicked.connect(self.update_names)
+        self.Jfile_Window.InpJfileDone.clicked.connect(self.update_names)
+        self.Jfile_Window.InJfileGenVectors.clicked.connect(lambda: self.Jfile_Window.GenerateVectorsFromCell(self))
         self.Restart_Window.InpRestAppendButton.clicked.connect(
             self.create_restart)
         self.Restart_Window.InpRestartDone.clicked.connect(self.create_restart)
@@ -420,6 +415,9 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.InpMomButtonCreate:
             self.Momfile_Window.momfile_gotten = False
             self.Momfile_Window.show()
+        if self.sender() == self.InpJfileButtonCreate:
+            self.Jfile_Window.Jfile_gotten = False
+            self.Jfile_Window.show()
         if self.sender() == self.InpSetPhases:
             if self.InpInitLLG.isChecked():
                 self.InitPhase_Window.IpNphaseBox.setEnabled(True)

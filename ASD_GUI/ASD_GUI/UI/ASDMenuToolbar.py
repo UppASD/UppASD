@@ -570,9 +570,6 @@ def Input_Toolbar_Setup(window):
     window.InpInitMag4Check.clicked.connect(window.ToggleHessians)
     window.InpInitmag7Check.clicked.connect(window.ToggleHessians)
 
-    # Below is code to handle new buttons, or buttons that previously had
-    # no functionality. Added by Erik Karpelin. 
-
     # Button to reset all inputs
     window.InpCancelButton.clicked.connect(window.ResetInputs)
 
@@ -589,6 +586,8 @@ def Input_Toolbar_Setup(window):
     # Buttons to create and select jfile
     window.InpJfileButtonSelect.clicked.connect(window.getInpFile)
 
+    # Jfile creation
+    window.InpJfileButtonCreate.clicked.connect(window.OpenWindow)
 
 
     return
