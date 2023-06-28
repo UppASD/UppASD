@@ -66,7 +66,7 @@ class ASDInputGen():
         if window.sender().__class__.__name__ != "QPushButton" and window.sender().isChecked() == False:
             pass
 
-        else: 
+        else:
             dlg = QtWidgets.QFileDialog()
             dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
             dlg.setDirectory('.')
@@ -115,6 +115,9 @@ class ASDInputGen():
             ASDInputGen.momfile = window.Momfile_Window.momfile_name
         if window.sender() == window.Restart_Window.InpRestartDone:
             ASDInputGen.restartfile = window.Restart_Window.restartfile_name
+        if window.sender() == window.Jfile_Window.InpJfileDone:
+            ASDInputGen.jfile = window.Jfile_Window.jfile_name
+            window.InpXCCheck.setChecked(True)
         return
     ############################################################################
     # @brief Function to get the information needed for the inpsd.dat from the
@@ -128,12 +131,12 @@ class ASDInputGen():
         if len(window.InpLineEditSimid.text()) > 0:
             ASDInputGen.UppASDKeywords['general']['simid'] =\
                 str(window.InpLineEditSimid.text())
-            
+           
         # Obtain the lattice constant of the system
         if len(window.InpLineEditAlat.text()) > 0:
             ASDInputGen.UppASDKeywords['geometry']['alat'] =\
                 float(self.text_to_num(window.InpLineEditAlat.text()))
-            
+           
         # The number of repetitions of the unit cell
         if len(window.InpN1.text()) > 0:
             ASDInputGen.UppASDKeywords['geometry']['ncell'][0] =\
@@ -144,7 +147,7 @@ class ASDInputGen():
         if len(window.InpN3.text()) > 0:
             ASDInputGen.UppASDKeywords['geometry']['ncell'][2] =\
                 int(self.text_to_num(window.InpN3.text()))
-            
+           
         # Set the boundary conditions
         if window.InpPBCCheckC1.isChecked():
             ASDInputGen.UppASDKeywords['geometry']['BC'][0] = 'P'
@@ -160,17 +163,15 @@ class ASDInputGen():
             ASDInputGen.UppASDKeywords['geometry']['BC'][2] = 0
 
         # Filling up the lattice vectors
-        ASDInputGen.UppASDKeywords['geometry']['cell'] =\
-            [[float(self.text_to_num(window.InpLineEditC1_x.text())),
-              float(self.text_to_num(window.InpLineEditC1_y.text())),
-              float(self.text_to_num(window.InpLineEditC1_z.text()))],
-             [float(self.text_to_num(window.InpLineEditC2_x.text())),
-              float(self.text_to_num(window.InpLineEditC2_y.text())),
-              float(self.text_to_num(window.InpLineEditC2_z.text()))],
-             [float(self.text_to_num(window.InpLineEditC3_x.text())),
-                float(self.text_to_num(window.InpLineEditC3_y.text())),
-                float(self.text_to_num(window.InpLineEditC3_z.text()))]]
-        
+        UiBasisVectors = [[window.InpLineEditC1_x, window.InpLineEditC1_y, window.InpLineEditC1_z],
+                            [window.InpLineEditC2_x, window.InpLineEditC2_y, window.InpLineEditC2_z],
+                            [window.InpLineEditC3_x, window.InpLineEditC3_y, window.InpLineEditC3_z]]
+        for i, vector in enumerate(UiBasisVectors):
+            for j, coord in enumerate(vector):
+                if len(coord.text()) > 0:
+                    ASDInputGen.UppASDKeywords['geometry']['cell'][i][j] =\
+                    float(coord.text())
+       
         # Check for random alloys
         if window.InpCheckRandAlloy.isChecked():
             ASDInputGen.UppASDKeywords['geometry']['do_ralloy'] = 1
@@ -187,6 +188,7 @@ class ASDInputGen():
 
         # Check for Hamiltonian interactions
         if window.InpXCCheck.isChecked():
+            ASDInputGen.UppASDKeywords['general']['do_prnstruct'] = 1
             if len(ASDInputGen.jfile) > 0:
                 ASDInputGen.UppASDKeywords['Hamiltonian']['exchange'] = ASDInputGen.jfile
             else:
@@ -240,12 +242,14 @@ class ASDInputGen():
                 float(self.text_to_num(window.InpASDLLGDT.text()))
             
         # Number of steps for an SD measurement phase
-        ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep'] =\
-            int(self.text_to_num(window.InpASDLLGSteps.text()))
+        if len(window.InpASDLLGSteps.text()) > 0:
+            ASDInputGen.UppASDKeywords['LLG_mphase']['Nstep'] =\
+                int(self.text_to_num(window.InpASDLLGSteps.text()))
         
         # Number of MC steps in the measurement phase
-        ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep'] =\
-            int(self.text_to_num(window.InpMCSteps.text()))
+        if len(window.InpMCSteps.text()) > 0:
+            ASDInputGen.UppASDKeywords['MC_mphase']['mcnstep'] =\
+                int(self.text_to_num(window.InpMCSteps.text()))
         
         # Number of ensembles in the simulation
         if len(window.InpMensemble.text()) > 0:
@@ -550,17 +554,18 @@ class ASDInputGen():
         return
     
     ############################################################################
-    # @brief Function handling the structure templates by writing the disired
-    # structure to the UI.
-    # @detailed The function collects the basis vector line objects from the GUI
-    # and then does a few checks to see which structure was clicked using a string
-    # passed from the button press. The function then uses helper functions, defined
-    # below, to clear the current vectors and writes the new vectors directly to the
-    # UI. This way the user can directly see what basis is being used. 
-    # @author Erik Karpelin
-    ############################################################################
 
     def SetStructureTemplate(self, window, structure):
+        """
+        Function handling the structure templates by writing the disired
+        structure to the UI.
+
+        Inputs:
+                window      :   QWindow object
+                structure   :   string passed from button press
+        
+        Author: Erik Karpelin
+        """
         import numpy as np
 
         ASDInputGen.posfile_gotten = True
@@ -568,9 +573,9 @@ class ASDInputGen():
 
         # Set symmetry of lattice
         if structure == 'sc' or 'bcc' or 'bcc2' or 'fcc':
-            ASDInputGen.UppASDKeywords['Hamiltonian']['Sym'] = 1
+            window.InpPairSym.setValue(1)
         if structure == 'hcp':
-            ASDInputGen.UppASDKeywords['Hamiltonian']['Sym'] = 3
+            window.InpPairSym.setValue(3)
 
         UiBasisVectors = np.array([[window.InpLineEditC1_x, window.InpLineEditC1_y, window.InpLineEditC1_z],
                                 [window.InpLineEditC2_x, window.InpLineEditC2_y, window.InpLineEditC2_z],
@@ -614,41 +619,40 @@ class ASDInputGen():
             Positions = '1 1    0.0000000000   0.0000000000   0.0000000000\n'\
                         '2 1    0.3333333333   0.6666666666   0.5000000000'
 
-        self.GenerateFile('posfile', Positions)
+        self.GenerateFile('./posfile', Positions)
 
-        return
-    # Helper function to write the specified basis to the UI. 
     def InsertBasisvectors(self, UiBasisVectors, SpecifiedStructure): 
+        """Helper function to write the specified basis to the UI. """
         for i, row in enumerate(UiBasisVectors):
             for j, QLine in enumerate(row):
-                QLine.insert(SpecifiedStructure[i,j])
-        return
+                QLine.setText(SpecifiedStructure[i,j])
     
-    # Helper function which clears the basis vectors. 
     def ClearBasisVectors(self, UiBasisVectors): 
+        """Helper function which clears the basis vectors. """
         for row in UiBasisVectors:
             for QtLine in row:
                 QtLine.clear()
-        return
-
-    # Helper function which generates a file given a filename and string for input. 
+ 
     def GenerateFile(self, filename, string): 
+        """Helper function which generates a file given a filename and string for input."""
         file = open(filename, 'w')
         file.write(string)
         file.close()
         return
-    
-    ############################################################################
-    # @brief Function to reset the inputs from the reset button and remove created
-    # files. 
-    # @detailed ResetInputs reads all QlineEdit-, QCheckBox-, QGroupBox- and 
-    # QRadioButton-objects from the UI and checks if these are input objects. If
-    # they are, the function then clears all inputs and resets the UI to default
-    # using a reference Reset list or dict depending on object. 
-    # @author Erik Karpelin
-    ############################################################################
 
     def ResetInputs(self, window):
+        """
+        Reads all QlineEdit-, QCheckBox-, QGroupBox- and 
+        QRadioButton-objects from the UI and checks if these are input objects. If 
+        they are, the function then clears all inputs and resets the UI to default
+        using a reference Reset list or dict depending on object. 
+
+        Inputs:
+                window  :   QWindow object for main UI window
+
+        Author: Erik Karpelin
+        """
+        
         import numpy as np
         import os
         from PyQt6.QtWidgets import QLineEdit, QCheckBox, QSpinBox, QGroupBox, QRadioButton
@@ -690,17 +694,23 @@ class ASDInputGen():
             if SpinBox.objectName() in SpinResetDict.keys():
                 SpinBox.setValue(SpinResetDict[SpinBox.objectName()])
 
-        self.RemoveInputFile(ASDInputGen.posfile)
-        self.RemoveInputFile(ASDInputGen.momfile)
-        self.RemoveInputFile(ASDInputGen.jfile)
+        #self.RemoveInputFile(ASDInputGen.posfile)
+        #self.RemoveInputFile(ASDInputGen.momfile)
+        #self.RemoveInputFile(ASDInputGen.jfile)
 
-        if os.path.exists('inpsd.dat'):
-            os.remove('inpsd.dat')
-            os.remove('inpsd.yaml')
+        #if os.path.exists('inpsd.dat'):
+        #    os.remove('inpsd.dat')
+        #    os.remove('inpsd.yaml')
         
         return
      
-    def RemoveInputFile(self, fileobject): # Helper function
+    def RemoveInputFile(self, fileobject):
+        """
+        Helper function to remove specified files
+        
+        Inputs:
+                fileobject  :   list containing name of file
+        """
         import os 
         if len(fileobject) > 0:
             if isinstance(fileobject, str):
@@ -799,6 +809,7 @@ class ASDInputGen():
         ASDInputGen.UppASDKeywords['general']['mode'] = 'S'
         ASDInputGen.UppASDKeywords['general']['ip_mode'] = 'N'
         ASDInputGen.UppASDKeywords['general']['Temp'] = 0.001
+        ASDInputGen.UppASDKeywords['general']['do_prnstruct'] = 0
         # Geometry variables
         ASDInputGen.UppASDKeywords['geometry'] = collections.OrderedDict()
         ASDInputGen.UppASDKeywords['geometry']['ncell'] = [1, 1, 1]

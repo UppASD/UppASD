@@ -12,6 +12,7 @@ Author
 Jonathan Chico
 """
 from PyQt6.QtWidgets import QDialog
+#import ASD_GUI.nn_list_maker.create_neighbour_list as nn_make
 
 ################################################################################
 # @brief Class responsible for the creation of the init phase window.
@@ -795,11 +796,13 @@ class Posfile_Window(QDialog):
         ----------
         Jonathan Chico
         """
+        from PyQt6.QtWidgets import QTableWidgetItem
+
         if self.sender()==self.InpPosCancel:
-            for ii in range(1,self.InPosTable.rowCount()):
-                self.InPosTable.removeRow(ii)
-            for ii in range(1,self.InPosTableRand.rowCount()):
-                self.InPosTableRand.removeRow(ii)
+            self.InPosTable.setRowCount(1)
+            for column, value in enumerate([1,1,0.0,0.0,0.0]):
+                item = QTableWidgetItem(str(value))
+                self.InPosTable.setItem(0, column, item)
             self.close()
         if self.sender()==self.InpPosDone:
             posfile_name=open(Posfile_Window.posfile_name,'w')
@@ -908,9 +911,13 @@ class Momfile_Window(QDialog):
         ----------
         Jonathan Chico
         """
+        from PyQt6.QtWidgets import QTableWidgetItem
+
         if self.sender()==self.InpMomCancel:
-            for ii in range(1,self.InMomTable.rowCount()):
-                self.InMomTable.removeRow(ii)
+            self.InMomTable.setRowCount(1)
+            for column, value in enumerate([1,1,1.0,0.0,0.0,1.0]):
+                item = QTableWidgetItem(str(value))
+                self.InMomTable.setItem(0, column, item)
             self.close()
         if self.sender()==self.InpMomDone:
             momfile_name=open(Momfile_Window.momfile_name,'w')
@@ -924,4 +931,165 @@ class Momfile_Window(QDialog):
                 momfile_name.write('\n')
             self.close()
         self.momfile_gotten=True
+        return
+
+
+class Jfile_Window(QDialog):
+    """"
+    Class containing the defintions and actions needed for the display of the
+    window handling the creation of the jfile inside the GUI. Class modified from 
+    Momfile_Window by Erik Karpelin.
+
+    """
+    def __init__(self, parent=None):
+        import os
+        from PyQt6 import uic
+        super(Jfile_Window, self).__init__(parent)
+        path = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(os.path.join(path, 'Jfile_Creator.ui'), self)
+        self.InJfileAddRow.clicked.connect(self.table_control)
+        self.InJfileDelRow.clicked.connect(self.table_control)
+        self.InpJfileCancel.clicked.connect(self.window_close)
+        self.InpJfileDone.clicked.connect(self.window_close)
+        Jfile_Window.jfile_gotten=False
+        Jfile_Window.jfile_name='./jfile'
+        return
+
+    def table_control(self):
+        """
+        Function to control the addition and removal of rows in the table
+        defining the jfile.
+        The user can on runtime add or delete rows until a minimum of one row remains.
+        New rows are created with dummy text in them.
+
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+        if self.sender()==self.InJfileAddRow:
+            rowPosition = self.InJfileTable.rowCount()
+            self.InJfileTable.insertRow(rowPosition)
+            text=[1,1,1.0,0.0,0.0,0.0]
+            for ii in range(0,len(text)):
+                item = QTableWidgetItem()
+                item.setText(str(text[ii]))
+                self.InJfileTable.setItem(rowPosition, ii, item)
+        if self.sender()==self.InJfileDelRow:
+            rowPosition = self.InJfileTable.rowCount()
+            # Make sure that one cannot delete the last entry
+            if rowPosition>1:
+                self.InJfileTable.removeRow(rowPosition-1)
+        return
+
+    def GenerateVectorsFromCell(self, mainwindow):
+
+        """
+        Handles the generation of neighbour vector arrays and inputs
+        them into the Jfile creation window. 
+
+        Input:
+                mainwindow  :   QWindow object for the main UI window
+    
+        """
+
+        from PyQt6.QtWidgets import QLineEdit
+        import numpy as np
+        from ASD_GUI.nn_list_maker.structure import get_full_nnlist
+        from ASD_GUI.nn_list_maker.read_uppasd import read_posfile
+        import ASD_GUI.nn_list_maker.create_neighbour_list as create_neighbour_list
+        import ASD_GUI.Input_Creator.ASDInputGen as ASDInputgen
+
+        Basis = np.array([coord.text() for coord in mainwindow.findChildren(QLineEdit)
+                 if 'InpLineEditC' in coord.objectName()]).reshape(3,3)
+      
+        if '' in Basis:
+            print('Input-error: Empty string encountered in cell')
+            return
+       
+        Table = self.InJfileTable
+        Table.setRowCount(0)
+        CutoffRadius = int(self.InJfileNNCutoff.value())
+        Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile[-1])
+        Cell = (np.float64(Basis), Positions, numbers)
+
+        for i_site, site in enumerate(Positions):
+            NeighbourVectors, NeighbourTypes, _ =\
+                  get_full_nnlist(Cell, i_site, CutoffRadius, in_cell_only= False)
+
+            VectorDict = {}
+            CurrentSiteVector =\
+                  np.ones((len(NeighbourVectors),1))*int(numbers[i_site])
+            KeyVector =\
+                  np.hstack((CurrentSiteVector, NeighbourTypes.T.reshape(CurrentSiteVector.shape)))
+
+            for index, key in enumerate(KeyVector):
+                key = ' '.join([str(int(i)) for i in key])
+                if key not in VectorDict:
+                    VectorDict[key] = []
+                VectorDict[key].append(list(NeighbourVectors[index]))
+
+            if self.InJfileSymCheck.isChecked():
+                for key in VectorDict:
+                    VectorDict[key] =\
+                          create_neighbour_list.reduce_vectors_from_symmetry(Cell, np.array(VectorDict[key]))
+
+            self.InsertVectorsInTable(VectorDict, Table)
+
+    def InsertVectorsInTable(self, VectorDict, Table):
+        """ 
+        Helper function to GenerateVectorsFromCell which inputs vectors
+        into the file creation table
+
+        Inputs:
+                VectorDict  :   dictonary with interaction numbering as keys
+                                and vectors as values
+                Table       :   QTableWidget item for jfile table
+
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+        import numpy as np
+
+        for key in VectorDict:
+            for vector in VectorDict[key]:
+                Row = [key[0], key[-1], vector[0], vector[1], vector[2], 0]
+                row = Table.rowCount()
+                Table.insertRow(row)
+                for column, value in enumerate(Row):
+                    item = QTableWidgetItem(str(value))
+                    Table.setItem(row, column , item)
+
+    def window_close(self):
+        """
+        Function handling the what the Cancel and Done buttons do in the momfile
+        window.
+        The Cancel button removes all the rows except for the first, resets
+        inputs for generation of vectors and closes the window.
+        The Done button reads the data in the cells and writes a jfile dubbed
+        jfile in UppASD format. 
+        Modified from momfile_window creation. 
+        
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if self.sender()== self.InpJfileCancel:
+            self.InJfileTable.setRowCount(1)
+            for column, value in enumerate([1,1,1.0,0.0,0.0,0.0]):
+                item = QTableWidgetItem(str(value))
+                self.InJfileTable.setItem(0, column, item)
+            self.InJfileSymCheck.setChecked(False)
+            self.InJfileNNCutoff.setValue(0)
+            self.close()
+        if self.sender()==self.InpJfileDone:
+            jfile_name=open(Jfile_Window.jfile_name,'w')
+            for row in range(0,self.InJfileTable.rowCount()):
+                if self.InJfileTable.item(row,5).text() == '0':
+                    pass
+                else:
+                    for col in range(0,self.InJfileTable.columnCount()):
+                        if col<2:
+                            entry=int(self.InJfileTable.item(row, col).text())
+                        else:
+                            entry=float(self.InJfileTable.item(row, col).text())
+                        jfile_name.write('{entry}  '.format(**locals()))
+                    jfile_name.write('\n')
+                self.close()
+        self.jfile_gotten=True
         return
