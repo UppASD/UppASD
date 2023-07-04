@@ -206,8 +206,9 @@ contains
       endif
       ! end of mixing functions block  
 
-      beta_new=log(alpha*(exp(-de*(beta_classic-beta_qhb))-1)+1)
-      beta_new=-(beta_new/de)+beta_qhb
+      !beta_new=log(alpha*(exp(-de*(beta_classic-beta_qhb))-1)+1)
+      beta_new=log(alpha*(exp(-beta_classic*de)-exp(-beta_qhb*de)) + exp(-beta_qhb*de))
+      beta_new=-(beta_new/de)
       
       ! Calculates and stores Tmix from beta_new
       qhb_Tmix=(1.0_dblprec/k_bolt/beta_new) 
