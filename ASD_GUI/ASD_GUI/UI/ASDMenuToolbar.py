@@ -591,6 +591,25 @@ def Input_Toolbar_Setup(window):
 
 
     return
+
+def InteractiveDock_Setup(window):
+    """
+    Interface for buttons related to the interactive simulations.
+
+    Inputs:
+            window  :   QMainWindow
+    """
+    window.IntSStepButton.clicked.connect(window.IntButtons)
+    window.IntResetButton.clicked.connect(window.IntButtons)
+    window.IntMCSimButton.clicked.connect(window.IntButtons)
+    window.IntSDSlider.valueChanged.connect(window.SetSDSliderValue)
+    window.IntMCSlider.valueChanged.connect(window.SetMCSliderValue)
+    window.IntTempLine.editingFinished.connect(window.UpdateInteractiveVtk)
+    window.IntB_xLine.editingFinished.connect(window.UpdateInteractiveVtk)
+    window.IntB_yLine.editingFinished.connect(window.UpdateInteractiveVtk)
+    window.IntB_zLine.editingFinished.connect(window.UpdateInteractiveVtk)
+    window.IntScreenshot.clicked.connect(window.InteractiveScreenshot)
+   
 #------------------------------------------------------------------------------------
 # @brief Function to update the UI objects.
 # @details Function to update the UI objects. Namely used to deal with the update between

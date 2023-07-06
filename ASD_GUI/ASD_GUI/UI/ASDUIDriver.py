@@ -21,6 +21,7 @@ class Backend(Enum):
     UppASD_VTK = 1
     UppASD_MAT = 2
     UppASD_INP = 3
+    UppASD_INT = 4
 ################################################################################
 # @brief Class that defines the main window where all the widgets and rendering take place.
 # @details It controls the actions which take place in the GUI. It defined the main window
@@ -46,6 +47,8 @@ class UppASDVizMainWindow(QMainWindow):
         from ASD_GUI.PLOT import ASDPlotsReading
         from ASD_GUI.VTK_Viz import ASDVTKGenActors
         from ASD_GUI.VTK_Viz import ASDVTKVizOptions
+        import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
+        import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
         from matplotlib.figure import Figure
         from mpl_toolkits.mplot3d import Axes3D
         from vtk import vtkOpenGLRenderer, vtkInteractorStyleTrackballCamera
@@ -61,6 +64,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.current_time = 0
         self.number_of_screenshots = 0
         self.VTKWidgetPresent = False
+        self.IntWidgetPresent = False
+        self.IntLaunched = False
         self.can_plot_ams = False
         self.can_plot_sqw = False
         self.hdrifile = []
@@ -90,6 +95,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.Momfile_Window = ASDInputWindows.Momfile_Window()
         self.InitPhase_Window = ASDInputWindows.InitPhase_Window()
         self.Jfile_Window = ASDInputWindows.Jfile_Window()
+        self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -98,11 +104,6 @@ class UppASDVizMainWindow(QMainWindow):
         # Adding the vtk Interactors
         # -----------------------------------------------------------------------
         self.vtkWidget = QVTKRenderWindowInteractor()
-        # -----------------------------------------------------------------------
-        # Initialize and setup the necessary structures for the UI
-        # -----------------------------------------------------------------------
-        self.SetupUI()
-        self.InitUI()
         # -----------------------------------------------------------------------
         # Create the renderer
         # -----------------------------------------------------------------------
@@ -118,6 +119,21 @@ class UppASDVizMainWindow(QMainWindow):
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
         self.iren.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
         self.ren.SetBackground(1.0, 1.0, 1.0)
+        # -----------------------------------------------------------------------
+        # Set up the interactive simulation window and renderer
+        # -----------------------------------------------------------------------
+        self.IntVtkWidget = QVTKRenderWindowInteractor()
+        self.Intren = vtkOpenGLRenderer()
+        self.IntVtkWidget.GetRenderWindow().AddRenderer(self.Intren)
+        self.IntrenWin = self.IntVtkWidget.GetRenderWindow()
+        self.Intiren = self.IntVtkWidget.GetRenderWindow().GetInteractor()
+        self.Intiren.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
+        self.Intren.SetBackground(1.0, 1.0, 1.0)
+        # -----------------------------------------------------------------------
+        # Initialize and setup the necessary structures for the UI
+        # -----------------------------------------------------------------------
+        self.SetupUI()
+        self.InitUI()
         # -----------------------------------------------------------------------
         # Set the Plotting Canvas for the matplotlib plots
         # -----------------------------------------------------------------------
@@ -137,6 +153,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.Plotting_Figure3D.patch.set_alpha(0.0)
         self.Plotting_ax3D = self.Plotting_Figure3D.axes[0]
         self.Plot3DLayout.addWidget(self.Plotting_canvas3D)
+
+        # Interactive object
+        self.InteractiveVtk = IntASD.InteractiveASD(self.Intren, self.IntrenWin, self.Intiren)
+
         return
     ############################################################################
     # @brief Wrapper for the writing of the input file
@@ -165,13 +185,9 @@ class UppASDVizMainWindow(QMainWindow):
         import uppasd as asd 
         import os.path as path
 
-        if path.isfile('inpsd.dat') == False:
+        if not path.isfile('inpsd.dat'):
             print('inpsd.dat not found, creating from asd_gui')
             self.WriteInputFile()
-        else:
-            OverwriteInpsd = str(input('inpsd.dat found, overwrite? [Y/N]  ')).lower()
-            if OverwriteInpsd == 'y':
-                self.WriteInputFile()
         asd.pyasd.runuppasd()
         return
 
@@ -200,7 +216,7 @@ class UppASDVizMainWindow(QMainWindow):
         from PyQt6 import uic
         from PyQt6.QtGui import QIntValidator, QDoubleValidator
         from PyQt6.QtWidgets import QToolBar, QVBoxLayout
-        from ASD_GUI.UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup, Plot_Menu_and_Toolbar_Setup, Input_Toolbar_Setup
+        from ASD_GUI.UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup, Plot_Menu_and_Toolbar_Setup, Input_Toolbar_Setup, InteractiveDock_Setup
         self.VTKToolBar = QToolBar()
         self.MatPlotToolbar = QToolBar()
         self.InputToolbar = QToolBar()
@@ -214,6 +230,7 @@ class UppASDVizMainWindow(QMainWindow):
         Plot_Menu_and_Toolbar_Setup(self)
         VTK_Menu_and_Toolbar_Setup(self)
         Input_Toolbar_Setup(self)
+        InteractiveDock_Setup(self)
         self.CorrOptsBox.setEnabled(True)
         self.NeighValidator = QIntValidator()
         self.IntegerValidator = QIntValidator()
@@ -255,6 +272,7 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def chooseBackend(self):
+        import ASD_GUI.UI.ASDInteractiveTab as ASDInteractive
         if self.ModeSelector.currentIndex() == 0:
             self.backend = Backend.UppASD_VTK
             if not self.VTKWidgetPresent:
@@ -266,6 +284,16 @@ class UppASDVizMainWindow(QMainWindow):
         elif self.ModeSelector.currentIndex() == 2:
             self.backend = Backend.UppASD_INP
             self.vtkWidget.setVisible(False)
+        elif self.ModeSelector.currentIndex() == 3:
+            self.backend = Backend.UppASD_INT
+            if not self.IntWidgetPresent:
+                self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
+                self.IntWidgetPresent = True
+            if self.CheckForInteractorFiles() and not self.IntLaunched:
+                ASDInteractive.InitializeInteractor(self, self.InteractiveVtk)
+                self.IntLaunched = True
+            # elif not self.IntLaunched:
+            #     print('Could not launch interactive simulation. Are all input-files in directory?')
         self.ResetUI()
         return
     ############################################################################
@@ -282,6 +310,9 @@ class UppASDVizMainWindow(QMainWindow):
             self.InpDockWidget.setVisible(False)
             self.InpDockWidget.setEnabled(False)
             self.vtkWidget.setVisible(True)
+            self.IntVtkWidget.setVisible(False)
+            self.InteractiveDockWidget.setVisible(False)
+            self.InteractiveDockWidget.setEnabled(False)
         elif self.backend == Backend.UppASD_MAT:
             self.OptionDock.setVisible(False)
             self.OptionDock.setEnabled(False)
@@ -290,6 +321,9 @@ class UppASDVizMainWindow(QMainWindow):
             self.InpDockWidget.setVisible(False)
             self.InpDockWidget.setEnabled(False)
             self.vtkWidget.setVisible(False)
+            self.IntVtkWidget.setVisible(False)
+            self.InteractiveDockWidget.setVisible(False)
+            self.InteractiveDockWidget.setEnabled(False)
         elif self.backend == Backend.UppASD_INP:
             self.OptionDock.setVisible(False)
             self.OptionDock.setEnabled(False)
@@ -297,6 +331,20 @@ class UppASDVizMainWindow(QMainWindow):
             self.InpDockWidget.setVisible(True)
             self.InpDockWidget.setEnabled(True)
             self.vtkWidget.setVisible(False)
+            self.IntVtkWidget.setVisible(False)
+            self.InteractiveDockWidget.setVisible(False)
+            self.InteractiveDockWidget.setEnabled(False)
+        elif self.backend == Backend.UppASD_INT:
+            self.OptionDock.setVisible(False)
+            self.OptionDock.setEnabled(False)
+            self.MatPlotOptions.setVisible(False)
+            self.InpDockWidget.setVisible(False)
+            self.InpDockWidget.setEnabled(False)
+            self.IntVtkWidget.setVisible(True)
+            self.vtkWidget.setVisible(False)
+            self.InteractiveDockWidget.setVisible(True)
+            self.InteractiveDockWidget.setEnabled(True)
+            self.IntrenWin.Render()
         return
     ############################################################################
     # Initialization of some of the UI properties
@@ -710,7 +758,6 @@ class UppASDVizMainWindow(QMainWindow):
         if self.EneChirCheck.isChecked():
             self.EneIndx.append(10)
         self.PlottingWrapper()
-        return
         return
     ############################################################################
     ############################################################################
@@ -2059,3 +2106,90 @@ class UppASDVizMainWindow(QMainWindow):
                 self.SpinGlyphSelectBox.setEnabled(False)
         self.renWin.Render()
         return
+
+    ############################################################################
+    # Interactive Simulations and Dock
+    ############################################################################    
+
+    def SetSDSliderValue(self, NSimulations):
+        self.IntSDSliderVal.setText(f'Simulations: {10*NSimulations}')
+
+    def SetMCSliderValue(self, NSimulations):
+        self.IntMCSliderVal.setText(f'Simulations: {10*NSimulations}')      
+    
+    def IntButtons(self):
+        """
+        Run a number of simulations depending slider inputs from the user using 
+        one of two simulation modes.
+        """
+        import ASD_GUI.UI.ASDInteractiveTab as IntTab
+        import uppasd as asd
+        if self.sender() == self.IntSStepButton:
+            IntTab.UpdateIntInputs(self)
+            for _ in range(10*self.IntSDSlider.value()):
+                self.InteractiveVtk.S_Step()
+        if self.sender() == self.IntMCSimButton:
+            IntTab.UpdateIntInputs(self)
+            for __ in range(10*self.IntMCSlider.value()):
+                self.InteractiveVtk.M_step()
+        if self.sender() == self.IntResetButton:
+            self.InteractiveVtk.Reset()
+
+    def UpdateInteractiveVtk(self):
+        """Update text in the interactive window. """
+        import ASD_GUI.UI.ASDInteractiveTab as IntTab
+
+        IntTab.UpdateIntInputs(self)
+
+        self.InteractiveVtk.UpdateTemperature()
+        self.InteractiveVtk.UpdateBfield()
+
+    def InteractiveScreenshot(self):
+        self.InteractiveVtk.Screenshot()
+
+    def CheckForInteractorFiles(self):
+        """
+        Check if we have any input/output files and determines if 
+        the interactive window is ready to launch. Shows error window
+        with missing files if check fails. 
+
+        Returns:
+                Check   :   Bool
+        """
+
+        import os.path as path
+        import uppasd as asd
+        import glob
+        import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
+
+        restartfile, coordfile = 'dummystring', 'dummystring'
+        Check = False
+
+        if len(glob.glob("restart.????????.out")) > 0:
+            restartfile = glob.glob("restart.????????.out")[0]    
+        if len(glob.glob("coord.????????.out")) > 0:
+            coordfile = glob.glob("coord.????????.out")[0]
+        
+        InputChecklist = [path.exists('inpsd.dat'), self.ASDInputGen.posfile_gotten, self.ASDInputGen.momfile_gotten]
+        OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
+
+        if  all(x == True for x in InputChecklist) and all(x == False for x in OutputChecklist):
+            print('Input found, but no output. Running uppasd...')
+            asd.pyasd.runuppasd()
+            Check = True
+
+        if  all(x == True for x in OutputChecklist):
+            Check = True
+
+        # Error message 
+        Files = ['inpsd.dat', 'posfile', 'momfile']
+        MissingFiles = ', '.join([file for index, file in enumerate(Files) if not InputChecklist[index]])
+
+        if not Check:
+            self.InteractiveErrorWindow = ASDInputWindows.Error_Window()
+            self.InteractiveErrorWindow.FunMsg.setText('Task failed successfully!')
+            self.InteractiveErrorWindow.ErrorMsg.setText(f'Could not launch interactive simulation. Missing input files: {MissingFiles}')
+            self.InteractiveErrorWindow.show()
+        return Check
+    
+    ###########################################################################

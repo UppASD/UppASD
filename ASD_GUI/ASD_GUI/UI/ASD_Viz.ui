@@ -976,7 +976,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_bcc.png</normaloff>../TemplateStructurePic/pp_bcc.png</iconset>
+                                                         <normaloff>../TemplateStructurePIC/pp_bcc.png</normaloff>../TemplateStructurePIC/pp_bcc.png</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1005,7 +1005,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_sc.png</normaloff>../TemplateStructurePic/pp_sc.png</iconset>
+                                                         <normaloff>../TemplateStructurePIC/pp_sc.png</normaloff>../TemplateStructurePIC/pp_sc.png</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1034,7 +1034,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_fcc.png</normaloff>../TemplateStructurePic/pp_fcc.png</iconset>
+                                                         <normaloff>../TemplateStructurePIC/pp_fcc.png</normaloff>../TemplateStructurePIC/pp_fcc.png</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1063,7 +1063,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_b2.png</normaloff>../TemplateStructurePic/pp_b2.png</iconset>
+                                                         <normaloff>../TemplateStructurePIC/pp_b2.png</normaloff>../TemplateStructurePIC/pp_b2.png</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1092,7 +1092,7 @@
                                                    </property>
                                                    <property name="icon">
                                                       <iconset>
-                                                         <normaloff>../TemplateStructurePic/pp_hcp.jpg</normaloff>../TemplateStructurePic/pp_hcp.jpg</iconset>
+                                                         <normaloff>../TemplateStructurePIC/pp_hcp.jpg</normaloff>../TemplateStructurePIC/pp_hcp.jpg</iconset>
                                                    </property>
                                                    <property name="iconSize">
                                                       <size>
@@ -1306,6 +1306,46 @@
                         </item>
                      </layout>
                   </widget>
+                  <widget class="QWidget" name="ASD_Interactive">
+                     <attribute name="title">
+                        <string>InteractiveASD</string>
+                     </attribute>
+                     <layout class="QVBoxLayout" name="ASD_Interactive_Layout">
+                        <property name="leftMargin">
+                           <number>1</number>
+                        </property>
+                        <property name="topMargin">
+                           <number>1</number>
+                        </property>
+                        <property name="rightMargin">
+                           <number>1</number>
+                        </property>
+                        <property name="bottomMargin">
+                           <number>1</number>
+                        </property>
+                        <item>
+                           <widget class="QWidget" name="InteractiveWidget" native="true">
+                              <layout class="QGridLayout" name="InteractiveContWidgetLayout">
+                                 <property name="leftMargin">
+                                    <number>1</number>
+                                 </property>
+                                 <property name="topMargin">
+                                    <number>1</number>
+                                 </property>
+                                 <property name="rightMargin">
+                                    <number>1</number>
+                                 </property>
+                                 <property name="bottomMargin">
+                                    <number>1</number>
+                                 </property>
+                                 <item row="0" column="0">
+                                    <layout class="QVBoxLayout" name="InteractiveWidget_Layout"/>
+                                 </item>
+                              </layout>
+                           </widget>
+                        </item>
+                     </layout>
+                  </widget>   
                </widget>
             </item>
          </layout>

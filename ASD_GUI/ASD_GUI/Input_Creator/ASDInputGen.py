@@ -111,8 +111,10 @@ class ASDInputGen():
     def update_file_name(self, window):
         if window.sender() == window.Posfile_Window.InpPosDone:
             ASDInputGen.posfile = window.Posfile_Window.posfile_name
+            self.posfile_gotten = True
         if window.sender() == window.Momfile_Window.InpMomDone:
             ASDInputGen.momfile = window.Momfile_Window.momfile_name
+            self.momfile_gotten = True
         if window.sender() == window.Restart_Window.InpRestartDone:
             ASDInputGen.restartfile = window.Restart_Window.restartfile_name
         if window.sender() == window.Jfile_Window.InpJfileDone:
