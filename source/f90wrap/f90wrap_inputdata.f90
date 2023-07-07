@@ -1,4 +1,4 @@
-source/f90wrap/f90wrap_inputdata.f90! Module inputdata defined in file Input/inputdata.f90
+! Module inputdata defined in file Input/inputdata.f90
 
 subroutine f90wrap_set_input_defaults
     use inputdata, only: set_input_defaults
