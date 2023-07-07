@@ -1,4 +1,4 @@
-!--------------------------------------------------------------------------
+source/MonteCarlo/montecarlo_common.f90!--------------------------------------------------------------------------
 ! MODULE: montecarlo_common
 ! DESCRIPTION:
 !> Common Monte Carlo routines used for both non-LSF and LSF calculations
@@ -399,11 +399,8 @@ contains
       zfc=beta*totfield*mub*mmom
       zarg=sqrt(sum(zfc(:)*zfc(:)))
       zctheta=zfc(3)/zarg
-      zstheta=sqrt(1.0_dblprec-zctheta*zctheta)
-      if (zstheta < 1.0e-14_dblprec) then
-         zstheta=1.0e-14_dblprec
-         !zctheta=sign(1.0_dblprec-zstheta**2, zfc(3))
-      endif
+      ! add tolerance so zstheta is never zero - that could result in NaNs because we divide by it later
+      zstheta=sqrt(1.0_dblprec-zctheta*zctheta)+dbl_tolerance
       zcphi=zfc(1)/(zarg*zstheta)
       zsphi=zfc(2)/(zarg*zstheta)
       !ctheta=1.50_dblprec
