@@ -1,4 +1,4 @@
-source/MonteCarlo/montecarlo_common.f90!--------------------------------------------------------------------------
+!--------------------------------------------------------------------------
 ! MODULE: montecarlo_common
 ! DESCRIPTION:
 !> Common Monte Carlo routines used for both non-LSF and LSF calculations
