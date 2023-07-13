@@ -388,10 +388,10 @@ contains
       !Parameters for energy minimization calculations
       minalgo           = 1
       minftol           = 0.000000001_dblprec
-      mintraj_step      = 100
+      mintraj_step      = 1000
       vpodt             = 0.010_dblprec
       vpomass           = 1.0_dblprec
-      minitrmax         = 10000000
+      minitrmax         = 100000
 
       !Parameters for GNEB calculations
       initpath          = 1

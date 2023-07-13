@@ -52,11 +52,13 @@ contains
       implicit none
 
       real(dblprec) :: energy
+
       if(plotenergy.lt.1) then
-      call allocate_energies(1, Mensemble)
+         call allocate_energies(1, Mensemble)
       endif
       write (*,'(1x,a)') "Performing initial phase: energy minimization"
       write (*,'(1x,a,i3)') "Minimization algorithm: ", minalgo
+
       ! Calculate demagnetization field
       if(demag=='Y') then
          call calc_demag(Natom, Mensemble, demag1, demag2, demag3, demagvol, emomM)
@@ -66,7 +68,7 @@ contains
       call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,   &
          do_bpulse,sitefld,sitenatomfld)
 
-      call save_ifmom(Natom,Mensemble,simid,0,mmom,emom,mode,do_mom_legacy)
+      if (mode=='G') call save_ifmom(Natom,Mensemble,simid,0,mmom,emom,mode,do_mom_legacy)
 
       ! --Optimization Region-- !
       ! Allocation and initial opt build
@@ -92,20 +94,31 @@ contains
          !!!    external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
          !!!    constlNCoup,constellations,constellationsNeighType,energy,                  &
          !!!    emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
-         call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,2,     &
-            Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
-            simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
-            macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
-            emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
-            external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
-            constlNCoup,constellations,constellationsNeighType,energy,                  &
-            emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
+         if (mode=='G') then
+            call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,2,     &
+               Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
+               simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
+               macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
+               emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
+               external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
+               constlNCoup,constellations,constellationsNeighType,energy,                  &
+               emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
+         else
+            call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,Mensemble, &
+               Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
+               simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
+               macro_nlistsize,mmom,                                                       &
+               emom,emomM_macro,                                                           &
+               external_field,maxNoConstl,unitCellType,                                    &
+               constlNCoup,constellations,constellationsNeighType,energy,                  &
+               emomM,NA,N1,N2,N3,mode,do_mom_legacy)
+         end if
 
       end if
       write (*,'(1x,a)') "Done"
       write (*,'(1x,a)') "------------------------------------------"
 
-      call save_ifmom(Natom,Mensemble,simid,1,mmom,emom,mode,do_mom_legacy)
+      if (mode=='G') call save_ifmom(Natom,Mensemble,simid,1,mmom,emom,mode,do_mom_legacy)
 
    end subroutine em_iphase
 
