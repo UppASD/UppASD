@@ -7,12 +7,13 @@ import glob
 from setuptools import setup, find_packages
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+import sysconfig
 
 
 
 class CMakeExtension(Extension):
     #def __init__(self, name, cmake_lists_dir='../', **kwa):
-    def __init__(self, name, cmake_lists_dir='./', **kwa):
+    def __init__(self, name, cmake_lists_dir='.', **kwa):
         Extension.__init__(self, name, sources=[], **kwa)
         self.cmake_lists_dir = os.path.abspath(cmake_lists_dir)
 
@@ -31,6 +32,9 @@ class cmake_build_ext(build_ext):
 
             extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
             cfg = 'Debug' if os.environ.get('DISPTOOLS_DEBUG','OFF') == 'ON' else 'Release'
+            python_inc_dir = sysconfig.get_path('include')
+            python_lib_dir = sysconfig.get_config_var('LIBDIR')
+
 
             cmake_args = [
                 '-DCMAKE_BUILD_TYPE=%s' % cfg,
@@ -47,6 +51,8 @@ class cmake_build_ext(build_ext):
                 '-DPYTHON_EXECUTABLE={}'.format(sys.executable),
                 #'-DCMAKE_Fortran_COMPILER=gfortran',
                 '-DBUILD_PYTHON=ON',
+                #'-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
+                #'-DPYTHON_LIBRARY={}'.format(python_lib_dir),
                 #'-DMKL_INTERFACE_FULL=gf_lp64',
                 #'-DMKL_THREADING=gnu_thread',
                 #'-DLAPACK="-framework Accelerate"',
@@ -61,10 +67,10 @@ class cmake_build_ext(build_ext):
                                   cwd=self.build_temp)
 
             # Build
-            subprocess.check_call(['cmake', '--build', '.','-j4', '--config', cfg],
+            subprocess.check_call(['cmake', '--build', '.','--parallel', '--config', cfg],
                                   cwd=self.build_temp)
 
-            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.so')
+            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.*')
             lib_path=self.build_temp.replace('temp','lib') #+'/uppasd/'
             if not os.path.exists(lib_path):
                 os.makedirs(lib_path)
@@ -95,5 +101,6 @@ setup(
         packages=['uppasd'],
         package_dir={'uppasd': 'uppasd'},
         ext_modules=[CMakeExtension(name='_uppasd')],
-        scripts=['bin/uppasd','bin/uppasd_interactive']
+        scripts=['scripts/uppasd','scripts/uppasd_interactive'],
+        install_requires=['numpy>1.19','f90wrap>0.1']
         )

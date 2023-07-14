@@ -3,3 +3,4 @@
 recursive-include ./source *.f90 *.cu *.cpp *.hpp *.h kind.map *.txt
 recursive-include ./cmake *
 include ./CMakeLists.txt
+recursive-incude ./scripts uppasd*

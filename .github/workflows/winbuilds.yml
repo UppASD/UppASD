@@ -1,9 +1,10 @@
 name: Build binaries Windows
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  release:
+  #push:
+  #pull_request:
+  #workflow_dispatch:
 
 jobs:
 
