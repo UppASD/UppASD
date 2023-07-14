@@ -408,6 +408,12 @@ ADD_CUSTOM_TARGET(distclean
 if(BUILD_PYTHON)
    # check if Python is installed
    include(FindPython)
+   
+   # Fix since FindPython is a bit flawed
+   # https://github.com/scikit-build/scikit-build/issues/506#issuecomment-706791791
+   set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+   set(Python_INCLUDE_DIR "${PYTHON_INCLUDE_DIR}")
+   set(Python_LIBRARY "${PYTHON_LIBRARY}")
    find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
    #find_package(Python)
    #message(STATUS "Python_STDLIB ${Python_STDLIB}.")

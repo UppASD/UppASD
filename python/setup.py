@@ -11,7 +11,8 @@ from setuptools.command.build_ext import build_ext
 
 
 class CMakeExtension(Extension):
-    def __init__(self, name, cmake_lists_dir='..', **kwa):
+    #def __init__(self, name, cmake_lists_dir='../', **kwa):
+    def __init__(self, name, cmake_lists_dir='./', **kwa):
         Extension.__init__(self, name, sources=[], **kwa)
         self.cmake_lists_dir = os.path.abspath(cmake_lists_dir)
 

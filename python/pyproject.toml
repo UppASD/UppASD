@@ -2,9 +2,12 @@
 requires = [
     "setuptools<60",
     "wheel", 
-    "numpy>1.19", 
-    "f90wrap"]
+#    "numpy>1.19", 
+#    "f90wrap"]
+    "numpy>1.19"]
+#    "f90wrap"]
 
+build-backend = "setuptools.build_meta"
 ##[tool.flit.metadata]
 ##module = "asd"
 ##author = "Author Name"
@@ -17,7 +20,8 @@ requires = [
 [tool.cibuildwheel]
 # Install something required for the build
 # (you might want to use build-system.requires instead)
-before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
+before-build ='pip install --upgrade setuptools wheel numpy>1.19'
+#before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
 #repair-wheel-command = ""
 #
 manylinux-x86_64-image = "manylinux_2_28"
