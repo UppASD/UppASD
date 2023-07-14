@@ -56,7 +56,7 @@ jobs:
 
       - name: Build wheels
         run: |
-          cp -r ../CMakeLists.txt ../source .
+          cp -r ../CMakeLists.txt ../source ../cmake .
           python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
