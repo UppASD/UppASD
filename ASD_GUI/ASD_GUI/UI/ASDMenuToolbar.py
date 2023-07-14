@@ -536,8 +536,7 @@ def Input_Toolbar_Setup(window):
     # Set actions
     #--------------------------------------------------------------------------------
     window.InpDoneButton.clicked.connect(window.WriteInputFile)
-    #window.InpXCCheck.toggled.connect(window.getInpFile)
-    window.InpDMCheck.toggled.connect(window.getInpFile)
+    # window.InpDMCheck.toggled.connect(window.getInpFile)
     window.InpMAECheck.toggled.connect(window.getInpFile)
     window.InpPseudoCheck.toggled.connect(window.getInpFile)
     window.InpBqCheck.toggled.connect(window.getInpFile)
@@ -569,26 +568,23 @@ def Input_Toolbar_Setup(window):
     window.InpInitMag6Check.clicked.connect(window.ToggleHessians)
     window.InpInitMag4Check.clicked.connect(window.ToggleHessians)
     window.InpInitmag7Check.clicked.connect(window.ToggleHessians)
+    window.InpCancelButton.clicked.connect(window.ResetInputs)          # Reset all inputs
+    window.InpRunSimButton.clicked.connect(window.RunSimulation)        # Run simulation
+    window.InpJfileButtonSelect.clicked.connect(window.getInpFile)      # Select jfile
+    window.InpJfileButtonCreate.clicked.connect(window.OpenWindow)      # Jfile creation
+    window.InpSqQpoints.clicked.connect(window.getInpFile)              # Qpoint file select
+    window.InpMagnonQuickButton.clicked.connect(window.MagnonQuickSetup)# MagnonQuickSetup
+    window.InpDMButtonSelect.clicked.connect(window.getInpFile)      # Select DMfile
+    window.InpDMButtonCreate.clicked.connect(window.OpenWindow)      # DM-file creation
+    window.InpImportCIFButton.clicked.connect(window.ImportSystem)
+    window.InpImportSPRKKRButton.clicked.connect(window.ImportSystem)
 
-    # Button to reset all inputs
-    window.InpCancelButton.clicked.connect(window.ResetInputs)
-
-    # New button to run simulation
-    window.InpRunSimButton.clicked.connect(window.RunSimulation)
-
-    # Button for Structure Templates
+    # Structure Templates
     window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
     window.InpTemplateBCCButton.clicked.connect(lambda: window.SetStructureTemplate('bcc'))
     window.InpTemplateBCC2TypesButton.clicked.connect(lambda: window.SetStructureTemplate('bcc2'))
     window.InpTemplateFCCButton.clicked.connect(lambda: window.SetStructureTemplate('fcc'))
     window.InpTemplateHCPButton.clicked.connect(lambda: window.SetStructureTemplate('hcp'))
-
-    # Buttons to create and select jfile
-    window.InpJfileButtonSelect.clicked.connect(window.getInpFile)
-
-    # Jfile creation
-    window.InpJfileButtonCreate.clicked.connect(window.OpenWindow)
-
 
     return
 

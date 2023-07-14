@@ -12,7 +12,6 @@ Author
 Jonathan Chico
 """
 from PyQt6.QtWidgets import QDialog
-#import ASD_GUI.nn_list_maker.create_neighbour_list as nn_make
 
 ################################################################################
 # @brief Class responsible for the creation of the init phase window.
@@ -775,6 +774,24 @@ class Posfile_Window(QDialog):
                 self.InPosTableRand.removeRow(rowPosition-1)
         return
 
+    def CheckForFile(self, mainwindow):
+        """ If a jfile have already been selected, input it into the creator."""
+
+        import numpy as np
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if len(mainwindow.ASDInputGen.posfile) > 0:
+            posfile = np.genfromtxt(mainwindow.ASDInputGen.posfile.split('/')[-1], ndmin = 2)
+            posfile = [list(line) for line in posfile]
+            self.posfile_gotten = True
+            
+            Table = self.InPosTable
+            Table.setRowCount(0)
+            for row, line in enumerate(posfile):
+                Table.insertRow(row)
+                for column, element in enumerate(line):
+                    item = QTableWidgetItem(str(element))
+                    Table.setItem(row, column , item)
     ############################################################################
     ## @brief Function handling the what the Cancel and Done buttons do in the \c posfile
     # window.
@@ -889,6 +906,25 @@ class Momfile_Window(QDialog):
             if rowPosition>1:
                 self.InMomTable.removeRow(rowPosition-1)
         return
+    
+    def CheckForFile(self, mainwindow):
+        """ If a momfile have already been selected, input it into the creator."""
+
+        import numpy as np
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if len(mainwindow.ASDInputGen.momfile) > 0:
+            momfile = np.genfromtxt(mainwindow.ASDInputGen.momfile.split('/')[-1], ndmin = 2)
+            momfile = [list(line) for line in momfile]
+            self.momfile_gotten = True
+            
+            Table = self.InMomTable
+            Table.setRowCount(0)
+            for row, line in enumerate(momfile):
+                Table.insertRow(row)
+                for column, element in enumerate(line):
+                    item = QTableWidgetItem(str(element))
+                    Table.setItem(row, column , item)
 
     ############################################################################
     ## @brief Function handling the what the Cancel and Done buttons do in the \c momfile
@@ -979,6 +1015,26 @@ class Jfile_Window(QDialog):
                 self.InJfileTable.removeRow(rowPosition-1)
         return
 
+    def CheckForFile(self, mainwindow):
+        """ If a jfile have already been selected, input it into the creator."""
+
+        import numpy as np
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if len(mainwindow.ASDInputGen.jfile) > 0:
+            jfile = np.genfromtxt(mainwindow.ASDInputGen.jfile.split('/')[-1], ndmin = 2)
+            jfile = [list(line) for line in jfile]
+            self.jfile_gotten = True
+            
+            Table = self.InJfileTable
+            Table.setRowCount(0)
+            for row, line in enumerate(jfile):
+                Table.insertRow(row)
+                for column, element in enumerate(line):
+                    item = QTableWidgetItem(str(element))
+                    Table.setItem(row, column , item)
+
+
     def GenerateVectorsFromCell(self, mainwindow):
 
         """
@@ -992,9 +1048,9 @@ class Jfile_Window(QDialog):
 
         from PyQt6.QtWidgets import QLineEdit
         import numpy as np
-        from ASD_GUI.nn_list_maker.structure import get_full_nnlist
-        from ASD_GUI.nn_list_maker.read_uppasd import read_posfile
-        import ASD_GUI.nn_list_maker.create_neighbour_list as create_neighbour_list
+        from ASD_GUI.Extras.nn_list_maker.structure import get_full_nnlist
+        from ASD_GUI.Extras.nn_list_maker.read_uppasd import read_posfile
+        import ASD_GUI.Extras.nn_list_maker.create_neighbour_list as create_neighbour_list
         import ASD_GUI.Input_Creator.ASDInputGen as ASDInputgen
 
         Basis = np.array([coord.text() for coord in mainwindow.findChildren(QLineEdit)
@@ -1007,7 +1063,7 @@ class Jfile_Window(QDialog):
         Table = self.InJfileTable
         Table.setRowCount(0)
         CutoffRadius = int(self.InJfileNNCutoff.value())
-        Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile[-1])
+        Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
         Cell = (np.float64(Basis), Positions, numbers)
 
         for i_site, site in enumerate(Positions):
@@ -1032,7 +1088,7 @@ class Jfile_Window(QDialog):
                           create_neighbour_list.reduce_vectors_from_symmetry(Cell, np.array(VectorDict[key]))
 
             self.InsertVectorsInTable(VectorDict, Table)
-
+        
     def InsertVectorsInTable(self, VectorDict, Table):
         """ 
         Helper function to GenerateVectorsFromCell which inputs vectors
@@ -1092,4 +1148,182 @@ class Jfile_Window(QDialog):
                     jfile_name.write('\n')
                 self.close()
         self.jfile_gotten=True
+        return
+    
+class DMfile_Window(QDialog):
+    """"
+    Class containing the defintions and actions needed for the display of the
+    window handling the creation of the jfile inside the GUI. Class modified from 
+    Momfile_Window by Erik Karpelin.
+
+    """
+    def __init__(self, parent=None):
+        import os
+        from PyQt6 import uic
+        from PyQt6.QtGui import QDoubleValidator
+        super(DMfile_Window, self).__init__(parent)
+        path = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(os.path.join(path, 'DMfile_Creator.ui'), self)
+        self.InDMfileAddRow.clicked.connect(self.table_control)
+        self.InDMfileDelRow.clicked.connect(self.table_control)
+        self.InpDMfileCancel.clicked.connect(self.window_close)
+        self.InpDMfileDone.clicked.connect(self.window_close)
+        self.TableValidator = QDoubleValidator()
+        self.TableValidator.setRange(-99.999999, 99.99999)
+        DMfile_Window.DMfile_gotten=False
+        DMfile_Window.DMfile_name='./dmfile'
+        return
+
+    def table_control(self):
+        """
+        Function to control the addition and removal of rows in the table
+        defining the jfile.
+        The user can on runtime add or delete rows until a minimum of one row remains.
+        New rows are created with dummy text in them.
+
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem,QLineEdit
+        if self.sender()==self.InDMfileAddRow:
+            rowPosition = self.InDMfileTable.rowCount()
+            self.InDMfileTable.insertRow(rowPosition)
+            text=[1, 1, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+            for ii in range(0,len(text)):
+                item = QTableWidgetItem()
+                item.setValidator(self.TableValidator)
+                item.setFrame(False)
+                item.setPlaceholderText(str(text[ii]))
+                self.InDMfileTable.setCellWidget(rowPosition, ii, item)
+        if self.sender()==self.InDMfileDelRow:
+            rowPosition = self.InDMfileTable.rowCount()
+            # Make sure that one cannot delete the last entry
+            if rowPosition>1:
+                self.InDMfileTable.removeRow(rowPosition-1)
+        return
+
+    def CheckForFile(self, mainwindow):
+        """ If a jfile have already been selected, input it into the creator."""
+
+        import numpy as np
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if len(mainwindow.ASDInputGen.dmfile) > 0:
+            dmfile = np.genfromtxt(mainwindow.ASDInputGen.dmfile.split('/')[-1], ndmin = 2)
+            self.DMfile_gotten = True
+
+            Table = self.InDMfileTable
+            Table.setRowCount(0)
+            for row, line in enumerate(dmfile):
+                Table.insertRow(row)
+                for column, element in enumerate(line):
+                    item = QTableWidgetItem(str(element))
+                    Table.setItem(row, column , item)
+
+    def GenerateVectorsFromCell(self, mainwindow):
+
+        """
+        Handles the generation of neighbour vector arrays and inputs
+        them into the DMfile creation window. 
+
+        Input:
+                mainwindow  :   QWindow object for the main UI window
+    
+        """
+
+        from PyQt6.QtWidgets import QLineEdit
+        import numpy as np
+        from ASD_GUI.Extras.nn_list_maker.structure import get_full_nnlist
+        from ASD_GUI.Extras.nn_list_maker.read_uppasd import read_posfile
+        import ASD_GUI.Extras.nn_list_maker.create_neighbour_list as create_neighbour_list
+        import ASD_GUI.Input_Creator.ASDInputGen as ASDInputgen
+
+        Basis = np.array([coord.text() for coord in mainwindow.findChildren(QLineEdit)
+                 if 'InpLineEditC' in coord.objectName()]).reshape(3,3)
+      
+        if '' in Basis:
+            print('Input-error: Empty string encountered in cell')
+            return
+       
+        Table = self.InDMfileTable
+        Table.setRowCount(0)
+        CutoffRadius = int(self.InDMfileNNCutoff.value())
+        Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
+        Cell = (np.float64(Basis), Positions, numbers)
+
+        for i_site, site in enumerate(Positions):
+            NeighbourVectors, NeighbourTypes, _ =\
+                  get_full_nnlist(Cell, i_site, CutoffRadius, in_cell_only= False)
+
+            VectorDict = {}
+            CurrentSiteVector =\
+                  np.ones((len(NeighbourVectors),1))*int(numbers[i_site])
+            KeyVector =\
+                  np.hstack((CurrentSiteVector, NeighbourTypes.T.reshape(CurrentSiteVector.shape)))
+
+            for index, key in enumerate(KeyVector):
+                key = ' '.join([str(int(i)) for i in key])
+                if key not in VectorDict:
+                    VectorDict[key] = []
+                VectorDict[key].append(list(NeighbourVectors[index]))
+
+            self.InsertVectorsInTable(VectorDict, Table)
+
+    def InsertVectorsInTable(self, VectorDict, Table):
+        """ 
+        Helper function to GenerateVectorsFromCell which inputs vectors
+        into the file creation table
+
+        Inputs:
+                VectorDict  :   dictonary with interaction numbering as keys
+                                and vectors as values
+                Table       :   QTableWidget 
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+        import numpy as np
+
+        for key in VectorDict:
+            for vector in VectorDict[key]:
+                Row = [key[0], key[-1], vector[0], vector[1], vector[2], 0, 0, 0]
+                row = Table.rowCount()
+                Table.insertRow(row)
+                for column, value in enumerate(Row):
+                    item = QTableWidgetItem(str(value))
+                    Table.setItem(row, column , item)
+
+    def window_close(self):
+        """
+        Function handling the what the Cancel and Done buttons do in the file creation
+        window.
+        The Cancel button removes all the rows except for the first, resets
+        inputs for generation of vectors and closes the window.
+        The Done button reads the data in the cells and writes a DM-file.
+        Modified from momfile_window creation. 
+        
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if self.sender()== self.InpDMfileCancel:
+            self.InDMfileTable.setRowCount(1)
+            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+                item = QTableWidgetItem(str(value))
+                self.InDMfileTable.setItem(0, column, item)
+            self.InDMfileNNCutoff.setValue(0)
+            self.close()
+        if self.sender()==self.InpDMfileDone:
+            DMfile_name=open(DMfile_Window.DMfile_name,'w')
+            for row in range(0,self.InDMfileTable.rowCount()):
+                DMVector = [self.InDMfileTable.item(row,5).text(),
+                            self.InDMfileTable.item(row,6).text(),
+                            self.InDMfileTable.item(row,7).text()]
+                if DMVector == ['0', '0', '0']:
+                    pass
+                else:
+                    for col in range(0,self.InDMfileTable.columnCount()):
+                        if col<2:
+                            entry=int(self.InDMfileTable.item(row, col).text())
+                        else:
+                            entry=float(self.InDMfileTable.item(row, col).text())
+                        DMfile_name.write('{entry}  '.format(**locals()))
+                    DMfile_name.write('\n')
+                self.close()
+        self.DMfile_gotten=True
         return

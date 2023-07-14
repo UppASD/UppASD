@@ -9,8 +9,8 @@
          <rect>
             <x>0</x>
             <y>0</y>
-            <width>1280</width>
-            <height>1948</height>
+            <width>1948</width>
+            <height>1280</height>
          </rect>
       </property>
       <property name="sizePolicy">
@@ -213,304 +213,6 @@
                                     <property name="bottomMargin">
                                        <number>2</number>
                                     </property>
-                                    <item>
-                                       <widget class="QGroupBox" name="IngGenBox">
-                                          <property name="title">
-                                             <string>General Sim Info</string>
-                                          </property>
-                                          <layout class="QHBoxLayout" name="horizontalLayout_4">
-                                             <item>
-                                                <widget class="QLabel" name="InpSimIDLabel">
-                                                   <property name="text">
-                                                      <string>Sim name</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <widget class="QLineEdit" name="InpLineEditSimid">
-                                                   <property name="toolTip">
-                                                      <string>Name of the simulation for output files</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Name of the simulation for output files</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Name of the simulation for output files</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="maxLength">
-                                                      <number>8</number>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>_UppASD_</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <spacer name="horizontalSpacer">
-                                                   <property name="orientation">
-                                                      <enum>Qt::Horizontal</enum>
-                                                   </property>
-                                                   <property name="sizeHint" stdset="0">
-                                                      <size>
-                                                         <width>40</width>
-                                                         <height>20</height>
-                                                      </size>
-                                                   </property>
-                                                </spacer>
-                                             </item>
-                                             <item>
-                                                <widget class="QGroupBox" name="InpInitBox">
-                                                   <property name="toolTip">
-                                                      <string>Perform initial phase without measurement (on/off)</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Perform initial phase without measurement (on/off)</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Perform initial phase without measurement (on/off)</string>
-                                                   </property>
-                                                   <property name="title">
-                                                      <string>Inital Phase</string>
-                                                   </property>
-                                                   <property name="checkable">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="checked">
-                                                      <bool>false</bool>
-                                                   </property>
-                                                   <layout class="QGridLayout" name="gridLayout_54">
-                                                      <item row="0" column="0">
-                                                         <widget class="QRadioButton" name="InpInitLLG">
-                                                            <property name="toolTip">
-                                                               <string>Initial phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Initial phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Initial phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>LLG</string>
-                                                            </property>
-                                                            <property name="checked">
-                                                               <bool>true</bool>
-                                                            </property>
-                                                            <attribute name="buttonGroup">
-                                                               <string notr="true">InitPhaseModeSelector</string>
-                                                            </attribute>
-                                                         </widget>
-                                                      </item>
-                                                      <item row="0" column="1">
-                                                         <widget class="QGroupBox" name="InpInitMCBoc">
-                                                            <property name="title">
-                                                               <string>Monte Carlo</string>
-                                                            </property>
-                                                            <layout class="QVBoxLayout" name="verticalLayout_13">
-                                                               <item>
-                                                                  <widget class="QRadioButton" name="InpInitMcMet">
-                                                                     <property name="toolTip">
-                                                                        <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Metropolis</string>
-                                                                     </property>
-                                                                     <property name="checked">
-                                                                        <bool>false</bool>
-                                                                     </property>
-                                                                     <attribute name="buttonGroup">
-                                                                        <string notr="true">InitPhaseModeSelector</string>
-                                                                     </attribute>
-                                                                  </widget>
-                                                               </item>
-                                                               <item>
-                                                                  <widget class="QRadioButton" name="InpInitMcHeat">
-                                                                     <property name="toolTip">
-                                                                        <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Heat Bath</string>
-                                                                     </property>
-                                                                     <attribute name="buttonGroup">
-                                                                        <string notr="true">InitPhaseModeSelector</string>
-                                                                     </attribute>
-                                                                  </widget>
-                                                               </item>
-                                                            </layout>
-                                                         </widget>
-                                                      </item>
-                                                      <item row="0" column="2">
-                                                         <widget class="QRadioButton" name="InpInitVPO">
-                                                            <property name="toolTip">
-                                                               <string>Initial phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Initial phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Initial phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>VPO</string>
-                                                            </property>
-                                                            <attribute name="buttonGroup">
-                                                               <string notr="true">InitPhaseModeSelector</string>
-                                                            </attribute>
-                                                         </widget>
-                                                      </item>
-                                                   </layout>
-                                                </widget>
-                                             </item>
-                                             <item>
-                                                <spacer name="horizontalSpacer_2">
-                                                   <property name="orientation">
-                                                      <enum>Qt::Horizontal</enum>
-                                                   </property>
-                                                   <property name="sizeHint" stdset="0">
-                                                      <size>
-                                                         <width>40</width>
-                                                         <height>20</height>
-                                                      </size>
-                                                   </property>
-                                                </spacer>
-                                             </item>
-                                             <item>
-                                                <widget class="QGroupBox" name="InpMeasureBox">
-                                                   <property name="toolTip">
-                                                      <string>Options for the mode of the measurement phase</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Options for the mode of the measurement phase</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Options for the mode of the measurement phase</string>
-                                                   </property>
-                                                   <property name="title">
-                                                      <string>Measurement Phase</string>
-                                                   </property>
-                                                   <property name="checkable">
-                                                      <bool>false</bool>
-                                                   </property>
-                                                   <layout class="QHBoxLayout" name="horizontalLayout_5">
-                                                      <item>
-                                                         <widget class="QRadioButton" name="InpMeasureLLG">
-                                                            <property name="toolTip">
-                                                               <string>Measurement phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Measurement phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Measurement phase uses the LLG</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>LLG</string>
-                                                            </property>
-                                                            <property name="checked">
-                                                               <bool>true</bool>
-                                                            </property>
-                                                            <attribute name="buttonGroup">
-                                                               <string notr="true">MeasurePhaseModeSelector</string>
-                                                            </attribute>
-                                                         </widget>
-                                                      </item>
-                                                      <item>
-                                                         <widget class="QGroupBox" name="InpMeasureSelectMCBox">
-                                                            <property name="title">
-                                                               <string>Monte Carlo</string>
-                                                            </property>
-                                                            <layout class="QVBoxLayout" name="verticalLayout_14">
-                                                               <item>
-                                                                  <widget class="QRadioButton" name="InpMeasureMCMet">
-                                                                     <property name="toolTip">
-                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Metropolis</string>
-                                                                     </property>
-                                                                     <attribute name="buttonGroup">
-                                                                        <string notr="true">MeasurePhaseModeSelector</string>
-                                                                     </attribute>
-                                                                  </widget>
-                                                               </item>
-                                                               <item>
-                                                                  <widget class="QRadioButton" name="InpMeasureMCHeat">
-                                                                     <property name="toolTip">
-                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Heat Bath</string>
-                                                                     </property>
-                                                                     <attribute name="buttonGroup">
-                                                                        <string notr="true">MeasurePhaseModeSelector</string>
-                                                                     </attribute>
-                                                                  </widget>
-                                                               </item>
-                                                            </layout>
-                                                         </widget>
-                                                      </item>
-                                                      <item>
-                                                         <widget class="QRadioButton" name="InpMeasureGNEB">
-                                                            <property name="toolTip">
-                                                               <string>Measurement phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Measurement phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Measurement phase uses the velocity projector optimization method</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>GNEB</string>
-                                                            </property>
-                                                            <attribute name="buttonGroup">
-                                                               <string notr="true">MeasurePhaseModeSelector</string>
-                                                            </attribute>
-                                                         </widget>
-                                                      </item>
-                                                   </layout>
-                                                </widget>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item>
-                                       <widget class="Line" name="line_4">
-                                          <property name="lineWidth">
-                                             <number>2</number>
-                                          </property>
-                                          <property name="orientation">
-                                             <enum>Qt::Horizontal</enum>
-                                          </property>
-                                       </widget>
-                                    </item>
                                     <item>
                                        <widget class="QGroupBox" name="InpGeometryBox">
                                           <property name="title">
@@ -766,25 +468,178 @@
                                                 </widget>
                                              </item>
                                              <item>
-                                                <spacer name="horizontalSpacer_7">
-                                                   <property name="orientation">
-                                                      <enum>Qt::Horizontal</enum>
+                                                <widget class="QGroupBox" name="InpTemplateBox">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
                                                    </property>
-                                                   <property name="sizeHint" stdset="0">
-                                                      <size>
-                                                         <width>40</width>
-                                                         <height>20</height>
-                                                      </size>
+                                                   <property name="toolTip">
+                                                      <string>Creation of input files via templates</string>
                                                    </property>
-                                                </spacer>
+                                                   <property name="statusTip">
+                                                      <string>Creation of input files via templates</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Creation of input files via templates</string>
+                                                   </property>
+                                                   <property name="title">
+                                                      <string>Structure templates</string>
+                                                   </property>
+                                                   <layout class="QGridLayout" name="gridLayout_52">
+                                                      <item row="0" column="1">
+                                                         <widget class="QPushButton" name="InpTemplateBCCButton">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Create body centered cubic system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create body centered cubic system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create body centered cubic system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="icon">
+                                                               <iconset>
+                                                                  <normaloff>../TemplateStructurePIC/pp_bcc.png</normaloff>../TemplateStructurePIC/pp_bcc.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                               <size>
+                                                                  <width>100</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="0" column="0">
+                                                         <widget class="QPushButton" name="InpTemplateSCButton">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Create simple cubic system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create simple cubic system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create simple cubic system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="icon">
+                                                               <iconset>
+                                                                  <normaloff>../TemplateStructurePIC/pp_sc.png</normaloff>../TemplateStructurePIC/pp_sc.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                               <size>
+                                                                  <width>100</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="0">
+                                                         <widget class="QPushButton" name="InpTemplateFCCButton">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Create face centered cubic system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create face centered cubic system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create face centered cubic system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="icon">
+                                                               <iconset>
+                                                                  <normaloff>../TemplateStructurePIC/pp_fcc.png</normaloff>../TemplateStructurePIC/pp_fcc.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                               <size>
+                                                                  <width>100</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="0" column="2">
+                                                         <widget class="QPushButton" name="InpTemplateBCC2TypesButton">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Create multi-atom body centered cubic system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create multi-atom body centered cubic system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create multi-atom body centered cubic system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="icon">
+                                                               <iconset>
+                                                                  <normaloff>../TemplateStructurePIC/pp_b2.png</normaloff>../TemplateStructurePIC/pp_b2.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                               <size>
+                                                                  <width>100</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="1">
+                                                         <widget class="QPushButton" name="InpTemplateHCPButton">
+                                                            <property name="enabled">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                               <string>Create hexagonal compact packing system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create hexagonal compact packing system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create hexagonal compact packing system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="icon">
+                                                               <iconset>
+                                                                  <normaloff>../TemplateStructurePIC/pp_hcp.png</normaloff>../TemplateStructurePIC/pp_hcp.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                               <size>
+                                                                  <width>100</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
                                              </item>
                                              <item>
                                                 <widget class="QGroupBox" name="InpBasisBox">
                                                    <property name="title">
-                                                      <string>Basis</string>
+                                                      <string>Supplementary input files</string>
                                                    </property>
                                                    <layout class="QGridLayout" name="gridLayout_27">
-                                                      <item row="1" column="1">
+                                                      <item row="1" column="0">
                                                          <widget class="QGroupBox" name="InpMomBox">
                                                             <property name="title">
                                                                <string>Magnetic moments</string>
@@ -826,22 +681,6 @@
                                                          </widget>
                                                       </item>
                                                       <item row="0" column="0">
-                                                         <widget class="QCheckBox" name="InpCheckRandAlloy">
-                                                            <property name="toolTip">
-                                                               <string>Treatment of random alloys (on/off)</string>
-                                                            </property>
-                                                            <property name="statusTip">
-                                                               <string>Treatment of random alloys (on/off)</string>
-                                                            </property>
-                                                            <property name="whatsThis">
-                                                               <string>Treatment of random alloys (on/off)</string>
-                                                            </property>
-                                                            <property name="text">
-                                                               <string>Random alloy</string>
-                                                            </property>
-                                                         </widget>
-                                                      </item>
-                                                      <item row="0" column="1">
                                                          <widget class="QGroupBox" name="InpPosBox">
                                                             <property name="title">
                                                                <string>Position file</string>
@@ -882,46 +721,18 @@
                                                             </layout>
                                                          </widget>
                                                       </item>
-                                                      <item row="2" column="1">
-                                                         <widget class="QGroupBox" name="InpPosBox">
-                                                            <property name="title">
-                                                               <string>Exchange file</string>
+                                                      <item row = "2" column = "0">
+                                                         <spacer name="horizontalSpacer_7">
+                                                            <property name="orientation">
+                                                               <enum>Qt::Vertical</enum>
                                                             </property>
-                                                            <layout class="QHBoxLayout" name="horizontalLayout_2">
-                                                               <item>
-                                                                  <widget class="QPushButton" name="InpJfileButtonSelect">
-                                                                     <property name="toolTip">
-                                                                        <string>Select jfile from system</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Select jfile from system</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Select jfile from system</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Select jfile</string>
-                                                                     </property>
-                                                                  </widget>
-                                                               </item>
-                                                               <item>
-                                                                  <widget class="QPushButton" name="InpJfileButtonCreate">
-                                                                     <property name="toolTip">
-                                                                        <string>Create jfile manually</string>
-                                                                     </property>
-                                                                     <property name="statusTip">
-                                                                        <string>Create jfile manually</string>
-                                                                     </property>
-                                                                     <property name="whatsThis">
-                                                                        <string>Create jfile manually</string>
-                                                                     </property>
-                                                                     <property name="text">
-                                                                        <string>Create jfile</string>
-                                                                     </property>
-                                                                  </widget>
-                                                               </item>
-                                                            </layout>
-                                                         </widget>
+                                                            <property name="sizeHint" stdset="0">
+                                                               <size>
+                                                                  <width>40</width>
+                                                                  <height>20</height>
+                                                               </size>
+                                                            </property>
+                                                         </spacer>
                                                       </item>
                                                    </layout>
                                                 </widget>
@@ -930,196 +741,7 @@
                                        </widget>
                                     </item>
                                     <item>
-                                       <widget class="Line" name="line_2">
-                                          <property name="lineWidth">
-                                             <number>2</number>
-                                          </property>
-                                          <property name="orientation">
-                                             <enum>Qt::Horizontal</enum>
-                                          </property>
-                                       </widget>
-                                    </item>
-                                    <item>
-                                       <widget class="QGroupBox" name="InpTemplateBox">
-                                          <property name="enabled">
-                                             <bool>true</bool>
-                                          </property>
-                                          <property name="toolTip">
-                                             <string>Creation of input files via templates</string>
-                                          </property>
-                                          <property name="statusTip">
-                                             <string>Creation of input files via templates</string>
-                                          </property>
-                                          <property name="whatsThis">
-                                             <string>Creation of input files via templates</string>
-                                          </property>
-                                          <property name="title">
-                                             <string>Structure templates</string>
-                                          </property>
-                                          <layout class="QGridLayout" name="gridLayout_52">
-                                             <item row="0" column="1">
-                                                <widget class="QPushButton" name="InpTemplateBCCButton">
-                                                   <property name="enabled">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="toolTip">
-                                                      <string>Create body centered cubic system</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Create body centered cubic system</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Create body centered cubic system</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="icon">
-                                                      <iconset>
-                                                         <normaloff>../TemplateStructurePIC/pp_bcc.png</normaloff>../TemplateStructurePIC/pp_bcc.png</iconset>
-                                                   </property>
-                                                   <property name="iconSize">
-                                                      <size>
-                                                         <width>100</width>
-                                                         <height>100</height>
-                                                      </size>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="0">
-                                                <widget class="QPushButton" name="InpTemplateSCButton">
-                                                   <property name="enabled">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="toolTip">
-                                                      <string>Create simple cubic system</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Create simple cubic system</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Create simple cubic system</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="icon">
-                                                      <iconset>
-                                                         <normaloff>../TemplateStructurePIC/pp_sc.png</normaloff>../TemplateStructurePIC/pp_sc.png</iconset>
-                                                   </property>
-                                                   <property name="iconSize">
-                                                      <size>
-                                                         <width>100</width>
-                                                         <height>100</height>
-                                                      </size>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="3">
-                                                <widget class="QPushButton" name="InpTemplateFCCButton">
-                                                   <property name="enabled">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="toolTip">
-                                                      <string>Create face centered cubic system</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Create face centered cubic system</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Create face centered cubic system</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="icon">
-                                                      <iconset>
-                                                         <normaloff>../TemplateStructurePIC/pp_fcc.png</normaloff>../TemplateStructurePIC/pp_fcc.png</iconset>
-                                                   </property>
-                                                   <property name="iconSize">
-                                                      <size>
-                                                         <width>100</width>
-                                                         <height>100</height>
-                                                      </size>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="2">
-                                                <widget class="QPushButton" name="InpTemplateBCC2TypesButton">
-                                                   <property name="enabled">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="toolTip">
-                                                      <string>Create multi-atom body centered cubic system</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Create multi-atom body centered cubic system</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Create multi-atom body centered cubic system</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="icon">
-                                                      <iconset>
-                                                         <normaloff>../TemplateStructurePIC/pp_b2.png</normaloff>../TemplateStructurePIC/pp_b2.png</iconset>
-                                                   </property>
-                                                   <property name="iconSize">
-                                                      <size>
-                                                         <width>100</width>
-                                                         <height>100</height>
-                                                      </size>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="4">
-                                                <widget class="QPushButton" name="InpTemplateHCPButton">
-                                                   <property name="enabled">
-                                                      <bool>true</bool>
-                                                   </property>
-                                                   <property name="toolTip">
-                                                      <string>Create hexagonal compact packing system</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Create hexagonal compact packing system</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Create hexagonal compact packing system</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string/>
-                                                   </property>
-                                                   <property name="icon">
-                                                      <iconset>
-                                                         <normaloff>../TemplateStructurePIC/pp_hcp.jpg</normaloff>../TemplateStructurePIC/pp_hcp.jpg</iconset>
-                                                   </property>
-                                                   <property name="iconSize">
-                                                      <size>
-                                                         <width>100</width>
-                                                         <height>100</height>
-                                                      </size>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="5">
-                                                <spacer name="horizontalSpacer_4">
-                                                   <property name="orientation">
-                                                      <enum>Qt::Horizontal</enum>
-                                                   </property>
-                                                   <property name="sizeHint" stdset="0">
-                                                      <size>
-                                                         <width>40</width>
-                                                         <height>20</height>
-                                                      </size>
-                                                   </property>
-                                                </spacer>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item>
-                                       <widget class="Line" name="line_3">
+                                       <widget class="Line" name="line">
                                           <property name="lineWidth">
                                              <number>2</number>
                                           </property>
@@ -1140,7 +762,7 @@
                                              <string>Import input files from other codes</string>
                                           </property>
                                           <property name="title">
-                                             <string>Import system (to be implemented)</string>
+                                             <string>Import system</string>
                                           </property>
                                           <layout class="QGridLayout" name="gridLayout_53">
                                              <item row="0" column="2">
@@ -1159,19 +781,19 @@
                                                    </property>
                                                 </widget>
                                              </item>
-                                             <item row="0" column="1">
-                                                <widget class="QPushButton" name="InpImportSPRKKRButton">
+                                             <item row="0" column="3">
+                                                <widget class="QPushButton" name="InpImportRSLMTOButton">
                                                    <property name="toolTip">
-                                                      <string>Import system from SPRKKR</string>
+                                                      <string>Import system from RSLMTO</string>
                                                    </property>
                                                    <property name="statusTip">
-                                                      <string>Import system from SPRKKR</string>
+                                                      <string>Import system from RSLMTO</string>
                                                    </property>
                                                    <property name="whatsThis">
-                                                      <string>Import system from SPRKKR</string>
+                                                      <string>Import system from RSLMTO</string>
                                                    </property>
                                                    <property name="text">
-                                                      <string>SPRKKR</string>
+                                                      <string>RS-LMTO</string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -1191,7 +813,23 @@
                                                    </property>
                                                 </widget>
                                              </item>
-                                             <item row="0" column="3">
+                                             <item row="0" column="1">
+                                                <widget class="QPushButton" name="InpImportSPRKKRButton">
+                                                   <property name="toolTip">
+                                                      <string>Import system from SPRKKR</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Import system from SPRKKR</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Import system from SPRKKR</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>SPRKKR</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="4">
                                                 <spacer name="horizontalSpacer_5">
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>
@@ -1209,6 +847,761 @@
                                     </item>
                                     <item>
                                        <widget class="Line" name="line">
+                                          <property name="lineWidth">
+                                             <number>2</number>
+                                          </property>
+                                          <property name="orientation">
+                                             <enum>Qt::Horizontal</enum>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QGroupBox" name="IngGenBox">
+                                          <layout class="QHBoxLayout" name="horizontalLayout_4">
+                                             <item>
+                                                <widget class = "QGroupBox" name = "GeneralGridBox">
+                                                   <property name="title">
+                                                      <string>General Sim Info</string>
+                                                   </property>
+                                                   <layout class = "QGridLayout" name = "GeneralGridLayout">
+                                                      <item row = "0" column = "0">
+                                                         <widget class="QLabel" name="InpSimIDLabel">
+                                                            <property name="text">
+                                                               <string>SimID</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row = "0" column = "1">
+                                                         <widget class="QLineEdit" name="InpLineEditSimid">
+                                                            <property name="toolTip">
+                                                               <string>Name of the simulation for output files</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Name of the simulation for output files</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Name of the simulation for output files</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string/>
+                                                            </property>
+                                                            <property name="maxLength">
+                                                               <number>8</number>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>_UppASD_</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QGroupBox" name="InpMeasureBox">
+                                                   <property name="toolTip">
+                                                      <string>Options for the mode of the measurement phase</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Options for the mode of the measurement phase</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Options for the mode of the measurement phase</string>
+                                                   </property>
+                                                   <property name="title">
+                                                      <string>Measurement Phase</string>
+                                                   </property>
+                                                   <property name="checkable">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <layout class="QHBoxLayout" name="horizontalLayout_5">
+                                                      <item>
+                                                         <widget class="QRadioButton" name="InpMeasureLLG">
+                                                            <property name="toolTip">
+                                                               <string>Measurement phase uses the LLG</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Measurement phase uses the LLG</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Measurement phase uses the LLG</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>LLG</string>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">MeasurePhaseModeSelector</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QGroupBox" name="InpMeasureSelectMCBox">
+                                                            <property name="title">
+                                                               <string>Monte Carlo</string>
+                                                            </property>
+                                                            <layout class="QVBoxLayout" name="verticalLayout_14">
+                                                               <item>
+                                                                  <widget class="QRadioButton" name="InpMeasureMCMet">
+                                                                     <property name="toolTip">
+                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                                     </property>
+                                                                     <property name="statusTip">
+                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                                     </property>
+                                                                     <property name="whatsThis">
+                                                                        <string>Measurement phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                                     </property>
+                                                                     <property name="text">
+                                                                        <string>Metropolis</string>
+                                                                     </property>
+                                                                     <attribute name="buttonGroup">
+                                                                        <string notr="true">MeasurePhaseModeSelector</string>
+                                                                     </attribute>
+                                                                  </widget>
+                                                               </item>
+                                                               <item>
+                                                                  <widget class="QRadioButton" name="InpMeasureMCHeat">
+                                                                     <property name="toolTip">
+                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
+                                                                     </property>
+                                                                     <property name="statusTip">
+                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
+                                                                     </property>
+                                                                     <property name="whatsThis">
+                                                                        <string>Measurement phase uses Monte Carlo with the Heat Bath algorithm</string>
+                                                                     </property>
+                                                                     <property name="text">
+                                                                        <string>Heat Bath</string>
+                                                                     </property>
+                                                                     <attribute name="buttonGroup">
+                                                                        <string notr="true">MeasurePhaseModeSelector</string>
+                                                                     </attribute>
+                                                                  </widget>
+                                                               </item>
+                                                            </layout>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QRadioButton" name="InpMeasureGNEB">
+                                                            <property name="toolTip">
+                                                               <string>Measurement phase uses the velocity projector optimization method</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Measurement phase uses the velocity projector optimization method</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Measurement phase uses the velocity projector optimization method</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>GNEB</string>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">MeasurePhaseModeSelector</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QGroupBox" name="InpLLGMeasureBox">
+                                                   <property name="toolTip">
+                                                      <string>Spin dynamics measurement mode</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Spin dynamics measurement mode</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Spin dynamics measurement mode</string>
+                                                   </property>
+                                                   <property name="title">
+                                                      <string>Spin Dynamics</string>
+                                                   </property>
+                                                   <property name="checkable">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <layout class="QGridLayout" name="gridLayout_15">
+                                                      <item row="5" column="0">
+                                                         <widget class="QLabel" name="InpASDLLGAlghLabel">
+                                                            <property name="toolTip">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Algorithm</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="1" colspan="2">
+                                                         <widget class="QLineEdit" name="InpASDLLGSteps">
+                                                            <property name="toolTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>1000</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="0" column="0">
+                                                         <widget class="QLabel" name="InpASDLLGTempLabel">
+                                                            <property name="toolTip">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Temperature</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="3" column="1" rowspan="2" colspan="2">
+                                                         <widget class="QLineEdit" name="InpASDLLGDamp">
+                                                            <property name="toolTip">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>0.01</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="5" column="1">
+                                                         <widget class="QSpinBox" name="InpASDLLGAlgh">
+                                                            <property name="toolTip">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
+                                                            </property>
+                                                            <property name="minimum">
+                                                               <number>1</number>
+                                                            </property>
+                                                            <property name="maximum">
+                                                               <number>5</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="3" column="0" rowspan="2">
+                                                         <widget class="QLabel" name="InpASDLLGDampLabel">
+                                                            <property name="toolTip">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Magnitude of the scalar Gilbert damping</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Damping</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="0">
+                                                         <widget class="QLabel" name="InpASDLLGStepsLabel">
+                                                            <property name="toolTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Steps</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="0" column="1" colspan="2">
+                                                         <widget class="QLineEdit" name="InpASDLLGTemp">
+                                                            <property name="toolTip">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Temperature of the SD calculation</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>0.0</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="2" column="0">
+                                                         <widget class="QLabel" name="InpASDLLGDTLabel">
+                                                            <property name="toolTip">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Time step [s]</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="2" column="1" colspan="2">
+                                                         <widget class="QLineEdit" name="InpASDLLGDT">
+                                                            <property name="toolTip">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>1e-16</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QGroupBox" name="InpMeasureMCBox">
+                                                   <property name="toolTip">
+                                                      <string>Monte Carlo measurement mode</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Monte Carlo measurement mode</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Monte Carlo measurement mode</string>
+                                                   </property>
+                                                   <property name="title">
+                                                      <string>Monte Carlo</string>
+                                                   </property>
+                                                   <property name="checkable">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <layout class="QGridLayout" name="gridLayout_14">
+                                                      <item row="0" column="0">
+                                                         <widget class="QLabel" name="InpMCTempLabel">
+                                                            <property name="toolTip">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Temperature</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="0" column="1">
+                                                         <widget class="QLineEdit" name="InpMCTemp">
+                                                            <property name="toolTip">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Temperature of the MC calculation</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>0.0</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="0">
+                                                         <widget class="QLabel" name="InpMCStepsLabel">
+                                                            <property name="toolTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Steps</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row="1" column="1">
+                                                         <widget class="QLineEdit" name="InpMCSteps">
+                                                            <property name="toolTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Number of steps of the simulation</string>
+                                                            </property>
+                                                            <property name="placeholderText">
+                                                               <string>1000</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <spacer name="horizontalSpacer">
+                                                            <property name="orientation">
+                                                               <enum>Qt::Vertical</enum>
+                                                            </property>
+                                                            <property name="sizeHint" stdset="0">
+                                                               <size>
+                                                                  <width>20</width>
+                                                                  <height>100</height>
+                                                               </size>
+                                                            </property>
+                                                         </spacer>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <spacer name="horizontalSpacer">
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="sizeHint" stdset="0">
+                                                      <size>
+                                                         <width>250</width>
+                                                         <height>20</height>
+                                                      </size>
+                                                   </property>
+                                                </spacer>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="Line" name="line_2">
+                                          <property name="lineWidth">
+                                             <number>2</number>
+                                          </property>
+                                          <property name="orientation">
+                                             <enum>Qt::Horizontal</enum>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class = "QGroupBox" name = "InpHamiltonianFileGen" >
+                                          <property name = "title" >
+                                             <string> Hamiltonian file generation </string>
+                                          </property>
+                                          <layout class = "QHBoxLayout" name = "InpHamiltonianFileGenLayout">
+                                             <item>
+                                                <widget class="QGroupBox" name="InpJfileBox">
+                                                   <property name="title">
+                                                      <string>Exchange file</string>
+                                                   </property>
+                                                   <layout class="QHBoxLayout" name="horizontalLayout_jfile">
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpJfileButtonSelect">
+                                                            <property name="toolTip">
+                                                               <string>Select jfile from system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Select jfile from system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Select jfile from system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Select jfile</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpJfileButtonCreate">
+                                                            <property name="toolTip">
+                                                               <string>Create jfile manually</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create jfile manually</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create jfile manually</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Create jfile</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QGroupBox" name="InpDMBox">
+                                                   <property name="title">
+                                                      <string>Dzyaloshinskii-Moriya file</string>
+                                                   </property>
+                                                   <layout class="QHBoxLayout" name="horizontalLayout_DM">
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpDMButtonSelect">
+                                                            <property name="toolTip">
+                                                               <string>Select DM-file from system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Select DM-file from system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Select DM-file from system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Select DM-file</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpDMButtonCreate">
+                                                            <property name="toolTip">
+                                                               <string>Create DM-file manually</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create DM-file manually</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create DM-file manually</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Create DM-file</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                                                                          <item>
+                                                <widget class="QGroupBox" name="InpKfileBox">
+                                                   <property name="title">
+                                                      <string>Anisotropy file</string>
+                                                   </property>
+                                                   <layout class="QHBoxLayout" name="horizontalLayout_Kfile">
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpKfileButtonSelect">
+                                                            <property name="toolTip">
+                                                               <string>Select k-file from system</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Select k-file from system</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Select k-file from system</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Select k-file</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QPushButton" name="InpKfileButtonCreate">
+                                                            <property name="toolTip">
+                                                               <string>Create k-file manually</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>Create k-file manually</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>Create k-file manually</string>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Create k-file</string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <spacer name="horizontalSpacer_7">
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="sizeHint" stdset="0">
+                                                      <size>
+                                                         <width>40</width>
+                                                         <height>20</height>
+                                                      </size>
+                                                   </property>
+                                                </spacer>
+                                             </item>
+                                          </layout>
+                                       </widget>  
+                                    </item>
+                                    <item>
+                                       <widget class="Line" name="line_3">
+                                          <property name="lineWidth">
+                                             <number>2</number>
+                                          </property>
+                                          <property name="orientation">
+                                             <enum>Qt::Horizontal</enum>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class = "QGroupBox" name = "InpMagnonQuickBox" >
+                                          <property name = "title" >
+                                             <string> Quick Settings </string>
+                                          </property>
+                                          <layout class = "QGridLayout" name = 'InpMagnonQuickLayout'>
+                                             <item row = "0" column = "0">
+                                                <widget class = "QPushButton" name = "InpMagnonQuickButton">
+                                                   <property name = 'text'>
+                                                      <string> Magnon Spectra </string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="1">
+                                                <spacer name="verticalSpacer_9">
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="sizeHint" stdset="0">
+                                                      <size>
+                                                         <width>80</width>
+                                                         <height>20</height>
+                                                      </size>
+                                                   </property>
+                                                </spacer>
+                                             </item>
+                                             <!-- <item row = "0" column = "1" rowspan = '3'>
+                                                <widget class = "QGroupBox" name = "InpQuickMagConfigBox">
+                                                   <property name = 'title'>
+                                                         <string> Easy magnetic configuration </string>
+                                                   </property>
+                                                   <property name = 'checkable' >
+                                                         <bool>true</bool>
+                                                   </property>
+                                                   <property name = 'checked' >
+                                                         <bool>false</bool>
+                                                   </property>
+                                                   <layout class = "QGridLayout" name = "InpQuickMagConfigLayout">
+                                                      <item row = "1" column = "0">
+                                                         <widget class = "QRadioButton" name = "InpQuickFerroCheck">
+                                                            <property name="text">
+                                                               <string>Ferromagnet</string>
+                                                            </property>
+                                                            <property name = "checked">
+                                                               <bool> True </bool>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">InpMagConfigSelect</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item row = "2" column = "0">
+                                                         <widget class = "QRadioButton" name = "InpQuickAntiFerroCheck">
+                                                            <property name="text">
+                                                               <string>Anti-Ferromagnet</string>
+                                                            </property>
+                                                            <attribute name="buttonGroup">
+                                                               <string notr="true">InpMagConfigSelect</string>
+                                                            </attribute>
+                                                         </widget>
+                                                      </item>
+                                                      <item row = "1" column = "1">
+                                                         <widget class = "QLabel" name = "InpQuickMagLabel_x">
+                                                            <property name = "text">
+                                                               <string> x: </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                       <item row = "2" column = "1">
+                                                         <widget class = "QLabel" name = "InpQuickMagLabel_y">
+                                                            <property name = "text">
+                                                               <string> y: </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                       <item row = "3" column = "1">
+                                                         <widget class = "QLabel" name = "InpQuickMagLabel_z">
+                                                            <property name = "text">
+                                                               <string> z: </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row = "0" column = "2">
+                                                         <widget class = "QLabel" name = "InpQuickMagDirLabel">
+                                                            <property name = "text">
+                                                               <string> Direction </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item row = "1" column = "2">
+                                                         <widget class = "QLineEdit" name = "InpQuickMagLine_x">
+                                                            <property name = "placeholderText">
+                                                               <string> 1.0 </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                       <item row = "2" column = "2">
+                                                         <widget class = "QLineEdit" name = "InpQuickMagLine_y">
+                                                            <property name = "placeholderText">
+                                                               <string> 0.0 </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                       <item row = "3" column = "2">
+                                                         <widget class = "QLineEdit" name = "InpQuickMagLine_z">
+                                                            <property name = "placeholderText">
+                                                               <string> 0.0 </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item row="0" column="2">
+                                                <spacer name="horizontalSpacer_5">
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="sizeHint" stdset="0">
+                                                      <size>
+                                                         <width>50</width>
+                                                         <height>20</height>
+                                                      </size>
+                                                   </property>
+                                                </spacer>
+                                             </item> -->
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="Line" name="line_mag">
                                           <property name="lineWidth">
                                              <number>2</number>
                                           </property>
@@ -7030,7 +7423,122 @@
                            <string>Initial Phase</string>
                         </attribute>
                         <layout class="QGridLayout" name="gridLayout_30">
-                           <item row="0" column="0">
+                           <item row = "0" column = "0" >
+                              <widget class="QGroupBox" name="InpInitBox">
+                                 <property name="toolTip">
+                                    <string>Perform initial phase without measurement (on/off)</string>
+                                 </property>
+                                 <property name="statusTip">
+                                    <string>Perform initial phase without measurement (on/off)</string>
+                                 </property>
+                                 <property name="whatsThis">
+                                    <string>Perform initial phase without measurement (on/off)</string>
+                                 </property>
+                                 <property name="title">
+                                    <string>Inital Phase</string>
+                                 </property>
+                                 <property name="checkable">
+                                    <bool>true</bool>
+                                 </property>
+                                 <property name="checked">
+                                    <bool>false</bool>
+                                 </property>
+                                 <layout class="QGridLayout" name="gridLayout_54">
+                                    <item row="0" column="0">
+                                       <widget class="QRadioButton" name="InpInitLLG">
+                                          <property name="toolTip">
+                                             <string>Initial phase uses the LLG</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Initial phase uses the LLG</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Initial phase uses the LLG</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>LLG</string>
+                                          </property>
+                                          <property name="checked">
+                                             <bool>true</bool>
+                                          </property>
+                                          <attribute name="buttonGroup">
+                                             <string notr="true">InitPhaseModeSelector</string>
+                                          </attribute>
+                                       </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                       <widget class="QGroupBox" name="InpInitMCBoc">
+                                          <property name="title">
+                                             <string>Monte Carlo</string>
+                                          </property>
+                                          <layout class="QVBoxLayout" name="verticalLayout_13">
+                                             <item>
+                                                <widget class="QRadioButton" name="InpInitMcMet">
+                                                   <property name="toolTip">
+                                                      <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Initial phase uses Monte Carlo with the Metropolis algorithm</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Metropolis</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                   <attribute name="buttonGroup">
+                                                      <string notr="true">InitPhaseModeSelector</string>
+                                                   </attribute>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QRadioButton" name="InpInitMcHeat">
+                                                   <property name="toolTip">
+                                                      <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Initial phase uses Monte Carlo with the Heath Bath algorithm</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Heat Bath</string>
+                                                   </property>
+                                                   <attribute name="buttonGroup">
+                                                      <string notr="true">InitPhaseModeSelector</string>
+                                                   </attribute>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item row="0" column="2">
+                                       <widget class="QRadioButton" name="InpInitVPO">
+                                          <property name="toolTip">
+                                             <string>Initial phase uses the velocity projector optimization method</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Initial phase uses the velocity projector optimization method</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Initial phase uses the velocity projector optimization method</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>VPO</string>
+                                          </property>
+                                          <attribute name="buttonGroup">
+                                             <string notr="true">InitPhaseModeSelector</string>
+                                          </attribute>
+                                       </widget>
+                                    </item>
+                                 </layout>
+                              </widget>
+                           </item>
+                           <item row="1" column="0">
                               <widget class="QGroupBox" name="InitPhaseOptionsBox">
                                  <property name="enabled">
                                     <bool>false</bool>
@@ -7052,7 +7560,14 @@
                                           </property>
                                        </spacer>
                                     </item>
-                                    <item row="0" column="0">
+                                    <item row = "0" column = "0">
+                                       <widget class = "QCheckBox" name = "InpQuickRelax">
+                                          <property name = 'text'>
+                                             <string> Use quick relaxation </string>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item row="1" column="0">
                                        <widget class="QGroupBox" name="InpInitAnnealBox">
                                           <property name="title">
                                              <string>Annealing phases</string>
@@ -7093,278 +7608,6 @@
                                  </property>
                                  <layout class="QGridLayout" name="gridLayout_35">
                                     <item row="0" column="0">
-                                       <widget class="QGroupBox" name="InpLLGMeasureBox">
-                                          <property name="toolTip">
-                                             <string>Spin dynamics measurement mode</string>
-                                          </property>
-                                          <property name="statusTip">
-                                             <string>Spin dynamics measurement mode</string>
-                                          </property>
-                                          <property name="whatsThis">
-                                             <string>Spin dynamics measurement mode</string>
-                                          </property>
-                                          <property name="title">
-                                             <string>Spin Dynamics</string>
-                                          </property>
-                                          <property name="checkable">
-                                             <bool>true</bool>
-                                          </property>
-                                          <layout class="QGridLayout" name="gridLayout_15">
-                                             <item row="5" column="0">
-                                                <widget class="QLabel" name="InpASDLLGAlghLabel">
-                                                   <property name="toolTip">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Algorithm</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="1" column="1" colspan="2">
-                                                <widget class="QLineEdit" name="InpASDLLGSteps">
-                                                   <property name="toolTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>1000</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="0">
-                                                <widget class="QLabel" name="InpASDLLGTempLabel">
-                                                   <property name="toolTip">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Temperature</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="3" column="1" rowspan="2" colspan="2">
-                                                <widget class="QLineEdit" name="InpASDLLGDamp">
-                                                   <property name="toolTip">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>0.01</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="5" column="1">
-                                                <widget class="QSpinBox" name="InpASDLLGAlgh">
-                                                   <property name="toolTip">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Algorithm to solve the LLG. (1: Midpoint, 2: Heun-1; 3: Heun-2, 4: Heun Predictor corrector, 5: Depondt)</string>
-                                                   </property>
-                                                   <property name="minimum">
-                                                      <number>1</number>
-                                                   </property>
-                                                   <property name="maximum">
-                                                      <number>5</number>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="3" column="0" rowspan="2">
-                                                <widget class="QLabel" name="InpASDLLGDampLabel">
-                                                   <property name="toolTip">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Magnitude of the scalar Gilbert damping</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Damping</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="1" column="0">
-                                                <widget class="QLabel" name="InpASDLLGStepsLabel">
-                                                   <property name="toolTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Steps</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="1" colspan="2">
-                                                <widget class="QLineEdit" name="InpASDLLGTemp">
-                                                   <property name="toolTip">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Temperature of the SD calculation</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>0.0</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="2" column="0">
-                                                <widget class="QLabel" name="InpASDLLGDTLabel">
-                                                   <property name="toolTip">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Time step [s]</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="2" column="1" colspan="2">
-                                                <widget class="QLineEdit" name="InpASDLLGDT">
-                                                   <property name="toolTip">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Integration time step. WARNING: do not see to high or the solver might be unstable</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>1e-16</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item row="1" column="0">
-                                       <widget class="QGroupBox" name="InpMeasureMCBox">
-                                          <property name="toolTip">
-                                             <string>Monte Carlo measurement mode</string>
-                                          </property>
-                                          <property name="statusTip">
-                                             <string>Monte Carlo measurement mode</string>
-                                          </property>
-                                          <property name="whatsThis">
-                                             <string>Monte Carlo measurement mode</string>
-                                          </property>
-                                          <property name="title">
-                                             <string>Monte Carlo</string>
-                                          </property>
-                                          <property name="checkable">
-                                             <bool>true</bool>
-                                          </property>
-                                          <property name="checked">
-                                             <bool>false</bool>
-                                          </property>
-                                          <layout class="QGridLayout" name="gridLayout_14">
-                                             <item row="0" column="0">
-                                                <widget class="QLabel" name="InpMCTempLabel">
-                                                   <property name="toolTip">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Temperature</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="0" column="1">
-                                                <widget class="QLineEdit" name="InpMCTemp">
-                                                   <property name="toolTip">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Temperature of the MC calculation</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>0.0</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="1" column="0">
-                                                <widget class="QLabel" name="InpMCStepsLabel">
-                                                   <property name="toolTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="text">
-                                                      <string>Steps</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                             <item row="1" column="1">
-                                                <widget class="QLineEdit" name="InpMCSteps">
-                                                   <property name="toolTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="statusTip">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="whatsThis">
-                                                      <string>Number of steps of the simulation</string>
-                                                   </property>
-                                                   <property name="placeholderText">
-                                                      <string>1000</string>
-                                                   </property>
-                                                </widget>
-                                             </item>
-                                          </layout>
-                                       </widget>
-                                    </item>
-                                    <item row="2" column="0">
                                        <widget class="QGroupBox" name="InpMeasureGnebBox">
                                           <property name="toolTip">
                                              <string>Velocity projector optimization measurement mode</string>
@@ -8316,7 +8559,7 @@
                                              <item row="3" column="0">
                                                 <widget class="QPushButton" name="InpSqQpoints">
                                                    <property name="text">
-                                                      <string>Set q-points (to be implemented)</string>
+                                                      <string>Select Qpoints-file</string>
                                                    </property>
                                                 </widget>
                                              </item>

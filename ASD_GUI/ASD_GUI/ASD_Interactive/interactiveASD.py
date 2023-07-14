@@ -6,26 +6,7 @@
 # Coloring of magnetic moments is determined by their z-components
 # to change this, modify the value m as read in ReadTimeData.py
 #
-# Zooming can be modified by the dollyA parameter
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
-
-#---------------------------
-# Timer code starts here
-#---------------------------
-# class vtkTimerCallback():
-#     def __init__(self):
-#         self.timer_count = 0
-
-###     def execute(self,obj,event):
-###         vecz,colz=(readVectorsData(directionsFile,self.timer_count,nrAtoms,Nmax))
-###         #print "Set data.."
-###         Datatest.GetPointData().SetVectors(vecz)
-###         Datatest.GetPointData().SetScalars(colz)
-###         DataScal.GetPointData().SetScalars(colz)
-###         iren = obj
-###         #iren.GetRenderWindow().Render()
-###         Screenshot(iren.GetRenderWindow())
-###         self.timer_count += 1
 
 import vtk
 from math import atan2, acos
@@ -49,7 +30,7 @@ class InteractiveASD:
 			renWin	:	QVTKRenderWindowInteractor().GetRenderWindow()
 			iren	:	QVTKRenderWindowInteractor().GetRenderWindow().GetInteractor()
 
-	Author: nders Bergman, after template from Anders Hast. Modified by Erik Karpelin. 
+	Author: Anders Bergman, after template from Anders Hast. Modified by Erik Karpelin. 
 	
 	"""
 
@@ -95,26 +76,17 @@ class InteractiveASD:
 		# Open files
 		momfiles=glob.glob("restart.????????.out")
 		directionsFile = open(momfiles[0])
-		#directionsFile = open("momentsparsed.out")
 		posfiles=glob.glob("coord.????????.out")
-		#print posfiles
 		atomsFile = open(posfiles[0])
-		#atomsFile = open("atomsparsed.out")
 
 		# Read atom positions
 		atomData,nrAtoms=(self.readAtoms(atomsFile,Nmax))
-		#print nrAtoms
 		self.Datatest.SetPoints(atomData)
-		#DataScal.SetPoints(atomData)
 		self.DataFour.SetPoints(atomData)
 
 		# Read data for vectors
-		#for i in range(0,55,1):
-		#vecz,colz=(readVectorsData(directionsFile,0,nrAtoms,Nmax))
 		self.Datatest.GetPointData().SetVectors(self.vecz)
 		self.Datatest.GetPointData().SetScalars(self.colz)
-		#DataScal.GetPointData().SetScalars(colz)
-
 		self.DataFour.GetPointData().SetVectors(self.vecz)
 		self.DataFour.GetPointData().SetScalars(self.colz)
 
@@ -145,10 +117,7 @@ class InteractiveASD:
 		xmid = (xmin+xmax)/2
 		ymid = (ymin+ymax)/2
 		zmid = (zmin+zmax)/2
-		#Good position for "z-direction"
 		atom.SetPosition(-xmid,-ymid,-zmid)
-		#Good position for "xy-direction"
-		#atom.SetPosition(-xmid*1.4,-ymid,-zmid)
 
 		# Set the color
 		atom.GetProperty().SetSpecular(0.3)
@@ -184,10 +153,7 @@ class InteractiveASD:
 		xmid = (xmin+xmax)/2
 		ymid = (ymin+ymax)/2
 		zmid = (zmin+zmax)/2
-		#Good position for "z-direction"
 		four.SetPosition(-xmid,-ymid,-zmid)
-		#Good position for "xy-direction"
-		#four.SetPosition(-xmid*1.4,-ymid,-zmid)
 
 		# Set the color
 		four.GetProperty().SetSpecular(0.3)
@@ -205,7 +171,6 @@ class InteractiveASD:
 
 		glyph = vtk.vtkGlyph3DMapper()
 		glyph.SetSourceConnection(arrow.GetOutputPort())
-		#glyph.SetInputConnection(Datatest.GetProducerPort())
 		glyph.SetInputData(self.Datatest)
 		#glyph.SetInput(Datatest) # Position and direction
 		glyph.SetScaleFactor(1.00)
@@ -215,28 +180,14 @@ class InteractiveASD:
 		glyph.SetScaleModeToNoDataScaling()
 		#glyph.Update()
 
-		#glyphMapper = vtk.vtkPolyDataMapper()
-		#glyphMapper.SetInput(glyph.GetOutput())
-		#glyphMapper.SetLookupTable(lut)
 		glyph.SetLookupTable(self.lut)
-		#glyph.ColorByArrayComponent(0,0)
-		#glyph.UseLookupTableScalarRangeOn()
 		glyph.SetColorModeToMapScalars()
-		#glyph.SetScalarModeToUseFieldData()
-		#glyph.ScalarVisibilityOn()
 		glyph.Update()
 
 
 		vector = vtk.vtkLODActor()
 		vector.SetMapper(glyph)
-		#Good position for "z-direction"
 		vector.SetPosition(-xmid,-ymid,-zmid)
-		#Good position for "xy-direction"
-		#vector.SetPosition(-xmid*1.4,-ymid,-zmid)
-
-		#vector.GetProperty().SetInterpolationToPBR()
-		#vector.GetProperty().SetSpecular(0.0)
-		#vector.GetProperty().SetSpecularPower(160)
 		vector.GetProperty().SetAmbient(0.3)
 		vector.GetProperty().SetDiffuse(0.5)
 		vector.GetProperty().SetOpacity(1.0)
@@ -304,23 +255,31 @@ class InteractiveASD:
 		# z-direction
 		self.ren.GetActiveCamera().Azimuth(0)
 		self.ren.GetActiveCamera().Elevation(0)
-		# xy-direction (almost)
 		self.ren.GetActiveCamera().ParallelProjectionOn()
-		#self.ren.GetActiveCamera().ParallelProjectionOff()
 		d = self.ren.GetActiveCamera().GetDistance()
-		#self.ren.GetActiveCamera().SetParallelScale(0.55*max(zmax,xmax))
 		self.ren.GetActiveCamera().SetFocalPoint(0,0,0)
 		self.ren.GetActiveCamera().SetViewUp(-0.866025403784439,0.5,0)
-		#self.ren.GetActiveCamera().SetViewUp(0,1,0)
 		self.ren.GetActiveCamera().SetParallelScale(0.55*ymax)
-		#ren.GetActiveCamera().SetPosition(0,0,-100*d)
-		#print ren.GetActiveCamera().GetViewAngle()
 		l = max(xmax-xmin,zmax-zmin)/2
 		h = l/0.26795*1.1
-		#print l,h
 
 		self.ren.GetActiveCamera().SetPosition(0,0,h)
-		#ren.GetActiveCamera().SetPosition(0,0,50*d)
+
+		# Add the actors to the renderer, set the background and size
+		# Atoms
+		atom.SetVisibility(0)
+		self.ren.AddActor(atom)
+		# Vectors
+		self.ren.AddActor(vector)
+		# Text
+		self.ren.AddActor(self.temptxt)
+		self.ren.AddActor(self.fieldtxt)
+		self.ren.AddActor(enetxt)
+
+		#self.iren.AddObserver("KeyPressEvent", Keypress)
+
+		self.renWin.Render()
+		self.iren.Start()
 
 		# For the interactive control. Set up a check for aborting rendering.
 		def CheckAbort(obj, event):
@@ -499,44 +458,7 @@ class InteractiveASD:
 
 		#renWin.AddObserver("AbortCheckEvent", CheckAbort)
 
-		# Add the actors to the renderer, set the background and size
-		# Atoms
-		atom.SetVisibility(0)
-		self.ren.AddActor(atom)
-		#ren.AddActor(txt)
-		# Vectors
-		self.ren.AddActor(vector)
-		# Text
-		self.ren.AddActor(self.temptxt)
-		self.ren.AddActor(self.fieldtxt)
-		self.ren.AddActor(enetxt)
-
-		# Outline
-		#ren.AddActor(outline)
-		# Scalar bar
-		#ren.AddActor(scalarBar)
-
-		# Render scene
-		# iren = vtk.vtkRenderWindowInteractor()
-		#istyle = vtk.vtkInteractorStyleTrackballCamera()
-		#iren.SetInteractorStyle(istyle)
-		#iren.SetRenderWindow(renWin)
-		self.iren.AddObserver("KeyPressEvent", Keypress)
-
-		#ren.ResetCamera()
-		#iren.Initialize()
-		#
-		#
-		#cb = vtkTimerCallback()
-		###cb.AddActor = vector
-		#iren.AddObserver('TimerEvent', cb.execute)
-		#timerId = iren.CreateRepeatingTimer(100);
-		#iren.SetStillUpdateRate(0.050)
-		#iren.SetDesiredUpdateRate(0.050)
-
-
-		self.renWin.Render()
-		self.iren.Start()
+		
 		# Screenshot(renWin)
 
 	def S_Step(self):

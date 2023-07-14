@@ -95,6 +95,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.Momfile_Window = ASDInputWindows.Momfile_Window()
         self.InitPhase_Window = ASDInputWindows.InitPhase_Window()
         self.Jfile_Window = ASDInputWindows.Jfile_Window()
+        self.DMfile_Window = ASDInputWindows.DMfile_Window()
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         # -----------------------------------------------------------------------
         # Set better font size
@@ -167,38 +168,10 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def WriteInputFile(self):
+        self.ASDInputGen.ASDSetDefaults()
         self.ASDInputGen.ASDInputGatherer(self)
         self.ASDInputGen.clean_var()
         self.ASDInputGen.write_inpsd()
-        return
-    
-    ############################################################################
-
-    def RunSimulation(self):
-        """
-        Run simulation using the uppasd module. Checks if a inpsd.dat file
-        is present in current directory and asks for overwrite. 
-
-        Author: Erik Karpelin
-        """
-
-        import uppasd as asd 
-        import os.path as path
-
-        if not path.isfile('inpsd.dat'):
-            print('inpsd.dat not found, creating from asd_gui')
-            self.WriteInputFile()
-        asd.pyasd.runuppasd()
-        return
-
-    def SetStructureTemplate(self, structure):
-        """Relay function to handle the structure templates."""
-        self.ASDInputGen.SetStructureTemplate(self, structure)
-        return
-    
-    def ResetInputs(self):
-        """Relay function to handle the reset button."""
-        self.ASDInputGen.ResetInputs(self)
         return
 
     ############################################################################
@@ -250,7 +223,11 @@ class UppASDVizMainWindow(QMainWindow):
         self.Posfile_Window.InpPosDone.clicked.connect(self.update_names)
         self.Momfile_Window.InpMomDone.clicked.connect(self.update_names)
         self.Jfile_Window.InpJfileDone.clicked.connect(self.update_names)
-        self.Jfile_Window.InJfileGenVectors.clicked.connect(lambda: self.Jfile_Window.GenerateVectorsFromCell(self))
+        self.DMfile_Window.InpDMfileDone.clicked.connect(self.update_names)
+        self.Jfile_Window.InJfileGenVectors.clicked.connect(lambda: 
+                                        self.Jfile_Window.GenerateVectorsFromCell(self))
+        self.DMfile_Window.InDMfileGenVectors.clicked.connect(lambda: 
+                                        self.DMfile_Window.GenerateVectorsFromCell(self))
         self.Restart_Window.InpRestAppendButton.clicked.connect(
             self.create_restart)
         self.Restart_Window.InpRestartDone.clicked.connect(self.create_restart)
@@ -292,8 +269,6 @@ class UppASDVizMainWindow(QMainWindow):
             if self.CheckForInteractorFiles() and not self.IntLaunched:
                 ASDInteractive.InitializeInteractor(self, self.InteractiveVtk)
                 self.IntLaunched = True
-            # elif not self.IntLaunched:
-            #     print('Could not launch interactive simulation. Are all input-files in directory?')
         self.ResetUI()
         return
     ############################################################################
@@ -449,23 +424,29 @@ class UppASDVizMainWindow(QMainWindow):
             self.check_for_restart()
         if self.sender() == self.InpPosButtonCreate:
             self.Posfile_Window.posfile_gotten = False
-            if self.InpCheckRandAlloy.isChecked():
-                self.Posfile_Window.InPosBox.setEnabled(False)
-                self.Posfile_Window.InPosBox.setVisible(False)
-                self.Posfile_Window.InPosBoxRand.setEnabled(True)
-                self.Posfile_Window.InPosBoxRand.setVisible(True)
-            else:
-                self.Posfile_Window.InPosBox.setEnabled(True)
-                self.Posfile_Window.InPosBox.setVisible(True)
-                self.Posfile_Window.InPosBoxRand.setEnabled(False)
-                self.Posfile_Window.InPosBoxRand.setVisible(False)
+            # if self.InpCheckRandAlloy.isChecked():
+            #     self.Posfile_Window.InPosBox.setEnabled(False)
+            #     self.Posfile_Window.InPosBox.setVisible(False)
+            #     self.Posfile_Window.InPosBoxRand.setEnabled(True)
+            #     self.Posfile_Window.InPosBoxRand.setVisible(True)
+            self.Posfile_Window.CheckForFile(self)
+            self.Posfile_Window.InPosBox.setEnabled(True)
+            self.Posfile_Window.InPosBox.setVisible(True)
+            self.Posfile_Window.InPosBoxRand.setEnabled(False)
+            self.Posfile_Window.InPosBoxRand.setVisible(False)
             self.Posfile_Window.show()
         if self.sender() == self.InpMomButtonCreate:
             self.Momfile_Window.momfile_gotten = False
+            self.Momfile_Window.CheckForFile(self)
             self.Momfile_Window.show()
         if self.sender() == self.InpJfileButtonCreate:
-            self.Jfile_Window.Jfile_gotten = False
+            self.Jfile_Window.jfile_gotten = False
+            self.Jfile_Window.CheckForFile(self)
             self.Jfile_Window.show()
+        if self.sender() == self.InpDMButtonCreate:
+            self.DMfile_Window.DMfile_gotten = False
+            self.DMfile_Window.CheckForFile(self)
+            self.DMfile_Window.show()
         if self.sender() == self.InpSetPhases:
             if self.InpInitLLG.isChecked():
                 self.InitPhase_Window.IpNphaseBox.setEnabled(True)
@@ -2169,16 +2150,21 @@ class UppASDVizMainWindow(QMainWindow):
             restartfile = glob.glob("restart.????????.out")[0]    
         if len(glob.glob("coord.????????.out")) > 0:
             coordfile = glob.glob("coord.????????.out")[0]
-        
-        InputChecklist = [path.exists('inpsd.dat'), self.ASDInputGen.posfile_gotten, self.ASDInputGen.momfile_gotten]
+        if len(self.ASDInputGen.posfile) == 0 and path.exists('posfile'):
+            self.ASDInputGen.posfile = glob.glob('posfile')[0]
+        if len(self.ASDInputGen.momfile) == 0 and path.exists('momfile'):
+            self.ASDInputGen.momfile = glob.glob('momfile')[0]
+            
+        InputChecklist = [path.exists('inpsd.dat'), path.exists(self.ASDInputGen.posfile),
+                           path.exists(self.ASDInputGen.momfile)]
         OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
 
-        if  all(x == True for x in InputChecklist) and all(x == False for x in OutputChecklist):
+        if  all(x == True for x in InputChecklist) and any(x == False for x in OutputChecklist):
             print('Input found, but no output. Running uppasd...')
             asd.pyasd.runuppasd()
             Check = True
 
-        if  all(x == True for x in OutputChecklist):
+        if  all(x == True for x in OutputChecklist) and all(x == True for x in InputChecklist):
             Check = True
 
         # Error message 
@@ -2193,3 +2179,38 @@ class UppASDVizMainWindow(QMainWindow):
         return Check
     
     ###########################################################################
+
+    def RunSimulation(self):
+        """
+        Run simulation using the uppasd module. Checks if a inpsd.dat file
+        is present in current directory and asks for overwrite. 
+
+        Author: Erik Karpelin
+        """
+
+        import uppasd as asd 
+        import os.path as path
+
+        if not path.isfile('inpsd.dat'):
+            print('inpsd.dat not found, creating from asd_gui')
+            self.WriteInputFile()
+        asd.pyasd.runuppasd()
+        return
+
+    def SetStructureTemplate(self, structure):
+        """Relay function to handle the structure templates."""
+        self.ASDInputGen.SetStructureTemplate(self, structure)
+        return
+    
+    def ResetInputs(self):
+        """Relay function to handle the reset button."""
+        self.ASDInputGen.ResetInputs(self)
+        return
+    
+    def MagnonQuickSetup(self):
+        """Relay function for magnon quick setup"""
+        self.ASDInputGen.MagnonQuickSetup(self)
+
+    def ImportSystem(self):
+        import ASD_GUI.Input_Creator.System_import.ASDImportSys as ImpSys
+        ImpSys.import_system(self, self.ASDInputGen)
