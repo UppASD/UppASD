@@ -50,17 +50,17 @@ jobs:
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
             mingw-w64-x86_64-python-pip
-            #git
-            #make
+          #git
+          #make
 
-          pacboy: >-
-            #toolchain:p
-            #gcc-fortran:p
-            openblas:p
-            lapack:p
-            fftw:p
-            #cmake:p
-            #ninja:p
+          #pacboy: >-
+          #  #toolchain:p
+          #  #gcc-fortran:p
+          #  openblas:p
+          #  lapack:p
+          #  fftw:p
+          #  #cmake:p
+          #  #ninja:p
 
       #- name: Tell distutils to use mingw (Windows)
       #  if: runner.os == 'Windows'
