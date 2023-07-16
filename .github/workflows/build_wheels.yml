@@ -76,8 +76,8 @@ jobs:
         env:
           CIBW_SKIP: cp36*
           CIBW_ENVIRONMENT_WINDOWS: FC=gfortran F90=gfortran
-        with: 
-            package-dir: python
+        #with: 
+        #    package-dir: python
 
       - uses: actions/upload-artifact@v3
         with:

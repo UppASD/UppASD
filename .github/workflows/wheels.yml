@@ -74,8 +74,9 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: pp39* pp39* pp31*
+          CIBW_SKIP: pp39* pp31*
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
 
 
