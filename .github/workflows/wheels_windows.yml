@@ -6,9 +6,9 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: msys2 {0}
+    #defaults:
+    #  run:
+    #    shell: msys2 {0}
     continue-on-error: true
     strategy:
       matrix:
@@ -85,9 +85,11 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: pp38-manylinux*
+          #CIBW_SKIP: pp38-manylinux*
           #CIBW_SKIP: pp39* pp31*
-          CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
+          CIBW_ENVIRONMENT_WINDOWS: >
+            PATH="C:\\\\msys64\\mingw64\\bin;$PATH"
+          #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
 
