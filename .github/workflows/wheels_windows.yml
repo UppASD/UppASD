@@ -45,17 +45,22 @@ jobs:
           update: true
           path-type: inherit
           install: >-
-            git
-            make
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-lapack
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-python-pip
+            #git
+            #make
 
           pacboy: >-
-            toolchain:p
-            gcc-fortran:p
+            #toolchain:p
+            #gcc-fortran:p
             openblas:p
             lapack:p
             fftw:p
-            cmake:p
-            ninja:p
+            #cmake:p
+            #ninja:p
 
       #- name: Tell distutils to use mingw (Windows)
       #  if: runner.os == 'Windows'
@@ -69,7 +74,9 @@ jobs:
       - uses: actions/setup-python@v3
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.10.1
+        run: |
+          python -m ensurepip 
+          python -m pip install cibuildwheel==2.10.1
 
       - name: Build wheels
         run: 
