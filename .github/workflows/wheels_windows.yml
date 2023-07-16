@@ -57,11 +57,11 @@ jobs:
             cmake:p
             ninja:p
 
-      - name: Tell distutils to use mingw (Windows)
-        if: runner.os == 'Windows'
-        run: |
-           #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
-           echo "[build]`ncompiler=mingw32" 
+      #- name: Tell distutils to use mingw (Windows)
+      #  if: runner.os == 'Windows'
+      #  run: |
+      #     #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
+      #     echo "[build]`ncompiler=mingw32" 
 
       - uses: actions/checkout@v3
 
