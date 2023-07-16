@@ -52,6 +52,9 @@ jobs:
           #git
           #make
 
+      - name: Update Github path for mingw64
+        if: runner.is == "Windows"
+        run: Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
           #pacboy: >-
           #  #toolchain:p
           #  #gcc-fortran:p
@@ -86,9 +89,9 @@ jobs:
         env:
           #CIBW_SKIP: pp38-manylinux*
           #CIBW_SKIP: pp39* pp31*
-          CIBW_ENVIRONMENT_WINDOWS: >
-            PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
-          #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
+          #CIBW_ENVIRONMENT_WINDOWS: >
+          #  PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
+          CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
 
