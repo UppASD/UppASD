@@ -1,4 +1,4 @@
-name: Build wheels
+name: Build wheels on linux and macos
 
 on: [push, pull_request]
 
@@ -9,7 +9,8 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macOS-11]
+        os: [ubuntu-20.04, macOS-11]
+        #os: [ubuntu-20.04, windows-2019, macOS-11]
 
     steps:
       - name: Provide gfortran (macOS)
@@ -74,7 +75,8 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: pp39* pp31*
+          CIBW_SKIP: pp38-manylinux*
+          #CIBW_SKIP: pp39* pp31*
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 

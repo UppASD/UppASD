@@ -1,4 +1,4 @@
-name: Build wheels across platforms
+name: Build wheels on windows
 
 on: [push, pull_request]
 
@@ -6,10 +6,14 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: msys2 {0}
     continue-on-error: true
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macOS-11]
+        os: [ windows-2019 ]
+        #os: [ubuntu-20.04, windows-2019, macOS-11]
 
     steps:
       - name: Provide gfortran (macOS)
@@ -26,11 +30,11 @@ jobs:
           which gcc
           which gfortran
 
-      - name: Provide fftw and ninja (macOS)
+      - name: Provide fftw  (macOS)
         if: runner.os == 'macOS'
         run: |
           # fftw3 
-          brew install fftw ninja
+          brew install fftw
           fftw-wisdom -V
 
       - name: Provide gfortran (Windows)
@@ -39,6 +43,7 @@ jobs:
         with:
           msystem: MINGW64
           update: true
+          path-type: inherit
           install: >-
             git
             make
@@ -52,32 +57,33 @@ jobs:
             cmake:p
             ninja:p
 
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Tell distutils to use mingw (Windows)
+        if: runner.os == 'Windows'
+        run: |
+           #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
+           echo "[build]`ncompiler=mingw32" 
+
+      - uses: actions/checkout@v3
 
       # Used to host cibuildwheel
-      - name: Setup python
-        uses: actions/setup-python@v3
+      - uses: actions/setup-python@v3
 
-      - name: Build wheels (linux/macos)
-        if: runner.os != 'Windows'
-        uses: pypa/cibuildwheel@v2.11.1
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.10.1
+
+      - name: Build wheels
+        run: 
+          python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
+        # env:
+        #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: cp36*
+          CIBW_SKIP: pp38-manylinux*
+          #CIBW_SKIP: pp39* pp31*
+          CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
-        with: 
-            package-dir: python
 
-      - name: Build wheels (windows)
-        if: runner.os == 'Windows'
-        uses: pypa/cibuildwheel@v2.11.1
-        # to supply options, put them in 'env', like:
-        env:
-          CIBW_SKIP: cp36*
-          CIBW_ENVIRONMENT_WINDOWS: FC=gfortran F90=gfortran
-        #with: 
-        #    package-dir: python
+
 
       - uses: actions/upload-artifact@v3
         with:
