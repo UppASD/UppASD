@@ -54,7 +54,10 @@ jobs:
 
       - name: Update Github path for mingw64
         if: runner.os == 'Windows'
-        run: Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
+        run: |
+          Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
+          Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\lib"
+          Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\include"
           #pacboy: >-
           #  #toolchain:p
           #  #gcc-fortran:p
