@@ -67,8 +67,14 @@ jobs:
           #  #cmake:p
           #  #ninja:p
 
-      #- name: Tell distutils to use mingw (Windows)
-      #  if: runner.os == 'Windows'
+      - name: Tell distutils to use mingw (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $pydistutilsConfig = @"
+            [build]
+            compiler = mingw32
+            "@
+          $pydistutilsConfig | Out-File "$env:USERPROFILE\pydistutils.cfg" -Encoding UTF8
       #  run: |
       #     #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
       #     echo "[build]`ncompiler=mingw32" 
