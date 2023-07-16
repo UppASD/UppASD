@@ -49,7 +49,6 @@ jobs:
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
-            mingw-w64-x86_64-python-pip
           #git
           #make
 
