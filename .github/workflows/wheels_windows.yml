@@ -53,7 +53,7 @@ jobs:
           #make
 
       - name: Update Github path for mingw64
-        if: runner.is == "Windows"
+        if: runner.os == "Windows"
         run: Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
           #pacboy: >-
           #  #toolchain:p
