@@ -51,7 +51,7 @@ jobs:
         env:
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform }}
           CIBW_ENVIRONMENT_WINDOWS: >
-            PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
+            PATH="$PATH;C:\\\\msys64\\mingw64\\bin" CC=gcc CXX=g++ FC=gfortran
 
       - name: Store artifacts
         uses: actions/upload-artifact@v3
