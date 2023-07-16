@@ -67,10 +67,10 @@ class cmake_build_ext(build_ext):
                                   cwd=self.build_temp)
 
             # Build
-            subprocess.check_call(['cmake', '--build', '.','-j4', '--config', cfg],
+            subprocess.check_call(['cmake', '--build', '.','--parallel', '--config', cfg],
                                   cwd=self.build_temp)
 
-            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.so')
+            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.*')
             lib_path=self.build_temp.replace('temp','lib') #+'/uppasd/'
             if not os.path.exists(lib_path):
                 os.makedirs(lib_path)
@@ -101,5 +101,6 @@ setup(
         packages=['uppasd'],
         package_dir={'uppasd': 'uppasd'},
         ext_modules=[CMakeExtension(name='_uppasd')],
-        scripts=['scripts/uppasd','scripts/uppasd_interactive']
+        scripts=['scripts/uppasd','scripts/uppasd_interactive'],
+        install_requires=['numpy>1.19','f90wrap>0.1']
         )

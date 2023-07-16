@@ -1,7 +1,7 @@
 [build-system]
 requires = [
-    "setuptools<60",
-    "wheel", 
+    "setuptools",
+    "wheel",
 #    "numpy>1.19", 
 #    "f90wrap"]
     "numpy>1.19"]
