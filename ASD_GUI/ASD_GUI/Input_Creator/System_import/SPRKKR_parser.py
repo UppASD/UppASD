@@ -4,6 +4,7 @@ Reads inputs and outputs from SPRKKR and writes to UppASD-compatible files
 """
 
 import numpy as np
+import os
 
 def parse_sysfile(filename):
     """Reads SPRKKR .sys-file and extracts relevant data. Currently not in use."""
@@ -209,6 +210,8 @@ def parse_sprkkr(ifile):
     """Main parsing wrapper routine"""
     path = '/'.join(ifile.split('/')[:-1]) + '/'
 
+    # path = os.path.join('/',*(ifile.split('/')[:-1]), '/') 
+
     prefix = ifile[:-4]
 
     label, suffix, potfile, task, fullrel = parse_inpfile(ifile)
@@ -241,4 +244,4 @@ def parse_sprkkr(ifile):
 
     write_momfile(natoms, moments, filenames[3])
 
-    return filenames, lattice
+    return filenames, lattice, alat

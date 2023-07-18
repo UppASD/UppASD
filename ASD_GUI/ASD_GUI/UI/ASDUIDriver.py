@@ -96,6 +96,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.InitPhase_Window = ASDInputWindows.InitPhase_Window()
         self.Jfile_Window = ASDInputWindows.Jfile_Window()
         self.DMfile_Window = ASDInputWindows.DMfile_Window()
+        self.Kfile_Window = ASDInputWindows.Kfile_Window()
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         # -----------------------------------------------------------------------
         # Set better font size
@@ -447,6 +448,10 @@ class UppASDVizMainWindow(QMainWindow):
             self.DMfile_Window.DMfile_gotten = False
             self.DMfile_Window.CheckForFile(self)
             self.DMfile_Window.show()
+        if self.sender() == self.InpKfileButtonCreate:
+            self.Kfile_Window.Kfile_gotten = False
+            self.Kfile_Window.CheckForFile(self)
+            self.Kfile_Window.show()
         if self.sender() == self.InpSetPhases:
             if self.InpInitLLG.isChecked():
                 self.InitPhase_Window.IpNphaseBox.setEnabled(True)
@@ -2212,5 +2217,4 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDInputGen.MagnonQuickSetup(self)
 
     def ImportSystem(self):
-        import ASD_GUI.Input_Creator.System_import.ASDImportSys as ImpSys
-        ImpSys.import_system(self, self.ASDInputGen)
+        self.ASDInputGen.import_system(self)

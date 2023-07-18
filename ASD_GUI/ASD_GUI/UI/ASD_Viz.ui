@@ -1446,13 +1446,115 @@
                                                 </widget>
                                              </item>
                                              <item>
-                                                <spacer name="horizontalSpacer_7">
+                                                <widget class = "QGroupBox" name = "InpPsDipCheckBox">
+                                                   <property name = "title">
+                                                      <string> Pseudo-Dipolar </string>
+                                                   </property>
+                                                   <layout class = "QVBoxLayout" name = "InpPsDipCheckBoxLayout">
+                                                      <item> 
+                                                         <widget class = "QPushButton" name = "InpPseudDipSelect">
+                                                            <property name = "text">
+                                                               <string> Select file </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class = "QGroupBox" name = "InpBiQCheckBox">
+                                                   <property name = "title">
+                                                      <string> Biquadratic </string>
+                                                   </property>
+                                                   <layout class = "QVBoxLayout" name = "InpBiQCheckBoxLayout">
+                                                      <item> 
+                                                         <widget class = "QPushButton" name = "InpBiQSelect">
+                                                            <property name = "text">
+                                                               <string> Select file </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class = "QGroupBox" name = "InpBiQDMCheckBox">
+                                                   <property name = "title">
+                                                      <string> Biquadratic-DM </string>
+                                                   </property>
+                                                   <layout class = "QVBoxLayout" name = "InpBiQDMCheckBoxLayout">
+                                                      <item> 
+                                                         <widget class = "QPushButton" name = "InpBiQDMSelect">
+                                                            <property name = "text">
+                                                               <string> Select file </string>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QGroupBox" name="InpBextMainBox">
+                                                   <property name="title">
+                                                      <string>External Field</string>
+                                                   </property>
+                                                   <layout class="QVBoxLayout" name="verticalLayout_15">
+                                                      <item>
+                                                         <widget class="QGroupBox" name="InpBextMeasureBox">
+                                                            <property name="toolTip">
+                                                               <string>External static magnetic field in the measurement phase (on/off)</string>
+                                                            </property>
+                                                            <property name="statusTip">
+                                                               <string>External static magnetic field in the measurement phase (on/off)</string>
+                                                            </property>
+                                                            <property name="whatsThis">
+                                                               <string>External static magnetic field in the measurement phase (on/off)</string>
+                                                            </property>
+                                                            <property name="title">
+                                                               <string>Measurement Phase</string>
+                                                            </property>
+                                                            <property name="checkable">
+                                                               <bool>true</bool>
+                                                            </property>
+                                                            <property name="checked">
+                                                               <bool>false</bool>
+                                                            </property>
+                                                            <layout class="QGridLayout" name="gridLayout_7">
+                                                               <item row="0" column="0">
+                                                                  <widget class="QLineEdit" name="InpBextMeasure_x">
+                                                                     <property name="placeholderText">
+                                                                        <string>0.0</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+                                                               <item row="0" column="1">
+                                                                  <widget class="QLineEdit" name="InpBextMeasure_y">
+                                                                     <property name="placeholderText">
+                                                                        <string>0.0</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+                                                               <item row="0" column="2">
+                                                                  <widget class="QLineEdit" name="InpBextMeasure_z">
+                                                                     <property name="placeholderText">
+                                                                        <string>0.0</string>
+                                                                     </property>
+                                                                  </widget>
+                                                               </item>
+                                                            </layout>
+                                                         </widget>
+                                                      </item>
+                                                   </layout>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <spacer name="horizontalSpacer_10">
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>
                                                    </property>
                                                    <property name="sizeHint" stdset="0">
                                                       <size>
-                                                         <width>40</width>
+                                                         <width>100</width>
                                                          <height>20</height>
                                                       </size>
                                                    </property>
@@ -1480,7 +1582,7 @@
                                              <item row = "0" column = "0">
                                                 <widget class = "QPushButton" name = "InpMagnonQuickButton">
                                                    <property name = 'text'>
-                                                      <string> Magnon Spectra </string>
+                                                      <string> Linear Spin Wave Spectra </string>
                                                    </property>
                                                 </widget>
                                              </item>
@@ -6953,7 +7055,7 @@
                                                    </layout>
                                                 </widget>
                                              </item>
-                                             <item>
+                                             <!-- <item>
                                                 <widget class="QGroupBox" name="InpBextMeasureBox">
                                                    <property name="toolTip">
                                                       <string>External static magnetic field in the measurement phase (on/off)</string>
@@ -6997,7 +7099,7 @@
                                                       </item>
                                                    </layout>
                                                 </widget>
-                                             </item>
+                                             </item> -->
                                           </layout>
                                        </widget>
                                     </item>

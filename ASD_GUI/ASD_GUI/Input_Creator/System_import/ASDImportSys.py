@@ -5,45 +5,8 @@ import subprocess
 import numpy as np
 import shutil
 import os
-from PyQt6 import QtWidgets
+import f90nml
 import ASD_GUI.Input_Creator.System_import.SPRKKR_parser as SPRKKR_parser
-
-def import_system(window, ASDInputGen):
-    """Select import file."""
-    dlg = QtWidgets.QFileDialog()
-    dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
-    dlg.setDirectory('.')
-
-    if dlg.exec():
-        if window.sender() == window.InpImportCIFButton:
-            filename = dlg.selectedFiles()[0]
-            output_files, lattice = parse_cif(filename)
-            cif = True
-        if window.sender() == window.InpImportSPRKKRButton:
-            filename = dlg.selectedFiles()[0]
-            output_files, lattice = SPRKKR_parser.parse_sprkkr(filename)
-            cif = False
-
-        update_gui(window, ASDInputGen, output_files, lattice, cif)
-
-def update_gui(window, ASDInputGen, output_files, lattice, cif):
-    """ Update GUI with files and input from file-parser. """
-    ASDInputGen.jfile = output_files[0]
-    ASDInputGen.dmfile = output_files[1]
-    ASDInputGen.posfile = output_files[2]
-    ASDInputGen.momfile = output_files[3]
-
-    if cif:
-        ASDInputGen.UppASDKeywords['geometry']['posfiletype'] = 'D'
-    
-    gui_lines = np.array([line for line in window.findChildren(QtWidgets.QLineEdit)
-                    if 'InpLineEditC' in line.objectName()]).reshape(3,3)
-
-    for row, vector in enumerate(gui_lines):
-        for column, element in enumerate(vector):
-            element.setText(str(lattice[row, column]))
-
-    return
 
 def parse_cif(filename):
     """ Parse .cif files and return them in UppASD format"""
@@ -55,7 +18,8 @@ def parse_cif(filename):
 
     subprocess.run('cif2cell -p uppasd -f FeCo_56273.cif', cwd = temp_path, shell = True)
 
-    lattice = read_inpsd(os.path.join(temp_path,'inpsd.dat'))
+    lattice, alat = read_inpsd(os.path.join(temp_path,'inpsd.dat'))
+
     shutil.copy2(os.path.join(temp_path, 'posfile'), current_dir)
     shutil.copy2(os.path.join(temp_path, 'momfile'), current_dir)
 
@@ -63,7 +27,7 @@ def parse_cif(filename):
 
     filenames = ['', '', 'posfile', 'momfile']
 
-    return filenames, lattice
+    return filenames, lattice, alat
 
 def read_inpsd(ifile):
     """Read important keywords from UppASD inputfile `inpsd.dat`"""
@@ -82,5 +46,77 @@ def read_inpsd(ifile):
                     line_data = lines[idx+3].split()
                     lattice = np.vstack((lattice, np.asarray(line_data[0:3])))
                     lattice = lattice.astype(np.float64)
+                if line_data[0] == 'alat':
+                    alat = lines[idx].split()[-1]
 
-    return lattice
+    return lattice, alat
+
+def parse_rs_lmto(filename):
+    """:q"""
+    current_dir = os.getcwd()
+    path = '/'.join(filename.split('/')[:-1])
+    parser = f90nml.Parser()
+
+    input_nml = parser.read(filename)
+
+    elements = input_nml['atoms']['label']
+
+    
+    if current_dir != path:
+        shutil.copy2(os.path.join(path,'jij.out'), current_dir)
+        shutil.copy2(os.path.join(path,'dij.out'), current_dir)
+
+    lattice_type = input_nml['lattice']['crystal_sym']
+    alat = input_nml['lattice']['alat']
+    filenames = ['./jij.out', './dij.out', './posfile', './momfile']
+
+    if lattice_type == 'data':
+        raise Exception('data-file import not yet implemented!')
+    
+    momfile_dict = get_rs_lmto_moments(elements, path, lattice_type)
+    write_momfile(momfile_dict)
+
+    return filenames, lattice_type, alat
+
+def get_rs_lmto_moments(element_list, path, lattice):
+    """ Read nml-file into dictonary with atom number, magnitude, vector
+        TODO: The implementation for handling geometries with more than one
+        particle in the unit cell is quite ugly as it is rigth now. Would like to 
+        read the information from the poosition file instead. 
+    """
+
+    import copy
+
+    parser = f90nml.Parser()
+    momfile_dict = {}
+
+    for index, element in enumerate(element_list):
+        data = parser.read(os.path.join(path, element + '_out.nml'))
+
+        momfile_dict[element] = [[index + 1, 1]]
+        momfile_dict[element].append([np.sum(np.array(data['par']['ql'][0])[:,0])
+                                     - np.sum(np.array(data['par']['ql'][1])[:,0])])
+        momfile_dict[element].append(data['par']['mom'])
+    
+    if lattice in ['bcc', 'hcp']:
+        key = list(momfile_dict.keys())[0]
+        momfile_dict[key + '2'] = copy.copy(momfile_dict[key])
+        momfile_dict[key + '2'][0] = [2, 1]
+        
+    return momfile_dict
+
+def write_momfile(momfile_dict):
+    """ Create momfile from dict. """
+    momfile = open('momfile', 'w')
+    momfile_string = ''
+
+    for key in momfile_dict:
+        for idx, inputs in enumerate(momfile_dict[key]):
+            if idx == 0:
+                momfile_string += '\t'.join(str(inp) for inp in inputs) + '\t'
+            else:
+                momfile_string += '\t'.join(str("{:2.5f}".format(inp)) for inp in inputs) + '\t'
+        momfile_string += '\n'
+
+    momfile.write(momfile_string)
+    momfile.close()
