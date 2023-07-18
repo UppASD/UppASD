@@ -836,7 +836,7 @@ class Posfile_Window(QDialog):
                 for row in range(0,self.InPosTable.rowCount()):
                     for col in range(0,self.InPosTable.columnCount()):
                         if col<2:
-                            entry=int(self.InPosTable.item(row, col).text())
+                            entry=int(float(self.InPosTable.item(row, col).text()))
                         else:
                             entry=float(self.InPosTable.item(row, col).text())
                         posfile_name.write('{entry}  '.format(**locals()))
@@ -960,7 +960,7 @@ class Momfile_Window(QDialog):
             for row in range(0,self.InMomTable.rowCount()):
                 for col in range(0,self.InMomTable.columnCount()):
                     if col<2:
-                        entry=int(self.InMomTable.item(row, col).text())
+                        entry=int(float(self.InMomTable.item(row, col).text()))
                     else:
                         entry=float(self.InMomTable.item(row, col).text())
                     momfile_name.write('{entry}  '.format(**locals()))
@@ -1141,7 +1141,7 @@ class Jfile_Window(QDialog):
                 else:
                     for col in range(0,self.InJfileTable.columnCount()):
                         if col<2:
-                            entry=int(self.InJfileTable.item(row, col).text())
+                            entry=int(float(self.InJfileTable.item(row, col).text()))
                         else:
                             entry=float(self.InJfileTable.item(row, col).text())
                         jfile_name.write('{entry}  '.format(**locals()))
@@ -1168,9 +1168,7 @@ class DMfile_Window(QDialog):
         self.InDMfileDelRow.clicked.connect(self.table_control)
         self.InpDMfileCancel.clicked.connect(self.window_close)
         self.InpDMfileDone.clicked.connect(self.window_close)
-        self.TableValidator = QDoubleValidator()
-        self.TableValidator.setRange(-99.999999, 99.99999)
-        DMfile_Window.DMfile_gotten=False
+        DMfile_Window.DMfile_gotten = False
         DMfile_Window.DMfile_name='./dmfile'
         return
 
@@ -1182,17 +1180,15 @@ class DMfile_Window(QDialog):
         New rows are created with dummy text in them.
 
         """
-        from PyQt6.QtWidgets import QTableWidgetItem,QLineEdit
+        from PyQt6.QtWidgets import QTableWidgetItem
         if self.sender()==self.InDMfileAddRow:
             rowPosition = self.InDMfileTable.rowCount()
             self.InDMfileTable.insertRow(rowPosition)
-            text=[1, 1, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+            text=[1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,]
             for ii in range(0,len(text)):
                 item = QTableWidgetItem()
-                item.setValidator(self.TableValidator)
-                item.setFrame(False)
-                item.setPlaceholderText(str(text[ii]))
-                self.InDMfileTable.setCellWidget(rowPosition, ii, item)
+                item.setText(str(text[ii]))
+                self.InDMfileTable.setItem(rowPosition, ii, item)
         if self.sender()==self.InDMfileDelRow:
             rowPosition = self.InDMfileTable.rowCount()
             # Make sure that one cannot delete the last entry
@@ -1319,11 +1315,114 @@ class DMfile_Window(QDialog):
                 else:
                     for col in range(0,self.InDMfileTable.columnCount()):
                         if col<2:
-                            entry=int(self.InDMfileTable.item(row, col).text())
+                            entry=int(float(self.InDMfileTable.item(row, col).text()))
                         else:
                             entry=float(self.InDMfileTable.item(row, col).text())
                         DMfile_name.write('{entry}  '.format(**locals()))
                     DMfile_name.write('\n')
                 self.close()
         self.DMfile_gotten=True
+        return
+    
+class Kfile_Window(QDialog):
+    """"
+    Class containing the defintions and actions needed for the display of the
+    window handling the creation of the jfile inside the GUI. Class modified from 
+    Momfile_Window by Erik Karpelin.
+
+    """
+    def __init__(self, parent=None):
+        import os
+        from PyQt6 import uic
+        from PyQt6.QtGui import QDoubleValidator
+        super(Kfile_Window, self).__init__(parent)
+        path = os.path.dirname(os.path.abspath(__file__))
+        uic.loadUi(os.path.join(path, 'Kfile_Creator.ui'), self)
+        self.InKfileAddRow.clicked.connect(self.table_control)
+        self.InKfileDelRow.clicked.connect(self.table_control)
+        self.InpKfileCancel.clicked.connect(self.window_close)
+        self.InpKfileDone.clicked.connect(self.window_close)
+        Kfile_Window.Kfile_gotten = False
+        Kfile_Window.Kfile_name='./kfile'
+        return
+
+    def table_control(self):
+        """
+        Function to control the addition and removal of rows in the table
+        defining the jfile.
+        The user can on runtime add or delete rows until a minimum of one row remains.
+        New rows are created with dummy text in them.
+
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem,QLineEdit
+        if self.sender()==self.InKfileAddRow:
+            rowPosition = self.InKfileTable.rowCount()
+            self.InKfileTable.insertRow(rowPosition)
+            text=[1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,]
+            for ii in range(0,len(text)):
+                item = QTableWidgetItem()
+                item.setText(str(text[ii]))
+                self.InKfileTable.setItem(rowPosition, ii, item)
+        if self.sender()==self.InKfileDelRow:
+            rowPosition = self.InKfileTable.rowCount()
+            # Make sure that one cannot delete the last entry
+            if rowPosition>1:
+                self.InKfileTable.removeRow(rowPosition-1)
+        return
+
+    def CheckForFile(self, mainwindow):
+        """ If a jfile have already been selected, input it into the creator."""
+
+        import numpy as np
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if len(mainwindow.ASDInputGen.kfile) > 0:
+            kfile = np.genfromtxt(mainwindow.ASDInputGen.kfile.split('/')[-1], ndmin = 2)
+            self.Kfile_gotten = True
+
+            Table = self.InKfileTable
+            Table.setRowCount(0)
+            for row, line in enumerate(kfile):
+                Table.insertRow(row)
+                for column, element in enumerate(line):
+                    item = QTableWidgetItem(str(element))
+                    Table.setItem(row, column , item)
+
+    def window_close(self):
+        """
+        Function handling the what the Cancel and Done buttons do in the file creation
+        window.
+        The Cancel button removes all the rows except for the first, resets
+        inputs for generation of vectors and closes the window.
+        The Done button reads the data in the cells and writes a K-file.
+        Modified from momfile_window creation. 
+        
+        """
+        from PyQt6.QtWidgets import QTableWidgetItem
+
+        if self.sender()== self.InpKfileCancel:
+            self.InKfileTable.setRowCount(1)
+            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+                item = QTableWidgetItem(str(value))
+                self.InKfileTable.setItem(0, column, item)
+            self.InKfileNNCutoff.setValue(0)
+            self.close()
+        if self.sender()==self.InpKfileDone:
+            Kfile_name=open(Kfile_Window.Kfile_name,'w')
+            for row in range(0,self.InKfileTable.rowCount()):
+                KVector = [self.InKfileTable.item(row,5).text(),
+                            self.InKfileTable.item(row,6).text(),
+                            self.InKfileTable.item(row,7).text()]
+                if KVector == ['0', '0', '0']:
+                    pass
+                else:
+                    for col in range(0,self.InKfileTable.columnCount()):
+                        if col<2:
+                            entry=int(float(self.InKfileTable.item(row, col).text()))
+                        else:
+                            entry=float(self.InKfileTable.item(row, col).text())
+                        Kfile_name.write('{entry}  '.format(**locals()))
+                    Kfile_name.write('\n')
+                self.close()
+        self.Kfile_gotten=True
         return

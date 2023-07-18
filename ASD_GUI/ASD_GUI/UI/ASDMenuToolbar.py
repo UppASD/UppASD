@@ -536,11 +536,15 @@ def Input_Toolbar_Setup(window):
     # Set actions
     #--------------------------------------------------------------------------------
     window.InpDoneButton.clicked.connect(window.WriteInputFile)
-    # window.InpDMCheck.toggled.connect(window.getInpFile)
-    window.InpMAECheck.toggled.connect(window.getInpFile)
-    window.InpPseudoCheck.toggled.connect(window.getInpFile)
-    window.InpBqCheck.toggled.connect(window.getInpFile)
-    window.InpBqDMCheck.toggled.connect(window.getInpFile)
+    window.InpDMCheck.clicked.connect(window.getInpFile)
+    window.InpXCCheck.clicked.connect(window.getInpFile)
+    window.InpMAECheck.clicked.connect(window.getInpFile)
+    window.InpPseudoCheck.clicked.connect(window.getInpFile)
+    window.InpBqCheck.clicked.connect(window.getInpFile)
+    window.InpBqDMCheck.clicked.connect(window.getInpFile)
+    window.InpPseudDipSelect.clicked.connect(window.getInpFile)
+    window.InpBiQSelect.clicked.connect(window.getInpFile)
+    window.InpBiQDMSelect.clicked.connect(window.getInpFile)
     window.InpInitMag4ReadButton.clicked.connect(window.getInpFile)
     window.InpPosButtonSelect.clicked.connect(window.getInpFile)
     window.InpMomButtonSelect.clicked.connect(window.getInpFile)
@@ -568,16 +572,19 @@ def Input_Toolbar_Setup(window):
     window.InpInitMag6Check.clicked.connect(window.ToggleHessians)
     window.InpInitMag4Check.clicked.connect(window.ToggleHessians)
     window.InpInitmag7Check.clicked.connect(window.ToggleHessians)
-    window.InpCancelButton.clicked.connect(window.ResetInputs)          # Reset all inputs
-    window.InpRunSimButton.clicked.connect(window.RunSimulation)        # Run simulation
-    window.InpJfileButtonSelect.clicked.connect(window.getInpFile)      # Select jfile
-    window.InpJfileButtonCreate.clicked.connect(window.OpenWindow)      # Jfile creation
-    window.InpSqQpoints.clicked.connect(window.getInpFile)              # Qpoint file select
-    window.InpMagnonQuickButton.clicked.connect(window.MagnonQuickSetup)# MagnonQuickSetup
-    window.InpDMButtonSelect.clicked.connect(window.getInpFile)      # Select DMfile
-    window.InpDMButtonCreate.clicked.connect(window.OpenWindow)      # DM-file creation
+    window.InpCancelButton.clicked.connect(window.ResetInputs)
+    window.InpRunSimButton.clicked.connect(window.RunSimulation)
+    window.InpJfileButtonSelect.clicked.connect(window.getInpFile)
+    window.InpJfileButtonCreate.clicked.connect(window.OpenWindow)
+    window.InpSqQpoints.clicked.connect(window.getInpFile)
+    window.InpMagnonQuickButton.clicked.connect(window.MagnonQuickSetup)
+    window.InpDMButtonSelect.clicked.connect(window.getInpFile)
+    window.InpDMButtonCreate.clicked.connect(window.OpenWindow)
+    window.InpKfileButtonSelect.clicked.connect(window.getInpFile)      
+    window.InpKfileButtonCreate.clicked.connect(window.OpenWindow)
     window.InpImportCIFButton.clicked.connect(window.ImportSystem)
     window.InpImportSPRKKRButton.clicked.connect(window.ImportSystem)
+    window.InpImportRSLMTOButton.clicked.connect(window.ImportSystem)
 
     # Structure Templates
     window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
