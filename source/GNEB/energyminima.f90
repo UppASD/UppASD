@@ -9,6 +9,7 @@ module energyminima
    use Parameters
    use HamiltonianActions
    use VPO
+   use OSO
    use Constants
    use Energy
    use Pathinit, only: save_path
@@ -502,13 +503,11 @@ contains
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
 
-      ! Storing the energies for the initial and final images
-      ! In VPO only the initial and final states are relaxed
-
+      ! Convert effective fields to VPO force equivalents
       call convert_force(Natom,Mensemble,mmom,emom,beff)
 
       ! Storing the energies for the initial image
-      init_ene = ene%energy(1)
+      init_ene = energy/Natom
       filn = 'force_min.'//trim(adjustl(simid))//'.out'
       open(ofileno,file = filn,access = 'sequential',action='write',status='replace')
       write(ofileno,'(a12)',advance='no')"# Iter."
@@ -539,11 +538,10 @@ contains
       write(ofileno,'(i12)',advance = 'no') itr
       do ii=1,Mensemble
          write(ofileno,'(2x,es16.8E3,2x,es16.8E3)',advance = 'no')fchk(ii)*fcinv,   &
-            (ene%energy(ii)-init_ene)*fcinv
+            energy/Natom - init_ene
       end do
       close(ofileno)
 
-      !call save_path(Natom,Mensemble,simid,2,emom,mmom,mode,do_mom_legacy)
       !------------------------------------------------------------------------------
       ! MAIN LOOP
       !------------------------------------------------------------------------------
@@ -601,13 +599,6 @@ contains
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
                constellations,constellationsNeighType,energy,Num_macro,      &
                cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
-            !call calc_energy(nHam,itr,Natom,Nchmax,&
-            !   conf_num,Mensemble,Natom,Num_macro,1,plotenergy, &
-            !   0.0_dblprec,delta_t,do_lsf,        &
-            !   lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
-            !   emom,emomM,emomM_macro,external_field,time_external_field,           &
-            !   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
-            !   constellations,OPT_flag,constellationsNeighType,energy,NA,N1,N2,N3)
 
             write(num,'(i3)') idnint(real(itr,dblprec)/real(itrmax,dblprec)*100.0_dblprec)
             write(num2,'(es16.8E3)') fchkmax*mub/mry
@@ -619,12 +610,11 @@ contains
                status = 'old',position = 'append')
             write(ofileno,'(i12)',advance = 'no') itr
             do ii=1,Mensemble
-               write(ofileno,'(2x,es16.8E3,2x,es16.8E3)',advance = 'no')            &
-                  fchk(ii)*fcinv,(ene%energy(ii)-init_ene)*fcinv
+               write(ofileno,'(2x,es16.8E3,2x,es16.8E3)',advance = 'no')fchk(ii)*fcinv,   &
+                energy/Natom - init_ene
             end do
             close(ofileno)
 
-            !call save_path(Natom, Mensemble, simid,2,emom,mmom,mode,do_mom_legacy)
          end if
       end do
       print *, 'Minimization done, energy ', energy/Natom, 'mRy/atom'

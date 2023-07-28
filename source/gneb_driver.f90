@@ -104,7 +104,8 @@ contains
                constlNCoup,constellations,constellationsNeighType,energy,                  &
                emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
          else
-            call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,Mensemble, &
+            call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,&
+               Mensemble,                                                                  &
                Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
                simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
                macro_nlistsize,mmom,                                                       &

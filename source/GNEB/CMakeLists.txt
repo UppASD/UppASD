@@ -3,4 +3,5 @@ gneb.f90
 hermitelib.f90
 hessian.f90
 pathinit.f90
+oso.f90
 vpo.f90)

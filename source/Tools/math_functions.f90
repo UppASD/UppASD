@@ -784,4 +784,57 @@ subroutine f_get_periodic_shifts(nshifts,shift_arr)
    !
 end subroutine f_get_periodic_shifts
 
+!---------------------------------------------------------------------------------
+! FUNCTION: f_norms
+!> @brief Calculate norms for 2d-array
+!> @author Anders Bergman
+!---------------------------------------------------------------------------------
+function f_norms(dim_1, dim_2, array) result (norms)
+      implicit none
+
+
+      integer, intent(in) :: dim_1        !< Dimension to take the norm over
+      integer, intent(in) :: dim_2        !< Dimension of entries 
+      real(dblprec), dimension(dim_1, dim_2), intent(in) :: array
+      real(dblprec), dimension(dim_2) :: norms
+
+      integer :: i_idx
+
+      !$omp parallel do default(shared) private(i_idx)
+      do i_idx = 1, dim_2
+            norms(i_idx) = sum(array(:, i_idx) * array(:, i_idx))
+            norms(i_idx) = sqrt(norms(i_idx))
+      end do
+      !$omp end parallel do
+
+end function f_norms
+
+!---------------------------------------------------------------------------------
+! FUNCTION: f_max_norm
+!> @brief Finds largest norm in array of vectors
+!> @author Anders Bergman
+!---------------------------------------------------------------------------------
+function f_max_norm(dim_1, dim_2, array) result (m_norm)
+      implicit none
+
+
+      integer, intent(in) :: dim_1        !< Dimension to take the norm over
+      integer, intent(in) :: dim_2        !< Dimension of entries 
+      real(dblprec), dimension(dim_1, dim_2), intent(in) :: array
+      real(dblprec) :: m_norm
+
+      integer :: i_idx
+      real(dblprec) :: t_norm
+      real(dblprec), dimension(dim_2) :: t_array
+
+      do i_idx = 1, dim_2
+            t_array(i_idx) = sum(array(:, i_idx) * array(:, i_idx))
+      end do
+
+      m_norm = maxval(t_array)
+      m_norm = sqrt(m_norm)
+
+
+end function f_max_norm
+
 end module math_functions
