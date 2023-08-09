@@ -25,6 +25,7 @@
 !*                                                                *
 !******************************************************************
 
+!hello -Minna was here
 
 !------------------------------------------------------------------------------------
 ! MODULE: uppasd
@@ -272,6 +273,8 @@ contains
          call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
          call timing(0,'SpinCorr      ','OF')
       end if
+
+
 
       write (*,'(1x,a)') "Enter measurement phase:"
 
@@ -629,6 +632,8 @@ contains
       call check_format()
 
       write(*,'(1x,a)') 'using new format'
+
+      
       ! Set defaults for KMC (ONLY FOR MAGNETIC POLARONS!)
       call init_kmc()
       ! Set defaults for Adiabatic Magnon Spectra calculations
@@ -741,6 +746,8 @@ contains
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
       close(ifileno)
+
+      
       
        
       !----------------------------!
@@ -751,10 +758,16 @@ contains
             "Input data is inconsistent."//achar(10)// &
          " Please ensure consistency between simulation method and input parameters.")
       end if
-
       !----------------------------!
       ! Reading in data from files !
-      !----------------------------!
+      !----------------------------! 
+      if(ham_inp%do_tife==1) then
+         write (*,'(1x,a)') "Print topological induced faradayeffect"
+      end if
+
+      
+
+
     if (do_multiscale) then
      call initDampingBand(dampingBand)
      call newLocalInterpolationInfo(interfaceInterpolation)
@@ -977,7 +990,7 @@ contains
          write(*,'(a)') 'done'
       endif
 
-      ! See if it is necesary to read the temperature file
+      ! See if it is necessary to read the temperature file
       if(grad.eq.'Y') call read_temperature_legacy()
       !if(grad.eq.'Y'.or.grad.eq.'F') call read_temperature()
 
@@ -1607,6 +1620,7 @@ contains
       write (*,'(1x,a,1x,a)')     " Sample averages:", do_avrg
       write (*,'(1x,a,1x,a)')     " Sample moments:", do_tottraj
       write (*,'(1x,a,1x,a)')     " Spin correlation:", do_sc
+      write (*,'(1x,a)')          "------------------------------------------"
       write (*,'(1x,a)')          "------------------------------------------"
       write (*,'(1x,a)')          "        Progress of simulation:           "
 
