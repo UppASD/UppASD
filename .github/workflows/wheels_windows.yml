@@ -58,14 +58,13 @@ jobs:
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\lib"
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\include"
-          #pacboy: >-
-          #  #toolchain:p
-          #  #gcc-fortran:p
-          #  openblas:p
-          #  lapack:p
-          #  fftw:p
-          #  #cmake:p
-          #  #ninja:p
+          pacboy: >-
+            openblas:p
+            lapack:p
+            fftw:p
+            #toolchain:p
+            #gcc-fortran:p
+
 
       - name: Tell distutils to use mingw (Windows)
         if: runner.os == 'Windows'
