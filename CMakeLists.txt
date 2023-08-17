@@ -39,8 +39,8 @@ enable_language(C)
 ##############################################################################################
 # Set the fortran compiler as the linker
 ##############################################################################################
-#set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
-##############################################################################################
+set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
+#############################################################################################
 
 ##############################################################################################
 # Add our local modlues to the module path
@@ -600,13 +600,15 @@ if(BUILD_PYTHON)
 ##############################################################################################
 # Set static linking for different compilers (for Python compilation)
 ##############################################################################################
-if( CMAKE_Fortran_COMPILER_ID STREQUAL Intel )
-   #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -static-intel )
-   set(CMAKE_MODULE_LINKER_FLAGS "-static-intel -lifcoremt")
-   #set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
-elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
-   #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
-   set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+   if( CMAKE_Fortran_COMPILER_ID STREQUAL Intel )
+      #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -static-intel )
+      #set(CMAKE_MODULE_LINKER_FLAGS "-static-intel -lifcoremt")
+      set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
+   elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
+      #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
+      set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath")
+   endif()
 endif()
 ##############################################################################################
 
@@ -680,7 +682,7 @@ if ( $ENV{MSYSTEM})
    endif ()
 endif ( $ENV{MSYSTEM})
 
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${BLAS_LIBRARIES}
@@ -689,12 +691,15 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-         #${OpenMP_Fortran_FLAGS}
+         ${OpenMP_Fortran_LIB_NAMES}
          ${OpenMP_Fortran_LIBRARIES} 
       )
-if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
-   TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
-endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      if(MKL_FOUND)
+         TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+      endif(MKL_FOUND)
+      if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+         TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+      endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
    
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})

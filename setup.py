@@ -48,7 +48,8 @@ class cmake_build_ext(build_ext):
                 # Hint CMake to use the same Python executable that
                 # is launching the build, prevents possible mismatching if
                 # multiple versions of Python are installed
-                '-DPYTHON_EXECUTABLE={}'.format(sys.executable),
+                '-DPython3_ROOT_DIR={}'.format(sys.exec_prefix),
+                '-DPython3_FIND_STRATEGY=LOCATION',
                 #'-DCMAKE_Fortran_COMPILER=gfortran',
                 '-DBUILD_PYTHON=ON',
                 #'-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
