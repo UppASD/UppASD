@@ -15,7 +15,7 @@ from math import atan2, acos
 from copy import copy, deepcopy
 import glob
 import string
-import uppasd as asd
+import uppasd.pyasd as asd
 from vtk.util import numpy_support
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
@@ -159,7 +159,7 @@ class vtkTimerCallback():
 ###         self.timer_count += 1
 
 # ASD STUFF
-asd.pyasd.setupall()
+asd.setupall()
 
 #
 initmom=deepcopy(asd.momentdata.emom[:,:,0].T)
@@ -450,7 +450,7 @@ def Keypress(obj, event):
       print("Running UppASD")
       asd.inputdata.ipmode='M'
       for iter in range(10):
-          asd.pyasd.initialphase()
+          asd.initialphase()
           currmom=asd.momentdata.emom[:,:,0].T
           currcol=asd.momentdata.emom[2,:,0].T
           vecz=numpy_support.numpy_to_vtk(currmom)
@@ -462,7 +462,7 @@ def Keypress(obj, event):
       print("Running UppASD")
       asd.inputdata.ipmode='H'
       for iter in range(10):
-          asd.pyasd.initialphase()
+          asd.initialphase()
           currmom=asd.momentdata.emom[:,:,0].T
           currcol=asd.momentdata.emom[2,:,0].T
           vecz=numpy_support.numpy_to_vtk(currmom)
@@ -474,7 +474,7 @@ def Keypress(obj, event):
       print("Running UppASD")
       asd.inputdata.mode='S'
       for iter in range(10):
-          asd.pyasd.measure()
+          asd.measure()
           currmom=asd.momentdata.emom[:,:,0].T
           currcol=asd.momentdata.emom[2,:,0].T
           vecz=numpy_support.numpy_to_vtk(currmom)
@@ -485,7 +485,7 @@ def Keypress(obj, event):
     if key == "m":
       print("Running UppASD")
       asd.inputdata.ipmode='M'
-      asd.pyasd.initialphase()
+      asd.initialphase()
       currmom=asd.momentdata.emom[:,:,0].T
       currcol=asd.momentdata.emom[2,:,0].T
       vecz=numpy_support.numpy_to_vtk(currmom)
@@ -495,7 +495,7 @@ def Keypress(obj, event):
     if key == "h":
       print("Running UppASD")
       asd.inputdata.ipmode='H'
-      asd.pyasd.initialphase()
+      asd.initialphase()
       currmom=asd.momentdata.emom[:,:,0].T
       currcol=asd.momentdata.emom[2,:,0].T
       vecz=numpy_support.numpy_to_vtk(currmom)
@@ -505,7 +505,7 @@ def Keypress(obj, event):
     if key == "s":
       print("Running UppASD")
       asd.inputdata.mode='S'
-      asd.pyasd.measure()
+      asd.measure()
       currmom=asd.momentdata.emom[:,:,0].T
       currcol=asd.momentdata.emom[2,:,0].T
       vecz=numpy_support.numpy_to_vtk(currmom)
@@ -514,7 +514,7 @@ def Keypress(obj, event):
       Datatest.GetPointData().SetScalars(colz)
     if key == "C":
       asd.inputdata.ipmode='Q'
-      asd.pyasd.initialphase()
+      asd.initialphase()
       currmom=asd.momentdata.emom[:,:,0].T
       currcol=asd.momentdata.emom[2,:,0].T
       vecz=numpy_support.numpy_to_vtk(currmom)
@@ -523,7 +523,7 @@ def Keypress(obj, event):
       Datatest.GetPointData().SetScalars(colz)
     if key == "X":
       asd.inputdata.ipmode='Y'
-      asd.pyasd.initialphase()
+      asd.initialphase()
       currmom=asd.momentdata.emom[:,:,0].T
       currcol=asd.momentdata.emom[2,:,0].T
       vecz=numpy_support.numpy_to_vtk(currmom)
@@ -592,7 +592,7 @@ def Keypress(obj, event):
     if key == "a":
       atom.SetVisibility(abs(1-atom.GetVisibility()))
 
-    asd.pyasd.totalenergy()
+    asd.totalenergy()
     ene='{:6.4f}'.format(asd.simulationdata.total_energy)
     enetxt.SetInput("E= "+ene+" mRy/atom")
     renWin.Render()

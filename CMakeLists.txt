@@ -17,27 +17,38 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
 
-PROJECT(UppASD Fortran)
+PROJECT(uppasd
+   LANGUAGES Fortran)
 # Set the project version
 SET(VERSION 5.1.0)
 ##############################################################################################
-
+unset(CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES)
 ##############################################################################################
 # Check OS and compiler status
 ##############################################################################################
 message(STATUS "Operating system= ${CMAKE_SYSTEM_NAME}")
 include(CMakeDetermineFortranCompiler)
 message(STATUS "CMAKE_Fortran_COMPILER_ID ${CMAKE_Fortran_COMPILER_ID} ${CMAKE_Fortran_COMPILER}.")
+message(STATUS "CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES}.")
+message(STATUS "CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES ${CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES}.")
 include(CMakeDetermineCCompiler)
 message(STATUS "CMAKE_C_COMPILER_ID ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER}.")
 enable_language(C)
 ##############################################################################################
 
+##############################################################################################
+# Set the fortran compiler as the linker
+##############################################################################################
+#set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
+##############################################################################################
 
 ##############################################################################################
 # Add our local modlues to the module path
 ##############################################################################################
-SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+message(STATUS "Initial module path: ${CMAKE_MODULE_PATH}")
+SET(LOCAL_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+SET(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${LOCAL_MODULE_PATH}")
+message(STATUS "Final module path  : ${CMAKE_MODULE_PATH}")
 ##############################################################################################
 
 ##############################################################################################
@@ -53,9 +64,10 @@ file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 ##############################################################################################
 # Defines the directories for source, modules and object filed
+##############################################################################################
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
-SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
-#SET(MOD ${CMAKE_BINARY_DIR}/mod)
+#SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
+SET(MOD ${CMAKE_BINARY_DIR}/mod)
 SET(BIN ${CMAKE_SOURCE_DIR}/bin)
 # Have the .mod files placed in the lib folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
@@ -75,13 +87,13 @@ ENDIF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
 ##############################################################################################
 # There is an error in CMAKE with this flag for pgf90.  Unset it
 ##############################################################################################
+UNSET(CMAKE_SHARED_LIBRARY_LINK_Fortran_FLAGS)
 GET_FILENAME_COMPONENT(FCNAME ${CMAKE_Fortran_COMPILER} NAME)
 set(CMAKE_Fortran_COMPILE_OPTIONS_PIE "")
 IF(FCNAME STREQUAL "pgf90")
    UNSET(CMAKE_SHARED_LIBRARY_LINK_Fortran_FLAGS)
 ENDIF(FCNAME STREQUAL "pgf90")
 ##############################################################################################
-
 
 ##############################################################################################
 # Define the executable name
@@ -92,7 +104,7 @@ set(ASD_binary sd)
 #   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
 #endif()
 # Find the vernacular compiler name
-string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv current_compiler  ${CMAKE_Fortran_COMPILER})
+string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv|ifx current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
 if(current_compiler)
@@ -117,8 +129,8 @@ ADD_EXECUTABLE(${UppASD_EXE} ${SRC}/0sd.f90 )
 ##############################################################################################
 # Define the library name
 ##############################################################################################
-set(ASD_library asdlib)
-SET(UppASD_LIB ${ASD_library})
+SET(UppASD_LIB asdlib)
+#SET(UppASD_pyLIB pyasdlib)
 ##############################################################################################
 
 
@@ -126,25 +138,50 @@ SET(UppASD_LIB ${ASD_library})
 # Define the executable in terms of the source files
 ##############################################################################################
 set(lib_type STATIC)
+ADD_LIBRARY(${UppASD_LIB} ${lib_type})
+message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC} ${CMAKE_POSITION_INDEPENDENT_CODE}")
 if (BUILD_PYTHON)
    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+   set_target_properties(${UppASD_LIB} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+   #   ADD_LIBRARY(${UppASD_pyLIB} SHARED)
 endif(BUILD_PYTHON)
-message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC}")
-ADD_LIBRARY(${UppASD_LIB} ${lib_type})
+add_dependencies(${UppASD_EXE} ${UppASD_LIB})
 ##############################################################################################
 
 
+##############################################################################################
+# MKL / FFTW actions
 ##############################################################################################
 set(MKL_LINK static)
+set(MKL_INTERFACE lp64)
+set(MKL_THREADING sequential)
 find_package(MKL CONFIG)
+message(STATUS "MKL_IMPORTED_TARGETS:   ${MKL_IMPORTED_TARGETS}") 
 
-include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
+set(FFTW_USE_STATIC_LIBS ON)
+if (USE_FFTW)
+find_package(FFTW)
+#include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
 if (FFTW_FOUND)
-   message(STATUS "FFTW found ${FFTW_FOUND} ${FFTW_INCLUDES} ${FFTW_INCLUDE_DIR}")
+	message(STATUS "FFTW found       : ${FFTW_FOUND}, ${FFTW_INCLUDES}, ${FFTW_INCLUDE_DIRS}")
+	message(STATUS "FFTW_LIBRARIES   : ${FFTW_LIBRARIES}")
+	message(STATUS "FFTW_INCLUDE_DIRS: ${FFTW_INCLUDE_DIRS}")
+	message(STATUS "FFTW_DOUBLE_LIB  : ${FFTW_DOUBLE_LIB}")
+	message(STATUS "FFTW_DOUBLE_OPENMP_LIB  : ${FFTW_DOUBLE_OPENMP_LIB}")
+   set(FFTW_LIB ${FFTW_LIBRARIES})
+   #set(FFTW_LIB "${FFTW_DOUBLE_LIB};${FFTW_DOUBLE_OPENMP_LIB}")
+   # It sets the following variables:
+#   FFTW_FOUND                  ... true if fftw is found on the system
+#   FFTW_[component]_LIB_FOUND  ... true if the component is found on the system (see components below)
+#   FFTW_LIBRARIES              ... full paths to all found fftw libraries
+#   FFTW_[component]_LIB        ... full path to one of the components (see below)
+#   FFTW_INCLUDE_DIRS           ... fftw include directory paths
+
 else (FFTW_FOUND)
    set(FFTW_LIB "")
    set(FFTW_LIBRARIES "")
 endif (FFTW_FOUND)
+endif (USE_FFTW)
 ##############################################################################################
 
 ##############################################################################################
@@ -181,7 +218,7 @@ CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" O
 ##############################################################################################
 # Determine and set compiler-dependent flags
 ##############################################################################################
-INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake) 
+INCLUDE(${LOCAL_MODULE_PATH}/SetFortranFlags.cmake) 
 ##############################################################################################
 
 ##############################################################################################
@@ -190,6 +227,8 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 IF(USE_OPENMP)
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
+   message(STATUS "            OpenMP flags: ${OpenMP_Fortran_FLAGS}")
+   message(STATUS "            OpenMP libraries: ${OpenMP_Fortran_LIBRARIES}")
 
    if(OpenMP_Fortran_FOUND)
       set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
@@ -198,6 +237,7 @@ IF(USE_OPENMP)
 ENDIF(USE_OPENMP)
 ##############################################################################################
 
+#set(CMAKE_Fortran_FLAGS "-assume underscore")
 
 ##############################################################################################
 # Build LaTeX manual (and extra notes if requested)
@@ -246,44 +286,52 @@ endif()
 ##############################################################################################
 # If MKL/VSL is requested. First checks here to set the linear algebra packages
 ##############################################################################################
-#if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
-#
-#   set(BLA_DEFINITIONS)
-#
-#   if (BLA_VENDOR MATCHES "_seq")
-#      set(MKL_USE_parallel OFF)
-#   else()
-#      set(MKL_USE_parallel ON)
-#   endif()
-#
-#   if (MKL_FOUND)
-#      message( STATUS "MKL_FOUND condition true")
-#      set(BLA_INCLUDE_DIR ${MKL_INCLUDE_DIR})
-#      set(BLAS_LIBRARIES ${MKL_LIBRARIES})
-#      set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
-#      set(BLA_DEFINITIONS USE_MKL)
-#      set(MKL_INTERFACE_FULL "lp64")
-#   else()
-#      #include(FindBLAS)
-#      #include(FindLAPACK)
-#      find_package(BLAS)
-#      find_package(LAPACK REQUIRED)
-#   endif()
-#   message(STATUS "mkl-location: ${MKL_LIBRARY_DIR}")
-#   message(STATUS "mkl-includes: ${MKL_INCLUDE}")
-#   link_directories(${MKL_LIBRARY_DIR})
-#
-#else()
-#   find_package(BLAS)
-#   find_package(LAPACK REQUIRED)
-#endif()
-#set(BLA_STATIC ON)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+set(BLA_STATIC ON)
+
+message( STATUS "USING::::: ${USE_VSL} ${USE_MKL} ${USE_MKL_FFT}")
+if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+
+   unset(BLA_DEFINITIONS)
+
+   if (BLA_VENDOR MATCHES "_seq")
+      set(MKL_USE_parallel OFF)
+   else()
+      set(MKL_USE_parallel ON)
+   endif()
+
+   if (MKL_FOUND)
+      message( STATUS "MKL_FOUND condition true")
+      #set(BLA_INCLUDE_DIR ${MKL_INCLUDE_DIR})
+      #set(BLAS_LIBRARIES ${MKL_LIBRARIES})
+      #set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
+      #set(BLA_DEFINITIONS USE_MKL)
+      #set(MKL_INTERFACE_FULL "lp64")
+      #set(BLA_VENDOR Intel)
+      #find_package(BLAS REQUIRED)
+      #find_package(LAPACK REQUIRED)
+   else()
+	   #include(FindBLAS)
+      	   #include(FindLAPACK)
+      find_package(BLAS REQUIRED)
+      find_package(LAPACK REQUIRED)
+   endif()
+   message(STATUS "mkl-location: ${MKL_LIBRARY_DIR}")
+   message(STATUS "mkl-includes: ${MKL_INCLUDE}")
+   #link_directories(${MKL_LIBRARY_DIR})
+
+   target_compile_options(${UppASD_LIB} PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
+   target_include_directories(${UppASD_LIB} PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+
+else()
+   find_package(BLAS REQUIRED)
+   find_package(LAPACK REQUIRED)
+endif()
+#find_package(BLAS REQUIRED)
+#find_package(LAPACK REQUIRED)
 message(STATUS "Math libs: 
-BLAS:${BLAS_FOUND} ${BLAS_LIBRARIES}  ${BLAS_LINKER_FLAGS}
-LAPACK:${LAPACK_FOUND} ${LAPACK_LIBRARIES}  ${LAPACK_LINKER_FLAGS}
-MKL:${MKL_FOUND} ${MKL_LIBRARIES} ${MKL_LINKER_FLAGS}"
+ BLAS:    ${BLAS_FOUND}, ${BLAS_LIBRARIES},  ${BLAS_LINKER_FLAGS}
+ LAPACK:  ${LAPACK_FOUND}, ${LAPACK_LIBRARIES},  ${LAPACK_LINKER_FLAGS}
+ MKL:     ${MKL_FOUND}, ${MKL_LIBRARIES}, ${MKL_LINKER_FLAGS}"
 )
 ##############################################################################################
 
@@ -304,7 +352,7 @@ ENDIF()
 ##############################################################################################
 # Extract git-stamp
 ##############################################################################################
-INCLUDE(${CMAKE_MODULE_PATH}/git-watcher.cmake)
+INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
 ##############################################################################################
 
 ##############################################################################################
@@ -388,8 +436,8 @@ elseif(USE_FFTW)
    add_compile_definitions(USE_FFTW)
    message(STATUS "FFT-> ${USE_FFTW} ")
    #include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
-   include_directories(${FFTW_INCLUDE_DIR})
-   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIR}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
+   include_directories(${FFTW_INCLUDE_DIRS})
+   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIRS} ${FFTW_LIB}")
 endif()
 ##############################################################################################
 
@@ -408,33 +456,46 @@ ADD_CUSTOM_TARGET(distclean
 ###############################################################################################
 if(BUILD_PYTHON)
    # check if Python is installed
-   include(FindPython)
+   #set(Python_VERSION $ENV{PYTHON_VERSION})
+   #message(STATUS "Python target version: ${Python_VERSION}")
+   message(STATUS "Python target version: $ENV{PYTHON_VERSION}")
 
    # Fix since FindPython is a bit flawed
    # https://github.com/scikit-build/scikit-build/issues/506#issuecomment-706791791
-   set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
-   set(Python_INCLUDE_DIR "${PYTHON_INCLUDE_DIR}")
-   set(Python_LIBRARY "${PYTHON_LIBRARY}")
-   find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
-   #find_package(Python)
-   #message(STATUS "Python_STDLIB ${Python_STDLIB}.")
-   #message(STATUS "Python_SITELIB ${Python_SITELIB}")
-   #message(STATUS "Python_LIBRARIES ${Python_LIBRARIES}.")
-   #message(STATUS "Python_LIBRARY_DIRS ${Python_LIBRARY_DIRS}.")
+   find_package(Python3 COMPONENTS Interpreter Development.Module NumPy)
+   
+   message(STATUS "============================================")
+   message(STATUS "Python3_EXECUTABLE         ${Python3_EXECUTABLE}")
+   message(STATUS "Python3_SOABI              ${Python3_SOABI}")
+   message(STATUS "Python3_STDLIB             ${Python3_STDLIB}.")
+   message(STATUS "Python3_SITELIB            ${Python3_SITELIB}")
+   message(STATUS "Python3_LIBRARIES          ${Python3_LIBRARIES}.")
+   message(STATUS "Python3_LIBRARY_DIRS       ${Python3_LIBRARY_DIRS}.")
+   message(STATUS "Python3_INCLUDE_DIRS       ${Python3_INCLUDE_DIRS}.")
+   message(STATUS "Python3_NumPy_INCLUDE_DIRS ${Python3_NumPy_INCLUDE_DIRS}.")
+   message(STATUS "============================================")
 
-   if (Python_FOUND)
+   if (Python3_FOUND)
       # Grab the variables from a local Python installation
       # F2PY headers
       execute_process(
-         COMMAND "${Python_EXECUTABLE}"
-         -c "import numpy.f2py; print(numpy.f2py.get_include())"
+         COMMAND "${Python3_EXECUTABLE}" -c "import numpy.f2py; print(numpy.f2py.get_include())"
          OUTPUT_VARIABLE F2PY_INCLUDE_DIR
+         OUTPUT_STRIP_TRAILING_WHITESPACE
+         )
+
+      execute_process(
+         COMMAND "${Python3_EXECUTABLE}" -c "import numpy; print(numpy.version.version)"
+         OUTPUT_VARIABLE F2PY_version
          OUTPUT_STRIP_TRAILING_WHITESPACE
          )
 
       # Common variables
       set(f2py_module_name "uppasd")
-      SET(UppASD_F90w f90_wraps)
+      set(f2py_module_c "_${f2py_module_name}module.c")
+      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers2.f90")
+      set(f2py_wrapper_o "_${f2py_module_name}-f2pywrappers2.o")
+      set(UppASD_F90w f90_wraps)
       set(F90wrap_kind
          ${CMAKE_SOURCE_DIR}/cmake/.f2py_f2cmap
          )
@@ -450,106 +511,126 @@ if(BUILD_PYTHON)
       #   ${SRC}/System/momentdata.f90 
       #   ${SRC}/System/simulationdata.f90
       #   )
+
       set(F2PY_sources 
-         ${SRC}/f90wrap/f90wrap_pyasd.f90
-         ${SRC}/f90wrap/f90wrap_uppasd.f90
-         ${SRC}/f90wrap/f90wrap_inputdatatype.f90
-         ${SRC}/f90wrap/f90wrap_inputdata.f90
-         ${SRC}/f90wrap/f90wrap_inputhandler.f90
-         ${SRC}/f90wrap/f90wrap_inputhandler_ext.f90
-         ${SRC}/f90wrap/f90wrap_simulationdata.f90
-         ${SRC}/f90wrap/f90wrap_momentdata.f90
+         ${SRC}/pyasd.f90
+      #   ${SRC}/f90wrap/f90wrap_pyasd.f90
+      #   #${SRC}/f90wrap/f90wrap_uppasd.f90
+      #   #${SRC}/f90wrap/f90wrap_inputdatatype.f90
+      #   #${SRC}/f90wrap/f90wrap_inputdata.f90
+      #   #${SRC}/f90wrap/f90wrap_inputhandler.f90
+      #   #${SRC}/f90wrap/f90wrap_inputhandler_ext.f90
+      #   #${SRC}/f90wrap/f90wrap_simulationdata.f90
+      #   #${SRC}/f90wrap/f90wrap_momentdata.f90
          )
 
-      # Bild library list for f2py
-      foreach ( elem ${OpenMP_Fortran_LIBRARIES} ${OVF_LIB} ${FFTW_LIB} ${CUDA_curand_LIBRARY})
-         message(STATUS "Element ${elem}")
-         string(SUBSTRING ${elem} 0 2 head)
-         if(${head} MATCHES "/")
-            if(NOT ${elem} MATCHES "\\.dylib" AND NOT ${elem} MATCHES "\\.so" AND NOT ${elem} MATCHES "\\.a")
-               #if(NOT ${elem} MATCHES ".dylib" )
-               string(PREPEND elem "-L")
-            endif()
-            if(${elem} MATCHES "libfftw3.dylib")
-               string(LENGTH ${elem} str_len)
-               string(LENGTH "libfftw3.dylib" str_lib)
-               math(EXPR str_sub "${str_len}-${str_lib}")
-               string(SUBSTRING ${elem} 0  ${str_sub}  leader)
 
-               list(APPEND F2PY_libs -L${leader})
-               set(elem "-lfftw3")
-            endif()
-            if(${elem} MATCHES "libgomp.dylib")
-               set(elem "-lgomp")
-            endif()
-         endif()
-         list(APPEND F2PY_libs ${elem})
-      endforeach()
-      list(APPEND F2PY_libs "-lgfortran")
-      if(OpenMP_Fortran_FOUND AND ${current_compiler} MATCHES "gfortran")
-         list(APPEND F2PY_libs "-lgomp")
-      endif()
-      list(REMOVE_DUPLICATES F2PY_libs)
-      foreach (elem ${F2PY_libs})
-         message(STATUS "------------------ ${elem}")
-      endforeach()
+##############################################################################################
+# Transform F2PY include-string to acceptable slash convention 
+##############################################################################################
+      # Input file name string (with double backslashes)
+      if (F2PY_INCLUDE_DIR)
+         #message(STATUS "Original F2PY-include: ${F2PY_INCLUDE_DIR}")
+         file(TO_CMAKE_PATH ${F2PY_INCLUDE_DIR} F2PY_INCLUDE_DIR)
+         #message(STATUS "Transformed F2PY-include: ${F2PY_INCLUDE_DIR}")
+      endif ()
+##############################################################################################
 
-      string(STRIP ${CMAKE_Fortran_FLAGS} fflags)
-      if (current_compiler MATCHES "ifort")
-         set(F2PY_compiler --fcompiler=intelem)
-         string(STRIP ${CMAKE_Fortran_FLAGS} fflags)
-         set(F2PY_f90flags '--f90flags="${fflags}"')
-      elseif (current_compiler MATCHES "nv")
-         set(F2PY_compiler --fcompiler=nv)
-      else()
-         # Assuming GNU compiler if not intel/nvidia
-         #if(current_compiler MATCHES "gfortran" OR current_compiler MATCHES "g95" OR current_compiler MATCHES "g95" OR current_compiler MATCHES "gfortran.exe")
-         set(F2PY_compiler --fcompiler=gnu95)
-         set(F2PY_f90flags "--f90flags='${fflags}'")
-      endif()
-      #string(REPLACE ffree-line-length-0 std=legacy F2PY_f90flags ${F2PY_f90flags})
-      #message(STATUS "FORTRAN FLAGS= ${CMAKE_Fortran_FLAGS}")
-      #message(STATUS "F2PY_compiler= ${F2PY_compiler}")
-      #message(STATUS "F2PY_libs    = ${F2PY_libs}")
-      #message(STATUS "F2PY_flags   = ${F2PY_f90flags}")
-      #message(STATUS "F2PY_flags   = --f90flags='${F2PY_f90flags} -O2'")
+##############################################################################################
+# New Python generation
+##############################################################################################
+      add_custom_target ( ${UppASD_F90w}
+         DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
+         VERBATIM
+         )
 
+      #add_custom_command( 
+      #   OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_o}"
+      #   COMMAND ${CMAKE_Fortran_COMPILER} -c  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}  -I${MOD}
+      #   COMMENT "Writing F90wrappers for F2PY"
+      #   DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+      #   )
 
-      add_custom_target ( ${UppASD_F90w}  ALL
-         DEPENDS ${UppASD_LIB} 
-         # Uncomment if f90wrap needs to be invoked
-         #DEPENDS ${UppASD_LIB} ${F2PY_sources}
-         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-         COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${CMAKE_BINARY_DIR} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt 
+      add_custom_command(
+         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}" "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         COMMAND ${Python3_EXECUTABLE}  -m "numpy.f2py"  ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
+         #COMMAND f2py   ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
          COMMENT "Generating Python modules"
-         VERBATIM 
+         DEPENDS ${UppASD_LIB}  ${F2PY_sources}
+         VERBATIM
          )
+
+      message(STATUS "F2PY_INCLUDE_DIR" ${F2PY_INCLUDE_DIR})
+      #message(STATUS "Python3_NumPy_INCLUDE_DIRS" ${Python3_NumPy_INCLUDE_DIRS})
+
+      # Set up target
+      #message(STATUS "F2PY_INCLUDE_DIR:        ${F2PY_INCLUDE_DIR}")
+      #message(STATUS "=============>  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}")
 
       # Not used by default (invoke only if new header files need to be generated)
       #add_custom_command( 
-      #   OUTPUT ${F2PY_sources}
+      #   OUTPUT "${F2PY_sources}"
       #   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
       #   COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
       #   COMMENT "Writing F90wrappers for F2PY"
       #   DEPENDS ${F90wrap_sources}
       #   )
 
-      add_dependencies(${UppASD_F90w} ${UppASD_LIB})
+      ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
+      Python3_add_library(_${CMAKE_PROJECT_NAME} MODULE WITH_SOABI
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
+         #"${F2PY_sources}"
+         "${F2PY_INCLUDE_DIR}/fortranobject.c" # From NumPy
+         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         )
 
-      ###add_custom_command(
-      ###   TARGET ${UppASD_F90w} POST_BUILD
-      ###   COMMAND ${CMAKE_COMMAND} -E 
-      ###   #${CMAKE_BINARY_DIR}/_*.so
-      ###   copy -t ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-      ###   ${CMAKE_BINARY_DIR}/_*.*
-      ###   )
-      message(STATUS "COPY:::" ${CMAKE_BINARY_DIR} )
+      add_dependencies(_${CMAKE_PROJECT_NAME} ${UppASD_F90w})
 
-   else (Python_FOUND)
+      target_link_libraries(_${CMAKE_PROJECT_NAME}  PRIVATE Python3::NumPy  ${UppASD_LIB})
+
+      #if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      #   TARGET_LINK_LIBRARIES(_${CMAKE_PROJECT_NAME} PUBLIC  $<LINK_ONLY:MKL::MKL>)
+      #endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      message(STATUS " Python linking check: 
+            ${UppASD_LIB},  ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIBRARIES}")
+      message(STATUS " CMAKE_MODULE_LINKER_FLAGS : ${CMAKE_MODULE_LINKER_FLAGS}")
+      target_include_directories(_${CMAKE_PROJECT_NAME} PRIVATE "${F2PY_INCLUDE_DIR}" )
+##############################################################################################
+
+##############################################################################################
+# Set static linking for different compilers (for Python compilation)
+##############################################################################################
+if( CMAKE_Fortran_COMPILER_ID STREQUAL Intel )
+   #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -static-intel )
+   set(CMAKE_MODULE_LINKER_FLAGS "-static-intel -lifcoremt")
+   #set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
+elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
+   #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
+   set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath")
+endif()
+##############################################################################################
+
+#############################################################################################
+# Copy the library to the designated place
+#############################################################################################
+###add_custom_command(
+###   TARGET ${UppASD_F90w} POST_BUILD
+###   COMMAND ${CMAKE_COMMAND} -E 
+###   #${CMAKE_BINARY_DIR}/_*.so
+###   copy -t ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+###   ${CMAKE_BINARY_DIR}/_*.*
+###   )
+#message(STATUS "COPY:::" ${CMAKE_BINARY_DIR} )
+#############################################################################################
+
+   else (Python3_FOUND)
       message("A proper Python environment needs to be installed to generate the python libraries")
-   endif (Python_FOUND)
+   endif (Python3_FOUND)
 endif(BUILD_PYTHON)
 ##############################################################################################
+
+
+
 
 
 ##############################################################################################
@@ -558,28 +639,65 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # Add the needed libraries and special compiler flags
 ##############################################################################################
-TARGET_LINK_LIBRARIES(${UppASD_LIB} 
-   -lgfortran
-   ${BLAS_LIBRARIES}
-   ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT} 
-   ${OVF_LIB} 
-   ${FFTW_LIB}  
-   ${CUDA_curand_LIBRARY}
-   ${OpenMP_Fortran_LIBRARIES}
-   )
+# First fix for msys/mingw having semi-shared .dll.a libraries
+##############################################################################################
+message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+if ( $ENV{MSYSTEM})
+   if ( ($ENV{MSYSTEM} STREQUAL MINGW) OR  ($ENV{MSYSTEM} STREQUAL UCRT) )
+      # BLAS
+      unset(UppASD_links)
+      foreach ( elem ${BLAS_LIBRARIES})
+         string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
+         set(UppASD_links "${filtered_elem}")
+      endforeach()
+      unset(BLAS_LIBRARIES)
+      set(BLAS_LIBRARIES ${UppASD_links})
+      # LAPACK
+      unset(UppASD_links)
+      foreach ( elem ${LAPACK_LIBRARIES})
+         string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
+         set(UppASD_links "${filtered_elem}")
+      endforeach()
+      unset(LAPACK_LIBRARIES)
+      set(LAPACK_LIBRARIES ${UppASD_links})
+      # FFTW
+      unset(UppASD_links)
+      foreach ( elem ${FFTW_LIBRARIES})
+         string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
+         set(UppASD_links "${filtered_elem}")
+      endforeach()
+      unset(FFTW_LIBRARIES)
+      set(FFTW_LIBRARIES ${UppASD_links})
+      # OpenMP
+      unset(UppASD_links)
+         foreach ( elem ${OpenMP_Fortran_LIBRARIES})
+         string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
+      set(UppASD_links "${filtered_elem}")
+      endforeach()
+      unset(OpenMP_Fortran_LIBRARIES)
+      set(OpenMP_Fortran_LIBRARIES ${UppASD_links})
+      unset(UppASD_links)
+   endif ()
+endif ( $ENV{MSYSTEM})
 
-TARGET_LINK_LIBRARIES(${UppASD_EXE}
-   -lgfortran
-   ${UppASD_LIB}
-   ${BLAS_LIBRARIES}
-   ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT} 
-   ${OVF_LIB} 
-   ${FFTW_LIB}  
-   ${CUDA_curand_LIBRARY}
-   ${OpenMP_Fortran_LIBRARIES}
-   )
+message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+
+TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
+         ${BLAS_LIBRARIES}
+         ${LAPACK_LIBRARIES}
+         ${CMAKE_THREAD_LIBS_INIT} 
+         ${OVF_LIB} 
+         ${FFTW_LIB}  
+         ${CUDA_curand_LIBRARY}
+         #${OpenMP_Fortran_FLAGS}
+         ${OpenMP_Fortran_LIBRARIES} 
+      )
+if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+   TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+   
+
+TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})
 
 
 ##############################################################################################
@@ -593,25 +711,30 @@ ENDIF(WIN32)
 
 
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
+SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
-   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
+else()
+   #   INSTALL(TARGETS ${UppASD_pyLIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
 ##############################################################################################
 
 ##############################################################################################
 # Copy static library to ./lib
 ##############################################################################################
-add_custom_command(
-   TARGET ${UppASD_LIB} POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-   #COMMAND ${CMAKE_COMMAND} -E copy
-   #${CMAKE_BINARY_DIR}/_uppasd*.so
-   #${CMAKE_SOURCE_DIR}/python/uppasd/
-   )
+#add_custom_command(
+#   TARGET ${UppASD_LIB} POST_BUILD
+#   COMMAND ${CMAKE_COMMAND} -E copy
+#   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
+#   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+#   #COMMAND ${CMAKE_COMMAND} -E copy
+#   #${CMAKE_BINARY_DIR}/_uppasd*.so
+#   #${CMAKE_SOURCE_DIR}/python/uppasd/
+#   )
 
 
 ###############################################################################################
@@ -619,6 +742,7 @@ add_custom_command(
 ###############################################################################################
 add_subdirectory(${SRC})
 ##############################################################################################
+
 
 ###############################################################################################
 ## Add tests directory

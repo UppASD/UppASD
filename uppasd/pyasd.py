@@ -6,8 +6,7 @@ Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 41-248
 
 """
 from __future__ import print_function, absolute_import, division
-from uppasd import _uppasd
-import f90wrap.runtime
+import _uppasd
 import logging
 
 _arrays = {}
@@ -22,7 +21,7 @@ def runuppasd():
     
     
     """
-    _uppasd.f90wrap_runuppasd()
+    _uppasd.runuppasd()
 
 def sanitycheck():
     """
@@ -33,7 +32,7 @@ def sanitycheck():
     
     
     """
-    _uppasd.f90wrap_sanitycheck()
+    _uppasd.sanitycheck()
 
 def numprocs():
     """
@@ -48,7 +47,7 @@ def numprocs():
     nprocs : int
     
     """
-    nprocs = _uppasd.f90wrap_numprocs()
+    nprocs = _uppasd.numprocs()
     return nprocs
 
 def printlogo():
@@ -60,7 +59,7 @@ def printlogo():
     
     
     """
-    _uppasd.f90wrap_printlogo()
+    _uppasd.printlogo()
 
 def setupall():
     """
@@ -71,7 +70,7 @@ def setupall():
     
     
     """
-    _uppasd.f90wrap_setupall()
+    _uppasd.setupall()
 
 def initialphase():
     """
@@ -82,7 +81,7 @@ def initialphase():
     
     
     """
-    _uppasd.f90wrap_initialphase()
+    _uppasd.initialphase()
 
 def measure():
     """
@@ -93,7 +92,7 @@ def measure():
     
     
     """
-    _uppasd.f90wrap_measure()
+    _uppasd.measure()
 
 def cleanup():
     """
@@ -104,7 +103,7 @@ def cleanup():
     
     
     """
-    _uppasd.f90wrap_cleanup()
+    _uppasd.cleanup()
 
 def relaxmontecarlo():
     """
@@ -115,7 +114,7 @@ def relaxmontecarlo():
     
     
     """
-    _uppasd.f90wrap_relaxmontecarlo()
+    _uppasd.relaxmontecarlo()
 
 def relaxmetropolis():
     """
@@ -126,7 +125,7 @@ def relaxmetropolis():
     
     
     """
-    _uppasd.f90wrap_relaxmetropolis()
+    _uppasd.relaxmetropolis()
 
 def relaxheatbath():
     """
@@ -137,7 +136,7 @@ def relaxheatbath():
     
     
     """
-    _uppasd.f90wrap_relaxheatbath()
+    _uppasd.relaxheatbath()
 
 def relaxmultiscale():
     """
@@ -148,7 +147,7 @@ def relaxmultiscale():
     
     
     """
-    _uppasd.f90wrap_relaxmultiscale()
+    _uppasd.relaxmultiscale()
 
 def relaxsldmontecarlo():
     """
@@ -159,7 +158,7 @@ def relaxsldmontecarlo():
     
     
     """
-    _uppasd.f90wrap_relaxsldmontecarlo()
+    _uppasd.relaxsldmontecarlo()
 
 def relaxllg():
     """
@@ -170,7 +169,7 @@ def relaxllg():
     
     
     """
-    _uppasd.f90wrap_relaxllg()
+    _uppasd.relaxllg()
 
 def relaxmd():
     """
@@ -181,7 +180,7 @@ def relaxmd():
     
     
     """
-    _uppasd.f90wrap_relaxmd()
+    _uppasd.relaxmd()
 
 def relaxsldllg():
     """
@@ -192,7 +191,7 @@ def relaxsldllg():
     
     
     """
-    _uppasd.f90wrap_relaxsldllg()
+    _uppasd.relaxsldllg()
 
 def relaxgneb():
     """
@@ -203,7 +202,7 @@ def relaxgneb():
     
     
     """
-    _uppasd.f90wrap_relaxgneb()
+    _uppasd.relaxgneb()
 
 def runmontecarlo():
     """
@@ -214,7 +213,7 @@ def runmontecarlo():
     
     
     """
-    _uppasd.f90wrap_runmontecarlo()
+    _uppasd.runmontecarlo()
 
 def runmultiscale():
     """
@@ -225,7 +224,7 @@ def runmultiscale():
     
     
     """
-    _uppasd.f90wrap_runmultiscale()
+    _uppasd.runmultiscale()
 
 def runllglite():
     """
@@ -236,7 +235,7 @@ def runllglite():
     
     
     """
-    _uppasd.f90wrap_runllglite()
+    _uppasd.runllglite()
 
 def runllg():
     """
@@ -247,7 +246,7 @@ def runllg():
     
     
     """
-    _uppasd.f90wrap_runllg()
+    _uppasd.runllg()
 
 def runllgcuda():
     """
@@ -258,7 +257,7 @@ def runllgcuda():
     
     
     """
-    _uppasd.f90wrap_runllgcuda()
+    _uppasd.runllgcuda()
 
 def runsldmontecarlo():
     """
@@ -269,7 +268,7 @@ def runsldmontecarlo():
     
     
     """
-    _uppasd.f90wrap_runsldmontecarlo()
+    _uppasd.runsldmontecarlo()
 
 def runld():
     """
@@ -280,7 +279,7 @@ def runld():
     
     
     """
-    _uppasd.f90wrap_runld()
+    _uppasd.runld()
 
 def runsldllg():
     """
@@ -291,7 +290,7 @@ def runsldllg():
     
     
     """
-    _uppasd.f90wrap_runsldllg()
+    _uppasd.runsldllg()
 
 def runsldllgimplicit():
     """
@@ -302,7 +301,7 @@ def runsldllgimplicit():
     
     
     """
-    _uppasd.f90wrap_runsldllgimplicit()
+    _uppasd.runsldllgimplicit()
 
 def rungneb():
     """
@@ -313,7 +312,7 @@ def rungneb():
     
     
     """
-    _uppasd.f90wrap_rungneb()
+    _uppasd.rungneb()
 
 def totalenergy():
     """
@@ -328,7 +327,7 @@ def totalenergy():
     energy : float
     
     """
-    energy = _uppasd.f90wrap_totalenergy()
+    energy = _uppasd.totalenergy()
     return energy
 
 

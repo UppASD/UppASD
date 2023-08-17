@@ -1,8 +1,8 @@
 name: build
 
 on:
-  release
-  #push:
+  push:
+  #release
   #pull_request:
 
 concurrency:

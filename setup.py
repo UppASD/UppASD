@@ -70,23 +70,23 @@ class cmake_build_ext(build_ext):
             subprocess.check_call(['cmake', '--build', '.','--parallel', '--config', cfg],
                                   cwd=self.build_temp)
 
-            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.*')
-            lib_path=self.build_temp.replace('temp','lib') #+'/uppasd/'
-            if not os.path.exists(lib_path):
-                os.makedirs(lib_path)
-            
-            shutil.copy2(src_file[0],'uppasd/')
-            shutil.copy2(src_file[0],lib_path)
+            #src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.*')
+            #lib_path=self.build_temp.replace('temp','lib') #+'/uppasd/'
+            #if not os.path.exists(lib_path):
+            #    os.makedirs(lib_path)
+            #
+            #shutil.copy2(src_file[0],'uppasd/')
+            #shutil.copy2(src_file[0],lib_path)
             
 
 
-#### Environment flag needed for appending library flags to f2py
-os.environ['NPY_DISTUTILS_APPEND_FLAGS'] = "1"
-#### Special flags to 
-if (platform.system()=='Darwin'):
-    os.environ['LDFLAGS'] = "-framework Accelerate"
-elif (platform.system()=='Linux'):
-    os.environ['LDFLAGS'] = "-fopenmp"
+##### Environment flag needed for appending library flags to f2py
+#os.environ['NPY_DISTUTILS_APPEND_FLAGS'] = "1"
+##### Special flags to 
+#if (platform.system()=='Darwin'):
+#    os.environ['LDFLAGS'] = "-framework Accelerate"
+#elif (platform.system()=='Linux'):
+#    os.environ['LDFLAGS'] = "-fopenmp"
 
 setup(
         name = 'uppasd',
