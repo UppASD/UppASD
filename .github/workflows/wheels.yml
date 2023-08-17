@@ -79,6 +79,8 @@ jobs:
           CIBW_SKIP: pp38-manylinux* pp39* pp31*
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          FC: gfortran
+          CC: gcc
 
 
 

@@ -39,7 +39,7 @@ enable_language(C)
 ##############################################################################################
 # Set the fortran compiler as the linker
 ##############################################################################################
-set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
+#set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
 #############################################################################################
 
 ##############################################################################################
@@ -632,6 +632,9 @@ endif(BUILD_PYTHON)
 ##############################################################################################
 
 
+#if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#   set(OpenMP_Fortran_LIBRARIES "${OpenMP_Fortran_FLAGS}")
+#endif()
 
 
 
@@ -769,3 +772,4 @@ if (RUN_GNEB_TESTS)
 endif (RUN_GNEB_TESTS)
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
+message(STATUS "--> ${CMAKE_SYSTEM_NAME}")

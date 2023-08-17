@@ -6,9 +6,9 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    #defaults:
-    #  run:
-    #    shell: msys2 {0}
+    defaults:
+      run:
+        shell: msys2 {0}
     continue-on-error: true
     strategy:
       matrix:
@@ -45,10 +45,14 @@ jobs:
           update: true
           path-type: inherit
           install: >-
+            mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-gcc-fortran
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
+            git 
+            cmake
+            ninja
           #git
           #make
 
@@ -58,12 +62,6 @@ jobs:
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\bin"
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\lib"
           Add-Content $env:GITHUB_PATH "C:\msys64\mingw64\include"
-          pacboy: >-
-            openblas:p
-            lapack:p
-            fftw:p
-            #toolchain:p
-            #gcc-fortran:p
 
 
       - name: Tell distutils to use mingw (Windows)
