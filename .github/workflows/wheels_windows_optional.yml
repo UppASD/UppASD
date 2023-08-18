@@ -13,6 +13,9 @@ jobs:
   build_wheels:
     name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: msys2 {0}
 
     strategy:
       fail-fast: false
@@ -43,7 +46,7 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ${{matrix.sys}}
+          msystem: MINGW64
           update: true
           install: >-
             git
@@ -60,6 +63,8 @@ jobs:
 
       - name: Build and test wheels
         uses: pypa/cibuildwheel@v2.14.0
+        with:
+          msystem: MINGW64
         env:
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform }}
           CIBW_ENVIRONMENT_WINDOWS: >
@@ -82,12 +87,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
-
-      - name: Build source distribution
-        run: bash python/build_tools/build_sdist.sh
-
-      - name: Test source distribution
-        run: bash python/build_tools/test_sdist.sh
 
       - name: Store artifacts
         uses: actions/upload-artifact@v3

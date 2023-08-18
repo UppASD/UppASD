@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { icon: '🟦', os: macOS-latest ,sys: macos, arch: x86_64 } 
+          - { icon: '🟦', os: macOS-11 ,sys: macos, arch: x86_64 } 
           - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
         #os: [ ubuntu-latest,  macOS-latest]
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
@@ -46,7 +46,7 @@ jobs:
           CC: gcc-12
         run: |
              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-             cmake --build build --config Release --parallel
+             cmake --build build --config Release --parallel --verbose
              mkdir ./dist
              uname -a
              echo ${{runner.name}}
