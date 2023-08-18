@@ -1,4 +1,4 @@
-name: build
+name: Build wheels on Windows, optional approach
 
 on:
   push:
@@ -43,13 +43,20 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         uses: msys2/setup-msys2@v2
         with:
-          path-type: inherit
-          install: |
-            mingw-w64-x86_64-gcc-fortran
-            mingw-w64-x86_64-openblas
-            mingw-w64-x86_64-fftw
-            ninja
-            cmake
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            git
+            make
+  
+          pacboy: >-
+            toolchain:p
+            gcc-fortran:p
+            openblas:p
+            lapack:p
+            fftw:p
+            cmake:p
+            ninja:p
 
       - name: Build and test wheels
         uses: pypa/cibuildwheel@v2.14.0

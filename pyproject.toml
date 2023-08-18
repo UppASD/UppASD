@@ -9,11 +9,11 @@ build-backend = "setuptools.build_meta"
 [tool.cibuildwheel]
 # Install something required for the build
 # (you might want to use build-system.requires instead)
-#before-build ='pip install --upgrade setuptools wheel numpy>1.19'
+before-build ='python -m pip install --upgrade numpy>1.19'
 #before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
 #repair-wheel-command = ""
 #
-skip = ["*-musllinux.*", "pp*-macosx-*"]
+skip = ["*-musllinux.*", "pp*-macosx-*","cp36-*"]
 #
 manylinux-x86_64-image = "manylinux_2_28"
 #manylinux-aarch64-image = "manylinux_2_28"

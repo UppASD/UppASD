@@ -76,7 +76,7 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: pp38-manylinux* pp39* pp31*
+          CIBW_SKIP: cp36* pp38-manylinux* pp39* pp31*
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           FC: gfortran
@@ -87,3 +87,30 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
+          build_sdist:
+            name: Build source distribution
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+
+      - name: Build source distribution
+        run: bash python/build_tools/build_sdist.sh
+
+      - name: Test source distribution
+        run: bash python/build_tools/test_sdist.sh
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          path: dist/*.tar.gz
+

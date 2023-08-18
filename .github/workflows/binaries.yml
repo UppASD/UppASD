@@ -1,4 +1,4 @@
-name: Build binaries Linux, Macos
+name: Build binaries for Linux, Macos
 
 #on: [release]
 on: [push, pull_request]
@@ -42,8 +42,8 @@ jobs:
 
       - name: Build binaries
         env:
-          FC: gfortran
-          CC: gcc
+          FC: gfortran-12
+          CC: gcc-12
         run: |
              cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --config Release --parallel
