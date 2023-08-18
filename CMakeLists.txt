@@ -694,7 +694,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-         ${OpenMP_Fortran_LIB_NAMES}
+         #${OpenMP_Fortran_LIB_NAMES}
          ${OpenMP_Fortran_LIBRARIES} 
       )
       if(MKL_FOUND)
