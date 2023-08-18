@@ -41,7 +41,8 @@ jobs:
       - name: Install cibuildwheel
         run: |
           python -m ensurepip 
-          python -m pip install cibuildwheel==2.10.1
+          python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
+          #python -m pip install cibuildwheel==2.10.1
 
       - name: Build wheels
         run: 
