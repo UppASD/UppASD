@@ -53,18 +53,18 @@ jobs:
       with:
         python-version: ${{matrix.python-version}}
           
-    - name: Setup Python
+    - name: Setup Python further
       run: |
         which python
-        python -m pip install virtualenv
-        python -m venv my_env
+        $Python3_ROOT_DIR/bin/python -m pip install virtualenv
+        $Python3_ROOT_DIR/bin/python -m venv my_env
         ls my_env
           
     - name: '🚧 Build TOOL'
       run: |
         which python
-        python -m pip install numpy build
-        python setup.py bdist_wheel
+        $Python3_ROOT_DIR/bin/python -m pip install numpy build
+        $Python3_ROOT_DIR/bin/python setup.py bdist_wheel
         #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         #cmake --build build 
         #ls ./bin
