@@ -608,7 +608,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
    elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
       #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
-      set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath -static-libgcc")
+      set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath")
    endif()
 endif()
 ##############################################################################################
