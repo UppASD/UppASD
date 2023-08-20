@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: 3.8  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: 3.9  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: 3.10 }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: 3.11 }
+          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.8'  }
+          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.9'  }
+          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.10' }
+          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.11' }
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
     defaults:
       run:
@@ -53,48 +53,31 @@ jobs:
           
     - name: Setup Python further
       run: |
-        which python
-        #parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        #ls $parsedPyPath
-        #ls $parsedPyPath/bin
-        #$parsedPyPath/python -m pip install virtualenv
-        #$parsedPyPath/python -m venv my_env
         python -m pip install virtualenv
         python -m venv my_env
-        ls my_env
         source my_env/Scripts/activate
-        which python
         python -m pip install numpy build setuptools wheel
         
     - name: '🚧 Add MSYS tools to path'
       run: |
-        echo '-----Original github path--------'
-        cat $GITHUB_PATH
-        echo '------Action addition------------'
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        #echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
         echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" 
         echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
         paste github_header $GITHUB_PATH > $GITHUB_PATH
-        echo '-----Final github path-----------'
-        cat $GITHUB_PATH
           
     - name: '🚧 Build TOOL cmake'
       run: |
-        which python
         source my_env/Scripts/activate
-        which python
-        cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release
-        #python setup.py bdist_wheel
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION
         
     - name: '🚧 Build TOOL wheel'
       run: |
-        which python
         source my_env/Scripts/activate
-        which python
         #parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         python -m pip install numpy build
-        python setup.py bdist_wheel
+        python -m pip wheel -vvv
+        #python setup.py bdist_wheel
         #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         #cmake --build build 
         
