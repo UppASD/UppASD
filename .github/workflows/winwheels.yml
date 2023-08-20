@@ -53,7 +53,7 @@ jobs:
           
     - name: Setup Python further
       run: |
-        python -m pip install virtualenv
+        python -m pip install virtualenv numpy build setuptools wheel
         python -m venv my_env
         source my_env/Scripts/activate
         python -m pip install numpy build setuptools wheel
