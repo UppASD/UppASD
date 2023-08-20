@@ -21,7 +21,8 @@ jobs:
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
     defaults:
       run:
-        shell: msys2 {0}
+        shell: bash
+        #shell: msys2 {0}
     steps:
 
     - name: '🧰 Checkout'
@@ -53,19 +54,39 @@ jobs:
     - name: Setup Python further
       run: |
         which python
-        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        ls $parsedPyPath
-        ls $parsedPyPath/bin
-        $parsedPyPath/bin/python -m pip install virtualenv
-        $parsedPyPath/bin/python -m venv my_env
+        #parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        #ls $parsedPyPath
+        #ls $parsedPyPath/bin
+        #$parsedPyPath/python -m pip install virtualenv
+        #$parsedPyPath/python -m venv my_env
+        python -m pip install virtualenv
+        python -m venv my_env
         ls my_env
+        my_env/Scripts/activate
+        which python
+        python -m pip install numpy build setuptools wheel
+        
+    - name: '🚧 Add MSYS tools to path'
+      run: |
+        echo '-----Original github path--------'
+        cat $GITHUB_PATH
+        echo '------Action addition------------'
+        echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
+        echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" 
+        #echo $(echo "$Python_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        paste github_header $GITHUB_PATH > $GITHUB_PATH
+        echo '-----Final github path-----------'
+        cat $GITHUB_PATH
           
     - name: '🚧 Build TOOL'
       run: |
         which python
-        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        $parsedPyPath/bin/python -m pip install numpy build
-        $parsedPyPath/bin/python setup.py bdist_wheel
+        my_env/Scripts/activate
+        which python
+        #parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        python -m pip install numpy build
+        python -m pip install numpy build
+        python setup.py bdist_wheel
         #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         #cmake --build build 
         #ls ./bin
