@@ -34,11 +34,8 @@ jobs:
       uses: msys2/setup-msys2@v2
       with:
         msystem: ${{matrix.sys}}
-        update: true
-        install: >-
-          git
-          make
-
+        release: false
+        path-type: full
         pacboy: >-
           toolchain:p
           gcc-fortran:p
