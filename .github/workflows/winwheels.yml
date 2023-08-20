@@ -21,8 +21,8 @@ jobs:
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
     defaults:
       run:
-        shell: bash
-        #shell: msys2 {0}
+        #shell: bash
+        shell: msys2 {0}
     steps:
 
     - name: '🧰 Checkout'
@@ -66,7 +66,7 @@ jobs:
       run: |
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION 
-        cmake --build build_test --config Release --parallel
+        cmake --build build_test --config Release --parallel --verbose
         ls lib
         objdump -x lib/_*pyd | grep -i DLL
         
