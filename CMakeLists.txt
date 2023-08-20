@@ -577,6 +577,7 @@ if(BUILD_PYTHON)
       #   )
 
       ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
+      set(CMAKE_C_FLAGS "-std=c99")
       Python3_add_library(_${CMAKE_PROJECT_NAME} MODULE WITH_SOABI
          "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
          #"${F2PY_sources}"

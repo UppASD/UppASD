@@ -1,8 +1,8 @@
 name: Build wheels on Windows, optional approach
 
 on:
-  push:
-  #release
+  #push:
+  release
   #pull_request:
 
 concurrency:

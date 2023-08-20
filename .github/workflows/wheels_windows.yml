@@ -1,6 +1,6 @@
 name: Build wheels on windows
 
-on: [push, pull_request]
+on: [release] #[push, pull_request]
 
 jobs:
   build_wheels:
