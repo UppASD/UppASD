@@ -52,6 +52,7 @@ class cmake_build_ext(build_ext):
                 '-DPython3_FIND_STRATEGY=LOCATION',
                 #'-DCMAKE_Fortran_COMPILER=gfortran',
                 '-DBUILD_PYTHON=ON',
+                '-GNinja',
                 #'-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
                 #'-DPYTHON_LIBRARY={}'.format(python_lib_dir),
                 #'-DMKL_INTERFACE_FULL=gf_lp64',

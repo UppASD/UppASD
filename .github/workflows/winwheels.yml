@@ -62,7 +62,7 @@ jobs:
         python -m pip install virtualenv
         python -m venv my_env
         ls my_env
-        my_env/Scripts/activate
+        source my_env/Scripts/activate
         which python
         python -m pip install numpy build setuptools wheel
         
@@ -79,21 +79,24 @@ jobs:
         echo '-----Final github path-----------'
         cat $GITHUB_PATH
           
-    - name: '🚧 Build TOOL'
+    - name: '🚧 Build TOOL cmake'
       run: |
         which python
-        my_env/Scripts/activate
+        source my_env/Scripts/activate
+        which python
+        cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release
+        #python setup.py bdist_wheel
+        
+    - name: '🚧 Build TOOL wheel'
+      run: |
+        which python
+        source my_env/Scripts/activate
         which python
         #parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        python -m pip install numpy build
         python -m pip install numpy build
         python setup.py bdist_wheel
         #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         #cmake --build build 
-        #ls ./bin
-        #cp ./bin/sd.gfortran.exe ./bin/sd.gfortran.${{matrix.sys}}.${{matrix.arch}}.exe
-        #cp ./bin/sd.gfortran.exe ./bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
-        #ls ./bin
         
     - uses: actions/upload-artifact@v3
       with:
