@@ -71,9 +71,10 @@ jobs:
         echo '-----Original github path--------'
         cat $GITHUB_PATH
         echo '------Action addition------------'
-        echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
-        echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" 
-        #echo $(echo "$Python_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        #echo "$(echo '$Python_ROOT_DIR' | sed -E 's/^C:/\/c/; s/\\/\//g'):/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
+        echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" 
+        echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
         paste github_header $GITHUB_PATH > $GITHUB_PATH
         echo '-----Final github path-----------'
         cat $GITHUB_PATH
