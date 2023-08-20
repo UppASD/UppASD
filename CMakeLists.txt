@@ -649,7 +649,9 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
 if ( $ENV{MSYSTEM})
+   message(STATUS " Performing MSYS library pruning.")
    if ( ($ENV{MSYSTEM} STREQUAL MINGW) OR  ($ENV{MSYSTEM} STREQUAL UCRT) )
+      message(STATUS " Performing MSYS library pruning for $ENV{MSYSTEM}.")
       # BLAS
       unset(UppASD_links)
       foreach ( elem ${BLAS_LIBRARIES})
@@ -658,6 +660,7 @@ if ( $ENV{MSYSTEM})
       endforeach()
       unset(BLAS_LIBRARIES)
       set(BLAS_LIBRARIES ${UppASD_links})
+      message(STATUS "BLAS_LIBRARIES pruned: ${BLAS_LIBRARIES} ")
       # LAPACK
       unset(UppASD_links)
       foreach ( elem ${LAPACK_LIBRARIES})
