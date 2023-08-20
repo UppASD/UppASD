@@ -54,9 +54,6 @@ jobs:
     - name: Setup Python further
       run: |
         python -m pip install virtualenv numpy build setuptools wheel
-        #python -m venv my_env
-        #source my_env/Scripts/activate
-        #python -m pip install numpy build setuptools wheel
         
     - name: '🚧 Add MSYS tools to path'
       run: |
@@ -67,27 +64,17 @@ jobs:
           
     - name: '🚧 Build TOOL cmake'
       run: |
-        #which python
-        #source my_env/Scripts/activate
-        #which python
-        #which pip
-        #pip list
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION 
+        #cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION 
         
     - name: '🚧 Build TOOL wheel'
       run: |
-        #source my_env/Scripts/activate
-        ##parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        #python -m pip install numpy build
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
-        python -m pip wheel . -vvv
-        #python setup.py bdist_wheel
-        #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
-        #cmake --build build 
+        python setup.py bdist_wheel
+        #python -m pip wheel . -v
         
     - uses: actions/upload-artifact@v3
       with:
-       name: uppasd.${{matrix.sys}}.${{matrix.arch}}
-       path: ./bin/uppasd*.exe
+       name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
+       path: ./uppasd*.whl
