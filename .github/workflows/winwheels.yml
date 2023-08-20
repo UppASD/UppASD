@@ -56,15 +56,17 @@ jobs:
     - name: Setup Python further
       run: |
         which python
-        $Python3_ROOT_DIR/bin/python -m pip install virtualenv
-        $Python3_ROOT_DIR/bin/python -m venv my_env
+        parsedPpath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        $parsedPpath/bin/python -m pip install virtualenv
+        $parsedPpath/bin/python -m venv my_env
         ls my_env
           
     - name: '🚧 Build TOOL'
       run: |
         which python
-        $Python3_ROOT_DIR/bin/python -m pip install numpy build
-        $Python3_ROOT_DIR/bin/python setup.py bdist_wheel
+        parsedPpath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        $parsedPpath/bin/python -m pip install numpy build
+        $parsedPpath/bin/python setup.py bdist_wheel
         #cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         #cmake --build build 
         #ls ./bin
