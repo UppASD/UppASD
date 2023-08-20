@@ -104,5 +104,5 @@ setup(
         package_dir={'uppasd': 'uppasd'},
         ext_modules=[CMakeExtension(name='_uppasd')],
         scripts=['scripts/uppasd','scripts/uppasd_interactive'],
-        install_requires=['numpy>1.19','f90wrap>0.1']
+        install_requires=['numpy>1.19']
         )
