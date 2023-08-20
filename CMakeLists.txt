@@ -39,7 +39,7 @@ enable_language(C)
 ##############################################################################################
 # Set the fortran compiler as the linker
 ##############################################################################################
-set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
+#set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
 #############################################################################################
 
 ##############################################################################################
@@ -608,7 +608,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
    elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
       #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
-      set(CMAKE_MODULE_LINKER_FLAGS "-static -lgfortran -lquadmath")
+      set(CMAKE_MODULE_LINKER_FLAGS "-lgfortran -lquadmath")
    endif()
 endif()
 ##############################################################################################
@@ -648,11 +648,11 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 # First fix for msys/mingw having semi-shared .dll.a libraries
 ##############################################################################################
 message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
-if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-#if ( $ENV{MSYSTEM})
+#if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+if ( $ENV{MSYSTEM})
    message(STATUS " Performing MSYS library pruning.")
-   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-   #if ( ($ENV{MSYSTEM} STREQUAL MINGW) OR  ($ENV{MSYSTEM} STREQUAL UCRT) )
+   #if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   if ( ($ENV{MSYSTEM} STREQUAL MINGW) OR  ($ENV{MSYSTEM} STREQUAL UCRT) )
       message(STATUS " Performing MSYS library pruning for $ENV{MSYSTEM}.")
       # BLAS
       unset(UppASD_links)
@@ -688,8 +688,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       unset(OpenMP_Fortran_LIBRARIES)
       set(OpenMP_Fortran_LIBRARIES ${UppASD_links})
       unset(UppASD_links)
-   endif(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-   #endif ()
+   #endif(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   endif ()
 endif ( $ENV{MSYSTEM})
 
 message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
