@@ -88,4 +88,4 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
-       path: ./uppasd*.whl
+       path: ./dist/uppasd*.whl
