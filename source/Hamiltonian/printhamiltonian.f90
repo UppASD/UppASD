@@ -274,6 +274,7 @@ contains
       atype,dmlistsize,asite_ch,achem_ch,dmlist,coord,ammom_inp,dm_vect,simid)
       !
       use Math_functions, only : f_wrap_coord_diff
+      use HamiltonianData
 
       !.. Implicit declarations
       implicit none
@@ -302,6 +303,8 @@ contains
       real(dblprec) :: tmp_rij_norm
       real(dblprec), dimension(3) :: tmp_rij
       real(dblprec), dimension(3) :: tmp_coup
+      integer  :: ih
+
       tol=1e-5
       tmp_rij=0.0_dblprec
       tmp_rij_norm=0.0_dblprec
@@ -322,7 +325,8 @@ contains
 
       ! print neighbor list - after sort
       do iatom=1,Natom
-         do ineigh=1,dmlistsize(iatom)
+         ih=ham%aHam(iatom)
+         do ineigh=1,dmlistsize(ih)
             jatom=dmlist(ineigh,iatom)
             !tmp_rij=coord(:,jatom)-coord(:,iatom)
             call f_wrap_coord_diff(Natom,coord,iatom,jatom,tmp_rij)
