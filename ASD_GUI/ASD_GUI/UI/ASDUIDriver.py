@@ -2109,7 +2109,7 @@ class UppASDVizMainWindow(QMainWindow):
         one of two simulation modes.
         """
         import ASD_GUI.UI.ASDInteractiveTab as IntTab
-        import uppasd as asd
+        #import uppasd as asd
         if self.sender() == self.IntSStepButton:
             IntTab.UpdateIntInputs(self)
             for _ in range(10*self.IntSDSlider.value()):
@@ -2144,7 +2144,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
 
         import os.path as path
-        import uppasd as asd
+        #import uppasd as asd
         import glob
         import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
 
@@ -2166,7 +2166,11 @@ class UppASDVizMainWindow(QMainWindow):
 
         if  all(x == True for x in InputChecklist) and any(x == False for x in OutputChecklist):
             print('Input found, but no output. Running uppasd...')
-            asd.pyasd.runuppasd()
+            try:
+                import uppasd as asd
+                asd.pyasd.runuppasd()
+            except:
+                pass
             Check = True
 
         if  all(x == True for x in OutputChecklist) and all(x == True for x in InputChecklist):
@@ -2193,13 +2197,17 @@ class UppASDVizMainWindow(QMainWindow):
         Author: Erik Karpelin
         """
 
-        import uppasd as asd 
+        #import uppasd as asd 
         import os.path as path
 
         if not path.isfile('inpsd.dat'):
             print('inpsd.dat not found, creating from asd_gui')
             self.WriteInputFile()
-        asd.pyasd.runuppasd()
+        try:
+            import uppasd as asd 
+            asd.pyasd.runuppasd()
+        except:
+            pass
         return
 
     def SetStructureTemplate(self, structure):

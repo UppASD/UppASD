@@ -13,7 +13,7 @@ def InteractiveDock(window):
                                 QSlider, QLabel, QLineEdit, QGridLayout)
     from PyQt6.QtGui import (QDoubleValidator, QIntValidator)
     from PyQt6.QtCore import Qt
-    import uppasd as asd
+    #import uppasd as asd
     import numpy as np
 
     window.IntDock = QDockWidget('Options', window)
@@ -201,7 +201,7 @@ def InitializeInteractor(window, InteractiveVtk):
             window          :   QMainWindow
             InteractiveVtk  :   InteractiveASD object, defined in interactiveASD.py.
     """
-    import uppasd as asd
+    #import uppasd as asd
     
     InteractiveVtk.Launch()
 
@@ -229,24 +229,40 @@ def UpdateIntInputs(window):
     Inputs:
             window  :   QMainWindow
     """
-    import uppasd as asd
+    #import uppasd as asd
     import numpy as np
 
     if len(window.IntTempLine.text()) > 0:
         NewTemp = float(window.IntTempLine.text())
-        asd.inputdata.set_temp(NewTemp)
+        try:
+           import uppasd as asd 
+           asd.inputdata.set_temp(NewTemp)
+        except:
+            pass
 
     if len(window.IntSDSteps.text()) > 0:
         NewStep = int(window.IntSDSteps.text())
-        asd.inputdata.set_nstep(NewStep)
+        try:
+           import uppasd as asd 
+           asd.inputdata.set_nstep(NewStep)
+        except:
+           pass
 
     if len(window.IntMCSteps.text()) > 0:
         NewMCStep = int(window.IntMCSteps.text())
-        asd.inputdata.set_mcnstep(NewMCStep)
+        try:
+           import uppasd as asd 
+           asd.inputdata.set_mcnstep(NewMCStep)
+        except:
+           pass
 
     if len(window.IntSDStepSize.text()) > 0:
         NewTimStep = float(window.IntSDStepSize.text())
-        asd.inputdata.set_delta_t(NewTimStep)
+        try:
+           import uppasd as asd 
+           asd.inputdata.set_delta_t(NewTimStep)
+        except:
+           pass
 
     MagArray = [window.IntB_xLine, window.IntB_yLine, window.IntB_zLine]
     CurrentMagField = asd.inputdata.get_array_hfield()
@@ -256,4 +272,8 @@ def UpdateIntInputs(window):
             NewMagField.append(float(component.text()))
         else:
             NewMagField.append(CurrentMagField[component_i])
-    asd.inputdata.set_array_hfield(np.array(NewMagField))
+    try:
+       import uppasd as asd 
+       asd.inputdata.set_array_hfield(np.array(NewMagField))
+    except:
+       pass
