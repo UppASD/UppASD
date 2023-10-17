@@ -147,10 +147,16 @@ contains
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
          initexc,ham_inp%do_dm,ham%max_no_dmneigh)
 
-      call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
-         beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
-         external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
-         mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+      !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
+      !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
+      !   external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
+      !   mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+
+
+      call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
+         beff,b2eff,emomM,emom,emom2,            &
+         external_field,mmom,btorque,Temp_array,mmom0,   &
+         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize,ham%j_tens)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
