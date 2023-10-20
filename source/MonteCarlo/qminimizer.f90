@@ -453,7 +453,6 @@ contains
                !print '(3f10.4)', R_mat
                !print *,'---------------'
 
-               !emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
                if (.not. qm_excluded_atoms(ia)) then
                   emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
                else
@@ -630,8 +629,6 @@ contains
             !emom(1:3,ia,k)=m_j
             if (.not. qm_excluded_atoms(ia)) then
                emomM(1:3,ia,k)=m_j*mmom(ia,k)
-            !else
-            !   emomM(1:3,ia,k)=emomM_start(:,ia,k)
             end if
             !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
          end do
