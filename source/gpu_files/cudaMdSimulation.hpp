@@ -32,6 +32,7 @@ private:
 	char initexc;
 
 	bool do_dm;
+	bool do_jtensor;
 	size_t max_no_dmneigh;
 
 	// Thermfield parameters
@@ -57,6 +58,7 @@ private:
 	fortMatrix<real,2>   f_mmom0;
 	fortMatrix<real,2>   f_mmom2;
 	fortMatrix<real,2>   f_mmomi;
+	fortMatrix<real,4,3,3> f_j_tensor;
 
 	cudaMatrix<real,3,3> beff;
 	cudaMatrix<real,3,3> b2eff;

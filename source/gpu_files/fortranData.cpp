@@ -2,6 +2,8 @@
 
 #include "fortranData.hpp"
 
+
+
 // Constants
 char *   FortranData::stt;
 int *    FortranData::SDEalgh;
@@ -25,6 +27,7 @@ int *  FortranData::mompar;
 char * FortranData::initexc;
 
 unsigned int * FortranData::do_dm;
+unsigned int * FortranData::do_jtensor;
 unsigned int * FortranData::max_no_dmneigh;
 
 // Matrices
@@ -48,6 +51,7 @@ real * FortranData::mmom2;
 real * FortranData::mmomi;               
 
 
+real * FortranData::j_tensor;
 
 // GPU stuff
 int * FortranData::gpu_mode;
@@ -58,7 +62,7 @@ int * FortranData::gpu_rng_seed;
 void FortranData::setConstantPointers(char * p1, int * p2, unsigned int * p3,
 		unsigned int * p4, unsigned int * p5, unsigned int * p6, unsigned int * p7, real * p8,
 		real * p9, real * p10, real * p11, real * p12,
-		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18) {
+		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18, unsigned int * p19) {
 	stt            = p1;
 	SDEalgh        = p2;
 
@@ -82,12 +86,13 @@ void FortranData::setConstantPointers(char * p1, int * p2, unsigned int * p3,
 	
 	do_dm          = p17;
 	max_no_dmneigh = p18;
+	do_jtensor = p19;
 }
 
 void FortranData::setMatrixPointers(real * p1, unsigned int * p2, unsigned int * p3, 
 		real * p4, real * p5, real * p6, real * p7, real * p8, 
 		real * p9, real * p10, real * p11, real * p12, real * p13, 
-		real * p14, real * p15, real * p16, unsigned int  * p17, unsigned int * p18) {
+		real * p14, real * p15, real * p16, unsigned int  * p17, unsigned int * p18, real * p19) {
 	ncoup          = p1;
 	nlist          = p2;
 	nlistsize      = p3;
@@ -106,6 +111,7 @@ void FortranData::setMatrixPointers(real * p1, unsigned int * p2, unsigned int *
 	dmvect         = p16;
 	dmlist         = p17;
 	dmlistsize     = p18;
+	j_tensor       = p19;
 }
 
 void FortranData::setInputDataPointers(int * p1, int * p2, int * p3) {
@@ -118,17 +124,17 @@ void FortranData::setInputDataPointers(int * p1, int * p2, int * p3) {
 extern "C" void fortrandata_setconstants_(char * p1, int * p2, unsigned int * p3,
                 unsigned int * p4, unsigned int * p5, unsigned int * p6, unsigned int * p7, real * p8,
                 real * p9, real * p10, real * p11, real * p12, 
-		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18) {
+		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18, unsigned int * p19) {
         FortranData::setConstantPointers(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, 
-		p11, p12, p13, p14, p15, p16, p17, p18);
+		p11, p12, p13, p14, p15, p16, p17, p18, p19);
 }
 
 extern "C" void fortrandata_setmatrices_(real * p1, unsigned int * p2, unsigned int * p3, real * p4,
 		real * p5, real * p6, real * p7, real * p8, real * p9,
 		real * p10, real * p11, real * p12, real * p13, 
-		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18) {
+		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18, real * p19) {
 	FortranData::setMatrixPointers(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, 
-		p12, p13, p14, p15, p16, p17, p18);
+		p12, p13, p14, p15, p16, p17, p18, p19);
 }
 
 extern "C" void fortrandata_setinputdata_(int * p1, int * p2, int * p3) {

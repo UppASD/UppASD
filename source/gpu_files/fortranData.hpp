@@ -62,6 +62,8 @@ public:
 	static unsigned int * do_dm;
 	static unsigned int * max_no_dmneigh;
 
+	static unsigned int * do_jtensor; // Information on weather the exchange coupling tensor should be used or not
+
 	// Matrices / vectors
 	static real *         ncoup;
 	static unsigned int * nlist;
@@ -71,6 +73,8 @@ public:
 	static unsigned int * dmlist;
 	static unsigned int * dmlistsize;
 	
+	static real * j_tensor;
+
 	static real * beff;
 	static real * b2eff;
 	static real * emomM;
@@ -93,12 +97,12 @@ public:
 	static void setConstantPointers(char * p1, int * p2, unsigned int * p3,
 		unsigned int * p4, unsigned int * p5, unsigned int * p6, unsigned int * p7, real * p8,
 		real * p9, real * p10, real * p11, real * p12,
-		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18);
+		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18, unsigned int * p19);
 
 	static void setMatrixPointers(real * p1, unsigned int * p2, unsigned int * p3, real * p4,
 		real * p5, real * p6, real * p7, real * p8, real * p9, 
 		real * p10, real * p11, real * p12, real * p13, 
-		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18);
+		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18, real * p19);
 
 	static void setInputDataPointers(int * p1, int * p2, int * p3);
 

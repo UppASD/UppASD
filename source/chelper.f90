@@ -145,7 +145,7 @@ contains
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh)
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor)
 
       !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
       !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
@@ -156,7 +156,7 @@ contains
       call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
          beff,b2eff,emomM,emom,emom2,            &
          external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize,ham%j_tens)
+         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 

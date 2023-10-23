@@ -59,6 +59,7 @@ void CudaMdSimulation::initiateConstants() {
 	mompar         = *FortranData::mompar;
 	initexc        = *FortranData::initexc;
 	do_dm          = static_cast<bool>(*FortranData::do_dm);
+	do_jtensor     = static_cast<bool>(*FortranData::do_jtensor);
 	max_no_dmneigh = *FortranData::max_no_dmneigh;
 
 
@@ -106,6 +107,11 @@ void CudaMdSimulation::initiate_fortran() {
 	f_dmvect        .set(FortranData::dmvect        ,3,max_no_dmneigh,N);
 	f_dmlist        .set(FortranData::dmlist        ,max_no_dmneigh,N);
 	f_dmlistsize    .set(FortranData::dmlistsize    ,N);
+	
+	if (*FortranData::do_jtensor == 1)
+	{
+		f_j_tensor  .set(FortranData::j_tensor      ,3,3,max_no_neigh,N);
+	}
 }
 
 /*
@@ -296,7 +302,6 @@ void CudaMdSimulation::measurementPhase() {
 		return;
 	}
 
-	
 
 	// Timer
 	StopwatchDeviceSync stopwatch = 
@@ -323,10 +328,52 @@ void CudaMdSimulation::measurementPhase() {
 		fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
 		return;
 	}
-	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm)) {
+	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor)) {
 		fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
 		return;
 	}
+
+	// TEMPORARY PRINTING
+	printf("\n");
+	printf("________System Information:___________ \n");
+	printf("%zu\n", f_j_tensor.dimension_size(0));
+	printf("%zu\n", f_j_tensor.dimension_size(1));
+	printf("%zu\n", f_j_tensor.dimension_size(2));
+	printf("%zu\n", f_j_tensor.dimension_size(3));
+	printf("______________________________________\n");
+
+	int mnn = f_j_tensor.dimension_size(2);
+	int l = f_j_tensor.dimension_size(3);
+
+
+	for (int l = 0 ; l < 1 ; l++  )
+	{
+		for (int k = 0 ; k < mnn ; k++  )
+		{
+			printf("__________\n");
+			for (int i = 0; i < 3; i++) {
+				for (int j = 0; j < 3; j++) {
+					unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
+					printf("%f\t", f_j_tensor[index]);
+				}
+        		printf("\n");
+    		}
+        	printf("\n");
+		}
+
+		for(int i = 0 ; i < f_j_tensor.size(); i++)
+		{
+			printf(" %f", f_j_tensor[i]);
+		}
+	}
+		
+
+	
+
+
+	printf("klasjdfljalskdjfklasjdrfadfasdfasdfsdadsasdaf\n");
+
+
 
 	// Initiate constants for integrator
 	integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
