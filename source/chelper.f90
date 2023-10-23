@@ -26,6 +26,13 @@ module Chelper
    use UpdateMoments,    only : moment_update
 
 
+   use Correlation
+   use Correlation_core
+   use AutoCorrelation,       only : autocorr_sample, do_autocorr
+   use ChemicalData, only : achtype
+   use MetaTypes
+   use Omegas
+
    implicit none
 
 
@@ -79,12 +86,21 @@ contains
       implicit none
       integer, intent(in) :: cmstep !< Current simulation step
 
+      integer :: cgk_flag
+      cgk_flag=0
+
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,cmstep,emom,emomM,mmom,&
          Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp,       &
          1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp,ham%max_no_neigh,ham%nlist,  &
          ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,     &
          ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind,    &
          ham%sus_ind,do_mom_legacy,mode)
+
+      ! Spin correlation
+      ! Sample magnetic moments for correlation functions
+      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,cmstep,delta_t,  &
+      NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+
    end subroutine fortran_measure
 
 
@@ -96,12 +112,22 @@ contains
       real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
       integer, intent(in) :: ext_mstep
 
+      integer :: cgk_flag
+      cgk_flag=0
+
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,ext_emom,    &
          ext_emomM,ext_mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,    &
          plotenergy,Temp,1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp,             &
          ham%max_no_neigh,ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field, &
          beff,beff1,beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,  &
          ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
+
+
+      ! Spin correlation
+      ! Sample magnetic moments for correlation functions
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,ext_mstep,delta_t,  &
+         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+
    end subroutine fortran_measure_moment
 
 
