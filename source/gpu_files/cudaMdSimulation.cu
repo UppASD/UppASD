@@ -332,7 +332,15 @@ void CudaMdSimulation::measurementPhase() {
 	integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
 
 	// Debug
-	//printConstants();
+	//printf("ajsdfjkhasjklhdfjklhasdjklfhjk___________\n");
+	//printf("%d\n", external_field.has_data());
+	//printf("%zu\n", external_field.size());
+	////for( int i = 0; i < f_dmlistsize.size(); i++)
+	////{
+	////	//printf("%f \n", f_dmlistsize[i]);
+	////}
+
+	printConstants();
 
 	// Timing
 	stopwatch.add("initiate");
