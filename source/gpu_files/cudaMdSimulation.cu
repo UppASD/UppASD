@@ -363,7 +363,12 @@ void CudaMdSimulation::measurementPhase() {
 
 		for(int i = 0 ; i < f_j_tensor.size(); i++)
 		{
-			printf(" %f", f_j_tensor[i]);
+			//printf(" %f ", f_j_tensor[i]);
+
+			//real test = f_ncoup[i];
+			//if (true) {
+			//	printf("%f ",test);
+			//}
 		}
 	}
 		
