@@ -1,4 +1,4 @@
-! Module inputhandler defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputhandler.f90
+! Module inputhandler defined in file Input/inputhandler.f90
 
 subroutine f90wrap_read_parameters(ifile)
     use inputhandler, only: read_parameters
@@ -31,5 +31,5 @@ subroutine f90wrap_inputhandler__set__sane_input(f90wrap_sane_input)
     inputhandler_sane_input = f90wrap_sane_input
 end subroutine f90wrap_inputhandler__set__sane_input
 
-! End of module inputhandler defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputhandler.f90
+! End of module inputhandler defined in file Input/inputhandler.f90
 

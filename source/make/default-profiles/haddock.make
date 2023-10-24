@@ -52,7 +52,7 @@ FLIBFLAGS = -openmp
 FCMODFLAG = -module
 
 # Declare what fortran compiler is used (for C/C++/CUDA code)
-C_FCFLAG = -D__IFORT__
+C_FCFLAG = -D__Intel__
 
 #------------------------------------------------------------------------------------
 # Flags for C compilation
@@ -60,7 +60,7 @@ C_FCFLAG = -D__IFORT__
 CCFLAGS = -O3 -g -pthread
 CCLIBFLAGS =-fopenmp
 # Declare what fortran compiler is used (for C/C++/CUDA code)
-C_FCFLAG = -D__IFORT__
+C_FCFLAG = -D__Intel__
 #------------------------------------------------------------------------------------
 # Flags for C++ compilation
 #------------------------------------------------------------------------------------

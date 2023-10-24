@@ -84,7 +84,8 @@ contains
 
       ! Set tolerance
       !tol=0.00050_dblprec**2
-      tol=0.0001_dblprec
+      !tol=0.0001_dblprec
+      tol=0.01_dblprec
 
       if(present(nntype)) print *, 'nntype', shape(nntype)
 
@@ -167,15 +168,18 @@ contains
          ! Shell
          do ishell=1,NN(itype)
             counter=0
+               if(do_hoc_debug==1) then
+                  write(*,'(a,i4)') '   ishell ', ishell
+               endif
 
             ! Symmetry equivalent sites in shell
             do inei=1,nmdimt(ishell,itype)
 
-               if(do_hoc_debug==1) then
-                  write(*,'(a,i4)') 'counter ', counter
-                  write(*,'(a,i4,a,3f10.6)') ' inei ', inei, '   nncoord ', nncoord(1:3,inei,ishell,itype)
-                  !write(*,'(a,i4,a,i4,a,3f10.6)') ' ielem ', ielem, ' inei ', inei, '   nncoord ', nncoord(1:3,ielem,inei,ishell,itype)
-               end if
+               !if(do_hoc_debug==1) then
+               !   write(*,'(a,i4)') 'counter ', counter
+               !   write(*,'(a,i4,a,3f10.6)') ' inei ', inei, '   nncoord ', nncoord(1:3,inei,ishell,itype)
+               !   !write(*,'(a,i4,a,i4,a,3f10.6)') ' ielem ', ielem, ' inei ', inei, '   nncoord ', nncoord(1:3,ielem,inei,ishell,itype)
+               !end if
 
                ! Coordinate vector in cartesian coordinates
                cvec(1)=nncoord(1,inei,ishell,itype)+Bas(1,i0)
@@ -486,7 +490,6 @@ contains
             end do
          end do
          close(ifileno)
-         print *,sym_mats
 
          ! Reads symmetry operations from file, type specific sets of symmetry elements
       else if(isym==5) then
@@ -547,7 +550,8 @@ contains
 
       ! Tolerance
       ! To be tuned!
-      tol=0.00050_dblprec
+      !tol=0.00050_dblprec
+      tol=0.01_dblprec
 
       nncoord = 0.0_dblprec
       if(do_hoc_debug==1) then
@@ -681,8 +685,9 @@ contains
       integer, intent(in) :: couptensrank !< Rank of coupling tensor
       integer, intent(in) :: invsym !< Flag for inversion symmetry of coupling tensor
       integer, intent(in) :: timesym !< Flag for time reversal symmetry of coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax), intent(in) :: couptens !< Coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT), intent(in) :: couptens !< Coupling tensor
+      !real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,1), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
       integer, dimension(48,max_no_shells,na), intent(out) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       !
       integer :: i0
@@ -704,7 +709,8 @@ contains
       logical, dimension(3) :: elemhit
 
       ! Set tolerance
-      tol=0.0005_dblprec**2
+      !tol=0.0005_dblprec**2
+      tol=0.01_dblprec
 
       ! calculate max.no. of shells of neighbours
       nndim=0
@@ -861,9 +867,9 @@ contains
                         if(max_no_equiv>=counter) then
                            nm_cell(ielem,counter,ishell,i0)=ia
                            nm_cell_symind(counter,ishell,i0)=inei
-                           if(do_hoc_debug==1) then
-                              write(*,'(a,i4,a,i4,a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
-                           end if
+                           !if(do_hoc_debug==1) then
+                           !   write(*,'(a,i4,a,i4,a,i4,a,i4)') 'counter ', counter,  ' ishell ', ishell, ' i0 ',  i0,  ' inei', inei
+                           !end if
                            if(N1*N2*N3>1) then
                               nm_trunk(1,ielem,counter,ishell,i0)=nint(bsf(1))
                               nm_trunk(2,ielem,counter,ishell,i0)=nint(bsf(2))
@@ -874,6 +880,7 @@ contains
                   end do
 
                end do
+               print *,'---------------------------'
 
                ! Check that each of the 1, 2 or 3 neighbours have been found
                if(nelem == 1) hit = elemhit(1)
@@ -1104,8 +1111,8 @@ contains
       integer, intent(in) :: couptensrank !< Rank of coupling tensor
       integer, intent(in) :: invsym !< Inversion symmetry of coupling tensor
       integer, intent(in) :: timesym !< Time reversal symmetry of coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax), intent(in) :: couptens !< Coupling tensor
-      real(dblprec), dimension(hdim,NT,max_no_shells,Nchmax,Nchmax,max_no_equiv), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT), intent(in) :: couptens !< Coupling tensor
+      real(dblprec), dimension(hdim,NT,max_no_shells,NT,NT,48), intent(out) :: fullcouptens !< Symmetry degenerate coupling tensor
 
       ! This flag is not needed. Keep for the time being.
       logical :: do_tens_sym
@@ -1127,7 +1134,8 @@ contains
 
       ! Tolerance
       ! To be tuned!
-      tol=0.00050_dblprec
+      !tol=0.00050_dblprec
+      tol=0.01_dblprec
 
       do_tens_sym = .true.
 
@@ -1156,10 +1164,10 @@ contains
                      write(*,'(a,3f10.6)') 'nncoord  ', nncoord(1:3,ielem,1,ishell,itype)
                   end do
                end if
-               do counter=1,1
-               !do counter=1,max_no_equiv
-                  do ich=1,Nchmax
-                     do jch=1,Nchmax
+               !do counter=1,1
+               do counter=1,max_no_equiv
+                  do ich=1,NT
+                     do jch=1,NT
                         fullcouptens(1:hdim,itype,ishell,ich,jch,counter) = &
                            couptens(1:hdim,itype,ishell,ich,jch)
                      end do
@@ -1221,8 +1229,8 @@ contains
                         end do
                      end if
                      if(do_tens_sym) then
-                        do ich=1,Nchmax
-                           do jch=1,Nchmax
+                        do ich=1,NT
+                           do jch=1,NT
                               if(do_hoc_debug==1) then
                                  write(*,*) 'isym ', isym, 'couptensrank ', couptensrank
                                  write(*,'(a)') 'couptens(1:hdim,itype,ishell,ich,jch) '

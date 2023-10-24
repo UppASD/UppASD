@@ -288,8 +288,15 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ClippPlaneXCheck.toggled.connect(window.clipperHandler)
     window.ClippPlaneYCheck.toggled.connect(window.clipperHandler)
     window.ClippPlaneZCheck.toggled.connect(window.clipperHandler)
+
+    #---------------------------------------------------------------------------
+    # Actions for advanced visualization options
+    #---------------------------------------------------------------------------
     window.ClippingPlaneSlider.valueChanged.connect(window.clipperHandler)
     window.GlyphQualitySlider.valueChanged.connect(window.Quality_control)
+    window.FocusBox.toggled.connect(window.toggle_focus)
+    window.AutoFocusCheck.toggled.connect(window.toggle_autofocus)
+    window.FocusSlider.valueChanged.connect(window.FocalDisk_control)
     window.FXAACheck.toggled.connect(window.FXAA_control)
     window.FXAACheck.toggled.connect(window.UpdateRenderer)
     window.SSAOCheck.toggled.connect(window.SSAO_control)

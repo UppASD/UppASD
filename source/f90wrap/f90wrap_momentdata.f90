@@ -1,4 +1,4 @@
-! Module momentdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/System/momentdata.f90
+! Module momentdata defined in file System/momentdata.f90
 
 subroutine f90wrap_allocate_mmoms(natom, mensemble, flag)
     use momentdata, only: allocate_mmoms
@@ -174,5 +174,5 @@ subroutine f90wrap_momentdata__array__mmom0(dummy_this, nd, dtype, dshape, dloc)
     end if
 end subroutine f90wrap_momentdata__array__mmom0
 
-! End of module momentdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/System/momentdata.f90
+! End of module momentdata defined in file System/momentdata.f90
 

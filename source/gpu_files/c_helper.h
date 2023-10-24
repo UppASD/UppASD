@@ -10,14 +10,16 @@
 #include "real_type.h"
 
 // Fortran naming
-#if defined (__GFORTRAN__) && defined (__IFORT__)
-	#error "both __GFORTRAN__ and __IFORT__ defined!"
-#elif defined (__GFORTRAN__)
+#if defined (__GNU__) && defined (__Intel__)
+	#error "both __GNU__ and __Intel__ defined!"
+#elif defined (__GNU__)
 	#define FORTNAME(mod,func) __ ## mod ## _MOD_ ## func
-#elif defined (__IFORT__)
+#elif defined (__Intel__)
 	#define FORTNAME(mod,func) mod ## _mp_ ## func ## _
+#elif defined (__NVHPC__)
+	#define FORTNAME(mod,func) mod ## _ ## func ## _
 #else
-	#error "FORTRAN compiler not specified! (compile with -D__GFORTRAN__ or -D__IFORT__)"
+	#error "FORTRAN compiler not specified! (compile with -D__GNU__ or -D__Intel__)"
 #endif
 
 

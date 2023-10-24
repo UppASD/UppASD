@@ -42,7 +42,7 @@ FCDEBUG =
 CCFLAGS = -O3 -g -pthread
 CCLIBFLAGS =-fopenmp -llapack
 # Declare what fortran compiler is used (for C/C++/CUDA code)
-C_FCFLAG = -D__GFORTRAN__
+C_FCFLAG = -D__GNU__
 #------------------------------------------------------------------------------------
 # Flags for C++ compilation
 #------------------------------------------------------------------------------------

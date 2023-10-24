@@ -87,7 +87,8 @@ contains
       integer, dimension(:,:,:), allocatable, intent(inout) :: ll_list            !< List of neighbours for LL
       real(dblprec), dimension(:,:,:,:), allocatable, intent(inout) :: ll_tens    !< LL coupling tensor
       real(dblprec), dimension(:,:,:,:), intent(in) :: ll_redcoord         !< Coordinates for LL exchange couplings
-      real(dblprec), dimension(:,:,:,:,:), intent(in) :: ll_inptens      !< LL couplings
+      real(dblprec), dimension(9,NT,max_no_llshells,NT,NT), intent(in) :: ll_inptens      !< LL couplings
+      !real(dblprec), dimension(:,:,:,:,:), intent(in) :: ll_inptens      !< LL couplings
 
       integer, intent(in) :: do_lll                                      !< Add anharmonic (LLL) term to the lattice Hamiltonian (0/1)
       integer, dimension(:), intent(in) :: lll_nn                        !< Number of neighbour shells for LLL
@@ -203,20 +204,13 @@ contains
             nn_ll_tot, max_no_llshells, max_no_equiv, sym, &
             ll_nn, ll_redcoord, nme, nmdim, 1, &
             do_ralloy, Natom_full, acellnumb, atype_ch, &
-            Nchmax, 9, .true., 2, 1, 1, ll_inptens, ll_symtens, ll_symind)
+            !Nchmax, 9, .true., 2, 1, 1, ll_inptens, ll_symtens, ll_symind)
+            Nchmax, 9, .false., 2, 0, 0, ll_inptens, ll_symtens, ll_symind)
+            !Nchmax, hdim, do_tens_sym_in, couptensrank, invsym, timesym, couptens, fullcouptens, nm_cell_symind)
             !Nchmax, 9, .true., 2, 1, 1, ll_inptens, ll_symtens)
             !Nchmax, hdim, do_tens_sym, couptensrank, invsym, timesym, couptens, fullcouptens)
          write(*,'(a)') ' done'
 
-         if(do_hoc_debug == 1) then
-            write(*,*) 'shape ll_symtens', shape(ll_symtens)
-            write(*,'(9f10.6)') ll_symtens
-            !write(*,*) ll_symtens
-            
-            write(*,*) 'shape ll_symind', shape(ll_symind)
-            write(*,'(8I8)') ll_symind
-            !write(*,*) ll_symind
-         end if
          
          if(do_ll_phonopy==1) nn_ll_tot = Natom_phonopy
          !if(do_ll_phonopy==1) nn_ll_tot = Natom
@@ -233,7 +227,6 @@ contains
             0, 0)
          write(*,'(a)') ' done'
 
-         !print *,'ll_tens',ll_tens
          ! Print LL interactions
          if(do_prnstruct==1.or.do_prnstruct==4) then
             write(*,'(2x,a)',advance='no') "Print LL coordination shells"
@@ -533,7 +526,7 @@ contains
             nn_mmll_tot, max_no_mmllshells, max_no_equiv, sym, mmll_nn, mmll_redcoord, nme, nmdim, 3, &
             do_ralloy, Natom_full, acellnumb, atype_ch, &
             Nchmax, 81, .true., 2, 1, 1, mmll_inptens, mmll_symtens, mmll_symind)
-            !Nchmax, hdim, do_tens_sym, couptensrank, invsym, timesym, couptens, fullcouptens)
+         !Nchmax, hdim, do_tens_sym, couptensrank, invsym, timesym, couptens, fullcouptens)
          write(*,'(a)') ' done'
 
          write(*,*) 'nn_mmll_tot ', nn_mmll_tot
@@ -574,18 +567,18 @@ contains
 
    !> Mounts terms of the lattice Hamiltonian
    subroutine setup_neighbour_latticehamiltonian(Natom, NT, NA, anumb, atype, &
-      max_no_neigh, max_no_equiv, max_no_shells, nelem, &
-      hdim, lexp, nlistsize, nn, nlist, ncoup, nm, nmdim, xc, nm_cell_symind, do_sortcoup, do_n3, &
-      !hdim, lexp, nlistsize, nn, nlist, ncoup, nm, nmdim, xc, do_sortcoup, do_n3, &
+         max_no_neigh, max_no_equiv, max_no_shells, nelem, &
+         hdim, lexp, nlistsize, nn, nlist, ncoup, nm, nmdim, xc, nm_cell_symind, do_sortcoup, do_n3, &
+         !hdim, lexp, nlistsize, nn, nlist, ncoup, nm, nmdim, xc, do_sortcoup, do_n3, &
       do_ralloy, Natom_full, Nchmax, atype_ch, asite_ch, achem_ch, ammom_inp, &
-      lexpi, lexpj)
+         lexpi, lexpj)
       !do_ralloy, Natom_full, Nchmax, atype_ch, asite_ch, achem_ch, ammom_inp)
       !
       use Constants
       use Sorting, only : MergeSortIR
-!!! TMP
+      !!! TMP
       use LatticeInputData, only : do_ll_phonopy
-!!! TMP
+      !!! TMP
 
       !
       implicit none
@@ -611,7 +604,8 @@ contains
       real(dblprec), dimension(hdim,max_no_neigh,Natom), intent(out) :: ncoup !< Heisenberg exchange couplings
       integer, dimension(Natom, max_no_shells, max_no_equiv, nelem), intent(in) :: nm !< Neighbour map
       integer, dimension(max_no_shells, Natom), intent(in) :: nmdim !< Dimension of neighbour map
-      real(dblprec), dimension(hdim, NT, max_no_shells, Nchmax, NT, max_no_equiv), intent(in) :: xc !< Coupling constants
+      real(dblprec), dimension(hdim, NT, max_no_shells, NT, NT, 48), intent(in) :: xc !< Coupling constants
+      !real(dblprec), dimension(hdim, NT, max_no_shells, NT, NT, max_no_equiv), intent(in) :: xc !< Coupling constants
       integer, dimension(48,max_no_shells,na) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       !real(dblprec), dimension(hdim, NT, max_no_shells, Nchmax, NT), intent(in) :: xc !< Coupling constants
       character :: do_sortcoup !< Sort the entries of ncoup arrays (Y/N)
@@ -681,6 +675,8 @@ contains
                            !write(*,*) xc(:,atype(i),k,1,atype(nm(i,k,j,1)), j) * fc_unitconv
                            !write(*,'(a,81f10.6)') 'xc_inp ', xc(:,atype(i),k,1,1) * fc_unitconv
                            write(*,'(a,81f10.6)') 'xc_inp ', xc(:,atype(i),k,1,atype(nm(i,k,j,1)), nm_cell_symind(j,k,anumb(i))) * fc_unitconv
+                           write(*,*) '  types: ', atype(i) , atype(nm(i,k,j,1)), nm(i,k,j,1), k
+                           write(*,'(a,5i4, 9f8.4)') '  XC idx:', atype(i),k,1,atype(nm(i,k,j,1)), nm_cell_symind(j,k,anumb(i)), xc(:,atype(i),k,1,atype(nm(i,k,j,1)), nm_cell_symind(j,k,anumb(i))) 
                            !write(*,'(a,81f10.6)') 'xc_inp ', xc(:,atype(i),k,1,atype(nm(i,k,j,1)), nm_cell_symind(j,k,atype(i))) * fc_unitconv                           
                            !write(*,'(a,81f10.6)') 'xc_inp ', xc(:,atype(i),k,1,atype(nm(i,k,j,1)), j) * fc_unitconv
                            !write(*,'(a,81f10.6)') 'xc_inp ', xc(:,atype(i),k,1,atype(nm(i,k,j,1))) * fc_unitconv

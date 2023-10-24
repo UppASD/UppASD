@@ -186,7 +186,7 @@ contains
       call print_fields(mstep,sstep,Natom,Mensemble,simid,real_time_measure,delta_t,&
          beff,thermal_field,beff1,beff3,emom)
       ! Print topological information of the sample
-      call print_topology(NT,N1,N2,sstep,mstep,Natom,Mensemble,delta_t,             &
+      call print_topology(NT,NA,N1,N2,sstep,mstep,Natom,Mensemble,delta_t,             &
          real_time_measure,emomM,emom,simid,atype)
       ! Print the polarization measurement
       call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emomM,&

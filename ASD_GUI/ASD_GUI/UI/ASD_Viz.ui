@@ -3253,6 +3253,108 @@
                                        </widget>
                                     </item>
                                     <item>
+                                       <widget class="QGroupBox" name="FocusBox">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="sizePolicy">
+                                             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                                                <horstretch>0</horstretch>
+                                                <verstretch>0</verstretch>
+                                             </sizepolicy>
+                                          </property>
+                                          <property name="minimumSize">
+                                             <size>
+                                                <width>300</width>
+                                                <height>0</height>
+                                             </size>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Options for focal blur</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Options for focal blur</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Options for focal blur</string>
+                                          </property>
+                                          <property name="title">
+                                             <string>Focal blur</string>
+                                          </property>
+                                          <property name="checkable">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="checked">
+                                             <bool>false</bool>
+                                          </property>
+                                          <layout class="QGridLayout" name="FocusLayout">
+                                             <item column="0" row="0">
+                                                <widget class="QLabel" name="FocusLabel">
+                                                   <property name="text">
+                                                      <string>Focal depth</string>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item column="1" row="0">
+                                                <widget class="QSlider" name="FocusSlider">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Change the depth of field</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Change the depth of field</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Change the depth of field</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>1</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>10</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>100</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>10</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item row="1">
+                                                <widget class="QCheckBox" name="AutoFocusCheck">
+                                                   <property name="toolTip">
+                                                      <string>Toggle automatic focal point determination</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Toggle automatic focal point determination</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Toggle automatic focal point determination</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Automatic focus point</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>false</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                          </layout>
+                                       </widget>
+                                    </item>
+                                    <item>
                                        <spacer name="verticalSpacer_4">
                                           <property name="orientation">
                                              <enum>Qt::Vertical</enum>

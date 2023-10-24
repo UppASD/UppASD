@@ -23,8 +23,8 @@ def is_close(A,B):
 hbar=6.582119514e-13
 ry_ev=13.605693009
 
-sigma_q = 1.0
-sigma_w = 1.0
+sigma_q = 0.5 # 0.5
+sigma_w  = 1.0 # 4.0
 
 
 ############################################################
@@ -155,20 +155,26 @@ lattice,positions,numbers,simid,mesh,timestep,sc_step,sc_nstep,qfile=read_inpsd(
 # Read adiabatic magnon spectra
 ############################################################
 got_ams=os.path.isfile('ams.'+simid+'.out')
+got_ncams=os.path.isfile('ncams.'+simid+'.out')
+got_ncams_mq=os.path.isfile('ncams-q.'+simid+'.out')
+got_ncams_pq=os.path.isfile('ncams+q.'+simid+'.out')
 if got_ams:
     ams=np.loadtxt('ams.'+simid+'.out')
     ams_dist_col=ams.shape[1]-1
-else: 
-    got_ncams=os.path.isfile('ncams.'+simid+'.out')
-    if got_ncams:
-        ams=np.loadtxt('ncams.'+simid+'.out')
-        ams_dist_col=ams.shape[1]-1
-        got_ncams_pq=os.path.isfile('ncams+q.'+simid+'.out')
-        if got_ncams_pq:
-            ams_pq=np.loadtxt('ncams+q.'+simid+'.out')
-        got_ncams_mq=os.path.isfile('ncams-q.'+simid+'.out')
-        if got_ncams_mq:
-            ams_mq=np.loadtxt('ncams-q.'+simid+'.out')
+#else: 
+    #got_ncams=os.path.isfile('ncams.'+simid+'.out')
+if got_ncams:
+    ams=np.loadtxt('ncams.'+simid+'.out')
+    ams_dist_col=ams.shape[1]-1
+if got_ncams_pq:
+    ams_pq=np.loadtxt('ncams+q.'+simid+'.out')
+if got_ncams_mq:
+    ams_mq=np.loadtxt('ncams-q.'+simid+'.out')
+
+# Set the x-vector
+q_vecs=ams[:,0]
+q_min = np.min(q_vecs)
+q_max = np.max(q_vecs)
         
 
 if got_ams or got_ncams:
@@ -185,9 +191,9 @@ if got_sqw:
     sqw=np.genfromtxt('sqw.'+simid+'.out',usecols=(0,4,5,6,7,8))
     nq=int(sqw[-1,0])
     nw=int(sqw.shape[0]/nq)
-    sqw_x=np.reshape(sqw[:,2],(nq,nw))
-    sqw_y=np.reshape(sqw[:,3],(nq,nw))
-    sqw_z=np.reshape(sqw[:,4],(nq,nw))
+    sqw_x=np.reshape(sqw[:,2],(nq,nw))[:,:]
+    sqw_y=np.reshape(sqw[:,3],(nq,nw))[:,:]
+    sqw_z=np.reshape(sqw[:,4],(nq,nw))[:,:]
     sqw_t=sqw_x**2+sqw_y**2
 
 
@@ -289,7 +295,8 @@ sympoints=kpath_obj['point_coords']
 #### Extract symmetry points and their location for plotting
 ###############################################################
 
-if(qfile=='qfile.kpath'):
+#if(qfile=='qfile.kpath' or qfile=='qfile.kpath2d'):
+if('qfile.kpath' in qfile):
     with open(qfile,'r') as f:
         f.readline()
         qpts=f.readlines()
@@ -301,8 +308,8 @@ if(qfile=='qfile.kpath'):
         rs=row.split()
         if len(rs)==4:
             axlab.append(rs[3])
-            axidx.append(ams[idx,ams_dist_col])
-            axidx_abs.append(ams[idx,0])
+            axidx.append(q_vecs[idx])
+            axidx_abs.append(q_vecs[idx])
     
     axlab=['$\Gamma$' if x[0]=='G' else '{}'.format(x) for x in axlab]
 else:
@@ -316,12 +323,13 @@ else:
        for k,v in kpath_obj['point_coords'].items():
            if is_close(v,row):
                axlab.append(k[0])
-               axidx.append(ams[idx,ams_dist_col])
-               axidx_abs.append(ams[idx,0])
+               axidx.append(q_vecs[idx])
+               axidx_abs.append(q_vecs[idx])
            elif idx==0:
                axlab.append(' ')
-               axidx.append(0.0)
-               axidx_abs.append(ams[idx,0])
+               axidx.append(1.0)
+               axidx_abs.append(q_vecs[idx])
+               #axidx_abs.append(ams[idx,0])
 
        
    axlab=['$\Gamma$' if x[0]=='G' else '{}'.format(x) for x in axlab]
@@ -332,22 +340,51 @@ else:
 ############################################################
 # Plot the AMS
 ############################################################
-plt.figure(figsize=[8,5])
+if got_ams or got_ncams:
+    plt.figure(figsize=[8,5])
+    
+    plt.plot(q_vecs[:],ams[:,1:ams_dist_col])
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx,axlab)
+    #plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=True)
+    plt.ylim(0)
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams.png')
 
+    plt.close()
 
-plt.plot(ams[:,ams_dist_col],ams[:,1:ams_dist_col])
-ala=plt.xticks()
+if got_ncams:
 
+    plt.figure(figsize=[8,5])
+    
 
-plt.xticks(axidx,axlab)
-#plt.xlabel('q')
-plt.ylabel('Energy (meV)')
+    plt.plot(q_vecs[:],   ams[:,1:ams_dist_col],label='E(q)')
+    if got_ncams_pq:
+        plt.plot(q_vecs[:],ams_pq[:,1:ams_dist_col],label='E(q+q$_0$)')
+    if got_ncams_mq:
+        plt.plot(q_vecs[:],ams_mq[:,1:ams_dist_col],label='E(q-q$_0$)')
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx,axlab)
+    #plt.xlabel('q')
+    plt.legend()
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=True)
+    plt.ylim(0)
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams_q.png')
 
-plt.autoscale(tight=True)
-plt.ylim(0)
-plt.grid(visible=True,which='major',axis='x')
-#plt.show()
-plt.savefig('ams.png')
+    plt.close()
+
 
 
 # In[ ]:
@@ -367,8 +404,9 @@ if got_sqw:
     sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
     sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
     sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
+    plt.plot(q_vecs[:],ams[:,1:ams_dist_col],'black',lw=0.5)
     ala=plt.xticks()
     
     
@@ -376,9 +414,9 @@ if got_sqw:
     plt.xlabel('q')
     plt.ylabel('Energy (meV)')
     
-    plt.autoscale(tight=False)
-    ax.set_aspect('auto')
     plt.grid(visible=True,which='major',axis='x')
+    ax.set_aspect('auto')
+    plt.autoscale(tight=True)
     #plt.show()
     plt.savefig('ams_sqw.png')
 
@@ -398,20 +436,27 @@ if got_sqw and got_ncams and got_ncams_pq and got_ncams_mq:
     sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
     sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
     sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams_pq[:,1:ams_dist_col],'black',lw=1)
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams_mq[:,1:ams_dist_col],'black',lw=1)
+    imx_min=np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1])
+    imx_max=np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[imx_min,imx_max,0,emax])
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    plt.plot(q_vecs[:],   ams[:,1:ams_dist_col],'black',lw=0.5)
+    plt.plot(q_vecs[:],ams_pq[:,1:ams_dist_col],'black',lw=0.5)
+    plt.plot(q_vecs[:],ams_mq[:,1:ams_dist_col],'black',lw=0.5)
     ala=plt.xticks()
     
     
     plt.xticks(axidx_abs,axlab)
+    #print('::::>',[np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
     plt.xlabel('q')
     plt.ylabel('Energy (meV)')
     
-    plt.autoscale(tight=False)
-    ax.set_aspect('auto')
     plt.grid(visible=True,which='major',axis='x')
+    ax.set_aspect('auto')
+    plt.autoscale(tight=True)
+    #plt.xlim([np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
     plt.savefig('ams_sqw_q.png')
 
 

@@ -685,6 +685,7 @@ contains
          if(do_ralloy==0) then
             if(tensor_format) then
                read(ifileno,*) isite,jsite,r_tmp(1:3),j_tmp
+               j_tmp = transpose(j_tmp)
             else
                read(ifileno,*) isite,jsite,r_tmp(1:3),j_tmpSingle
             endif

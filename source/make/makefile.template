@@ -131,7 +131,7 @@ gneb-tests:
 	@cd ../tests; python -u ./bergtest.py --clean
 
 regression-test:
-	@cd ../tests; python -u ./bergtest.py --file regressionHisingen.yaml | tee regression-tests.log
+	@cd ../tests; python -u ./bergtest.py --file regressionResaro.yaml | tee regression-tests.log
 	@cd ../tests; python -u ./bergtest.py --clean
 
 
