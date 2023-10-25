@@ -104,9 +104,8 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      !!!$omp target enter data map(to:ham%nlistsize,ham%aHam)
-      !!!$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
-      !!!$omp target teams distribute parallel do simd collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
+      !$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist)
+      !$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
       do k=1, Mensemble
          do i=start_atom, stop_atom
 
@@ -124,10 +123,10 @@ contains
 
             ih=ham%aHam(i)
 
-            !do j=1,ham%nlistsize(ih)
-            !   beff_s = beff_s + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
-            !   !field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
-            !end do
+            do j=1,ham%nlistsize(ih)
+               beff_s = beff_s + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+               !field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+            end do
 
             beff1(1:3,i,k)= beff_s
             beff2(1:3,i,k)= beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
@@ -137,9 +136,8 @@ contains
             energy=energy - emomM(1,i,k)*tfield(1)-emomM(2,i,k)*tfield(2)-emomM(3,i,k)*tfield(3)
          end do
       end do
-      !!!$omp end target teams distribute parallel do simd
-      !!!$omp end target teams distribute parallel do
-      !!!$omp target exit data map(delete:ham%nlistsize,ham%aHam)
+      !$omp end target teams distribute parallel do
+      !$omp target exit data map(delete:ham%nlistsize,ham%aHam)
       energy = energy * mub / mry
 
    end subroutine effective_field_gpu
