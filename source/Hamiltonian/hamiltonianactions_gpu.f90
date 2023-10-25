@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! MODULE: HamiltonianActions_cpu
+! MODULE: HamiltonianActions_gpu
 !> @brief
 !> Calculate effective field by applying the derivative of the Hamiltonian
 !> @details The effective field, \f$\mathbf{B}_i\f$, on an atom \f$\textit{i}\f$, is calculated from
@@ -83,14 +83,10 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       !.. Local scalars
-      integer :: i,k
+      integer :: i,j,k,ih
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
 
       !.. Executable statements
-      if(OPT_flag) call pre_optimize_cpu(Natom,Mensemble,max_no_constellations,         &
-         maxNoConstl,constellations,constlNCoup,beff1_constellations,               &
-         constellationsNeighType)
-
       ! Initialization of the energy
       energy=0.0_dblprec
       ! Initialization if the effective field
@@ -108,8 +104,9 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      !$omp target enter data map(to:ham%nlistsize,ham%aHam)
-      !$omp target teams distribute parallel do simd collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m) 
+      !!!$omp target enter data map(to:ham%nlistsize,ham%aHam)
+      !!!$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
+      !!!$omp target teams distribute parallel do simd collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
       do k=1, Mensemble
          do i=start_atom, stop_atom
 
@@ -117,13 +114,21 @@ contains
             beff_q=0.0_dblprec
             beff_m=0.0_dblprec
 
-            if(ham_inp%do_jtensor/=1) then
-               ! Heisenberg exchange term
-               call heisenberg_field_cpu(i, k, beff_s,Natom,Mensemble,OPT_flag,      &
-                    beff1_constellations,unitCellType,emomM,max_no_constellations)
-            else
-               call tensor_field_cpu(i, k, beff_s,Natom,Mensemble,emomM)
-            end if
+            !if(ham_inp%do_jtensor/=1) then
+            !   ! Heisenberg exchange term
+            !   call heisenberg_field_gpu(i, k, beff_s,Natom,Mensemble,OPT_flag,      &
+            !        beff1_constellations,unitCellType,emomM,max_no_constellations)
+            !else
+            !   call tensor_field_gpu(i, k, beff_s,Natom,Mensemble,emomM)
+            !end if
+
+            ih=ham%aHam(i)
+
+            !do j=1,ham%nlistsize(ih)
+            !   beff_s = beff_s + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+            !   !field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+            !end do
+
             beff1(1:3,i,k)= beff_s
             beff2(1:3,i,k)= beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
             beff(1:3,i,k) = beff(1:3,i,k)+ beff1(1:3,i,k)+beff2(1:3,i,k)
@@ -132,50 +137,17 @@ contains
             energy=energy - emomM(1,i,k)*tfield(1)-emomM(2,i,k)*tfield(2)-emomM(3,i,k)*tfield(3)
          end do
       end do
-      !$omp end target teams distribute parallel do simd
-      !$omp target exit data map(delete:ham%nlistsize,ham%aHam)
+      !!!$omp end target teams distribute parallel do simd
+      !!!$omp end target teams distribute parallel do
+      !!!$omp target exit data map(delete:ham%nlistsize,ham%aHam)
       energy = energy * mub / mry
 
    end subroutine effective_field_gpu
 
-   !contains
-
-      !---------------pre_optimize---------------!
-      !> Preoptimization
-      subroutine pre_optimize_cpu(Natom,Mensemble,max_no_constellations,maxNoConstl,    &
-         constellations,constlNCoup,beff1_constellations,constellationsNeighType)
-
-         implicit none
-
-         integer, intent(in) :: Natom        !< Number of atoms in system
-         integer, intent(in) :: Mensemble    !< Number of ensembles
-         integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-         integer, dimension(:), intent(in) :: maxNoConstl
-         integer, dimension(:,:,:), intent(in) :: constellationsNeighType
-         real(dblprec), dimension(:,:,:), intent(in) :: constellations
-         real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-         real(dblprec), dimension(3,max_no_constellations,Mensemble), intent(inout) :: beff1_constellations
-
-         integer :: k,i,j
-
-         beff1_constellations(:,:,:) = 0.0_dblprec
-         do k=1,Mensemble
-            ! Compute the Heissenberg exchange term for the (representative) unit cells in each constellation
-            do i=1,maxNoConstl(k)
-               ! Computation of the exchange term, going to ham%max_no_neigh since the exchange factor,
-               ! governed by constlNCoup, is zero for iterations beyond the neighbourhood of atom i
-               do j=1,ham%max_no_neigh
-                  beff1_constellations(:,i,k) = beff1_constellations(:,i,k) + &
-                     constlNCoup(j,i,k)*constellations(:,constellationsNeighType(j,i,k),k)
-               end do
-            end do
-         end do
-
-      end subroutine pre_optimize_cpu
 
       !---------------heisenberg_field---------------!
       !> Heisenberg
-      subroutine heisenberg_field_cpu(i, k, field,Natom,Mensemble,OPT_flag,             &
+      subroutine heisenberg_field_gpu(i, k, field,Natom,Mensemble,OPT_flag,             &
          beff1_constellations,unitCellType,emomM,max_no_constellations)
 
          implicit none
@@ -204,23 +176,20 @@ contains
             end do
          else
             ih=ham%aHam(i)
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
-!            !$omp simd reduction(+:field)
-#endif
            
             do j=1,ham%nlistsize(ih)
                !           !DIR$ vector always aligned
                field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
             end do
          endif
-      end subroutine heisenberg_field_cpu
+      end subroutine heisenberg_field_gpu
 
       !---------------tensor_heisenberg_field---------------!
       !> @brief Calculates heisenberg, DM and anisotropy through one tensor
       !>
       !> @Date 09/15/2014 - Thomas Nystrand
       !> - Added 0.5*m_i*I part
-      subroutine tensor_field_cpu(i, k, field,Natom,Mensemble,emomM)
+      subroutine tensor_field_gpu(i, k, field,Natom,Mensemble,emomM)
 
          implicit none
          !$omp declare target
@@ -238,13 +207,10 @@ contains
 
          !Exchange term
          ih=ham%aHam(i)
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
-!         !$omp simd reduction(+:field)
-#endif
          do j=1,ham%nlistsize(ih)
             x = ham%nlist(j,i);
             field = field + ham%j_tens(:,1,j,i)*emomM(1,x,k) + ham%j_tens(:,2,j,i)*emomM(2,x,k) + ham%j_tens(:,3,j,i)*emomM(3,x,k)
          end do
-      end subroutine tensor_field_cpu
+      end subroutine tensor_field_gpu
 
 end module HamiltonianActions_gpu

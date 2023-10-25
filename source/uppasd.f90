@@ -1431,6 +1431,7 @@ contains
       use Depondt,               only : allocate_depondtfields
       use Midpoint,              only : allocate_aux_midpoint_fields
       use Midpoint_cpu,          only : allocate_aux_midpoint_fields_cpu
+      use Midpoint_gpu,          only : allocate_aux_midpoint_fields_gpu
       use InputData
       use FieldData,             only : allocate_fields, read_local_field, allocation_field_time
       use MonteCarlo,            only : mcmavg_buff, indxb_mcavrg
@@ -1461,6 +1462,7 @@ contains
         if (mode.ne.'MS') then
            call allocate_aux_midpoint_fields(flag,Natom,Mensemble)
            call allocate_aux_midpoint_fields_cpu(flag,Natom,Mensemble)
+           call allocate_aux_midpoint_fields_gpu(flag,Natom,Mensemble)
         endif
       endif
       if (SDEalgh==4 .or. ipSDEalgh==4) then
