@@ -1,1 +1,1 @@
-target_sources(${UppASD_LIB} PRIVATE depondt.f90 evolution.f90 heun_proper.f90 heun_single.f90 llgi.f90 midpoint.f90 sphmidpoint.f90 updatemoments.f90 evolution_lite.f90 )
+target_sources(${UppASD_LIB} PRIVATE depondt.f90 evolution.f90 evolution_cpu.f90 evolution_gpu.f90 heun_proper.f90 heun_single.f90 llgi.f90 midpoint.f90 midpoint_cpu.f90 midpoint_gpu.f90 sphmidpoint.f90 updatemoments.f90 evolution_lite.f90 )
