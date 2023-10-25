@@ -221,7 +221,7 @@ void CudaMdSimulation::copyToFortran() {
 		emomM         .write(FortranData::emomM         );
 		emom          .write(FortranData::emom          );
 		emom2         .write(FortranData::emom2         );
-//		external_field.write(FortranData::external_field);
+		external_field.write(FortranData::external_field);
 		mmom          .write(FortranData::mmom          );
 //		btorque       .write(FortranData::btorque       );
 //		temperature   .write(FortranData::temperature   );
@@ -337,7 +337,12 @@ void CudaMdSimulation::measurementPhase() {
 	//printf("%zu\n", external_field.size());
 	//for( int i = 0; i < external_field.size(); i++)
 	//{
-	//	printf("%f \n", ((external_field.get_data()))[i]);
+	//	//printf("%f ", f_external_field.get_data()[i]);
+	//}
+
+	//for( int i = 0; i < f_dmvect.size(); i++)
+	//{
+	//	printf("%f ", f_dmvect.get_data()[i]);
 	//}
 
 	//printConstants();
