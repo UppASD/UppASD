@@ -335,12 +335,12 @@ void CudaMdSimulation::measurementPhase() {
 	//printf("ajsdfjkhasjklhdfjklhasdjklfhjk___________\n");
 	//printf("%d\n", external_field.has_data());
 	//printf("%zu\n", external_field.size());
-	////for( int i = 0; i < f_dmlistsize.size(); i++)
-	////{
-	////	//printf("%f \n", f_dmlistsize[i]);
-	////}
+	//for( int i = 0; i < external_field.size(); i++)
+	//{
+	//	printf("%f \n", ((external_field.get_data()))[i]);
+	//}
 
-	printConstants();
+	//printConstants();
 
 	// Timing
 	stopwatch.add("initiate");
