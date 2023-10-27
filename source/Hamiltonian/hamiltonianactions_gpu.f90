@@ -104,8 +104,10 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      !$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist)
-      !$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,k,beff_s,beff_q,tfield,beff_m)
+      !$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
+      !$omp target enter data map(to:external_field, time_external_field, energy, Mensemble, start_atom, stop_atom)
+      !$omp target enter data map(to:i, j, k, ih)
+      !$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,j,k,ih,beff_s,beff_q,tfield,beff_m)
       do k=1, Mensemble
          do i=start_atom, stop_atom
 
@@ -124,8 +126,10 @@ contains
             ih=ham%aHam(i)
 
             do j=1,ham%nlistsize(ih)
-               beff_s = beff_s + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
-               !field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+              !beff1(1:3,i,k) = beff1(1:3,i,k) + emomM(:,ham%nlist(j,i),k)
+              !beff1(1:3,i,k) = beff1(1:3,i,k) + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+              beff_s = beff_s + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
+              !field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
             end do
 
             beff1(1:3,i,k)= beff_s
@@ -137,7 +141,9 @@ contains
          end do
       end do
       !$omp end target teams distribute parallel do
-      !$omp target exit data map(delete:ham%nlistsize,ham%aHam)
+      !$omp target exit data map(delete:i, j, k, ih)
+      !$omp target exit data map(delete:external_field, time_external_field, energy, start_atom, stop_atom)
+      !$omp target exit data map(delete:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
       energy = energy * mub / mry
 
    end subroutine effective_field_gpu
@@ -149,7 +155,6 @@ contains
          beff1_constellations,unitCellType,emomM,max_no_constellations)
 
          implicit none
-         !$omp declare target
 
          integer, intent(in) :: i !< Atom to calculate effective field for
          integer, intent(in) :: k !< Current ensemble
@@ -190,7 +195,6 @@ contains
       subroutine tensor_field_gpu(i, k, field,Natom,Mensemble,emomM)
 
          implicit none
-         !$omp declare target
 
          integer, intent(in) :: i !< Atom to calculate effective field for
          integer, intent(in) :: k !< Current ensemble
