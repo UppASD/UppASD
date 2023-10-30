@@ -193,6 +193,14 @@ contains
       ! End of initial KMC wrapper
       !------------------------------------------------------------------------------
 
+      write(*,*) 'Before call to enter_effective_field_gpu'
+      call enter_effective_field_gpu(Natom,Mensemble,1,Natom,emomM,   &
+           mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
+           max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
+           constellations, constellationsNeighType, totenergy,        &
+           Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+      write(*,*) 'After call to enter_effective_field_gpu'
+
       do while (mstep.LE.rstep+nstep) !+1
 
          if (time_dept_flag) then
@@ -321,13 +329,13 @@ contains
             beff=beff1+beff2
          else
 
-            write(*,*) 'Before call to effective_field_gpu'
+            !write(*,*) 'Before call to effective_field_gpu'
             call effective_field_gpu(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
-            write(*,*) 'After call to effective_field_gpu'
+            !write(*,*) 'After call to effective_field_gpu'
          end if
 
          call timing(0,'Hamiltonian   ','OF')
@@ -339,7 +347,7 @@ contains
             endif
             ! Check if this changes
             thermal_field=0.0_dblprec
-            write(*,*) 'Before call to evolve_first_gpu'
+            !write(*,*) 'Before call to evolve_first_gpu'
             call evolve_first_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
                lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,      &
                temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,    &
@@ -348,7 +356,7 @@ contains
                constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,      &
                max_no_constellations,do_she,she_btorque,Nred,red_atom_list,         &
                do_sot,sot_btorque)
-            write(*,*) 'After call to evolve_first_gpu'
+            !write(*,*) 'After call to evolve_first_gpu'
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Hamiltonian   ','ON')
@@ -385,14 +393,14 @@ contains
                !---------------------------------------------------------------------
                !! End of the induced moments treatment
                !---------------------------------------------------------------------
-               write(*,*) 'Before second call to effective_field_gpu'
+               !write(*,*) 'Before second call to effective_field_gpu'
                call effective_field_gpu(Natom,Mensemble,1,Natom,  &
                   emomM,mmom,external_field,time_external_field,     &
                   beff,beff1,beff2,OPT_flag,max_no_constellations,maxNoConstl,      &
                   unitCellType,constlNCoup,constellations,constellationsNeighType,  & 
                   totenergy,Num_macro,cell_index,emomM_macro,             &
                   macro_nlistsize,NA,N1,N2,N3)
-               write(*,*) 'After second call to effective_field_gpu'
+               !write(*,*) 'After second call to effective_field_gpu'
             end if
 
          end if
@@ -405,14 +413,14 @@ contains
          end if
 
          ! Perform second (corrector) step of SDE solver
-         write(*,*) 'Before call to evolve_second_gpu'
+         !write(*,*) 'Before call to evolve_second_gpu'
          call evolve_second_gpu(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
             delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,              &
             ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
             constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
             max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
             do_sot,sot_btorque)
-         write(*,*) 'After call to evolve_second_gpu'
+         !write(*,*) 'After call to evolve_second_gpu'
 
          call timing(0,'Evolution     ','OF')
          call timing(0,'Moments       ','ON')
@@ -491,6 +499,14 @@ contains
          !----------------------------------------------------------------------------
 
       end do ! End loop over simulation steps
+
+      write(*,*) 'Before call to exit_effective_field_gpu'
+      call exit_effective_field_gpu(Natom,Mensemble,1,Natom,emomM,   &
+           mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
+           max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
+           constellations, constellationsNeighType, totenergy,        &
+           Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+      write(*,*) 'After call to exit_effective_field_gpu'
 
       ! Measure averages and trajectories
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,mmom, &

@@ -24,6 +24,120 @@ module HamiltonianActions_gpu
 
 contains
 
+   subroutine enter_effective_field_gpu(Natom,Mensemble,start_atom,stop_atom,   &
+      emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+      constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+      macro_nlistsize,NA,N1,N2,N3)
+      !
+      use Constants, only : mry,mub
+      use DipoleManager, only : dipole_field_calculation
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA
+      integer, intent(in) :: N1
+      integer, intent(in) :: N2
+      integer, intent(in) :: N3
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Mensemble    !< Number of ensembles
+      integer, intent(in) :: start_atom   !< Atom to start loop for
+      integer, intent(in) :: stop_atom    !< Atom to end loop for
+      integer, intent(in) :: Num_macro    !< Number of macrocells in the system
+      integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
+      ! .. Output Variables
+      real(dblprec), intent(out) :: energy !< Total energy
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff  !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ Optimization Routines Variables +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
+      logical, intent(in) :: OPT_flag
+      integer, dimension(:), intent(in) :: maxNoConstl
+      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
+      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
+      real(dblprec), dimension(:,:,:), intent(in) :: constellations
+      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ End Region +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      !.. Local scalars
+      integer :: i,j,k,ih
+      real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
+      !$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
+      !$omp target enter data map(to:external_field, time_external_field, energy, Mensemble, start_atom, stop_atom)
+      !$omp target enter data map(to:i, j, k, ih)
+
+   end subroutine enter_effective_field_gpu
+
+   subroutine exit_effective_field_gpu(Natom,Mensemble,start_atom,stop_atom,   &
+      emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+      constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+      macro_nlistsize,NA,N1,N2,N3)
+      !
+      use Constants, only : mry,mub
+      use DipoleManager, only : dipole_field_calculation
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA
+      integer, intent(in) :: N1
+      integer, intent(in) :: N2
+      integer, intent(in) :: N3
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Mensemble    !< Number of ensembles
+      integer, intent(in) :: start_atom   !< Atom to start loop for
+      integer, intent(in) :: stop_atom    !< Atom to end loop for
+      integer, intent(in) :: Num_macro    !< Number of macrocells in the system
+      integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
+      ! .. Output Variables
+      real(dblprec), intent(out) :: energy !< Total energy
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff  !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ Optimization Routines Variables +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
+      logical, intent(in) :: OPT_flag
+      integer, dimension(:), intent(in) :: maxNoConstl
+      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
+      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
+      real(dblprec), dimension(:,:,:), intent(in) :: constellations
+      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ End Region +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      !.. Local scalars
+      integer :: i,j,k,ih
+      real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
+      !$omp target exit data map(from:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
+      !$omp target exit data map(from:external_field, time_external_field, energy, Mensemble, start_atom, stop_atom)
+      !$omp target exit data map(from:i, j, k, ih)
+
+   end subroutine exit_effective_field_gpu
+
    !----------------------------------------------------------------------------
    ! SUBROUTINE: effective_field
    !> @brief
@@ -104,9 +218,9 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      !$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
-      !$omp target enter data map(to:external_field, time_external_field, energy, Mensemble, start_atom, stop_atom)
-      !$omp target enter data map(to:i, j, k, ih)
+      !!!$omp target enter data map(to:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
+      !!!$omp target enter data map(to:external_field, time_external_field, energy, Mensemble, start_atom, stop_atom)
+      !!!$omp target enter data map(to:i, j, k, ih)
       !$omp target teams distribute parallel do collapse(2) reduction(+:energy) private(i,j,k,ih,beff_s,beff_q,tfield,beff_m)
       do k=1, Mensemble
          do i=start_atom, stop_atom
@@ -141,9 +255,9 @@ contains
          end do
       end do
       !$omp end target teams distribute parallel do
-      !$omp target exit data map(delete:i, j, k, ih)
-      !$omp target exit data map(delete:external_field, time_external_field, energy, start_atom, stop_atom)
-      !$omp target exit data map(delete:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
+      !!!$omp target exit data map(delete:i, j, k, ih)
+      !!!$omp target exit data map(delete:external_field, time_external_field, energy, start_atom, stop_atom)
+      !!!$omp target exit data map(delete:ham%nlistsize,ham%aHam,ham%ncoup,ham%nlist, beff_s, beff_q, beff_m, tfield, emomm)
       energy = energy * mub / mry
 
    end subroutine effective_field_gpu
