@@ -403,6 +403,11 @@ contains
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
       end if
 
+      ! Rescaling of temperature according to exponential cooling/heating
+      if (do_tempexp == 'Y') then
+         print *, 'Exponential temperature profile used'
+      end if
+
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
       temprescalegrad=0.0_dblprec
@@ -533,6 +538,12 @@ contains
          else
             write(*,'(2x,a,i3,a,G13.6)')   "Iteration",mstep," Mbar ",mavg
          endif
+
+         ! Adjust of temperature according to exponential cooling/heating
+         if (do_tempexp == 'Y') then
+            Temp = f_tempexp(delta_t,mstep,simid)
+            Temp_array = Temp
+         end if
 
          !Adjust QHB
          if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
