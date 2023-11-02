@@ -332,16 +332,21 @@ void CudaMdSimulation::measurementPhase() {
 	integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
 
 	// Debug
-	//printf("ajsdfjkhasjklhdfjklhasdjklfhjk___________\n");
+	printf("___________ DEBUG PTINT ___________\n");
+	
+	// Print the external field vector
 	//printf("%d\n", external_field.has_data());
 	//printf("%zu\n", external_field.size());
 	//for( int i = 0; i < external_field.size(); i++)
 	//{
-	//	//printf("%f ", f_external_field.get_data()[i]);
+	//	printf("%f ", f_external_field.get_data()[i]);
 	//}
 
+
+	// Print the DM vector
 	//for( int i = 0; i < f_dmvect.size(); i++)
 	//{
+	//
 	//	printf("%f ", f_dmvect.get_data()[i]);
 	//}
 
