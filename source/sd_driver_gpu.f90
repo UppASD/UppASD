@@ -53,6 +53,7 @@ contains
       use Gradients
       use Evolution
       use Evolution_gpu
+      use Midpoint_gpu
       use InputData
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
@@ -71,6 +72,7 @@ contains
       use Measurements
       use Polarization
       use UpdateMoments
+      use UpdateMoments_gpu
       !use InducedMoments,        only : renorm_ncoup_ind
       use MicroWaveField
       use SimulationData,        only : bn, rstep, mstep
@@ -84,6 +86,7 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use MetaTypes
+      use omp_lib
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
@@ -200,6 +203,16 @@ contains
            constellations, constellationsNeighType, totenergy,        &
            Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
       write(*,*) 'After call to enter_effective_field_gpu'
+
+      write(*,*) 'Before call to enter_smodeulermpt_gpu'
+      call enter_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,delta_t,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
+      write(*,*) 'After call to enter_smodeulermpt_gpu'
+
+      write(*,*) 'Before call to enter_moment_update_gpu'
+      call enter_moment_update_gpu(Natom, Mensemble, mmom, mmom0, mmom2, emom, emom2, emomM, mmomi, mompar, initexc)
+      write(*,*) 'After call to enter_moment_update_gpu'
 
       do while (mstep.LE.rstep+nstep) !+1
 
@@ -425,9 +438,25 @@ contains
          call timing(0,'Evolution     ','OF')
          call timing(0,'Moments       ','ON')
 
+         !write(*,*) 'Before call to update_effective_field_gpu'
+         call update_effective_field_gpu(Natom,Mensemble,1,Natom,emomM,   &
+              mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
+              max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
+              constellations, constellationsNeighType, totenergy,        &
+              Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         !write(*,*) 'After call to update_effective_field_gpu'
+
+         !write(*,*) 'Before call to update_smodeulermpt_gpu'
+         call update_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+              emomM,mmom,delta_t,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+              sot_btorque,Nred,red_atom_list)
+         !write(*,*) 'After call to update_smodeulermpt_gpu'
+
          ! Update magnetic moments after time evolution step
-         call moment_update(Natom,Mensemble,mmom,mmom0,mmom2,emom,emom2,emomM,mmomi,&
+         !write(*,*) 'Before call to moment_update_gpu'
+         call moment_update_gpu(Natom,Mensemble,mmom,mmom0,mmom2,emom,emom2,emomM,mmomi,&
             mompar,initexc)
+         !write(*,*) 'After call to moment_update_gpu'
 
          call timing(0,'Moments       ','OF')
          call timing(0,'Measurement   ','ON')
@@ -499,6 +528,16 @@ contains
          !----------------------------------------------------------------------------
 
       end do ! End loop over simulation steps
+
+      write(*,*) 'Before call to exit_moment_update_gpu'
+      call exit_moment_update_gpu(Natom, Mensemble, mmom, mmom0, mmom2, emom, emom2, emomM, mmomi, mompar, initexc)
+      write(*,*) 'After call to exit_moment_update_gpu'
+
+      write(*,*) 'Before call to exit_smodeulermpt_gpu'
+      call exit_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,delta_t,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
+      write(*,*) 'After call to exit_smodeulermpt_gpu'
 
       write(*,*) 'Before call to exit_effective_field_gpu'
       call exit_effective_field_gpu(Natom,Mensemble,1,Natom,emomM,   &

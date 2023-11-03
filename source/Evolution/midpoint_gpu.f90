@@ -23,6 +23,206 @@ module Midpoint_gpu
 
 contains
 
+   subroutine enter_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,deltat,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
+
+      use Constants
+      use RandomNumbers, only : ranv
+      use omp_lib
+
+      implicit none
+
+      integer, intent(in) :: Nred            !< Number of moments that can be updated
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Mensemble       !< Number of ensembles
+      real(dblprec), intent(in) :: bn        !< Scaling factor for LLG equation (parameter=1.0_dblprec)
+      real(dblprec), intent(in) :: deltat    !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array   !< Damping parameter
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom  !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom         !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. In/out variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff   !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field   !< Thermal field
+
+      ! ... Local variables ...
+      integer :: i, j,ired
+      real(dblprec) :: lldamp
+
+      ! deterministic variables
+      real(dblprec),dimension(3) :: a1
+      !
+      ! stochastic variables
+      real(dblprec),dimension(3) :: s1
+      !
+      ! auxilary variables
+      real(dblprec),dimension(3) :: A
+      real(dblprec) :: detAi
+      real(dblprec),dimension(3) :: a2
+      !
+      ! time steps
+      real(dblprec) :: dt,sqrtdt
+      real(dblprec) :: dtg, sqrtdtg
+      !
+      ! spins
+      real(dblprec),dimension(3)  :: et
+
+      btorque_full=0.0_dblprec
+
+      ! Call parameters
+      !$omp target enter data map(to:btorque_full)
+      !$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !$omp target enter data map(to:beff,emom2,emomM,thermal_field)
+      ! Local variables
+      !$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
+      !$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg,et)
+
+   end subroutine enter_smodeulermpt_gpu
+
+   subroutine exit_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,deltat,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
+
+      use Constants
+      use RandomNumbers, only : ranv
+
+      implicit none
+
+      integer, intent(in) :: Nred            !< Number of moments that can be updated
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Mensemble       !< Number of ensembles
+      real(dblprec), intent(in) :: bn        !< Scaling factor for LLG equation (parameter=1.0_dblprec)
+      real(dblprec), intent(in) :: deltat    !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array   !< Damping parameter
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom  !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom         !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. In/out variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff   !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field   !< Thermal field
+
+      ! ... Local variables ...
+      integer :: i, j,ired
+      real(dblprec) :: lldamp
+
+      ! deterministic variables
+      real(dblprec),dimension(3) :: a1
+      !
+      ! stochastic variables
+      real(dblprec),dimension(3) :: s1
+      !
+      ! auxilary variables
+      real(dblprec),dimension(3) :: A
+      real(dblprec) :: detAi
+      real(dblprec),dimension(3) :: a2
+      !
+      ! time steps
+      real(dblprec) :: dt,sqrtdt
+      real(dblprec) :: dtg, sqrtdtg
+      !
+      ! spins
+      real(dblprec),dimension(3)  :: et
+
+      btorque_full=0.0_dblprec
+
+      ! Call parameters
+      !$omp target exit data map(from:btorque_full)
+      !$omp target exit data map(from:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !$omp target exit data map(from:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !$omp target exit data map(from:beff,emom2,emomM,thermal_field)
+      ! Local variables
+      !$omp target exit data map(from:i,j,ired,lldamp,a1,s1,A,a2)
+      !$omp target exit data map(from:dt,sqrtdt,dtg,sqrtdtg,et)
+
+   end subroutine exit_smodeulermpt_gpu
+
+   subroutine update_smodeulermpt_gpu(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2, &
+      emomM,mmom,deltat,thermal_field,STT,do_she,do_sot,btorque,she_btorque,        &
+      sot_btorque,Nred,red_atom_list)
+
+      use Constants
+      use RandomNumbers, only : ranv
+
+      implicit none
+
+      integer, intent(in) :: Nred            !< Number of moments that can be updated
+      integer, intent(in) :: Natom           !< Number of atoms in system
+      integer, intent(in) :: Mensemble       !< Number of ensembles
+      real(dblprec), intent(in) :: bn        !< Scaling factor for LLG equation (parameter=1.0_dblprec)
+      real(dblprec), intent(in) :: deltat    !< Time step
+      character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+      character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+      character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+      integer, dimension(Nred), intent(in) :: red_atom_list !< Reduced list containing atoms allowed to evolve in a fixed moment calculation
+      real(dblprec), dimension(Natom), intent(in) :: Landeg  !< Gyromagnetic ratio
+      real(dblprec), dimension(Natom), intent(in) :: lambda1_array   !< Damping parameter
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom  !< Magnitude of magnetic moments
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom         !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
+      ! .. In/out variables
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: beff   !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: thermal_field   !< Thermal field
+
+      ! ... Local variables ...
+      integer :: i, j,ired
+      real(dblprec) :: lldamp
+
+      ! deterministic variables
+      real(dblprec),dimension(3) :: a1
+      !
+      ! stochastic variables
+      real(dblprec),dimension(3) :: s1
+      !
+      ! auxilary variables
+      real(dblprec),dimension(3) :: A
+      real(dblprec) :: detAi
+      real(dblprec),dimension(3) :: a2
+      !
+      ! time steps
+      real(dblprec) :: dt,sqrtdt
+      real(dblprec) :: dtg, sqrtdtg
+      !
+      ! spins
+      real(dblprec),dimension(3)  :: et
+
+      btorque_full=0.0_dblprec
+
+      ! Call parameters
+      !$omp target update from(emom2,emomM)
+      !!!$omp target update from(btorque_full)
+      !!!$omp target update from(Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target update from(red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !!!$omp target update from(beff,emom2,emomM,thermal_field)
+      ! Local variables
+      !!!$omp target update from(i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target update from(dt,sqrtdt,dtg,sqrtdtg,et)
+
+   end subroutine update_smodeulermpt_gpu
+
    !----------------------------------------------------------------------------
    !  SUBROUTINE: smodeulermpt
    !> @brief
@@ -87,12 +287,12 @@ contains
       btorque_full=0.0_dblprec
 
       ! Call parameters
-      !$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
-      !$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
-      !$omp target enter data map(to:beff,emom2,emomM,thermal_field)
+      !!!$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !!!$omp target enter data map(to:beff,emom2,emomM,thermal_field)
       ! Local variables
-      !$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
-      !$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg,et)
+      !!!$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg,et)
       !$omp target teams distribute parallel do collapse(2) private(ired,i,j,et,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
@@ -149,12 +349,12 @@ contains
       enddo
       !$omp end target teams distribute parallel do
       ! Call parameters
-      !$omp target exit data map(from:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
-      !$omp target exit data map(from:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
-      !$omp target exit data map(from:beff,emom2,emomM,thermal_field)
+      !!!$omp target exit data map(from:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target exit data map(from:red_atom_list,Landeg,lambda1_array,mmom,emom,btorque,she_btorque,sot_btorque)
+      !!!$omp target exit data map(from:beff,emom2,emomM,thermal_field)
       ! Local variables
-      !$omp target exit data map(from:i,j,ired,lldamp,a1,s1,A,a2)
-      !$omp target exit data map(from:dt,sqrtdt,dtg,sqrtdtg,et)
+      !!!$omp target exit data map(from:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target exit data map(from:dt,sqrtdt,dtg,sqrtdtg,et)
 
       return
 
@@ -217,12 +417,12 @@ contains
       btorque_full=0.0_dblprec
 
       ! Call parameters
-      !$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)  
-      !$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,she_btorque,sot_btorque)
-      !$omp target enter data map(to:beff,emom2)
+      !!!$omp target enter data map(to:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target enter data map(to:red_atom_list,Landeg,lambda1_array,she_btorque,sot_btorque)
+      !!!$omp target enter data map(to:beff,emom2)
       ! Local variables
-      !$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
-      !$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg)
+      !!!$omp target enter data map(to:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target enter data map(to:dt,sqrtdt,dtg,sqrtdtg)
       !$omp target teams distribute parallel do collapse(2) private(ired,i,j,etp,s1,a1,A,detAi,a2,dt,dtg,sqrtdt,sqrtdtg,lldamp)
       do ired=1,Nred
          do j=1,Mensemble
@@ -269,12 +469,12 @@ contains
       end do
       !$omp end target teams distribute parallel do
       ! Call parameters
-      !$omp target exit data map(from:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)  
-      !$omp target exit data map(from:red_atom_list,Landeg,lambda1_array,she_btorque,sot_btorque)
-      !$omp target exit data map(from:beff,emom2)
+      !!!$omp target exit data map(from:Nred,Natom,Mensemble,bn,deltat,STT,do_she,do_sot)
+      !!!$omp target exit data map(from:red_atom_list,Landeg,lambda1_array,she_btorque,sot_btorque)
+      !!!$omp target exit data map(from:beff,emom2)
       ! Local variables
-      !$omp target exit data map(from:i,j,ired,lldamp,a1,s1,A,a2)
-      !$omp target exit data map(from:dt,sqrtdt,dtg,sqrtdtg)
+      !!!$omp target exit data map(from:i,j,ired,lldamp,a1,s1,A,a2)
+      !!!$omp target exit data map(from:dt,sqrtdt,dtg,sqrtdtg)
 
       return
 
