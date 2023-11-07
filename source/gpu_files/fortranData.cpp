@@ -1,6 +1,7 @@
 #include "real_type.h"
 
 #include "fortranData.hpp"
+#include <stdio.h>
 
 
 
@@ -111,7 +112,7 @@ void FortranData::setMatrixPointers(real * p1, unsigned int * p2, unsigned int *
 	dmvect         = p16;
 	dmlist         = p17;
 	dmlistsize     = p18;
-	j_tensor       = p19;
+	j_tensor       = p19;	
 }
 
 void FortranData::setInputDataPointers(int * p1, int * p2, int * p3) {
