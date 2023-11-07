@@ -273,9 +273,22 @@ public:
 			//z += J33 * my_emomM[x_offset + 2];
 
 			// Tensorial exchange
-			x += J11 * my_emomM[x_offset + 0] + J12 * my_emomM[x_offset + 1] + J13 * my_emomM[x_offset + 2];
-			y += J21 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J23 * my_emomM[x_offset + 2];
-			z += J31 * my_emomM[x_offset + 0] + J32 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
+			//x += J11 * my_emomM[x_offset + 0] + J12 * my_emomM[x_offset + 1] + J13 * my_emomM[x_offset + 2];
+			//y += J21 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J23 * my_emomM[x_offset + 2];
+			//z += J31 * my_emomM[x_offset + 0] + J32 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
+
+			//x += J11 * my_emomM[x_offset + 0] + J21 * my_emomM[x_offset + 1] + J31 * my_emomM[x_offset + 2];
+			//y += J12 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J32 * my_emomM[x_offset + 2];
+			//z += J13 * my_emomM[x_offset + 0] + J23 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
+
+			real Sx = my_emomM[x_offset + 0];
+			real Sy = my_emomM[x_offset + 1];
+			real Sz = my_emomM[x_offset + 2];
+
+			x += J11 * Sx + J12 * Sy + J13 * Sz;
+			y += J21 * Sx + J22 * Sy + J23 * Sz;
+			z += J31 * Sx + J32 * Sy + J33 * Sz;
+
 		}
 
 		// Save field

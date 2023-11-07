@@ -363,18 +363,13 @@ void CudaMdSimulation::measurementPhase() {
 		}
 	}
 
-	for(int i = 0 ; i < f_nlist.size(); i++)
-	{
-		//printf(" %d ", f_nlist.get_data()[i]);
-		//real test = f_ncoup[i];
-		//if (true) {
-		//	printf("%f ",test);
-		//}
-	}
+	//for(int i = 0 ; i < f_external_field.size(); i++)
+	//{
+	//	printf(" %f ", f_external_field.get_data()[i]);
+	//}
 		
 
 	
-
 
 	printf("_______________________________________________\n");
 
