@@ -73,7 +73,7 @@ public:
 		size  = tenEx.neighbourCount;
 		pos   = tenEx.neighbourPos;
 		mnn   = tenEx.mnn;
-	}
+		}
 
         __device__ void each(unsigned int site) {
 		//real *         myCoup = &coup[site];
@@ -85,11 +85,6 @@ public:
 			else {
 				//myCoup[i * N] = (real)0.0;
 				myPos[i * N]  = 0;
-
-				unsigned int dim1 = 3;
-				unsigned int dim2 = 3;
-				unsigned int dim3 = mnn;
-				unsigned int dim4 = N;
 
 				unsigned int k = i;
 				unsigned int l = site;
@@ -259,46 +254,8 @@ public:
 
 			unsigned int x_offset = site_pos[i * N] * 3; 
 
-			unsigned int dim1 = 3;
-			unsigned int dim2 = 3;
-			unsigned int dim3 = mnn;
-			unsigned int dim4 = N;
-
 			unsigned int k = i;
 			unsigned int l = site;
-
-			// Dimension of the tensorial exchange matrix: (dim1,dim2,dim3,dim4)  <--> (3,3,mnn,N)
-			// Calculating the matrix elements of the exchange tensor:
-			//real J11 = tensor[0 + 0 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=0,j=0
-			//real J12 = tensor[0 + 1 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=0,j=1
-			//real J13 = tensor[0 + 2 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=0,j=2
-			//real J21 = tensor[1 + 0 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=1,j=0
-			//real J22 = tensor[1 + 1 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=1,j=1
-			//real J23 = tensor[1 + 2 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=1,j=2
-			//real J31 = tensor[2 + 0 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=2,j=0
-			//real J32 = tensor[2 + 1 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=2,j=1
-			//real J33 = tensor[2 + 2 * dim1 + k * dim1 * dim2 + l * dim1 * dim2 * dim3]; // i=2,j=2
-
-			//real J11 = tensor[l + k*dim4 + 0*dim4*dim3 + 0*dim4*dim3*dim2]; // i=0,j=0
-			//real J12 = tensor[l + k*dim4 + 1*dim4*dim3 + 0*dim4*dim3*dim2]; // i=0,j=1		
-			//real J13 = tensor[l + k*dim4 + 2*dim4*dim3 + 0*dim4*dim3*dim2]; // i=0,j=2		
-			//real J21 = tensor[l + k*dim4 + 0*dim4*dim3 + 1*dim4*dim3*dim2]; // i=1,j=0		
-			//real J22 = tensor[l + k*dim4 + 1*dim4*dim3 + 1*dim4*dim3*dim2]; // i=1,j=1		
-			//real J23 = tensor[l + k*dim4 + 2*dim4*dim3 + 1*dim4*dim3*dim2]; // i=1,j=2		
-			//real J31 = tensor[l + k*dim4 + 0*dim4*dim3 + 2*dim4*dim3*dim2]; // i=2,j=0		
-			//real J32 = tensor[l + k*dim4 + 1*dim4*dim3 + 2*dim4*dim3*dim2]; // i=2,j=1		
-			//real J33 = tensor[l + k*dim4 + 2*dim4*dim3 + 2*dim4*dim3*dim2]; // i=2,j=2		
-
-			//const real * J11_temp = &tensor[site]; // i=0,j=0
-			//const real * J12_temp = &tensor[site]; // i=0,j=1		
-			//const real * J13_temp = &tensor[site]; // i=0,j=2		
-			//const real * J21_temp = &tensor[site]; // i=1,j=0		
-			//const real * J22_temp = &tensor[site]; // i=1,j=1		
-			//const real * J23_temp = &tensor[site]; // i=1,j=2		
-			//const real * J31_temp = &tensor[site]; // i=2,j=0		
-			//const real * J32_temp = &tensor[site]; // i=2,j=1		
-			//const real * J33_temp = &tensor[site]; // i=2,j=2	
-
 
 			real J11 = tensor[0 + 3 * (0 + 3 * (k + mnn * l))]; // i=0,j=0
 			real J12 = tensor[0 + 3 * (1 + 3 * (k + mnn * l))]; // i=0,j=1		
@@ -310,16 +267,12 @@ public:
 			real J32 = tensor[2 + 3 * (1 + 3 * (k + mnn * l))]; // i=2,j=1		
 			real J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))]; // i=2,j=2	
 
-			//real J11 = J11_temp[i*N + 0]; // i=0,j=0 // 0
-			//real J12 = J12_temp[i*N + 1]; // i=0,j=1 // 3		
-			//real J13 = J13_temp[i*N + 2]; // i=0,j=2 // 6		
-			//real J21 = J21_temp[i*N + 3]; // i=1,j=0 // 1		
-			//real J22 = J22_temp[i*N + 4]; // i=1,j=1 // 4		
-			//real J23 = J23_temp[i*N + 5]; // i=1,j=2 // 7		
-			//real J31 = J31_temp[i*N + 6]; // i=2,j=0 // 2		
-			//real J32 = J32_temp[i*N + 7]; // i=2,j=1 // 5		
-			//real J33 = J33_temp[i*N + 8]; // i=2,j=2 // 8		
+			// Simple Heisenberg exchange:
+			//x += J11 * my_emomM[x_offset + 0];
+			//y += J22 * my_emomM[x_offset + 1];
+			//z += J33 * my_emomM[x_offset + 2];
 
+			// Tensorial exchange
 			x += J11 * my_emomM[x_offset + 0] + J12 * my_emomM[x_offset + 1] + J13 * my_emomM[x_offset + 2];
 			y += J21 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J23 * my_emomM[x_offset + 2];
 			z += J31 * my_emomM[x_offset + 0] + J32 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
@@ -449,13 +402,31 @@ bool CudaHamiltonianCalculations::initiate(
 	{
 		CudaHamiltonianCalculations::do_j_tensor = true;
 		
-		tenEx.mnn = ncoup.dimension_size(0);
+
+		//hostMatrix<real,4,3,3>         j_tensor_t;
+		//hostMatrix<unsigned int,2> nlist_t;
+
+		//j_tensor_t.initiate(3,3,N,tenEx.mnn);
+		//nlist_t.initiate(N,tenEx.mnn);
+
+		//transpose(j_tensor_t, j_tensor);
+		//transpose(nlist_t, nlist);
+
+
+		tenEx.mnn = j_tensor.dimension_size(2);
 		tenEx.neighbourCount.clone(nlistsize);
 		tenEx.neighbourPos.clone(nlist);
 		tenEx.tensor.clone(j_tensor);
 
 		parallel.cudaSiteCall(SetupNeighbourListExchangeTensor(tenEx));
 
+		// Did we get the memory?
+		if (!tenEx.tensor.has_data()       ||
+			!tenEx.neighbourCount.has_data() ||
+			!tenEx.neighbourPos.has_data()) {
+			release();
+			return false;
+		}
 		// Flag
 		initiated = true;
 		return true;
@@ -474,8 +445,8 @@ bool CudaHamiltonianCalculations::initiate(
 	transpose(ncoup_t, ncoup);
 	transpose(nlist_t, nlist);
 
-// TEST
-//alignOptimal(nlist_t, true);
+	// TEST
+	//alignOptimal(nlist_t, true);
 	//printf("blubb: %f",ex.coupling);
 
 	ex.coupling.clone(ncoup_t);

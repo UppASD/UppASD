@@ -110,6 +110,7 @@ void CudaMdSimulation::initiate_fortran() {
 	
 	if (*FortranData::do_jtensor == 1)
 	{
+		printf("\n CUDA: jTensor has been initialized \n");
 		f_j_tensor  .set(FortranData::j_tensor      ,3,3,max_no_neigh,N);
 	}
 }
@@ -335,7 +336,7 @@ void CudaMdSimulation::measurementPhase() {
 
 	// TEMPORARY PRINTING
 	printf("\n");
-	printf("________System Information:___________ \n");
+	printf("________DEBUG System Information:___________ \n");
 	printf("%zu\n", f_j_tensor.dimension_size(0));
 	printf("%zu\n", f_j_tensor.dimension_size(1));
 	printf("%zu\n", f_j_tensor.dimension_size(2));
@@ -360,22 +361,22 @@ void CudaMdSimulation::measurementPhase() {
     		}
         	printf("\n");
 		}
+	}
 
-		for(int i = 0 ; i < f_j_tensor.size(); i++)
-		{
-			//printf(" %f ", f_j_tensor[i]);
-			//real test = f_ncoup[i];
-			//if (true) {
-			//	printf("%f ",test);
-			//}
-		}
+	for(int i = 0 ; i < f_nlist.size(); i++)
+	{
+		//printf(" %d ", f_nlist.get_data()[i]);
+		//real test = f_ncoup[i];
+		//if (true) {
+		//	printf("%f ",test);
+		//}
 	}
 		
 
 	
 
 
-	printf("klasjdfljalskdjfklasjdrfadfasdfasdfsdadsasdaf\n");
+	printf("_______________________________________________\n");
 
 
 
