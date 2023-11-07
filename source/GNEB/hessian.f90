@@ -205,8 +205,8 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the initial point
          beff(:,:,1)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1), &
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),   &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:), &
+            external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),   &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,      &
             constellations,constellationsNeighType,denergy,Num_macro,       &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
@@ -227,8 +227,8 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the final point
          beff(:,:,nim)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,emomM(:,:,nim),mmom(:,nim),     &
-            external_field(:,:,nim),tef(:,:,nim),beff(:,:,nim),beff1(:,:,nim),beff2(:,:,nim), &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,nim:),mmom(:,nim:),     &
+            external_field(:,:,nim:),tef(:,:,nim:),beff(:,:,nim:),beff1(:,:,nim:),beff2(:,:,nim:), &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,denergy,Num_macro,     &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
@@ -249,8 +249,8 @@ contains
 
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the saddle point
-         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1),&
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),  &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:),&
+            external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),  &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,     &
             constellations,constellationsNeighType,denergy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)

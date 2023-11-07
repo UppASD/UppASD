@@ -453,7 +453,11 @@ contains
                !print '(3f10.4)', R_mat
                !print *,'---------------'
 
-               emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+               if (.not. qm_excluded_atoms(ia)) then
+                  emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+               else
+                  emomM(1:3,ia,k)=emomM_start(:,ia,k)
+               end if
             end do
             !print '(3f12.5)', emomM
          i_all=-product(shape(emomM_start))*kind(emomM_start)

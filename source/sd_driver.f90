@@ -313,6 +313,7 @@ contains
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
          thermal_field
+      use prn_fields, only : do_prn_beff
       use macrocells
       use DemagField
       use MomentData
@@ -398,6 +399,28 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
+      ! Calculate the effective field before the simulation starts, if fields are to be printed
+      if (do_prn_beff=='Y') then
+         ! Apply Hamiltonian to obtain effective field
+         if(do_sparse=='Y') then
+            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
+               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
+            else
+               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
+            end if
+            beff1=beff
+            beff2=external_field+time_external_field
+            beff=beff1+beff2
+         else
+
+            call effective_field(Natom,Mensemble,1,Natom,emomM,   &
+               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
+               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
+               constellations, constellationsNeighType, totenergy,        &
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         end if
+      end if
+
       ! Adaptive Time Stepping Region
       if(adaptive_time_flag) then
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
