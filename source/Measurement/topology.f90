@@ -114,6 +114,59 @@ contains
       return
       !
    end function pontryagin_tri
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Calculates projected skyrmion numbers of the system using triangulation
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------------
+function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
+      use Constants
+      use math_functions
+
+      implicit none
+
+      integer, intent(in) :: NA    !< Number of atoms in unit cell
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emom  !< Current magnetic moment vector
+
+
+      integer :: k,i1,i2,i3, isimp, isite
+      real(dblprec), dimension(3) :: m1, m2, m3
+      real(dblprec) :: thesum,q,qq, m1m2m3, m1m2, m1m3, m2m3
+
+      real(dblprec), dimension(NA) :: pontryagin_tri_proj 
+      real(dblprec), dimension(NA) :: thesum_proj
+
+      thesum_proj=0.0_dblprec
+
+      !!$omp parallel do default(shared) private(isimp,k,q,qq,m1,m2,m3,m1m2m3,m1m2,m1m3,m2m3) reduction(+:thesum)
+      do k=1, Mensemble
+         do isite=1,NA
+            do isimp=isite,nsimp+isite-1, NA
+               m1 = emom(:,simp(1,isimp),k)
+               m2 = emom(:,simp(2,isimp),k)
+               m3 = emom(:,simp(3,isimp),k)
+               m1m2m3=f_volume(m1,m2,m3)
+               m1m2=dot_product(m1,m2)
+               m1m3=dot_product(m1,m3)
+               m2m3=dot_product(m2,m3)
+               qq=m1m2m3/(1.0_dblprec+m1m2+m1m3+m2m3)
+               q=2.0_dblprec*atan(qq)
+               thesum_proj(isite)=thesum_proj(isite)+q
+            end do
+         end do
+      end do
+      !!$omp end parallel do
+
+      pontryagin_tri_proj=thesum_proj/(4.0_dblprec*pi)/Mensemble
+      !
+      return
+      !
+   end function pontryagin_tri_proj
    !---------------------------------------------------------------------------------
    !> @brief
    !> Calculates the local skyrmion number density of the system using triangulation
@@ -280,14 +333,22 @@ contains
                do it=1,NT
                   ! Triangle 1  [0 -> +x -> +y -> 0]
                   nsimp=nsimp+1
-                  simp(1,nsimp)=wrap_idx(x,y,z,nx,ny,nz)+it-1
-                  simp(2,nsimp)=wrap_idx(modulo(x,nx)+1,y,z,nx,ny,nz)+it-1
-                  simp(3,nsimp)=wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-1
+                  simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
+                  simp(2,nsimp)=NT*wrap_idx(modulo(x,nx)+1,y,z,nx,ny,nz)+it-NT
+                  simp(3,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
+               end do
+            end do
+         end do
+      end do
+      do z=1,nz
+         do y=1,ny
+            do x=1,nx
+               do it=1,NT
                   ! Triangle  2  [ 0 -> +y -> +y - x -> 0]
                   nsimp=nsimp+1
-                  simp(1,nsimp)=wrap_idx(x,y,z,nx,ny,nz)+it-1
-                  simp(2,nsimp)=wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-1
-                  simp(3,nsimp)=wrap_idx(modulo(x-2,nx)+1,modulo(y,ny)+1,z,nx,ny,nz)+it-1
+                  simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
+                  simp(2,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
+                  simp(3,nsimp)=NT*wrap_idx(modulo(x-2,nx)+1,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
                end do
             end do
          end do
