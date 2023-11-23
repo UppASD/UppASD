@@ -45,6 +45,14 @@ public:
 		unsigned int * myPos  = &pos[site];
 		unsigned int   mySize = size[site];
 		for (unsigned int i = 0; i < mnn; i++) {
+
+			//if (myPos[i * N] != 0)
+			//	myPos[i * N]--;
+			//else {
+			//	myCoup[i * N] = (real)0.0;
+			//	myPos[i * N]  = 0;
+			//}
+
 			if (i < mySize)
 				myPos[i * N]--;
 			else {
@@ -69,22 +77,28 @@ private:
 
 public:
 	SetupNeighbourListExchangeTensor(const TensorialExchange &tenEx) {
+		
 		tensor  = tenEx.tensor;
 		size  = tenEx.neighbourCount;
 		pos   = tenEx.neighbourPos;
 		mnn   = tenEx.mnn;
-		}
+
+	}
 
         __device__ void each(unsigned int site) {
 		//real *         myCoup = &coup[site];
 		unsigned int * myPos  = &pos[site];
-		unsigned int   mySize = size[site];
-		for (unsigned int i = 0; i < mnn; i++) {
-			if (i < mySize)
-				myPos[i * N]--;
+		unsigned int   y = size[site];
+
+
+		for (unsigned int i = 0; i < mnn; i++) { 
+
+			if (pos[site * mnn + i] != 0)
+			{
+				pos[site * mnn + i]--;
+			}
 			else {
-				//myCoup[i * N] = (real)0.0;
-				myPos[i * N]  = 0;
+				pos[site * mnn + i] = 0;
 
 				unsigned int k = i;
 				unsigned int l = site;
@@ -101,6 +115,29 @@ public:
 			    tensor[2 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=1		
 			    tensor[2 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=2	
 			}
+
+			//if (i < mySize) {
+			//	myPos[i * N]--;
+			//}
+			//else {
+			//	//myCoup[i * N] = (real)0.0;
+			//	myPos[i * N] = 0;
+			//
+			//	unsigned int k = i;
+			//	unsigned int l = site;
+			//
+			//	// Dimension of the tensorial exchange matrix: (dim1,dim2,dim3,dim4)  <--> (3,3,mnn,N)
+			//	// Calculating the matrix elements of the exchange tensor and setting them to zero:
+			//    tensor[0 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=0
+			//    tensor[0 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=1		
+			//    tensor[0 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=2		
+			//    tensor[1 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=0		
+			//    tensor[1 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=1		
+			//    tensor[1 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=2		
+			//    tensor[2 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=0		
+			//    tensor[2 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=1		
+			//    tensor[2 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=2	
+			//}
 		}
 	}
 };
@@ -139,8 +176,18 @@ public:
 				myCoup[i * N + 2] = (real)0.0;
 				myPos[i * N]      = 0;
 			}
+			//if (myPos[i * N] != 0) {
+			//	myPos[i * N]--;
+			//} else {
+			//	myCoup[i * N + 0] = (real)0.0;
+			//	myCoup[i * N + 1] = (real)0.0;
+			//	myCoup[i * N + 2] = (real)0.0;
+			//	myPos[i * N]      = 0;
+			//}
 		}
 	}
+				
+
 };
 
 // Note: (Thomas)
@@ -230,7 +277,7 @@ public:
 		beff   = p1;
 		emomM  = p2;
 		ext_f  = p3;
-
+		
 		tensor = tenEx.tensor;
 		pos    = tenEx.neighbourPos;
 		size   = tenEx.neighbourCount;
@@ -248,11 +295,17 @@ public:
 		const real *         my_emomM  = &emomM[ensemble * N * 3];
 
 
+		// emomM <--> (3,N,M)
+		// tensor <---> (3,3,mnn,N)
+		// pos   <--> (mnn,N)
 
 		// Tensorial exchange coupling
 		for (unsigned int i = 0; i < mnn; i++) {
 
-			unsigned int x_offset = site_pos[i * N] * 3; 
+
+			unsigned int neighborPosIndex = pos[site * mnn + i]; // neighbor position in the site enemble given in 0,1,2,...,N-1
+
+			unsigned int x_offset = neighborPosIndex * 3; 
 
 			unsigned int k = i;
 			unsigned int l = site;
@@ -267,19 +320,10 @@ public:
 			real J32 = tensor[2 + 3 * (1 + 3 * (k + mnn * l))]; // i=2,j=1		
 			real J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))]; // i=2,j=2	
 
-			// Simple Heisenberg exchange:
-			//x += J11 * my_emomM[x_offset + 0];
-			//y += J22 * my_emomM[x_offset + 1];
-			//z += J33 * my_emomM[x_offset + 2];
-
-			// Tensorial exchange
-			//x += J11 * my_emomM[x_offset + 0] + J12 * my_emomM[x_offset + 1] + J13 * my_emomM[x_offset + 2];
-			//y += J21 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J23 * my_emomM[x_offset + 2];
-			//z += J31 * my_emomM[x_offset + 0] + J32 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
-
-			//x += J11 * my_emomM[x_offset + 0] + J21 * my_emomM[x_offset + 1] + J31 * my_emomM[x_offset + 2];
-			//y += J12 * my_emomM[x_offset + 0] + J22 * my_emomM[x_offset + 1] + J32 * my_emomM[x_offset + 2];
-			//z += J13 * my_emomM[x_offset + 0] + J23 * my_emomM[x_offset + 1] + J33 * my_emomM[x_offset + 2];
+			// magnetic moment of current neighbor
+			//real Sx = emomM[0 + 3 * neighborPosIndex + 3 * ensemble * N];
+			//real Sy	= emomM[1 + 3 * neighborPosIndex + 3 * ensemble * N];
+			//real Sz	 = emomM[2 + 3 * neighborPosIndex + 3 * ensemble * N];
 
 			real Sx = my_emomM[x_offset + 0];
 			real Sy = my_emomM[x_offset + 1];
@@ -288,7 +332,6 @@ public:
 			x += J11 * Sx + J12 * Sy + J13 * Sz;
 			y += J21 * Sx + J22 * Sy + J23 * Sz;
 			z += J31 * Sx + J32 * Sy + J33 * Sz;
-
 		}
 
 		// Save field
@@ -415,7 +458,7 @@ bool CudaHamiltonianCalculations::initiate(
 	{
 		CudaHamiltonianCalculations::do_j_tensor = true;
 		
-
+		N = j_tensor.dimension_size(3);
 		//hostMatrix<real,4,3,3>         j_tensor_t;
 		//hostMatrix<unsigned int,2> nlist_t;
 
@@ -425,11 +468,23 @@ bool CudaHamiltonianCalculations::initiate(
 		//transpose(j_tensor_t, j_tensor);
 		//transpose(nlist_t, nlist);
 
-
 		tenEx.mnn = j_tensor.dimension_size(2);
 		tenEx.neighbourCount.clone(nlistsize);
 		tenEx.neighbourPos.clone(nlist);
 		tenEx.tensor.clone(j_tensor);
+
+
+		//for(unsigned int site = 0; site < N; site++) {
+		//	const unsigned int * myPos  = &(nlist.get_data())[site];
+		//	const unsigned int   mySize = nlistsize.get_data()[site];
+		//	printf(" %d ", myPos[0]);
+		//	printf("| ");
+		//	for (unsigned int i = 0; i < tenEx.mnn; i++)
+		//	{
+		//		printf(" %d ", myPos[i * N]);
+		//	}
+		//	printf("\n");
+		//}
 
 		parallel.cudaSiteCall(SetupNeighbourListExchangeTensor(tenEx));
 
@@ -480,7 +535,7 @@ bool CudaHamiltonianCalculations::initiate(
 	//------- DM Interaction -------//
 	dm.mnn = 0;
 	if (do_dm) {
-		dm.mnn = dm_ncoup.dimension_size(0); // Max number of DM neighbours
+		dm.mnn = dm_ncoup.dimension_size(1); // Max number of DM neighbours  // I CHANGED THE INDEX FROM 0 TO 1!!!
 
 		dm.interaction.clone(dm_ncoup);
 		dm.neighbourCount.clone(dm_nlistsize);
@@ -514,6 +569,7 @@ void CudaHamiltonianCalculations::release() {
 void CudaHamiltonianCalculations::heisge(cudaMatrix<real,3,3> &beff, 
 		const cudaMatrix<real,3,3> &emomM,
 		const cudaMatrix<real,3,3> &external_field) {
+	
 	// Kernel call
 
 	if (do_j_tensor == 1)

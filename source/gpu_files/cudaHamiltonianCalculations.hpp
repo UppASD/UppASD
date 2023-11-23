@@ -29,7 +29,7 @@ private:
 
 	typedef struct TensorialExchange {
 		unsigned int               mnn;
-		cudaMatrix<real,4,3,3>       tensor;
+		cudaMatrix<real,4,3,3>     tensor;
 		cudaMatrix<unsigned int,1> neighbourCount;
 		cudaMatrix<unsigned int,2> neighbourPos;
 	} TensorialExchange;

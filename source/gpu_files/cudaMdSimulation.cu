@@ -345,6 +345,7 @@ void CudaMdSimulation::measurementPhase() {
 
 	int mnn = f_j_tensor.dimension_size(2);
 	int l = f_j_tensor.dimension_size(3);
+	int N = f_j_tensor.dimension_size(3);
 
 
 	for (int l = 0 ; l < 1 ; l++  )
@@ -361,15 +362,52 @@ void CudaMdSimulation::measurementPhase() {
     		}
         	printf("\n");
 		}
-	}
+    
+	}    	printf("_______________test__________\n");
+//
+
+
 
 	//for(int i = 0 ; i < f_external_field.size(); i++)
 	//{
 	//	printf(" %f ", f_external_field.get_data()[i]);
 	//}
 		
+		for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
+		{
+			printf("%d ", site);
+			printf("| ");
+			for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
+			{
+				printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
+			}
+			printf("\n");
+		}
 
+		//for(unsigned int site = 0; site < N; site++) {
+		//	const unsigned int * myPos  = &(f_nlist.get_data())[site];
+		//	const unsigned int   mySize = f_nlistsize.get_data()[site];
+		//	printf(" %d ", myPos[0]);
+		//	printf("| ");
+		//	for (unsigned int i = 0; i < f_j_tensor.dimension_size(2); i++)
+		//	{
+		//		printf(" %d ", myPos[i * N]);
+		//	}
+		//	printf("\n");
+		//}
 	
+		//for(unsigned int site = 0; site < N; site++) {
+		//	const unsigned int * myPos  = &(f_nlist.get_data())[site];
+		//	const unsigned int   mySize = f_nlistsize.get_data()[site];
+		//	printf(" %d ", myPos[0]);
+		//	printf("| ");
+		//	for (unsigned int i = 0; i < f_j_tensor.dimension_size(2); i++)
+		//	{
+		//		printf(" %d ", myPos[i * N]);
+		//	}
+		//	printf("\n");
+		//}
+
 
 	printf("_______________________________________________\n");
 
@@ -379,7 +417,7 @@ void CudaMdSimulation::measurementPhase() {
 	integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
 
 	// Debug
-	printf("___________ DEBUG PTINT ___________\n");
+	//printf("___________ DEBUG PTINT ___________\n");
 	
 	// Print the external field vector
 	//printf("%d\n", external_field.has_data());
