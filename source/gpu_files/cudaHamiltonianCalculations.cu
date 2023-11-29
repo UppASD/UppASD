@@ -164,27 +164,43 @@ public:
 	}
 
         __device__ void each(unsigned int site) {
-		real *         myCoup = &coup[site * 3];
-		unsigned int * myPos  = &pos[site];
-		unsigned int   mySize = size[site];
-		for (unsigned int i = 0; i < mnn; i++) {
-			if (i < mySize)
-				myPos[i * N]--;
-			else {
-				myCoup[i * N + 0] = (real)0.0;
-				myCoup[i * N + 1] = (real)0.0;
-				myCoup[i * N + 2] = (real)0.0;
-				myPos[i * N]      = 0;
+
+		// Phil's 
+		for (unsigned int i = 0; i < mnn; i++) { 
+
+			if (pos[site * mnn + i] != 0)
+			{
+				pos[site * mnn + i]--;
 			}
-			//if (myPos[i * N] != 0) {
-			//	myPos[i * N]--;
-			//} else {
-			//	myCoup[i * N + 0] = (real)0.0;
-			//	myCoup[i * N + 1] = (real)0.0;
-			//	myCoup[i * N + 2] = (real)0.0;
-			//	myPos[i * N]      = 0;
-			//}
+			else {
+				pos[site * mnn + i] = 0;
+
+				unsigned int k = i;
+				unsigned int l = site;
+
+				// Dimension of the DM vector: (dim1,dim2,dim3)  <--> (3,mnn,N)
+				coup[0 + 3 * i + site * mnn * 3] = (real)0.0;
+				coup[1 + 3 * i + site * mnn * 3] = (real)0.0;
+				coup[2 + 3 * i + site * mnn * 3] = (real)0.0;
+			}
 		}
+
+
+
+		// DM code which is not workung properly
+		//real *         myCoup = &coup[site * 3];
+		//unsigned int * myPos  = &pos[site];
+		//unsigned int   mySize = size[site];
+		//for (unsigned int i = 0; i < mnn; i++) {
+		//	if (i < mySize)
+		//		myPos[i * N]--;
+		//	else {
+		//		myCoup[i * N + 0] = (real)0.0;
+		//		myCoup[i * N + 1] = (real)0.0;
+		//		myCoup[i * N + 2] = (real)0.0;
+		//		myPos[i * N]      = 0;
+		//	}
+		//}
 	}
 				
 
@@ -245,13 +261,35 @@ public:
 			z += c * my_emomM[x_offset + 2];
 		}
 
-		// DM interaction, almost no performance impact if dmmnn is 0	
-		for (unsigned int i = 0; i < dmmnn; i++) {
-			unsigned int x_offset = site_dmpos[i * N] * 3; 
-			x += -site_dmcoup[i*N+2]*my_emomM[x_offset+1] + site_dmcoup[i*N+1]*my_emomM[x_offset+2];
-			y += -site_dmcoup[i*N+0]*my_emomM[x_offset+2] + site_dmcoup[i*N+2]*my_emomM[x_offset+0];
-			z += -site_dmcoup[i*N+1]*my_emomM[x_offset+0] + site_dmcoup[i*N+0]*my_emomM[x_offset+1];
+
+
+		// Phil's DM interaction implementation
+		for (unsigned int i = 0; i < dmmnn; i++){
+
+			unsigned int neighborPosIndex = dmpos[site * dmmnn + i]; // neighbor position in the site enemble given in 0,1,2,...,N-1
+
+			unsigned int x_offset = neighborPosIndex * 3; 
+
+			real Sx = my_emomM[x_offset + 0];
+			real Sy = my_emomM[x_offset + 1];
+			real Sz = my_emomM[x_offset + 2];
+			real Dx = dmcoup[0 + 3 * i + site * dmmnn * 3];
+			real Dy = dmcoup[1 + 3 * i + site * dmmnn * 3];
+			real Dz = dmcoup[2 + 3 * i + site * dmmnn * 3];
+
+			x += - Dz * Sy + Dy * Sz;
+			y += - Dx * Sz + Dz * Sx;
+			z += - Dy * Sx + Dx * Sy;
 		}
+
+
+		// DM interaction, almost no performance impact if dmmnn is 0	
+		//for (unsigned int i = 0; i < dmmnn; i++) {
+		//	unsigned int x_offset = site_dmpos[i * N] * 3; 
+		//	x += -site_dmcoup[i*N+2]*my_emomM[x_offset+1] + site_dmcoup[i*N+1]*my_emomM[x_offset+2];
+		//	y += -site_dmcoup[i*N+0]*my_emomM[x_offset+2] + site_dmcoup[i*N+2]*my_emomM[x_offset+0];
+		//	z += -site_dmcoup[i*N+1]*my_emomM[x_offset+0] + site_dmcoup[i*N+0]*my_emomM[x_offset+1];
+		//}
 
 		// Save field
 		beff[atom * 3 + 0] = x + ext_f[atom * 3 + 0];

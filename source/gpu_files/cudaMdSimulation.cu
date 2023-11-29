@@ -348,66 +348,66 @@ void CudaMdSimulation::measurementPhase() {
 	int N = f_j_tensor.dimension_size(3);
 
 
-	for (int l = 0 ; l < 1 ; l++  )
-	{
-		for (int k = 0 ; k < mnn ; k++  )
-		{
-			printf("__________\n");
-			for (int i = 0; i < 3; i++) {
-				for (int j = 0; j < 3; j++) {
-					unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
-					printf("%f\t", f_j_tensor[index]);
-				}
-        		printf("\n");
-    		}
-        	printf("\n");
-		}
-    
-	}    	printf("_______________test__________\n");
+	// Prints the exchange tensor
+	//for (int l = 0 ; l < 1 ; l++  )
+	//{
+	//	for (int k = 0 ; k < mnn ; k++  )
+	//	{
+	//		printf("__________\n");
+	//		for (int i = 0; i < 3; i++) {
+	//			for (int j = 0; j < 3; j++) {
+	//				unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
+	//				printf("%f\t", f_j_tensor[index]);
+	//			}
+    //    		printf("\n");
+    //		}
+    //    	printf("\n");
+	//	}
+    //
+	//}    	printf("_______________test__________\n");
 //
 
 
-
+	// Prints the external field
 	//for(int i = 0 ; i < f_external_field.size(); i++)
 	//{
 	//	printf(" %f ", f_external_field.get_data()[i]);
 	//}
-		
-		for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
-		{
-			printf("%d ", site);
-			printf("| ");
-			for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
-			{
-				printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
-			}
-			printf("\n");
-		}
-
-		//for(unsigned int site = 0; site < N; site++) {
-		//	const unsigned int * myPos  = &(f_nlist.get_data())[site];
-		//	const unsigned int   mySize = f_nlistsize.get_data()[site];
-		//	printf(" %d ", myPos[0]);
-		//	printf("| ");
-		//	for (unsigned int i = 0; i < f_j_tensor.dimension_size(2); i++)
-		//	{
-		//		printf(" %d ", myPos[i * N]);
-		//	}
-		//	printf("\n");
-		//}
 	
-		//for(unsigned int site = 0; site < N; site++) {
-		//	const unsigned int * myPos  = &(f_nlist.get_data())[site];
-		//	const unsigned int   mySize = f_nlistsize.get_data()[site];
-		//	printf(" %d ", myPos[0]);
-		//	printf("| ");
-		//	for (unsigned int i = 0; i < f_j_tensor.dimension_size(2); i++)
-		//	{
-		//		printf(" %d ", myPos[i * N]);
-		//	}
-		//	printf("\n");
-		//}
+	// Prints the information on the neighbors of each site.
+	//for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
+	//{
+	//	printf("%d ", site);
+	//	printf("| ");
+	//	for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
+	//	{
+	//		printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
+	//	}
+	//	printf("\n");
+	//}
 
+		//printf("_______DM vectors_______ \n");
+		//for (unsigned int site = 0; site < f_dmlist.dimension_size(1); site++)	{
+		//
+		//	int dmmnn = f_dmvect.dimension_size(1);
+		//	for (unsigned int i = 0 ; i < dmmnn; i++ )
+		//	{
+		//
+		//	
+		//	unsigned int neighborPosIndex = f_dmlist.get_data()[site * dmmnn + i]; // neighbor position in the site enemble given in 0,1,2,...,N-1
+		//
+		//	real Dx = f_dmvect.get_data()[0 + 3 * i + site * dmmnn * 3];
+		//	real Dy = f_dmvect.get_data()[1 + 3 * i + site * dmmnn * 3];
+		//	real Dz = f_dmvect.get_data()[2 + 3 * i + site * dmmnn * 3];
+		//	printf(" %f ", Dx);
+		//	printf(" %f ", Dy);
+		//	printf(" %f ", Dz);
+		//	printf("\n");
+		//	}
+		//	printf("_______\n");
+		//
+		//	
+		//}
 
 	printf("_______________________________________________\n");
 
