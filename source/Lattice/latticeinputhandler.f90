@@ -599,6 +599,7 @@ contains
          else
             read (ifileno,*) isite, jsite, ichem, jchem, r_tmp, ll_tmp
          end if
+         ll_tmp = transpose(ll_tmp)
 
          ! Find type of site
          itype=atype_inp(isite)

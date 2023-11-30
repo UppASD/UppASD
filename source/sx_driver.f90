@@ -30,7 +30,7 @@ module sx_driver
 
    implicit none
 
-   integer :: sx_step = 50
+   integer :: sx_step = 500
    integer :: sx_numrep
 
    real(dblprec),dimension(:,:,:,:), allocatable :: sx_emom   !< Unit moments for PT replicas
@@ -45,7 +45,7 @@ module sx_driver
    real(dblprec),dimension(:,:,:,:), allocatable :: sx_emomM_macro  !< Macrospin moments for PT replicas
    real(dblprec),dimension(:,:,:), allocatable :: sx_mmom_macro   !< Macrospin moment magnitudes for PT replicas
 
-   character(len=2) :: sx_mode = 'H'
+   character(len=2) :: sx_mode = 'S'
 
    public
 
@@ -82,6 +82,7 @@ contains
       use RandomNumbers, only: rng_uniform
       use sd_driver, only : sd_minimal
       use mc_driver, only : mc_minimal
+      use gneb_driver, only : em_iphase
 
       integer :: irep, ipmcstep
       integer :: i_all, i_stat, ia, ik
@@ -228,7 +229,7 @@ contains
             !   emomM_macro,emom_macro,mmom_macro,do_anisotropy)
 
             call choose_random_atom_x(Natom,iflip_a)
-            if (sx_mode.ne.'S') then
+            if (sx_mode.eq.'M'.or.sx_mode.eq.'H') then
                !!! call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(irep),temprescale,'M',&
                !!!    conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,           &
                !!!    lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, ham_inp%do_biqdm,ham_inp%do_bq, ham_inp%do_ring,    &
@@ -239,6 +240,14 @@ contains
                !!!    sx_mmom_macro(:,:,irep),ham_inp%do_anisotropy)
                !call sd_minimal(sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep),sx_mmom(:,:,irep),sx_step,66,ipTemp(irep))
                call mc_minimal(sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep),sx_mmom(:,:,irep),sx_step,sx_mode,ipTemp(irep))
+            else if (sx_mode=='G') then
+               if (ipmcstep<sx_step) then
+                  call mc_minimal(sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep),sx_mmom(:,:,irep),sx_step,'H ',ipTemp(irep))
+               else
+                  mepitrmax = sx_step
+                  mintraj_step = int(mepitrmax/10)
+                  call em_iphase()
+               end if
             else if (sx_mode=='S') then
                !call mc_minimal(sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep),sx_mmom(:,:,irep),sx_step,'M',ipTemp(irep))
                !print *,'temp:',ipTemp(irep)

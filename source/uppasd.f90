@@ -915,8 +915,7 @@ contains
          ! Read normal exchange file which is thereafter used to build tensor coupling
          call read_exchange_build_tensor()
       else
-         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor &
-            &and calc_tensor")
+         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor and calc_tensor")
       end if
       ham_inp%max_no_shells=maxval(ham_inp%NN)
 
