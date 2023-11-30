@@ -40,6 +40,7 @@ class ASDReading():
         ASDReading.posfiles=[]
         ASDReading.kmcfiles=[]
         ASDReading.enefiles=[]
+        ASDReading.full_coord=[]
         ASDReading.full_mom=[]
         ASDReading.full_ene=[]
         ASDReading.full_KMC=[]
@@ -352,26 +353,41 @@ class ASDReading():
         #-----------------------------------------------------------------------
         points = vtkPoints()
         #-----------------------------------------------------------------------
-        # Read the data with pandas
+        # Check if the coordinate file is animated (gdisp)
         #-----------------------------------------------------------------------
-        coord=np.genfromtxt(fname=file_coord,usecols=[1,2,3])
-        #-----------------------------------------------------------------------
-        # Define the number of atoms in the system
-        #-----------------------------------------------------------------------
-        ASDReading.nrAtoms=len(coord)
-        #-----------------------------------------------------------------------
+        tmp_c=np.genfromtxt(fname=file_coord)
+        if tmp_c.shape[1]==11:
+            # Animated coordinate file (gdisp)
+            coord = tmp_c[:,[2,3,4]]
+            ASDReading.full_coord = coord
+            ASDReading.nrAtoms=np.int32(tmp_c[-1,1])
+        else:
+            # Assume regular coord file
+            coord = tmp_c[:,[1,2,3]]
+            ASDReading.nrAtoms=len(coord)
+        del tmp_c
+        ASDReading.full_coord = coord
+        ####-----------------------------------------------------------------------
+        #### Read the data with pandas
+        ####-----------------------------------------------------------------------
+        ###coord=np.genfromtxt(fname=file_coord,usecols=[1,2,3])
+        ####-----------------------------------------------------------------------
+        #### Define the number of atoms in the system
+        ####-----------------------------------------------------------------------
+        ###ASDReading.nrAtoms=len(coord)
+        ####-----------------------------------------------------------------------
         # Pass the numpy type arrays to vtk objects
         #-----------------------------------------------------------------------
-        points.SetData(numpy_support.numpy_to_vtk(coord))
+        points.SetData(numpy_support.numpy_to_vtk(coord[0:ASDReading.nrAtoms]))
         #-----------------------------------------------------------------------
         # Data to check if one should consider the data to be rendered in 2D or 3D
         #-----------------------------------------------------------------------
-        max_x=max(coord[:,0])
-        min_x=min(coord[:,0])
-        max_y=max(coord[:,1])
-        min_y=min(coord[:,1])
-        max_z=max(coord[:,2])
-        min_z=min(coord[:,2])
+        max_x=max(coord[0:ASDReading.nrAtoms,0])
+        min_x=min(coord[0:ASDReading.nrAtoms,0])
+        max_y=max(coord[0:ASDReading.nrAtoms,1])
+        min_y=min(coord[0:ASDReading.nrAtoms,1])
+        max_z=max(coord[0:ASDReading.nrAtoms,2])
+        min_z=min(coord[0:ASDReading.nrAtoms,2])
         dist_x=np.sqrt((max_x-min_x)**2)
         dist_y=np.sqrt((max_y-min_y)**2)
         dist_z=np.sqrt((max_z-min_z)**2)

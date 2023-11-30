@@ -448,6 +448,8 @@ class ASDMomActors():
     # @author Jonathan Chico
     ############################################################################
     def UpdateMoments(self,window,ASDdata,ASDGenActors,renWin):
+        from vtk import vtkPoints
+        from vtk.util import numpy_support
         """Function to update the visualization of the moments as one advances in time
         or in ensembles.
         Args:
@@ -486,6 +488,13 @@ class ASDMomActors():
         #-----------------------------------------------------------------------
         ASDMomActors.src.GetPointData().SetVectors(ASDdata.moments)
         ASDMomActors.src_spins.GetPointData().SetVectors(ASDdata.moments)
+        #-----------------------------------------------------------------------
+        # If coordinate file is animated, update coordinates
+        #-----------------------------------------------------------------------
+        if ASDdata.nrAtoms<ASDdata.full_coord.shape[0]:
+            t_off = window.current_time * ASDdata.nrAtoms
+            ASDdata.coord.SetData(numpy_support.numpy_to_vtk(ASDdata.full_coord[t_off:t_off+ASDdata.nrAtoms]))
+            ASDMomActors.src.SetPoints(ASDdata.coord)
         #-----------------------------------------------------------------------
         # Update the general actors
         #-----------------------------------------------------------------------
