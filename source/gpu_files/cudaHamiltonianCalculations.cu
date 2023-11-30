@@ -90,7 +90,6 @@ public:
 		unsigned int * myPos  = &pos[site];
 		unsigned int   y = size[site];
 
-
 		for (unsigned int i = 0; i < mnn; i++) { 
 
 			if (pos[site * mnn + i] != 0)
@@ -139,6 +138,29 @@ public:
 			//    tensor[2 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=2	
 			//}
 		}
+	}
+};
+
+
+
+// is this even necessary for the anisotropy?
+class CudaHamiltonianCalculations::SetupAnisotropy :
+	public CudaParallelizationHelper::Site {
+private:
+	real * kaniso;
+	real * eaniso;
+	unsigned int * taniso;
+public:
+	SetupAnisotropy(const Anisotropy &aniso) {
+
+		kaniso = aniso.kaniso;
+		eaniso = aniso.eaniso;
+		taniso = aniso.taniso;
+	}
+
+
+        __device__ void each(unsigned int site) {
+		
 	}
 };
 
@@ -380,6 +402,74 @@ public:
 };
 
 
+class CudaHamiltonianCalculations::HeisgeJijAniso :
+	public CudaParallelizationHelper::AtomSiteEnsemble {
+private:
+	real *               beff;
+	const real *         emomM;
+	const real * kaniso;
+	const real * eaniso;
+	const unsigned int * taniso;
+public:
+	HeisgeJijAniso(real * p1, const real * p2,
+			 const Anisotropy & aniso) {
+		beff   = p1;
+		emomM  = p2;
+		kaniso = aniso.kaniso;
+		eaniso = aniso.eaniso;
+		taniso = aniso.taniso;
+
+	}
+
+        __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
+		// Field
+		real x = (real)0.0;
+		real y = (real)0.0;
+		real z = (real)0.0;
+		// Magnetic moment at current site/atom
+		real Sx = (real)0.0;
+		real Sy = (real)0.0;
+		real Sz = (real)0.0;
+		real ex = (real)0.0;
+		real ey = (real)0.0;
+		real ez = (real)0.0;
+		const real *  my_emomM  = &emomM[ensemble * N * 3];
+
+		const real k1 = kaniso[0 + site * 2];
+		const real k2 = kaniso[1 + site * 2];
+
+		unsigned int type = taniso[site]; // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
+
+		Sx = emomM[atom * 3 + 0];
+		Sy = emomM[atom * 3 + 1];
+		Sz = emomM[atom * 3 + 2];
+		ex = eaniso[0 + site * 3];
+		ey = eaniso[1 + site * 3];
+		ez = eaniso[2 + site * 3];
+
+		real tt1 = Sx * ex + Sy * ey + Sz * ez;
+		real tt2 = k1 + (real)2.0 * k2 * (1-tt1*tt1);
+		real tt3 = (real)2.0*tt1*tt2;
+
+		
+		if(type == 1)  // uniaxial anisotropy
+		{
+			x += -tt3*ex;
+			y += -tt3*ey;
+			z += -tt3*ez;
+		} else if (type == 2) { // cubic anisotropy
+
+		}
+
+		// Save field
+		beff[atom * 3 + 0] += x;
+		beff[atom * 3 + 1] += y;
+		beff[atom * 3 + 2] += z;
+	}
+};
+
+
+
 class CudaHamiltonianCalculations::HeisgeJijElement :
 	public CudaParallelizationHelper::ElementAxisSiteEnsemble {
 private:
@@ -482,7 +572,11 @@ bool CudaHamiltonianCalculations::initiate(
 		const hostMatrix<unsigned int,1> &dm_nlistsize,
 		const int 			 do_dm,
 		const int do_j_tensor,
-		const hostMatrix<real,4,3,3> j_tensor) {
+		const hostMatrix<real,4,3,3> j_tensor,
+		const int do_aniso,
+		const hostMatrix<real,2,2> kaniso,
+		const hostMatrix<real,2,3> eaniso,
+		const hostMatrix<unsigned int, 1> taniso) {
 
 	// Memory access is better if N is multiple of 32
 	// (alignment of 128 bytes, see Cuda Best Parctice Guide)
@@ -492,17 +586,27 @@ bool CudaHamiltonianCalculations::initiate(
 	}
 
 
+	//------- Anisotropy -------//
+	if (do_aniso != 0) {
+		aniso.kaniso.clone(kaniso);
+		aniso.eaniso.clone(eaniso);
+		aniso.taniso.clone(taniso);
+		CudaHamiltonianCalculations::do_aniso = do_aniso;
+	}
+
+
+	//------- Tensorial Exchange -------//
 	if (do_j_tensor == 1)
 	{
 		CudaHamiltonianCalculations::do_j_tensor = true;
 		
 		N = j_tensor.dimension_size(3);
+
+		// Matrixes are not transposed when using tensorial exchange
 		//hostMatrix<real,4,3,3>         j_tensor_t;
 		//hostMatrix<unsigned int,2> nlist_t;
-
 		//j_tensor_t.initiate(3,3,N,tenEx.mnn);
 		//nlist_t.initiate(N,tenEx.mnn);
-
 		//transpose(j_tensor_t, j_tensor);
 		//transpose(nlist_t, nlist);
 
@@ -510,7 +614,6 @@ bool CudaHamiltonianCalculations::initiate(
 		tenEx.neighbourCount.clone(nlistsize);
 		tenEx.neighbourPos.clone(nlist);
 		tenEx.tensor.clone(j_tensor);
-
 
 		//for(unsigned int site = 0; site < N; site++) {
 		//	const unsigned int * myPos  = &(nlist.get_data())[site];
@@ -613,10 +716,23 @@ void CudaHamiltonianCalculations::heisge(cudaMatrix<real,3,3> &beff,
 	if (do_j_tensor == 1)
 	{
 		parallel.cudaAtomSiteEnsembleCall(HeisJijTensor(beff, emomM, external_field, tenEx));
-		return;
+
+	} else {
+		parallel.cudaAtomSiteEnsembleCall(HeisgeJij(beff, emomM, external_field, ex, dm));
+
 	}
 
-	parallel.cudaAtomSiteEnsembleCall(HeisgeJij(beff, emomM, external_field, ex, dm));
+	if (do_aniso != 0)
+	{
+		parallel.cudaAtomSiteEnsembleCall(HeisgeJijAniso(beff, emomM, aniso));
+	}
+
+
+
+	return;
+
+
+
 
 	//parallel.cudaElementAxisSiteEnsembleCall(HeisgeJijElement(beff, emomM, external_field, ex));
 }

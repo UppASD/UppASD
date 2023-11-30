@@ -60,6 +60,7 @@ void CudaMdSimulation::initiateConstants() {
 	initexc        = *FortranData::initexc;
 	do_dm          = static_cast<bool>(*FortranData::do_dm);
 	do_jtensor     = static_cast<bool>(*FortranData::do_jtensor);
+	do_aniso       = *FortranData::do_aniso;
 	max_no_dmneigh = *FortranData::max_no_dmneigh;
 
 
@@ -108,11 +109,22 @@ void CudaMdSimulation::initiate_fortran() {
 	f_dmlist        .set(FortranData::dmlist        ,max_no_dmneigh,N);
 	f_dmlistsize    .set(FortranData::dmlistsize    ,N);
 	
+	
 	if (*FortranData::do_jtensor == 1)
 	{
 		printf("\n CUDA: jTensor has been initialized \n");
 		f_j_tensor  .set(FortranData::j_tensor      ,3,3,max_no_neigh,N);
 	}
+
+	if (*FortranData::do_aniso != 0) {
+		f_kaniso        .set(FortranData::kaniso, 2,N);
+		f_eaniso        .set(FortranData::eaniso, 3,N);
+		f_taniso        .set(FortranData::taniso, N);
+	}
+
+
+
+
 }
 
 /*
@@ -324,12 +336,19 @@ void CudaMdSimulation::measurementPhase() {
 	// Measurement
 	CudaMeasurement measurement(emomM, emom, mmom);
 
+
+	//for (int i = 0; i < f_kaniso.size(); i++) {
+	//	printf(" %f", f_kaniso.get_data()[i]);
+	//}
+	
+
+
 	// Initiate integrator and Hamiltonian
 	if (!integrator.initiate(Natom, Mensemble, stt, delta_t, rngType, randomSeed)) {
 		fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
 		return;
 	}
-	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor)) {
+	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor, do_aniso, f_kaniso, f_eaniso, f_taniso)) {
 		fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
 		return;
 	}
