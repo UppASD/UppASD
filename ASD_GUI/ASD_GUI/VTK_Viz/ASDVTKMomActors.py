@@ -442,6 +442,7 @@ class ASDMomActors():
         renWin.Render()
         print(' Done')
         return;
+
     ############################################################################
     # @brief Update the magnetic moments for the visualization
     # @author Jonathan Chico
