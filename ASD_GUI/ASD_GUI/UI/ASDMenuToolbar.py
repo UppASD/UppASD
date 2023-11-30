@@ -252,6 +252,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.AtomSize.valueChanged.connect(window.UpdateRenderer)
     window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
     window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
+    window.AtomQuali.valueChanged.connect(window.ASDVizOpt.ChangeAtomsQuali)
+    window.AtomQuali.valueChanged.connect(window.UpdateRenderer)
     #---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     #---------------------------------------------------------------------------

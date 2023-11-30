@@ -2642,7 +2642,7 @@
                                                       <enum>QFrame::NoFrame</enum>
                                                    </property>
                                                    <property name="text">
-                                                      <string>Atom opacity</string>
+                                                      <string>Atom Opacity</string>
                                                    </property>
                                                    <property name="alignment">
                                                       <set>Qt::AlignCenter</set>
@@ -2693,6 +2693,66 @@
                                                    </property>
                                                    <property name="tickInterval">
                                                       <number>10</number>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QLabel" name="AtomQualiSliderLabel">
+                                                   <property name="frameShape">
+                                                      <enum>QFrame::NoFrame</enum>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Atom quality</string>
+                                                   </property>
+                                                   <property name="alignment">
+                                                      <set>Qt::AlignCenter</set>
+                                                   </property>
+                                                </widget>
+                                             </item>
+                                             <item>
+                                                <widget class="QSlider" name="AtomQuali">
+                                                   <property name="enabled">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                   <property name="font">
+                                                      <font>
+                                                         <italic>false</italic>
+                                                         <underline>false</underline>
+                                                         <strikeout>false</strikeout>
+                                                      </font>
+                                                   </property>
+                                                   <property name="toolTip">
+                                                      <string>Modify the reslolution of the atoms</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Modify the reslolution of the atoms</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Modify the reslolution of the atoms</string>
+                                                   </property>
+                                                   <property name="minimum">
+                                                      <number>8</number>
+                                                   </property>
+                                                   <property name="maximum">
+                                                      <number>128</number>
+                                                   </property>
+                                                   <property name="pageStep">
+                                                      <number>8</number>
+                                                   </property>
+                                                   <property name="value">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="sliderPosition">
+                                                      <number>16</number>
+                                                   </property>
+                                                   <property name="orientation">
+                                                      <enum>Qt::Horizontal</enum>
+                                                   </property>
+                                                   <property name="tickPosition">
+                                                      <enum>QSlider::TicksBelow</enum>
+                                                   </property>
+                                                   <property name="tickInterval">
+                                                      <number>8</number>
                                                    </property>
                                                 </widget>
                                              </item>

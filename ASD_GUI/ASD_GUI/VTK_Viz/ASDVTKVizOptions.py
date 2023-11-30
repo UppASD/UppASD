@@ -442,6 +442,13 @@ class ASDVizOptions():
         ASDVizOptions.MomActors.Atoms.GetProperty().SetOpacity(value*0.01)
         return
     ############################################################################
+    # Set the quality of the atoms via the slider
+    ############################################################################
+    def ChangeAtomsQuali(self,value):
+        ASDVizOptions.MomActors.AtomSphere.SetThetaResolution(value)
+        ASDVizOptions.MomActors.AtomSphere.SetPhiResolution(value)
+        return
+    ############################################################################
     # Toggle the atoms for the neighbour map
     ############################################################################
     def toggle_NAtoms(self,check):
