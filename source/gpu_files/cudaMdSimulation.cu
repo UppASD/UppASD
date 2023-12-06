@@ -120,11 +120,8 @@ void CudaMdSimulation::initiate_fortran() {
 		f_kaniso        .set(FortranData::kaniso, 2,N);
 		f_eaniso        .set(FortranData::eaniso, 3,N);
 		f_taniso        .set(FortranData::taniso, N);
+		f_sb			.set(FortranData::sb, N);
 	}
-
-
-
-
 }
 
 /*
@@ -348,7 +345,7 @@ void CudaMdSimulation::measurementPhase() {
 		fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
 		return;
 	}
-	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor, do_aniso, f_kaniso, f_eaniso, f_taniso)) {
+	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor, do_aniso, f_kaniso, f_eaniso, f_taniso, f_sb)) {
 		fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
 		return;
 	}

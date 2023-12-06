@@ -43,6 +43,7 @@ private:
 		cudaMatrix<unsigned int, 1> taniso;
 		cudaMatrix<real, 2, 3> eaniso;
 		cudaMatrix<real, 2, 2> kaniso;
+		cudaMatrix<real, 1> sb; // Ratio between uniaxial and cubic anisotropie
 	} Anisotropy;
 
 	Exchange ex;
@@ -90,7 +91,8 @@ public:
 		const int do_aniso,
 		const hostMatrix<real, 2, 2> kaniso,
 		const hostMatrix<real, 2, 3> eaniso,
-		const hostMatrix<unsigned int, 1> taniso);
+		const hostMatrix<unsigned int, 1> taniso,
+		const hostMatrix<real, 1> sb);
 
 	// Initiated
 	bool isInitiated() { return initiated; }

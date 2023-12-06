@@ -410,6 +410,7 @@ private:
 	const real * kaniso;
 	const real * eaniso;
 	const unsigned int * taniso;
+	const real * sb;
 public:
 	HeisgeJijAniso(real * p1, const real * p2,
 			 const Anisotropy & aniso) {
@@ -418,7 +419,7 @@ public:
 		kaniso = aniso.kaniso;
 		eaniso = aniso.eaniso;
 		taniso = aniso.taniso;
-
+		sb     = aniso.sb;
 	}
 
         __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -430,15 +431,15 @@ public:
 		real Sx = (real)0.0;
 		real Sy = (real)0.0;
 		real Sz = (real)0.0;
+		// Uniaxial anisotropy unit vector
 		real ex = (real)0.0;
 		real ey = (real)0.0;
 		real ez = (real)0.0;
 		const real *  my_emomM  = &emomM[ensemble * N * 3];
 
-		const real k1 = kaniso[0 + site * 2];
-		const real k2 = kaniso[1 + site * 2];
-
 		unsigned int type = taniso[site]; // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
+
+
 
 		Sx = emomM[atom * 3 + 0];
 		Sy = emomM[atom * 3 + 1];
@@ -447,18 +448,29 @@ public:
 		ey = eaniso[1 + site * 3];
 		ez = eaniso[2 + site * 3];
 
-		real tt1 = Sx * ex + Sy * ey + Sz * ez;
-		real tt2 = k1 + (real)2.0 * k2 * (1-tt1*tt1);
-		real tt3 = (real)2.0*tt1*tt2;
-
+		real k1 = kaniso[0 + site * 2];
+		real k2 = kaniso[1 + site * 2]; 
 		
-		if(type == 1)  // uniaxial anisotropy
+		if(type == 1 || type == 7)  // uniaxial anisotropy
 		{
+			real tt1 = Sx * ex + Sy * ey + Sz * ez;
+			real tt2 = k1 + (real)2.0 * k2 * (1-tt1*tt1);
+			real tt3 = (real)2.0*tt1*tt2;
+
 			x += -tt3*ex;
 			y += -tt3*ey;
 			z += -tt3*ez;
-		} else if (type == 2) { // cubic anisotropy
+		}   
+		if (type == 2 || type == 7) { // cubic anisotropy
 
+			if (type == 7) { // The Cubic Anisotropy constant = Uniaxial constant x sb
+				k1 *= sb[site];
+				k2 *= sb[site];
+			}
+
+			x += (real)2.0*k1*Sx*(Sy*Sy+Sz*Sz) + (real)2.0*k2*Sx*Sy*Sy*Sz*Sz;
+			y += (real)2.0*k1*Sy*(Sz*Sz+Sx*Sx) + (real)2.0*k2*Sy*Sz*Sz*Sx*Sx;
+			z += (real)2.0*k1*Sz*(Sx*Sx+Sy*Sy) + (real)2.0*k2*Sz*Sx*Sx*Sy*Sy;
 		}
 
 		// Save field
@@ -576,7 +588,8 @@ bool CudaHamiltonianCalculations::initiate(
 		const int do_aniso,
 		const hostMatrix<real,2,2> kaniso,
 		const hostMatrix<real,2,3> eaniso,
-		const hostMatrix<unsigned int, 1> taniso) {
+		const hostMatrix<unsigned int, 1> taniso, 
+		const hostMatrix<real, 1> sb) {
 
 	// Memory access is better if N is multiple of 32
 	// (alignment of 128 bytes, see Cuda Best Parctice Guide)
@@ -591,6 +604,7 @@ bool CudaHamiltonianCalculations::initiate(
 		aniso.kaniso.clone(kaniso);
 		aniso.eaniso.clone(eaniso);
 		aniso.taniso.clone(taniso);
+		aniso.sb.clone(sb);
 		CudaHamiltonianCalculations::do_aniso = do_aniso;
 	}
 
@@ -719,7 +733,6 @@ void CudaHamiltonianCalculations::heisge(cudaMatrix<real,3,3> &beff,
 
 	} else {
 		parallel.cudaAtomSiteEnsembleCall(HeisgeJij(beff, emomM, external_field, ex, dm));
-
 	}
 
 	if (do_aniso != 0)

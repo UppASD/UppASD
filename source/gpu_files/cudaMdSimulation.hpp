@@ -64,6 +64,7 @@ private:
 	fortMatrix<real,2,2> f_kaniso;
 	fortMatrix<real,2,3> f_eaniso;
 	fortMatrix<unsigned int,1> f_taniso;
+	fortMatrix<real, 1> f_sb;
 
 	cudaMatrix<real,3,3> beff;
 	cudaMatrix<real,3,3> b2eff;
