@@ -156,7 +156,7 @@ contains
       call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
          beff,b2eff,emomM,emom,emom2,            &
          external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso)
+         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
