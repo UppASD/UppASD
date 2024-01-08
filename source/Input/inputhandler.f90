@@ -65,6 +65,7 @@ contains
       use prn_currents
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
+      use DemagField
 
       implicit none
 
@@ -1168,7 +1169,7 @@ contains
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------
-            ! START OF VARIABLES FOR PRINTING STT TORQUES
+            ! START OF VARIABLES FOR PRINTING FIELD TORQUES
             !------------------------------------------------------------------------
 
             case('do_prn_torques')
@@ -1184,7 +1185,7 @@ contains
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------
-            ! END OF VARIABLES FOR PRINTING STT TORQUES
+            ! END OF VARIABLES FOR PRINTING FIELD TORQUES
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------
@@ -1266,6 +1267,34 @@ contains
 
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR SKYRMION NUMBER
+            !------------------------------------------------------------------------
+
+            !------------------------------------------------------------------------
+            ! START OF VARIABLES FOR DEMAG FIELDS
+            !------------------------------------------------------------------------
+            case('demag')
+               read(ifile,*,iostat=i_err) demag
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_vol')
+               read(ifile,*,iostat=i_err) demagvol
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_x')
+               read(ifile,*,iostat=i_err) demag1
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_y')
+               read(ifile,*,iostat=i_err) demag2
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_z')
+               read(ifile,*,iostat=i_err) demag3
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+
+            !------------------------------------------------------------------------
+            ! END OF VARIABLES FOR DEMAG FIELDS
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------

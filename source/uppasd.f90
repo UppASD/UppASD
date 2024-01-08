@@ -617,6 +617,7 @@ contains
       use prn_trajectories
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
+      use DemagField
       
       implicit none
 
@@ -842,6 +843,11 @@ contains
       else
          mconf=1
       endif
+
+      ! Demagnetizing field (simple approach)
+      if (demag == 'Y') then
+         call allocate_demag(Mensemble)
+      end if
 
       ! Site dependent damping for the initial phase
       if (ipmode=='S'.and.do_site_ip_damping=='Y') then

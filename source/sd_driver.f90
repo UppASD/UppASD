@@ -369,7 +369,7 @@ contains
          mwf_mov_gauss,mwf_gauss_spatial,mov_circle,mwf_mov_circle,mov_square,      &
          mwf_mov_square)
 
-      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5)
+      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5.or.demag=='Y')
 
       ! Calculate demagnetization field
       if(demag=='Y') then
@@ -399,6 +399,11 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
+      ! Calculate spin transfer torque contributions to the local field
+      if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
+         call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
+      end if
+
       ! Calculate the effective field before the simulation starts, if fields are to be printed
       if (do_prn_beff=='Y') then
          ! Apply Hamiltonian to obtain effective field
@@ -477,6 +482,11 @@ contains
             ! Calculate Microwave fields (time dependent fields)
             call calculate_mwf_fields(Natom,mstep,rstep+nstep-1,delta_t,coord,0)
 
+            ! Calculate demagnitization field
+            if(demag=='Y') then
+               call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+            endif
+
             ! Calculate the total time dependent fields
             call calc_external_time_fields(Natom, Mensemble, time_external_field,   &
                do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss,       &
@@ -486,6 +496,7 @@ contains
                mwf_mov_gauss_spatial,mov_circle,mwf_mov_circle,mov_circle_spatial,  &
                mwf_mov_circle_spatial,mov_square,mwf_mov_square,mov_square_spatial, &
                mwf_mov_square_spatial)
+
          else
             time_external_field=0.0_dblprec
          endif
@@ -570,7 +581,7 @@ contains
          call timing(0,'Hamiltonian   ','ON')
 
          ! Calculate spin transfer torque contributions to the local field
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
          end if
 
@@ -672,7 +683,7 @@ contains
          call timing(0,'Evolution     ','ON')
 
          ! Re-Calculate spin transfer torque
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom2,mmom)
          end if
 
