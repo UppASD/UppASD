@@ -87,7 +87,7 @@ contains
       bdup=0.0_dblprec
 
       if(stt/='N') then
-         stt_fac=1.0_dblprec
+         stt_fac=2.0_dblprec
          !$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do ired=1,Nred
@@ -230,7 +230,7 @@ contains
       real(dblprec) :: u,cosv,sinv,lldamp, she_fac, stt_fac,sot_fac
 
       if(stt/='N') then
-         stt_fac=1.0_dblprec
+         stt_fac=2.0_dblprec
       else
          stt_fac=0.0_dblprec
       end if
