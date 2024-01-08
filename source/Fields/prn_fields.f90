@@ -12,40 +12,46 @@ module prn_fields
    implicit none
 
    ! Input parameters to be read
-   integer :: beff_step               !< Interval between consecutive prints of the total effective field
-   integer :: beff_buff               !< Buffer size for the total field
-   integer :: binteff_step            !< Interval between consecutive prints of the internal effective field
-   integer :: binteff_buff            !< Buffer size for the internal field
-   integer :: thermfield_step         !< Interval between thermal field trajectories
-   integer :: thermfield_buff         !< Buffer size for the stochastic field
-   integer :: torques_step            !< Interval between consecutive prints of the resulting torques
-   integer :: torques_buff            !< Buffer size for the resulting torques
-   integer :: larm_step               !< Interval between consecutive prints of the larmor frequencies
-   integer :: larm_buff               !< Buffer size for the larmor frequencies
-   integer :: larm_dos_size           !< Number of windows for larmor dos histogram
-   character(len=1) :: do_prn_beff    !< Flag governing file output of total effective fields (Y/N)
-   character(len=1) :: do_prn_binteff !< Flag governing file output of internal effective fields (Y/N)
-   character(len=1) :: do_prn_torques !< Flag governing file output of resulting torques (Y/N)
-   character(len=1) :: do_thermfield  !< Thermal fields trajectory
-   character(len=1) :: do_larmor_loc  !< Calculate local precession frequencies from local field (Y/N)
-   character(len=1) :: do_larmor_dos  !< Calculate average precession frequencies from local field (Y/N)
+   integer :: beff_step                    !< Interval between consecutive prints of the total effective field
+   integer :: beff_buff                    !< Buffer size for the total field
+   integer :: binteff_step                 !< Interval between consecutive prints of the internal effective field
+   integer :: binteff_buff                 !< Buffer size for the internal field
+   integer :: thermfield_step              !< Interval between thermal field trajectories
+   integer :: thermfield_buff              !< Buffer size for the stochastic field
+   integer :: torques_step                 !< Interval between consecutive prints of the resulting torques
+   integer :: torques_buff                 !< Buffer size for the resulting torques
+   integer :: spin_torques_step            !< Interval between consecutive prints of the resulting torques
+   integer :: spin_torques_buff            !< Buffer size for the resulting torques
+   integer :: larm_step                    !< Interval between consecutive prints of the larmor frequencies
+   integer :: larm_buff                    !< Buffer size for the larmor frequencies
+   integer :: larm_dos_size                !< Number of windows for larmor dos histogram
+   character(len=1) :: do_prn_beff         !< Flag governing file output of total effective fields (Y/N)
+   character(len=1) :: do_prn_binteff      !< Flag governing file output of internal effective fields (Y/N)
+   character(len=1) :: do_prn_torques      !< Flag governing file output of resulting torques (Y/N)
+   character(len=1) :: do_prn_spin_torques !< Flag governing file output of spin torques (Y/N)
+   character(len=1) :: do_thermfield       !< Thermal fields trajectory
+   character(len=1) :: do_larmor_loc       !< Calculate local precession frequencies from local field (Y/N)
+   character(len=1) :: do_larmor_dos       !< Calculate average precession frequencies from local field (Y/N)
 
    ! Local variables for buffering and indexing of fields
-   integer :: bcount_beff    !< Counter of buffer for total field
-   integer :: bcount_binteff !< Counter of buffer for internal field
-   integer :: bcount_torques !< Counter of buffer for toruqes
-   integer :: bcount_therm   !< Counter of buffer for stochastic field
-   integer :: bcount_larm    !< Counter of buffer for Larmor frequencies
-   real(dblprec), dimension(:), allocatable :: indxb_beff         !< Step counter for total field
-   real(dblprec), dimension(:), allocatable :: indxb_binteff      !< Step counter for internal field
-   real(dblprec), dimension(:), allocatable :: indxb_torques      !< Step counter for resulting torques
-   real(dblprec), dimension(:), allocatable :: indxb_larm         !< Step counter for total field
-   real(dblprec), dimension(:), allocatable :: indxb_therm        !< Step counter for stochastic field
-   real(dblprec), dimension(:,:,:,:), allocatable :: beffb        !< Buffer the site dependent total field
-   real(dblprec), dimension(:,:,:,:), allocatable :: binteffb     !< Buffer the site resulting torques
-   real(dblprec), dimension(:,:,:,:), allocatable :: torquesb     !< Buffer the site dependent internal field
-   real(dblprec), dimension(:,:,:), allocatable :: larmb          !< Buffer the site dependent larmor frequencies
-   real(dblprec), dimension(:,:,:,:), allocatable :: therm_fieldb !< Buffer the site dependent stochastic field
+   integer :: bcount_beff         !< Counter of buffer for total field
+   integer :: bcount_binteff      !< Counter of buffer for internal field
+   integer :: bcount_torques      !< Counter of buffer for torques
+   integer :: bcount_spin_torques !< Counter of buffer for spin torques
+   integer :: bcount_therm        !< Counter of buffer for stochastic field
+   integer :: bcount_larm         !< Counter of buffer for Larmor frequencies
+   real(dblprec), dimension(:), allocatable :: indxb_beff           !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_binteff        !< Step counter for internal field
+   real(dblprec), dimension(:), allocatable :: indxb_torques        !< Step counter for resulting torques
+   real(dblprec), dimension(:), allocatable :: indxb_spin_torques   !< Step counter for spin torques
+   real(dblprec), dimension(:), allocatable :: indxb_larm           !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_therm          !< Step counter for stochastic field
+   real(dblprec), dimension(:,:,:,:), allocatable :: beffb          !< Buffer the site dependent total field
+   real(dblprec), dimension(:,:,:,:), allocatable :: binteffb       !< Buffer the site resulting torques
+   real(dblprec), dimension(:,:,:,:), allocatable :: torquesb       !< Buffer the site dependent internal field
+   real(dblprec), dimension(:,:,:,:), allocatable :: spin_torquesb  !< Buffer the site dependent internal field
+   real(dblprec), dimension(:,:,:), allocatable :: larmb            !< Buffer the site dependent larmor frequencies
+   real(dblprec), dimension(:,:,:,:), allocatable :: therm_fieldb   !< Buffer the site dependent stochastic field
 
 
 contains
@@ -149,7 +155,7 @@ contains
 
       endif
 
-      ! Total site dependent field
+      ! Site dependent torques
       if (do_prn_torques=='Y') then
 
          if (mod(sstep-1,torques_step)==0) then
@@ -167,8 +173,24 @@ contains
          endif
 
       endif
+      ! Site dependent spin torques
+      if (do_prn_spin_torques=='Y') then
 
+         if (mod(sstep-1,spin_torques_step)==0) then
+            ! Write step to buffer
+            call buffer_spin_torques(Natom, Mensemble, mstep-1,&
+               bcount_spin_torques, delta_t, real_time_measure, emom)
+            if (bcount_spin_torques==spin_torques_buff) then
+               ! write buffer to file
+               call prn_spin_torques(Natom, Mensemble, simid,real_time_measure)
+               bcount_spin_torques=1
+            else
+               bcount_spin_torques=bcount_spin_torques+1
+            endif
 
+         endif
+
+      endif
 
    end subroutine print_fields
 
@@ -207,6 +229,12 @@ contains
          call prn_torques(Natom, Mensemble, simid,real_time_measure)
       endif
 
+      if (do_prn_spin_torques=='Y') then
+         ! Write buffer to file
+         bcount_spin_torques=bcount_spin_torques-1
+         call prn_spin_torques(Natom, Mensemble, simid,real_time_measure)
+      endif
+
    end subroutine flush_prn_fields
 
 
@@ -215,23 +243,26 @@ contains
 
       implicit none
 
-      do_thermfield     = 'N'
-      do_prn_beff       = 'N'
-      do_prn_binteff    = 'N'
-      do_larmor_loc     = 'N'
-      do_larmor_dos     = 'N'
-      do_prn_torques    = 'N'
-      thermfield_step   = 1000
-      thermfield_buff   = 10
-      beff_step         = 1000
-      beff_buff         = 10
-      binteff_step      = 1000
-      binteff_buff      = 10
-      torques_step      = 1000
-      torques_buff      = 10
-      larm_step         = 1000
-      larm_buff         = 10
-      larm_dos_size     = 1000
+      do_thermfield          = 'N'
+      do_prn_beff            = 'N'
+      do_prn_binteff         = 'N'
+      do_larmor_loc          = 'N'
+      do_larmor_dos          = 'N'
+      do_prn_torques         = 'N'
+      do_prn_spin_torques    = 'N'
+      thermfield_step        = 1000
+      thermfield_buff        = 10
+      beff_step              = 1000
+      beff_buff              = 10
+      binteff_step           = 1000
+      binteff_buff           = 10
+      torques_step           = 1000
+      torques_buff           = 10
+      spin_torques_step      = 1000
+      spin_torques_buff      = 10
+      larm_step              = 1000
+      larm_buff              = 10
+      larm_dos_size          = 1000
 
    end subroutine fields_prn_init
 
@@ -255,6 +286,7 @@ contains
          bcount_larm=1
          bcount_therm=1
          bcount_torques=1
+         bcount_spin_torques=1
 
          if (do_thermfield=='Y') then
             allocate(therm_fieldb(3,Natom,thermfield_buff,Mensemble),stat=i_stat)
@@ -282,6 +314,13 @@ contains
             call memocc(i_stat,product(shape(torquesb))*kind(torquesb),'torquesb','allocate_measurements')
             allocate(indxb_torques(torques_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_torques))*kind(indxb_torques),'indxb_torques','allocate_measurements')
+         endif
+
+         if (do_prn_spin_torques=='Y') then
+            allocate(spin_torquesb(6,Natom,spin_torques_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(spin_torquesb))*kind(spin_torquesb),'spin_torquesb','allocate_measurements')
+            allocate(indxb_spin_torques(spin_torques_buff),stat=i_stat)
+            call memocc(i_stat,product(shape(indxb_spin_torques))*kind(indxb_spin_torques),'indxb_spin_torques','allocate_measurements')
          endif
 
          if (do_larmor_loc=='Y'.or.do_larmor_dos=='Y') then
@@ -489,10 +528,51 @@ contains
    end subroutine buffer_larmorfreq
 
 
+   !> Buffer site spin transfer torques
+   subroutine buffer_spin_torques(Natom, Mensemble, mstep,&
+         bcount_spin_torques,delta_t,real_time_measure,emom)
+      !
+      use spintorques, only : btorque
+      use math_functions, only : f_cross_product
+
+      implicit none
+
+      integer, intent(in) :: mstep !< Current simulation step
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: bcount_spin_torques   !< Counter of buffer for total effective field
+      real(dblprec), intent(in) :: delta_t !< Current measurement time
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+      real(dblprec), dimension(:,:,:), intent(in)    :: emom   !< Current unit moment vector
+
+      !.. Local scalar variables
+      integer :: i,k
+      real(dblprec), dimension(3) :: prec_torque,damp_torque, tmp_fld
+
+      ! Print precessional and damping torques from the spin transfer field
+      do k=1, Mensemble
+         do i=1, Natom
+            tmp_fld=btorque(1:3,i,k)
+            prec_torque = f_cross_product(emom(:,i,k), tmp_fld)
+            damp_torque = f_cross_product(emom(:,i,k), prec_torque)
+            spin_torquesb(1:3,i,bcount_spin_torques,k)=prec_torque
+            spin_torquesb(4:6,i,bcount_spin_torques,k)=damp_torque
+         end do
+      end do
+
+      if (real_time_measure=='Y') then
+         indxb_spin_torques(bcount_spin_torques)=mstep*delta_t
+      else
+         indxb_spin_torques(bcount_spin_torques)=mstep
+      endif
+
+   end subroutine buffer_spin_torques
+
    !> Buffer site resulting torques
    subroutine buffer_torques(Natom, Mensemble, mstep,beff,thermal_field,&
          bcount_torques,delta_t,real_time_measure,emom)
       !
+      use math_functions, only : f_cross_product
 
       implicit none
 
@@ -510,40 +590,28 @@ contains
       integer :: i,k
       real(dblprec), dimension(3) :: prec_torque,damp_torque, tmp_fld
 
-      ! Approach 1: Print precessional and damping torques from the total field (beff+btherm)
-      do k=1, Mensemble
-         do i=1, Natom
-            tmp_fld=thermal_field(1:3,i,k)+beff(1:3,i,k)
-            prec_torque(1)=emom(2,i,k)*tmp_fld(3)-emom(3,i,k)*tmp_fld(2)
-            prec_torque(2)=emom(3,i,k)*tmp_fld(1)-emom(1,i,k)*tmp_fld(3)
-            prec_torque(3)=emom(1,i,k)*tmp_fld(2)-emom(2,i,k)*tmp_fld(1)
-            damp_torque(1)=emom(2,i,k)*prec_torque(3)-emom(3,i,k)*prec_torque(2)
-            damp_torque(2)=emom(3,i,k)*prec_torque(1)-emom(1,i,k)*prec_torque(3)
-            damp_torque(3)=emom(1,i,k)*prec_torque(2)-emom(2,i,k)*prec_torque(1)
-            torquesb(1:3,i,bcount_torques,k)=prec_torque
-            torquesb(4:6,i,bcount_torques,k)=damp_torque
-         end do
-      end do
+      !!! ! Approach 1: Print precessional and damping torques from the total field (beff+btherm)
+      !!! do k=1, Mensemble
+      !!!    do i=1, Natom
+      !!!       tmp_fld=thermal_field(1:3,i,k)+beff(1:3,i,k)
+      !!!       prec_torque = f_cross_product(emom(:,i,k), tmp_fld)
+      !!!       damp_torque = f_cross_product(emom(:,i,k), prec_torque)
+      !!!       torquesb(1:3,i,bcount_torques,k)=prec_torque
+      !!!       torquesb(4:6,i,bcount_torques,k)=damp_torque
+      !!!    end do
+      !!! end do
       ! Approach 2: Print total torques from thermal and effective fields respectively
       do k=1, Mensemble
          do i=1, Natom
             !Effective field
             tmp_fld=beff(1:3,i,k)
-            prec_torque(1)=emom(2,i,k)*tmp_fld(3)-emom(3,i,k)*tmp_fld(2)
-            prec_torque(2)=emom(3,i,k)*tmp_fld(1)-emom(1,i,k)*tmp_fld(3)
-            prec_torque(3)=emom(1,i,k)*tmp_fld(2)-emom(2,i,k)*tmp_fld(1)
-            damp_torque(1)=emom(2,i,k)*prec_torque(3)-emom(3,i,k)*prec_torque(2)
-            damp_torque(2)=emom(3,i,k)*prec_torque(1)-emom(1,i,k)*prec_torque(3)
-            damp_torque(3)=emom(1,i,k)*prec_torque(2)-emom(2,i,k)*prec_torque(1)
+            prec_torque = f_cross_product(emom(:,i,k), tmp_fld)
+            damp_torque = f_cross_product(emom(:,i,k), prec_torque)
             torquesb(1:3,i,bcount_torques,k)=prec_torque+damp_torque
             !Thermal field
             tmp_fld=thermal_field(1:3,i,k)
-            prec_torque(1)=emom(2,i,k)*tmp_fld(3)-emom(3,i,k)*tmp_fld(2)
-            prec_torque(2)=emom(3,i,k)*tmp_fld(1)-emom(1,i,k)*tmp_fld(3)
-            prec_torque(3)=emom(1,i,k)*tmp_fld(2)-emom(2,i,k)*tmp_fld(1)
-            damp_torque(1)=emom(2,i,k)*prec_torque(3)-emom(3,i,k)*prec_torque(2)
-            damp_torque(2)=emom(3,i,k)*prec_torque(1)-emom(1,i,k)*prec_torque(3)
-            damp_torque(3)=emom(1,i,k)*prec_torque(2)-emom(2,i,k)*prec_torque(1)
+            prec_torque = f_cross_product(emom(:,i,k), tmp_fld)
+            damp_torque = f_cross_product(emom(:,i,k), prec_torque)
             torquesb(4:6,i,bcount_torques,k)=prec_torque+damp_torque
          end do
       end do
@@ -744,9 +812,15 @@ contains
 
       ! Print thermal fields to output file if specified
       ! Remember to remove old data since the write statement appends new data to the file
-
       write(filn,'(''torques.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
+
+      ! Write header to output files for first iteration
+      if(abs(indxb_torques(1))<=0.0e0_dblprec) then
+         write (ofileno,'(a)') "# Iter.     Site     Replica        Tau_B_x     Tau_B_y     Tau_B_z     |Tau_B|     &
+          Tau_b_x     Tau_b_y     Tau_b_z     |Tau_b|"
+      end if
+
       do k=1, bcount_torques
          do j=1,Mensemble
             do i=1,Natom
@@ -770,6 +844,58 @@ contains
       121 format(es12.4,i8,i8,8x,8es12.4)
 
    end subroutine prn_torques
+
+   !> Print spin transfer torques
+   subroutine prn_spin_torques(Natom, Mensemble, simid, real_time_measure)
+      !
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: Natom     !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      character(len=8), intent(in) :: simid !< Name of the simulation
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      ! Local variables
+      integer :: i,j,k
+      character(len=30) :: filn
+
+      ! Print thermal fields to output file if specified
+      ! Remember to remove old data since the write statement appends new data to the file
+      write(filn,'(''spin_torques.'',a,''.out'')') trim(simid)
+      open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
+
+      ! Write header to output files for first iteration
+      if(abs(indxb_spin_torques(1))<=0.0e0_dblprec) then
+         write (ofileno,'(a)') "# Iter.     Site     Replica        STT_p_x     STT_p_y     STT_p_z     |STT_p|     &
+            STT_d_x     STT_d_y     STT_d_z     |STT_d|"
+      end if
+
+      do k=1, bcount_spin_torques
+         do j=1,Mensemble
+            do i=1,Natom
+               if (real_time_measure=='Y') then
+                  write (ofileno,121) indxb_spin_torques(k), i, j, &
+                  spin_torquesb(1:3,i,k,j), norm2(spin_torquesb(1:3,i,k,j)), &
+                     spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j))
+               else
+                  write (ofileno,120) int(indxb_spin_torques(k)), i, j, &
+                  spin_torquesb(1:3,i,k,j), norm2(spin_torquesb(1:3,i,k,j)), &
+                     spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j))
+               endif
+            end do
+         end do
+      enddo
+      close(ofileno)
+
+      return
+
+      write(*,*) 'Error writing the internal field file'
+
+      120 format(i8,i8,i8,8x,8es12.4)
+      121 format(es12.4,i8,i8,8x,8es12.4)
+
+   end subroutine prn_spin_torques
 
 
 

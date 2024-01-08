@@ -1169,6 +1169,26 @@ contains
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------
+            ! START OF VARIABLES FOR PRINTING SPIN TRANSFER TORQUES
+            !------------------------------------------------------------------------
+
+            case('do_prn_spin_torques')
+               read(ifile,*,iostat=i_err) do_prn_spin_torques
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('spin_torques_step') ! Time interval between printing the field
+               read(ifile,*,iostat=i_err) spin_torques_step
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('spin_torques_buff')
+               read(ifile,*,iostat=i_err) spin_torques_buff
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            !------------------------------------------------------------------------
+            ! END OF VARIABLES FOR PRINTING SPIN TRANSFER TORQUES
+            !------------------------------------------------------------------------
+
+            !------------------------------------------------------------------------
             ! START OF VARIABLES FOR PRINTING FIELD TORQUES
             !------------------------------------------------------------------------
 

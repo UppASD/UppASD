@@ -45,6 +45,8 @@ module SpinTorques
    real(dblprec), dimension(3) :: jvec !< Spin current vector
    real(dblprec), dimension(3) :: sot_pol_vec
    real(dblprec), dimension(:,:), allocatable :: sitenatomjvec !< Site dependent spin current vector
+   real(dblprec), dimension(:,:), allocatable :: sitenatom_stt_pol
+   real(dblprec), dimension(:), allocatable :: sitenatom_stt_jcur
    real(dblprec), dimension(:,:), allocatable :: sitenatom_sot_pol
 
    !Spin-transfer torque data arrays
@@ -82,6 +84,7 @@ contains
       integer :: j, k
       !
       if(stt=='A') then
+         ! Gradient torque
          call differentiate_moments(Natom, Mensemble,emom, dmomdr, sitenatomjvec)
          !$omp parallel do default(shared) private(j,k)
          do j=1, Natom
@@ -97,7 +100,13 @@ contains
          call mom_cross_dmomdr(Natom, Mensemble,emom)
 
          ! external_field=external_field+btorque
+      else if(stt=='S') then
+         ! Slonczewski torque a la Evans (J. Phys.: Condens. Matter 35 025801 (2023))
+         call slonczewski_field(Natom, Mensemble,emom)
+         !call mom_cross_mfixed(Natom, Mensemble,emom)
+         ! external_field=external_field+btorque
       else if(stt=='F') then
+         ! Fixed layer
          call mom_cross_mfixed(Natom, Mensemble,emom)
          ! external_field=external_field+btorque
       end if
@@ -175,6 +184,47 @@ contains
       end do
 
    end subroutine mom_cross_mfixed
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> Calculates the spin transfer torque for currents passing through a fixed ferromagnetic layer
+   !> Updated formalism according to J. Phys.: Condens. Matter 35 (2023) 025801
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------
+   subroutine slonczewski_field(Natom, Mensemble,emom)
+      use math_functions, only : f_cross_product
+      use damping, only : lambda1_array
+      !B = BSTT (p−α m×p)+BSTT (m×p+α p)
+
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emom  !< Current magnetic moment vector
+
+      real(dblprec) :: stt_asym, stt_prefac, stt_dot
+      integer :: iatom, k
+
+      stt_asym = spin_pol**2
+      btorque=0.0_dblprec
+      do k=1, Mensemble
+         do iatom=1, Natom
+            stt_dot = dot_product(emom(:,iatom,k), sitenatom_stt_pol(:,iatom))
+            stt_prefac = sitenatom_stt_jcur(iatom)*spin_pol/(1.0_dblprec+stt_asym*stt_dot)
+            ! First add precessional contribution (B^S_P * (p - alpha m x p ))
+            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_prefac * adibeta * ( &
+               sitenatom_stt_pol(:,iatom) &
+               - lambda1_array(iatom) * f_cross_product(emom(:,iatom,k),sitenatom_stt_pol(:,iatom)))
+            ! Then add dampin contribution (B^S_R * (m x p + alpha p))
+            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_prefac * ( &
+               f_cross_product(emom(:,iatom,k),sitenatom_stt_pol(:,iatom)) + &
+               lambda1_array(iatom) * sitenatom_stt_pol(:,iatom) )
+
+         end do
+      end do
+
+   end subroutine slonczewski_field
 
    !-----------------------------------------------------------------------------
    !> @brief
@@ -292,6 +342,10 @@ contains
             allocate(dmomdr(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(dmomdr))*kind(dmomdr),'dmomdr','allocate_stt_data')
             dmomdr=0.0_dblprec
+         else if (stt=='S') then
+            allocate(btorque(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
+            btorque=0.0_dblprec
          else if (stt=='F') then
             allocate(btorque(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
@@ -489,6 +543,7 @@ contains
       integer, intent(in) :: Natom
 
       integer :: i,flines, isite, i_stat
+      real(dblprec) :: pnorm
 
       allocate(sitenatomjvec(3,Natom),stat=i_stat)
       call memocc(i_stat,product(shape(sitenatomjvec))*kind(sitenatomjvec),'sitenatomjvec','read_jvecfile')
@@ -533,6 +588,17 @@ contains
          enddo
       endif
 
+      ! From jvec, calculate normalized polarization vector and magnitude
+      allocate(sitenatom_stt_pol(3,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(sitenatom_stt_pol))*kind(sitenatom_stt_pol),'sitenatom_stt_pol','read_jvecfile')
+      allocate(sitenatom_stt_jcur(Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(sitenatom_stt_jcur))*kind(sitenatom_stt_jcur),'sitenatom_stt_jcur','read_jvecfile')
+
+      do i=1, Natom
+         pnorm = norm2(sitenatomjvec(:,i))
+         sitenatom_stt_jcur(i) = pnorm
+         sitenatom_stt_pol(:,i) = sitenatomjvec(:,i) / (pnorm + 1.0e-15_dblprec)
+      end do
    end subroutine read_jvecfile
 
    !---------------------------------------------------------------------------
