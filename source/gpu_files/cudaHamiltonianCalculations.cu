@@ -46,13 +46,6 @@ public:
 		unsigned int   mySize = size[site];
 		for (unsigned int i = 0; i < mnn; i++) {
 
-			//if (myPos[i * N] != 0)
-			//	myPos[i * N]--;
-			//else {
-			//	myCoup[i * N] = (real)0.0;
-			//	myPos[i * N]  = 0;
-			//}
-
 			if (i < mySize)
 				myPos[i * N]--;
 			else {
@@ -114,36 +107,13 @@ public:
 			    tensor[2 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=1		
 			    tensor[2 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=2	
 			}
-
-			//if (i < mySize) {
-			//	myPos[i * N]--;
-			//}
-			//else {
-			//	//myCoup[i * N] = (real)0.0;
-			//	myPos[i * N] = 0;
-			//
-			//	unsigned int k = i;
-			//	unsigned int l = site;
-			//
-			//	// Dimension of the tensorial exchange matrix: (dim1,dim2,dim3,dim4)  <--> (3,3,mnn,N)
-			//	// Calculating the matrix elements of the exchange tensor and setting them to zero:
-			//    tensor[0 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=0
-			//    tensor[0 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=1		
-			//    tensor[0 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=0,j=2		
-			//    tensor[1 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=0		
-			//    tensor[1 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=1		
-			//    tensor[1 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=1,j=2		
-			//    tensor[2 + 3 * (0 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=0		
-			//    tensor[2 + 3 * (1 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=1		
-			//    tensor[2 + 3 * (2 + 3 * (k + mnn * l))] = (real)0.0; // i=2,j=2	
-			//}
 		}
 	}
 };
 
 
 
-// is this even necessary for the anisotropy?
+// unnecessary for anisotropy probably
 class CudaHamiltonianCalculations::SetupAnisotropy :
 	public CudaParallelizationHelper::Site {
 private:
@@ -157,8 +127,6 @@ public:
 		eaniso = aniso.eaniso;
 		taniso = aniso.taniso;
 	}
-
-
         __device__ void each(unsigned int site) {
 		
 	}
@@ -381,10 +349,6 @@ public:
 			real J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))]; // i=2,j=2	
 
 			// magnetic moment of current neighbor
-			//real Sx = emomM[0 + 3 * neighborPosIndex + 3 * ensemble * N];
-			//real Sy	= emomM[1 + 3 * neighborPosIndex + 3 * ensemble * N];
-			//real Sz	 = emomM[2 + 3 * neighborPosIndex + 3 * ensemble * N];
-
 			real Sx = my_emomM[x_offset + 0];
 			real Sy = my_emomM[x_offset + 1];
 			real Sz = my_emomM[x_offset + 2];
@@ -437,25 +401,28 @@ public:
 		real ez = (real)0.0;
 		const real *  my_emomM  = &emomM[ensemble * N * 3];
 
-		unsigned int type = taniso[site]; // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
+		const unsigned int type = taniso[site]; // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
 
 
 
 		Sx = emomM[atom * 3 + 0];
 		Sy = emomM[atom * 3 + 1];
 		Sz = emomM[atom * 3 + 2];
+
+		// direction of uniaxial anisotropy
 		ex = eaniso[0 + site * 3];
 		ey = eaniso[1 + site * 3];
 		ez = eaniso[2 + site * 3];
 
-		real k1 = kaniso[0 + site * 2];
-		real k2 = kaniso[1 + site * 2]; 
+		// anisotropy constants
+		const real k1 = kaniso[0 + site * 2];
+		const real k2 = kaniso[1 + site * 2]; 
 		
 		if(type == 1 || type == 7)  // uniaxial anisotropy
 		{
-			real tt1 = Sx * ex + Sy * ey + Sz * ez;
-			real tt2 = k1 + (real)2.0 * k2 * (1-tt1*tt1);
-			real tt3 = (real)2.0*tt1*tt2;
+			const real tt1 = Sx * ex + Sy * ey + Sz * ez;
+			const real tt2 = k1 + (real)2.0 * k2 * (1-tt1*tt1);
+			const real tt3 = (real)2.0*tt1*tt2;
 
 			x += -tt3*ex;
 			y += -tt3*ey;
@@ -463,14 +430,17 @@ public:
 		}   
 		if (type == 2 || type == 7) { // cubic anisotropy
 
-			if (type == 7) { // The Cubic Anisotropy constant = Uniaxial constant x sb
-				k1 *= sb[site];
-				k2 *= sb[site];
+			real k1_cubic = k1;
+			real k2_cubic = k2;
+
+			if (type == 7) { // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial constant x sb
+				k1_cubic *= sb[site];
+				k2_cubic *= sb[site];
 			}
 
-			x += (real)2.0*k1*Sx*(Sy*Sy+Sz*Sz) + (real)2.0*k2*Sx*Sy*Sy*Sz*Sz;
-			y += (real)2.0*k1*Sy*(Sz*Sz+Sx*Sx) + (real)2.0*k2*Sy*Sz*Sz*Sx*Sx;
-			z += (real)2.0*k1*Sz*(Sx*Sx+Sy*Sy) + (real)2.0*k2*Sz*Sx*Sx*Sy*Sy;
+			x += (real)2.0*k1_cubic*Sx*(Sy*Sy+Sz*Sz) + (real)2.0*k2_cubic*Sx*Sy*Sy*Sz*Sz;
+			y += (real)2.0*k1_cubic*Sy*(Sz*Sz+Sx*Sx) + (real)2.0*k2_cubic*Sy*Sz*Sz*Sx*Sx;
+			z += (real)2.0*k1_cubic*Sz*(Sx*Sx+Sy*Sy) + (real)2.0*k2_cubic*Sz*Sx*Sx*Sy*Sy;
 		}
 
 		// Save field
