@@ -233,7 +233,7 @@ contains
       real(dblprec) :: d_exp
       character(len=30) :: filn
 
-      d_exp = exp(-mstep*delta_t/tempexp_tau)
+      d_exp = exp(-(mstep-1)*delta_t/tempexp_tau)
 
       exptemp = tempexp_start * d_exp + (1.0_dblprec - d_exp) * tempexp_end
 
