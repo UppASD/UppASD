@@ -261,9 +261,7 @@ public:
 			z += c * my_emomM[x_offset + 2];
 		}
 
-
-
-		// Phil's DM interaction implementation
+		// Phil's DM interaction implementation (still only incorporated into the isotropic Heisenberg exchange)
 		for (unsigned int i = 0; i < dmmnn; i++){
 
 			unsigned int neighborPosIndex = dmpos[site * dmmnn + i]; // neighbor position in the site enemble given in 0,1,2,...,N-1
