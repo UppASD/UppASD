@@ -27,8 +27,18 @@ private:
 		cudaMatrix<unsigned int,2> neighbourPos;
 	} DMinteraction;
 
+	typedef struct TensorialExchange {
+		unsigned int               mnn;
+		cudaMatrix<real,4,3,3>     tensor;
+		cudaMatrix<unsigned int,1> neighbourCount;
+		cudaMatrix<unsigned int,2> neighbourPos;
+	} TensorialExchange;
+
 	Exchange      ex;
 	DMinteraction dm;
+	TensorialExchange tenEx;
+
+	bool do_j_tensor = false;
 
 	// Initiation flag
 	bool initiated;
@@ -44,7 +54,9 @@ public:
 	// Parallelization helpers
 	class SetupNeighbourList;
 	class SetupNeighbourListDM;
+	class SetupNeighbourListExchangeTensor;
 	class HeisgeJij;
+	class HeisJijTensor;
 	class HeisgeJijElement;
 
 	// Constructor
@@ -58,7 +70,9 @@ public:
 		const hostMatrix<real,3,3>       &dm_ncoup, 
 		const hostMatrix<unsigned int,2> &dm_nlist,
 		const hostMatrix<unsigned int,1> &dm_nlistsize,
-		const int			 do_dm); 
+		const int			 do_dm,
+		const int  			 do_j_tensor,
+		const hostMatrix<real,4,3,3> j_tensor); 
 
 	// Initiated
 	bool isInitiated() {return initiated;}

@@ -59,6 +59,7 @@ void CudaMdSimulation::initiateConstants() {
 	mompar         = *FortranData::mompar;
 	initexc        = *FortranData::initexc;
 	do_dm          = static_cast<bool>(*FortranData::do_dm);
+	do_jtensor     = static_cast<bool>(*FortranData::do_jtensor);
 	max_no_dmneigh = *FortranData::max_no_dmneigh;
 
 
@@ -106,6 +107,12 @@ void CudaMdSimulation::initiate_fortran() {
 	f_dmvect        .set(FortranData::dmvect        ,3,max_no_dmneigh,N);
 	f_dmlist        .set(FortranData::dmlist        ,max_no_dmneigh,N);
 	f_dmlistsize    .set(FortranData::dmlistsize    ,N);
+	
+	if (*FortranData::do_jtensor == 1)
+	{
+		printf("\n CUDA: jTensor has been initialized \n");
+		f_j_tensor  .set(FortranData::j_tensor      ,3,3,max_no_neigh,N);
+	}
 }
 
 /*
@@ -296,7 +303,6 @@ void CudaMdSimulation::measurementPhase() {
 		return;
 	}
 
-	
 
 	// Timer
 	StopwatchDeviceSync stopwatch = 
@@ -323,16 +329,95 @@ void CudaMdSimulation::measurementPhase() {
 		fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
 		return;
 	}
-	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm)) {
+	if (!hamiltonian.initiate(f_ncoup, f_nlist, f_nlistsize, f_dmvect, f_dmlist, f_dmlistsize, do_dm, do_jtensor, f_j_tensor)) {
 		fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
 		return;
 	}
+
+	// TEMPORARY PRINTING
+	printf("\n");
+	printf("________DEBUG System Information:___________ \n");
+	printf("%zu\n", f_j_tensor.dimension_size(0));
+	printf("%zu\n", f_j_tensor.dimension_size(1));
+	printf("%zu\n", f_j_tensor.dimension_size(2));
+	printf("%zu\n", f_j_tensor.dimension_size(3));
+	printf("______________________________________\n");
+
+	int mnn = f_j_tensor.dimension_size(2);
+	int l = f_j_tensor.dimension_size(3);
+	int N = f_j_tensor.dimension_size(3);
+
+
+	// Prints the exchange tensor
+	//for (int l = 0 ; l < 1 ; l++  )
+	//{
+	//	for (int k = 0 ; k < mnn ; k++  )
+	//	{
+	//		printf("__________\n");
+	//		for (int i = 0; i < 3; i++) {
+	//			for (int j = 0; j < 3; j++) {
+	//				unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
+	//				printf("%f\t", f_j_tensor[index]);
+	//			}
+    //    		printf("\n");
+    //		}
+    //    	printf("\n");
+	//	}
+    //
+	//}    	printf("_______________test__________\n");
+//
+
+
+	// Prints the external field
+	//for(int i = 0 ; i < f_external_field.size(); i++)
+	//{
+	//	printf(" %f ", f_external_field.get_data()[i]);
+	//}
+	
+	// Prints the information on the neighbors of each site.
+	//for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
+	//{
+	//	printf("%d ", site);
+	//	printf("| ");
+	//	for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
+	//	{
+	//		printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
+	//	}
+	//	printf("\n");
+	//}
+
+		//printf("_______DM vectors_______ \n");
+		//for (unsigned int site = 0; site < f_dmlist.dimension_size(1); site++)	{
+		//
+		//	int dmmnn = f_dmvect.dimension_size(1);
+		//	for (unsigned int i = 0 ; i < dmmnn; i++ )
+		//	{
+		//
+		//	
+		//	unsigned int neighborPosIndex = f_dmlist.get_data()[site * dmmnn + i]; // neighbor position in the site enemble given in 0,1,2,...,N-1
+		//
+		//	real Dx = f_dmvect.get_data()[0 + 3 * i + site * dmmnn * 3];
+		//	real Dy = f_dmvect.get_data()[1 + 3 * i + site * dmmnn * 3];
+		//	real Dz = f_dmvect.get_data()[2 + 3 * i + site * dmmnn * 3];
+		//	printf(" %f ", Dx);
+		//	printf(" %f ", Dy);
+		//	printf(" %f ", Dz);
+		//	printf("\n");
+		//	}
+		//	printf("_______\n");
+		//
+		//	
+		//}
+
+	printf("_______________________________________________\n");
+
+
 
 	// Initiate constants for integrator
 	integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
 
 	// Debug
-	printf("___________ DEBUG PTINT ___________\n");
+	//printf("___________ DEBUG PTINT ___________\n");
 	
 	// Print the external field vector
 	//printf("%d\n", external_field.has_data());
