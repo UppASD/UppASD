@@ -33,6 +33,7 @@ private:
 
 	bool do_dm;
 	bool do_jtensor;
+	unsigned int do_aniso;
 	size_t max_no_dmneigh;
 
 	// Thermfield parameters
@@ -59,6 +60,11 @@ private:
 	fortMatrix<real,2>   f_mmom2;
 	fortMatrix<real,2>   f_mmomi;
 	fortMatrix<real,4,3,3> f_j_tensor;
+
+	fortMatrix<real,2,2> f_kaniso;
+	fortMatrix<real,2,3> f_eaniso;
+	fortMatrix<unsigned int,1> f_taniso;
+	fortMatrix<real, 1> f_sb;
 
 	cudaMatrix<real,3,3> beff;
 	cudaMatrix<real,3,3> b2eff;
