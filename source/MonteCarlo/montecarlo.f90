@@ -58,7 +58,8 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use HamiltonianActions, only : effective_field
-      use InputData, only : NA, N1, N2, N3
+      use InputData, only : NA, N1, N2, N3, demag
+      use DemagField
 
             !
       implicit none
@@ -108,7 +109,7 @@ contains
       ! Induced moments variables
       character(len=1), intent(in) :: ind_mom_flag
       ! External fields variables
-      real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
+      real(dblprec), dimension(3), intent(inout) :: extfield !< External magnetic field
       ! Dipolar interactions variables
       integer, intent(in) :: do_dip  !< Calculate dipole-dipole contribution (0=Off, 1=Brute Force, 2=macrocell)
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
@@ -134,6 +135,7 @@ contains
 
       integer, external :: omp_get_thread_num
       real(dblprec) :: henergy
+      real(dblprec), dimension(3) :: loc_demag_fld
 
       cluster_size=0.0_dblprec
       visited_atoms=0
@@ -206,8 +208,9 @@ contains
 
             call rng_uniformP(flipprob_a(:,:),natom*mensemble)
 
+            loc_demag_fld = 0.0_dblprec
             ! Calculate energy and flip spin if preferred
-            !$omp parallel do default(shared), private(i,k,de,totfield), schedule(auto),collapse(2)
+            !$omp parallel do default(shared), private(i,k,de,totfield), firstprivate(loc_demag_fld) schedule(auto),collapse(2)
             do i=1, Natom
                do k=1,mensemble
                   if (mode=='H') then
@@ -242,10 +245,14 @@ contains
                         !! !print '(a,3f12.6)', 'SD: ',totfield
                      end if
 
-
+                     !if (demag=='Y') loc_demag_fld = loc_demag_fld + demag_update(emomM(:,iflip_a(i),k))
                      !
+                     !print *,'TOT:', totfield
+                     !print *,'DEM:', loc_demag_fld
                      call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k), mmom(iflip_a(i),k), &
-                        iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield,mflip(i,k))
+                        iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield, mflip(i,k))
+
+                     !if (demag=='Y') loc_demag_fld = loc_demag_fld - demag_update(emomM(:,iflip_a(i),k))
                   else
                      ! Metropolis algorithm, either in Ising or Loop Algorithm form
                      call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa,&
@@ -317,7 +324,7 @@ contains
    !> Lars Bergqvist
    !---------------------------------------------------------------------------------
    subroutine calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa,&
-         emomM, emom, mult_axis, iflip,extfield, do_lsf, k, totfield, exc_inter,do_anisotropy)
+         emomM, emom, mult_axis, iflip, extfield, do_lsf, k, totfield, exc_inter,do_anisotropy)
 
       !.. Implicit declarations
       implicit none
