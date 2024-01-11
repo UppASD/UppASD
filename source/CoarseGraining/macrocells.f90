@@ -34,6 +34,10 @@ module macrocells
    real(dblprec), dimension(:,:), allocatable :: mid_coord_macro !< Midpoint of each cell
    real(dblprec), dimension(:,:,:), allocatable :: emom_macro  !< Unit vector of the macrocell magnetic moment
    real(dblprec), dimension(:,:,:), allocatable :: emomM_macro !< The full vector of the macrocell magnetic moment
+   
+   integer :: block_size_x = 1
+   integer :: block_size_y = 1
+   integer :: block_size_z = 1
 
 contains
 
@@ -119,19 +123,21 @@ contains
       ! macrocell, this should be modified for a general shape macrocell
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Calculate the number of macro cells
-      Num_macro=int(N3*N2*N1/block_size**dim)
+      Num_macro=int(N3*N2*N1/(block_size_x*block_size_y*block_size_z))
+      !Num_macro=int(N3*N2*N1/block_size**dim)
       ! Calculate the Maximum number of atoms per macro cell
-      max_num_atom_macro_cell=NA*block_size**dim
+      max_num_atom_macro_cell=NA*(block_size_x*block_size_y*block_size_z)
+      !max_num_atom_macro_cell=NA*block_size**dim
       call allocate_macrocell(1,Natom,Mensemble)
 
       ! Create the macrocells lists needed for the macrocell approximation
-      do II3=0, N3-1, block_size
-         do II2=0, N2-1, block_size
-            do II1=0, N1-1, block_size
+      do II3=0, N3-1, block_size_z
+         do II2=0, N2-1, block_size_y
+            do II1=0, N1-1, block_size_x
                kk=kk+1 ! Cell counter
-               do I3=II3,min(II3+block_size-1,N3-1)
-                  do I2=II2,min(II2+block_size-1,N2-1)
-                     do I1=II1,min(II1+block_size-1,N1-1)
+               do I3=II3,min(II3+block_size_z-1,N3-1)
+                  do I2=II2,min(II2+block_size_y-1,N2-1)
+                     do I1=II1,min(II1+block_size_x-1,N1-1)
                         do I0=1, NA
                            ii=ii+1 ! Atom counter
                            macro_nlistsize(kk)=macro_nlistsize(kk)+1

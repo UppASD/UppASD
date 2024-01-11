@@ -1201,7 +1201,7 @@ contains
 
       ! Calculate the macrospin magnetic moments per macrocell if the dipolar interaction is considered
       ! with the macro spin model
-      if (ham_inp%do_dip.eq.2) then
+      if (ham_inp%do_dip==2) then
          call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,     &
             macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,emom_macro, &
             emomM_macro)
