@@ -58,8 +58,9 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use HamiltonianActions, only : effective_field
-      use InputData, only : NA, N1, N2, N3, demag
+      use InputData, only : NA, N1, N2, N3, demag, ham_inp
       use DemagField
+      use DipoleManager, only : dipole_field_calculation
 
             !
       implicit none
@@ -135,7 +136,7 @@ contains
 
       integer, external :: omp_get_thread_num
       real(dblprec) :: henergy
-      real(dblprec), dimension(3) :: loc_demag_fld
+      real(dblprec), dimension(3) :: loc_demag_fld, loc_mag_fld
 
       cluster_size=0.0_dblprec
       visited_atoms=0
@@ -209,10 +210,26 @@ contains
             call rng_uniformP(flipprob_a(:,:),natom*mensemble)
 
             loc_demag_fld = 0.0_dblprec
+            ! Wrapper for the calculation of the dipole-dipole interaction field
+            ! The field is stored in the bfield array which then is passed to the main loop
+            ! This is inefficient for the brute-force methods, but it the best way to ensure
+            ! that the FFT approaches can be used in an appropriate way
+            if (ham_inp%do_dip>0) then
+               call timing(0,'Hamiltonian   ','OF')
+               call timing(0,'Dipolar Int.  ','ON')
+               beff = 0.0_dblprec
+               call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
+                  Mensemble,Natom,1,cell_index,macro_nlistsize,emomM,        &
+                  emomM_macro,ham%Qdip,ham%Qdip_macro,henergy,beff)
+               call timing(0,'Dipolar Int.  ','OF')
+               call timing(0,'Hamiltonian   ','ON')
+            endif
             ! Calculate energy and flip spin if preferred
-            !$omp parallel do default(shared), private(i,k,de,totfield), firstprivate(loc_demag_fld) schedule(auto),collapse(2)
+            !$omp parallel do default(shared), private(i,k,de,totfield,loc_mag_fld), firstprivate(loc_demag_fld) schedule(auto),collapse(2)
             do i=1, Natom
                do k=1,mensemble
+                  if (demag=='Y') loc_demag_fld = loc_demag_fld + demag_update(emomM(:,iflip_a(i),k))
+                  loc_mag_fld = extfield + beff(:,iflip_a(i),k) + loc_demag_fld
                   if (mode=='H') then
                      ! Heat bath algorithm
                      !call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, do_bq, do_chir, &
@@ -223,15 +240,14 @@ contains
                      !      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
                      !      constellationsNeighType,mult_axis,henergy,Num_macro,cell_index,emomM_macro, &
                      !      macro_nlistsize,NA,N1,N2,N3)
-                     !   totfield=beff(:,iflip_a(i),k)
                      if(do_jtensor==1) then
                         call calculate_efield_tensor(Natom, Mensemble, &
-                           do_biqdm, do_bq, emomM, mult_axis,iflip_a(i),extfield,k, totfield, do_dip,do_anisotropy)
+                           do_biqdm, do_bq, emomM, mult_axis,iflip_a(i),loc_mag_fld,k, totfield, do_dip,do_anisotropy)
 
                      else
 
                         call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, &
-                           do_bq, do_ring, do_chir, do_sa, emomM, emom, mult_axis, iflip_a(i),extfield, do_lsf, k, &
+                           do_bq, do_ring, do_chir, do_sa, emomM, emom, mult_axis, iflip_a(i),loc_mag_fld, do_lsf, k, &
                            totfield,exc_inter,do_anisotropy)
                         !!! print '(a,3f12.6)', 'HB: ',totfield
                         !!! call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,   &
@@ -245,18 +261,19 @@ contains
                         !! !print '(a,3f12.6)', 'SD: ',totfield
                      end if
 
-                     !if (demag=='Y') loc_demag_fld = loc_demag_fld + demag_update(emomM(:,iflip_a(i),k))
+                     ! Adding dipole field part
+                     !totfield=totfield - beff(:,iflip_a(i),k)
                      !
                      !print *,'TOT:', totfield
                      !print *,'DEM:', loc_demag_fld
                      call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k), mmom(iflip_a(i),k), &
                         iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield, mflip(i,k))
 
-                     !if (demag=='Y') loc_demag_fld = loc_demag_fld - demag_update(emomM(:,iflip_a(i),k))
+                     if (demag=='Y') loc_demag_fld = loc_demag_fld - demag_update(emomM(:,iflip_a(i),k))
                   else
                      ! Metropolis algorithm, either in Ising or Loop Algorithm form
                      call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa,&
-                         emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
+                         emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), loc_mag_fld, de, k, &
                          mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
                          macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy,do_jtensor)
                       !!!  call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,   &
@@ -346,7 +363,7 @@ contains
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       character(len=1), intent(in)  ::  do_lsf     !< Including LSF energy
-      real(dblprec), dimension(3),intent(out) :: totfield  !<Total effective field
+      real(dblprec), dimension(3),intent(inout) :: totfield  !<Total effective field
       character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       character(len=1), intent(in) :: exc_inter !< Interpolation of Jij between FM/DLM (Y/N)
 
@@ -663,7 +680,7 @@ contains
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       integer, intent(in) :: k !< Current ensemble
-      real(dblprec), dimension(3), intent(out) :: totfield !< Total effective field
+      real(dblprec), dimension(3), intent(inout) :: totfield !< Total effective field
       real(dblprec) :: aw1,aw2
       integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
       integer, intent(in) :: do_anisotropy
@@ -799,59 +816,59 @@ contains
 
          endif
          
-           if (mult_axis=='Y') then
-            ! Uniaxial anisotropy
-            if (ham%taniso_diff(iflip)==1) then
-               tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
+         !!!   if (mult_axis=='Y') then
+         !!!    ! Uniaxial anisotropy
+         !!!    if (ham%taniso_diff(iflip)==1) then
+         !!!       tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
 
-               ! K1*(sin theta)^2
-               totfield(1:3) = totfield(1:3)  &
-                  - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
-                  ! K2*(sin theta)^4
-                  - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
-            ! Cubic anisotropy
-            elseif (ham%taniso_diff(iflip)==2) then
-               ! K1*(sin theta)^2
-               totfield(1) = totfield(1) &
-                  + 2*ham%kaniso_diff(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-                  + 2*ham%kaniso_diff(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+         !!!       ! K1*(sin theta)^2
+         !!!       totfield(1:3) = totfield(1:3)  &
+         !!!          - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
+         !!!          ! K2*(sin theta)^4
+         !!!          - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
+         !!!    ! Cubic anisotropy
+         !!!    elseif (ham%taniso_diff(iflip)==2) then
+         !!!       ! K1*(sin theta)^2
+         !!!       totfield(1) = totfield(1) &
+         !!!          + 2*ham%kaniso_diff(1,iflip)*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+         !!!          + 2*ham%kaniso_diff(2,iflip)+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
 
-               totfield(2) = totfield(2) &
-               + 2*ham%kaniso_diff(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-               + 2*ham%kaniso_diff(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+         !!!       totfield(2) = totfield(2) &
+         !!!       + 2*ham%kaniso_diff(1,iflip)*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+         !!!       + 2*ham%kaniso_diff(2,iflip)+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
 
-               totfield(3) = totfield(3) &
-                  + 2*ham%kaniso_diff(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-                  + 2*ham%kaniso_diff(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
+         !!!       totfield(3) = totfield(3) &
+         !!!          + 2*ham%kaniso_diff(1,iflip)*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+         !!!          + 2*ham%kaniso_diff(2,iflip)+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
 
-            endif
-            ! When both Cubic and Uniaxial are switched on
-            if (ham%taniso_diff(iflip)==7) then
-               ! Uniaxial anisotropy
-               tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
+         !!!    endif
+         !!!    ! When both Cubic and Uniaxial are switched on
+         !!!    if (ham%taniso_diff(iflip)==7) then
+         !!!       ! Uniaxial anisotropy
+         !!!       tta=sum(emomM(:,iflip,k)*ham%eaniso_diff(:,iflip))
 
-               ! K1*(sin theta)^2
-               totfield(1:3) = totfield(1:3)  &
-                  - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
-                  ! K2*(sin theta)^4
-                  - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
-               ! Cubic anisotropy
-               ! K1*(sin theta)^2
-               aw1=ham%kaniso_diff(1,iflip)*ham%sb_diff(iflip)
-               aw2=ham%kaniso_diff(2,iflip)*ham%sb_diff(iflip)
-               totfield(1) = totfield(1) &
-               + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
-               + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
+         !!!       ! K1*(sin theta)^2
+         !!!       totfield(1:3) = totfield(1:3)  &
+         !!!          - 2.0_dblprec*ham%kaniso_diff(1,iflip)*tta*ham%eaniso_diff(1:3,iflip) &
+         !!!          ! K2*(sin theta)^4
+         !!!          - 4.0_dblprec*ham%kaniso_diff(2,iflip)*(tta**2)*tta*ham%eaniso_diff(1:3,iflip)
+         !!!       ! Cubic anisotropy
+         !!!       ! K1*(sin theta)^2
+         !!!       aw1=ham%kaniso_diff(1,iflip)*ham%sb_diff(iflip)
+         !!!       aw2=ham%kaniso_diff(2,iflip)*ham%sb_diff(iflip)
+         !!!       totfield(1) = totfield(1) &
+         !!!       + 2*aw1*emomM(1,iflip,k)*(emomM(2,iflip,k)**2+emomM(3,iflip,k)**2) &
+         !!!       + 2*aw2+emomM(1,iflip,k)*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2
 
-               totfield(2) = totfield(2) &
-                  + 2*aw1*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
-                  + 2*aw2+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
+         !!!       totfield(2) = totfield(2) &
+         !!!          + 2*aw1*emomM(2,iflip,k)*(emomM(3,iflip,k)**2+emomM(1,iflip,k)**2) &
+         !!!          + 2*aw2+emomM(2,iflip,k)*emomM(3,iflip,k)**2*emomM(1,iflip,k)**2
 
-               totfield(3) = totfield(3) &
-                  + 2*aw1*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
-                  + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
-            endif
-         endif
+         !!!       totfield(3) = totfield(3) &
+         !!!          + 2*aw1*emomM(3,iflip,k)*(emomM(1,iflip,k)**2+emomM(2,iflip,k)**2) &
+         !!!          + 2*aw2+emomM(3,iflip,k)*emomM(1,iflip,k)**2*emomM(2,iflip,k)**2
+         !!!    endif
+         !!! endif
          
       endif
          ! Dipolar Interaction Jonathan 19-07-2012
@@ -870,7 +887,7 @@ contains
          !-----------------------------------------------------------------------------------------------------------------------
 
          ! Add static field
-         totfield(1:3) = befftemp(1:3)+extfield(1:3)
+         totfield(1:3) = totfield(1:3) + befftemp(1:3)+extfield(1:3)
 
       end subroutine calculate_efield_tensor
 
