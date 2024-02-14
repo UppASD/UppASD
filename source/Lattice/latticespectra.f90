@@ -168,7 +168,7 @@ contains
       ! eigenvalues of A (one set per NA) are written to wres
       write (*,'(1x,a)',advance='yes') "Diagonalizing A-matrix for lattice spectra calculation"
       ! Why use only real part of A?
-      A=real(A)
+      !A=real(A)
       call eigenvalue_calculation_lapack(A, wres, eigv, 3*na, nq)
 
       ! Sort eigenvalues and eigenvectors according to magnitude of eigenvalues
@@ -297,7 +297,9 @@ contains
          if(info.ne.0) then
             print '(2x,a,i4)', 'Problem in zgeev:',info
          end if
-         wres(1:NA,iq)=abs(real(cwres(1:NA)))
+         !wres(1:NA,iq)=sqrt(cwres(1:NA)*conjg(cwres(1:NA)))
+         !wres(1:NA,iq)=abs(real(cwres(1:NA)))
+         wres(1:NA,iq)=-(real(cwres(1:NA)))
       end do
 
       deallocate(work)
@@ -345,7 +347,8 @@ contains
       do i =1,nq
          !!call sortRealArray(wres(:,i),NA)
          do j=1,3*na
-            wressqrt(j,i) = energyfac * sqrt(wres(j,i))
+            wressqrt(j,i) = energyfac * sqrt(abs(wres(j,i))) * sign(1.0_dblprec,wres(j,i))
+            !wressqrt(j,i) = energyfac * sqrt(wres(j,i))
          end do
          write(file_id,1001) i, wressqrt(1:3*na,i)
          !write(file_id,1001) i, wres(:,i)

@@ -321,9 +321,11 @@ if (USE_CUDA)
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
 
    # Set preprocessing flags indicating compiler
-   string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   #string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
+   set(PP_CUDA_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
 
    # Find CUDA arch on local machine
    include(FindCUDA/select_compute_arch)
@@ -357,9 +359,11 @@ ENDIF(USE_OVF)
 # MKL edits in case of GNU compiler
 ##############################################################################################
 if(USE_MKL)
-   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
       target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    endif()
+   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+
 endif()
 ##############################################################################################
 
@@ -388,7 +392,8 @@ elseif(USE_FFTW)
    message(STATUS "FFT-> ${USE_FFTW} ")
    #include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
    include_directories(${FFTW_INCLUDE_DIR})
-   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIR}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
+   include_directories(${FFTW_INCLUDES})
+   message(STATUS "FFTW: -I${FFTW_INCLUDES}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
 endif()
 ##############################################################################################
 
