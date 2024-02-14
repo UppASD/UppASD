@@ -34,6 +34,7 @@
 // temperature  real     (N)         Temperature
 //
 // stt          char      1          Method to handle spin transfer torque 
+// sb 			real 	 (N)	     Ratio between cubic and uniaxial anisotropy
 
 class FortranData {
 public:
@@ -62,6 +63,9 @@ public:
 	static unsigned int * do_dm;
 	static unsigned int * max_no_dmneigh;
 
+	static unsigned int * do_jtensor; // Information on weather the exchange coupling tensor should be used or not
+	static unsigned int * do_aniso; // Information on weather the anisotropy should be used or not
+
 	// Matrices / vectors
 	static real *         ncoup;
 	static unsigned int * nlist;
@@ -71,6 +75,13 @@ public:
 	static unsigned int * dmlist;
 	static unsigned int * dmlistsize;
 	
+	static real * j_tensor;
+
+	static real * kaniso;
+	static real * eaniso;
+	static unsigned int * taniso;
+	static real * sb;
+
 	static real * beff;
 	static real * b2eff;
 	static real * emomM;
@@ -93,12 +104,12 @@ public:
 	static void setConstantPointers(char * p1, int * p2, unsigned int * p3,
 		unsigned int * p4, unsigned int * p5, unsigned int * p6, unsigned int * p7, real * p8,
 		real * p9, real * p10, real * p11, real * p12,
-		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18);
+		real * p13, real * p14, int * p15, char * p16, unsigned int * p17, unsigned int * p18, unsigned int * p19, unsigned int * p20);
 
 	static void setMatrixPointers(real * p1, unsigned int * p2, unsigned int * p3, real * p4,
 		real * p5, real * p6, real * p7, real * p8, real * p9, 
 		real * p10, real * p11, real * p12, real * p13, 
-		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18);
+		real * p14, real * p15, real * p16, unsigned int * p17, unsigned int * p18, real * p19, real * p20, real * p21, unsigned int * p22, real * p23);
 
 	static void setInputDataPointers(int * p1, int * p2, int * p3);
 
