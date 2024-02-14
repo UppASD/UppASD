@@ -59,14 +59,16 @@ private:
 	const real * bdup;
 	real         timestep;
 	real         gamma;
+	real 		 damping;
 public:
 	Rotate(real * p1, const real * p2, const real * p3,
-			real p4, real p5) {
+			real p4, real p5, real p6) {
 		mrod     = p1;
 		emom     = p2;
 		bdup     = p3;
 		timestep = p4;
 		gamma    = p5;
+		damping  = p6;
 	}
 
         __device__ void each(unsigned int atom) {
@@ -87,6 +89,8 @@ public:
 
 		// Get precession angle
 		real angle = norm * timestep * gamma;
+
+		angle *= (real)1.0/((real)1.0+damping*damping);
 
 		// Calculate sin and cos
 		real cosv, sinv;
@@ -268,7 +272,7 @@ void CudaDepondtIntegrator::evolveSecond(
 
 
 void CudaDepondtIntegrator::rotate(const cudaMatrix<real,3,3> &emom, real delta_t) {
-	parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma));
+	parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
 
 // Constructs the effective field (including damping term)

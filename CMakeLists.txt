@@ -392,7 +392,8 @@ elseif(USE_FFTW)
    message(STATUS "FFT-> ${USE_FFTW} ")
    #include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
    include_directories(${FFTW_INCLUDE_DIR})
-   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIR}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
+   include_directories(${FFTW_INCLUDES})
+   message(STATUS "FFTW: -I${FFTW_INCLUDES}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
 endif()
 ##############################################################################################
 
