@@ -12,6 +12,7 @@ module DemagField
    implicit none
    !
    real(dblprec), dimension(:,:), allocatable :: demagfld !< Demagnetization field
+   real(dblprec), dimension(3) :: demag_mask
    !
    public
 
@@ -53,20 +54,57 @@ contains
             mz(k) = mz(k) + emomM(3,i,k)
          end do
       end do
+      !.. Demagnetization mask
+      demag_mask = 0.0_dblprec
+      if(demag1=='Y') demag_mask(1) = -mu0*mub/demagvol/Natom
+      if(demag2=='Y') demag_mask(2) = -mu0*mub/demagvol/Natom
+      if(demag3=='Y') demag_mask(3) = -mu0*mub/demagvol/Natom
+
       !.. Demagnetization field
       do k=1, Mensemble
-         if (demag1=='Y') then
-            demagfld(1,k)=-mu0*mx(k)/Natom*mub/demagvol
-         endif
-         if (demag2=='Y') then
-            demagfld(2,k)=-mu0*my(k)/Natom*mub/demagvol
-         endif
-         if (demag3=='Y') then
-            demagfld(3,k)=-mu0*mz(k)/Natom*mub/demagvol
-         endif
+         demagfld(1,k) = mx(k) * demag_mask(1)
+         demagfld(2,k) = my(k) * demag_mask(2)
+         demagfld(3,k) = mz(k) * demag_mask(3)
+         !!! if (demag1=='Y') then
+         !!!    demagfld(1,k)=-mu0*mx(k)/Natom*mub/demagvol
+         !!! endif
+         !!! if (demag2=='Y') then
+         !!!    demagfld(2,k)=-mu0*my(k)/Natom*mub/demagvol
+         !!! endif
+         !!! if (demag3=='Y') then
+         !!!    demagfld(3,k)=-mu0*mz(k)/Natom*mub/demagvol
+         !!!    !print *,'DEMAG:', demagfld(3,k)
+         !!! endif
       end do
+      !print *,' AB Mavg', mx(1), my(1), mz(1)
+      !print *,' AB Dema', demagfld(:,1)
+
    end subroutine calc_demag
 
+   function demag_update_diff(mom_pre, mom_aft) result(db_demag)
+      use Constants, only : mub, mu0
+
+      implicit none
+      real(dblprec), dimension(3), intent(in) :: mom_pre
+      real(dblprec), dimension(3), intent(in) :: mom_aft
+
+      real(dblprec), dimension(3) :: db_demag
+
+      db_demag = dot_product(mom_pre-mom_aft,demag_mask)
+
+   end function demag_update_diff
+
+   function demag_update(mom_in) result(db_demag)
+      use Constants, only : mub, mu0
+
+      implicit none
+      real(dblprec), dimension(3), intent(in) :: mom_in
+
+      real(dblprec), dimension(3) :: db_demag
+
+      db_demag = -mom_in*demag_mask
+
+   end function demag_update
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: allocate_demag
