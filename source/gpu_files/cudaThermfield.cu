@@ -73,7 +73,7 @@ CudaThermfield::~CudaThermfield() {
    }
 }
 
-bool CudaThermfield::initiate(size_t N, size_t M, curandRngType_t rngType, unsigned long long seed) {
+bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType, unsigned long long seed) {
    if(dataInitiated) {
       fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");
       return true;

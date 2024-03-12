@@ -53,7 +53,7 @@ public:
    ~CudaDepondtIntegrator();
 
    // Initiator
-   bool initiate(size_t N, size_t M, char _stt, real _timestep, curandRngType_t rng, unsigned long long seed);
+   bool initiate(std::size_t N, std::size_t M, char _stt, real _timestep, curandRngType_t rng, unsigned long long seed);
 
    // Set up constants
    bool initiateConstants(const fortMatrix<real, 1> &temperature, real timestep, real gamma_const,

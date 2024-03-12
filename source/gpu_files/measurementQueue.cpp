@@ -23,7 +23,7 @@
 #endif
 
 // Measurement class methods
-MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, size_t NM, size_t _step) {
+MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM, std::size_t _step) {
    step = _step;
    if(NM != 0) {
       emomM = new real[NM * 3];
@@ -183,11 +183,11 @@ bool MeasurementQueue::empty() {
 }
 
 // Push a measurement with data to the queue
-void MeasurementQueue::push(size_t mstep) {
+void MeasurementQueue::push(std::size_t mstep) {
    push(mstep, nullptr, nullptr, nullptr, 0);
 }
 
-void MeasurementQueue::push(size_t mstep, real* emomM, real* emom, real* mmom, size_t NM) {
+void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM) {
    // Finishing?
    if(finishMeasurements) {
       fprintf(stderr, "MeasurementQueue::push() called after finish()!\n");

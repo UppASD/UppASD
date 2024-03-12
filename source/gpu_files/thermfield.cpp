@@ -25,7 +25,7 @@ Thermfield::~Thermfield() {
 }
 
 // Initiate
-bool Thermfield::initiate(size_t N, size_t M) {
+bool Thermfield::initiate(std::size_t N, std::size_t M) {
    field.set(new real[3 * N * M], 3, N, M);
    sigmaFactor.set(new real[N], N);
    dataInitiated = true;
@@ -44,11 +44,11 @@ bool Thermfield::initiateConstants(const matrix<real, 1> &temperature, real time
    real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
 
    // Size
-   size_t N = temperature.dimension_size(0);
+   std::size_t N = temperature.dimension_size(0);
 
 // Set up sigmaFactor
 #pragma omp parallel for
-   for(size_t i = 0; i < N; i++) {
+   for(std::size_t i = 0; i < N; i++) {
       sigmaFactor(i) = sqrt(dp * temperature(i));
    }
 
@@ -65,8 +65,8 @@ void Thermfield::randomize(const matrix<real, 2> &mmom) {
    }
 
    // Sizes
-   size_t M = field.dimension_size(2);
-   size_t N = field.dimension_size(1);
+   std::size_t M = field.dimension_size(2);
+   std::size_t N = field.dimension_size(1);
 
    // Timing
    stopwatch.skip();
@@ -77,8 +77,8 @@ void Thermfield::randomize(const matrix<real, 2> &mmom) {
 
 // Expand
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < M; k++) {
-      for(size_t i = 0; i < N; i++) {
+   for(std::size_t k = 0; k < M; k++) {
+      for(std::size_t i = 0; i < N; i++) {
          real sigma = sigmaFactor(i) / sqrt(mmom(i, k));
          field(0, i, k) *= sigma;
          field(1, i, k) *= sigma;

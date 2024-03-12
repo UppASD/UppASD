@@ -13,7 +13,7 @@ RandomNumbers::RandomNumbers() {
 RandomNumbers::~RandomNumbers() {
 }
 
-void RandomNumbers::fillArray(real* v, size_t len) {
+void RandomNumbers::fillArray(real* v, std::size_t len) {
    fill_rngarray(v, len);
 }
 

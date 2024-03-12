@@ -1,0 +1,1256 @@
+diff --git a/source/gpu_files/cudaDepondtIntegrator.cu b/source/gpu_files/cudaDepondtIntegrator.cu
+index dcf19bb..da06851 100644
+--- a/source/gpu_files/cudaDepondtIntegrator.cu
++++ b/source/gpu_files/cudaDepondtIntegrator.cu
+@@ -132,7 +132,7 @@ CudaDepondtIntegrator::~CudaDepondtIntegrator() {
+ }
+ 
+ // Initiator
+-bool CudaDepondtIntegrator::initiate(size_t N, size_t M, char _stt, real _timestep, curandRngType_t rng,
++bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep, curandRngType_t rng,
+                                      unsigned long long seed) {
+    // Assert that we're not already initialized
+    release();
+diff --git a/source/gpu_files/cudaDepondtIntegrator.hpp b/source/gpu_files/cudaDepondtIntegrator.hpp
+index 926de06..d3a2c85 100644
+--- a/source/gpu_files/cudaDepondtIntegrator.hpp
++++ b/source/gpu_files/cudaDepondtIntegrator.hpp
+@@ -53,7 +53,7 @@ public:
+    ~CudaDepondtIntegrator();
+ 
+    // Initiator
+-   bool initiate(size_t N, size_t M, char _stt, real _timestep, curandRngType_t rng, unsigned long long seed);
++   bool initiate(std::size_t N, std::size_t M, char _stt, real _timestep, curandRngType_t rng, unsigned long long seed);
+ 
+    // Set up constants
+    bool initiateConstants(const fortMatrix<real, 1> &temperature, real timestep, real gamma_const,
+diff --git a/source/gpu_files/cudaHamiltonianCalculations.cu b/source/gpu_files/cudaHamiltonianCalculations.cu
+index c356abf..a881f58 100644
+--- a/source/gpu_files/cudaHamiltonianCalculations.cu
++++ b/source/gpu_files/cudaHamiltonianCalculations.cu
+@@ -463,19 +463,19 @@ public:
+ // Helpers
+ ////////////////////////////////////////////////////////////////////////////////
+ template <typename T>
+-static void transpose(T *A, const T *B, size_t M, size_t N) {
+-   for(size_t y = 0; y < M; ++y) {
+-      for(size_t x = 0; x < N; ++x) {
++static void transpose(T *A, const T *B, std::size_t M, std::size_t N) {
++   for(std::size_t y = 0; y < M; ++y) {
++      for(std::size_t x = 0; x < N; ++x) {
+          A[(x * M) + y] = B[(y * N) + x];
+       }
+    }
+ }
+ 
+-template <typename T, size_t I, size_t J, size_t K>
++template <typename T, std::size_t I, std::size_t J, std::size_t K>
+ static void transpose(hostMatrix<T, 2, I, J, K> &A, const hostMatrix<T, 2, I, J, K> &B) {
+    // Sizes
+-   size_t M = A.dimension_size(0);
+-   size_t N = A.dimension_size(1);
++   std::size_t M = A.dimension_size(0);
++   std::size_t N = A.dimension_size(1);
+ 
+    if(B.dimension_size(1) != M || B.dimension_size(0) != N) {
+       fprintf(stderr, "Error: illegal matrix transpose\n");
+@@ -489,11 +489,11 @@ static void transpose(hostMatrix<T, 2, I, J, K> &A, const hostMatrix<T, 2, I, J,
+ // Will not produce correct results
+ void alignOptimal(hostMatrix<unsigned int, 2> &nlist, bool same) {
+    // Sizes
+-   size_t N = nlist.dimension_size(0);
+-   size_t mnn = nlist.dimension_size(1);
++   std::size_t N = nlist.dimension_size(0);
++   std::size_t mnn = nlist.dimension_size(1);
+ 
+-   for(size_t m = 0; m < mnn; ++m) {
+-      for(size_t n = 0; n < N; ++n) {
++   for(std::size_t m = 0; m < mnn; ++m) {
++      for(std::size_t n = 0; n < N; ++n) {
+          nlist(n, m) = same ? ((m % N) + 1) : (((n + 32 * m) % N) + 1);
+       }
+    }
+diff --git a/source/gpu_files/cudaMatrix.hpp b/source/gpu_files/cudaMatrix.hpp
+index 55504a3..987bce6 100644
+--- a/source/gpu_files/cudaMatrix.hpp
++++ b/source/gpu_files/cudaMatrix.hpp
+@@ -14,13 +14,13 @@
+ #include "hostMatrix.hpp"
+ #include "matrix.hpp"
+ 
+-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
++template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+ class cudaMatrix : public matrix<T, D, I, J, K, L> {
+ private:
+    // Initiate
+-   bool init(size_t i, size_t j, size_t k, size_t l) {
++   bool init(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       // Calculate size
+-      size_t size = i * j * k * l * sizeof(T);
++      std::size_t size = i * j * k * l * sizeof(T);
+ 
+       // Deallocate data if already allocated
+       if(this->data != nullptr) {
+@@ -66,7 +66,7 @@ public:
+       clone(m);
+    }
+ 
+-   //	cudaMatrix(size_t i, size_t j = 1, size_t k = 1, size_t l = 1) {
++   //	cudaMatrix(std::size_t i, std::size_t j = 1, std::size_t k = 1, std::size_t l = 1) {
+    //		initiate(i, j, k, l);
+    //	}
+ 
+@@ -76,22 +76,22 @@ public:
+    }
+ 
+    // Initiate
+-   bool initiate(size_t i) {
++   bool initiate(std::size_t i) {
+       __MAT_TEST_DIM(1);
+       return init(i, 1, 1, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j) {
++   bool initiate(std::size_t i, std::size_t j) {
+       __MAT_TEST_DIM(2);
+       return init(i, j, 1, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j, size_t k) {
++   bool initiate(std::size_t i, std::size_t j, std::size_t k) {
+       __MAT_TEST_DIM(3);
+       return init(i, j, k, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j, size_t k, size_t l) {
++   bool initiate(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       __MAT_TEST_DIM(4);
+       return init(i, j, k, l);
+    }
+@@ -109,7 +109,7 @@ public:
+          cudaFree(this->data);
+       }
+       this->data = nullptr;
+-      for(size_t i = 0; i < D; i++) {
++      for(std::size_t i = 0; i < D; i++) {
+          this->dim_size[i] = 0;
+       }
+    }
+@@ -244,7 +244,7 @@ public:
+    // Read
+    void read(const T *d) {
+       // Get memory size
+-      size_t size = this->data_size();
++      std::size_t size = this->data_size();
+ 
+       // Invalid copy?
+       if(d == nullptr || this->data == nullptr) {
+@@ -263,7 +263,7 @@ public:
+ 
+    void write(T *d) const {
+       // Get memory size
+-      size_t size = this->data_size();
++      std::size_t size = this->data_size();
+ 
+       // Invalid copy?
+       if(d == nullptr || this->data == nullptr) {
+@@ -280,7 +280,7 @@ public:
+ 
+    void writeAsync(T *d, cudaStream_t stream = 0) const {
+       // Get memory size
+-      size_t size = this->data_size();
++      std::size_t size = this->data_size();
+ 
+       // Invalid copy?
+       if(d == nullptr || this->data == nullptr) {
+diff --git a/source/gpu_files/cudaMdSimulation.cu b/source/gpu_files/cudaMdSimulation.cu
+index 901ce3d..7ac0e2d 100644
+--- a/source/gpu_files/cudaMdSimulation.cu
++++ b/source/gpu_files/cudaMdSimulation.cu
+@@ -76,8 +76,8 @@ void CudaMdSimulation::initiateConstants() {
+ 
+ void CudaMdSimulation::initiate_fortran() {
+    // Dimensions
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    // Constants initiated?
+    if(N == 0 || M == 0) {
+@@ -120,16 +120,16 @@ void CudaMdSimulation::initiate_fortran() {
+ 
+ /*
+ static void printMemStat(const char * label) {
+-        size_t free;
+-        size_t total;
++        std::size_t free;
++        std::size_t total;
+         CUresult result = cuMemGetInfo(&free, &total);
+         printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
+ }
+ */
+ bool CudaMdSimulation::initiateMatrices() {
+    // Dimensions
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    // Constants initiated?
+    if(N == 0 || M == 0) {
+@@ -269,7 +269,7 @@ void CudaMdSimulation::printConstants() {
+ 
+ // Printing simulation status
+ // Added copy to fortran line so that simulation status is printed correctly > Thomas Nystrand 14/09/09
+-void CudaMdSimulation::printMdStatus(size_t mstep) {
++void CudaMdSimulation::printMdStatus(std::size_t mstep) {
+    if(nstep > 20) {
+       if(mstep % ((rstep + nstep) / 20) == 0) {
+          copyToFortran();  // This is run so seldomly it has not impact on overall performance
+@@ -446,7 +446,7 @@ void CudaMdSimulation::measurementPhase() {
+    stopwatch.add("initiate");
+ 
+    // Time step loop
+-   for(size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
++   for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+       // export_mstep(mstep);
+ 
+       // Measure
+diff --git a/source/gpu_files/cudaMdSimulation.hpp b/source/gpu_files/cudaMdSimulation.hpp
+index d30db3a..2e65c90 100644
+--- a/source/gpu_files/cudaMdSimulation.hpp
++++ b/source/gpu_files/cudaMdSimulation.hpp
+@@ -11,11 +11,11 @@ private:
+    char stt;
+    int SDEalgh;
+ 
+-   size_t rstep;
+-   size_t nstep;
+-   size_t Natom;
+-   size_t Mensemble;
+-   size_t max_no_neigh;
++   std::size_t rstep;
++   std::size_t nstep;
++   std::size_t Natom;
++   std::size_t Mensemble;
++   std::size_t max_no_neigh;
+ 
+    real delta_t;
+    real gamma;
+@@ -32,7 +32,7 @@ private:
+    bool do_dm;
+    bool do_jtensor;
+    unsigned int do_aniso;
+-   size_t max_no_dmneigh;
++   std::size_t max_no_dmneigh;
+ 
+    // Thermfield parameters
+    curandRngType_t rngType;
+@@ -80,7 +80,7 @@ private:
+    bool isInitiated;
+ 
+    void printConstants();
+-   void printMdStatus(size_t mstep);
++   void printMdStatus(std::size_t mstep);
+ 
+    void initiate_fortran();
+ 
+diff --git a/source/gpu_files/cudaMeasurement.cu b/source/gpu_files/cudaMeasurement.cu
+index 28ce15b..b4bec76 100644
+--- a/source/gpu_files/cudaMeasurement.cu
++++ b/source/gpu_files/cudaMeasurement.cu
+@@ -101,12 +101,12 @@ void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void *data) {
+ }
+ 
+ // Callback method
+-void CudaMeasurement::queueMeasurement(size_t mstep) {
++void CudaMeasurement::queueMeasurement(std::size_t mstep) {
+    measurementQueue.push(mstep, pinned_emomM, pinned_emom, pinned_mmom, mmom.size());
+ }
+ 
+ // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
+-void CudaMeasurement::copyQueueFast(size_t mstep) {
++void CudaMeasurement::copyQueueFast(std::size_t mstep) {
+    // Timing
+    stopwatch.skip();
+ 
+@@ -144,7 +144,7 @@ void CudaMeasurement::copyQueueFast(size_t mstep) {
+ }
+ 
+ // Slow copying (D -> H)
+-void CudaMeasurement::copyQueueSlow(size_t mstep) {
++void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
+    // Timing
+    stopwatch.skip();
+ 
+@@ -159,7 +159,7 @@ void CudaMeasurement::copyQueueSlow(size_t mstep) {
+    measurementQueue.push(mstep, FortranData::emomM, FortranData::emom, FortranData::mmom, mmom.size());
+ }
+ 
+-void CudaMeasurement::measure(size_t mstep) {
++void CudaMeasurement::measure(std::size_t mstep) {
+    // Copy required?
+    bool copy = (alwaysCopy || fortran_do_measurements(mstep));
+ 
+@@ -176,7 +176,7 @@ void CudaMeasurement::measure(size_t mstep) {
+    }
+ }
+ 
+-void CudaMeasurement::flushMeasurements(size_t mstep) {
++void CudaMeasurement::flushMeasurements(std::size_t mstep) {
+    // Timing
+    stopwatch.skip();
+ 
+diff --git a/source/gpu_files/cudaMeasurement.hpp b/source/gpu_files/cudaMeasurement.hpp
+index 2c15da2..58706f9 100644
+--- a/source/gpu_files/cudaMeasurement.hpp
++++ b/source/gpu_files/cudaMeasurement.hpp
+@@ -20,11 +20,11 @@
+ class CudaMeasurement {
+    // Queue callback data struct
+    struct queue_callback_data {
+-      queue_callback_data(CudaMeasurement *m, size_t s) : me(m), step(s) {
++      queue_callback_data(CudaMeasurement *m, std::size_t s) : me(m), step(s) {
+       }
+ 
+       CudaMeasurement *me;
+-      size_t step;
++      std::size_t step;
+    };
+ 
+    // Queue callback
+@@ -62,9 +62,9 @@ class CudaMeasurement {
+    bool fastCopy;
+ 
+    // Helpers
+-   void queueMeasurement(size_t mstep);
+-   void copyQueueFast(size_t mstep);
+-   void copyQueueSlow(size_t mstep);
++   void queueMeasurement(std::size_t mstep);
++   void copyQueueFast(std::size_t mstep);
++   void copyQueueSlow(std::size_t mstep);
+ 
+ public:
+    // Constructor / deconstructor
+@@ -75,8 +75,8 @@ public:
+    ~CudaMeasurement();
+ 
+    // Access methods
+-   void measure(size_t mstep);
+-   void flushMeasurements(size_t mstep);
++   void measure(std::size_t mstep);
++   void flushMeasurements(std::size_t mstep);
+ };
+ 
+ 
+diff --git a/source/gpu_files/cudaParallelizationHelper.hpp b/source/gpu_files/cudaParallelizationHelper.hpp
+index 9de0795..f649772 100644
+--- a/source/gpu_files/cudaParallelizationHelper.hpp
++++ b/source/gpu_files/cudaParallelizationHelper.hpp
+@@ -15,7 +15,7 @@
+ ////////////////////////////////////////////////////////////////////////////////
+ // Kernel templates
+ ////////////////////////////////////////////////////////////////////////////////
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void atom_kernel(O op) {
+    unsigned int atom;
+    if(GridHelper<threads, big>::index1d(&atom, op.NM)) {
+@@ -23,7 +23,7 @@ __global__ void atom_kernel(O op) {
+    }
+ }
+ 
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void site_kernel(O op) {
+    unsigned int site;
+    if(GridHelper<threads, big>::index1d(&site, op.N)) {
+@@ -31,7 +31,7 @@ __global__ void site_kernel(O op) {
+    }
+ }
+ 
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void atom_site_kernel(O op) {
+    unsigned int site, ensemble;
+    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
+@@ -40,7 +40,7 @@ __global__ void atom_site_kernel(O op) {
+    }
+ }
+ 
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void atom_site_ensemble_kernel(O op) {
+    unsigned int site, ensemble;
+    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
+@@ -49,7 +49,7 @@ __global__ void atom_site_ensemble_kernel(O op) {
+    }
+ }
+ 
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void element_axis_site_ensemble_kernel(O op) {
+    unsigned int axis, site, ensemble;
+    if(GridHelper<threads, big>::index3d(&axis, &site, &ensemble, 3, op.N, op.M)) {
+@@ -58,7 +58,7 @@ __global__ void element_axis_site_ensemble_kernel(O op) {
+    }
+ }
+ 
+-template <size_t threads, bool big, typename O>
++template <std::size_t threads, bool big, typename O>
+ __global__ void element_kernel(O op) {
+    unsigned int element;
+    if(GridHelper<threads, big>::index1d(&element, op.NM3)) {
+diff --git a/source/gpu_files/cudaThermfield.cu b/source/gpu_files/cudaThermfield.cu
+index 9d7600e..f8628ab 100644
+--- a/source/gpu_files/cudaThermfield.cu
++++ b/source/gpu_files/cudaThermfield.cu
+@@ -73,7 +73,7 @@ CudaThermfield::~CudaThermfield() {
+    }
+ }
+ 
+-bool CudaThermfield::initiate(size_t N, size_t M, curandRngType_t rngType, unsigned long long seed) {
++bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType, unsigned long long seed) {
+    if(dataInitiated) {
+       fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");
+       return true;
+diff --git a/source/gpu_files/cudaThermfield.hpp b/source/gpu_files/cudaThermfield.hpp
+index e6a7908..9d82505 100644
+--- a/source/gpu_files/cudaThermfield.hpp
++++ b/source/gpu_files/cudaThermfield.hpp
+@@ -42,7 +42,7 @@ public:
+    ~CudaThermfield();
+ 
+    // Initiate
+-   bool initiate(size_t N, size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
++   bool initiate(std::size_t N, std::size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
+                  unsigned long long seed = 0);
+    bool initiateConstants(const fortMatrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
+                           real mub, real damping);
+diff --git a/source/gpu_files/depondtIntegrator.cpp b/source/gpu_files/depondtIntegrator.cpp
+index dc2f487..136e45e 100644
+--- a/source/gpu_files/depondtIntegrator.cpp
++++ b/source/gpu_files/depondtIntegrator.cpp
+@@ -24,7 +24,7 @@ DepondtIntegrator::~DepondtIntegrator() {
+ }
+ 
+ // Initiator
+-bool DepondtIntegrator::initiate(size_t N, size_t M, char sttMode) {
++bool DepondtIntegrator::initiate(std::size_t N, std::size_t M, char sttMode) {
+    // Assert that we're not already initialized
+    release();
+ 
+@@ -36,7 +36,7 @@ bool DepondtIntegrator::initiate(size_t N, size_t M, char sttMode) {
+    stt = sttMode;
+ 
+    // Allocate "fake" fortran matrices
+-   size_t size = 3 * Natom * Mensemble;
++   std::size_t size = 3 * Natom * Mensemble;
+    mrod.set(new real[size], 3, Natom, Mensemble);
+    blocal.set(new real[size], 3, Natom, Mensemble);
+    bdup.set(new real[size], 3, Natom, Mensemble);
+@@ -118,8 +118,8 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
+    // Construct local field
+    const hostMatrix<real, 3, 3> &btherm = tfield.getField();
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          blocal(0, i, k) = beff(0, i, k) + btherm(0, i, k);
+          blocal(1, i, k) = beff(1, i, k) + btherm(1, i, k);
+          blocal(2, i, k) = beff(2, i, k) + btherm(2, i, k);
+@@ -137,8 +137,8 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
+ 
+ // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          real m = mmom(i, k);
+          for(int j = 0; j < 3; j++) {
+             emom2(j, i, k) = emom(j, i, k);
+@@ -162,8 +162,8 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const h
+    // Construct local field
+    const hostMatrix<real, 3, 3> &btherm = tfield.getField();
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          blocal(0, i, k) = beff(0, i, k) + btherm(0, i, k);
+          blocal(1, i, k) = beff(1, i, k) + btherm(1, i, k);
+          blocal(2, i, k) = beff(2, i, k) + btherm(2, i, k);
+@@ -177,8 +177,8 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const h
+ 
+ // Corrected field
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          for(int j = 0; j < 3; j++) {
+             bdup(j, i, k) = 0.5 * bdup(j, i, k) + 0.5 * b2eff(j, i, k);
+             emom(j, i, k) = emom2(j, i, k);
+@@ -206,8 +206,8 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
+ 
+ // Rotate
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          // Get effective field components and size
+          real x = bdup(0, i, k);
+          real y = bdup(1, i, k);
+@@ -256,8 +256,8 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
+ // Constructs the effective field (including damping term)
+ void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3> &emom, const hostMatrix<real, 3, 3> &btorque) {
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < Mensemble; k++) {
+-      for(size_t i = 0; i < Natom; i++) {
++   for(std::size_t k = 0; k < Mensemble; k++) {
++      for(std::size_t i = 0; i < Natom; i++) {
+          bdup(0, i, k) = blocal(0, i, k)
+                        + damping * (emom(1, i, k) * blocal(2, i, k) - emom(2, i, k) * blocal(1, i, k));
+          bdup(1, i, k) = blocal(1, i, k)
+@@ -269,8 +269,8 @@ void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3> &emom, const host
+ 
+    if(stt != 'N') {
+ #pragma omp parallel for collapse(2)
+-      for(size_t k = 0; k < Natom; k++) {
+-         for(size_t i = 0; i < Mensemble; i++) {
++      for(std::size_t k = 0; k < Natom; k++) {
++         for(std::size_t i = 0; i < Mensemble; i++) {
+             bdup(0, i, k) += btorque(0, i, k);
+             bdup(1, i, k) += btorque(1, i, k);
+             bdup(2, i, k) += btorque(2, i, k);
+diff --git a/source/gpu_files/depondtIntegrator.hpp b/source/gpu_files/depondtIntegrator.hpp
+index 9ef04f3..15fb40f 100644
+--- a/source/gpu_files/depondtIntegrator.hpp
++++ b/source/gpu_files/depondtIntegrator.hpp
+@@ -9,8 +9,8 @@
+ class DepondtIntegrator {
+ private:
+    // System parameters
+-   size_t Natom;
+-   size_t Mensemble;
++   std::size_t Natom;
++   std::size_t Mensemble;
+    real gamma;
+    real damping;
+    real timestep;
+@@ -43,7 +43,7 @@ public:
+    ~DepondtIntegrator();
+ 
+    // Initiator
+-   bool initiate(size_t Natom, size_t Mensemble, char stt);
++   bool initiate(std::size_t Natom, std::size_t Mensemble, char stt);
+ 
+    // Set up constants
+    bool initiateConstants(real gamma_const, real k_bolt_const, real mub_const, real damping_const,
+diff --git a/source/gpu_files/fortMatrix.hpp b/source/gpu_files/fortMatrix.hpp
+index 9803896..81e2098 100644
+--- a/source/gpu_files/fortMatrix.hpp
++++ b/source/gpu_files/fortMatrix.hpp
+@@ -5,11 +5,11 @@
+ #include "hostMatrix.hpp"
+ #include "matrix.hpp"
+ 
+-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
++template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+ class fortMatrix : public hostMatrix<T, D, I, J, K, L> {
+ private:
+    // Set data
+-   void setData(T *d, size_t i, size_t j, size_t k, size_t l) {
++   void setData(T *d, std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       this->data = d;
+       for(int n = 0; n < D; n++) {
+          switch(n) {
+@@ -34,7 +34,7 @@ public:
+       clone(m);
+    }
+ 
+-   fortMatrix(T *d, size_t i, size_t j = 1, size_t k = 1, size_t l = 1) {
++   fortMatrix(T *d, std::size_t i, std::size_t j = 1, std::size_t k = 1, std::size_t l = 1) {
+       set(d, i, j, k, l);
+    }
+ 
+@@ -45,22 +45,22 @@ public:
+    }
+ 
+    // Set
+-   void set(T *d, size_t i) {
++   void set(T *d, std::size_t i) {
+       __MAT_TEST_DIM(1);
+       setData(d, i, 1, 1, 1);
+    }
+ 
+-   void set(T *d, size_t i, size_t j) {
++   void set(T *d, std::size_t i, std::size_t j) {
+       __MAT_TEST_DIM(2);
+       setData(d, i, j, 1, 1);
+    }
+ 
+-   void set(T *d, size_t i, size_t j, size_t k) {
++   void set(T *d, std::size_t i, std::size_t j, std::size_t k) {
+       __MAT_TEST_DIM(3);
+       setData(d, i, j, k, 1);
+    }
+ 
+-   void set(T *d, size_t i, size_t j, size_t k, size_t l) {
++   void set(T *d, std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       __MAT_TEST_DIM(4);
+       setData(d, i, j, k, l);
+    }
+diff --git a/source/gpu_files/gridHelper.hpp b/source/gpu_files/gridHelper.hpp
+index 8875d2d..605da33 100644
+--- a/source/gpu_files/gridHelper.hpp
++++ b/source/gpu_files/gridHelper.hpp
+@@ -13,7 +13,7 @@
+ 
+ template <unsigned int threads, bool big>
+ class GridHelper {
+-   size_t maxGridSize1;
++   std::size_t maxGridSize1;
+ 
+ public:
+    // Types for template parameters
+diff --git a/source/gpu_files/hamiltonianCalculations.cpp b/source/gpu_files/hamiltonianCalculations.cpp
+index c467cf3..192976a 100644
+--- a/source/gpu_files/hamiltonianCalculations.cpp
++++ b/source/gpu_files/hamiltonianCalculations.cpp
+@@ -9,13 +9,13 @@
+ void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<real, 3, 3> &emomM,
+                                          const matrix<real, 3, 3> &emom,
+                                          const matrix<real, 3, 3> &external_field) {
+-   size_t N = beff.dimension_size(1);  // Second dimension
+-   size_t M = beff.dimension_size(2);  // Third dimension
++   std::size_t N = beff.dimension_size(1);  // Second dimension
++   std::size_t M = beff.dimension_size(2);  // Third dimension
+ 
+ // Loop over ensembles
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < M; k++) {
+-      for(size_t i = 0; i < N; i++) {
++   for(std::size_t k = 0; k < M; k++) {
++      for(std::size_t i = 0; i < N; i++) {
+          beff_s[0] = 0.0;
+          beff_s[1] = 0.0;
+          beff_s[2] = 0.0;
+@@ -33,10 +33,10 @@ void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<
+    }
+ }
+ 
+-inline void HamiltonianCalculations::heisenberg_field(const size_t i, const size_t k,
++inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const std::size_t k,
+                                                       const matrix<real, 3, 3> &emomM, real *beff_s) {
+-   size_t lsize = nlistsize[i];
+-   for(size_t j = 0; j < lsize; j++) {
++   std::size_t lsize = nlistsize[i];
++   for(std::size_t j = 0; j < lsize; j++) {
+       int n = nlist(j, i) - 1;
+       real coup = ncoup(j, i);
+       beff_s[0] += coup * emomM(0, n, k);
+@@ -45,10 +45,10 @@ inline void HamiltonianCalculations::heisenberg_field(const size_t i, const size
+    }
+ }
+ 
+-inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const size_t i, const size_t k,
++inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
+                                                                   const matrix<real, 3, 3> &emomM,
+                                                                   real *beff_s) {
+-   size_t lsize = dmlistsize[i];
++   std::size_t lsize = dmlistsize[i];
+    for(int j = 1; j < lsize; j++) {
+       beff_s[0]
+           -= dm_vect(3, j, i) * emomM(2, dmlist(j, i), k) + dm_vect(2, j, i) * emomM(3, dmlist(j, i), k);
+diff --git a/source/gpu_files/hamiltonianCalculations.hpp b/source/gpu_files/hamiltonianCalculations.hpp
+index cd2fa81..d433fa4 100644
+--- a/source/gpu_files/hamiltonianCalculations.hpp
++++ b/source/gpu_files/hamiltonianCalculations.hpp
+@@ -22,8 +22,8 @@ private:
+    const unsigned int *dmlistsize;
+ 
+    // Contributions to the hamiltonian
+-   void heisenberg_field(const size_t i, const size_t k, const matrix<real, 3, 3> &emomM, real *beff_s);
+-   void dzyalonshinskii_moriya_field(const size_t i, const size_t k, const matrix<real, 3, 3> &emomM,
++   void heisenberg_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3> &emomM, real *beff_s);
++   void dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3> &emomM,
+                                      real *beff_s);
+ 
+ public:
+diff --git a/source/gpu_files/hostMatrix.hpp b/source/gpu_files/hostMatrix.hpp
+index fff2eee..09a614c 100644
+--- a/source/gpu_files/hostMatrix.hpp
++++ b/source/gpu_files/hostMatrix.hpp
+@@ -12,15 +12,15 @@
+ 
+ #include "matrix.hpp"
+ 
+-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
++template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+ class hostMatrix : public matrix<T, D, I, J, K, L> {
+ private:
+    // Initiate
+    // Changed new to calloc > Thomas Nystrand
+-   bool init(size_t i, size_t j, size_t k, size_t l) {
++   bool init(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       // Calculate size
+-      // size_t size = i * j * k * l * sizeof(T);
+-      size_t size = i * j * k * l;
++      // std::size_t size = i * j * k * l * sizeof(T);
++      std::size_t size = i * j * k * l;
+       // Deallocate data if already allocated
+       free();
+ 
+@@ -62,22 +62,22 @@ public:
+    }
+ 
+    // Initiate
+-   bool initiate(size_t i) {
++   bool initiate(std::size_t i) {
+       __MAT_TEST_DIM(1);
+       return init(i, 1, 1, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j) {
++   bool initiate(std::size_t i, std::size_t j) {
+       __MAT_TEST_DIM(2);
+       return init(i, j, 1, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j, size_t k) {
++   bool initiate(std::size_t i, std::size_t j, std::size_t k) {
+       __MAT_TEST_DIM(3);
+       return init(i, j, k, 1);
+    }
+ 
+-   bool initiate(size_t i, size_t j, size_t k, size_t l) {
++   bool initiate(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       __MAT_TEST_DIM(4);
+       return init(i, j, k, l);
+    }
+@@ -96,7 +96,7 @@ public:
+       }
+       // delete this->data;
+       this->data = nullptr;
+-      for(size_t i = 0; i < D; i++) {
++      for(std::size_t i = 0; i < D; i++) {
+          this->dim_size[i] = 0;
+       }
+    }
+diff --git a/source/gpu_files/matrix.hpp b/source/gpu_files/matrix.hpp
+index a26b496..78f4e30 100644
+--- a/source/gpu_files/matrix.hpp
++++ b/source/gpu_files/matrix.hpp
+@@ -28,23 +28,23 @@
+       __MAT_ERR();                                                                             \
+    }
+ 
+-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
++template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+ class matrix {
+ protected:
+    // Data fields
+    T *data;
+-   size_t dim_size[D];
++   std::size_t dim_size[D];
+ 
+    // Default constructor
+    matrix() {
+       data = nullptr;
+-      for(size_t i = 0; i < D; i++) {
++      for(std::size_t i = 0; i < D; i++) {
+          dim_size[i] = 0;
+       }
+    }
+ 
+    // Get the offset of an index
+-   inline size_t index(size_t i, size_t j = 0, size_t k = 0, size_t l = 0) const {
++   inline std::size_t index(std::size_t i, std::size_t j = 0, std::size_t k = 0, std::size_t l = 0) const {
+ #ifdef DEBUG
+       if(data == nullptr) {
+          printf("Error: trying to access uninitialized data\n");
+@@ -65,7 +65,7 @@ protected:
+          }
+       }
+ #endif
+-      size_t ind = 0;
++      std::size_t ind = 0;
+ 
+       // Causes NVCC to throw false warnings
+       // if (D >= 4) ind = (ind + l) * (K != 0 ? K : dim_size[2]);
+@@ -85,7 +85,7 @@ protected:
+ 
+ public:
+    // Get the size of a dimension
+-   inline size_t dimension_size(size_t d) const {
++   inline std::size_t dimension_size(std::size_t d) const {
+       if(d >= D) {
+ #ifdef DEBUG
+          printf("Warning: dimension out of bound (d=%ld, max=%ld)\n", d, D);
+@@ -97,18 +97,18 @@ public:
+    }
+ 
+    // Size of data (in bytes)
+-   inline size_t data_size() const {
+-      size_t size = sizeof(T);
+-      for(size_t i = 0; i < D; i++) {
++   inline std::size_t data_size() const {
++      std::size_t size = sizeof(T);
++      for(std::size_t i = 0; i < D; i++) {
+          size *= dim_size[i];
+       }
+       return size;
+    }
+ 
+    // Size of data (number of elements)
+-   inline size_t size() const {
+-      size_t size = 1;
+-      for(size_t i = 0; i < D; i++) {
++   inline std::size_t size() const {
++      std::size_t size = 1;
++      for(std::size_t i = 0; i < D; i++) {
+          size *= dim_size[i];
+       }
+       return size;
+@@ -128,42 +128,42 @@ public:
+    }
+ 
+    // parenthesis-operator
+-   inline T &operator()(size_t i) {
++   inline T &operator()(std::size_t i) {
+       __MAT_TEST_DIM(1);
+       return data[index(i, 0, 0, 0)];
+    }
+ 
+-   inline const T &operator()(size_t i) const {
++   inline const T &operator()(std::size_t i) const {
+       __MAT_TEST_DIM(1);
+       return data[index(i, 0, 0, 0)];
+    }
+ 
+-   inline T &operator()(size_t i, size_t j) {
++   inline T &operator()(std::size_t i, std::size_t j) {
+       __MAT_TEST_DIM(2);
+       return data[index(i, j, 0, 0)];
+    }
+ 
+-   inline const T &operator()(size_t i, size_t j) const {
++   inline const T &operator()(std::size_t i, std::size_t j) const {
+       __MAT_TEST_DIM(2);
+       return data[index(i, j, 0, 0)];
+    }
+ 
+-   inline T &operator()(size_t i, size_t j, size_t k) {
++   inline T &operator()(std::size_t i, std::size_t j, std::size_t k) {
+       __MAT_TEST_DIM(3);
+       return data[index(i, j, k, 0)];
+    }
+ 
+-   inline const T &operator()(size_t i, size_t j, size_t k) const {
++   inline const T &operator()(std::size_t i, std::size_t j, std::size_t k) const {
+       __MAT_TEST_DIM(3);
+       return data[index(i, j, k, 0)];
+    }
+ 
+-   inline T &operator()(size_t i, size_t j, size_t k, size_t l) {
++   inline T &operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+       __MAT_TEST_DIM(4);
+       return data[index(i, j, k, l)];
+    }
+ 
+-   inline const T &operator()(size_t i, size_t j, size_t k, size_t l) const {
++   inline const T &operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) const {
+       __MAT_TEST_DIM(4);
+       return data[index(i, j, k, l)];
+    }
+@@ -192,7 +192,7 @@ public:
+              (long)J,
+              (long)K,
+              (long)L);
+-      for(size_t i = 0; i < D; i++) {
++      for(std::size_t i = 0; i < D; i++) {
+          printf("    dim %ld: %ld\n", (long)i + 1, (long)dim_size[i]);
+       }
+    }
+diff --git a/source/gpu_files/mdSimulation.cpp b/source/gpu_files/mdSimulation.cpp
+index c1764a0..0654c16 100644
+--- a/source/gpu_files/mdSimulation.cpp
++++ b/source/gpu_files/mdSimulation.cpp
+@@ -48,8 +48,8 @@ void MdSimulation::initiateConstants() {
+ 
+ void MdSimulation::initiateFortran() {
+    // Dimensions
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    // Constants initiated?
+    if(N == 0 || M == 0) {
+@@ -150,7 +150,7 @@ void MdSimulation::measurementPhase() {
+ 
+    stopwatch.add("initiate");
+    // Time step loop
+-   for(size_t mstep = rstep; mstep < rstep + nstep; mstep++) {
++   for(std::size_t mstep = rstep; mstep < rstep + nstep; mstep++) {
+       // export_mstep(mstep);
+ 
+       // Measure averages and trajectories (through fortran call)
+@@ -225,14 +225,14 @@ void MdSimulation::measurementPhase() {
+ }
+ 
+ // Safe copy (allows nullptr pointer)
+-static inline void *scopy(void *p1, void *p2, size_t s) {
++static inline void *scopy(void *p1, void *p2, std::size_t s) {
+    //	printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
+    return (p1 && p2) ? memcpy(p1, p2, s) : p1;
+ }
+ 
+ void MdSimulation::copyFromFortran() {
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    if(!isOwnData) {
+       return;
+@@ -257,8 +257,8 @@ void MdSimulation::copyFromFortran() {
+ }
+ 
+ void MdSimulation::copyToFortran() {
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    if(!isOwnData) {
+       return;
+@@ -288,8 +288,8 @@ void MdSimulation::copyToFortran() {
+ /////////////////////////////////////////////////////////
+ void MdSimulation::initiateOwn() {
+    // Dimensions
+-   size_t N = Natom;
+-   size_t M = Mensemble;
++   std::size_t N = Natom;
++   std::size_t M = Mensemble;
+ 
+    // Constants initiated?
+    if(N == 0 || M == 0) {
+diff --git a/source/gpu_files/mdSimulation.hpp b/source/gpu_files/mdSimulation.hpp
+index 67ecd64..e9b82e5 100644
+--- a/source/gpu_files/mdSimulation.hpp
++++ b/source/gpu_files/mdSimulation.hpp
+@@ -8,11 +8,11 @@ private:
+    char stt;
+    int SDEalgh;
+ 
+-   size_t rstep;
+-   size_t nstep;
+-   size_t Natom;
+-   size_t Mensemble;
+-   size_t max_no_neigh;
++   std::size_t rstep;
++   std::size_t nstep;
++   std::size_t Natom;
++   std::size_t Mensemble;
++   std::size_t max_no_neigh;
+ 
+    real delta_t;
+    real gamma;
+@@ -27,7 +27,7 @@ private:
+    char initexc;
+ 
+    int do_dm;
+-   size_t max_no_dmneigh;
++   std::size_t max_no_dmneigh;
+ 
+    // <real,3,3> -- real precision, 3 dimensions, first dim always 3
+    fortMatrix<real, 2> ncoup;
+diff --git a/source/gpu_files/measurementQueue.cpp b/source/gpu_files/measurementQueue.cpp
+index 41c235c..c24f41d 100644
+--- a/source/gpu_files/measurementQueue.cpp
++++ b/source/gpu_files/measurementQueue.cpp
+@@ -23,7 +23,7 @@
+ #endif
+ 
+ // Measurement class methods
+-MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, size_t NM, size_t _step) {
++MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM, std::size_t _step) {
+    step = _step;
+    if(NM != 0) {
+       emomM = new real[NM * 3];
+@@ -183,11 +183,11 @@ bool MeasurementQueue::empty() {
+ }
+ 
+ // Push a measurement with data to the queue
+-void MeasurementQueue::push(size_t mstep) {
++void MeasurementQueue::push(std::size_t mstep) {
+    push(mstep, nullptr, nullptr, nullptr, 0);
+ }
+ 
+-void MeasurementQueue::push(size_t mstep, real* emomM, real* emom, real* mmom, size_t NM) {
++void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM) {
+    // Finishing?
+    if(finishMeasurements) {
+       fprintf(stderr, "MeasurementQueue::push() called after finish()!\n");
+diff --git a/source/gpu_files/measurementQueue.hpp b/source/gpu_files/measurementQueue.hpp
+index 9c75d15..369ad13 100644
+--- a/source/gpu_files/measurementQueue.hpp
++++ b/source/gpu_files/measurementQueue.hpp
+@@ -19,11 +19,11 @@ class MeasurementQueue {
+       real* emomM;
+       real* emom;
+       real* mmom;
+-      size_t step;
++      std::size_t step;
+ 
+    public:
+       // Constructor / destructor
+-      Measurement(real* emomM, real* emom, real* mmom, size_t NM, size_t step);
++      Measurement(real* emomM, real* emom, real* mmom, std::size_t NM, std::size_t step);
+       ~Measurement();
+    };
+ 
+@@ -50,8 +50,8 @@ public:
+    bool empty();
+ 
+    // Push a measurement with data to the queue
+-   void push(size_t mstep);
+-   void push(size_t mstep, real* emomM, real* emom, real* mmom, size_t NM);
++   void push(std::size_t mstep);
++   void push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM);
+ 
+    // Finish
+    void finish();
+diff --git a/source/gpu_files/momentUpdater.cpp b/source/gpu_files/momentUpdater.cpp
+index a4cf486..8ac6c7f 100644
+--- a/source/gpu_files/momentUpdater.cpp
++++ b/source/gpu_files/momentUpdater.cpp
+@@ -39,13 +39,13 @@ void MomentUpdater::copyMoment() {
+    real momtol = (initexc != 'I') ? -1.0 : 0.000001;
+ 
+    // Dimensions
+-   size_t M = mmom.dimension_size(1);  // Number of ensembles
+-   size_t N = mmom.dimension_size(0);  // Number of atoms
++   std::size_t M = mmom.dimension_size(1);  // Number of ensembles
++   std::size_t N = mmom.dimension_size(0);  // Number of atoms
+ 
+ // Transfer moments
+ #pragma omp parallel for collapse(2)
+-   for(size_t j = 0; j < M; j++) {
+-      for(size_t i = 0; i < N; i++) {
++   for(std::size_t j = 0; j < M; j++) {
++      for(std::size_t i = 0; i < N; i++) {
+          real m2 = mmom2(i, j);
+          emom(0, i, j) = emom2(0, i, j);
+          emom(1, i, j) = emom2(1, i, j);
+@@ -62,14 +62,14 @@ void MomentUpdater::copyMoment() {
+ // Update the magnitude of the magnetic moment if wanted.
+ void MomentUpdater::calcMoment() {
+    // Dimensions
+-   size_t M = mmom.dimension_size(1);  // Number of ensembles
+-   size_t N = mmom.dimension_size(0);  // Number of atoms
++   std::size_t M = mmom.dimension_size(1);  // Number of ensembles
++   std::size_t N = mmom.dimension_size(0);  // Number of atoms
+ 
+    switch(mompar) {
+       case 1:  // M = M0 * mz
+ #pragma omp parallel for collapse(2)
+-         for(size_t j = 0; j < M; j++) {
+-            for(size_t i = 0; i < N; i++) {
++         for(std::size_t j = 0; j < M; j++) {
++            for(std::size_t i = 0; i < N; i++) {
+                real m = mmom0(i, j) * std::abs(emom2(2, i, j));
+                mmom2(i, j) = (m > 1e-4) ? m : 1e-4;
+             }
+@@ -77,8 +77,8 @@ void MomentUpdater::calcMoment() {
+          break;
+       case 2:  // M = M0 * mz^2
+ #pragma omp parallel for collapse(2)
+-         for(size_t j = 0; j < M; j++) {
+-            for(size_t i = 0; i < N; i++) {
++         for(std::size_t j = 0; j < M; j++) {
++            for(std::size_t i = 0; i < N; i++) {
+                real mz = emom2(2, i, j);
+                real m = mmom0(i, j) * mz * mz;
+                mmom2(i, j) = (m > 1e-4) ? m : 1e-4;
+diff --git a/source/gpu_files/randomnum.cpp b/source/gpu_files/randomnum.cpp
+index e52a42a..cbeab25 100644
+--- a/source/gpu_files/randomnum.cpp
++++ b/source/gpu_files/randomnum.cpp
+@@ -13,7 +13,7 @@ RandomNumbers::RandomNumbers() {
+ RandomNumbers::~RandomNumbers() {
+ }
+ 
+-void RandomNumbers::fillArray(real* v, size_t len) {
++void RandomNumbers::fillArray(real* v, std::size_t len) {
+    fill_rngarray(v, len);
+ }
+ 
+diff --git a/source/gpu_files/stopwatch.hpp b/source/gpu_files/stopwatch.hpp
+index 5f4d0db..885204e 100644
+--- a/source/gpu_files/stopwatch.hpp
++++ b/source/gpu_files/stopwatch.hpp
+@@ -41,7 +41,7 @@ public:
+    void add(const char *name) {
+    }
+ 
+-   void add(const char *name, size_t len) {
++   void add(const char *name, std::size_t len) {
+    }
+ 
+    void add(const std::string &name) {
+@@ -82,7 +82,7 @@ public:
+       add(std::string(name));
+    }
+ 
+-   void add(const char *name, size_t len) {
++   void add(const char *name, std::size_t len) {
+       add(std::string(name, len));
+    }
+ 
+diff --git a/source/gpu_files/stopwatchDeviceSync.hpp b/source/gpu_files/stopwatchDeviceSync.hpp
+index cfe451d..08b2067 100644
+--- a/source/gpu_files/stopwatchDeviceSync.hpp
++++ b/source/gpu_files/stopwatchDeviceSync.hpp
+@@ -40,7 +40,7 @@ public:
+       parent.add(name);
+    }
+ 
+-   void add(const char *name, size_t len) {
++   void add(const char *name, std::size_t len) {
+       sync();
+       parent.add(name, len);
+    }
+diff --git a/source/gpu_files/stopwatchPool.hpp b/source/gpu_files/stopwatchPool.hpp
+index 157ee87..6718183 100644
+--- a/source/gpu_files/stopwatchPool.hpp
++++ b/source/gpu_files/stopwatchPool.hpp
+@@ -28,7 +28,7 @@ public:
+       return get(std::string(name));
+    }
+ 
+-   Stopwatch &get(const char *name, size_t len) {
++   Stopwatch &get(const char *name, std::size_t len) {
+       return get(std::string(name, len));
+    }
+ 
+@@ -114,7 +114,7 @@ public:
+       return pool.get(name);
+    }
+ 
+-   static Stopwatch &get(const char *name, size_t len) {
++   static Stopwatch &get(const char *name, std::size_t len) {
+       return pool.get(name, len);
+    }
+ 
+diff --git a/source/gpu_files/stopwatch_fortran.cpp b/source/gpu_files/stopwatch_fortran.cpp
+index cb21d83..8a24ebf 100644
+--- a/source/gpu_files/stopwatch_fortran.cpp
++++ b/source/gpu_files/stopwatch_fortran.cpp
+@@ -10,23 +10,23 @@ using namespace std;
+ #include "stopwatchPool.hpp"
+ 
+ // Reset a timer
+-extern "C" void stopwatch_reset_(const char* category, size_t strlen) {
++extern "C" void stopwatch_reset_(const char* category, std::size_t strlen) {
+    GlobalStopwatchPool::get(category, strlen).reset();
+ }
+ 
+ // Exclude the time since the last add from this category
+-extern "C" void stopwatch_skip_(const char* category, size_t strlen) {
++extern "C" void stopwatch_skip_(const char* category, std::size_t strlen) {
+    GlobalStopwatchPool::get(category, strlen).skip();
+ }
+ 
+-// extern "C" void stopwatch_add_(const char * category, const char * event, size_t strlen, size_t strlen2);
+-extern "C" void stopwatch_add_(const char* category, size_t strlen, const char* event, size_t strlen2) {
++// extern "C" void stopwatch_add_(const char * category, const char * event, std::size_t strlen, std::size_t strlen2);
++extern "C" void stopwatch_add_(const char* category, std::size_t strlen, const char* event, std::size_t strlen2) {
+    // The ordering of the parameters may differ between compilers.
+    // If strlen > 255 it is probably not the length but the event string pointer
+    // as FORTRAN makes the function call as:
+-   // void stopwatch_add_(const char * category, size_t strlen, const char * event, size_t strlen2)
++   // void stopwatch_add_(const char * category, std::size_t strlen, const char * event, std::size_t strlen2)
+    if(strlen > 0xff) {
+-      size_t tmp = (size_t)event;
++      std::size_t tmp = (std::size_t)event;
+       event = (const char*)strlen;
+       strlen = tmp;
+    }
+@@ -35,7 +35,7 @@ extern "C" void stopwatch_add_(const char* category, size_t strlen, const char*
+ }
+ 
+ // Print category
+-extern "C" void stopwatch_print_(const char* category, size_t strlen) {
++extern "C" void stopwatch_print_(const char* category, std::size_t strlen) {
+    GlobalStopwatchPool::get(category, strlen).print();
+ }
+ 
+diff --git a/source/gpu_files/thermfield.cpp b/source/gpu_files/thermfield.cpp
+index dd25e3d..dc05c70 100644
+--- a/source/gpu_files/thermfield.cpp
++++ b/source/gpu_files/thermfield.cpp
+@@ -25,7 +25,7 @@ Thermfield::~Thermfield() {
+ }
+ 
+ // Initiate
+-bool Thermfield::initiate(size_t N, size_t M) {
++bool Thermfield::initiate(std::size_t N, std::size_t M) {
+    field.set(new real[3 * N * M], 3, N, M);
+    sigmaFactor.set(new real[N], N);
+    dataInitiated = true;
+@@ -44,11 +44,11 @@ bool Thermfield::initiateConstants(const matrix<real, 1> &temperature, real time
+    real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
+ 
+    // Size
+-   size_t N = temperature.dimension_size(0);
++   std::size_t N = temperature.dimension_size(0);
+ 
+ // Set up sigmaFactor
+ #pragma omp parallel for
+-   for(size_t i = 0; i < N; i++) {
++   for(std::size_t i = 0; i < N; i++) {
+       sigmaFactor(i) = sqrt(dp * temperature(i));
+    }
+ 
+@@ -65,8 +65,8 @@ void Thermfield::randomize(const matrix<real, 2> &mmom) {
+    }
+ 
+    // Sizes
+-   size_t M = field.dimension_size(2);
+-   size_t N = field.dimension_size(1);
++   std::size_t M = field.dimension_size(2);
++   std::size_t N = field.dimension_size(1);
+ 
+    // Timing
+    stopwatch.skip();
+@@ -77,8 +77,8 @@ void Thermfield::randomize(const matrix<real, 2> &mmom) {
+ 
+ // Expand
+ #pragma omp parallel for collapse(2)
+-   for(size_t k = 0; k < M; k++) {
+-      for(size_t i = 0; i < N; i++) {
++   for(std::size_t k = 0; k < M; k++) {
++      for(std::size_t i = 0; i < N; i++) {
+          real sigma = sigmaFactor(i) / sqrt(mmom(i, k));
+          field(0, i, k) *= sigma;
+          field(1, i, k) *= sigma;
+diff --git a/source/gpu_files/thermfield.hpp b/source/gpu_files/thermfield.hpp
+index b641bd3..aa8a661 100644
+--- a/source/gpu_files/thermfield.hpp
++++ b/source/gpu_files/thermfield.hpp
+@@ -25,7 +25,7 @@ public:
+    ~Thermfield();
+ 
+    // Initiate
+-   bool initiate(size_t N, size_t M);
++   bool initiate(std::size_t N, std::size_t M);
+    bool initiateConstants(const matrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
+                           real mub, real damping);
+ 

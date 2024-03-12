@@ -11,11 +11,11 @@ private:
    char stt;
    int SDEalgh;
 
-   size_t rstep;
-   size_t nstep;
-   size_t Natom;
-   size_t Mensemble;
-   size_t max_no_neigh;
+   std::size_t rstep;
+   std::size_t nstep;
+   std::size_t Natom;
+   std::size_t Mensemble;
+   std::size_t max_no_neigh;
 
    real delta_t;
    real gamma;
@@ -32,7 +32,7 @@ private:
    bool do_dm;
    bool do_jtensor;
    unsigned int do_aniso;
-   size_t max_no_dmneigh;
+   std::size_t max_no_dmneigh;
 
    // Thermfield parameters
    curandRngType_t rngType;
@@ -80,7 +80,7 @@ private:
    bool isInitiated;
 
    void printConstants();
-   void printMdStatus(size_t mstep);
+   void printMdStatus(std::size_t mstep);
 
    void initiate_fortran();
 

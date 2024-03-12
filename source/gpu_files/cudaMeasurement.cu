@@ -101,12 +101,12 @@ void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void *data) {
 }
 
 // Callback method
-void CudaMeasurement::queueMeasurement(size_t mstep) {
+void CudaMeasurement::queueMeasurement(std::size_t mstep) {
    measurementQueue.push(mstep, pinned_emomM, pinned_emom, pinned_mmom, mmom.size());
 }
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
-void CudaMeasurement::copyQueueFast(size_t mstep) {
+void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -144,7 +144,7 @@ void CudaMeasurement::copyQueueFast(size_t mstep) {
 }
 
 // Slow copying (D -> H)
-void CudaMeasurement::copyQueueSlow(size_t mstep) {
+void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -159,7 +159,7 @@ void CudaMeasurement::copyQueueSlow(size_t mstep) {
    measurementQueue.push(mstep, FortranData::emomM, FortranData::emom, FortranData::mmom, mmom.size());
 }
 
-void CudaMeasurement::measure(size_t mstep) {
+void CudaMeasurement::measure(std::size_t mstep) {
    // Copy required?
    bool copy = (alwaysCopy || fortran_do_measurements(mstep));
 
@@ -176,7 +176,7 @@ void CudaMeasurement::measure(size_t mstep) {
    }
 }
 
-void CudaMeasurement::flushMeasurements(size_t mstep) {
+void CudaMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 

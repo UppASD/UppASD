@@ -24,7 +24,7 @@ DepondtIntegrator::~DepondtIntegrator() {
 }
 
 // Initiator
-bool DepondtIntegrator::initiate(size_t N, size_t M, char sttMode) {
+bool DepondtIntegrator::initiate(std::size_t N, std::size_t M, char sttMode) {
    // Assert that we're not already initialized
    release();
 
@@ -36,7 +36,7 @@ bool DepondtIntegrator::initiate(size_t N, size_t M, char sttMode) {
    stt = sttMode;
 
    // Allocate "fake" fortran matrices
-   size_t size = 3 * Natom * Mensemble;
+   std::size_t size = 3 * Natom * Mensemble;
    mrod.set(new real[size], 3, Natom, Mensemble);
    blocal.set(new real[size], 3, Natom, Mensemble);
    bdup.set(new real[size], 3, Natom, Mensemble);
@@ -118,8 +118,8 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
    // Construct local field
    const hostMatrix<real, 3, 3> &btherm = tfield.getField();
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          blocal(0, i, k) = beff(0, i, k) + btherm(0, i, k);
          blocal(1, i, k) = beff(1, i, k) + btherm(1, i, k);
          blocal(2, i, k) = beff(2, i, k) + btherm(2, i, k);
@@ -137,8 +137,8 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
 
 // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          real m = mmom(i, k);
          for(int j = 0; j < 3; j++) {
             emom2(j, i, k) = emom(j, i, k);
@@ -162,8 +162,8 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const h
    // Construct local field
    const hostMatrix<real, 3, 3> &btherm = tfield.getField();
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          blocal(0, i, k) = beff(0, i, k) + btherm(0, i, k);
          blocal(1, i, k) = beff(1, i, k) + btherm(1, i, k);
          blocal(2, i, k) = beff(2, i, k) + btherm(2, i, k);
@@ -177,8 +177,8 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const h
 
 // Corrected field
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          for(int j = 0; j < 3; j++) {
             bdup(j, i, k) = 0.5 * bdup(j, i, k) + 0.5 * b2eff(j, i, k);
             emom(j, i, k) = emom2(j, i, k);
@@ -206,8 +206,8 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
 
 // Rotate
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          // Get effective field components and size
          real x = bdup(0, i, k);
          real y = bdup(1, i, k);
@@ -256,8 +256,8 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
 // Constructs the effective field (including damping term)
 void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3> &emom, const hostMatrix<real, 3, 3> &btorque) {
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < Mensemble; k++) {
-      for(size_t i = 0; i < Natom; i++) {
+   for(std::size_t k = 0; k < Mensemble; k++) {
+      for(std::size_t i = 0; i < Natom; i++) {
          bdup(0, i, k) = blocal(0, i, k)
                        + damping * (emom(1, i, k) * blocal(2, i, k) - emom(2, i, k) * blocal(1, i, k));
          bdup(1, i, k) = blocal(1, i, k)
@@ -269,8 +269,8 @@ void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3> &emom, const host
 
    if(stt != 'N') {
 #pragma omp parallel for collapse(2)
-      for(size_t k = 0; k < Natom; k++) {
-         for(size_t i = 0; i < Mensemble; i++) {
+      for(std::size_t k = 0; k < Natom; k++) {
+         for(std::size_t i = 0; i < Mensemble; i++) {
             bdup(0, i, k) += btorque(0, i, k);
             bdup(1, i, k) += btorque(1, i, k);
             bdup(2, i, k) += btorque(2, i, k);

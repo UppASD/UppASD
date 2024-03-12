@@ -14,13 +14,13 @@
 #include "hostMatrix.hpp"
 #include "matrix.hpp"
 
-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
+template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
 class cudaMatrix : public matrix<T, D, I, J, K, L> {
 private:
    // Initiate
-   bool init(size_t i, size_t j, size_t k, size_t l) {
+   bool init(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
       // Calculate size
-      size_t size = i * j * k * l * sizeof(T);
+      std::size_t size = i * j * k * l * sizeof(T);
 
       // Deallocate data if already allocated
       if(this->data != nullptr) {
@@ -66,7 +66,7 @@ public:
       clone(m);
    }
 
-   //	cudaMatrix(size_t i, size_t j = 1, size_t k = 1, size_t l = 1) {
+   //	cudaMatrix(std::size_t i, std::size_t j = 1, std::size_t k = 1, std::size_t l = 1) {
    //		initiate(i, j, k, l);
    //	}
 
@@ -76,22 +76,22 @@ public:
    }
 
    // Initiate
-   bool initiate(size_t i) {
+   bool initiate(std::size_t i) {
       __MAT_TEST_DIM(1);
       return init(i, 1, 1, 1);
    }
 
-   bool initiate(size_t i, size_t j) {
+   bool initiate(std::size_t i, std::size_t j) {
       __MAT_TEST_DIM(2);
       return init(i, j, 1, 1);
    }
 
-   bool initiate(size_t i, size_t j, size_t k) {
+   bool initiate(std::size_t i, std::size_t j, std::size_t k) {
       __MAT_TEST_DIM(3);
       return init(i, j, k, 1);
    }
 
-   bool initiate(size_t i, size_t j, size_t k, size_t l) {
+   bool initiate(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
       __MAT_TEST_DIM(4);
       return init(i, j, k, l);
    }
@@ -109,7 +109,7 @@ public:
          cudaFree(this->data);
       }
       this->data = nullptr;
-      for(size_t i = 0; i < D; i++) {
+      for(std::size_t i = 0; i < D; i++) {
          this->dim_size[i] = 0;
       }
    }
@@ -244,7 +244,7 @@ public:
    // Read
    void read(const T *d) {
       // Get memory size
-      size_t size = this->data_size();
+      std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {
@@ -263,7 +263,7 @@ public:
 
    void write(T *d) const {
       // Get memory size
-      size_t size = this->data_size();
+      std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {
@@ -280,7 +280,7 @@ public:
 
    void writeAsync(T *d, cudaStream_t stream = 0) const {
       // Get memory size
-      size_t size = this->data_size();
+      std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {

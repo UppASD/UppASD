@@ -19,11 +19,11 @@ class MeasurementQueue {
       real* emomM;
       real* emom;
       real* mmom;
-      size_t step;
+      std::size_t step;
 
    public:
       // Constructor / destructor
-      Measurement(real* emomM, real* emom, real* mmom, size_t NM, size_t step);
+      Measurement(real* emomM, real* emom, real* mmom, std::size_t NM, std::size_t step);
       ~Measurement();
    };
 
@@ -50,8 +50,8 @@ public:
    bool empty();
 
    // Push a measurement with data to the queue
-   void push(size_t mstep);
-   void push(size_t mstep, real* emomM, real* emom, real* mmom, size_t NM);
+   void push(std::size_t mstep);
+   void push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM);
 
    // Finish
    void finish();

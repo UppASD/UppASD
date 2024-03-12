@@ -48,8 +48,8 @@ void MdSimulation::initiateConstants() {
 
 void MdSimulation::initiateFortran() {
    // Dimensions
-   size_t N = Natom;
-   size_t M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -150,7 +150,7 @@ void MdSimulation::measurementPhase() {
 
    stopwatch.add("initiate");
    // Time step loop
-   for(size_t mstep = rstep; mstep < rstep + nstep; mstep++) {
+   for(std::size_t mstep = rstep; mstep < rstep + nstep; mstep++) {
       // export_mstep(mstep);
 
       // Measure averages and trajectories (through fortran call)
@@ -225,14 +225,14 @@ void MdSimulation::measurementPhase() {
 }
 
 // Safe copy (allows nullptr pointer)
-static inline void *scopy(void *p1, void *p2, size_t s) {
+static inline void *scopy(void *p1, void *p2, std::size_t s) {
    //	printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
    return (p1 && p2) ? memcpy(p1, p2, s) : p1;
 }
 
 void MdSimulation::copyFromFortran() {
-   size_t N = Natom;
-   size_t M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    if(!isOwnData) {
       return;
@@ -257,8 +257,8 @@ void MdSimulation::copyFromFortran() {
 }
 
 void MdSimulation::copyToFortran() {
-   size_t N = Natom;
-   size_t M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    if(!isOwnData) {
       return;
@@ -288,8 +288,8 @@ void MdSimulation::copyToFortran() {
 /////////////////////////////////////////////////////////
 void MdSimulation::initiateOwn() {
    // Dimensions
-   size_t N = Natom;
-   size_t M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {

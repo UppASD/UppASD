@@ -25,7 +25,7 @@ public:
    ~Thermfield();
 
    // Initiate
-   bool initiate(size_t N, size_t M);
+   bool initiate(std::size_t N, std::size_t M);
    bool initiateConstants(const matrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);
 

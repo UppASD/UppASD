@@ -28,23 +28,23 @@
       __MAT_ERR();                                                                             \
    }
 
-template <typename T, size_t D = 1, size_t I = 0, size_t J = 0, size_t K = 0, size_t L = 0>
+template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
 class matrix {
 protected:
    // Data fields
    T *data;
-   size_t dim_size[D];
+   std::size_t dim_size[D];
 
    // Default constructor
    matrix() {
       data = nullptr;
-      for(size_t i = 0; i < D; i++) {
+      for(std::size_t i = 0; i < D; i++) {
          dim_size[i] = 0;
       }
    }
 
    // Get the offset of an index
-   inline size_t index(size_t i, size_t j = 0, size_t k = 0, size_t l = 0) const {
+   inline std::size_t index(std::size_t i, std::size_t j = 0, std::size_t k = 0, std::size_t l = 0) const {
 #ifdef DEBUG
       if(data == nullptr) {
          printf("Error: trying to access uninitialized data\n");
@@ -65,7 +65,7 @@ protected:
          }
       }
 #endif
-      size_t ind = 0;
+      std::size_t ind = 0;
 
       // Causes NVCC to throw false warnings
       // if (D >= 4) ind = (ind + l) * (K != 0 ? K : dim_size[2]);
@@ -85,7 +85,7 @@ protected:
 
 public:
    // Get the size of a dimension
-   inline size_t dimension_size(size_t d) const {
+   inline std::size_t dimension_size(std::size_t d) const {
       if(d >= D) {
 #ifdef DEBUG
          printf("Warning: dimension out of bound (d=%ld, max=%ld)\n", d, D);
@@ -97,18 +97,18 @@ public:
    }
 
    // Size of data (in bytes)
-   inline size_t data_size() const {
-      size_t size = sizeof(T);
-      for(size_t i = 0; i < D; i++) {
+   inline std::size_t data_size() const {
+      std::size_t size = sizeof(T);
+      for(std::size_t i = 0; i < D; i++) {
          size *= dim_size[i];
       }
       return size;
    }
 
    // Size of data (number of elements)
-   inline size_t size() const {
-      size_t size = 1;
-      for(size_t i = 0; i < D; i++) {
+   inline std::size_t size() const {
+      std::size_t size = 1;
+      for(std::size_t i = 0; i < D; i++) {
          size *= dim_size[i];
       }
       return size;
@@ -128,42 +128,42 @@ public:
    }
 
    // parenthesis-operator
-   inline T &operator()(size_t i) {
+   inline T &operator()(std::size_t i) {
       __MAT_TEST_DIM(1);
       return data[index(i, 0, 0, 0)];
    }
 
-   inline const T &operator()(size_t i) const {
+   inline const T &operator()(std::size_t i) const {
       __MAT_TEST_DIM(1);
       return data[index(i, 0, 0, 0)];
    }
 
-   inline T &operator()(size_t i, size_t j) {
+   inline T &operator()(std::size_t i, std::size_t j) {
       __MAT_TEST_DIM(2);
       return data[index(i, j, 0, 0)];
    }
 
-   inline const T &operator()(size_t i, size_t j) const {
+   inline const T &operator()(std::size_t i, std::size_t j) const {
       __MAT_TEST_DIM(2);
       return data[index(i, j, 0, 0)];
    }
 
-   inline T &operator()(size_t i, size_t j, size_t k) {
+   inline T &operator()(std::size_t i, std::size_t j, std::size_t k) {
       __MAT_TEST_DIM(3);
       return data[index(i, j, k, 0)];
    }
 
-   inline const T &operator()(size_t i, size_t j, size_t k) const {
+   inline const T &operator()(std::size_t i, std::size_t j, std::size_t k) const {
       __MAT_TEST_DIM(3);
       return data[index(i, j, k, 0)];
    }
 
-   inline T &operator()(size_t i, size_t j, size_t k, size_t l) {
+   inline T &operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
       __MAT_TEST_DIM(4);
       return data[index(i, j, k, l)];
    }
 
-   inline const T &operator()(size_t i, size_t j, size_t k, size_t l) const {
+   inline const T &operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) const {
       __MAT_TEST_DIM(4);
       return data[index(i, j, k, l)];
    }
@@ -192,7 +192,7 @@ public:
              (long)J,
              (long)K,
              (long)L);
-      for(size_t i = 0; i < D; i++) {
+      for(std::size_t i = 0; i < D; i++) {
          printf("    dim %ld: %ld\n", (long)i + 1, (long)dim_size[i]);
       }
    }

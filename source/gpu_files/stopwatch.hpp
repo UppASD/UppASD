@@ -41,7 +41,7 @@ public:
    void add(const char *name) {
    }
 
-   void add(const char *name, size_t len) {
+   void add(const char *name, std::size_t len) {
    }
 
    void add(const std::string &name) {
@@ -82,7 +82,7 @@ public:
       add(std::string(name));
    }
 
-   void add(const char *name, size_t len) {
+   void add(const char *name, std::size_t len) {
       add(std::string(name, len));
    }
 

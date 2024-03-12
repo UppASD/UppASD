@@ -9,13 +9,13 @@
 void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<real, 3, 3> &emomM,
                                          const matrix<real, 3, 3> &emom,
                                          const matrix<real, 3, 3> &external_field) {
-   size_t N = beff.dimension_size(1);  // Second dimension
-   size_t M = beff.dimension_size(2);  // Third dimension
+   std::size_t N = beff.dimension_size(1);  // Second dimension
+   std::size_t M = beff.dimension_size(2);  // Third dimension
 
 // Loop over ensembles
 #pragma omp parallel for collapse(2)
-   for(size_t k = 0; k < M; k++) {
-      for(size_t i = 0; i < N; i++) {
+   for(std::size_t k = 0; k < M; k++) {
+      for(std::size_t i = 0; i < N; i++) {
          beff_s[0] = 0.0;
          beff_s[1] = 0.0;
          beff_s[2] = 0.0;
@@ -33,10 +33,10 @@ void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<
    }
 }
 
-inline void HamiltonianCalculations::heisenberg_field(const size_t i, const size_t k,
+inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const std::size_t k,
                                                       const matrix<real, 3, 3> &emomM, real *beff_s) {
-   size_t lsize = nlistsize[i];
-   for(size_t j = 0; j < lsize; j++) {
+   std::size_t lsize = nlistsize[i];
+   for(std::size_t j = 0; j < lsize; j++) {
       int n = nlist(j, i) - 1;
       real coup = ncoup(j, i);
       beff_s[0] += coup * emomM(0, n, k);
@@ -45,10 +45,10 @@ inline void HamiltonianCalculations::heisenberg_field(const size_t i, const size
    }
 }
 
-inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const size_t i, const size_t k,
+inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
                                                                   const matrix<real, 3, 3> &emomM,
                                                                   real *beff_s) {
-   size_t lsize = dmlistsize[i];
+   std::size_t lsize = dmlistsize[i];
    for(int j = 1; j < lsize; j++) {
       beff_s[0]
           -= dm_vect(3, j, i) * emomM(2, dmlist(j, i), k) + dm_vect(2, j, i) * emomM(3, dmlist(j, i), k);
