@@ -1,5 +1,4 @@
-#ifndef __FORTRAN_DATA_HPP__
-#define __FORTRAN_DATA_HPP__
+#pragma once
 
 #include <cstddef>
 
@@ -116,5 +115,4 @@ public:
 };
 
 
-#endif
 

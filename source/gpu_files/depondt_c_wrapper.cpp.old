@@ -2,82 +2,78 @@
 
 using namespace std;
 
+#include "depondtIntegrator.hpp"
 #include "real_type.h"
 
-#include "depondtIntegrator.hpp"
-
 extern "C" {
-	// Integrator object
-	static DepondtIntegrator integrator;
+// Integrator object
+static DepondtIntegrator integrator;
 
+// Initiator wrapper
+void depondt_c_initiate_(const int* N, const int* M, real* fmrod, real* fbtherm, real* fblocal, real* fbdup) {
+   integrator.fortran_initiate(*N, *M, fmrod, fbtherm, fblocal, fbdup);
+}
 
+void depondt_c_set_damping_(const real* d) {
+   integrator.setDamping(*d);
+}
 
-	// Initiator wrapper
-        void depondt_c_initiate_(const int * N, const int * M,
-			real * fmrod, real * fbtherm, real * fblocal, real * fbdup) {
-		integrator.fortran_initiate(*N, *M, fmrod, fbtherm, fblocal, fbdup);
-	}
+void depondt_c_initiate_constants_(real* gamma, real* k_bolt, real* mub, real* damping) {
+   integrator.initiateConstants(*gamma, *k_bolt, *mub, *damping);
+}
 
-	void depondt_c_set_damping_(const real * d) {
-		integrator.setDamping(*d);
-	}
+void depondt_c_rotate_(real* emom, const real* delta_t) {
+   fortMatrix<real, 3, 3> cEmom(emom, 3, integrator.getNatom(), integrator.getMensemble());
+   integrator.rotate(cEmom, *delta_t);
+}
 
-	void depondt_c_initiate_constants_(real * gamma, real * k_bolt, real * mub, real * damping) {
-		integrator.initiateConstants(*gamma, *k_bolt, *mub, *damping);
-	}
+void thermfield_c_(real* mmom, const real* deltat, real* temp_vec) {
+   fortMatrix<real, 2> cMmom(mmom, integrator.getNatom(), integrator.getMensemble());
+   fortMatrix<real, 1> cTemp(temp_vec, integrator.getNatom());
+   integrator.thermfield(cMmom, *deltat, cTemp);
+}
 
-	void depondt_c_rotate_(real * emom, const real * delta_t) {
-		fortMatrix<real,3,3> cEmom(emom, 3, integrator.getNatom(), integrator.getMensemble());
-		integrator.rotate(cEmom, *delta_t);
-	}
+void buildbeff_c_(real* emom, real* btorque, const char* stt) {
+   fortMatrix<real, 3, 3> cEmom(emom, 3, integrator.getNatom(), integrator.getMensemble());
+   fortMatrix<real, 3, 3> cBtorque(btorque, 3, integrator.getNatom(), integrator.getMensemble());
+   integrator.buildbeff(cEmom, cBtorque, *stt);
+   //		printf("stt=%p, *stt=%c\n", stt, *stt);
+}
 
-	void thermfield_c_(real * mmom, const real * deltat, real * temp_vec) {
-		fortMatrix<real,2> cMmom(mmom, integrator.getNatom(), integrator.getMensemble());
-		fortMatrix<real,1> cTemp(temp_vec, integrator.getNatom());
-		integrator.thermfield(cMmom, *deltat, cTemp);
-	}
+// void evolveFirst(fortMatrix<real,3,3> &beff, fortMatrix<real,3,3> &b2eff,
+//	fortMatrix<real,3,3> &btorque, fortMatrix<real,3,3> &emom,
+//	fortMatrix<real,3,3> &emom2, fortMatrix<real,3,3> &emomM,
+//	fortMatrix<real,2> &mmom, real delta_t, const real * temperature,
+//	char stt);
+void evolve_first_c_(real* beff, real* b2eff, real* btorque, real* emom, real* emom2, real* emomM, real* mmom,
+                     const real* delta_t, real* temperature, const char* stt) {
+   size_t N = integrator.getNatom();
+   size_t M = integrator.getMensemble();
+   fortMatrix<real, 3, 3> cBeff(beff, 3, N, M);
+   fortMatrix<real, 3, 3> cB2eff(b2eff, 3, N, M);
+   fortMatrix<real, 3, 3> cBtorque(btorque, 3, N, M);
+   fortMatrix<real, 3, 3> cEmom(emom, 3, N, M);
+   fortMatrix<real, 3, 3> cEmom2(emom2, 3, N, M);
+   fortMatrix<real, 3, 3> cEmomM(emomM, 3, N, M);
+   fortMatrix<real, 2> cMmom(mmom, N, M);
+   fortMatrix<real, 1> cTemp(temperature, N);
+   integrator.evolveFirst(cBeff, cB2eff, cBtorque, cEmom, cEmom2, cEmomM, cMmom, *delta_t, cTemp, *stt);
+}
 
-	void buildbeff_c_(real * emom, real * btorque, const char * stt) {
-		fortMatrix<real,3,3> cEmom(emom, 3, integrator.getNatom(), integrator.getMensemble());
-		fortMatrix<real,3,3> cBtorque(btorque, 3, integrator.getNatom(), integrator.getMensemble());
-		integrator.buildbeff(cEmom, cBtorque, *stt);
-//		printf("stt=%p, *stt=%c\n", stt, *stt);
-	}
-	//void evolveFirst(fortMatrix<real,3,3> &beff, fortMatrix<real,3,3> &b2eff, 
-	//	fortMatrix<real,3,3> &btorque, fortMatrix<real,3,3> &emom, 
-	//	fortMatrix<real,3,3> &emom2, fortMatrix<real,3,3> &emomM, 
-	//	fortMatrix<real,2> &mmom, real delta_t, const real * temperature, 
-	//	char stt);
-	void evolve_first_c_(real * beff, real * b2eff, real * btorque, real * emom, 
-		real * emom2, real * emomM, real * mmom, const real * delta_t, 
-		real * temperature, const char * stt) {
-		size_t N = integrator.getNatom();
-		size_t M = integrator.getMensemble();
-		fortMatrix<real,3,3> cBeff   (beff   , 3, N, M);
-		fortMatrix<real,3,3> cB2eff  (b2eff  , 3, N, M); 
-		fortMatrix<real,3,3> cBtorque(btorque, 3, N, M);
-		fortMatrix<real,3,3> cEmom   (emom   , 3, N, M);
-		fortMatrix<real,3,3> cEmom2  (emom2  , 3, N, M);
-		fortMatrix<real,3,3> cEmomM  (emomM  , 3, N, M); 
-		fortMatrix<real,2>   cMmom   (mmom   , N, M);
-		fortMatrix<real,1>   cTemp   (temperature, N);
-		integrator.evolveFirst(cBeff, cB2eff, cBtorque, cEmom, cEmom2, cEmomM, cMmom, *delta_t, cTemp, *stt);
-	}
-	//void evolveSecond(fortMatrix<real,3,3> &beff, fortMatrix<real,3,3> &b2eff, 
-	//	const fortMatrix<real,3,3> &btorque, fortMatrix<real,3,3> &emom, 
-	//	fortMatrix<real,3,3> &emom2, real delta_t, char stt);
-	void evolve_second_c_(real * beff, real * b2eff, real * btorque, real * emom, 
-		real * emom2, const real * delta_t, const char * stt) {
-		size_t N = integrator.getNatom();
-		size_t M = integrator.getMensemble();
-		fortMatrix<real,3,3> cBeff   (beff   , 3, N, M);
-		fortMatrix<real,3,3> cB2eff  (b2eff  , 3, N, M); 
-		fortMatrix<real,3,3> cBtorque(btorque, 3, N, M);
-		fortMatrix<real,3,3> cEmom   (emom   , 3, N, M);
-		fortMatrix<real,3,3> cEmom2  (emom2  , 3, N, M);
-		integrator.evolveSecond(cBeff, cB2eff, cBtorque, cEmom, cEmom2, *delta_t, *stt);
-	}
+// void evolveSecond(fortMatrix<real,3,3> &beff, fortMatrix<real,3,3> &b2eff,
+//	const fortMatrix<real,3,3> &btorque, fortMatrix<real,3,3> &emom,
+//	fortMatrix<real,3,3> &emom2, real delta_t, char stt);
+void evolve_second_c_(real* beff, real* b2eff, real* btorque, real* emom, real* emom2, const real* delta_t,
+                      const char* stt) {
+   size_t N = integrator.getNatom();
+   size_t M = integrator.getMensemble();
+   fortMatrix<real, 3, 3> cBeff(beff, 3, N, M);
+   fortMatrix<real, 3, 3> cB2eff(b2eff, 3, N, M);
+   fortMatrix<real, 3, 3> cBtorque(btorque, 3, N, M);
+   fortMatrix<real, 3, 3> cEmom(emom, 3, N, M);
+   fortMatrix<real, 3, 3> cEmom2(emom2, 3, N, M);
+   integrator.evolveSecond(cBeff, cB2eff, cBtorque, cEmom, cEmom2, *delta_t, *stt);
+}
 
-} // extern "C"
-
+}  // extern "C"
 
