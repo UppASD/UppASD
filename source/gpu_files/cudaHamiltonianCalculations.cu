@@ -71,10 +71,6 @@ public:
    }
 
    __device__ void each(unsigned int site) {
-      // real *         myCoup = &coup[site];
-      unsigned int *myPos = &pos[site];
-      unsigned int y = size[site];
-
       for(unsigned int i = 0; i < mnn; i++) {
          if(pos[site * mnn + i] != 0) {
             pos[site * mnn + i]--;
@@ -145,9 +141,6 @@ public:
          } else {
             pos[site * mnn + i] = 0;
 
-            unsigned int k = i;
-            unsigned int l = site;
-
             // Dimension of the DM vector: (dim1,dim2,dim3)  <--> (3,mnn,N)
             coup[0 + 3 * i + site * mnn * 3] = (real)0.0;
             coup[1 + 3 * i + site * mnn * 3] = (real)0.0;
@@ -155,20 +148,6 @@ public:
          }
       }
 
-      // DM code which is not workung properly
-      // real *         myCoup = &coup[site * 3];
-      // unsigned int * myPos  = &pos[site];
-      // unsigned int   mySize = size[site];
-      // for (unsigned int i = 0; i < mnn; i++) {
-      //	if (i < mySize)
-      //		myPos[i * N]--;
-      //	else {
-      //		myCoup[i * N + 0] = (real)0.0;
-      //		myCoup[i * N + 1] = (real)0.0;
-      //		myCoup[i * N + 2] = (real)0.0;
-      //		myPos[i * N]      = 0;
-      //	}
-      //}
    }
 };
 
@@ -214,9 +193,6 @@ public:
       const unsigned int *site_pos = &pos[site];
       const real *my_emomM = &emomM[ensemble * N * 3];
 
-      const real *site_dmcoup = &dmcoup[site];
-      const unsigned int *site_dmpos = &dmpos[site];
-
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
          unsigned int x_offset = site_pos[i * N] * 3;
@@ -244,14 +220,6 @@ public:
          y += -Dx * Sz + Dz * Sx;
          z += -Dy * Sx + Dx * Sy;
       }
-
-      // DM interaction, almost no performance impact if dmmnn is 0
-      // for (unsigned int i = 0; i < dmmnn; i++) {
-      //	unsigned int x_offset = site_dmpos[i * N] * 3;
-      //	x += -site_dmcoup[i*N+2]*my_emomM[x_offset+1] + site_dmcoup[i*N+1]*my_emomM[x_offset+2];
-      //	y += -site_dmcoup[i*N+0]*my_emomM[x_offset+2] + site_dmcoup[i*N+2]*my_emomM[x_offset+0];
-      //	z += -site_dmcoup[i*N+1]*my_emomM[x_offset+0] + site_dmcoup[i*N+0]*my_emomM[x_offset+1];
-      //}
 
       // Save field
       beff[atom * 3 + 0] = x + ext_f[atom * 3 + 0];
@@ -289,7 +257,6 @@ public:
       real z = (real)0.0;
 
       // Pointers with fixed indices
-      const unsigned int *site_pos = &pos[site];
       const real *my_emomM = &emomM[ensemble * N * 3];
 
       // emomM <--> (3,N,M)
@@ -365,7 +332,6 @@ public:
       real ex = (real)0.0;
       real ey = (real)0.0;
       real ez = (real)0.0;
-      const real *my_emomM = &emomM[ensemble * N * 3];
 
       const unsigned int type = taniso[site];  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
 
