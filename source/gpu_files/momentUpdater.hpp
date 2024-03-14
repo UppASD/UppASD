@@ -22,13 +22,13 @@
 class MomentUpdater {
 private:
    // Moments to update
-   fortMatrix<real, 2> &mmom;
-   fortMatrix<real, 2> &mmom0;
-   fortMatrix<real, 2> &mmom2;
-   fortMatrix<real, 3, 3> &emom;
-   fortMatrix<real, 3, 3> &emom2;
-   fortMatrix<real, 3, 3> &emomM;
-   fortMatrix<real, 2> &mmomi;
+   fortMatrix<real, 2>& mmom;
+   fortMatrix<real, 2>& mmom0;
+   fortMatrix<real, 2>& mmom2;
+   fortMatrix<real, 3, 3>& emom;
+   fortMatrix<real, 3, 3>& emom2;
+   fortMatrix<real, 3, 3>& emomM;
+   fortMatrix<real, 2>& mmomi;
 
    // Parameters
    int mompar;
@@ -48,13 +48,13 @@ private:
    //   emomM = emom2 * mmom2
 
    // Timer
-   Stopwatch &stopwatch;
+   Stopwatch& stopwatch;
 
 public:
    // Constructor
-   MomentUpdater(fortMatrix<real, 2> &p1, fortMatrix<real, 2> &p2, fortMatrix<real, 2> &p3,
-                 fortMatrix<real, 3, 3> &p4, fortMatrix<real, 3, 3> &p5, fortMatrix<real, 3, 3> &p6,
-                 fortMatrix<real, 2> &p7, int p8, char p9)
+   MomentUpdater(fortMatrix<real, 2>& p1, fortMatrix<real, 2>& p2, fortMatrix<real, 2>& p3,
+                 fortMatrix<real, 3, 3>& p4, fortMatrix<real, 3, 3>& p5, fortMatrix<real, 3, 3>& p6,
+                 fortMatrix<real, 2>& p7, int p8, char p9)
        : mmom(p1),
          mmom0(p2),
          mmom2(p3),
@@ -70,5 +70,4 @@ public:
    // Updater
    void update();
 };
-
 

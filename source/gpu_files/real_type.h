@@ -1,11 +1,8 @@
-#ifndef __REAL_TYPE_H__
-#define __REAL_TYPE_H__
+#pragma once
 
 #ifdef SINGLE_PREC
 typedef float real;
 #else
 typedef double real;
-#endif
-
 #endif
 

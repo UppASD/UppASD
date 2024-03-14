@@ -1,12 +1,7 @@
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-
-using namespace std;
-
 #include <cuda.h>
 #include <pthread.h>
 
+#include "c_headers.hpp"
 #include "c_helper.h"
 #include "cudaMatrix.hpp"
 #include "cudaMeasurement.hpp"
@@ -25,8 +20,8 @@ using namespace std;
 #include "measurementQueue.hpp"
 
 // Constructor
-CudaMeasurement::CudaMeasurement(const cudaMatrix<real, 3, 3> &p1, const cudaMatrix<real, 3, 3> &p2,
-                                 const cudaMatrix<real, 2> &p3, bool p4, bool p5)
+CudaMeasurement::CudaMeasurement(const cudaMatrix<real, 3, 3>& p1, const cudaMatrix<real, 3, 3>& p2,
+                                 const cudaMatrix<real, 2>& p3, bool p4, bool p5)
     : emomM(p1),
       emom(p2),
       mmom(p3),
@@ -71,7 +66,7 @@ CudaMeasurement::CudaMeasurement(const cudaMatrix<real, 3, 3> &p1, const cudaMat
          }
 
          // Fall back to slow copy
-         printf("Failed to allocate memory for fast copy in measurements!\n");
+         std::printf("Failed to allocate memory for fast copy in measurements!\n");
          fastCopy = false;
          return;
       }
@@ -88,11 +83,11 @@ CudaMeasurement::~CudaMeasurement() {
 }
 
 // Callback
-void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void *data) {
+void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void* data) {
 #ifdef NVPROF
    nvtxRangePush("queue_callback");
 #endif
-   queue_callback_data *d = (queue_callback_data *)data;
+   queue_callback_data* d = (queue_callback_data*)data;
    d->me->queueMeasurement(d->step);
    delete d;
 #ifdef NVPROF
@@ -115,8 +110,8 @@ void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    cudaStream_t copyStream = parallel.getCopyStream();
 
    // Create new events
-   CudaEventPool::Event &workDone = eventPool.get();
-   CudaEventPool::Event &copyDone = eventPool.get();
+   CudaEventPool::Event& workDone = eventPool.get();
+   CudaEventPool::Event& copyDone = eventPool.get();
 
    // The copying must wait for the work stream to finish
    cudaEventRecord(workDone.event(), workStream);

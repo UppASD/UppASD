@@ -6,13 +6,12 @@
 
 #pragma once
 
-#include <stdlib.h>
-
-#include <cstdio>
-
+#include "c_headers.hpp"
 #include "matrix.hpp"
 
-template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+// TODO: replace calloc with new. LOL
+template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
+          std::size_t L = 0>
 class hostMatrix : public matrix<T, D, I, J, K, L> {
 private:
    // Initiate
@@ -26,11 +25,11 @@ private:
 
       // Allocate new memory
       // this->data = new T[size];
-      this->data = (T *)calloc(size, sizeof(T));
+      this->data = (T*)calloc(size, sizeof(T));
       // If new failed
       if(this->data == nullptr) {
 #ifdef DEBUG
-         printf("hostMatrix::initiate: failed to allocate %ld bytes\n", size);
+         std::printf("hostMatrix::initiate: failed to allocate %ld bytes\n", size);
 #endif
          return false;
       }
@@ -52,7 +51,7 @@ public:
    hostMatrix() {
    }
 
-   hostMatrix(const hostMatrix<T, D, I, J, K, L> &m) {
+   hostMatrix(const hostMatrix<T, D, I, J, K, L>& m) {
       clone(m);
    }
 
@@ -82,7 +81,7 @@ public:
       return init(i, j, k, l);
    }
 
-   bool initiate(matrix<T, D, I, J, K, L> &m) {
+   bool initiate(matrix<T, D, I, J, K, L>& m) {
       return init((D < 1 ? 1 : m.dimension_size(0)),
                   (D < 2 ? 1 : m.dimension_size(1)),
                   (D < 3 ? 1 : m.dimension_size(2)),
@@ -102,27 +101,27 @@ public:
    }
 
    // Swap pointers
-   inline void swap(hostMatrix<T, D, I, J, K, L> &m) {
+   inline void swap(hostMatrix<T, D, I, J, K, L>& m) {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dim_size[n]) {
-            printf("Warning: swapping pointers between matrices with different sizes\n");
+            std::printf("Warning: swapping pointers between matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
       }
 #endif
-      T *tmp = this->data;
+      T* tmp = this->data;
       this->data = m.data;
       m.data = tmp;
    }
 
    // Copy data
-   inline void memcopy(const hostMatrix<T, D, I, J, K, L> &m) {
+   inline void memcopy(const hostMatrix<T, D, I, J, K, L>& m) {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dim_size[n]) {
-            printf("Warning: copying data between matrices with different sizes\n");
+            std::printf("Warning: copying data between matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
@@ -132,7 +131,7 @@ public:
    }
 
    // Clone
-   bool clone(const hostMatrix<T, D, I, J, K, L> &m) {
+   bool clone(const hostMatrix<T, D, I, J, K, L>& m) {
       // Zero matrix?
       if(m.data_size() == 0) {
          free();
@@ -170,5 +169,4 @@ public:
       return true;
    }
 };
-
 

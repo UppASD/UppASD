@@ -1,15 +1,12 @@
-#include <cmath>
-#include <cstddef>
+#include "thermfield.hpp"
 
-using namespace std;
-
+#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "matrix.hpp"
 #include "randomnum.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchPool.hpp"
-#include "thermfield.hpp"
 
 // Constructor
 Thermfield::Thermfield() : stopwatch(GlobalStopwatchPool::get("Thermfield")) {
@@ -49,7 +46,7 @@ bool Thermfield::initiateConstants(const matrix<real, 1> &temperature, real time
 // Set up sigmaFactor
 #pragma omp parallel for
    for(std::size_t i = 0; i < N; i++) {
-      sigmaFactor(i) = sqrt(dp * temperature(i));
+      sigmaFactor(i) = std::sqrt(dp * temperature(i));
    }
 
    // Flag that we're initiated
@@ -79,7 +76,7 @@ void Thermfield::randomize(const matrix<real, 2> &mmom) {
 #pragma omp parallel for collapse(2)
    for(std::size_t k = 0; k < M; k++) {
       for(std::size_t i = 0; i < N; i++) {
-         real sigma = sigmaFactor(i) / sqrt(mmom(i, k));
+         real sigma = sigmaFactor(i) / std::sqrt(mmom(i, k));
          field(0, i, k) *= sigma;
          field(1, i, k) *= sigma;
          field(2, i, k) *= sigma;

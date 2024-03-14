@@ -1,10 +1,7 @@
 #include <cuda.h>
 #include <curand.h>
 
-#include <cstdio>
-
-using namespace std;
-
+#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "cudaThermfield.hpp"
@@ -21,11 +18,11 @@ using namespace std;
 // The neighbour list setup helper
 class CudaThermfield::SetupSigmaFactor : public CudaParallelizationHelper::Site {
 private:
-   real *sigma_factor;
+   real* sigma_factor;
    real dp;
 
 public:
-   SetupSigmaFactor(real *p1, real p2) {
+   SetupSigmaFactor(real* p1, real p2) {
       sigma_factor = p1;
       dp = p2;
    }
@@ -37,12 +34,12 @@ public:
 
 class CudaThermfield::SetupField : public CudaParallelizationHelper::AtomSite {
 private:
-   real *field;
-   const real *sigma_factor;
-   const real *mmom;
+   real* field;
+   const real* sigma_factor;
+   const real* mmom;
 
 public:
-   SetupField(real *p1, const real *p2, const real *p3) {
+   SetupField(real* p1, const real* p2, const real* p3) {
       field = p1;
       sigma_factor = p2;
       mmom = p3;
@@ -50,9 +47,9 @@ public:
 
    __device__ void each(unsigned int atom, unsigned int site) {
       real sigma = sigma_factor[site] * rsqrt(mmom[atom]);
-      field[atom * 3 + 0] *= sigma;
-      field[atom * 3 + 1] *= sigma;
-      field[atom * 3 + 2] *= sigma;
+      field[atom * 3 + 0]* = sigma;
+      field[atom * 3 + 1]* = sigma;
+      field[atom * 3 + 2]* = sigma;
    }
 };
 
@@ -73,9 +70,10 @@ CudaThermfield::~CudaThermfield() {
    }
 }
 
-bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType, unsigned long long seed) {
+bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
+                              unsigned long long seed) {
    if(dataInitiated) {
-      fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");
+      std::fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");
       return true;
    }
 
@@ -98,7 +96,7 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
    return dataInitiated;
 }
 
-bool CudaThermfield::initiateConstants(const fortMatrix<real, 1> &temperature, real timestep, real gamma,
+bool CudaThermfield::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma,
                                        real k_bolt, real mub, real damping) {
    // Timing
    stopwatch.skip();
@@ -122,7 +120,7 @@ bool CudaThermfield::initiateConstants(const fortMatrix<real, 1> &temperature, r
    return true;
 }
 
-void CudaThermfield::randomize(const cudaMatrix<real, 2> &mmom) {
+void CudaThermfield::randomize(const cudaMatrix<real, 2>& mmom) {
    // Initiated?
    if(!initiated()) {
       return;

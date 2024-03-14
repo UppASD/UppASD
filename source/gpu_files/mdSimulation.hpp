@@ -1,5 +1,6 @@
 #pragma once
 
+#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"
 
@@ -66,5 +67,4 @@ public:
    void copyFromFortran();
    void copyToFortran();
 };
-
 

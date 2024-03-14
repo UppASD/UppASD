@@ -7,14 +7,13 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include <signal.h>
 
-#include <cstdio>
-
+#include "c_headers.hpp"
 #include "hostMatrix.hpp"
 #include "matrix.hpp"
 
-template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
+template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
+          std::size_t L = 0>
 class cudaMatrix : public matrix<T, D, I, J, K, L> {
 private:
    // Initiate
@@ -29,12 +28,12 @@ private:
       }
 
       // Allocate new  memory
-      cudaError e = cudaMalloc((void **)&this->data, size);
+      cudaError e = cudaMalloc((void**)&this->data, size);
 
       // Error?
       if(e != cudaSuccess) {
 #ifdef DEBUG
-         printf(
+         std::printf(
              "cudaMatrix::initiate: cudaMalloc returned %d (%s)"
              " when trying to allocate %ld bytes\n",
              e,
@@ -62,7 +61,7 @@ public:
    cudaMatrix() {
    }
 
-   cudaMatrix(const hostMatrix<T, D, I, J, K, L> &m) {
+   cudaMatrix(const hostMatrix<T, D, I, J, K, L>& m) {
       clone(m);
    }
 
@@ -96,7 +95,7 @@ public:
       return init(i, j, k, l);
    }
 
-   bool initiate(const matrix<T, D, I, J, K, L> &m) {
+   bool initiate(const matrix<T, D, I, J, K, L>& m) {
       return init((D < 1 ? 1 : m.dimension_size(0)),
                   (D < 2 ? 1 : m.dimension_size(1)),
                   (D < 3 ? 1 : m.dimension_size(2)),
@@ -115,27 +114,27 @@ public:
    }
 
    // Swap pointers
-   inline void swap(cudaMatrix<T, D, I, J, K, L> &m) {
+   inline void swap(cudaMatrix<T, D, I, J, K, L>& m) {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dim_size[n]) {
-            printf("Warning: swapping pointers between matrices with different sizes\n");
+            std::printf("Warning: swapping pointers between matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
       }
 #endif
-      T *tmp = this->data;
+      T* tmp = this->data;
       this->data = m.data;
       m.data = tmp;
    }
 
    // Copy data
-   inline bool memcopy(const hostMatrix<T, D, I, J, K, L> &m) {
+   inline bool memcopy(const hostMatrix<T, D, I, J, K, L>& m) {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dimension_size(n)) {
-            printf("Warning: copying data between matrices with different sizes\n");
+            std::printf("Warning: copying data between matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
@@ -147,7 +146,7 @@ public:
 
       // Error?
       if(e != cudaSuccess) {
-         printf("cudaMatrix::memcopy: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::memcopy: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
       }
 
       return (e == cudaSuccess);
@@ -155,11 +154,11 @@ public:
 
    // Is this really ok? Will the compiler know which one to use if this version is defaulting on second arg
    // Thomas Nystrand
-   inline bool memcopy(const cudaMatrix<T, D, I, J, K, L> &m, cudaStream_t stream = 0) {
+   inline bool memcopy(const cudaMatrix<T, D, I, J, K, L>& m, cudaStream_t stream = 0) {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dim_size[n]) {
-            printf("Warning: copying data between device matrices with different sizes\n");
+            std::printf("Warning: copying data between device matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
@@ -172,17 +171,17 @@ public:
 
       // Error?
       if(e != cudaSuccess) {
-         printf("cudaMatrix::memcopy: cudaMemcpyAsync returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::memcopy: cudaMemcpyAsync returned %d (%s)\n", e, cudaGetErrorString(e));
       }
 
       return (e == cudaSuccess);
    }
 
-   inline bool memcopyTo(hostMatrix<T, D, I, J, K, L> &m) const {
+   inline bool memcopyTo(hostMatrix<T, D, I, J, K, L>& m) const {
 #ifdef DEBUG
       for(int n = 0; n < D; n++) {
          if(this->dim_size[n] != m.dimension_size(n)) {
-            printf("Warning: copying data between matrices with different sizes\n");
+            std::printf("Warning: copying data between matrices with different sizes\n");
             __MAT_ERR();
             break;
          }
@@ -194,7 +193,7 @@ public:
 
       // Error?
       if(e != cudaSuccess) {
-         printf("cudaMatrix::memcopyTo: cudaMemcpyAsync returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::memcopyTo: cudaMemcpyAsync returned %d (%s)\n", e, cudaGetErrorString(e));
       }
 
       return (e == cudaSuccess);
@@ -206,7 +205,7 @@ public:
    }
 
    // Clone
-   bool clone(const hostMatrix<T, D, I, J, K, L> &m) {
+   bool clone(const hostMatrix<T, D, I, J, K, L>& m) {
       // Zero matrix?
       if(m.data_size() == 0) {
          free();
@@ -242,13 +241,13 @@ public:
    }
 
    // Read
-   void read(const T *d) {
+   void read(const T* d) {
       // Get memory size
       std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {
-         printf("cudaMatrix::read: Invalid read attempt: (%p,%p,%ld)\n", this->data, d, size);
+         std::printf("cudaMatrix::read: Invalid read attempt: (%p,%p,%ld)\n", this->data, d, size);
          return;
       }
 
@@ -257,41 +256,41 @@ public:
 
       // Error?
       if(e != cudaSuccess) {
-         printf("cudaMatrix::read: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::read: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
       }
    }
 
-   void write(T *d) const {
+   void write(T* d) const {
       // Get memory size
       std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {
-         printf("cudaMatrix::write: Invalid write attempt: (%p,%p,%ld)\n", this->data, d, size);
+         std::printf("cudaMatrix::write: Invalid write attempt: (%p,%p,%ld)\n", this->data, d, size);
          return;
       }
 
       cudaError_t e = cudaMemcpy(d, this->data, size, cudaMemcpyDeviceToHost);
 
       if(e != cudaSuccess) {
-         printf("cudaMatrix::write: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::write: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
       }
    }
 
-   void writeAsync(T *d, cudaStream_t stream = 0) const {
+   void writeAsync(T* d, cudaStream_t stream = 0) const {
       // Get memory size
       std::size_t size = this->data_size();
 
       // Invalid copy?
       if(d == nullptr || this->data == nullptr) {
-         printf("cudaMatrix::write: Invalid write attempt: (%p,%p,%ld)\n", this->data, d, size);
+         std::printf("cudaMatrix::write: Invalid write attempt: (%p,%p,%ld)\n", this->data, d, size);
          return;
       }
 
       cudaError_t e = cudaMemcpyAsync(d, this->data, size, cudaMemcpyDeviceToHost, stream);
 
       if(e != cudaSuccess) {
-         printf("cudaMatrix::write: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
+         std::printf("cudaMatrix::write: cudaMemcpy returned %d (%s)\n", e, cudaGetErrorString(e));
       }
    }
 };

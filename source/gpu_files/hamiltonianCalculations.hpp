@@ -6,31 +6,33 @@
 
 #pragma once
 
+#include "c_headers.hpp"
 #include "matrix.hpp"
 #include "real_type.h"
 
 class HamiltonianCalculations {
 private:
    real beff_s[3];
-   const matrix<real, 2> &ncoup;
-   const matrix<unsigned int, 2> &nlist;
-   const unsigned int *nlistsize;
+   const matrix<real, 2>& ncoup;
+   const matrix<unsigned int, 2>& nlist;
+   const unsigned int* nlistsize;
 
    const unsigned int do_dm;
-   const matrix<real, 3, 3> &dm_vect;
-   const matrix<unsigned int, 2> &dmlist;
-   const unsigned int *dmlistsize;
+   const matrix<real, 3, 3>& dm_vect;
+   const matrix<unsigned int, 2>& dmlist;
+   const unsigned int* dmlistsize;
 
    // Contributions to the hamiltonian
-   void heisenberg_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3> &emomM, real *beff_s);
-   void dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3> &emomM,
-                                     real *beff_s);
+   void heisenberg_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3>& emomM,
+                         real* beff_s);
+   void dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
+                                     const matrix<real, 3, 3>& emomM, real* beff_s);
 
 public:
    // Constructor
-   HamiltonianCalculations(const matrix<real, 2> &p1, const matrix<unsigned int, 2> &p2,
-                           const unsigned int *p3, const unsigned int v4, const matrix<real, 3, 3> &p5,
-                           const matrix<unsigned int, 2> &p6, const unsigned int *p7)
+   HamiltonianCalculations(const matrix<real, 2>& p1, const matrix<unsigned int, 2>& p2,
+                           const unsigned int* p3, const unsigned int v4, const matrix<real, 3, 3>& p5,
+                           const matrix<unsigned int, 2>& p6, const unsigned int* p7)
        : ncoup(p1),
          nlist(p2),
          nlistsize(p3),
@@ -45,8 +47,7 @@ public:
    }
 
    // Variants
-   void heisge_jij(matrix<real, 3, 3> &beff, const matrix<real, 3, 3> &emomM, const matrix<real, 3, 3> &emom,
-                   const matrix<real, 3, 3> &external_field);
+   void heisge_jij(matrix<real, 3, 3>& beff, const matrix<real, 3, 3>& emomM, const matrix<real, 3, 3>& emom,
+                   const matrix<real, 3, 3>& external_field);
 };
-
 

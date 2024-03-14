@@ -9,13 +9,13 @@
 class CudaMomentUpdater {
 private:
    // Moments to update
-   cudaMatrix<real, 2> &mmom;
-   cudaMatrix<real, 2> &mmom0;
-   cudaMatrix<real, 2> &mmom2;
-   cudaMatrix<real, 3, 3> &emom;
-   cudaMatrix<real, 3, 3> &emom2;
-   cudaMatrix<real, 3, 3> &emomM;
-   cudaMatrix<real, 2> &mmomi;
+   cudaMatrix<real, 2>& mmom;
+   cudaMatrix<real, 2>& mmom0;
+   cudaMatrix<real, 2>& mmom2;
+   cudaMatrix<real, 3, 3>& emom;
+   cudaMatrix<real, 3, 3>& emom2;
+   cudaMatrix<real, 3, 3>& emomM;
+   cudaMatrix<real, 2>& mmomi;
 
    // Parameters
    int mompar;
@@ -25,7 +25,7 @@ private:
    StopwatchDeviceSync stopwatch;
 
    // Parallelization helper
-   CudaParallelizationHelper &parallel;
+   CudaParallelizationHelper& parallel;
 
 public:
    // Parallelization classes
@@ -35,12 +35,11 @@ public:
    class Copy2;
 
    // Constructor
-   CudaMomentUpdater(cudaMatrix<real, 2> &mmom, cudaMatrix<real, 2> &mmom0, cudaMatrix<real, 2> &mmom2,
-                     cudaMatrix<real, 3, 3> &emom, cudaMatrix<real, 3, 3> &emom2,
-                     cudaMatrix<real, 3, 3> &emomM, cudaMatrix<real, 2> &mmomi, int mompar, char initexc);
+   CudaMomentUpdater(cudaMatrix<real, 2>& mmom, cudaMatrix<real, 2>& mmom0, cudaMatrix<real, 2>& mmom2,
+                     cudaMatrix<real, 3, 3>& emom, cudaMatrix<real, 3, 3>& emom2,
+                     cudaMatrix<real, 3, 3>& emomM, cudaMatrix<real, 2>& mmomi, int mompar, char initexc);
 
    // Updater
    void update();
 };
-
 

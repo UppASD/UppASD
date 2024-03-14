@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "c_headers.hpp"
 #include "cudaGPUErrchk.hpp"
 #include "gridHelper.hpp"
 
@@ -260,5 +261,4 @@ public:
       // gpuErrchk(cudaDeviceSynchronize());
    }
 };
-
 

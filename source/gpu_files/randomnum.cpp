@@ -1,8 +1,6 @@
 #include "randomnum.hpp"
 
-#include <stddef.h>
-#include <stdio.h>
-#include <time.h>
+#include "c_headers.hpp"
 
 #include "c_helper.h"
 #include "real_type.h"

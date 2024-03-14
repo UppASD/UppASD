@@ -1,7 +1,7 @@
 #pragma once
 
 #include "real_type.h"
-#include <cstdio>
+#include "c_headers.hpp"
 
 class RandomNumbers {
 public:

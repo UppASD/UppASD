@@ -1,7 +1,5 @@
 #include "fortranData.hpp"
 
-#include <stdio.h>
-
 #include "real_type.h"
 
 // Constants

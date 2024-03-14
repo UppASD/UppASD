@@ -2,6 +2,7 @@
 
 #include <curand.h>
 
+#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"

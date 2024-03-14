@@ -1,5 +1,6 @@
 #pragma once
 
+#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "randomnum.hpp"
 #include "real_type.h"
@@ -17,7 +18,7 @@ private:
    // RNG
    RandomNumbers rng;
 
-   Stopwatch &stopwatch;
+   Stopwatch& stopwatch;
 
 public:
    // Constructor / destructor
@@ -26,7 +27,7 @@ public:
 
    // Initiate
    bool initiate(std::size_t N, std::size_t M);
-   bool initiateConstants(const matrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
+   bool initiateConstants(const matrix<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);
 
    // Initiated?
@@ -35,12 +36,11 @@ public:
    }
 
    // Get field
-   inline const fortMatrix<real, 3, 3> &getField() {
+   inline const fortMatrix<real, 3, 3>& getField() {
       return field;
    }
 
    // Randomize
-   void randomize(const matrix<real, 2> &mmom);
+   void randomize(const matrix<real, 2>& mmom);
 };
-
 

@@ -11,11 +11,11 @@ class CudaCommon {
 public:
    // AddTo parallelization helper
    class AddTo : public CudaParallelizationHelper::Element {
-      real *a;
-      const real *b;
+      real* a;
+      const real* b;
 
    public:
-      AddTo(cudaMatrix<real, 3, 3> &A, const cudaMatrix<real, 3, 3> &B) {
+      AddTo(cudaMatrix<real, 3, 3>& A, const cudaMatrix<real, 3, 3>& B) {
          a = A;
          b = B;
       }
@@ -27,14 +27,14 @@ public:
 
    // Add parallelization helper
    class Add : public CudaParallelizationHelper::Element {
-      real *a;
+      real* a;
 
    public:
-      const real *b;
-      const real *c;
+      const real* b;
+      const real* c;
 
    public:
-      Add(cudaMatrix<real, 3, 3> &A, const cudaMatrix<real, 3, 3> &B, const cudaMatrix<real, 3, 3> &C) {
+      Add(cudaMatrix<real, 3, 3>& A, const cudaMatrix<real, 3, 3>& B, const cudaMatrix<real, 3, 3>& C) {
          a = A;
          b = B;
          c = C;
@@ -47,11 +47,11 @@ public:
 
    // Avg parallelization helper
    class Avg : public CudaParallelizationHelper::Element {
-      real *a;
-      const real *b;
+      real* a;
+      const real* b;
 
    public:
-      Avg(cudaMatrix<real, 3, 3> &A, const cudaMatrix<real, 3, 3> &B) {
+      Avg(cudaMatrix<real, 3, 3>& A, const cudaMatrix<real, 3, 3>& B) {
          a = A;
          b = B;
       }
@@ -63,12 +63,12 @@ public:
 
    // ScalarMult parallelization helper
    class ScalarMult : public CudaParallelizationHelper::Element {
-      real *a;
-      const real *b;
-      const real *c;
+      real* a;
+      const real* b;
+      const real* c;
 
    public:
-      ScalarMult(cudaMatrix<real, 3, 3> &A, const cudaMatrix<real, 3, 3> &B, const cudaMatrix<real, 2> &C) {
+      ScalarMult(cudaMatrix<real, 3, 3>& A, const cudaMatrix<real, 3, 3>& B, const cudaMatrix<real, 2>& C) {
          a = A;
          b = B;
          c = C;
@@ -81,11 +81,11 @@ public:
 
    // Inv parallelization helper
    class Inv : public CudaParallelizationHelper::Atom {
-      real *a;
-      const real *b;
+      real* a;
+      const real* b;
 
    public:
-      Inv(cudaMatrix<real, 2> &A, const cudaMatrix<real, 2> &B) {
+      Inv(cudaMatrix<real, 2>& A, const cudaMatrix<real, 2>& B) {
          a = A;
          b = B;
       }

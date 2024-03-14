@@ -1,12 +1,7 @@
 #include <cuda.h>
 #include <curand.h>
 
-#include <cmath>
-#include <cstddef>
-#include <iostream>
-
-using namespace std;
-
+#include "c_headers.hpp"
 #include "cudaCommon.hpp"
 #include "cudaDepondtIntegrator.hpp"
 #include "cudaMatrix.hpp"
@@ -23,13 +18,13 @@ using namespace std;
 
 class CudaDepondtIntegrator::BuildEffectiveField : public CudaParallelizationHelper::Atom {
 private:
-   real *bdup;
-   const real *blocal;
-   const real *emom;
+   real* bdup;
+   const real* blocal;
+   const real* emom;
    real damping;
 
 public:
-   BuildEffectiveField(real *p1, const real *p2, const real *p3, real p4) {
+   BuildEffectiveField(real* p1, const real* p2, const real* p3, real p4) {
       bdup = p1;
       blocal = p2;
       emom = p3;
@@ -37,9 +32,9 @@ public:
    }
 
    __device__ void each(unsigned int atom) {
-      real *my_bdup = &bdup[atom * 3];
-      const real *my_bloc = &blocal[atom * 3];
-      const real *my_emom = &emom[atom * 3];
+      real* my_bdup = &bdup[atom * 3];
+      const real* my_bloc = &blocal[atom * 3];
+      const real* my_emom = &emom[atom * 3];
       my_bdup[0] = my_bloc[0] + damping * (my_emom[1] * my_bloc[2] - my_emom[2] * my_bloc[1]);
       my_bdup[1] = my_bloc[1] + damping * (my_emom[2] * my_bloc[0] - my_emom[0] * my_bloc[2]);
       my_bdup[2] = my_bloc[2] + damping * (my_emom[0] * my_bloc[1] - my_emom[1] * my_bloc[0]);
@@ -48,15 +43,15 @@ public:
 
 class CudaDepondtIntegrator::Rotate : public CudaParallelizationHelper::Atom {
 private:
-   real *mrod;
-   const real *emom;
-   const real *bdup;
+   real* mrod;
+   const real* emom;
+   const real* bdup;
    real timestep;
    real gamma;
    real damping;
 
 public:
-   Rotate(real *p1, const real *p2, const real *p3, real p4, real p5, real p6) {
+   Rotate(real* p1, const real* p2, const real* p3, real p4, real p5, real p6) {
       mrod = p1;
       emom = p2;
       bdup = p3;
@@ -66,9 +61,9 @@ public:
    }
 
    __device__ void each(unsigned int atom) {
-      real *my_mrod = &mrod[atom * 3];
-      const real *my_emom = &emom[atom * 3];
-      const real *my_bdup = &bdup[atom * 3];
+      real* my_mrod = &mrod[atom * 3];
+      const real* my_emom = &emom[atom * 3];
+      const real* my_bdup = &bdup[atom * 3];
 
       // Get effective field components and size
       real x = my_bdup[0];
@@ -132,8 +127,8 @@ CudaDepondtIntegrator::~CudaDepondtIntegrator() {
 }
 
 // Initiator
-bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep, curandRngType_t rng,
-                                     unsigned long long seed) {
+bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep,
+                                     curandRngType_t rng, unsigned long long seed) {
    // Assert that we're not already initialized
    release();
 
@@ -161,7 +156,7 @@ bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, re
    return true;
 }
 
-bool CudaDepondtIntegrator::initiateConstants(const fortMatrix<real, 1> &temperature, real timestep,
+bool CudaDepondtIntegrator::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep,
                                               real gamma_const, real k_bolt_const, real mub_const,
                                               real damping_const) {
    // Set parameters
@@ -189,10 +184,10 @@ void CudaDepondtIntegrator::release() {
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
 // Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
-void CudaDepondtIntegrator::evolveFirst(const cudaMatrix<real, 3, 3> &beff, cudaMatrix<real, 3, 3> &b2eff,
-                                        const cudaMatrix<real, 3, 3> &btorque, cudaMatrix<real, 3, 3> &emom,
-                                        cudaMatrix<real, 3, 3> &emom2, cudaMatrix<real, 3, 3> &emomM,
-                                        const cudaMatrix<real, 2> &mmom) {
+void CudaDepondtIntegrator::evolveFirst(const cudaMatrix<real, 3, 3>& beff, cudaMatrix<real, 3, 3>& b2eff,
+                                        const cudaMatrix<real, 3, 3>& btorque, cudaMatrix<real, 3, 3>& emom,
+                                        cudaMatrix<real, 3, 3>& emom2, cudaMatrix<real, 3, 3>& emomM,
+                                        const cudaMatrix<real, 2>& mmom) {
    // Timing
    stopwatch.skip();
 
@@ -229,10 +224,10 @@ void CudaDepondtIntegrator::evolveFirst(const cudaMatrix<real, 3, 3> &beff, cuda
 
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
-void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3> &beff,
-                                         const cudaMatrix<real, 3, 3> &b2eff,
-                                         const cudaMatrix<real, 3, 3> &btorque, cudaMatrix<real, 3, 3> &emom,
-                                         cudaMatrix<real, 3, 3> &emom2) {
+void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3>& beff,
+                                         const cudaMatrix<real, 3, 3>& b2eff,
+                                         const cudaMatrix<real, 3, 3>& btorque, cudaMatrix<real, 3, 3>& emom,
+                                         cudaMatrix<real, 3, 3>& emom2) {
    // Timing
    stopwatch.skip();
 
@@ -258,13 +253,13 @@ void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3> &beff,
    stopwatch.add("copy");
 }
 
-void CudaDepondtIntegrator::rotate(const cudaMatrix<real, 3, 3> &emom, real delta_t) {
+void CudaDepondtIntegrator::rotate(const cudaMatrix<real, 3, 3>& emom, real delta_t) {
    parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
 
 // Constructs the effective field (including damping term)
-void CudaDepondtIntegrator::buildbeff(const cudaMatrix<real, 3, 3> &emom,
-                                      const cudaMatrix<real, 3, 3> &btorque) {
+void CudaDepondtIntegrator::buildbeff(const cudaMatrix<real, 3, 3>& emom,
+                                      const cudaMatrix<real, 3, 3>& btorque) {
    parallel.cudaAtomCall(BuildEffectiveField(bdup, blocal, emom, damping));
 
    // TODO untested

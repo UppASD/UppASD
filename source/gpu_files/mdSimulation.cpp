@@ -1,14 +1,10 @@
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include "mdSimulation.hpp"
 
-using namespace std;
-
+#include "c_headers.hpp"
 #include "c_helper.h"
 #include "depondtIntegrator.hpp"
 #include "fortranData.hpp"
 #include "hamiltonianCalculations.hpp"
-#include "mdSimulation.hpp"
 #include "momentUpdater.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -22,8 +18,8 @@ void MdSimulation::initiateConstants() {
    // Only heisge_jij allowed
    SDEalgh = *FortranData::SDEalgh;
    if(!(SDEalgh == 1 || SDEalgh == 4 || SDEalgh == 5 || SDEalgh == 11)) {
-      fprintf(stderr, "Invalid SDEalgh!\n");
-      exit(EXIT_FAILURE);
+      std::fprintf(stderr, "Invalid SDEalgh!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Constants
@@ -53,8 +49,8 @@ void MdSimulation::initiateFortran() {
 
    // Constants initiated?
    if(N == 0 || M == 0) {
-      printf("MdSimulation: constants not initiated!\n");
-      exit(EXIT_FAILURE);
+      std::printf("MdSimulation: constants not initiated!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Inititate
@@ -81,7 +77,7 @@ void MdSimulation::initiateFortran() {
 }
 
 void MdSimulation::printConstants() {
-   printf(
+   std::printf(
        "stt             : %c\n"
        "SDEalgh         : %d\n"
        "rstep           : %ld\n"
@@ -119,14 +115,14 @@ void MdSimulation::printConstants() {
 // Spin Dynamics measurement phase
 void MdSimulation::measurementPhase() {
    // Unbuffered printf
-   setbuf(stdout, nullptr);
-   setbuf(stderr, nullptr);
+   std::setbuf(stdout, nullptr);
+   std::setbuf(stderr, nullptr);
 
-   printf("C/C++: md simulations starting\n");
+   std::printf("C/C++: md simulations starting\n");
 
    // Timer
    // Stopwatch stopwatch;
-   Stopwatch &stopwatch = GlobalStopwatchPool::get("Measurement phase");
+   Stopwatch& stopwatch = GlobalStopwatchPool::get("Measurement phase");
 
    // Depontd integrator
    DepondtIntegrator integrator;
@@ -170,15 +166,15 @@ void MdSimulation::measurementPhase() {
             // Update mavrg and binderc if necessary
             fortran_calc_simulation_status_variables(mavg);
             // Print status
-            printf("C/C++: %2ld%% done. Mbar: %10.6f. U: %8.5f.\n",
-                   (mstep + 1) * 100 / (rstep + nstep),
-                   *mavg,
-                   *binderc);
+            std::printf("C/C++: %2ld%% done. Mbar: %10.6f. U: %8.5f.\n",
+                        (mstep + 1) * 100 / (rstep + nstep),
+                        *mavg,
+                        *binderc);
          }
       } else {
          // Update mavrg and binderc if necessary
          fortran_calc_simulation_status_variables(mavg);
-         printf("C/C++: Iteration %ld Mbar %13.6f\n", mstep, *mavg);
+         std::printf("C/C++: Iteration %ld Mbar %13.6f\n", mstep, *mavg);
       }
       stopwatch.add("measurement");
 
@@ -221,12 +217,12 @@ void MdSimulation::measurementPhase() {
    fortran_flush_measurements(rstep + nstep);
    stopwatch.add("measurement");
 
-   //	printf("C/C++: md simulations done!\n");
+   //	std::printf("C/C++: md simulations done!\n");
 }
 
 // Safe copy (allows nullptr pointer)
-static inline void *scopy(void *p1, void *p2, std::size_t s) {
-   //	printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
+static inline void* scopy(void* p1, void* p2, std::size_t s) {
+   //	std::printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
    return (p1 && p2) ? memcpy(p1, p2, s) : p1;
 }
 
@@ -286,6 +282,7 @@ void MdSimulation::copyToFortran() {
 // This does not work right now and is not used either //
 // Kept by Niklas for later use?                       //
 /////////////////////////////////////////////////////////
+// TODO: figure out what to do with this
 void MdSimulation::initiateOwn() {
    // Dimensions
    std::size_t N = Natom;
@@ -293,8 +290,8 @@ void MdSimulation::initiateOwn() {
 
    // Constants initiated?
    if(N == 0 || M == 0) {
-      printf("MdSimulation: constants not initiated!\n");
-      exit(EXIT_FAILURE);
+      std::printf("MdSimulation: constants not initiated!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Inititate
@@ -357,8 +354,4 @@ void MdSimulation::freeOwn() {
       temperature.set(nullptr, 0);
    }
 }
-
-/////////////////////////////////////////////////////////
-// End of Reigion with non used functions              //
-/////////////////////////////////////////////////////////
 

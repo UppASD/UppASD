@@ -1,10 +1,6 @@
 #include <cuda_runtime.h>
-#include <stdio.h>
 
-using namespace std;
-
-#include <iostream>
-
+#include "c_headers.hpp"
 #include "cudaHamiltonianCalculations.hpp"
 #include "cudaMatrix.hpp"
 #include "hostMatrix.hpp"
@@ -24,13 +20,13 @@ using namespace std;
 // to zero since hamiltonian implementation always runs to max neighbours
 class CudaHamiltonianCalculations::SetupNeighbourList : public CudaParallelizationHelper::Site {
 private:
-   real *coup;
-   unsigned int *pos;
-   const unsigned int *size;
+   real* coup;
+   unsigned int* pos;
+   const unsigned int* size;
    unsigned int mnn;
 
 public:
-   SetupNeighbourList(const Exchange &ex) {
+   SetupNeighbourList(const Exchange& ex) {
       coup = ex.coupling;
       size = ex.neighbourCount;
       pos = ex.neighbourPos;
@@ -38,8 +34,8 @@ public:
    }
 
    __device__ void each(unsigned int site) {
-      real *myCoup = &coup[site];
-      unsigned int *myPos = &pos[site];
+      real* myCoup = &coup[site];
+      unsigned int* myPos = &pos[site];
       unsigned int mySize = size[site];
       for(unsigned int i = 0; i < mnn; i++) {
          if(i < mySize) {
@@ -57,13 +53,13 @@ public:
 // For Tensorial Exchange
 class CudaHamiltonianCalculations::SetupNeighbourListExchangeTensor : public CudaParallelizationHelper::Site {
 private:
-   real *tensor;
-   unsigned int *pos;
-   const unsigned int *size;
+   real* tensor;
+   unsigned int* pos;
+   const unsigned int* size;
    unsigned int mnn;
 
 public:
-   SetupNeighbourListExchangeTensor(const TensorialExchange &tenEx) {
+   SetupNeighbourListExchangeTensor(const TensorialExchange& tenEx) {
       tensor = tenEx.tensor;
       size = tenEx.neighbourCount;
       pos = tenEx.neighbourPos;
@@ -99,12 +95,12 @@ public:
 // unnecessary for anisotropy probably
 class CudaHamiltonianCalculations::SetupAnisotropy : public CudaParallelizationHelper::Site {
 private:
-   real *kaniso;
-   real *eaniso;
-   unsigned int *taniso;
+   real* kaniso;
+   real* eaniso;
+   unsigned int* taniso;
 
 public:
-   SetupAnisotropy(const Anisotropy &aniso) {
+   SetupAnisotropy(const Anisotropy& aniso) {
       kaniso = aniso.kaniso;
       eaniso = aniso.eaniso;
       taniso = aniso.taniso;
@@ -120,13 +116,13 @@ public:
 // to zero since hamiltonian implementation always runs to max neighbours
 class CudaHamiltonianCalculations::SetupNeighbourListDM : public CudaParallelizationHelper::Site {
 private:
-   real *coup;
-   unsigned int *pos;
-   const unsigned int *size;
+   real* coup;
+   unsigned int* pos;
+   const unsigned int* size;
    unsigned int mnn;
 
 public:
-   SetupNeighbourListDM(const DMinteraction &dm) {
+   SetupNeighbourListDM(const DMinteraction& dm) {
       coup = dm.interaction;
       size = dm.neighbourCount;
       pos = dm.neighbourPos;
@@ -147,7 +143,6 @@ public:
             coup[2 + 3 * i + site * mnn * 3] = (real)0.0;
          }
       }
-
    }
 };
 
@@ -157,18 +152,18 @@ public:
 // Added DM effect 2014/09/23
 class CudaHamiltonianCalculations::HeisgeJij : public CudaParallelizationHelper::AtomSiteEnsemble {
 private:
-   real *beff;
-   const real *coup;
-   const unsigned int *pos;
-   const real *emomM;
-   const real *ext_f;
+   real* beff;
+   const real* coup;
+   const unsigned int* pos;
+   const real* emomM;
+   const real* ext_f;
    unsigned int mnn;
-   const real *dmcoup;
-   const unsigned int *dmpos;
+   const real* dmcoup;
+   const unsigned int* dmpos;
    unsigned int dmmnn;
 
 public:
-   HeisgeJij(real *p1, const real *p2, const real *p3, const Exchange &ex, const DMinteraction &dm) {
+   HeisgeJij(real* p1, const real* p2, const real* p3, const Exchange& ex, const DMinteraction& dm) {
       beff = p1;
       emomM = p2;
       ext_f = p3;
@@ -189,9 +184,9 @@ public:
       real z = (real)0.0;
 
       // Pointers with fixed indices
-      const real *site_coup = &coup[site];
-      const unsigned int *site_pos = &pos[site];
-      const real *my_emomM = &emomM[ensemble * N * 3];
+      const real* site_coup = &coup[site];
+      const unsigned int* site_pos = &pos[site];
+      const real* my_emomM = &emomM[ensemble * N * 3];
 
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
@@ -230,16 +225,16 @@ public:
 
 class CudaHamiltonianCalculations::HeisJijTensor : public CudaParallelizationHelper::AtomSiteEnsemble {
 private:
-   real *beff;
-   const real *tensor;
-   const unsigned int *pos;
-   const unsigned int *size;
-   const real *emomM;
-   const real *ext_f;
+   real* beff;
+   const real* tensor;
+   const unsigned int* pos;
+   const unsigned int* size;
+   const real* emomM;
+   const real* ext_f;
    unsigned int mnn;
 
 public:
-   HeisJijTensor(real *p1, const real *p2, const real *p3, const TensorialExchange &tenEx) {
+   HeisJijTensor(real* p1, const real* p2, const real* p3, const TensorialExchange& tenEx) {
       beff = p1;
       emomM = p2;
       ext_f = p3;
@@ -257,7 +252,7 @@ public:
       real z = (real)0.0;
 
       // Pointers with fixed indices
-      const real *my_emomM = &emomM[ensemble * N * 3];
+      const real* my_emomM = &emomM[ensemble * N * 3];
 
       // emomM <--> (3,N,M)
       // tensor <---> (3,3,mnn,N)
@@ -302,15 +297,15 @@ public:
 
 class CudaHamiltonianCalculations::HeisgeJijAniso : public CudaParallelizationHelper::AtomSiteEnsemble {
 private:
-   real *beff;
-   const real *emomM;
-   const real *kaniso;
-   const real *eaniso;
-   const unsigned int *taniso;
-   const real *sb;
+   real* beff;
+   const real* emomM;
+   const real* kaniso;
+   const real* eaniso;
+   const unsigned int* taniso;
+   const real* sb;
 
 public:
-   HeisgeJijAniso(real *p1, const real *p2, const Anisotropy &aniso) {
+   HeisgeJijAniso(real* p1, const real* p2, const Anisotropy& aniso) {
       beff = p1;
       emomM = p2;
       kaniso = aniso.kaniso;
@@ -384,16 +379,16 @@ public:
 class CudaHamiltonianCalculations::HeisgeJijElement
     : public CudaParallelizationHelper::ElementAxisSiteEnsemble {
 private:
-   real *beff;
-   const real *coup;
-   const unsigned int *pos;
-   const unsigned int *size;
-   const real *emomM;
-   const real *ext_f;
+   real* beff;
+   const real* coup;
+   const unsigned int* pos;
+   const unsigned int* size;
+   const real* emomM;
+   const real* ext_f;
    unsigned int mnn;
 
 public:
-   HeisgeJijElement(real *p1, const real *p5, const real *p6, const Exchange &ex) {
+   HeisgeJijElement(real* p1, const real* p5, const real* p6, const Exchange& ex) {
       beff = p1;
       coup = ex.coupling;
       pos = ex.neighbourPos;
@@ -408,9 +403,9 @@ public:
       real f = (real)0.0;
 
       // Pointers with fixed indices
-      const real *site_coup = &coup[site];
-      const unsigned int *site_pos = &pos[site];
-      const real *ensemble_emomM = &emomM[ensemble * N * 3];
+      const real* site_coup = &coup[site];
+      const unsigned int* site_pos = &pos[site];
+      const real* ensemble_emomM = &emomM[ensemble * N * 3];
 
       // Exchange term loop
       //		const unsigned int s = size[i];
@@ -429,7 +424,7 @@ public:
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T>
-static void transpose(T *A, const T *B, std::size_t M, std::size_t N) {
+static void transpose(T* A, const T* B, std::size_t M, std::size_t N) {
    for(std::size_t y = 0; y < M; ++y) {
       for(std::size_t x = 0; x < N; ++x) {
          A[(x * M) + y] = B[(y * N) + x];
@@ -438,14 +433,14 @@ static void transpose(T *A, const T *B, std::size_t M, std::size_t N) {
 }
 
 template <typename T, std::size_t I, std::size_t J, std::size_t K>
-static void transpose(hostMatrix<T, 2, I, J, K> &A, const hostMatrix<T, 2, I, J, K> &B) {
+static void transpose(hostMatrix<T, 2, I, J, K>& A, const hostMatrix<T, 2, I, J, K>& B) {
    // Sizes
    std::size_t M = A.dimension_size(0);
    std::size_t N = A.dimension_size(1);
 
    if(B.dimension_size(1) != M || B.dimension_size(0) != N) {
-      fprintf(stderr, "Error: illegal matrix transpose\n");
-      exit(EXIT_FAILURE);
+      std::fprintf(stderr, "Error: illegal matrix transpose\n");
+      std::exit(EXIT_FAILURE);
    }
 
    transpose(A.get_data(), B.get_data(), M, N);
@@ -453,7 +448,7 @@ static void transpose(hostMatrix<T, 2, I, J, K> &A, const hostMatrix<T, 2, I, J,
 
 // Function for testing time impact of optimal neighbour alignment
 // Will not produce correct results
-void alignOptimal(hostMatrix<unsigned int, 2> &nlist, bool same) {
+void alignOptimal(hostMatrix<unsigned int, 2>& nlist, bool same) {
    // Sizes
    std::size_t N = nlist.dimension_size(0);
    std::size_t mnn = nlist.dimension_size(1);
@@ -474,9 +469,9 @@ CudaHamiltonianCalculations::CudaHamiltonianCalculations() : parallel(CudaParall
 }
 
 bool CudaHamiltonianCalculations::initiate(
-    const hostMatrix<real, 2> &ncoup, const hostMatrix<unsigned int, 2> &nlist,
-    const hostMatrix<unsigned int, 1> &nlistsize, const hostMatrix<real, 3, 3> &dm_ncoup,
-    const hostMatrix<unsigned int, 2> &dm_nlist, const hostMatrix<unsigned int, 1> &dm_nlistsize,
+    const hostMatrix<real, 2>& ncoup, const hostMatrix<unsigned int, 2>& nlist,
+    const hostMatrix<unsigned int, 1>& nlistsize, const hostMatrix<real, 3, 3>& dm_ncoup,
+    const hostMatrix<unsigned int, 2>& dm_nlist, const hostMatrix<unsigned int, 1>& dm_nlistsize,
     const int do_dm, const int do_j_tensor, const hostMatrix<real, 4, 3, 3> j_tensor, const int do_aniso,
     const hostMatrix<real, 2, 2> kaniso, const hostMatrix<real, 2, 3> eaniso,
     const hostMatrix<unsigned int, 1> taniso, const hostMatrix<real, 1> sb) {
@@ -484,7 +479,7 @@ bool CudaHamiltonianCalculations::initiate(
    // (alignment of 128 bytes, see Cuda Best Parctice Guide)
    N = ncoup.dimension_size(1);  // Number of atoms
    if(N % 32 != 0) {
-      printf("Note: Performance is better if the number of atoms is a multiple of 32.\n");
+      std::printf("Note: Performance is better if the number of atoms is a multiple of 32.\n");
    }
 
    //------- Anisotropy -------//
@@ -518,13 +513,13 @@ bool CudaHamiltonianCalculations::initiate(
       // for(unsigned int site = 0; site < N; site++) {
       //	const unsigned int * myPos  = &(nlist.get_data())[site];
       //	const unsigned int   mySize = nlistsize.get_data()[site];
-      //	printf(" %d ", myPos[0]);
-      //	printf("| ");
+      //	std::printf(" %d ", myPos[0]);
+      //	std::printf("| ");
       //	for (unsigned int i = 0; i < tenEx.mnn; i++)
       //	{
-      //		printf(" %d ", myPos[i * N]);
+      //		std::printf(" %d ", myPos[i * N]);
       //	}
-      //	printf("\n");
+      //	std::printf("\n");
       // }
 
       parallel.cudaSiteCall(SetupNeighbourListExchangeTensor(tenEx));
@@ -554,7 +549,7 @@ bool CudaHamiltonianCalculations::initiate(
 
    // TEST
    // alignOptimal(nlist_t, true);
-   // printf("blubb: %f",ex.coupling);
+   // std::printf("blubb: %f",ex.coupling);
 
    ex.coupling.clone(ncoup_t);
    ex.neighbourCount.clone(nlistsize);
@@ -601,8 +596,8 @@ void CudaHamiltonianCalculations::release() {
    initiated = false;
 }
 
-void CudaHamiltonianCalculations::heisge(cudaMatrix<real, 3, 3> &beff, const cudaMatrix<real, 3, 3> &emomM,
-                                         const cudaMatrix<real, 3, 3> &external_field) {
+void CudaHamiltonianCalculations::heisge(cudaMatrix<real, 3, 3>& beff, const cudaMatrix<real, 3, 3>& emomM,
+                                         const cudaMatrix<real, 3, 3>& external_field) {
    // Kernel call
 
    if(do_j_tensor == 1) {

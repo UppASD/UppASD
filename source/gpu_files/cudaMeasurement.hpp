@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cuda.h>
+#include <cuda_runtime.h>
 
+#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
@@ -20,15 +21,15 @@
 class CudaMeasurement {
    // Queue callback data struct
    struct queue_callback_data {
-      queue_callback_data(CudaMeasurement *m, std::size_t s) : me(m), step(s) {
+      queue_callback_data(CudaMeasurement* m, std::size_t s) : me(m), step(s) {
       }
 
-      CudaMeasurement *me;
+      CudaMeasurement* me;
       std::size_t step;
    };
 
    // Queue callback
-   static void queue_callback(cudaStream_t, cudaError_t, void *data);
+   static void queue_callback(cudaStream_t, cudaError_t, void* data);
 
    // Temporary device storage vectors
    cudaMatrix<real, 3, 3> tmp_emomM;
@@ -36,14 +37,14 @@ class CudaMeasurement {
    cudaMatrix<real, 2> tmp_mmom;
 
    // Temporary host storage (pinned memory)
-   real *pinned_emomM;
-   real *pinned_emom;
-   real *pinned_mmom;
+   real* pinned_emomM;
+   real* pinned_emom;
+   real* pinned_mmom;
 
    // Vectors to copy
-   const cudaMatrix<real, 3, 3> &emomM;
-   const cudaMatrix<real, 3, 3> &emom;
-   const cudaMatrix<real, 2> &mmom;
+   const cudaMatrix<real, 3, 3>& emomM;
+   const cudaMatrix<real, 3, 3>& emom;
+   const cudaMatrix<real, 2>& mmom;
 
    // Event stack
    CudaEventPool eventPool;
@@ -55,7 +56,7 @@ class CudaMeasurement {
    StopwatchDeviceSync stopwatch;
 
    // Parallelization helper
-   CudaParallelizationHelper &parallel;
+   CudaParallelizationHelper& parallel;
 
    // Control flags
    bool alwaysCopy;
@@ -67,10 +68,9 @@ class CudaMeasurement {
    void copyQueueSlow(std::size_t mstep);
 
 public:
-   // Constructor / deconstructor
    // TODO add flag for fast_copy
-   CudaMeasurement(const cudaMatrix<real, 3, 3> &emomM, const cudaMatrix<real, 3, 3> &emom,
-                   const cudaMatrix<real, 2> &mmom, bool fastCopy = DEFAULT_FAST_COPY,
+   CudaMeasurement(const cudaMatrix<real, 3, 3>& emomM, const cudaMatrix<real, 3, 3>& emom,
+                   const cudaMatrix<real, 2>& mmom, bool fastCopy = DEFAULT_FAST_COPY,
                    bool alwaysCopy = false);
    ~CudaMeasurement();
 
@@ -78,5 +78,4 @@ public:
    void measure(std::size_t mstep);
    void flushMeasurements(std::size_t mstep);
 };
-
 

@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include <cuda.h>
+#include <cuda_runtime.h>
 
+#include "c_headers.hpp"
 #include "stopwatch.hpp"
 
 class StopwatchDeviceSync {
@@ -18,10 +19,10 @@ class StopwatchDeviceSync {
 #endif
 public:
    // Parent stopwatch
-   Stopwatch &parent;
+   Stopwatch& parent;
 
    // Constructor
-   StopwatchDeviceSync(Stopwatch &p) : parent(p) {
+   StopwatchDeviceSync(Stopwatch& p) : parent(p) {
    }
 
    // Wrappers
@@ -35,20 +36,19 @@ public:
       parent.skip();
    }
 
-   void add(const char *name) {
+   void add(const char* name) {
       sync();
       parent.add(name);
    }
 
-   void add(const char *name, std::size_t len) {
+   void add(const char* name, std::size_t len) {
       sync();
       parent.add(name, len);
    }
 
-   void add(const std::string &name) {
+   void add(const std::string& name) {
       sync();
       parent.add(name);
    }
 };
-
 

@@ -1,7 +1,6 @@
 #include "momentUpdater.hpp"
 
-#include <cmath>
-
+#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -14,7 +13,7 @@ void MomentUpdater::update() {
    // Calculate
    calcMoment();
    char calc_str[32];
-   sprintf(calc_str, "calculate-%d", mompar);
+   std::sprintf(calc_str, "calculate-%d", mompar);
    stopwatch.add(calc_str);
 
    // Copy
@@ -86,7 +85,7 @@ void MomentUpdater::calcMoment() {
          }
          break;
       case 3:  // M=parametrized from Nature Nano. (Pt wire)
-         printf("mompar == 3 Not implemented!");
+         std::printf("mompar == 3 Not implemented!");
          /*
                          for (int j = 0; j < M; j++) {
                                  for (int i = 0; i < N; i++) {

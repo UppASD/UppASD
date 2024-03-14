@@ -1,10 +1,6 @@
-#include <cmath>
-#include <cstddef>
-#include <cstring>
-
-using namespace std;
-
 #include "depondtIntegrator.hpp"
+
+#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "matrix.hpp"
 #include "randomnum.hpp"
@@ -57,7 +53,7 @@ bool DepondtIntegrator::initiate(std::size_t N, std::size_t M, char sttMode) {
 }
 
 bool DepondtIntegrator::initiateConstants(real gamma_const, real k_bolt, real mub, real damping_const,
-                                          const hostMatrix<real, 1> &temp, real timestep_const) {
+                                          const hostMatrix<real, 1>& temp, real timestep_const) {
    // Set parameters
    gamma = gamma_const;
    damping = damping_const;
@@ -72,7 +68,7 @@ void DepondtIntegrator::release() {
    Natom = Mensemble = 0;
 
    // Free data
-   const real *data;
+   const real* data;
    data = mrod.get_data();
    if(data != nullptr) {
       delete data;
@@ -94,10 +90,10 @@ void DepondtIntegrator::release() {
 
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
-void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatrix<real, 3, 3> &b2eff,
-                                    const hostMatrix<real, 3, 3> &btorque, hostMatrix<real, 3, 3> &emom,
-                                    hostMatrix<real, 3, 3> &emom2, hostMatrix<real, 3, 3> &emomM,
-                                    const hostMatrix<real, 2> &mmom) {
+void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3>& beff, hostMatrix<real, 3, 3>& b2eff,
+                                    const hostMatrix<real, 3, 3>& btorque, hostMatrix<real, 3, 3>& emom,
+                                    hostMatrix<real, 3, 3>& emom2, hostMatrix<real, 3, 3>& emomM,
+                                    const hostMatrix<real, 2>& mmom) {
    // beff        - Total effective field from application of Hamiltonian
    // b2eff       - Temporary storage of magnetic field
    // btorque     - Spin transfer torque
@@ -116,7 +112,7 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
    stopwatch.add("thermfield");
 
    // Construct local field
-   const hostMatrix<real, 3, 3> &btherm = tfield.getField();
+   const hostMatrix<real, 3, 3>& btherm = tfield.getField();
 #pragma omp parallel for collapse(2)
    for(std::size_t k = 0; k < Mensemble; k++) {
       for(std::size_t i = 0; i < Natom; i++) {
@@ -153,14 +149,14 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3> &beff, hostMatr
 
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
-void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const hostMatrix<real, 3, 3> &b2eff,
-                                     const hostMatrix<real, 3, 3> &btorque, hostMatrix<real, 3, 3> &emom,
-                                     hostMatrix<real, 3, 3> &emom2) {
+void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3>& beff, const hostMatrix<real, 3, 3>& b2eff,
+                                     const hostMatrix<real, 3, 3>& btorque, hostMatrix<real, 3, 3>& emom,
+                                     hostMatrix<real, 3, 3>& emom2) {
    // Timing
    stopwatch.skip();
 
    // Construct local field
-   const hostMatrix<real, 3, 3> &btherm = tfield.getField();
+   const hostMatrix<real, 3, 3>& btherm = tfield.getField();
 #pragma omp parallel for collapse(2)
    for(std::size_t k = 0; k < Mensemble; k++) {
       for(std::size_t i = 0; i < Natom; i++) {
@@ -198,7 +194,7 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3> &beff, const h
 
 // Performs a Rodrigues rotation of the magnetic moments in the
 // effective field.
-bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep) {
+bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3>& emom, real timestep) {
    // Initiated?
    if(Natom == 0) {
       return false;
@@ -212,7 +208,7 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
          real x = bdup(0, i, k);
          real y = bdup(1, i, k);
          real z = bdup(2, i, k);
-         real norm = sqrt(x * x + y * y + z * z);
+         real norm = std::sqrt(x * x + y * y + z * z);
 
          // Normalize components
          x /= norm;
@@ -254,7 +250,7 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3> &emom, real timestep
 }
 
 // Constructs the effective field (including damping term)
-void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3> &emom, const hostMatrix<real, 3, 3> &btorque) {
+void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3>& emom, const hostMatrix<real, 3, 3>& btorque) {
 #pragma omp parallel for collapse(2)
    for(std::size_t k = 0; k < Mensemble; k++) {
       for(std::size_t i = 0; i < Natom; i++) {

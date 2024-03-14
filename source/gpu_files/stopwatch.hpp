@@ -5,10 +5,11 @@
 
 #include <sys/time.h>
 
-#include <cstdio>
 #include <ctime>
 #include <list>
 #include <string>
+
+#include "c_headers.hpp"
 
 class Stopwatch {
    // Allow StopwatchPool to access private methods
@@ -78,15 +79,15 @@ public:
    // Add a new time point or add time to the last point with the
    // same name. The time added is the time elapsed since the last
    // called add / startPoint / reset.
-   void add(const char *name) {
+   void add(const char* name) {
       add(std::string(name));
    }
 
-   void add(const char *name, std::size_t len) {
+   void add(const char* name, std::size_t len) {
       add(std::string(name, len));
    }
 
-   void add(const std::string &name) {
+   void add(const std::string& name) {
       struct timeval now;
       gettimeofday(&now, 0);
       float time = diff(&last, &now);
@@ -116,6 +117,7 @@ public:
    }
 
    // Prints the result
+   // TODO: ask is this should be kept
    void print() {
       print(2, 0);
    }
@@ -133,7 +135,7 @@ public:
 
    // Helpers
 private:
-   inline float diff(const struct timeval *a, const struct timeval *b) {
+   inline float diff(const struct timeval* a, const struct timeval* b) {
       return (float)((1000.0 * (b->tv_sec - a->tv_sec)) + (0.001 * (b->tv_usec - a->tv_usec)));
    }
 
@@ -185,7 +187,7 @@ private:
 
       // Print the total time
       indent(2);
-      printf("%-*s  %9.3f ms\n", minlen, "Total", total);
+      std::printf("%-*s  %9.3f ms\n", minlen, "Total", total);
 
       //		float total_percent = 0.0f;
 
@@ -195,13 +197,11 @@ private:
             float percent = (time / total) * 100.0f;
             //			total_percent += percent;
             indent(2);
-            printf("%-*s  %9.3f ms (%5.2f%%)\n", minlen, it->name.c_str(), time, percent);
+            std::printf("%-*s  %9.3f ms (%5.2f%%)\n", minlen, it->name.c_str(), time, percent);
          }
       }
-      //		printf("  %-*s              %6.2f%%\n", minlen, "Total %", total_percent);
-      printf("\n");
+      std::printf("\n");
    }
 #endif  // #ifndef DUMMY_STOPWATCH
 };
-
 

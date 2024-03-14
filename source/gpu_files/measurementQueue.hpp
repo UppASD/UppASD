@@ -10,6 +10,7 @@
 
 #include <queue>
 
+#include "c_headers.hpp"
 #include "real_type.h"
 
 class MeasurementQueue {
@@ -56,5 +57,4 @@ public:
    // Finish
    void finish();
 };
-
 

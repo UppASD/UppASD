@@ -10,10 +10,9 @@
 #include <pthread.h>
 #include <sched.h>
 
-#include <cstdio>
-#include <cstring>
 #include <queue>
 
+#include "c_headers.hpp"
 #include "c_helper.h"
 #include "fortranData.hpp"
 #include "real_type.h"
@@ -23,7 +22,8 @@
 #endif
 
 // Measurement class methods
-MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM, std::size_t _step) {
+MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM,
+                                           std::size_t _step) {
    step = _step;
    if(NM != 0) {
       emomM = new real[NM * 3];
@@ -169,7 +169,7 @@ MeasurementQueue::MeasurementQueue() {
 
 MeasurementQueue::~MeasurementQueue() {
    if(!finishMeasurements) {
-      fprintf(stderr, "MeasurementQueue::finish() not called!\n");
+      std::fprintf(stderr, "MeasurementQueue::finish() not called!\n");
    }
    finishProcessThread();
 }
@@ -190,7 +190,7 @@ void MeasurementQueue::push(std::size_t mstep) {
 void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM) {
    // Finishing?
    if(finishMeasurements) {
-      fprintf(stderr, "MeasurementQueue::push() called after finish()!\n");
+      std::fprintf(stderr, "MeasurementQueue::push() called after finish()!\n");
       return;
    }
 
@@ -221,7 +221,7 @@ void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mm
 // Finish
 void MeasurementQueue::finish() {
    if(finishMeasurements) {
-      fprintf(stderr, "MeasurementQueue::finish() called multiple times!\n");
+      std::fprintf(stderr, "MeasurementQueue::finish() called multiple times!\n");
    }
    finishProcessThread();
 }

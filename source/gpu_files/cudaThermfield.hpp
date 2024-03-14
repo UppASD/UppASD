@@ -1,8 +1,9 @@
 #pragma once
 
-#include <cuda.h>
+#include <cuda_runtime.h>
 #include <curand.h>
 
+#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "fortMatrix.hpp"
@@ -30,7 +31,7 @@ private:
    StopwatchDeviceSync stopwatch;
 
    // Parallelization helper
-   CudaParallelizationHelper &parallel;
+   CudaParallelizationHelper& parallel;
 
 public:
    // Parallelization helpers
@@ -44,7 +45,7 @@ public:
    // Initiate
    bool initiate(std::size_t N, std::size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
                  unsigned long long seed = 0);
-   bool initiateConstants(const fortMatrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
+   bool initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);
 
    // Initiated?
@@ -53,12 +54,11 @@ public:
    }
 
    // Get field
-   inline const cudaMatrix<real, 3, 3> &getField() {
+   inline const cudaMatrix<real, 3, 3>& getField() {
       return field;
    }
 
    // Randomize
-   void randomize(const cudaMatrix<real, 2> &mmom);
+   void randomize(const cudaMatrix<real, 2>& mmom);
 };
-
 

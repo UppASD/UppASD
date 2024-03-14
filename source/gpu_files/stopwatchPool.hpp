@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include <cstdio>
 #include <list>
 #include <string>
 
+#include "c_headers.hpp"
 #include "stopwatch.hpp"
 
 class StopwatchPool {
@@ -16,7 +16,7 @@ private:
       std::string name;
       Stopwatch watch;
 
-      StopwatchNode(const std::string &n) : name(n) {
+      StopwatchNode(const std::string& n) : name(n) {
       }
    };
 
@@ -24,15 +24,15 @@ private:
 
 public:
    // Keep the list even if no timing is done
-   Stopwatch &get(const char *name) {
+   Stopwatch& get(const char* name) {
       return get(std::string(name));
    }
 
-   Stopwatch &get(const char *name, std::size_t len) {
+   Stopwatch& get(const char* name, std::size_t len) {
       return get(std::string(name, len));
    }
 
-   Stopwatch &get(const std::string &name) {
+   Stopwatch& get(const std::string& name) {
       // Check if the name is already in the list
       std::list<StopwatchNode>::iterator it;
       for(it = watchlist.begin(); it != watchlist.end(); it++) {
@@ -72,7 +72,7 @@ public:
 
       // Display all
       for(it = watchlist.begin(); it != watchlist.end(); it++) {
-         printf("%s timing:\n", it->name.c_str());
+         std::printf("%s timing:\n", it->name.c_str());
          it->watch.print(2, minlen);
       }
    }
@@ -95,14 +95,14 @@ private:
    public:
       ~__StopwatchPool() {
          if(!empty()) {
-            printf("\n\n");
-            printf("========================================\n");
-            printf("============ Stopwatch pool ============\n");
-            printf("========================================\n");
+            std::printf("\n\n");
+            std::printf("========================================\n");
+            std::printf("============ Stopwatch pool ============\n");
+            std::printf("========================================\n");
             printAll();
-            printf("========================================\n");
-            printf("============ Stopwatch pool ============\n");
-            printf("========================================\n");
+            std::printf("========================================\n");
+            std::printf("============ Stopwatch pool ============\n");
+            std::printf("========================================\n");
          }
       }
    };
@@ -110,15 +110,15 @@ private:
    static __StopwatchPool pool;
 
 public:
-   static Stopwatch &get(const char *name) {
+   static Stopwatch& get(const char* name) {
       return pool.get(name);
    }
 
-   static Stopwatch &get(const char *name, std::size_t len) {
+   static Stopwatch& get(const char* name, std::size_t len) {
       return pool.get(name, len);
    }
 
-   static Stopwatch &get(const std::string &name) {
+   static Stopwatch& get(const std::string& name) {
       return pool.get(name);
    }
 
@@ -127,5 +127,4 @@ public:
       pool.printAll();
    }
 };
-
 

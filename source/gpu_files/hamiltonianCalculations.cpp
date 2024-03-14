@@ -1,14 +1,13 @@
 #include "hamiltonianCalculations.hpp"
 
-#include <stdio.h>
-
+#include "c_headers.hpp"
 #include "matrix.hpp"
 #include "real_type.h"
 
 // C implementation
-void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<real, 3, 3> &emomM,
-                                         const matrix<real, 3, 3> &emom,
-                                         const matrix<real, 3, 3> &external_field) {
+void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3>& beff, const matrix<real, 3, 3>& emomM,
+                                         const matrix<real, 3, 3>& emom,
+                                         const matrix<real, 3, 3>& external_field) {
    std::size_t N = beff.dimension_size(1);  // Second dimension
    std::size_t M = beff.dimension_size(2);  // Third dimension
 
@@ -34,7 +33,7 @@ void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3> &beff, const matrix<
 }
 
 inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const std::size_t k,
-                                                      const matrix<real, 3, 3> &emomM, real *beff_s) {
+                                                      const matrix<real, 3, 3>& emomM, real* beff_s) {
    std::size_t lsize = nlistsize[i];
    for(std::size_t j = 0; j < lsize; j++) {
       int n = nlist(j, i) - 1;
@@ -46,8 +45,8 @@ inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const
 }
 
 inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
-                                                                  const matrix<real, 3, 3> &emomM,
-                                                                  real *beff_s) {
+                                                                  const matrix<real, 3, 3>& emomM,
+                                                                  real* beff_s) {
    std::size_t lsize = dmlistsize[i];
    for(int j = 1; j < lsize; j++) {
       beff_s[0]

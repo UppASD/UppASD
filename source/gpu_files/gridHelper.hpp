@@ -7,9 +7,9 @@
  *
  */
 
-#include <cuda.h>
+#include <cuda_runtime.h>
 
-#include <cstdio>
+#include "c_headers.hpp"
 
 template <unsigned int threads, bool big>
 class GridHelper {
@@ -51,8 +51,8 @@ public:
 
          // Small if x <= maxGridSize1
          if(x > maxGridSize1) {
-            fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
-            exit(EXIT_FAILURE);
+            std::fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
+            std::exit(EXIT_FAILURE);
             return false;
          }
 
@@ -87,8 +87,8 @@ public:
 
          // Small if x <= maxGridSize1
          if(x > maxGridSize1) {
-            fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
-            exit(EXIT_FAILURE);
+            std::fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
+            std::exit(EXIT_FAILURE);
             return false;
          }
 
@@ -123,8 +123,8 @@ public:
 
          // Small if y <= maxGridSize1
          if(xy > maxGridSize1) {
-            fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
-            exit(EXIT_FAILURE);
+            std::fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
+            std::exit(EXIT_FAILURE);
             return false;
          }
 
@@ -188,5 +188,4 @@ public:
       }
    }
 };
-
 

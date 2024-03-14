@@ -1,12 +1,7 @@
 #include <cuda.h>
 #include <curand.h>
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
-using namespace std;
-
+#include "c_headers.hpp"
 #include "c_helper.h"
 #include "cudaDepondtIntegrator.hpp"
 #include "cudaGPUErrchk.hpp"
@@ -35,8 +30,8 @@ void CudaMdSimulation::initiateConstants() {
    // Only heisge_jij allowed
    SDEalgh = *FortranData::SDEalgh;
    if(!(SDEalgh == 1 || SDEalgh == 4 || SDEalgh == 5 || SDEalgh == 11)) {
-      fprintf(stderr, "Invalid SDEalgh!\n");
-      exit(EXIT_FAILURE);
+      std::fprintf(stderr, "Invalid SDEalgh!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Constants
@@ -67,8 +62,8 @@ void CudaMdSimulation::initiateConstants() {
       case 2: rngType = CURAND_RNG_PSEUDO_MRG32K3A; break;
       case 3: rngType = CURAND_RNG_PSEUDO_MTGP32; break;
       default:
-         fprintf(stderr, "Unknown gpu_rng %d\n", *FortranData::gpu_rng);
-         exit(EXIT_FAILURE);
+         std::fprintf(stderr, "Unknown gpu_rng %d\n", *FortranData::gpu_rng);
+         std::exit(EXIT_FAILURE);
          break;
    }
    randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
@@ -81,8 +76,8 @@ void CudaMdSimulation::initiate_fortran() {
 
    // Constants initiated?
    if(N == 0 || M == 0) {
-      printf("MdSimulation: constants not initiated!\n");
-      exit(EXIT_FAILURE);
+      std::printf("MdSimulation: constants not initiated!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Inititate
@@ -106,7 +101,7 @@ void CudaMdSimulation::initiate_fortran() {
    f_dmlistsize.set(FortranData::dmlistsize, N);
 
    if(*FortranData::do_jtensor == 1) {
-      printf("\n CUDA: jTensor has been initialized \n");
+      std::printf("\n CUDA: jTensor has been initialized \n");
       f_j_tensor.set(FortranData::j_tensor, 3, 3, max_no_neigh, N);
    }
 
@@ -123,7 +118,7 @@ static void printMemStat(const char * label) {
         std::size_t free;
         std::size_t total;
         CUresult result = cuMemGetInfo(&free, &total);
-        printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
+        std::printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
 }
 */
 bool CudaMdSimulation::initiateMatrices() {
@@ -133,8 +128,8 @@ bool CudaMdSimulation::initiateMatrices() {
 
    // Constants initiated?
    if(N == 0 || M == 0) {
-      printf("CudaMdSimulation: constants not initiated!\n");
-      exit(EXIT_FAILURE);
+      std::printf("CudaMdSimulation: constants not initiated!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Fortran initiate
@@ -142,8 +137,8 @@ bool CudaMdSimulation::initiateMatrices() {
 
    // Initiated?
    if(isInitiated) {
-      printf("CudaMdSimulation: attempted to initiate already initiated CudaMdSimulation!\n");
-      exit(EXIT_FAILURE);
+      std::printf("CudaMdSimulation: attempted to initiate already initiated CudaMdSimulation!\n");
+      std::exit(EXIT_FAILURE);
    }
 
    // Inititate
@@ -172,7 +167,7 @@ bool CudaMdSimulation::initiateMatrices() {
       release();
       // Check for error
       const char* err = cudaGetErrorString(cudaGetLastError());
-      fprintf(stderr, "CUDA: Failed to allocate memory: %s\n", err);
+      std::fprintf(stderr, "CUDA: Failed to allocate memory: %s\n", err);
       return false;
    }
 
@@ -236,7 +231,7 @@ void CudaMdSimulation::copyToFortran() {
 }
 
 void CudaMdSimulation::printConstants() {
-   printf(
+   std::printf(
        "stt          : %c\n"
        "SDEalgh      : %d\n"
        "rstep        : %ld\n"
@@ -274,27 +269,27 @@ void CudaMdSimulation::printMdStatus(std::size_t mstep) {
       if(mstep % ((rstep + nstep) / 20) == 0) {
          copyToFortran();  // This is run so seldomly it has not impact on overall performance
          fortran_calc_simulation_status_variables(mavg);
-         printf(
+         std::printf(
              "CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n", mstep * 100 / (rstep + nstep), *mavg, *binderc);
       }
    } else {
       copyToFortran();
       fortran_calc_simulation_status_variables(mavg);
-      printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *mavg);
+      std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *mavg);
    }
 }
 
 // Spin Dynamics measurement phase
 void CudaMdSimulation::measurementPhase() {
    // Unbuffered printf
-   setbuf(stdout, nullptr);
-   setbuf(stderr, nullptr);
+   std::setbuf(stdout, nullptr);
+   std::setbuf(stderr, nullptr);
 
-   printf("CudaMdSimulation: md simulations starting\n");
+   std::printf("CudaMdSimulation: md simulations starting\n");
 
    // Initiated?
    if(!isInitiated) {
-      fprintf(stderr, "CudaMdSimulation: not initiated!\n");
+      std::fprintf(stderr, "CudaMdSimulation: not initiated!\n");
       return;
    }
 
@@ -317,12 +312,12 @@ void CudaMdSimulation::measurementPhase() {
    CudaMeasurement measurement(emomM, emom, mmom);
 
    // for (int i = 0; i < f_kaniso.size(); i++) {
-   //	printf(" %f", f_kaniso.get_data()[i]);
+   //	std::printf(" %f", f_kaniso.get_data()[i]);
    // }
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(Natom, Mensemble, stt, delta_t, rngType, randomSeed)) {
-      fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
+      std::fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
       return;
    }
    if(!hamiltonian.initiate(f_ncoup,
@@ -339,18 +334,18 @@ void CudaMdSimulation::measurementPhase() {
                             f_eaniso,
                             f_taniso,
                             f_sb)) {
-      fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
+      std::fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
 
    // TEMPORARY PRINTING
-   printf("\n");
-   printf("________DEBUG System Information:___________ \n");
-   printf("%zu\n", f_j_tensor.dimension_size(0));
-   printf("%zu\n", f_j_tensor.dimension_size(1));
-   printf("%zu\n", f_j_tensor.dimension_size(2));
-   printf("%zu\n", f_j_tensor.dimension_size(3));
-   printf("______________________________________\n");
+   std::printf("\n");
+   std::printf("________DEBUG System Information:___________ \n");
+   std::printf("%zu\n", f_j_tensor.dimension_size(0));
+   std::printf("%zu\n", f_j_tensor.dimension_size(1));
+   std::printf("%zu\n", f_j_tensor.dimension_size(2));
+   std::printf("%zu\n", f_j_tensor.dimension_size(3));
+   std::printf("______________________________________\n");
 
    int mnn = f_j_tensor.dimension_size(2);
    int l = f_j_tensor.dimension_size(3);
@@ -361,39 +356,39 @@ void CudaMdSimulation::measurementPhase() {
    //{
    //	for (int k = 0 ; k < mnn ; k++  )
    //	{
-   //		printf("__________\n");
+   //		std::printf("__________\n");
    //		for (int i = 0; i < 3; i++) {
    //			for (int j = 0; j < 3; j++) {
    //				unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
-   //				printf("%f\t", f_j_tensor[index]);
+   //				std::printf("%f\t", f_j_tensor[index]);
    //			}
-   //    		printf("\n");
+   //    		std::printf("\n");
    //		}
-   //    	printf("\n");
+   //    	std::printf("\n");
    //	}
    //
-   //}    	printf("_______________test__________\n");
+   //}    	std::printf("_______________test__________\n");
    //
 
    // Prints the external field
    // for(int i = 0 ; i < f_external_field.size(); i++)
    //{
-   //	printf(" %f ", f_external_field.get_data()[i]);
+   //	std::printf(" %f ", f_external_field.get_data()[i]);
    //}
 
    // Prints the information on the neighbors of each site.
    // for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
    //{
-   //	printf("%d ", site);
-   //	printf("| ");
+   //	std::printf("%d ", site);
+   //	std::printf("| ");
    //	for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
    //	{
-   //		printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
+   //		std::printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
    //	}
-   //	printf("\n");
+   //	std::printf("\n");
    //}
 
-   // printf("_______DM vectors_______ \n");
+   // std::printf("_______DM vectors_______ \n");
    // for (unsigned int site = 0; site < f_dmlist.dimension_size(1); site++)	{
    //
    //	int dmmnn = f_dmvect.dimension_size(1);
@@ -402,42 +397,42 @@ void CudaMdSimulation::measurementPhase() {
    //
    //
    //	unsigned int neighborPosIndex = f_dmlist.get_data()[site * dmmnn + i]; // neighbor position in the
-   //site enemble given in 0,1,2,...,N-1
+   // site enemble given in 0,1,2,...,N-1
    //
    //	real Dx = f_dmvect.get_data()[0 + 3 * i + site * dmmnn * 3];
    //	real Dy = f_dmvect.get_data()[1 + 3 * i + site * dmmnn * 3];
    //	real Dz = f_dmvect.get_data()[2 + 3 * i + site * dmmnn * 3];
-   //	printf(" %f ", Dx);
-   //	printf(" %f ", Dy);
-   //	printf(" %f ", Dz);
-   //	printf("\n");
+   //	std::printf(" %f ", Dx);
+   //	std::printf(" %f ", Dy);
+   //	std::printf(" %f ", Dz);
+   //	std::printf("\n");
    //	}
-   //	printf("_______\n");
+   //	std::printf("_______\n");
    //
    //
    // }
 
-   printf("_______________________________________________\n");
+   std::printf("_______________________________________________\n");
 
    // Initiate constants for integrator
    integrator.initiateConstants(f_temperature, delta_t, gamma, k_bolt, mub, damping);
 
    // Debug
-   // printf("___________ DEBUG PTINT ___________\n");
+   // std::printf("___________ DEBUG PTINT ___________\n");
 
    // Print the external field vector
-   // printf("%d\n", external_field.has_data());
-   // printf("%zu\n", external_field.size());
+   // std::printf("%d\n", external_field.has_data());
+   // std::printf("%zu\n", external_field.size());
    // for( int i = 0; i < external_field.size(); i++)
    //{
-   //	printf("%f ", f_external_field.get_data()[i]);
+   //	std::printf("%f ", f_external_field.get_data()[i]);
    //}
 
    // Print the DM vector
    // for( int i = 0; i < f_dmvect.size(); i++)
    //{
    //
-   //	printf("%f ", f_dmvect.get_data()[i]);
+   //	std::printf("%f ", f_dmvect.get_data()[i]);
    //}
 
    // printConstants();
@@ -479,9 +474,9 @@ void CudaMdSimulation::measurementPhase() {
       // Check for error
       cudaError_t e = cudaGetLastError();
       if(e != cudaSuccess) {
-         printf("Uncaught CUDA error %d: %s\n", e, cudaGetErrorString(e));
+         std::printf("Uncaught CUDA error %d: %s\n", e, cudaGetErrorString(e));
          cudaDeviceReset();
-         exit(EXIT_FAILURE);
+         std::exit(EXIT_FAILURE);
       }
 
    }  // End loop over simulation steps
