@@ -1,6 +1,5 @@
 #pragma once
 
-#include "c_headers.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"
 
@@ -9,11 +8,11 @@ private:
    char stt;
    int SDEalgh;
 
-   usd_int rstep;
-   usd_int nstep;
-   usd_int Natom;
-   usd_int Mensemble;
-   usd_int max_no_neigh;
+   std::size_t rstep;
+   std::size_t nstep;
+   std::size_t Natom;
+   std::size_t Mensemble;
+   std::size_t max_no_neigh;
 
    real delta_t;
    real gamma;
@@ -28,15 +27,15 @@ private:
    char initexc;
 
    int do_dm;
-   usd_int max_no_dmneigh;
+   std::size_t max_no_dmneigh;
 
    // <real,3,3> -- real precision, 3 dimensions, first dim always 3
    fortMatrix<real, 2> ncoup;
-   fortMatrix<usd_int, 2> nlist;
-   fortMatrix<usd_int, 1> nlistsize;
+   fortMatrix<unsigned int, 2> nlist;
+   fortMatrix<unsigned int, 1> nlistsize;
    fortMatrix<real, 3, 3> dmvect;
-   fortMatrix<usd_int, 2> dmlist;
-   fortMatrix<usd_int, 1> dmlistsize;
+   fortMatrix<unsigned int, 2> dmlist;
+   fortMatrix<unsigned int, 1> dmlistsize;
    fortMatrix<real, 3, 3> beff;
    fortMatrix<real, 3, 3> b2eff;
    fortMatrix<real, 3, 3> emomM;
@@ -67,4 +66,5 @@ public:
    void copyFromFortran();
    void copyToFortran();
 };
+
 

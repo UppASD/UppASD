@@ -1,10 +1,8 @@
 #pragma once
 
 #ifdef SINGLE_PREC
-using real = float;
+typedef float real;
 #else
-using real = double;
+typedef double real;
 #endif
-
-using usd_int = unsigned long int;
 

@@ -44,8 +44,8 @@ void MdSimulation::initiateConstants() {
 
 void MdSimulation::initiateFortran() {
    // Dimensions
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -146,7 +146,7 @@ void MdSimulation::measurementPhase() {
 
    stopwatch.add("initiate");
    // Time step loop
-   for(usd_int mstep = rstep; mstep < rstep + nstep; mstep++) {
+   for(std::size_t mstep = rstep; mstep < rstep + nstep; mstep++) {
       // export_mstep(mstep);
 
       // Measure averages and trajectories (through fortran call)
@@ -221,14 +221,14 @@ void MdSimulation::measurementPhase() {
 }
 
 // Safe copy (allows nullptr pointer)
-static inline void* scopy(void* p1, void* p2, usd_int s) {
+static inline void* scopy(void* p1, void* p2, std::size_t s) {
    //	std::printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
    return (p1 && p2) ? memcpy(p1, p2, s) : p1;
 }
 
 void MdSimulation::copyFromFortran() {
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    if(!isOwnData) {
       return;
@@ -253,8 +253,8 @@ void MdSimulation::copyFromFortran() {
 }
 
 void MdSimulation::copyToFortran() {
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    if(!isOwnData) {
       return;
@@ -285,8 +285,8 @@ void MdSimulation::copyToFortran() {
 // TODO: figure out what to do with this
 void MdSimulation::initiateOwn() {
    // Dimensions
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -296,8 +296,8 @@ void MdSimulation::initiateOwn() {
 
    // Inititate
    ncoup.set(new real[max_no_neigh * N], max_no_neigh, N);
-   nlist.set(new usd_int[max_no_neigh * N], max_no_neigh, N);
-   nlistsize.set(new usd_int[N], N);
+   nlist.set(new unsigned int[max_no_neigh * N], max_no_neigh, N);
+   nlistsize.set(new unsigned int[N], N);
    beff.set(new real[3 * N * M], 3, N, M);
    b2eff.set(new real[3 * N * M], 3, N, M);
    emomM.set(new real[3 * N * M], 3, N, M);

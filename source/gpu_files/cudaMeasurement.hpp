@@ -2,6 +2,7 @@
 
 #include <cuda_runtime.h>
 
+#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
@@ -20,11 +21,11 @@
 class CudaMeasurement {
    // Queue callback data struct
    struct queue_callback_data {
-      queue_callback_data(CudaMeasurement* m, usd_int s) : me(m), step(s) {
+      queue_callback_data(CudaMeasurement* m, std::size_t s) : me(m), step(s) {
       }
 
       CudaMeasurement* me;
-      usd_int step;
+      std::size_t step;
    };
 
    // Queue callback
@@ -62,11 +63,12 @@ class CudaMeasurement {
    bool fastCopy;
 
    // Helpers
-   void queueMeasurement(usd_int mstep);
-   void copyQueueFast(usd_int mstep);
-   void copyQueueSlow(usd_int mstep);
+   void queueMeasurement(std::size_t mstep);
+   void copyQueueFast(std::size_t mstep);
+   void copyQueueSlow(std::size_t mstep);
 
 public:
+   // Constructor / deconstructor ???
    // TODO add flag for fast_copy
    CudaMeasurement(const cudaMatrix<real, 3, 3>& emomM, const cudaMatrix<real, 3, 3>& emom,
                    const cudaMatrix<real, 2>& mmom, bool fastCopy = DEFAULT_FAST_COPY,
@@ -74,7 +76,7 @@ public:
    ~CudaMeasurement();
 
    // Access methods
-   void measure(usd_int mstep);
-   void flushMeasurements(usd_int mstep);
+   void measure(std::size_t mstep);
+   void flushMeasurements(std::size_t mstep);
 };
 

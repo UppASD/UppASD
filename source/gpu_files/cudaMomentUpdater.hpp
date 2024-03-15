@@ -37,9 +37,10 @@ public:
    // Constructor
    CudaMomentUpdater(cudaMatrix<real, 2>& mmom, cudaMatrix<real, 2>& mmom0, cudaMatrix<real, 2>& mmom2,
                      cudaMatrix<real, 3, 3>& emom, cudaMatrix<real, 3, 3>& emom2,
-                     cudaMatrix<real, 3, 3>& emomM, cudaMatrix<real, 2>& mmomi, int mompar, char initexc);
+                     cudaMatrix<real, 3, 3>& emomM, cudaMatrix<real, 2> &mmomi, int mompar, char initexc);
 
    // Updater
    void update();
 };
+
 

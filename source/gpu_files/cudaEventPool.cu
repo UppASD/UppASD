@@ -5,9 +5,9 @@
 
 #include <cuda.h>
 
+#include <cstdio>
 #include <vector>
 
-#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 
 #ifdef NVPROF
@@ -28,11 +28,11 @@ void CudaEventPool::Event::deactivate() {
    active = false;
 }
 
-void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void* e) {
+void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void *e) {
 #ifdef NVPROF
    nvtxRangePush("deactivate_callback");
 #endif
-   ((Event*)e)->active = false;
+   ((Event *)e)->active = false;
 #ifdef NVPROF
    nvtxRangePop();
 #endif
@@ -43,10 +43,10 @@ void CudaEventPool::Event::addDeactivateCallback(cudaStream_t stream) {
 }
 
 // Pool class methods
-CudaEventPool::Event& CudaEventPool::get() {
-   std::vector<Event*>::iterator it;
+CudaEventPool::Event &CudaEventPool::get() {
+   std::vector<Event *>::iterator it;
    for(it = stack.begin(); it != stack.end(); it++) {
-      Event& e = (**it);
+      Event &e = (**it);
       if(e.active == false) {
          e.active = true;
          return e;
@@ -60,7 +60,7 @@ CudaEventPool::Event& CudaEventPool::get() {
 // Destroy all events in pool when done
 CudaEventPool::~CudaEventPool() {
    //	std::printf("Event stack size: %ld\n", stack.size());
-   std::vector<Event*>::iterator it;
+   std::vector<Event *>::iterator it;
    for(it = stack.begin(); it != stack.end(); it++) {
       delete *it;
    }

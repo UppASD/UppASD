@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cmath>
+#include <csignal>
 #include <csignal>
 #include <cstddef>
 #include <cstdio>

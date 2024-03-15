@@ -27,7 +27,7 @@ public:
       dp = p2;
    }
 
-   __device__ void each(usd_int site) {
+   __device__ void each(unsigned int site) {
       sigma_factor[site] = sqrt(dp * sigma_factor[site]);
    }
 };
@@ -45,7 +45,7 @@ public:
       mmom = p3;
    }
 
-   __device__ void each(usd_int atom, usd_int site) {
+   __device__ void each(unsigned int atom, unsigned int site) {
       real sigma = sigma_factor[site] * rsqrt(mmom[atom]);
       field[atom * 3 + 0] *= sigma;
       field[atom * 3 + 1] *= sigma;
@@ -70,7 +70,7 @@ CudaThermfield::~CudaThermfield() {
    }
 }
 
-bool CudaThermfield::initiate(usd_int N, usd_int M, curandRngType_t rngType,
+bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
                               unsigned long long seed) {
    if(dataInitiated) {
       std::fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");

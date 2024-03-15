@@ -15,7 +15,7 @@ public:
       friend CudaEventPool;
       bool active;
       cudaEvent_t _event;
-      static void deactivate_callback(cudaStream_t, cudaError_t, void* e);
+      static void deactivate_callback(cudaStream_t, cudaError_t, void *e);
 
    public:
       Event();
@@ -25,13 +25,14 @@ public:
    };
 
 private:
-   std::vector<Event*> stack;
+   std::vector<Event *> stack;
 
 public:
    // Get an activated event from the pool
-   Event& get();
+   Event &get();
 
    // Destructor
    ~CudaEventPool();
 };
+
 

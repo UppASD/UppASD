@@ -4,7 +4,6 @@
 
 #include "cudaGPUErrchk.hpp"
 #include "gridHelper.hpp"
-#include "real_type.h"
 
 #if !defined(THREAD_COUNT)
 #define THREAD_COUNT 64
@@ -16,52 +15,52 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel templates
 ////////////////////////////////////////////////////////////////////////////////
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_kernel(O op) {
-   usd_int atom;
+   unsigned int atom;
    if(GridHelper<threads, big>::index1d(&atom, op.NM)) {
       op.each(atom);
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void site_kernel(O op) {
-   usd_int site;
+   unsigned int site;
    if(GridHelper<threads, big>::index1d(&site, op.N)) {
       op.each(site);
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_kernel(O op) {
-   usd_int site, ensemble;
+   unsigned int site, ensemble;
    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
-      usd_int atom = ensemble * op.N + site;
+      unsigned int atom = ensemble * op.N + site;
       op.each(atom, site);
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_ensemble_kernel(O op) {
-   usd_int site, ensemble;
+   unsigned int site, ensemble;
    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
-      usd_int atom = ensemble * op.N + site;
+      unsigned int atom = ensemble * op.N + site;
       op.each(atom, site, ensemble);
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void element_axis_site_ensemble_kernel(O op) {
-   usd_int axis, site, ensemble;
+   unsigned int axis, site, ensemble;
    if(GridHelper<threads, big>::index3d(&axis, &site, &ensemble, 3, op.N, op.M)) {
-      usd_int element = axis + 3 * site + 3 * op.N * ensemble;
+      unsigned int element = axis + 3 * site + 3 * op.N * ensemble;
       op.each(element, axis, site, ensemble);
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void element_kernel(O op) {
-   usd_int element;
+   unsigned int element;
    if(GridHelper<threads, big>::index1d(&element, op.NM3)) {
       op.each(element);
    }
@@ -74,8 +73,8 @@ __global__ void element_kernel(O op) {
 class CudaParallelizationHelper {
 private:
    // System size
-   usd_int N;
-   usd_int M;
+   unsigned int N;
+   unsigned int M;
 
    // Streams
    cudaStream_t workStream;
@@ -90,30 +89,30 @@ public:
 
    // Parallelization base classes
    struct Atom {
-      usd_int NM;
+      unsigned int NM;
    };
 
    struct Site {
-      usd_int N;
+      unsigned int N;
    };
 
    struct AtomSite {
-      usd_int N;
-      usd_int M;
+      unsigned int N;
+      unsigned int M;
    };
 
    struct AtomSiteEnsemble {
-      usd_int N;
-      usd_int M;
+      unsigned int N;
+      unsigned int M;
    };
 
    struct ElementAxisSiteEnsemble {
-      usd_int N;
-      usd_int M;
+      unsigned int N;
+      unsigned int M;
    };
 
    struct Element {
-      usd_int NM3;
+      unsigned int NM3;
    };
 
    // Constructors
@@ -127,7 +126,7 @@ public:
       copyStream = 0;
    }
 
-   CudaParallelizationHelper(usd_int Natom, usd_int Mensemble) {
+   CudaParallelizationHelper(unsigned int Natom, unsigned int Mensemble) {
       // Zero streams
       workStream = 0;
       copyStream = 0;
@@ -137,7 +136,7 @@ public:
    }
 
    // Initiate
-   void initiate(usd_int Natom, usd_int Mensemble) {
+   void initiate(unsigned int Natom, unsigned int Mensemble) {
       // System size
       N = Natom;
       M = Mensemble;
@@ -261,4 +260,5 @@ public:
       // gpuErrchk(cudaDeviceSynchronize());
    }
 };
+
 

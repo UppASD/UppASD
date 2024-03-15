@@ -10,7 +10,6 @@
 
 #include <queue>
 
-#include "c_headers.hpp"
 #include "real_type.h"
 
 class MeasurementQueue {
@@ -20,11 +19,11 @@ class MeasurementQueue {
       real* emomM;
       real* emom;
       real* mmom;
-      usd_int step;
+      std::size_t step;
 
    public:
       // Constructor / destructor
-      Measurement(real* emomM, real* emom, real* mmom, usd_int NM, usd_int step);
+      Measurement(real* emomM, real* emom, real* mmom, std::size_t NM, std::size_t step);
       ~Measurement();
    };
 
@@ -51,10 +50,11 @@ public:
    bool empty();
 
    // Push a measurement with data to the queue
-   void push(usd_int mstep);
-   void push(usd_int mstep, real* emomM, real* emom, real* mmom, usd_int NM);
+   void push(std::size_t mstep);
+   void push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM);
 
    // Finish
    void finish();
 };
+
 

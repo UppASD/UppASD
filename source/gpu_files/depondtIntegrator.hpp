@@ -1,5 +1,6 @@
 #pragma once
 
+#include "c_headers.hpp"
 #include "hostMatrix.hpp"
 #include "matrix.hpp"
 #include "real_type.h"
@@ -9,8 +10,8 @@
 class DepondtIntegrator {
 private:
    // System parameters
-   usd_int Natom;
-   usd_int Mensemble;
+   std::size_t Natom;
+   std::size_t Mensemble;
    real gamma;
    real damping;
    real timestep;
@@ -43,7 +44,7 @@ public:
    ~DepondtIntegrator();
 
    // Initiator
-   bool initiate(usd_int Natom, usd_int Mensemble, char stt);
+   bool initiate(std::size_t Natom, std::size_t Mensemble, char stt);
 
    // Set up constants
    bool initiateConstants(real gamma_const, real k_bolt_const, real mub_const, real damping_const,
@@ -61,7 +62,8 @@ public:
                     const hostMatrix<real, 2>& mmom);
 
    void evolveSecond(const hostMatrix<real, 3, 3>& beff, const hostMatrix<real, 3, 3>& b2eff,
-                     const hostMatrix<real, 3, 3>& btorque, hostMatrix<real, 3, 3>& emom,
-                     hostMatrix<real, 3, 3>& emom2);
+                     const hostMatrix<real, 3, 3>& btorque, hostMatrix<real, 3, 3> &emom,
+                     hostMatrix<real, 3, 3> &emom2);
 };
+
 
