@@ -219,8 +219,8 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3>& emom, real timestep
          real angle = norm * timestep * gamma;
 
          // Calculate sin(angle) / cosine(angle)
-         real cosv = cos(angle);
-         real sinv = sin(angle);
+         real cosv = std::cos(angle);
+         real sinv = std::sin(angle);
          real u = 1 - cosv;
 
          // Calculate matrix
