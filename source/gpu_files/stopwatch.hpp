@@ -10,6 +10,7 @@
 #include <string>
 
 #include "c_headers.hpp"
+#include "real_type.h"
 
 class Stopwatch {
    // Allow StopwatchPool to access private methods
@@ -42,7 +43,7 @@ public:
    void add(const char *name) {
    }
 
-   void add(const char *name, std::size_t len) {
+   void add(const char *name, usd_int len) {
    }
 
    void add(const std::string &name) {
@@ -83,7 +84,7 @@ public:
       add(std::string(name));
    }
 
-   void add(const char* name, std::size_t len) {
+   void add(const char* name, usd_int len) {
       add(std::string(name, len));
    }
 

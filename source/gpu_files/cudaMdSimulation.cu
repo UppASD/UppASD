@@ -71,8 +71,8 @@ void CudaMdSimulation::initiateConstants() {
 
 void CudaMdSimulation::initiate_fortran() {
    // Dimensions
-   std::size_t N = Natom;
-   std::size_t M = Mensemble;
+   usd_int N = Natom;
+   usd_int M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -115,16 +115,16 @@ void CudaMdSimulation::initiate_fortran() {
 
 /*
 static void printMemStat(const char * label) {
-        std::size_t free;
-        std::size_t total;
+        usd_int free;
+        usd_int total;
         CUresult result = cuMemGetInfo(&free, &total);
         std::printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
 }
 */
 bool CudaMdSimulation::initiateMatrices() {
    // Dimensions
-   std::size_t N = Natom;
-   std::size_t M = Mensemble;
+   usd_int N = Natom;
+   usd_int M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -264,7 +264,7 @@ void CudaMdSimulation::printConstants() {
 
 // Printing simulation status
 // Added copy to fortran line so that simulation status is printed correctly > Thomas Nystrand 14/09/09
-void CudaMdSimulation::printMdStatus(std::size_t mstep) {
+void CudaMdSimulation::printMdStatus(usd_int mstep) {
    if(nstep > 20) {
       if(mstep % ((rstep + nstep) / 20) == 0) {
          copyToFortran();  // This is run so seldomly it has not impact on overall performance
@@ -359,7 +359,7 @@ void CudaMdSimulation::measurementPhase() {
    //		std::printf("__________\n");
    //		for (int i = 0; i < 3; i++) {
    //			for (int j = 0; j < 3; j++) {
-   //				unsigned int index = i + 3 * (j + 3 * (k + mnn * l));
+   //				usd_int index = i + 3 * (j + 3 * (k + mnn * l));
    //				std::printf("%f\t", f_j_tensor[index]);
    //			}
    //    		std::printf("\n");
@@ -377,11 +377,11 @@ void CudaMdSimulation::measurementPhase() {
    //}
 
    // Prints the information on the neighbors of each site.
-   // for(unsigned int site = 0; site < f_nlist.dimension_size(1); site++)
+   // for(usd_int site = 0; site < f_nlist.dimension_size(1); site++)
    //{
    //	std::printf("%d ", site);
    //	std::printf("| ");
-   //	for(unsigned int i = 0; i < f_nlist.dimension_size(0); i++)
+   //	for(usd_int i = 0; i < f_nlist.dimension_size(0); i++)
    //	{
    //		std::printf(" %d ", f_nlist.get_data()[site * f_nlist.dimension_size(0) + i]);
    //	}
@@ -389,14 +389,14 @@ void CudaMdSimulation::measurementPhase() {
    //}
 
    // std::printf("_______DM vectors_______ \n");
-   // for (unsigned int site = 0; site < f_dmlist.dimension_size(1); site++)	{
+   // for (usd_int site = 0; site < f_dmlist.dimension_size(1); site++)	{
    //
    //	int dmmnn = f_dmvect.dimension_size(1);
-   //	for (unsigned int i = 0 ; i < dmmnn; i++ )
+   //	for (usd_int i = 0 ; i < dmmnn; i++ )
    //	{
    //
    //
-   //	unsigned int neighborPosIndex = f_dmlist.get_data()[site * dmmnn + i]; // neighbor position in the
+   //	usd_int neighborPosIndex = f_dmlist.get_data()[site * dmmnn + i]; // neighbor position in the
    // site enemble given in 0,1,2,...,N-1
    //
    //	real Dx = f_dmvect.get_data()[0 + 3 * i + site * dmmnn * 3];
@@ -441,7 +441,7 @@ void CudaMdSimulation::measurementPhase() {
    stopwatch.add("initiate");
 
    // Time step loop
-   for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+   for(usd_int mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // export_mstep(mstep);
 
       // Measure

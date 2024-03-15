@@ -8,18 +8,18 @@
 
 #include "c_headers.hpp"
 #include "matrix.hpp"
+#include "real_type.h"
 
 // TODO: replace calloc with new. LOL
-template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
-          std::size_t L = 0>
+template <typename T, usd_int D = 1, usd_int I = 0, usd_int J = 0, usd_int K = 0, usd_int L = 0>
 class hostMatrix : public matrix<T, D, I, J, K, L> {
 private:
    // Initiate
    // Changed new to calloc > Thomas Nystrand
-   bool init(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+   bool init(usd_int i, usd_int j, usd_int k, usd_int l) {
       // Calculate size
-      // std::size_t size = i * j * k * l * sizeof(T);
-      std::size_t size = i * j * k * l;
+      // usd_int size = i * j * k * l * sizeof(T);
+      usd_int size = i * j * k * l;
       // Deallocate data if already allocated
       free();
 
@@ -61,22 +61,22 @@ public:
    }
 
    // Initiate
-   bool initiate(std::size_t i) {
+   bool initiate(usd_int i) {
       __MAT_TEST_DIM(1);
       return init(i, 1, 1, 1);
    }
 
-   bool initiate(std::size_t i, std::size_t j) {
+   bool initiate(usd_int i, usd_int j) {
       __MAT_TEST_DIM(2);
       return init(i, j, 1, 1);
    }
 
-   bool initiate(std::size_t i, std::size_t j, std::size_t k) {
+   bool initiate(usd_int i, usd_int j, usd_int k) {
       __MAT_TEST_DIM(3);
       return init(i, j, k, 1);
    }
 
-   bool initiate(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+   bool initiate(usd_int i, usd_int j, usd_int k, usd_int l) {
       __MAT_TEST_DIM(4);
       return init(i, j, k, l);
    }
@@ -95,7 +95,7 @@ public:
       }
       // delete this->data;
       this->data = nullptr;
-      for(std::size_t i = 0; i < D; i++) {
+      for(usd_int i = 0; i < D; i++) {
          this->dim_size[i] = 0;
       }
    }

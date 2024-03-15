@@ -20,7 +20,7 @@ public:
          b = B;
       }
 
-      __device__ void each(unsigned int element) {
+      __device__ void each(usd_int element) {
          a[element] += b[element];
       }
    };
@@ -40,7 +40,7 @@ public:
          c = C;
       }
 
-      __device__ void each(unsigned int element) {
+      __device__ void each(usd_int element) {
          a[element] = b[element] + c[element];
       }
    };
@@ -56,7 +56,7 @@ public:
          b = B;
       }
 
-      __device__ void each(unsigned int element) {
+      __device__ void each(usd_int element) {
          a[element] = real(0.5) * (a[element] + b[element]);
       }
    };
@@ -74,7 +74,7 @@ public:
          c = C;
       }
 
-      __device__ void each(unsigned int element) {
+      __device__ void each(usd_int element) {
          a[element] = b[element] * c[element / 3];
       }
    };
@@ -90,7 +90,7 @@ public:
          b = B;
       }
 
-      __device__ void each(unsigned int atom) {
+      __device__ void each(usd_int atom) {
          a[atom] = real(1.0) / b[atom];
       }
    };

@@ -29,7 +29,7 @@ public:
       emom2 = p3;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       mmom2[atom] = fmax((real)1e-4, mmom0[atom] * fabs(emom2[atom * 3 + 2]));
    }
 };
@@ -47,7 +47,7 @@ public:
       emom2 = p3;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       real mz = emom2[atom * 3 + 2];
       mmom2[atom] = fmax((real)1e-4, mmom0[atom] * mz * mz);
    }
@@ -70,7 +70,7 @@ public:
       emom = p4;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       real m = mmom[atom];
       mmomi[atom] = 1 / m;
 
@@ -99,7 +99,7 @@ public:
       emom = p4;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       real m = mmom[atom];
       mmomi[atom] = (m < (real)0.000001) ? 1 : (1 / m);
 

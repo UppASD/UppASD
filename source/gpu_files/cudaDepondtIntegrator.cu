@@ -1,7 +1,6 @@
 #include <cuda.h>
 #include <curand.h>
 
-#include "c_headers.hpp"
 #include "cudaCommon.hpp"
 #include "cudaDepondtIntegrator.hpp"
 #include "cudaMatrix.hpp"
@@ -31,7 +30,7 @@ public:
       damping = p4;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       real* my_bdup = &bdup[atom * 3];
       const real* my_bloc = &blocal[atom * 3];
       const real* my_emom = &emom[atom * 3];
@@ -60,7 +59,7 @@ public:
       damping = p6;
    }
 
-   __device__ void each(unsigned int atom) {
+   __device__ void each(usd_int atom) {
       real* my_mrod = &mrod[atom * 3];
       const real* my_emom = &emom[atom * 3];
       const real* my_bdup = &bdup[atom * 3];
@@ -127,7 +126,7 @@ CudaDepondtIntegrator::~CudaDepondtIntegrator() {
 }
 
 // Initiator
-bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep,
+bool CudaDepondtIntegrator::initiate(usd_int N, usd_int M, char _stt, real _timestep,
                                      curandRngType_t rng, unsigned long long seed) {
    // Assert that we're not already initialized
    release();

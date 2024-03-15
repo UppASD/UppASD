@@ -2,7 +2,6 @@
 
 #include <curand.h>
 
-#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"
@@ -12,11 +11,11 @@ private:
    char stt;
    int SDEalgh;
 
-   std::size_t rstep;
-   std::size_t nstep;
-   std::size_t Natom;
-   std::size_t Mensemble;
-   std::size_t max_no_neigh;
+   usd_int rstep;
+   usd_int nstep;
+   usd_int Natom;
+   usd_int Mensemble;
+   usd_int max_no_neigh;
 
    real delta_t;
    real gamma;
@@ -32,8 +31,8 @@ private:
 
    bool do_dm;
    bool do_jtensor;
-   unsigned int do_aniso;
-   std::size_t max_no_dmneigh;
+   usd_int do_aniso;
+   usd_int max_no_dmneigh;
 
    // Thermfield parameters
    curandRngType_t rngType;
@@ -41,11 +40,11 @@ private:
 
    // Matrix class wrappers for Fortran data.
    fortMatrix<real, 2> f_ncoup;
-   fortMatrix<unsigned int, 2> f_nlist;
-   fortMatrix<unsigned int, 1> f_nlistsize;
+   fortMatrix<usd_int, 2> f_nlist;
+   fortMatrix<usd_int, 1> f_nlistsize;
    fortMatrix<real, 3, 3> f_dmvect;
-   fortMatrix<unsigned int, 2> f_dmlist;
-   fortMatrix<unsigned int, 1> f_dmlistsize;
+   fortMatrix<usd_int, 2> f_dmlist;
+   fortMatrix<usd_int, 1> f_dmlistsize;
    fortMatrix<real, 3, 3> f_beff;
    fortMatrix<real, 3, 3> f_b2eff;
    fortMatrix<real, 3, 3> f_emomM;
@@ -62,7 +61,7 @@ private:
 
    fortMatrix<real, 2, 2> f_kaniso;
    fortMatrix<real, 2, 3> f_eaniso;
-   fortMatrix<unsigned int, 1> f_taniso;
+   fortMatrix<usd_int, 1> f_taniso;
    fortMatrix<real, 1> f_sb;
 
    cudaMatrix<real, 3, 3> beff;
@@ -81,7 +80,7 @@ private:
    bool isInitiated;
 
    void printConstants();
-   void printMdStatus(std::size_t mstep);
+   void printMdStatus(usd_int mstep);
 
    void initiate_fortran();
 

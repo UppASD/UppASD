@@ -28,7 +28,7 @@ public:
       return get(std::string(name));
    }
 
-   Stopwatch& get(const char* name, std::size_t len) {
+   Stopwatch& get(const char* name, usd_int len) {
       return get(std::string(name, len));
    }
 
@@ -114,7 +114,7 @@ public:
       return pool.get(name);
    }
 
-   static Stopwatch& get(const char* name, std::size_t len) {
+   static Stopwatch& get(const char* name, usd_int len) {
       return pool.get(name, len);
    }
 

@@ -2,7 +2,6 @@
 
 #include <curand.h>
 
-#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "cudaThermfield.hpp"
@@ -54,7 +53,7 @@ public:
    ~CudaDepondtIntegrator();
 
    // Initiator
-   bool initiate(std::size_t N, std::size_t M, char _stt, real _timestep, curandRngType_t rng,
+   bool initiate(usd_int N, usd_int M, char _stt, real _timestep, curandRngType_t rng,
                  unsigned long long seed);
 
    // Set up constants

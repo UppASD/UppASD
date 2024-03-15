@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 #include "c_headers.hpp"
+#include "real_type.h"
 #include "stopwatch.hpp"
 
 class StopwatchDeviceSync {
@@ -41,7 +42,7 @@ public:
       parent.add(name);
    }
 
-   void add(const char* name, std::size_t len) {
+   void add(const char* name, usd_int len) {
       sync();
       parent.add(name, len);
    }

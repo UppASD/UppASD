@@ -38,13 +38,13 @@ void MomentUpdater::copyMoment() {
    real momtol = (initexc != 'I') ? -1.0 : 0.000001;
 
    // Dimensions
-   std::size_t M = mmom.dimension_size(1);  // Number of ensembles
-   std::size_t N = mmom.dimension_size(0);  // Number of atoms
+   usd_int M = mmom.dimension_size(1);  // Number of ensembles
+   usd_int N = mmom.dimension_size(0);  // Number of atoms
 
 // Transfer moments
 #pragma omp parallel for collapse(2)
-   for(std::size_t j = 0; j < M; j++) {
-      for(std::size_t i = 0; i < N; i++) {
+   for(usd_int j = 0; j < M; j++) {
+      for(usd_int i = 0; i < N; i++) {
          real m2 = mmom2(i, j);
          emom(0, i, j) = emom2(0, i, j);
          emom(1, i, j) = emom2(1, i, j);
@@ -61,14 +61,14 @@ void MomentUpdater::copyMoment() {
 // Update the magnitude of the magnetic moment if wanted.
 void MomentUpdater::calcMoment() {
    // Dimensions
-   std::size_t M = mmom.dimension_size(1);  // Number of ensembles
-   std::size_t N = mmom.dimension_size(0);  // Number of atoms
+   usd_int M = mmom.dimension_size(1);  // Number of ensembles
+   usd_int N = mmom.dimension_size(0);  // Number of atoms
 
    switch(mompar) {
       case 1:  // M = M0 * mz
 #pragma omp parallel for collapse(2)
-         for(std::size_t j = 0; j < M; j++) {
-            for(std::size_t i = 0; i < N; i++) {
+         for(usd_int j = 0; j < M; j++) {
+            for(usd_int i = 0; i < N; i++) {
                real m = mmom0(i, j) * std::abs(emom2(2, i, j));
                mmom2(i, j) = (m > 1e-4) ? m : 1e-4;
             }
@@ -76,8 +76,8 @@ void MomentUpdater::calcMoment() {
          break;
       case 2:  // M = M0 * mz^2
 #pragma omp parallel for collapse(2)
-         for(std::size_t j = 0; j < M; j++) {
-            for(std::size_t i = 0; i < N; i++) {
+         for(usd_int j = 0; j < M; j++) {
+            for(usd_int i = 0; i < N; i++) {
                real mz = emom2(2, i, j);
                real m = mmom0(i, j) * mz * mz;
                mmom2(i, j) = (m > 1e-4) ? m : 1e-4;
