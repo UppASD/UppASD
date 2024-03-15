@@ -5,14 +5,14 @@
 
 # add command line parameters so we can target multiple architectures
 #TODO include all these for portability
-GENCODE_ARCH    ?= -gencode=arch=compute_35,code=\"sm_35,compute_35\" 
+GENCODE_ARCH    ?= -gencode=arch=compute_70,code=\"sm_70,compute_70\" 
 
 # cuda path
-ifdef CUDA_HOME
-        CUDA_INSTALL_PATH ?= $(CUDA_HOME)
+ifdef CUDA_TOOLKIT_ROOT_DIR
+        CUDA_INSTALL_PATH ?= $(CUDA_TOOLKIT_ROOT_DIR)
 endif
-CUDA_INSTALL_PATH ?= /usr/Local/cuda-10.1
 CUDA_INCLUDE_PATH ?= $(CUDA_INSTALL_PATH)/include
+CUDA_MATH_PATH ?= $(CUDA_INSTALL_PATH)/../../math_libs/include
 #CUDA_INSTALL_PATH ?= /usr/local/cuda
 #CUDA_INSTALL_PATH ?= /opt/cuda
 
@@ -21,24 +21,29 @@ CUDA_INCLUDE_PATH ?= $(CUDA_INSTALL_PATH)/include
 HP_64 = $(shell uname -m | grep 64)
 
 # Cuda libs
-ifeq "$(strip $(HP_64))" ""
-  ifeq ($(x86_64),1)
-     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
-  else
-     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
-  endif
-else
-  ifeq ($(i386),1)
-     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
-  else
-     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
-  endif
-endif
+#CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
+#ifeq "$(strip $(HP_64))" ""
+#  ifeq ($(x86_64),1)
+#     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
+#     CUDA_MATH_LIB ?= -L$(CUDA_INSTALL_PATH)/../../math_libs/lib64
+#  else
+#     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
+#     CUDA_MATH_LIB ?= -L$(CUDA_INSTALL_PATH)/../../math_libs/lib
+#  endif
+#else
+#  ifeq ($(i386),1)
+#     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib
+#     CUDA_MATH_LIB ?= -L$(CUDA_INSTALL_PATH)/../../math_libs/lib
+#  else
+#     CUDA_LIB ?= -L$(CUDA_INSTALL_PATH)/lib64
+#     CUDA_MATH_LIB ?= -L$(CUDA_INSTALL_PATH)/../../math_libs/lib64
+#  endif
+#endif
 
 
 # Cuda includes
-CUDA_INC := -I$(CUDA_INCLUDE_PATH) 
-CUDA_LIB += -L$(CUDA_INSTALL_PATH)/lib64
+CUDA_INC := -I$(CUDA_INCLUDE_PATH) -I$(CUDA_MATH_PATH)
+CUDA_LIB := -L$(CUDA_INSTALL_PATH)/lib64 -L$(CUDA_INSTALL_PATH)/../../math_libs/lib64
 
 
 
