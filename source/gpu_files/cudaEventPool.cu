@@ -5,7 +5,7 @@
 
 #include <cuda.h>
 
-#include <cstdio>
+#include "c_headers.hpp"
 #include <vector>
 
 #include "cudaEventPool.hpp"

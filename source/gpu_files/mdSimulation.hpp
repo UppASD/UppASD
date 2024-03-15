@@ -8,11 +8,11 @@ private:
    char stt;
    int SDEalgh;
 
-   std::size_t rstep;
-   std::size_t nstep;
-   std::size_t Natom;
-   std::size_t Mensemble;
-   std::size_t max_no_neigh;
+   usd_int rstep;
+   usd_int nstep;
+   usd_int Natom;
+   usd_int Mensemble;
+   usd_int max_no_neigh;
 
    real delta_t;
    real gamma;
@@ -27,7 +27,7 @@ private:
    char initexc;
 
    int do_dm;
-   std::size_t max_no_dmneigh;
+   usd_int max_no_dmneigh;
 
    // <real,3,3> -- real precision, 3 dimensions, first dim always 3
    fortMatrix<real, 2> ncoup;

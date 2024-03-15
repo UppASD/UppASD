@@ -42,7 +42,7 @@ public:
    ~CudaThermfield();
 
    // Initiate
-   bool initiate(std::size_t N, std::size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
+   bool initiate(usd_int N, usd_int M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
                  unsigned long long seed = 0);
    bool initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);

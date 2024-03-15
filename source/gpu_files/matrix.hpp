@@ -7,6 +7,7 @@
 #pragma once
 
 #include "c_headers.hpp"
+#include "real_type.h"
 
 // Debug definitions
 #ifdef MATRIX_ERROR_INTERRUPT
@@ -27,24 +28,24 @@
       __MAT_ERR();                                                                                  \
    }
 
-template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
-          std::size_t L = 0>
+template <typename T, usd_int D = 1, usd_int I = 0, usd_int J = 0, usd_int K = 0,
+          usd_int L = 0>
 class matrix {
 protected:
    // Data fields
    T* data;
-   std::size_t dim_size[D];
+   usd_int dim_size[D];
 
    // Default constructor
    matrix() {
       data = nullptr;
-      for(std::size_t i = 0; i < D; i++) {
+      for(usd_int i = 0; i < D; i++) {
          dim_size[i] = 0;
       }
    }
 
    // Get the offset of an index
-   inline std::size_t index(std::size_t i, std::size_t j = 0, std::size_t k = 0, std::size_t l = 0) const {
+   inline usd_int index(usd_int i, usd_int j = 0, usd_int k = 0, usd_int l = 0) const {
 #ifdef DEBUG
       if(data == nullptr) {
          std::printf("Error: trying to access uninitialized data\n");
@@ -65,7 +66,7 @@ protected:
          }
       }
 #endif
-      std::size_t ind = 0;
+      usd_int ind = 0;
 
       // Causes NVCC to throw false warnings
       // if (D >= 4) ind = (ind + l) * (K != 0 ? K : dim_size[2]);
@@ -85,7 +86,7 @@ protected:
 
 public:
    // Get the size of a dimension
-   inline std::size_t dimension_size(std::size_t d) const {
+   inline usd_int dimension_size(usd_int d) const {
       if(d >= D) {
 #ifdef DEBUG
          std::printf("Warning: dimension out of bound (d=%ld, max=%ld)\n", d, D);
@@ -97,18 +98,18 @@ public:
    }
 
    // Size of data (in bytes)
-   inline std::size_t data_size() const {
-      std::size_t size = sizeof(T);
-      for(std::size_t i = 0; i < D; i++) {
+   inline usd_int data_size() const {
+      usd_int size = sizeof(T);
+      for(usd_int i = 0; i < D; i++) {
          size *= dim_size[i];
       }
       return size;
    }
 
    // Size of data (number of elements)
-   inline std::size_t size() const {
-      std::size_t size = 1;
-      for(std::size_t i = 0; i < D; i++) {
+   inline usd_int size() const {
+      usd_int size = 1;
+      for(usd_int i = 0; i < D; i++) {
          size *= dim_size[i];
       }
       return size;
@@ -128,42 +129,42 @@ public:
    }
 
    // parenthesis-operator
-   inline T& operator()(std::size_t i) {
+   inline T& operator()(usd_int i) {
       __MAT_TEST_DIM(1);
       return data[index(i, 0, 0, 0)];
    }
 
-   inline const T& operator()(std::size_t i) const {
+   inline const T& operator()(usd_int i) const {
       __MAT_TEST_DIM(1);
       return data[index(i, 0, 0, 0)];
    }
 
-   inline T& operator()(std::size_t i, std::size_t j) {
+   inline T& operator()(usd_int i, usd_int j) {
       __MAT_TEST_DIM(2);
       return data[index(i, j, 0, 0)];
    }
 
-   inline const T& operator()(std::size_t i, std::size_t j) const {
+   inline const T& operator()(usd_int i, usd_int j) const {
       __MAT_TEST_DIM(2);
       return data[index(i, j, 0, 0)];
    }
 
-   inline T& operator()(std::size_t i, std::size_t j, std::size_t k) {
+   inline T& operator()(usd_int i, usd_int j, usd_int k) {
       __MAT_TEST_DIM(3);
       return data[index(i, j, k, 0)];
    }
 
-   inline const T& operator()(std::size_t i, std::size_t j, std::size_t k) const {
+   inline const T& operator()(usd_int i, usd_int j, usd_int k) const {
       __MAT_TEST_DIM(3);
       return data[index(i, j, k, 0)];
    }
 
-   inline T& operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+   inline T& operator()(usd_int i, usd_int j, usd_int k, usd_int l) {
       __MAT_TEST_DIM(4);
       return data[index(i, j, k, l)];
    }
 
-   inline const T& operator()(std::size_t i, std::size_t j, std::size_t k, std::size_t l) const {
+   inline const T& operator()(usd_int i, usd_int j, usd_int k, usd_int l) const {
       __MAT_TEST_DIM(4);
       return data[index(i, j, k, l)];
    }
@@ -192,7 +193,7 @@ public:
                   (long)J,
                   (long)K,
                   (long)L);
-      for(std::size_t i = 0; i < D; i++) {
+      for(usd_int i = 0; i < D; i++) {
          std::printf("    dim %ld: %ld\n", (long)i + 1, (long)dim_size[i]);
       }
    }

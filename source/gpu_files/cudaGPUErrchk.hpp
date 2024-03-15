@@ -4,8 +4,7 @@
    { gpuAssert((ans), __FILE__, __LINE__); }
 
 #include <cuda_runtime.h>
-#include <cstdio>
-#include <cstdlib>
+#include "c_headers.hpp"
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true) {
    if(code != cudaSuccess) {

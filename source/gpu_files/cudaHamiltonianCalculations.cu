@@ -424,19 +424,19 @@ public:
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T>
-static void transpose(T* A, const T* B, std::size_t M, std::size_t N) {
-   for(std::size_t y = 0; y < M; ++y) {
-      for(std::size_t x = 0; x < N; ++x) {
+static void transpose(T* A, const T* B, usd_int M, usd_int N) {
+   for(usd_int y = 0; y < M; ++y) {
+      for(usd_int x = 0; x < N; ++x) {
          A[(x * M) + y] = B[(y * N) + x];
       }
    }
 }
 
-template <typename T, std::size_t I, std::size_t J, std::size_t K>
+template <typename T, usd_int I, usd_int J, usd_int K>
 static void transpose(hostMatrix<T, 2, I, J, K>& A, const hostMatrix<T, 2, I, J, K>& B) {
    // Sizes
-   std::size_t M = A.dimension_size(0);
-   std::size_t N = A.dimension_size(1);
+   usd_int M = A.dimension_size(0);
+   usd_int N = A.dimension_size(1);
 
    if(B.dimension_size(1) != M || B.dimension_size(0) != N) {
       std::fprintf(stderr, "Error: illegal matrix transpose\n");
@@ -450,11 +450,11 @@ static void transpose(hostMatrix<T, 2, I, J, K>& A, const hostMatrix<T, 2, I, J,
 // Will not produce correct results
 void alignOptimal(hostMatrix<unsigned int, 2>& nlist, bool same) {
    // Sizes
-   std::size_t N = nlist.dimension_size(0);
-   std::size_t mnn = nlist.dimension_size(1);
+   usd_int N = nlist.dimension_size(0);
+   usd_int mnn = nlist.dimension_size(1);
 
-   for(std::size_t m = 0; m < mnn; ++m) {
-      for(std::size_t n = 0; n < N; ++n) {
+   for(usd_int m = 0; m < mnn; ++m) {
+      for(usd_int n = 0; n < N; ++n) {
          nlist(n, m) = same ? ((m % N) + 1) : (((n + 32 * m) % N) + 1);
       }
    }

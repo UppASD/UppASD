@@ -7,6 +7,7 @@
 #include <string>
 
 #include "c_headers.hpp"
+#include "real_type.h"
 #include "stopwatch.hpp"
 
 class StopwatchPool {
@@ -16,7 +17,7 @@ private:
       std::string name;
       Stopwatch watch;
 
-      StopwatchNode(const std::string& n) : name(n) {
+      StopwatchNode(const std::string &n) : name(n) {
       }
    };
 
@@ -24,15 +25,15 @@ private:
 
 public:
    // Keep the list even if no timing is done
-   Stopwatch& get(const char *name) {
+   Stopwatch &get(const char *name) {
       return get(std::string(name));
    }
 
-   Stopwatch& get(const char *name, std::size_t len) {
+   Stopwatch &get(const char *name, usd_int len) {
       return get(std::string(name, len));
    }
 
-   Stopwatch& get(const std::string& name) {
+   Stopwatch &get(const std::string &name) {
       // Check if the name is already in the list
       std::list<StopwatchNode>::iterator it;
       for(it = watchlist.begin(); it != watchlist.end(); it++) {
@@ -110,11 +111,11 @@ private:
    static __StopwatchPool pool;
 
 public:
-   static Stopwatch& get(const char *name) {
+   static Stopwatch &get(const char *name) {
       return pool.get(name);
    }
 
-   static Stopwatch &get(const char *name, std::size_t len) {
+   static Stopwatch &get(const char *name, usd_int len) {
       return pool.get(name, len);
    }
 

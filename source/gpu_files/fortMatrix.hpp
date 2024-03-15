@@ -3,13 +3,13 @@
 #include "c_headers.hpp"
 #include "hostMatrix.hpp"
 #include "matrix.hpp"
+#include "real_type.h"
 
-template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
-          std::size_t L = 0>
+template <typename T, usd_int D = 1, usd_int I = 0, usd_int J = 0, usd_int K = 0, usd_int L = 0>
 class fortMatrix : public hostMatrix<T, D, I, J, K, L> {
 private:
    // Set data
-   void setData(T *d, std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+   void setData(T *d, usd_int i, usd_int j, usd_int k, usd_int l) {
       this->data = d;
       for(int n = 0; n < D; n++) {
          switch(n) {
@@ -26,15 +26,15 @@ public:
    fortMatrix() {
    }
 
-   fortMatrix(const hostMatrix<T, D, I, J, K, L>& m) {
+   fortMatrix(const hostMatrix<T, D, I, J, K, L> &m) {
       clone(m);
    }
 
-   fortMatrix(const fortMatrix<T, D, I, J, K, L>& m) {
+   fortMatrix(const fortMatrix<T, D, I, J, K, L> &m) {
       clone(m);
    }
 
-   fortMatrix(T* d, std::size_t i, std::size_t j = 1, std::size_t k = 1, std::size_t l = 1) {
+   fortMatrix(T *d, usd_int i, usd_int j = 1, usd_int k = 1, usd_int l = 1) {
       set(d, i, j, k, l);
    }
 
@@ -45,22 +45,22 @@ public:
    }
 
    // Set
-   void set(T *d, std::size_t i) {
+   void set(T *d, usd_int i) {
       __MAT_TEST_DIM(1);
       setData(d, i, 1, 1, 1);
    }
 
-   void set(T *d, std::size_t i, std::size_t j) {
+   void set(T *d, usd_int i, usd_int j) {
       __MAT_TEST_DIM(2);
       setData(d, i, j, 1, 1);
    }
 
-   void set(T *d, std::size_t i, std::size_t j, std::size_t k) {
+   void set(T *d, usd_int i, usd_int j, usd_int k) {
       __MAT_TEST_DIM(3);
       setData(d, i, j, k, 1);
    }
 
-   void set(T *d, std::size_t i, std::size_t j, std::size_t k, std::size_t l) {
+   void set(T *d, usd_int i, usd_int j, usd_int k, usd_int l) {
       __MAT_TEST_DIM(4);
       setData(d, i, j, k, l);
    }

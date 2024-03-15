@@ -1,15 +1,13 @@
 #pragma once
 
-#include "real_type.h"
 #include "c_headers.hpp"
-#include <cstdio>
+#include "real_type.h"
 
 class RandomNumbers {
 public:
    RandomNumbers();
    ~RandomNumbers();
 
-   void fillArray(real* v, std::size_t len);
+   void fillArray(real* v, usd_int len);
 };
-
 
