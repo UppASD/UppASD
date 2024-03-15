@@ -42,7 +42,7 @@ public:
       parent.add(name);
    }
 
-   void add(const char *name, usd_int len) {
+   void add(const char *name, std::size_t len) {
       sync();
       parent.add(name, len);
    }

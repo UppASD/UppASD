@@ -71,8 +71,8 @@ void CudaMdSimulation::initiateConstants() {
 
 void CudaMdSimulation::initiate_fortran() {
    // Dimensions
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -115,16 +115,16 @@ void CudaMdSimulation::initiate_fortran() {
 
 /*
 static void printMemStat(const char * label) {
-        usd_int free;
-        usd_int total;
+        std::size_t free;
+        std::size_t total;
         CUresult result = cuMemGetInfo(&free, &total);
         std::printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
 }
 */
 bool CudaMdSimulation::initiateMatrices() {
    // Dimensions
-   usd_int N = Natom;
-   usd_int M = Mensemble;
+   std::size_t N = Natom;
+   std::size_t M = Mensemble;
 
    // Constants initiated?
    if(N == 0 || M == 0) {
@@ -264,7 +264,7 @@ void CudaMdSimulation::printConstants() {
 
 // Printing simulation status
 // Added copy to fortran line so that simulation status is printed correctly > Thomas Nystrand 14/09/09
-void CudaMdSimulation::printMdStatus(usd_int mstep) {
+void CudaMdSimulation::printMdStatus(std::size_t mstep) {
    if(nstep > 20) {
       if(mstep % ((rstep + nstep) / 20) == 0) {
          copyToFortran();  // This is run so seldomly it has not impact on overall performance
@@ -441,7 +441,7 @@ void CudaMdSimulation::measurementPhase() {
    stopwatch.add("initiate");
 
    // Time step loop
-   for(usd_int mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+   for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // export_mstep(mstep);
 
       // Measure

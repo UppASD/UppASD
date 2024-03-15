@@ -127,7 +127,7 @@ CudaDepondtIntegrator::~CudaDepondtIntegrator() {
 }
 
 // Initiator
-bool CudaDepondtIntegrator::initiate(usd_int N, usd_int M, char _stt, real _timestep,
+bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep,
                                      curandRngType_t rng, unsigned long long seed) {
    // Assert that we're not already initialized
    release();

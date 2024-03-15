@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "c_headers.hpp"
 #include "cudaGPUErrchk.hpp"
 #include "gridHelper.hpp"
 #include "real_type.h"
@@ -16,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel templates
 ////////////////////////////////////////////////////////////////////////////////
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_kernel(O op) {
    unsigned int atom;
    if(GridHelper<threads, big>::index1d(&atom, op.NM)) {
@@ -24,7 +25,7 @@ __global__ void atom_kernel(O op) {
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void site_kernel(O op) {
    unsigned int site;
    if(GridHelper<threads, big>::index1d(&site, op.N)) {
@@ -32,7 +33,7 @@ __global__ void site_kernel(O op) {
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_kernel(O op) {
    unsigned int site, ensemble;
    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
@@ -41,7 +42,7 @@ __global__ void atom_site_kernel(O op) {
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_ensemble_kernel(O op) {
    unsigned int site, ensemble;
    if(GridHelper<threads, big>::index2d(&site, &ensemble, op.N, op.M)) {
@@ -50,7 +51,7 @@ __global__ void atom_site_ensemble_kernel(O op) {
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void element_axis_site_ensemble_kernel(O op) {
    unsigned int axis, site, ensemble;
    if(GridHelper<threads, big>::index3d(&axis, &site, &ensemble, 3, op.N, op.M)) {
@@ -59,7 +60,7 @@ __global__ void element_axis_site_ensemble_kernel(O op) {
    }
 }
 
-template <usd_int threads, bool big, typename O>
+template <std::size_t threads, bool big, typename O>
 __global__ void element_kernel(O op) {
    unsigned int element;
    if(GridHelper<threads, big>::index1d(&element, op.NM3)) {
@@ -261,5 +262,4 @@ public:
       // gpuErrchk(cudaDeviceSynchronize());
    }
 };
-
 

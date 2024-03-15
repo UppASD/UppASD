@@ -9,8 +9,8 @@
 class DepondtIntegrator {
 private:
    // System parameters
-   usd_int Natom;
-   usd_int Mensemble;
+   std::size_t Natom;
+   std::size_t Mensemble;
    real gamma;
    real damping;
    real timestep;
@@ -43,7 +43,7 @@ public:
    ~DepondtIntegrator();
 
    // Initiator
-   bool initiate(usd_int Natom, usd_int Mensemble, char stt);
+   bool initiate(std::size_t Natom, std::size_t Mensemble, char stt);
 
    // Set up constants
    bool initiateConstants(real gamma_const, real k_bolt_const, real mub_const, real damping_const,

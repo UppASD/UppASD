@@ -20,11 +20,11 @@
 class CudaMeasurement {
    // Queue callback data struct
    struct queue_callback_data {
-      queue_callback_data(CudaMeasurement* m, usd_int s) : me(m), step(s) {
+      queue_callback_data(CudaMeasurement* m, std::size_t s) : me(m), step(s) {
       }
 
       CudaMeasurement* me;
-      usd_int step;
+      std::size_t step;
    };
 
    // Queue callback
@@ -62,9 +62,9 @@ class CudaMeasurement {
    bool fastCopy;
 
    // Helpers
-   void queueMeasurement(usd_int mstep);
-   void copyQueueFast(usd_int mstep);
-   void copyQueueSlow(usd_int mstep);
+   void queueMeasurement(std::size_t mstep);
+   void copyQueueFast(std::size_t mstep);
+   void copyQueueSlow(std::size_t mstep);
 
 public:
    // TODO add flag for fast_copy
@@ -74,7 +74,7 @@ public:
    ~CudaMeasurement();
 
    // Access methods
-   void measure(usd_int mstep);
-   void flushMeasurements(usd_int mstep);
+   void measure(std::size_t mstep);
+   void flushMeasurements(std::size_t mstep);
 };
 

@@ -2,6 +2,7 @@
 
 #include <curand.h>
 
+#include "c_headers.hpp"
 #include "cudaMatrix.hpp"
 #include "fortMatrix.hpp"
 #include "real_type.h"
@@ -11,11 +12,11 @@ private:
    char stt;
    int SDEalgh;
 
-   usd_int rstep;
-   usd_int nstep;
-   usd_int Natom;
-   usd_int Mensemble;
-   usd_int max_no_neigh;
+   std::size_t rstep;
+   std::size_t nstep;
+   std::size_t Natom;
+   std::size_t Mensemble;
+   std::size_t max_no_neigh;
 
    real delta_t;
    real gamma;
@@ -32,7 +33,7 @@ private:
    bool do_dm;
    bool do_jtensor;
    unsigned int do_aniso;
-   usd_int max_no_dmneigh;
+   std::size_t max_no_dmneigh;
 
    // Thermfield parameters
    curandRngType_t rngType;
@@ -80,7 +81,7 @@ private:
    bool isInitiated;
 
    void printConstants();
-   void printMdStatus(usd_int mstep);
+   void printMdStatus(std::size_t mstep);
 
    void initiate_fortran();
 

@@ -6,6 +6,4 @@ typedef float real;
 typedef double real;
 #endif
 
-typedef unsigned long int usd_int;
-
 

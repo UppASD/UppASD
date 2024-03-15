@@ -14,7 +14,7 @@
 
 template <unsigned int threads, bool big>
 class GridHelper {
-   usd_int maxGridSize1;
+   std::size_t maxGridSize1;
 
 public:
    // Types for template parameters

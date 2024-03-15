@@ -22,9 +22,9 @@ private:
    const unsigned int *dmlistsize;
 
    // Contributions to the hamiltonian
-   void heisenberg_field(const usd_int i, const usd_int k, const matrix<real, 3, 3>& emomM,
+   void heisenberg_field(const std::size_t i, const std::size_t k, const matrix<real, 3, 3>& emomM,
                          real *beff_s);
-   void dzyalonshinskii_moriya_field(const usd_int i, const usd_int k,
+   void dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
                                      const matrix<real, 3, 3>& emomM, real *beff_s);
 
 public:

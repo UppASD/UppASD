@@ -27,17 +27,17 @@ extern "C" {
 #endif
 
 // Fortran definition
-extern void FORTNAME(chelper, fortran_measure)(const usd_int* mstep);
-extern void FORTNAME(chelper, fortran_do_measurements)(const usd_int* mstep, int* do_copy);
+extern void FORTNAME(chelper, fortran_measure)(const std::size_t* mstep);
+extern void FORTNAME(chelper, fortran_do_measurements)(const std::size_t* mstep, int* do_copy);
 extern void FORTNAME(chelper, fortran_moment_update)();
-extern void FORTNAME(chelper, fortran_flush_measurements)(const usd_int* mstep);
+extern void FORTNAME(chelper, fortran_flush_measurements)(const std::size_t* mstep);
 extern void FORTNAME(chelper, cmdsim_initiate_constants)();
 extern void FORTNAME(chelper, fortran_measure_moment)(const real* emomM, const real* emom, const real* mmom,
-                                                      const usd_int* mstep);
+                                                      const std::size_t* mstep);
 extern void FORTNAME(chelper, fortran_calc_simulation_status_variables)(real* mavg);
 
 // Short name wrappers
-inline void fortran_measure(usd_int mstep) {
+inline void fortran_measure(std::size_t mstep) {
    FORTNAME(chelper, fortran_measure)(&mstep);
 }
 
@@ -45,7 +45,7 @@ inline void fortran_moment_update() {
    FORTNAME(chelper, fortran_moment_update)();
 }
 
-inline void fortran_flush_measurements(usd_int mstep) {
+inline void fortran_flush_measurements(std::size_t mstep) {
    FORTNAME(chelper, fortran_flush_measurements)(&mstep);
 }
 
@@ -59,31 +59,31 @@ inline void fortran_calc_simulation_status_variables(real* mavg) {
 }
 
 // Checking if its time to copy data
-inline int fortran_do_measurements(usd_int mstep) {
+inline int fortran_do_measurements(std::size_t mstep) {
    int do_copy = 0;
    FORTNAME(chelper, fortran_do_measurements)(&mstep, &do_copy);
    return do_copy;
 }
 
-inline void fortran_measure_moment(const real* emomM, const real* emom, const real* mmom, usd_int mstep) {
+inline void fortran_measure_moment(const real* emomM, const real* emom, const real* mmom, std::size_t mstep) {
    FORTNAME(chelper, fortran_measure_moment)(emomM, emom, mmom, &mstep);
 }
 
 // RNG
-extern void FORTNAME(randomnumbers, fill_rngarray)(real* ranv, const usd_int* arr);
+extern void FORTNAME(randomnumbers, fill_rngarray)(real* ranv, const std::size_t* arr);
 
-inline void fill_rngarray(real* ranv, usd_int len) {
+inline void fill_rngarray(real* ranv, std::size_t len) {
    FORTNAME(randomnumbers, fill_rngarray)(ranv, &len);
 }
 
 // Fortrans mstep variable
-extern usd_int FORTNAME(simulationdata, mstep);
+extern std::size_t FORTNAME(simulationdata, mstep);
 
-inline void export_mstep(usd_int mstep) {
+inline void export_mstep(std::size_t mstep) {
    FORTNAME(simulationdata, mstep) = mstep;
 }
 
-inline usd_int read_mstep() {
+inline std::size_t read_mstep() {
    return FORTNAME(simulationdata, mstep);
 }
 

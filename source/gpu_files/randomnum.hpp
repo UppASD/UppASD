@@ -7,6 +7,6 @@ public:
    RandomNumbers();
    ~RandomNumbers();
 
-   void fillArray(real* v, usd_int len);
+   void fillArray(real* v, std::size_t len);
 };
 
