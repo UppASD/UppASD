@@ -47,9 +47,9 @@ public:
 
    __device__ void each(unsigned int atom, unsigned int site) {
       real sigma = sigma_factor[site] * rsqrt(mmom[atom]);
-      field[atom * 3 + 0]* = sigma;
-      field[atom * 3 + 1]* = sigma;
-      field[atom * 3 + 2]* = sigma;
+      field[atom * 3 + 0] *= sigma;
+      field[atom * 3 + 1] *= sigma;
+      field[atom * 3 + 2] *= sigma;
    }
 };
 
