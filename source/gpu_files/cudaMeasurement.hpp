@@ -68,7 +68,6 @@ class CudaMeasurement {
    void copyQueueSlow(std::size_t mstep);
 
 public:
-   // Constructor / deconstructor ???
    // TODO add flag for fast_copy
    CudaMeasurement(const cudaMatrix<real, 3, 3>& emomM, const cudaMatrix<real, 3, 3>& emom,
                    const cudaMatrix<real, 2>& mmom, bool fastCopy = DEFAULT_FAST_COPY,
