@@ -2,7 +2,6 @@
 
 #include <cuda_runtime.h>
 
-#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 #include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"

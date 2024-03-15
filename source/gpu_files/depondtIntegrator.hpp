@@ -1,6 +1,5 @@
 #pragma once
 
-#include "c_headers.hpp"
 #include "hostMatrix.hpp"
 #include "matrix.hpp"
 #include "real_type.h"

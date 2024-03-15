@@ -156,7 +156,7 @@ private:
 
    void indent(int n) {
       while(n-- > 0) {
-         fputc(' ', stdout);
+         std::fputc(' ', stdout);
       }
    }
 

@@ -9,7 +9,6 @@
 
 #include <cuda_runtime.h>
 
-#include <cstdlib>
 #include "c_headers.hpp"
 #include "real_type.h"
 
