@@ -612,15 +612,16 @@ add_custom_command(
    ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
    )
 
-##############################################################################################
-# Copy binary to ./source/sd for legacy purposes
-##############################################################################################
-add_custom_command(
-   TARGET ${UppASD_EXE} POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-   ${LEGACY_OUTPUT_DIRECTORY}/sd
-   )
+#################################################################################################
+#### Copy binary to ./source/sd for legacy purposes
+#### currently disabled..
+#################################################################################################
+###add_custom_command(
+###   TARGET ${UppASD_EXE} POST_BUILD
+###   COMMAND ${CMAKE_COMMAND} -E copy
+###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
+###   ${LEGACY_OUTPUT_DIRECTORY}/sd
+###   )
 
 
 ###############################################################################################
