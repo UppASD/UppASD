@@ -172,12 +172,16 @@ OPTION(USE_OVF "Use OVF format" OFF)
 OPTION(BUILD_MANUAL "Build manual"  OFF)
 OPTION(BUILD_DOXYGEN "Build doxygen"  OFF)
 OPTION(BUILD_PYTHON "Build Python interface"  OFF)
+
+##############################################################################################
+# Enable and define tests
+##############################################################################################
+include(CTest)
 CMAKE_DEPENDENT_OPTION(RUN_ASD_TESTS "Run asd-tests"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  OFF "BUILD_TESTING" OFF)
-#OPTION(RUN_ASD_TESTS "Run asd-tests"  OFF)
 ##############################################################################################
 
 ##############################################################################################
@@ -628,7 +632,6 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-include(CTest)
 set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
@@ -646,5 +649,6 @@ endif (RUN_GNEB_TESTS)
 if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
+set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
