@@ -1,17 +1,17 @@
-#include <time.h>
-#include <stddef.h>
-#include <stdio.h>
-
-#include "real_type.h"
-
-#include "c_helper.h"
-
 #include "randomnum.hpp"
 
-RandomNumbers::RandomNumbers() {}
-RandomNumbers::~RandomNumbers() {}
+#include "c_headers.hpp"
 
-void RandomNumbers::fillArray(real * v, size_t len) {
-	fill_rngarray(v, len);
+#include "c_helper.h"
+#include "real_type.h"
+
+RandomNumbers::RandomNumbers() {
+}
+
+RandomNumbers::~RandomNumbers() {
+}
+
+void RandomNumbers::fillArray(real* v, std::size_t len) {
+   fill_rngarray(v, len);
 }
 
