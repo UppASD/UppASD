@@ -15,6 +15,7 @@ private:
       cudaMatrix<real, 2> coupling;
       cudaMatrix<unsigned int, 1> neighbourCount;
       cudaMatrix<unsigned int, 2> neighbourPos;
+      cudaMatrix<unsigned int, 1> rHam;
    } Exchange;
 
    typedef struct DMinteraction {
@@ -38,10 +39,15 @@ private:
       cudaMatrix<real, 1> sb;  // Ratio between uniaxial and cubic anisotropie
    } Anisotropy;
 
+   typedef struct HamRed{
+		cudaMatrix<unsigned int, 1> redNeibourCount; //Reduced Hamiltonian -- shared between Jij, DMI anf Jtens
+	} HamRed;
+
    Exchange ex;
    DMinteraction dm;
    TensorialExchange tenEx;
    Anisotropy aniso;
+   HamRed redHam;
 
    bool do_j_tensor = false;
    int do_aniso = 0;
@@ -51,6 +57,7 @@ private:
 
    // System size
    unsigned int N;
+   unsigned int NH;
 
    // Parallelization helper
    CudaParallelizationHelper& parallel;
@@ -75,7 +82,7 @@ public:
                  const hostMatrix<unsigned int, 2>& dm_nlist, const hostMatrix<unsigned int, 1>& dm_nlistsize,
                  const int do_dm, const int do_j_tensor, const hostMatrix<real, 4, 3, 3> j_tensor,
                  const int do_aniso, const hostMatrix<real, 2, 2> kaniso, const hostMatrix<real, 2, 3> eaniso,
-                 const hostMatrix<unsigned int, 1> taniso, const hostMatrix<real, 1> sb);
+                 const hostMatrix<unsigned int, 1> taniso, const hostMatrix<real, 1> sb, const hostMatrix<unsigned int, 1>& aHam);
 
    // Initiated
    bool isInitiated() {

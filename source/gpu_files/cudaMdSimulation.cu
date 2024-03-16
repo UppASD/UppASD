@@ -39,6 +39,7 @@ void CudaMdSimulation::initiateConstants() {
    rstep = *FortranData::rstep;
    nstep = *FortranData::nstep;
    Natom = *FortranData::Natom;
+   nHam  = *FortranData::nHam;
    Mensemble = *FortranData::Mensemble;
    max_no_neigh = *FortranData::max_no_neigh;
    delta_t = *FortranData::delta_t;
@@ -72,18 +73,19 @@ void CudaMdSimulation::initiateConstants() {
 void CudaMdSimulation::initiate_fortran() {
    // Dimensions
    std::size_t N = Natom;
+   std::size_t NH = nHam;
    std::size_t M = Mensemble;
-
    // Constants initiated?
-   if(N == 0 || M == 0) {
+   if(N == 0 || M == 0 || NH == 0) {
       std::printf("MdSimulation: constants not initiated!\n");
       std::exit(EXIT_FAILURE);
    }
 
    // Inititate
-   f_ncoup.set(FortranData::ncoup, max_no_neigh, N);
+   f_aHam.set(FortranData::aHam, N);
+   f_ncoup.set(FortranData::ncoup, max_no_neigh, NH);
    f_nlist.set(FortranData::nlist, max_no_neigh, N);
-   f_nlistsize.set(FortranData::nlistsize, N);
+   f_nlistsize.set(FortranData::nlistsize, NH);
    f_beff.set(FortranData::beff, 3, N, M);
    f_b2eff.set(FortranData::b2eff, 3, N, M);
    f_emomM.set(FortranData::emomM, 3, N, M);
@@ -96,13 +98,13 @@ void CudaMdSimulation::initiate_fortran() {
    f_mmom0.set(FortranData::mmom0, N, M);
    f_mmom2.set(FortranData::mmom2, N, M);
    f_mmomi.set(FortranData::mmomi, N, M);
-   f_dmvect.set(FortranData::dmvect, 3, max_no_dmneigh, N);
+   f_dmvect.set(FortranData::dmvect, 3, max_no_dmneigh, NH);
    f_dmlist.set(FortranData::dmlist, max_no_dmneigh, N);
-   f_dmlistsize.set(FortranData::dmlistsize, N);
+   f_dmlistsize.set(FortranData::dmlistsize, NH);
 
    if(*FortranData::do_jtensor == 1) {
       std::printf("\n CUDA: jTensor has been initialized \n");
-      f_j_tensor.set(FortranData::j_tensor, 3, 3, max_no_neigh, N);
+      f_j_tensor.set(FortranData::j_tensor, 3, 3, max_no_neigh, NH);
    }
 
    if(*FortranData::do_aniso != 0) {
@@ -236,7 +238,8 @@ void CudaMdSimulation::printConstants() {
        "SDEalgh      : %d\n"
        "rstep        : %ld\n"
        "nstep        : %ld\n"
-       "Natom        : %ld\n"
+       "Natom        : %ld\n"	
+       "nHam         : %ld\n"
        "Mensemble    : %ld\n"
        "max_no_neigh : %ld\n"
        "delta_t      : %g\n"
@@ -251,6 +254,7 @@ void CudaMdSimulation::printConstants() {
        rstep,
        nstep,
        Natom,
+       nHam,
        Mensemble,
        max_no_neigh,
        delta_t,
@@ -297,8 +301,7 @@ void CudaMdSimulation::measurementPhase() {
    StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
 
    // Initiate default parallelization helper
-   CudaParallelizationHelper::def.initiate(Natom, Mensemble);
-
+   CudaParallelizationHelper::def.initiate(Natom, Mensemble, nHam);
    // Depontd integrator
    CudaDepondtIntegrator integrator;
 
@@ -333,7 +336,8 @@ void CudaMdSimulation::measurementPhase() {
                             f_kaniso,
                             f_eaniso,
                             f_taniso,
-                            f_sb)) {
+                            f_sb,
+                            f_aHam)) {
       std::fprintf(stderr, "CudaMdSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
@@ -349,7 +353,7 @@ void CudaMdSimulation::measurementPhase() {
 
    int mnn = f_j_tensor.dimension_size(2);
    int l = f_j_tensor.dimension_size(3);
-   int N = f_j_tensor.dimension_size(3);
+   int NH = f_j_tensor.dimension_size(3);
 
    // Prints the exchange tensor
    // for (int l = 0 ; l < 1 ; l++  )

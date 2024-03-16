@@ -15,6 +15,7 @@ private:
    std::size_t rstep;
    std::size_t nstep;
    std::size_t Natom;
+   std::size_t nHam;
    std::size_t Mensemble;
    std::size_t max_no_neigh;
 
@@ -40,6 +41,7 @@ private:
    unsigned long long randomSeed;
 
    // Matrix class wrappers for Fortran data.
+   fortMatrix<unsigned int, 1> f_aHam;
    fortMatrix<real, 2> f_ncoup;
    fortMatrix<unsigned int, 2> f_nlist;
    fortMatrix<unsigned int, 1> f_nlistsize;

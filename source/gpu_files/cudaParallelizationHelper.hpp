@@ -76,6 +76,7 @@ class CudaParallelizationHelper {
 private:
    // System size
    unsigned int N;
+   unsigned int NH;
    unsigned int M;
 
    // Streams
@@ -96,6 +97,7 @@ public:
 
    struct Site {
       unsigned int N;
+      unsigned int NH;
    };
 
    struct AtomSite {
@@ -105,12 +107,14 @@ public:
 
    struct AtomSiteEnsemble {
       unsigned int N;
+      unsigned int NH;
       unsigned int M;
    };
 
    struct ElementAxisSiteEnsemble {
       unsigned int N;
       unsigned int M;
+      unsigned int NH;
    };
 
    struct Element {
@@ -122,26 +126,28 @@ public:
       // System parameters
       N = 0;
       M = 0;
+      NH = 0;
 
       // Streams
       workStream = 0;
       copyStream = 0;
    }
 
-   CudaParallelizationHelper(unsigned int Natom, unsigned int Mensemble) {
+   CudaParallelizationHelper(unsigned int Natom, unsigned int Mensemble, unsigned int nHam) {
       // Zero streams
       workStream = 0;
       copyStream = 0;
 
       // Initiate
-      initiate(Natom, Mensemble);
+      initiate(Natom, Mensemble, nHam);
    }
 
    // Initiate
-   void initiate(unsigned int Natom, unsigned int Mensemble) {
+   void initiate(unsigned int Natom, unsigned int Mensemble, unsigned int nHam) {
       // System size
       N = Natom;
       M = Mensemble;
+		NH = nHam;
 
       // Free previous streams
       free();
@@ -193,6 +199,7 @@ public:
 
       // Setup size
       op.N = N;
+		op.NH = NH;
 
       // Call kernel
       dim3 block, grid;
@@ -223,6 +230,7 @@ public:
       // Setup size
       op.N = N;
       op.M = M;
+		op.NH = NH;
 
       // Call kernel
       dim3 block, grid;
@@ -238,6 +246,7 @@ public:
       // Setup size
       op.N = N;
       op.M = M;
+      op.NH = NH;
 
       // Call kernel
       dim3 block, grid;

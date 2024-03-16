@@ -9,6 +9,7 @@ int* FortranData::SDEalgh;
 unsigned int* FortranData::rstep;
 unsigned int* FortranData::nstep;
 unsigned int* FortranData::Natom;
+unsigned int* FortranData::nHam;
 unsigned int* FortranData::Mensemble;
 unsigned int* FortranData::max_no_neigh;
 
@@ -30,6 +31,7 @@ unsigned int* FortranData::do_aniso;
 unsigned int* FortranData::max_no_dmneigh;
 
 // Matrices
+unsigned int * FortranData::aHam;
 real* FortranData::ncoup;
 unsigned int* FortranData::nlist;
 unsigned int* FortranData::nlistsize;
@@ -64,13 +66,14 @@ void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsig
                                       unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                       real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
                                       unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                      unsigned int* p20) {
+                                      unsigned int* p20, unsigned int* p21) {
    stt = p1;
    SDEalgh = p2;
 
    rstep = p3;
    nstep = p4;
    Natom = p5;
+   nHam = p21;
    Mensemble = p6;
    max_no_neigh = p7;
 
@@ -96,7 +99,7 @@ void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3
                                     real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
                                     real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
                                     unsigned int* p18, real* p19, real* p20, real* p21, unsigned int* p22,
-                                    real* p23) {
+                                    real* p23, unsigned int* p24) {
    ncoup = p1;
    nlist = p2;
    nlistsize = p3;
@@ -120,6 +123,7 @@ void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3
    eaniso = p21;
    taniso = p22;
    sb = p23;
+   aHam = p24;
 }
 
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
@@ -133,16 +137,16 @@ extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, u
                                           unsigned int* p5, unsigned int* p6, unsigned int* p7, real* p8,
                                           real* p9, real* p10, real* p11, real* p12, real* p13, real* p14,
                                           int* p15, char* p16, unsigned int* p17, unsigned int* p18,
-                                          unsigned int* p19, unsigned int* p20) {
+                                          unsigned int* p19, unsigned int* p20, unsigned int* p21) {
    FortranData::setConstantPointers(
-       p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20);
+       p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21);
 }
 
 extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
                                          real* p6, real* p7, real* p8, real* p9, real* p10, real* p11,
                                          real* p12, real* p13, real* p14, real* p15, real* p16,
                                          unsigned int* p17, unsigned int* p18, real* p19, real* p20,
-                                         real* p21, unsigned int* p22, real* p23) {
+                                         real* p21, unsigned int* p22, real* p23, unsigned int* p24) {
    FortranData::setMatrixPointers(p1,
                                   p2,
                                   p3,
@@ -165,7 +169,8 @@ extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned in
                                   p20,
                                   p21,
                                   p22,
-                                  p23);
+                                  p23,
+                                  p24);
 }
 
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {
