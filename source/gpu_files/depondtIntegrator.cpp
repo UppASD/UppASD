@@ -71,15 +71,15 @@ void DepondtIntegrator::release() {
    const real* data;
    data = mrod.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
    data = blocal.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
    data = bdup.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
 
    // Reset matrices

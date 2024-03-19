@@ -320,21 +320,21 @@ void MdSimulation::initiateOwn() {
 void MdSimulation::freeOwn() {
    if(isOwnData) {
       // Delete
-      delete ncoup.get_data();
-      delete nlist.get_data();
-      delete nlistsize.get_data();
-      delete beff.get_data();
-      delete b2eff.get_data();
-      delete emomM.get_data();
-      delete emom.get_data();
-      delete emom2.get_data();
-      delete external_field.get_data();
-      delete mmom.get_data();
-      delete btorque.get_data();
-      delete temperature.get_data();
-      delete mmom0.get_data();
-      delete mmom2.get_data();
-      delete mmomi.get_data();
+      delete[] ncoup.get_data();
+      delete[] nlist.get_data();
+      delete[] nlistsize.get_data();
+      delete[] beff.get_data();
+      delete[] b2eff.get_data();
+      delete[] emomM.get_data();
+      delete[] emom.get_data();
+      delete[] emom2.get_data();
+      delete[] external_field.get_data();
+      delete[] mmom.get_data();
+      delete[] btorque.get_data();
+      delete[] temperature.get_data();
+      delete[] mmom0.get_data();
+      delete[] mmom2.get_data();
+      delete[] mmomi.get_data();
 
       // Reset
       ncoup.set(nullptr, 0, 0, 0);

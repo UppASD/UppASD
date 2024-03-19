@@ -14,8 +14,8 @@ Thermfield::Thermfield() : stopwatch(GlobalStopwatchPool::get("Thermfield")) {
 
 // Destructor
 Thermfield::~Thermfield() {
-   delete field.get_data();
-   delete sigmaFactor.get_data();
+   delete[] field.get_data();
+   delete[] sigmaFactor.get_data();
 
    field.set(nullptr, 0, 0, 0);
    sigmaFactor.set(nullptr, 0);

@@ -39,13 +39,13 @@ MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmo
 
 MeasurementQueue::Measurement::~Measurement() {
    if(emomM != nullptr) {
-      delete emomM;
+      delete[] emomM;
    }
    if(emom != nullptr) {
-      delete emom;
+      delete[] emom;
    }
    if(mmom != nullptr) {
-      delete mmom;
+      delete[] mmom;
    }
 }
 
