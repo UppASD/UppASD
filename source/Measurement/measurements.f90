@@ -30,7 +30,7 @@ contains
    !> Niklas Fejes
    !-----------------------------------------------------------------------------
    subroutine do_measurements(mstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,&
-      traj_step,do_cumu,cumu_step,logsamp,do_copy)
+      traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
       !
       implicit none
       !
@@ -45,6 +45,8 @@ contains
       integer, intent(in)          :: cumu_step          !< Interval for sampling Binder cumulant
       character(len=1)             :: logsamp            !< Sample measurements logarithmically (Y/N)
       integer, intent(out)         :: do_copy            !< Flag if moment must be copied
+      character(len=1),intent(in)  :: do_cuda_avrg       !< Measure average magnetization (Y/N) with CUDA
+      character(len=1), intent(in) :: do_cuda_cumu       !< Measure Binder cumulant, susceptibility, and specific heat(Y/N) with CUDA
 
       integer :: i
       integer :: sstep
