@@ -147,7 +147,7 @@ public:
       // System size
       N = Natom;
       M = Mensemble;
-		NH = nHam;
+      NH = nHam;
 
       // Free previous streams
       free();
@@ -199,7 +199,7 @@ public:
 
       // Setup size
       op.N = N;
-		op.NH = NH;
+      op.NH = NH;
 
       // Call kernel
       dim3 block, grid;
@@ -230,7 +230,7 @@ public:
       // Setup size
       op.N = N;
       op.M = M;
-		op.NH = NH;
+      op.NH = NH;
 
       // Call kernel
       dim3 block, grid;
