@@ -15,7 +15,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array
    use Spinicedata,      only : vert_ice_coord
@@ -24,7 +24,6 @@ module Chelper
 
    use Measurements,     only : measure, do_measurements, flush_measurements, calc_mavrg
    use UpdateMoments,    only : moment_update
-
 
    use Correlation
    use Correlation_core
@@ -63,7 +62,7 @@ contains
 
    !---------------------------------------------------------------------
    !> @brief
-   !> Calculates and returns the magnetic avergage to C++ simulation.
+   !> Calculates and returns the magnetic average to C++ simulation.
    !> Needed so that the right mavrg and bindc is printed during simulation.
    !> Binderc is used as a pointer and is only updated if not already calculated
    !> elsewhere.
@@ -138,7 +137,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-         traj_step,do_cumu,cumu_step,logsamp,do_copy)
+         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
    end subroutine fortran_do_measurements
 
 

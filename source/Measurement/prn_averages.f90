@@ -19,6 +19,8 @@ module prn_averages
    integer :: avrg_buff !< Buffer size for average magnetization
    character(len=1) :: do_avrg                  !< Measure average magnetization (Y/N)
    character(len=1) :: do_cumu                  !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
+   character(len=1) :: do_cuda_avrg             !< Measure average magnetization (Y/N) with CUDA
+   character(len=1) :: do_cuda_cumu             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N) with CUDA
    character(len=1) :: do_proj_avrg             !< Measure projected averages (Y/A/N)
    character(len=1) :: do_projch_avrg           !< Measure chemically projected averages (Y/N)
    character(len=1) :: do_cumu_proj             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
@@ -60,7 +62,7 @@ module prn_averages
    ! Private variables
    public :: print_averages, flush_averages, averages_allocations, avrg_init, calc_and_print_cumulant
    public :: read_parameters_averages,zero_cumulant_counters
-   public :: do_avrg, mavg, binderc,  avrg_step, do_cumu, cumu_step, cumu_buff
+   public :: do_avrg, mavg, binderc,  avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
    public :: Navrgcum
 
 contains
@@ -1406,6 +1408,14 @@ contains
 
             case('cumu_buff')
                read(ifile,*,iostat=i_err) cumu_buff
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_cuda_avrg')
+               read(ifile,*,iostat=i_err) do_cuda_avrg
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_cuda_cumu')
+               read(ifile,*,iostat=i_err) do_cuda_cumu
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !!! case('do_autocorr')
