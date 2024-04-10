@@ -19,6 +19,7 @@ An inventory of functionality and features currently contained in UppASD.
 - [Quantum statistics][3]
 - [Multiscale (muASD) functionalities][16]
 - [Spin-lattice dynamics (SLD)][17]
+- [GNEB][18]
 
 ### Functionality available on GPU
 - Spin dynamics measurement phase
@@ -91,6 +92,7 @@ An inventory of functionality and features currently contained in UppASD.
   - There are parameters controlling the damping-like torque and the field-like torque.
   - The sign of the parameters might still be in question.
   - There is also possibility for site dependent spin polarizations.
+  - Geodesic nudged elastic band (GNEB) functionality.
 
 ### Functionality that can stay on CPU, or global for CPU and GPU e.g. example input files
 
@@ -163,4 +165,5 @@ An inventory of functionality and features currently contained in UppASD.
 [15]:https://www.nature.com/articles/ncomms5815
 [16]:https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.2.013092
 [17]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.99.104302
+[18]:https://www.sciencedirect.com/science/article/pii/S0010465515002696
 [logo]:https://github.com/UppASD/UppASD/blob/master/docs/uppasd_rot.png
