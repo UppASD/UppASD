@@ -7,6 +7,7 @@
 #include "hostMatrix.hpp"
 #include "real_type.h"
 
+
 class CudaHamiltonianCalculations {
 private:
    // Local matrices

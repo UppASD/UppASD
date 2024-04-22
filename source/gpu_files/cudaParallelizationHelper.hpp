@@ -14,6 +14,7 @@
 #define USE_BIG_GRID false
 #endif
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel templates
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +26,7 @@ __global__ void atom_kernel(O op) {
    }
 }
 
+
 template <std::size_t threads, bool big, typename O>
 __global__ void site_kernel(O op) {
    unsigned int site;
@@ -32,6 +34,7 @@ __global__ void site_kernel(O op) {
       op.each(site);
    }
 }
+
 
 template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_kernel(O op) {
@@ -42,6 +45,7 @@ __global__ void atom_site_kernel(O op) {
    }
 }
 
+
 template <std::size_t threads, bool big, typename O>
 __global__ void atom_site_ensemble_kernel(O op) {
    unsigned int site, ensemble;
@@ -50,6 +54,7 @@ __global__ void atom_site_ensemble_kernel(O op) {
       op.each(atom, site, ensemble);
    }
 }
+
 
 template <std::size_t threads, bool big, typename O>
 __global__ void element_axis_site_ensemble_kernel(O op) {
@@ -60,6 +65,7 @@ __global__ void element_axis_site_ensemble_kernel(O op) {
    }
 }
 
+
 template <std::size_t threads, bool big, typename O>
 __global__ void element_kernel(O op) {
    unsigned int element;
@@ -68,10 +74,10 @@ __global__ void element_kernel(O op) {
    }
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper class
 ////////////////////////////////////////////////////////////////////////////////
-
 class CudaParallelizationHelper {
 private:
    // System size

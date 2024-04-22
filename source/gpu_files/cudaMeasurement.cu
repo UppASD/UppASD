@@ -19,6 +19,7 @@
 
 #include "measurementQueue.hpp"
 
+
 // Constructor
 CudaMeasurement::CudaMeasurement(const cudaMatrix<real, 3, 3>& p1, const cudaMatrix<real, 3, 3>& p2,
                                  const cudaMatrix<real, 2>& p3, bool p4, bool p5)
@@ -73,6 +74,7 @@ CudaMeasurement::CudaMeasurement(const cudaMatrix<real, 3, 3>& p1, const cudaMat
    }
 }
 
+
 // Destructor
 CudaMeasurement::~CudaMeasurement() {
    if(fastCopy) {
@@ -81,6 +83,7 @@ CudaMeasurement::~CudaMeasurement() {
       cudaFreeHost(pinned_mmom);
    }
 }
+
 
 // Callback
 void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void* data) {
@@ -95,10 +98,12 @@ void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void* data) {
 #endif
 }
 
+
 // Callback method
 void CudaMeasurement::queueMeasurement(std::size_t mstep) {
    measurementQueue.push(mstep, pinned_emomM, pinned_emom, pinned_mmom, mmom.size());
 }
+
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
 void CudaMeasurement::copyQueueFast(std::size_t mstep) {
@@ -138,6 +143,7 @@ void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    cudaStreamAddCallback(workStream, queue_callback, new queue_callback_data(this, mstep), 0);
 }
 
+
 // Slow copying (D -> H)
 void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
@@ -153,6 +159,7 @@ void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
    // Queue measurement
    measurementQueue.push(mstep, FortranData::emomM, FortranData::emom, FortranData::mmom, mmom.size());
 }
+
 
 void CudaMeasurement::measure(std::size_t mstep) {
    // Copy required?
@@ -170,6 +177,7 @@ void CudaMeasurement::measure(std::size_t mstep) {
       measurementQueue.push(mstep);
    }
 }
+
 
 void CudaMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing

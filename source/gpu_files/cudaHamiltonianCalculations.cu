@@ -6,6 +6,7 @@
 #include "hostMatrix.hpp"
 #include "real_type.h"
 
+
 // Possible improvements
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +61,7 @@ public:
       }
    }
 };
+
 
 // The neighbour list setup helper
 //
@@ -117,6 +119,7 @@ public:
    }
 };
 
+
 // unnecessary for anisotropy probably
 class CudaHamiltonianCalculations::SetupAnisotropy : public CudaParallelizationHelper::Site {
 private:
@@ -134,6 +137,7 @@ public:
    __device__ void each(unsigned int site) {
    }
 };
+
 
 // Note (Thomas):
 // For DM interaction
@@ -183,6 +187,7 @@ public:
       }
    }
 };
+
 
 // Note: (Thomas)
 // Calculating the magnetic field from various effects
@@ -265,6 +270,7 @@ public:
    }
 };
 
+
 class CudaHamiltonianCalculations::HeisJijTensor : public CudaParallelizationHelper::AtomSiteEnsemble {
 private:
    real* beff;
@@ -339,6 +345,7 @@ public:
       beff[atom * 3 + 2] = z + ext_f[atom * 3 + 2];
    }
 };
+
 
 class CudaHamiltonianCalculations::HeisgeJijAniso : public CudaParallelizationHelper::AtomSiteEnsemble {
 private:
@@ -421,6 +428,7 @@ public:
    }
 };
 
+
 class CudaHamiltonianCalculations::HeisgeJijElement
     : public CudaParallelizationHelper::ElementAxisSiteEnsemble {
 private:
@@ -468,6 +476,7 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,6 +488,7 @@ static void transpose(T* A, const T* B, std::size_t M, std::size_t N) {
       }
    }
 }
+
 
 template <typename T, std::size_t I, std::size_t J, std::size_t K>
 static void transpose(hostMatrix<T, 2, I, J, K>& A, const hostMatrix<T, 2, I, J, K>& B) {
@@ -494,6 +504,7 @@ static void transpose(hostMatrix<T, 2, I, J, K>& A, const hostMatrix<T, 2, I, J,
    transpose(A.get_data(), B.get_data(), M, N);
 }
 
+
 // Function for testing time impact of optimal neighbour alignment
 // Will not produce correct results
 void alignOptimal(hostMatrix<unsigned int, 2>& nlist, bool same) {
@@ -508,13 +519,14 @@ void alignOptimal(hostMatrix<unsigned int, 2>& nlist, bool same) {
    }
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
-
 CudaHamiltonianCalculations::CudaHamiltonianCalculations() : parallel(CudaParallelizationHelper::def) {
    initiated = false;
 }
+
 
 bool CudaHamiltonianCalculations::initiate(
     const hostMatrix<real, 2>& ncoup, const hostMatrix<unsigned int, 2>& nlist,
@@ -644,6 +656,7 @@ bool CudaHamiltonianCalculations::initiate(
    return true;
 }
 
+
 void CudaHamiltonianCalculations::release() {
    ex.coupling.free();
    ex.neighbourCount.free();
@@ -661,6 +674,7 @@ void CudaHamiltonianCalculations::release() {
    redHam.redNeibourCount.free();
    initiated = false;
 }
+
 
 void CudaHamiltonianCalculations::heisge(cudaMatrix<real, 3, 3>& beff, const cudaMatrix<real, 3, 3>& emomM,
                                          const cudaMatrix<real, 3, 3>& external_field) {

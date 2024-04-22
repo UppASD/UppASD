@@ -6,6 +6,7 @@
 #include "cudaParallelizationHelper.hpp"
 #include "real_type.h"
 
+
 // Class wrapper
 class CudaCommon {
 public:
@@ -24,6 +25,7 @@ public:
          a[element] += b[element];
       }
    };
+
 
    // Add parallelization helper
    class Add : public CudaParallelizationHelper::Element {
@@ -45,6 +47,7 @@ public:
       }
    };
 
+
    // Avg parallelization helper
    class Avg : public CudaParallelizationHelper::Element {
       real* a;
@@ -60,6 +63,7 @@ public:
          a[element] = real(0.5) * (a[element] + b[element]);
       }
    };
+
 
    // ScalarMult parallelization helper
    class ScalarMult : public CudaParallelizationHelper::Element {
@@ -78,6 +82,7 @@ public:
          a[element] = b[element] * c[element / 3];
       }
    };
+
 
    // Inv parallelization helper
    class Inv : public CudaParallelizationHelper::Atom {

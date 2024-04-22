@@ -21,6 +21,7 @@
 #include <nvToolsExtCuda.h>
 #endif
 
+
 // Measurement class methods
 MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM,
                                            std::size_t _step) {
@@ -37,6 +38,7 @@ MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmo
    }
 }
 
+
 MeasurementQueue::Measurement::~Measurement() {
    if(emomM != nullptr) {
       delete[] emomM;
@@ -49,12 +51,14 @@ MeasurementQueue::Measurement::~Measurement() {
    }
 }
 
+
 // MeasurementQueue class methods
 void* MeasurementQueue::process_measurements(void* mqueue) {
    ((MeasurementQueue*)mqueue)->processMeasurements();
    pthread_exit(nullptr);
    return nullptr;
 }
+
 
 void MeasurementQueue::processMeasurements() {
 #ifdef NVPROF
@@ -116,6 +120,7 @@ void MeasurementQueue::processMeasurements() {
    }
 }
 
+
 void MeasurementQueue::startProcessThread() {
    if(!processThreadStarted) {
       // Flag started
@@ -141,6 +146,7 @@ void MeasurementQueue::startProcessThread() {
    }
 }
 
+
 void MeasurementQueue::finishProcessThread() {
    if(!finishMeasurements && processThreadStarted) {
       // Chage finish flag and send cond signal
@@ -161,11 +167,13 @@ void MeasurementQueue::finishProcessThread() {
    }
 }
 
+
 // Constructor / destructor
 MeasurementQueue::MeasurementQueue() {
    finishMeasurements = false;
    processThreadStarted = false;
 }
+
 
 MeasurementQueue::~MeasurementQueue() {
    if(!finishMeasurements) {
@@ -173,6 +181,7 @@ MeasurementQueue::~MeasurementQueue() {
    }
    finishProcessThread();
 }
+
 
 // Test if empty
 bool MeasurementQueue::empty() {
@@ -182,10 +191,12 @@ bool MeasurementQueue::empty() {
    return e;
 }
 
+
 // Push a measurement with data to the queue
 void MeasurementQueue::push(std::size_t mstep) {
    push(mstep, nullptr, nullptr, nullptr, 0);
 }
+
 
 void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM) {
    // Finishing?
@@ -217,6 +228,7 @@ void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mm
       pthread_mutex_unlock(&mutex);
    }
 }
+
 
 // Finish
 void MeasurementQueue::finish() {

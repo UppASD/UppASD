@@ -6,6 +6,7 @@
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 
+
 class CudaMomentUpdater {
 private:
    // Moments to update

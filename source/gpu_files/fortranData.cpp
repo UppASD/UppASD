@@ -2,6 +2,7 @@
 
 #include "real_type.h"
 
+
 // Constants
 char* FortranData::stt;
 int* FortranData::SDEalgh;
@@ -62,6 +63,7 @@ int* FortranData::gpu_mode;
 int* FortranData::gpu_rng;
 int* FortranData::gpu_rng_seed;
 
+
 void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
                                       unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                       real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
@@ -95,6 +97,7 @@ void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsig
    do_aniso = p20;
 }
 
+
 void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
                                     real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
                                     real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
@@ -126,11 +129,13 @@ void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3
    aHam = p24;
 }
 
+
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_mode = p1;
    gpu_rng = p2;
    gpu_rng_seed = p3;
 }
+
 
 // Fortran helpers
 extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, unsigned int* p4,
@@ -141,6 +146,7 @@ extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, u
    FortranData::setConstantPointers(
        p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21);
 }
+
 
 extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
                                          real* p6, real* p7, real* p8, real* p9, real* p10, real* p11,
@@ -172,6 +178,7 @@ extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned in
                                   p23,
                                   p24);
 }
+
 
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {
    FortranData::setInputDataPointers(p1, p2, p3);

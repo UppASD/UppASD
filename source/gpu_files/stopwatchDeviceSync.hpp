@@ -9,6 +9,7 @@
 #include "real_type.h"
 #include "stopwatch.hpp"
 
+
 class StopwatchDeviceSync {
 #if defined(DUMMY_STOPWATCH) || defined(ASYNC_STOPWATCH)
    inline void sync() {

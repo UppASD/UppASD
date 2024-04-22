@@ -12,6 +12,7 @@
 #include "c_headers.hpp"
 #include "real_type.h"
 
+
 template <unsigned int threads, bool big>
 class GridHelper {
    std::size_t maxGridSize1;
