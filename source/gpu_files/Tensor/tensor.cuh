@@ -23,6 +23,19 @@ template <typename T, index_t dim>
 class CudaTensor;
 
 
+template <typename T>
+using Vector = Tensor<T, 1>;
+
+template <typename T>
+using Matrix = Tensor<T, 2>;
+
+template <typename T>
+using CudaVector = CudaTensor<T, 1>;
+
+template <typename T>
+using CudaMatrix = CudaTensor<T, 2>;
+
+
 template <typename TensorType1, typename TensorType2>
 __host__ __device__ bool same_extents(const TensorType1& A, const TensorType2& B) {
    assert(A.dimension() == B.dimension());
@@ -124,9 +137,41 @@ public:
    void copy_sync(const CudaTensor<T, dim>& A);
 
 
+   void swap(Tensor<T, dim>& A) noexcept {
+      T* tmp_ptr = data_;
+      data_ = A.data_;
+      A.data_ = tmp_ptr;
+
+      auto tmp_ext = this->extents();
+      this->SetExtents(A.extents());
+      A.SetExtents(tmp_ext);
+   }
+
+
+   void transpose();
+
+
 private:
    T* data_{};
 };
+
+
+template <typename T, index_t dim>
+void Tensor<T, dim>::transpose() {
+   // statically assert since partial template specialization is not allowed
+   static_assert(dim == 2);
+   auto* tmp = new T[size()];
+   for(index_t i = 0; i < extent(0); ++i) {
+      for(index_t j = 0; j < extent(1); ++j) {
+         tmp[i * extent(1) + j] = (*this)(i, j);
+      }
+   }
+
+   this->SetExtents(extent(1), extent(0));
+   std::copy(tmp, tmp + size(), data());
+
+   delete[] tmp;
+}
 
 
 template <typename T>
@@ -287,6 +332,17 @@ public:
    __host__ void copy_sync(const CudaTensor<T, dim>& A) {
       assert(same_extents(*this, A));
       ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
+   }
+
+
+   __host__ void swap(CudaTensor<T, dim>& A) noexcept {
+      T* tmp_ptr = data_;
+      data_ = A.data_;
+      A.data_ = tmp_ptr;
+
+      auto tmp_ext = this->extents();
+      this->SetExtents(A.extents());
+      A.SetExtents(tmp_ext);
    }
 
 

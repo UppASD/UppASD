@@ -27,20 +27,18 @@ using index_t = long int;
 
 template <index_t dim>
 struct Extents {
+   static_assert(dim > 0);
+
 private:
    index_t x[dim]{};
 
 public:
-   __host__ __device__ Extents() {
-      static_assert(dim > 0);
-   }
-
+   Extents() = default;
    Extents(const Extents&) = default;
    Extents& operator=(const Extents&) = default;
 
    template <typename... Ints>
    __host__ __device__ Extents(Ints... ext) : x{ext...} {
-      static_assert(dim > 0);
       static_assert(static_cast<index_t>(sizeof...(ext)) == dim);
    }
 
