@@ -1,0 +1,58 @@
+name: Build binaries for MacOS
+
+on: [push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - { icon: '🟦', os: macos-latest ,sys: macos, arch: x86_64 } 
+          - { icon: '🟦', os: macos-latest ,sys: macos, arch: arm64 } 
+          - { icon: '🟦', os: macos-13 ,sys: macos, arch: x86_64 } 
+          - { icon: '🟦', os: macos-13 ,sys: macos, arch: arm64 } 
+        #os: [ ubuntu-latest,  macOS-latest]
+        #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
+
+    steps:
+      - name: Provide gfortran (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # https://github.com/actions/virtual-environments/issues/2524
+          # https://github.com/cbg-ethz/dce/blob/master/.github/workflows/pkgdown.yaml
+          which gcc-13
+          which gfortran-13
+          sudo ln -s /usr/local/bin/gfortran-12 /usr/local/bin/gfortran
+          sudo ln -s /usr/local/bin/gcc-12 /usr/local/bin/gcc
+          sudo mkdir /usr/local/gfortran
+          sudo ln -s /usr/local/Cellar/gcc@12/*/lib/gcc/12 /usr/local/gfortran/lib
+          # gfortran --version
+          # gcc --version
+          # which gcc
+          # which gfortran
+
+      - name: Provide fftw  (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # fftw3 
+          brew install fftw
+          fftw-wisdom -V
+            
+      - uses: actions/checkout@v3
+
+      - name: Build binaries
+        run: |
+             FC=gfortran-13 cmake -S . -B build 
+             cmake --build build
+             mkdir ./dist
+             uname -a
+             echo ${{runner.name}}
+             cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+          path: ./dist/
