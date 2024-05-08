@@ -18,22 +18,6 @@ jobs:
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 
     steps:
-      - name: Provide gfortran (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          # https://github.com/actions/virtual-environments/issues/2524
-          # https://github.com/cbg-ethz/dce/blob/master/.github/workflows/pkgdown.yaml
-          which gcc-13
-          which gfortran-13
-          # sudo ln -s /usr/local/bin/gfortran-12 /usr/local/bin/gfortran
-          # sudo ln -s /usr/local/bin/gcc-12 /usr/local/bin/gcc
-          # sudo mkdir /usr/local/gfortran
-          # sudo ln -s /usr/local/Cellar/gcc@12/*/lib/gcc/12 /usr/local/gfortran/lib
-          # gfortran --version
-          # gcc --version
-          # which gcc
-          # which gfortran
-
       - name: Provide fftw  (macOS)
         if: runner.os == 'macOS'
         run: |
