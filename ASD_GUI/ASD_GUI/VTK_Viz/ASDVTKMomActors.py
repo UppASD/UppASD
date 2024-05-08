@@ -448,8 +448,6 @@ class ASDMomActors():
     # @author Jonathan Chico
     ############################################################################
     def UpdateMoments(self,window,ASDdata,ASDGenActors,renWin):
-        from vtk import vtkPoints
-        from vtk.util import numpy_support
         """Function to update the visualization of the moments as one advances in time
         or in ensembles.
         Args:
@@ -462,6 +460,8 @@ class ASDMomActors():
         ----------
         Jonathan Chico
         """
+        from vtk import vtkPoints
+        from vtk.util import numpy_support
         #-----------------------------------------------------------------------
         # Read the actual data of the magnetic moments
         #-----------------------------------------------------------------------

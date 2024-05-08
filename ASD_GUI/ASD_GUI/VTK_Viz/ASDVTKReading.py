@@ -597,12 +597,12 @@ class ASDReading():
         # Find the boundaries
         #----------------------------------------------------------------------------
         t_off = time*nrAtoms
-        min_x=min(ASDReading.full_mom[t_off:t_off+nrAtoms,0])
-        min_y=min(ASDReading.full_mom[t_off:t_off+nrAtoms,1])
-        min_z=min(ASDReading.full_mom[t_off:t_off+nrAtoms,2])
-        max_x=max(ASDReading.full_mom[t_off:t_off+nrAtoms,0])
-        max_y=max(ASDReading.full_mom[t_off:t_off+nrAtoms,1])
-        max_z=max(ASDReading.full_mom[t_off:t_off+nrAtoms,2])
+        ### min_x=min(ASDReading.full_mom[t_off:t_off+nrAtoms,0])
+        ### min_y=min(ASDReading.full_mom[t_off:t_off+nrAtoms,1])
+        ### min_z=min(ASDReading.full_mom[t_off:t_off+nrAtoms,2])
+        ### max_x=max(ASDReading.full_mom[t_off:t_off+nrAtoms,0])
+        ### max_y=max(ASDReading.full_mom[t_off:t_off+nrAtoms,1])
+        ### max_z=max(ASDReading.full_mom[t_off:t_off+nrAtoms,2])
         #----------------------------------------------------------------------------
         # Loop over all the atoms
         #----------------------------------------------------------------------------
@@ -612,12 +612,15 @@ class ASDReading():
         #colors_y = (ASDReading.full_mom[:,1] - min_y) / ( max_y - min_y)
         #colors_z = (ASDReading.full_mom[:,2] - min_z) / ( max_z - min_z)
         vectors = numpy_support.numpy_to_vtk(ASDReading.full_mom[t_off:t_off+nrAtoms,:])
-        colors_x = (ASDReading.full_mom[t_off:t_off+nrAtoms,0] - min_x) / ( max_x - min_x + 1.0e-12)
-        colors_y = (ASDReading.full_mom[t_off:t_off+nrAtoms,1] - min_y) / ( max_y - min_y + 1.0e-12)
-        colors_z = (ASDReading.full_mom[t_off:t_off+nrAtoms,2] - min_z) / ( max_z - min_z + 1.0e-12)
-        colors_x = numpy_support.numpy_to_vtk(colors_x)
-        colors_y = numpy_support.numpy_to_vtk(colors_y)
-        colors_z = numpy_support.numpy_to_vtk(colors_z)
+        ### colors_x = (ASDReading.full_mom[t_off:t_off+nrAtoms,0] - min_x) / ( max_x - min_x + 1.0e-12)
+        ### colors_y = (ASDReading.full_mom[t_off:t_off+nrAtoms,1] - min_y) / ( max_y - min_y + 1.0e-12)
+        ### colors_z = (ASDReading.full_mom[t_off:t_off+nrAtoms,2] - min_z) / ( max_z - min_z + 1.0e-12)
+        ### colors_x = numpy_support.numpy_to_vtk(colors_x)
+        ### colors_y = numpy_support.numpy_to_vtk(colors_y)
+        ### colors_z = numpy_support.numpy_to_vtk(colors_z)
+        colors_x = numpy_support.numpy_to_vtk(ASDReading.full_mom[t_off:t_off+nrAtoms,0] )
+        colors_y = numpy_support.numpy_to_vtk(ASDReading.full_mom[t_off:t_off+nrAtoms,1] )
+        colors_z = numpy_support.numpy_to_vtk(ASDReading.full_mom[t_off:t_off+nrAtoms,2] )
         #for ii in range(0,nrAtoms):
         #    #------------------------------------------------------------------------
         #    # Pass the data from the numpy arrays to vtk data structures
