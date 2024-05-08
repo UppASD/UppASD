@@ -18,7 +18,7 @@ jobs:
       - name: Build binaries
         run: |
              cmake -S . -B build 
-             cmake --build build
+             cmake --build build --parallel 
              mkdir ./dist
              uname -a
              echo ${{runner.name}}
