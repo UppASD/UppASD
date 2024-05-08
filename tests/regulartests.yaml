@@ -128,6 +128,7 @@ caselist:
             #expected: [-1.19326704, -1.18680044, -0.00646659923]
             type: "Total energy"
 
+
   - workingdir: "./kagome"
     run: "./runtest.sh"
     name: "Kagome lattice"
@@ -214,6 +215,31 @@ caselist:
             expected: [ 268.55116,  364.59170, 269.49493, 526.94815]
             #expected: [ 283.21416,  384.32106, 284.68203, 555.83882]
             type: "BLS"
+
+  - workingdir: "./FeCo/"
+    run: "./runtest.sh"
+    name: "FeCo B2 (reduced)"
+    comparisons:
+      - outfile:   ./averages.test
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 4700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected:  [1.97771406]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.test
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 221
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            expected: [1.86049127, 3.46770589, 12.1090509, 0.664336331]
+            type: "Cumulants"
 
   - workingdir: "./bccFe/"
     run: "./runtest.sh"

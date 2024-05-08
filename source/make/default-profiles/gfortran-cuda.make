@@ -82,7 +82,7 @@ NVCCFLAGS = -O3
 
 # Sepcific setting for each NIVIDA graphic card
 # Other common alternatives:
-#  - gencode=arch=compute_30,code=\"sm_30,compute_30\"
+#  - gencode=arch=compute_70,code=\"sm_70,compute_70\"
 #  - gencode=arch=compute_20,code=\"sm_20,compute_220\"
 GENCODE_ARCH  = -gencode=arch=compute_61,code=\"sm_61,compute_61\"
 

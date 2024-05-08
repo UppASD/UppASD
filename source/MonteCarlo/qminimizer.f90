@@ -36,6 +36,11 @@ module qminimizer
    character*1 :: qm_oaxis !< Ensure that the rotational axis is perpendicular to m
    character*1 :: qm_type  !< Which type of qm_axis to use (C)ycloidal, (H)elical, or (G)eneral
    integer :: qm_no_excluded !< How many types of atoms to exclude from minimization (default 0)
+   character*1 :: qm_relax   !< Perform relaxation of the magnetic spiral textures (Y/N)
+   character*2 :: qm_relax_mode   !< Select relaxation mode (M)etropolis or (H)eat-bath
+   integer :: qm_relax_steps   !< Number of relaxation steps
+   real(dblprec) :: qm_relax_temp   !< Relaxation temperature
+
    !
    ! Control parameters for line sweep
    real(dblpreC) :: q_min
@@ -112,49 +117,52 @@ contains
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
    subroutine sweep_q2(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
-      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
+      max_no_constellations,maxnoconstl,unitcelltype,constlncoup,constellations,    &
+      constellationsneightype,num_macro,cell_index,emomm_macro,           &
       macro_nlistsize,simid,qpts,nq)
 
-      use RandomNumbers, only: rng_uniform,rng_gaussian
-      use InputData, only : N1,N2,N3
-      use Math_functions, only : f_wrap_coord_diff, f_cross_product
-      use Depondt, only : rodmat
-      use Diamag, only : diamag_qvect
+      use randomnumbers, only: rng_uniform,rng_gaussian
+      use inputdata, only : n1,n2,n3
+      use math_functions, only : f_wrap_coord_diff, f_cross_product
+      use depondt, only : rodmat
+      use diamag, only : diamag_qvect
+      use momentdata, only : emom
+      use mc_driver, only : mc_minimal
+      use montecarlo
       !
-      !.. Implicit declarations
+      !.. implicit declarations
       implicit none
 
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
-      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
-      real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
-      !! +++ New variables due to optimization routines +++ !!
-      integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-      ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
-      integer, dimension(Mensemble), intent(in) :: maxNoConstl
-      ! See OptimizationRoutines.f90 for details on classification
-      integer, dimension(Natom, Mensemble), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-      ! Matrix relating the interatomic exchanges for each atom in the constellation matrix
-      real(dblprec), dimension(ham%max_no_neigh, max_no_constellations,Mensemble), intent(in) :: constlNCoup
-      ! Matrix storing all unit cells belonging to any constellation
-      real(dblprec), dimension(3,max_no_constellations, Mensemble), intent(in) :: constellations
-      ! Optimization flag (1 = optimization on; 0 = optimization off)
-      logical, intent(in) :: OPT_flag
-      ! Matrix storing the type of the neighbours within a given neighbourhood of a constellation; default is 1 outside the neighbourhood region
-      ! The default is to achieve correct indexing. Note here also that constlNCoup will result in a net zero contribution to the Heissenberg exchange term
-      integer, dimension(ham%max_no_neigh,max_no_constellations,Mensemble), intent(in) :: constellationsNeighType
-      ! Internal effective field arising from the optimization of the Heissenberg exchange term
-      integer, intent(in) :: Num_macro !< Number of macrocells in the system
-      integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
-      character(len=8), intent(in) :: simid  !< Name of simulation
+      integer, intent(in) :: natom !< number of atoms in system
+      integer, intent(in) :: mensemble !< number of ensembles
+      integer, intent(in) :: na  !< number of atoms in one cell
+      real(dblprec), dimension(3,natom), intent(in) :: coord !< coordinates of atoms
+      real(dblprec), dimension(3,natom,mensemble), intent(inout) :: emomm  !< current magnetic moment vector
+      real(dblprec), dimension(natom,mensemble), intent(inout) :: mmom !< magnitude of magnetic moments
+      real(dblprec), dimension(3), intent(in) :: hfield !< constant effective field
+      !! +++ new variables due to optimization routines +++ !!
+      integer, intent(in) :: max_no_constellations ! the maximum (global) length of the constellation matrix
+      ! number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
+      integer, dimension(mensemble), intent(in) :: maxnoconstl
+      ! see optimizationroutines.f90 for details on classification
+      integer, dimension(natom, mensemble), intent(in) :: unitcelltype ! array of constellation id and classification (core, boundary, or noise) per atom
+      ! matrix relating the interatomic exchanges for each atom in the constellation matrix
+      real(dblprec), dimension(ham%max_no_neigh, max_no_constellations,mensemble), intent(in) :: constlncoup
+      ! matrix storing all unit cells belonging to any constellation
+      real(dblprec), dimension(3,max_no_constellations, mensemble), intent(in) :: constellations
+      ! optimization flag (1 = optimization on; 0 = optimization off)
+      logical, intent(in) :: opt_flag
+      ! matrix storing the type of the neighbours within a given neighbourhood of a constellation; default is 1 outside the neighbourhood region
+      ! the default is to achieve correct indexing. note here also that constlncoup will result in a net zero contribution to the heissenberg exchange term
+      integer, dimension(ham%max_no_neigh,max_no_constellations,mensemble), intent(in) :: constellationsneightype
+      ! internal effective field arising from the optimization of the heissenberg exchange term
+      integer, intent(in) :: num_macro !< number of macrocells in the system
+      integer, dimension(natom), intent(in) :: cell_index !< macrocell index for each atom
+      integer, dimension(num_macro), intent(in) :: macro_nlistsize !< number of atoms per macrocell
+      real(dblprec), dimension(3,num_macro,mensemble), intent(in) :: emomm_macro !< the full vector of the macrocell magnetic moment
+      character(len=8), intent(in) :: simid  !< name of simulation
       integer, intent(in) :: nq  !< number of qpoints
-      real(dblprec), dimension(3,nq), intent(in) :: qpts !< Array of q-points
+      real(dblprec), dimension(3,nq), intent(in) :: qpts !< array of q-points
       !
       integer :: iq
       !
@@ -171,8 +179,8 @@ contains
       real(dblprec), dimension(3) :: phi_best
       integer :: iter, iscale, i1 ,i2 ,i3
       real(dblprec), dimension(3) :: srvec 
-      real(dblprec), dimension(3,3) :: R_mat
-      real(dblprec), dimension(:,:,:), allocatable :: emomM_start
+      real(dblprec), dimension(3,3) :: r_mat
+      real(dblprec), dimension(:,:,:), allocatable :: emomm_start
 
       real(dblprec), dimension(3) :: mavg
       !
@@ -180,44 +188,45 @@ contains
       !
       integer :: ia_cell
       !
-      pi=4._dblprec*ATAN(1._dblprec)
+      pi=4._dblprec*atan(1._dblprec)
       theta_glob_best=0.0_dblprec
       theta_best=0.0_dblprec
       phi_best=0.0_dblprec
       phi=0.0_dblprec
       !
-      ! Normal vector
-      ! Read from file or default
+      ! normal vector
+      ! read from file or default
       !n_vec(1)=0.0_dblprec;n_vec(2)=0.0_dblprec;n_vec(3)=1.0_dblprec;
       !
-      ! Starting atom
-      I1 = N1/2
-      I2 = N2/2
-      I3 = N3/2
+      ! starting atom
+      i1 = n1/2
+      i2 = n2/2
+      i3 = n3/2
 
-      countstart = 0+I1*NA+I2*N1*NA+I3*N2*N1*NA
-      ! Build lookup table for excluding atoms in minimization steps
-      if (.not. allocated(qm_excluded_atoms)) call qminimizer_build_exclude_list(Natom)
+      countstart = 0+i1*na+i2*n1*na+i3*n2*n1*na
+      ! build lookup table for excluding atoms in minimization steps
+      if (.not. allocated(qm_excluded_atoms)) call qminimizer_build_exclude_list(natom)
+      if (qm_relax=='Y') call allocate_mcdata(natom,1)
       !
       write(filn,'(''qm_sweep.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position="append")
-      write(ofileno,'(a)') "#    Iter                          Q-vector                                 Energy(meV)  "
+      write(ofileno,'(a)') "#    iter                          q-vector                                 energy(mev)  "
 
       write(filn,'(''qm_minima.'',a,''.out'')') trim(simid)
       open(ofileno2,file=filn, position="append")
-      write(ofileno2,'(a)') "#    Iter                          Q-vector                                 Energy(mRy)  "
+      write(ofileno2,'(a)') "#    iter                          q-vector                                 energy(mry)  "
      
     
-      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
-         !print '(3f12.5)', emomM
-         allocate(emomM_start(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(emomM_start))*kind(emomM_start),'emomM_start','sweep_q2')
-         emomM_start=emomM
+      if (qm_rot=='y'.or.qm_cellrot=='y') then
+         !print '(3f12.5)', emomm
+         allocate(emomm_start(3,natom,mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(emomm_start))*kind(emomm_start),'emomm_start','sweep_q2')
+         emomm_start=emomm
 
-         if (qm_oaxis=='Y') then
-            mavg(1)=sum(emomM(1,:,:))/Natom/Mensemble
-            mavg(2)=sum(emomM(2,:,:))/Natom/Mensemble
-            mavg(3)=sum(emomM(3,:,:))/Natom/Mensemble
+         if (qm_oaxis=='y') then
+            mavg(1)=sum(emomm(1,:,:))/natom/mensemble
+            mavg(2)=sum(emomm(2,:,:))/natom/mensemble
+            mavg(3)=sum(emomm(3,:,:))/natom/mensemble
             mavg=mavg/(norm2(mavg)+1.0e-12_dblprec)
             if(abs(mavg(3)-1.0_dblprec)<1.0e-6_dblprec) then
                n_vec(1)=1.0_dblprec;n_vec(2)=0.0_dblprec;n_vec(3)=0.0_dblprec
@@ -240,11 +249,11 @@ contains
       nhits=0
       iscale=1
 
-      ! Switch rotation direction
+      ! switch rotation direction
 
-      ! Calculate total external field (not included yet)
-      do k=1,Mensemble
-         do i=1,Natom
+      ! calculate total external field (not included yet)
+      do k=1,mensemble
+         do i=1,natom
             external_field(1:3,i,k)= hfield
             beff(1:3,i,k)=0.0_dblprec
             beff1(1:3,i,k)=0.0_dblprec
@@ -252,14 +261,14 @@ contains
          end do
       end do
 
-      ! Only use first ensemble
+      ! only use first ensemble
       k=1
       do iq=1,nq
          iter=iq
          !         !
-         ! Set up spin-spiral magnetization (only first cell+ neighbours)
+         ! set up spin-spiral magnetization (only first cell+ neighbours)
          energy=0.0_dblprec
-         ! Check if diamag_qvect and then only use that spin spiral vector
+         ! check if diamag_qvect and then only use that spin spiral vector
          if (norm2(diamag_qvect)>0.0_dblprec) then
             q(:,1)=diamag_qvect
          else
@@ -277,74 +286,74 @@ contains
          !!! end if
          !!! s(:,1)=s(:,1)/norm2(s(:,1))
 
-         !!! print *,'----Q-and-S-vectors----',1
+         !!! print *,'----q-and-s-vectors----',1
          !!! print '(3f10.4)', q(:,1)
          !!! print '(3f10.4)', s(:,1)
          !!! print '(3f10.4)', n_vec(:)
 
 
          !!!!stop
-         ! Set up magnetic order 
-         ! If qm_rot=Y, take the original magnetic order and rotate each spin to 
+         ! set up magnetic order 
+         ! if qm_rot=y, take the original magnetic order and rotate each spin to 
          ! create spin-spirals in an disordered background
          ! otherwise rotate all spins to create pure spin-spirals
-         if (qm_rot=='Y') then
-            do ia=1,Natom
+         if (qm_rot=='y') then
+            do ia=1,natom
                !
-               call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+               call f_wrap_coord_diff(natom,coord,ia,countstart+1,srvec)
                !
                qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
                !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
                qr=2.0_dblprec*pi*qr
 
-               call rodmat(n_vec,qr,R_mat)
+               call rodmat(n_vec,qr,r_mat)
 
                if (.not. qm_excluded_atoms(ia)) then
-                  emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+                  emomm(1:3,ia,k)=matmul(r_mat,emomm_start(:,ia,k))
                else
-                  emomM(1:3,ia,k)=emomM_start(:,ia,k)
+                  emomm(1:3,ia,k)=emomm_start(:,ia,k)
                end if
             end do
-         elseif (qm_cellrot=='Y') then
-            do ia=1,Natom
+         elseif (qm_cellrot=='y') then
+            do ia=1,natom
                !
-               !ia_cell=ia/NA+1
-               ia_cell=((ia-1)/NA)*NA+1
+               !ia_cell=ia/na+1
+               ia_cell=((ia-1)/na)*na+1
 
-               call f_wrap_coord_diff(Natom,coord,ia_cell,countstart+1,srvec)
+               call f_wrap_coord_diff(natom,coord,ia_cell,countstart+1,srvec)
                !
                qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
                !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
                qr=2.0_dblprec*pi*qr
 
-               call rodmat(n_vec,qr,R_mat)
+               call rodmat(n_vec,qr,r_mat)
 
                !print '(a,2i4,3x,3f12.6)','---------------',ia,ia_cell,q(:,1)
-               !print '(3f10.4)', R_mat
+               !print '(3f10.4)', r_mat
                !print *,'---------------'
 
                if (.not. qm_excluded_atoms(ia)) then
-                  emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
+                  emomm(1:3,ia,k)=matmul(r_mat,emomm_start(:,ia,k))
                else
-                  emomM(1:3,ia,k)=emomM_start(:,ia,k)
+                  emomm(1:3,ia,k)=emomm_start(:,ia,k)
                end if
             end do
-            !print '(3f12.5)', emomM
+            !print '(3f12.5)', emomm
          else
             call set_nsvec(qm_type,q(:,1),s(:,1),n_vec)
             !call set_nsvec(qm_type,qpts(:,iq),s(:,1),n_vec)
-            !!! print *,'IQ:',iq
+            !!! print *,'iq:',iq
             !!! print '(a,3f12.6)' , '   iq:', q(:,1)
             !!! !print '(a,3f12.6)' , '   iq:', qpts(:,iq)
             !!! print '(a,3f12.6)' , 's_vec:', s(:,1)
             !!! print '(a,3f12.6)' , 'n_vec:', n_vec
             !!! print '(a,3f12.6)' , 'cross:', f_cross_product(n_vec,s(:,1))
 
-            do ia=1,Natom
+            do ia=1,natom
                !
                !srvec=coord(:,ia)-coord(:,countstart+1)
-               ! Possible use wrap_coord_diff() here.
-               call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+               ! possible use wrap_coord_diff() here.
+               call f_wrap_coord_diff(natom,coord,ia,countstart+1,srvec)
                !
                m_j=0.0_dblprec
                qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
@@ -355,53 +364,57 @@ contains
                !call normalize(m_j)
                !emom(1:3,ia,k)=m_j
                if (.not. qm_excluded_atoms(ia)) then
-                emomM(1:3,ia,k)=m_j*mmom(ia,k)
+                emomm(1:3,ia,k)=m_j*mmom(ia,k)
+                emom(1:3,ia,k)=m_j
                end if
-               !print '(a,3f12.6,i8)' , 'emom :', emomM(1:3,ia,k), ia
-               !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
+               !print '(a,3f12.6,i8)' , 'emom :', emomm(1:3,ia,k), ia
+               !print '(i7,3f12.6)', ia, emomm(1:3,ia,k)
             end do
          end if
-         !!! if (qm_rot=='Y') then
+         !!! if (qm_rot=='y') then
          !!! else
-         !!!    do ia=1,Natom
+         !!!    do ia=1,natom
          !!!       !
          !!!       !srvec=coord(:,ia)-coord(:,countstart+1)
-         !!!       ! Possible use wrap_coord_diff() here.
-         !!!       call f_wrap_coord_diff(Natom,coord,ia,countstart+1,srvec)
+         !!!       ! possible use wrap_coord_diff() here.
+         !!!       call f_wrap_coord_diff(natom,coord,ia,countstart+1,srvec)
          !!!       !
          !!!       m_j=0.0_dblprec
          !!!       qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
          !!!       m_j=n_vec*cos(2*pi*qr+phi(1))+s(:,1)*sin(2*pi*qr+phi(1))
          !!!       !call normalize(m_j)
          !!!       !emom(1:3,ia,k)=m_j
-         !!!       emomM(1:3,ia,k)=m_j*mmom(ia,k)
-         !!!       !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
+         !!!       emomm(1:3,ia,k)=m_j*mmom(ia,k)
+         !!!       !print '(i7,3f12.6)', ia, emomm(1:3,ia,k)
          !!!    end do
          !!! end if
 
-         ! Calculate energy for given q,s,theta combination
-         ! Anisotropy + external field to be added
-         energy=0.0_dblprec
-         !call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
-         call effective_field(Natom,Mensemble,1,Natom, &
-            emomM,mmom,external_field,time_external_field,beff,beff1,      &
-            beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-            constlNCoup,constellations,constellationsNeighType,         &
-            energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         if (qm_relax=='Y') call mc_minimal(emomm,emom,mmom,qm_relax_steps,qm_relax_mode,qm_relax_temp)
 
-         energy=energy/Natom !/mub*mry !/mry*mub/NA
+         ! calculate energy for given q,s,theta combination
+         ! anisotropy + external field to be added
+         energy=0.0_dblprec
+         !call effective_field(natom,mensemble,countstart+1,countstart+na,         &
+         call effective_field(natom,mensemble,1,natom, &
+            emomm,mmom,external_field,time_external_field,beff,beff1,      &
+            beff2,opt_flag,max_no_constellations,maxnoconstl,unitcelltype,        &
+            constlncoup,constellations,constellationsneightype,         &
+            energy,num_macro,cell_index,emomm_macro,macro_nlistsize,na,n1,n2,n3)
+
+         energy=energy/natom !/mub*mry !/mry*mub/na
          !  print '(a,3f12.6)' , 'ene  :', energy
 
-         call f_wrap_coord_diff(Natom,coord,countstart+1,countstart+1,srvec)
+         call f_wrap_coord_diff(natom,coord,countstart+1,countstart+1,srvec)
          !!! print '(3f10.4,5x,1f10.5,5x,3f10.4,5x,3f10.4,10x,f12.6)',qpts(:,iq),&
          !!!    srvec,&
          !!!    qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3),&
-         !!!    emomM(:,countstart+1,1),energy
+         !!!    emomm(:,countstart+1,1),energy
 
-         write(ofileno,'(i8,3g20.8,g20.8)') iq,q(:,1),energy*13.605_dblprec !/mry*mub*13.605_dblprec
+         !write(ofileno,'(i8,3g20.8,g20.8)') iq,q(:,1),energy*13.605_dblprec !/mry*mub*13.605_dblprec
+         write(ofileno,'(i8,3g20.8,g20.8)') iq,q(:,1),energy !/mry*mub*13.605_dblprec
          !write(ofileno,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy*13.605_dblprec !/mry*mub*13.605_dblprec
 
-         ! Store best energy configuration if trial energy is lower than minimum
+         ! store best energy configuration if trial energy is lower than minimum
          if(energy<min_energy) then
 
             min_energy=energy
@@ -414,19 +427,19 @@ contains
             !write(ofileno2,'(i8,3g20.8,g20.8)') iq,qpts(:,iq),energy
 
          end if
-         ! Do not loop if diamag_qvect is set
+         ! do not loop if diamag_qvect is set
          if (norm2(diamag_qvect)>0.0_dblprec) exit
       end do
       !
       !
-      print '(1x,a,i6,a)','Line search minimization done with ',nhits,' hits.'
-      print '(1x,a)', '|-----Minimum energy----|----------------Q-vector-----------------|------------------S-vector----------------|'
+      print '(1x,a,i6,a)','line search minimization done with ',nhits,' hits.'
+      print '(1x,a)', '|-----minimum energy----|----------------q-vector-----------------|------------------s-vector----------------|'
       do iq=1,1
          print '(2x,f18.10,2x,3f14.6,2x,3f14.6)',min_energy,q_best(:,iq),s(:,iq)
       end do
-      ! Important: Save the lowest energy q-vector
+      ! important: save the lowest energy q-vector
       q=q_best
-      ! Save best q_vector for nc-AMS
+      ! save best q_vector for nc-ams
       if (norm2(diamag_qvect)==0.0_dblprec) diamag_qvect = q_best(:,1)
       s=s_save
       print '(1x,a)','|-----------------------|-----------------------------------------|------------------------------------------|'
@@ -435,22 +448,22 @@ contains
       close(ofileno)
       close(ofileno2)
       !
-      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
-            do ia=1,Natom
+      if (qm_rot=='y'.or.qm_cellrot=='y') then
+            do ia=1,natom
                !
-               ia_cell=((ia-1)/NA)*NA+1
+               ia_cell=((ia-1)/na)*na+1
 
-               call f_wrap_coord_diff(Natom,coord,ia_cell,countstart+1,srvec)
+               call f_wrap_coord_diff(natom,coord,ia_cell,countstart+1,srvec)
                !
                qr=q(1,1)*srvec(1)+q(2,1)*srvec(2)+q(3,1)*srvec(3)
                !qr=qpts(1,iq)*srvec(1)+qpts(2,iq)*srvec(2)+qpts(3,iq)*srvec(3)
                qr=2.0_dblprec*pi*qr
 
-               call rodmat(n_vec,qr,R_mat)
+               call rodmat(n_vec,qr,r_mat)
                !print *,'---------------',ia,ia_cell
                !print '(3f10.4)', n_vec
                !print *,'---------------'
-               !print '(3f10.4)', R_mat
+               !print '(3f10.4)', r_mat
                !print *,'---------------'
 
                if (.not. qm_excluded_atoms(ia)) then
@@ -459,12 +472,14 @@ contains
                   emomM(1:3,ia,k)=emomM_start(:,ia,k)
                end if
             end do
-            !print '(3f12.5)', emomM
-         i_all=-product(shape(emomM_start))*kind(emomM_start)
-         deallocate(emomM_start,stat=i_stat)
-         call memocc(i_stat,i_all,'emomM_start','emomM_start')
+            !print '(3f12.5)', emomm
+         i_all=-product(shape(emomm_start))*kind(emomm_start)
+         deallocate(emomm_start,stat=i_stat)
+         call memocc(i_stat,i_all,'emomm_start','emomm_start')
       end if
       !
+      if (qm_relax=='Y') call allocate_mcdata(natom,-1)
+
       return
       !
    end subroutine sweep_q2
@@ -485,6 +500,9 @@ contains
       use InputData, only : N1,N2,N3
       use Math_functions, only : f_wrap_coord_diff
       use Depondt, only : rodmat
+      use MomentData, only : emom
+      use mc_driver, only : mc_minimal
+      use MonteCarlo
       !.. Implicit declarations
       implicit none
 
@@ -493,7 +511,7 @@ contains
       integer, intent(in) :: NA  !< Number of atoms in one cell
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
+      real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom !< Magnitude of magnetic moments
       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
       !! +++ New variables due to optimization routines +++ !!
       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
@@ -564,7 +582,8 @@ contains
      
     
       if (.not. allocated(qm_excluded_atoms)) call qminimizer_build_exclude_list(Natom)
-      
+     
+      if (qm_relax=='Y') call allocate_mcdata(Natom,1)
       !
       theta = 0.0_dblprec
       theta_glob = 0.0_dblprec
@@ -629,9 +648,12 @@ contains
             !emom(1:3,ia,k)=m_j
             if (.not. qm_excluded_atoms(ia)) then
                emomM(1:3,ia,k)=m_j*mmom(ia,k)
+               emom(1:3,ia,k)=m_j
             end if
             !print '(i7,3f12.6)', ia, emomM(1:3,ia,k)
          end do
+
+         if (qm_relax=='Y') call mc_minimal(emomm,emom,mmom,qm_relax_steps,qm_relax_mode,qm_relax_temp)
 
          ! Calculate energy for given q,s,theta combination
          ! Anisotropy + external field to be added
@@ -682,6 +704,7 @@ contains
       close(ofileno)
       close(ofileno2)
       !
+      if (qm_relax=='Y') call allocate_mcdata(Natom,-1)
       !
       return
       !
@@ -1539,6 +1562,18 @@ contains
             read(ifile,*,iostat=i_err) n_vec
             n_vec=n_vec/norm2(n_vec+dbl_tolerance)
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_relax')
+            read(ifile,*,iostat=i_err) qm_relax
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_relax_mode')
+            read(ifile,*,iostat=i_err) qm_relax_mode
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_relax_steps')
+            read(ifile,*,iostat=i_err) qm_relax_steps
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+         case('qm_relax_temp')
+            read(ifile,*,iostat=i_err) qm_relax_temp
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
          case('qm_nstep')
             read(ifile,*,iostat=i_err) nstep
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -1584,6 +1619,10 @@ subroutine qminimizer_init()
    qm_rot='N'
    qm_oaxis='N'
    qm_type='N'
+   qm_relax='N'
+   qm_relax_mode='H'
+   qm_relax_steps=100
+   qm_relax_temp=1.0e-3_dblprec
    qm_no_excluded=0
 
 end subroutine qminimizer_init

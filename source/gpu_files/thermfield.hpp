@@ -1,47 +1,45 @@
-#ifndef __THERMFIELD_HPP__
-#define __THERMFIELD_HPP__
-
-#include "real_type.h"
+#pragma once
 
 #include "fortMatrix.hpp"
 #include "randomnum.hpp"
+#include "real_type.h"
 #include "stopwatch.hpp"
-
 
 class Thermfield {
 private:
-	bool dataInitiated;
-	bool constantsInitiated;
+   bool dataInitiated;
+   bool constantsInitiated;
 
-	// Data
-	fortMatrix<real,3,3> field;
-	fortMatrix<real,1>   sigmaFactor; // = sqrt(Dp*temperature(i))
+   // Data
+   fortMatrix<real, 3, 3> field;
+   fortMatrix<real, 1> sigmaFactor;  // = sqrt(Dp*temperature(i))
 
-	// RNG
-	RandomNumbers rng;
+   // RNG
+   RandomNumbers rng;
 
-	Stopwatch &stopwatch;
+   Stopwatch &stopwatch;
 
 public:
-	// Constructor / destructor
-	Thermfield();
-	~Thermfield();
+   // Constructor / destructor
+   Thermfield();
+   ~Thermfield();
 
- 	// Initiate
-	bool initiate(size_t N, size_t M);
-	bool initiateConstants(const matrix<real,1> &temperature, 
-		real timestep, real gamma, real k_bolt, real mub,
-		real damping);		
+   // Initiate
+   bool initiate(std::size_t N, std::size_t M);
+   bool initiateConstants(const matrix<real, 1>& temperature, real timestep, real gamma, real k_bolt,
+                          real mub, real damping);
 
-	// Initiated?
-	inline bool initiated() {return dataInitiated && constantsInitiated;}
+   // Initiated?
+   inline bool initiated() {
+      return dataInitiated && constantsInitiated;
+   }
 
-	// Get field
-	inline const fortMatrix<real,3,3> &getField() {return field;}
+   // Get field
+   inline const fortMatrix<real, 3, 3> &getField() {
+      return field;
+   }
 
-	// Randomize
-	void randomize(const matrix<real,2> &mmom);
+   // Randomize
+   void randomize(const matrix<real, 2> &mmom);
 };
-
-#endif
 

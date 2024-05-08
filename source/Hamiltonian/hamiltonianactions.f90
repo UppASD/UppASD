@@ -193,6 +193,7 @@ contains
             endif
             beff1(1:3,i,k)= beff_s
             beff2(1:3,i,k)= beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
+            ! Here the dipole contribution is added since beff != 0 in that case.
             beff(1:3,i,k) = beff(1:3,i,k)+ beff1(1:3,i,k)+beff2(1:3,i,k)
 
             tfield=0.50_dblprec*(beff_s+2.0_dblprec*beff_q+2.0_dblprec*external_field(1:3,i,k)+time_external_field(1:3,i,k))
