@@ -1,0 +1,30 @@
+name: Build binaries for Linux
+
+on: [push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build binaries
+        run: |
+             cmake -S . -B build 
+             cmake --build build --parallel 
+             mkdir ./dist
+             uname -a
+             echo ${{runner.name}}
+             cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+          path: ./dist/
