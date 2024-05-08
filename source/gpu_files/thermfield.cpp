@@ -8,18 +8,21 @@
 #include "stopwatch.hpp"
 #include "stopwatchPool.hpp"
 
+
 // Constructor
 Thermfield::Thermfield() : stopwatch(GlobalStopwatchPool::get("Thermfield")) {
 }
 
+
 // Destructor
 Thermfield::~Thermfield() {
-   delete field.get_data();
-   delete sigmaFactor.get_data();
+   delete[] field.get_data();
+   delete[] sigmaFactor.get_data();
 
    field.set(nullptr, 0, 0, 0);
    sigmaFactor.set(nullptr, 0);
 }
+
 
 // Initiate
 bool Thermfield::initiate(std::size_t N, std::size_t M) {
@@ -28,6 +31,7 @@ bool Thermfield::initiate(std::size_t N, std::size_t M) {
    dataInitiated = true;
    return true;
 }
+
 
 // Initiate constants
 bool Thermfield::initiateConstants(const matrix<real, 1> &temperature, real timestep, real gamma, real k_bolt,
@@ -53,6 +57,7 @@ bool Thermfield::initiateConstants(const matrix<real, 1> &temperature, real time
    constantsInitiated = true;
    return true;
 }
+
 
 // Randomize
 void Thermfield::randomize(const matrix<real, 2> &mmom) {

@@ -11,6 +11,7 @@
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 
+
 class CudaDepondtIntegrator {
 private:
    // System parameters

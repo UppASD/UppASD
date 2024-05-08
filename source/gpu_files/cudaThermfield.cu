@@ -15,6 +15,7 @@
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
+
 // The neighbour list setup helper
 class CudaThermfield::SetupSigmaFactor : public CudaParallelizationHelper::Site {
 private:
@@ -31,6 +32,7 @@ public:
       sigma_factor[site] = sqrt(dp * sigma_factor[site]);
    }
 };
+
 
 class CudaThermfield::SetupField : public CudaParallelizationHelper::AtomSite {
 private:
@@ -53,10 +55,10 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
-
 CudaThermfield::CudaThermfield()
     : stopwatch(GlobalStopwatchPool::get("Cuda thermfield")),
       parallel(CudaParallelizationHelper::def) {
@@ -64,11 +66,13 @@ CudaThermfield::CudaThermfield()
    dataInitiated = false;
 }
 
+
 CudaThermfield::~CudaThermfield() {
    if(dataInitiated) {
       curandDestroyGenerator(gen);
    }
 }
+
 
 bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
                               unsigned long long seed) {
@@ -96,6 +100,7 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
    return dataInitiated;
 }
 
+
 bool CudaThermfield::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma,
                                        real k_bolt, real mub, real damping) {
    // Timing
@@ -119,6 +124,7 @@ bool CudaThermfield::initiateConstants(const fortMatrix<real, 1>& temperature, r
    constantsInitiated = true;
    return true;
 }
+
 
 void CudaThermfield::randomize(const cudaMatrix<real, 2>& mmom) {
    // Initiated?

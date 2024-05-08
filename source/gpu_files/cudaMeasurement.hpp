@@ -17,6 +17,7 @@
 #define DEFAULT_FAST_COPY false
 #endif
 
+
 class CudaMeasurement {
    // Queue callback data struct
    struct queue_callback_data {

@@ -12,6 +12,7 @@
 #include "c_headers.hpp"
 #include "real_type.h"
 
+
 template <unsigned int threads, bool big>
 class GridHelper {
    std::size_t maxGridSize1;
@@ -53,8 +54,8 @@ public:
          // Small if x <= maxGridSize1
          if(x > maxGridSize1) {
             std::fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
-            std::exit(EXIT_FAILURE);
-            return false;
+            std::exit(EXIT_FAILURE); //
+            return false; // AS: are we exiting or returning a failure?
          }
 
          // Create dims
@@ -89,7 +90,7 @@ public:
          // Small if x <= maxGridSize1
          if(x > maxGridSize1) {
             std::fprintf(stderr, "Error: Too many atoms in system, bigger grid must be used!\n");
-            std::exit(EXIT_FAILURE);
+            std::exit(EXIT_FAILURE); // AS: same
             return false;
          }
 

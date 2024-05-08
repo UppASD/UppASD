@@ -16,6 +16,7 @@
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
+
 class CudaMomentUpdater::Mompar1 : public CudaParallelizationHelper::Atom {
 private:
    real* mmom2;
@@ -33,6 +34,7 @@ public:
       mmom2[atom] = fmax((real)1e-4, mmom0[atom] * fabs(emom2[atom * 3 + 2]));
    }
 };
+
 
 class CudaMomentUpdater::Mompar2 : public CudaParallelizationHelper::Atom {
 private:
@@ -52,6 +54,7 @@ public:
       mmom2[atom] = fmax((real)1e-4, mmom0[atom] * mz * mz);
    }
 };
+
 
 // mmomi = 1.0 / mmom
 // mmomM = emom*  mmom
@@ -82,6 +85,7 @@ public:
    }
 };
 
+
 // mmomi = (mmom < 0.000001) ? 1 : (1.0 / mmom)
 // mmomM = emom*  mmom
 class CudaMomentUpdater::Copy2 : public CudaParallelizationHelper::Atom {
@@ -111,6 +115,7 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +142,7 @@ CudaMomentUpdater::CudaMomentUpdater(cudaMatrix<real, 2>& p1, cudaMatrix<real, 2
       std::exit(EXIT_FAILURE);
    }
 }
+
 
 // Wrapper routine for updating the magnetic moments
 void CudaMomentUpdater::update() {

@@ -10,6 +10,7 @@
 #include "matrix.hpp"
 #include "real_type.h"
 
+
 // TODO: replace calloc with new.
 template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0, std::size_t L = 0>
 class hostMatrix : public matrix<T, D, I, J, K, L> {
