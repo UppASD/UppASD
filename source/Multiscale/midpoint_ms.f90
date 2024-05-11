@@ -10,6 +10,7 @@
 !> Manuel Pereiro
 !> Jonathan Chico
 !> Anders Bergman
+!> Nastaran Salehi
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------

@@ -6,7 +6,8 @@
 !> Edgar Mendez
 !> Nikos Ntallis
 !> Anders Bergman
-!> Manuel Pereiro 
+!> Manuel Pereiro
+!> Nastaran Salehi 
 !> @copyright
 !> GNU Public License.
 !> @details In principle the solver is of Heun type but uses rotations to

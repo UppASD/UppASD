@@ -1,7 +1,10 @@
 !-------------------------------------------------------------------------------
 ! MODULE: damping
 !> @brief Module to have site dependent damping
-!> @author Manuel Pereiro, Jonathan Chico
+!> @author 
+!> Manuel Pereiro 
+!> Jonathan Chico
+!> Nastaran Salehi
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
@@ -116,7 +119,7 @@ contains
       ! If the site dependent damping is turned on  for the initial phase
       ! Fill up the corresponding arrays
 
-      if (ip_mode=='S') then
+      if (ip_mode=='S'.or.ip_mode=='MS') then
          if (do_site_ip_damping=='Y') then
             do i=1, ipnphase
                ! Check if the random alloy flag is on
@@ -166,7 +169,7 @@ contains
 
       ! Fill up the site dependent arrays for the measurement phase
       ! Mapping the damping parameter over the number of atoms Natom
-      if (mode=='S' .or. mode=='R') then
+      if (mode=='S' .or. mode=='R' .or. mode=='MS') then
          if (do_site_damping=='Y') then
             ! Check if the system is a random alloy
             if (do_ralloy==0) then
