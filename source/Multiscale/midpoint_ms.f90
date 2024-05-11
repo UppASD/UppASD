@@ -22,9 +22,9 @@ module Midpoint_ms
 
    implicit none
 
-   real(dblprec), dimension(:,:,:), allocatable :: btorque_full !< Resulting effective field
+   !real(dblprec), dimension(:,:,:), allocatable :: btorque_full !< Resulting effective field
 
-   private :: btorque_full
+   !private :: btorque_full
 
 contains
 
