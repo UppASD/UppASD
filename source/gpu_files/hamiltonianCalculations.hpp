@@ -9,6 +9,7 @@
 #include "matrix.hpp"
 #include "real_type.h"
 
+
 class HamiltonianCalculations {
 private:
    real beff_s[3];

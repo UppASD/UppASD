@@ -18,13 +18,16 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 
+
 CudaMdSimulation::CudaMdSimulation() {
    isInitiated = false;
 }
 
+
 CudaMdSimulation::~CudaMdSimulation() {
    release();
 }
+
 
 void CudaMdSimulation::initiateConstants() {
    // Only heisge_jij allowed
@@ -69,6 +72,7 @@ void CudaMdSimulation::initiateConstants() {
    }
    randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
 }
+
 
 void CudaMdSimulation::initiate_fortran() {
    // Dimensions
@@ -115,6 +119,7 @@ void CudaMdSimulation::initiate_fortran() {
    }
 }
 
+
 /*
 static void printMemStat(const char * label) {
         std::size_t free;
@@ -123,6 +128,8 @@ static void printMemStat(const char * label) {
         std::printf("%s: free=%dk total=%dk (ret=%d)\n", label, free/1024, total/1024, result);
 }
 */
+
+
 bool CudaMdSimulation::initiateMatrices() {
    // Dimensions
    std::size_t N = Natom;
@@ -181,6 +188,7 @@ bool CudaMdSimulation::initiateMatrices() {
    return true;
 }
 
+
 void CudaMdSimulation::release() {
    isInitiated = false;
 
@@ -197,6 +205,7 @@ void CudaMdSimulation::release() {
    mmom2.free();
    mmomi.free();
 }
+
 
 void CudaMdSimulation::copyFromFortran() {
    if(isInitiated) {
@@ -215,6 +224,7 @@ void CudaMdSimulation::copyFromFortran() {
    }
 }
 
+
 void CudaMdSimulation::copyToFortran() {
    if(isInitiated) {
       beff.write(FortranData::beff);
@@ -232,13 +242,14 @@ void CudaMdSimulation::copyToFortran() {
    }
 }
 
+
 void CudaMdSimulation::printConstants() {
    std::printf(
        "stt          : %c\n"
        "SDEalgh      : %d\n"
        "rstep        : %ld\n"
        "nstep        : %ld\n"
-       "Natom        : %ld\n"	
+       "Natom        : %ld\n"
        "nHam         : %ld\n"
        "Mensemble    : %ld\n"
        "max_no_neigh : %ld\n"
@@ -266,6 +277,7 @@ void CudaMdSimulation::printConstants() {
        *mavg);
 }
 
+
 // Printing simulation status
 // Added copy to fortran line so that simulation status is printed correctly > Thomas Nystrand 14/09/09
 void CudaMdSimulation::printMdStatus(std::size_t mstep) {
@@ -282,6 +294,7 @@ void CudaMdSimulation::printMdStatus(std::size_t mstep) {
       std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *mavg);
    }
 }
+
 
 // Spin Dynamics measurement phase
 void CudaMdSimulation::measurementPhase() {

@@ -5,6 +5,7 @@
 #include "real_type.h"
 #include "stopwatch.hpp"
 
+
 class Thermfield {
 private:
    bool dataInitiated;

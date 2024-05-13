@@ -9,15 +9,18 @@
 #include "stopwatchPool.hpp"
 #include "thermfield.hpp"
 
+
 // Constructor
 DepondtIntegrator::DepondtIntegrator() : stopwatch(GlobalStopwatchPool::get("Depondt integrator")) {
    Natom = Mensemble = 0;
 }
 
+
 // Destructor
 DepondtIntegrator::~DepondtIntegrator() {
    release();
 }
+
 
 // Initiator
 bool DepondtIntegrator::initiate(std::size_t N, std::size_t M, char sttMode) {
@@ -52,6 +55,7 @@ bool DepondtIntegrator::initiate(std::size_t N, std::size_t M, char sttMode) {
    return true;
 }
 
+
 bool DepondtIntegrator::initiateConstants(real gamma_const, real k_bolt, real mub, real damping_const,
                                           const hostMatrix<real, 1>& temp, real timestep_const) {
    // Set parameters
@@ -62,6 +66,7 @@ bool DepondtIntegrator::initiateConstants(real gamma_const, real k_bolt, real mu
    return true;
 }
 
+
 // Releaser
 void DepondtIntegrator::release() {
    // Reset parameters
@@ -71,15 +76,15 @@ void DepondtIntegrator::release() {
    const real* data;
    data = mrod.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
    data = blocal.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
    data = bdup.get_data();
    if(data != nullptr) {
-      delete data;
+      delete[] data;
    }
 
    // Reset matrices
@@ -87,6 +92,7 @@ void DepondtIntegrator::release() {
    blocal.set(nullptr, 3, 1, 1);
    bdup.set(nullptr, 3, 1, 1);
 }
+
 
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
@@ -147,6 +153,7 @@ void DepondtIntegrator::evolveFirst(const hostMatrix<real, 3, 3>& beff, hostMatr
    stopwatch.add("copy");
 }
 
+
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
 void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3>& beff, const hostMatrix<real, 3, 3>& b2eff,
@@ -191,6 +198,7 @@ void DepondtIntegrator::evolveSecond(const hostMatrix<real, 3, 3>& beff, const h
    emom2.memcopy(mrod);
    stopwatch.add("copy");
 }
+
 
 // Performs a Rodrigues rotation of the magnetic moments in the
 // effective field.
@@ -248,6 +256,7 @@ bool DepondtIntegrator::rotate(const hostMatrix<real, 3, 3>& emom, real timestep
    }
    return true;
 }
+
 
 // Constructs the effective field (including damping term)
 void DepondtIntegrator::buildbeff(const hostMatrix<real, 3, 3>& emom, const hostMatrix<real, 3, 3>& btorque) {

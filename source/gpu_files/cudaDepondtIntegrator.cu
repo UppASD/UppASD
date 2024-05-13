@@ -12,10 +12,10 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
-
 class CudaDepondtIntegrator::BuildEffectiveField : public CudaParallelizationHelper::Atom {
 private:
    real* bdup;
@@ -40,6 +40,7 @@ public:
       my_bdup[2] = my_bloc[2] + damping * (my_emom[0] * my_bloc[1] - my_emom[1] * my_bloc[0]);
    }
 };
+
 
 class CudaDepondtIntegrator::Rotate : public CudaParallelizationHelper::Atom {
 private:
@@ -111,6 +112,7 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,10 +123,12 @@ CudaDepondtIntegrator::CudaDepondtIntegrator()
       parallel(CudaParallelizationHelper::def) {
 }
 
+
 // Destructor
 CudaDepondtIntegrator::~CudaDepondtIntegrator() {
    release();
 }
+
 
 // Initiator
 bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep,
@@ -156,6 +160,7 @@ bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, re
    return true;
 }
 
+
 bool CudaDepondtIntegrator::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep,
                                               real gamma_const, real k_bolt_const, real mub_const,
                                               real damping_const) {
@@ -174,12 +179,14 @@ bool CudaDepondtIntegrator::initiateConstants(const fortMatrix<real, 1>& tempera
    return true;
 }
 
+
 // Releaser
 void CudaDepondtIntegrator::release() {
    mrod.free();
    blocal.free();
    bdup.free();
 }
+
 
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
@@ -222,6 +229,7 @@ void CudaDepondtIntegrator::evolveFirst(const cudaMatrix<real, 3, 3>& beff, cuda
    stopwatch.add("copy");
 }
 
+
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
 void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3>& beff,
@@ -253,9 +261,11 @@ void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3>& beff,
    stopwatch.add("copy");
 }
 
+
 void CudaDepondtIntegrator::rotate(const cudaMatrix<real, 3, 3>& emom, real delta_t) {
    parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
+
 
 // Constructs the effective field (including damping term)
 void CudaDepondtIntegrator::buildbeff(const cudaMatrix<real, 3, 3>& emom,

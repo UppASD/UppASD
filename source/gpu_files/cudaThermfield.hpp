@@ -10,9 +10,9 @@
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 
+
 // CUDA thermfield class
 // Optimized for simulations with constant temperatures and timestep.
-
 class CudaThermfield {
 private:
    // Generator
