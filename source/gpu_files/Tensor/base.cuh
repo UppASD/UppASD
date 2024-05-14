@@ -87,7 +87,7 @@ public:
 
 
    ////////////////////////////////////////////////////////////////////////////////////////////////
-   __host__ __device__ constexpr index_t dimension() const {
+   __host__ __device__ static constexpr index_t dimension() {
       return dim;
    }
 

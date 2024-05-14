@@ -4,11 +4,12 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <iomanip>
 #include <iostream>
 #include <type_traits>
 
-#include "common.cuh"
+#include "base.cuh"
 
 
 #define TENSOR_STATIC_ASSERT_DIMENSION() \
@@ -59,6 +60,7 @@ public:
    using IndexBase<T, dim>::extent;
    using IndexBase<T, dim>::extents;
 
+
    ////////////////////////////////////////////////////////////////////////////////////////////////
    template <typename... Ints>
    Tensor(T* data, Ints... ext) : IndexBase<T, dim>{ext...},
@@ -73,8 +75,8 @@ public:
    Tensor() = default;
 
 
-   // deleted since we currently don't need these operations
-   Tensor(const Tensor&) = delete;
+   // shallow copy of data
+   Tensor(const Tensor&) = default;
    Tensor& operator=(const Tensor&) = delete;
 
 
@@ -134,6 +136,12 @@ public:
 
 
    ////////////////////////////////////////////////////////////////////////////////////////////////
+   void copy_sync(const Tensor& A) {
+      assert(same_extents(*this, A));
+      ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToHost));
+   }
+
+
    void copy_sync(const CudaTensor<T, dim>& A);
 
 
@@ -160,17 +168,17 @@ template <typename T, index_t dim>
 void Tensor<T, dim>::transpose() {
    // statically assert since partial template specialization is not allowed
    static_assert(dim == 2);
-   auto* tmp = new T[size()];
+   auto* tr = new T[size()];
    for(index_t i = 0; i < extent(0); ++i) {
       for(index_t j = 0; j < extent(1); ++j) {
-         tmp[i * extent(1) + j] = (*this)(i, j);
+         tr[i * extent(1) + j] = (*this)(i, j);
       }
    }
 
    this->SetExtents(extent(1), extent(0));
-   std::copy(tmp, tmp + size(), data());
+   std::copy(tr, tr + size(), data());
 
-   delete[] tmp;
+   delete[] tr;
 }
 
 
