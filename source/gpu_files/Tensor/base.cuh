@@ -51,6 +51,14 @@ public:
       assert(d > -1 && d < dim);
       return x[d];
    }
+
+   __host__ __device__ index_t size() const {
+      index_t p = 1;
+      for(index_t d = 0; d < dim; ++d) {
+         p *= x[d];
+      }
+      return p;
+   }
 };
 
 
@@ -93,11 +101,7 @@ public:
 
 
    __host__ __device__ index_t size() const {
-      index_t p = 1;
-      for(index_t d = 0; d < dim; ++d) {
-         p *= ext_[d];
-      }
-      return p;
+      return ext_.size();
    }
 
 
