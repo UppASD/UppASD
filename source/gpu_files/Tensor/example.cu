@@ -8,7 +8,7 @@
 template <typename T, index_t dim>
 __global__ void Compute(const CudaTensor<T, dim> A, CudaTensor<T, dim> B) {
    int i = blockDim.x * blockIdx.x + threadIdx.x;
-   for(; i < A.size(); i += blockDim.x * blockIdx.x) {
+   for(; i < A.size(); i += gridDim.x * blockDim.x) {
       B[i] = 1000 * A[i];
    }
 }
