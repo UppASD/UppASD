@@ -1,0 +1,123 @@
+simid     honeycom
+ncell     40        40        1                 System size
+BC        P         P         0                 Boundary conditions (0=vacuum, P=periodic)
+cell      1.000000   0.000000   0.000000
+         -0.500000   0.866025   0.000000
+          0.000000   0.000000   1.000000
+Sym       0                                     Symmetry of lattice
+do_prnstruct 1
+do_hoc_debug 0
+aunits    N
+do_N3     N
+
+posfiletype  C
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./jfile1
+
+Initmag   3
+#restartfile ./restart.dat
+
+phonfile  ./phonfile
+#phonfile  ./phonfilem1m2
+ll        ./llfile
+anisotropy  ./anisotropyfile
+#mml       ./MMLFILE
+Initlatt  1
+#lattrestartfile ./lattrestart.dat
+
+ip_mode    R
+ip_nphase  1
+100000    0.01   1e-15   0.5  1e-12
+
+#ip_temp     1.00
+#ip_mcNstep  IPSTEP
+iplattdamp  1e-14
+
+do_ld     Y
+mode      R
+Nstep     300000
+timestep  1e-16
+damping   0 0.0001
+lattdamp  0 1e-15
+Temp      0.01
+#Mensemble  MENSEMBLE
+
+#do_velrsc    DO_VELRSC
+#velrsc_step  1
+#velrsc_taut  10
+
+lntraj     3
+1    10    10
+2    10    10
+3    10    10
+
+#do_prn_eeff  Y
+#eeff_step    10
+#eeff_buff    10
+
+#do_prn_einteff  Y
+#einteff_step    10
+#einteff_buff    10
+
+#do_ltottraj Y
+#ltottraj_step 10
+#ltottraj_buff 10
+
+do_lavrg   Y
+do_proj_lavrg   Y
+lavrg_step   10 
+lavrg_buff   10
+
+#do_prn_beff  Y
+#beff_step    10
+#beff_buff    10
+
+#do_prn_binteff  Y
+#binteff_step    10
+#binteff_buff    10
+
+ntraj     2
+1    10    10
+2    10    10
+3    10    10
+
+do_avrg   Y
+do_proj_avrg   Y
+avrg_step   10
+avrg_buff   10
+
+plotenergy   1
+do_spintemp  Y
+
+do_ams      Y
+do_magdos   Y
+
+do_phonspec Y
+do_phondos  Y
+
+do_sc Q                                   Measure spin correlation
+sc_nstep 1000                             Number of steps to sample
+sc_step 40                                Number of time steps between each sampling
+#sc_sep 10                                 Number of time steps between the start of subsequent sc measurements
+
+qpoints D                                 Flag for q-point generation (F=file,A=automatic,C=full cell)
+#qfile   ./qfile
+qfile   ./qfile.kpath
+
+do_uc Q                                   Measure spin correlation
+uc_nstep 500                             Number of steps to sample
+uc_step 600                               Number of time steps between each sampling
+#uc_sep 10                                 Number of time steps between the start of subsequent sc measurements
+
+do_vc Q                                   Measure spin correlation
+vc_nstep 500                             Number of steps to sample
+vc_step 600                               Number of time steps between each sampling
+#uc_sep 10                                 Number of time steps between the start of subsequent sc measurements
+
+sc_window_fun 2
+do_sc_local_axis Y
+do_uc_local_axis N
+do_sc_average F
+do_uc_average F
+do_vc_average F

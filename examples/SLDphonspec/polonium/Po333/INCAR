@@ -1,0 +1,20 @@
+SYSTEM = Polonium
+
+LPLANE = .FALSE.   #
+NPAR   = 8         # 
+NSIM   = 1         #
+KPAR   = 16        # enables parallelization over k-points. 
+LREAL  = .FALSE.   # real space projection yes / no
+
+PREC = Accurate    # precision accurate
+ENCUT = 500        # cutoff used throughout all calculations
+ISMEAR = 0         # method to determine partial occupancies
+ADDGRID = .TRUE.
+EDIFF = 1E-8
+NELM = 80
+
+ISTART = 1         # continue from WAVECAR file
+ICHARG = 1         # Charge from CHGCAR file
+ISYM = 2           # use symmetries
+LORBIT = 11        # site projected DOS
+NELMDL = 5

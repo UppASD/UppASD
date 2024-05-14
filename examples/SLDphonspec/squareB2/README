@@ -1,0 +1,17 @@
+Square lattice two atom basis
+
+Input files to set up spin-lattice dynamics simluations of a
+square lattice with two atom basis
+In phonfile the two atoms have the same mass
+In phonfilem1m2 the mass of atom 2 is double the mass of atom 1.
+For the case of phonfilem1m2, the calculated phonon dispersion along
+high symmetry directions \Gamma-X-M-\Gamma matches with the results
+for shown on slide no 10 in the lecture notes by
+Farhan Rana for ECE 407, Spring 2009, Cornell University
+https://courses.cit.cornell.edu/ece407/Lectures/handout18.pdf
+
+Input files are available in two variants, with/without symmetry
+to set up the Hamiltonians.
+
+BaseB2CartSym
+BaseB2CartNoSym

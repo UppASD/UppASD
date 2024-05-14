@@ -1,0 +1,20 @@
+Honeycomb lattice
+
+Input files to set up spin-lattice dynamics simulations of a
+honeycomb lattice
+In phonfile the two atoms have the same mass.
+In phonfilem1m2 the mass of atom 1 is double the mass of atom 2.
+The calculated phonon dispersion along
+high symmetry directions \Gamma-M-K-\Gamma matches with the results
+on Figs. 6 and 7 respectively in Cserti and Tichy Eur. J. Phys. 25, 723 (2004)
+
+Input files are available in different variants, with/without symmetry,
+for direct/Cartesian coordinate, and for maptype 1 or 2. Currently working variants are
+
+Base
+A120Base
+
+currently non-working variants
+
+A60Base          (check and correct the direct q points for 60 deg lattice vectors)
+BaseCartNoSym    (check and correct the entries in the llfile)

@@ -1,0 +1,24 @@
+Examples of input parameters and phonon dispersions for harmonic lattice potential
+
+Model potentials: nearest and next nearest neighbor coupling for simple structures.
+See README in the respective directory.
+
+honeycomb
+square
+squareB2
+triangular
+
+DFT based potentials: constructed with data from VASP and Phonopy calculations.
+Each example contains a subdirectory with VASP and Phonopy input, and selected
+output, and a subdirectory with UppASD input files.
+
+bccFe
+bto
+diamond
+graphene
+polonium
+
+Utiliary program: used to generate from a Phonopy FORCE_CONSTANTS file an UppASD llfile.
+
+llfileindex.f90     the program
+llfileindex.dat     input parameter, edit to match the size of the Phonopy supercell

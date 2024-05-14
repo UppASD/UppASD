@@ -1,0 +1,13 @@
+Square lattice
+
+Input files to set up spin-lattice dynamics simulations of a
+square lattice
+
+The llfile files are available in two variants
+
+llfile    with nearest neighbor coupling
+llfileN2  with second nearest neighbor coupling
+
+For the latter, the calculated phonon dispersion along
+high symmetry directions \Gamma-X-M-\Gamma matches with the results
+on Fig. 11 in Cserti and Tichy Eur. J. Phys. 25, 723 (2004)
