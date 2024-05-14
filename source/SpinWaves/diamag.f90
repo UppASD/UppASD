@@ -1517,7 +1517,7 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
             J_n(2,2)=ham%ncoup(j,ih,1)
             J_n(3,3)=ham%ncoup(j,ih,1)
             if (ham_inp%do_dm==1) then
-               dmv=-ham%dm_vect(:,j,ih)
+               dmv=ham%dm_vect(:,j,ih)
                D_n=dm2tens(dmv)
                J_n=J_n-D_n
             end if

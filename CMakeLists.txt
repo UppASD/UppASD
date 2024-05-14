@@ -55,10 +55,12 @@ message(STATUS "Final module path  : ${CMAKE_MODULE_PATH}")
 # Create lib directory if missing
 ##############################################################################################
 set(LIB ${CMAKE_SOURCE_DIR}/lib)
-message(STATUS "The lib is ${LIB}")
+#message(STATUS "The lib is ${LIB}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB})
 message(STATUS "The lib is ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+set(LEGACY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
+message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 ##############################################################################################
 
 
@@ -208,11 +210,16 @@ OPTION(USE_OVF "Use OVF format" OFF)
 OPTION(BUILD_MANUAL "Build manual"  OFF)
 OPTION(BUILD_DOXYGEN "Build doxygen"  OFF)
 OPTION(BUILD_PYTHON "Build Python interface"  OFF)
+
+##############################################################################################
+# Enable and define tests
+##############################################################################################
+include(CTest)
 CMAKE_DEPENDENT_OPTION(RUN_ASD_TESTS "Run asd-tests"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
-#OPTION(RUN_ASD_TESTS "Run asd-tests"  OFF)
+CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUDA" OFF)
 ##############################################################################################
 
 ##############################################################################################
@@ -361,18 +368,26 @@ INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
 if (USE_CUDA) 
 
    ENABLE_LANGUAGE(C CUDA CXX)
-   find_package(CUDAToolkit)
+   if (CMAKE_VERSION VERSION_LESS "3.17.0")
+	   find_package(CUDA)
+   else ()
+   	find_package(CUDAToolkit)
+   endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
    add_compile_definitions(CUDA)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
+   if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
+   endif()
 
    # Set preprocessing flags indicating compiler
-   string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   #string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
+   set(PP_CUDA_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
 
    # Find CUDA arch on local machine
    include(FindCUDA/select_compute_arch)
@@ -406,9 +421,11 @@ ENDIF(USE_OVF)
 # MKL edits in case of GNU compiler
 ##############################################################################################
 if(USE_MKL)
-   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
       target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    endif()
+   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+
 endif()
 ##############################################################################################
 
@@ -436,8 +453,9 @@ elseif(USE_FFTW)
    add_compile_definitions(USE_FFTW)
    message(STATUS "FFT-> ${USE_FFTW} ")
    #include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
-   include_directories(${FFTW_INCLUDE_DIRS})
-   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIRS} ${FFTW_LIB}")
+   include_directories(${FFTW_INCLUDE_DIR})
+   include_directories(${FFTW_INCLUDES})
+   message(STATUS "FFTW: -I${FFTW_INCLUDES}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
 endif()
 ##############################################################################################
 
@@ -746,15 +764,23 @@ endif(NOT BUILD_PYTHON)
 ##############################################################################################
 # Copy static library to ./lib
 ##############################################################################################
-#add_custom_command(
-#   TARGET ${UppASD_LIB} POST_BUILD
-#   COMMAND ${CMAKE_COMMAND} -E copy
-#   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-#   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-#   #COMMAND ${CMAKE_COMMAND} -E copy
-#   #${CMAKE_BINARY_DIR}/_uppasd*.so
-#   #${CMAKE_SOURCE_DIR}/python/uppasd/
-#   )
+add_custom_command(
+   TARGET ${UppASD_LIB} POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy
+   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
+   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+   )
+
+#################################################################################################
+#### Copy binary to ./source/sd for legacy purposes
+#### currently disabled..
+#################################################################################################
+###add_custom_command(
+###   TARGET ${UppASD_EXE} POST_BUILD
+###   COMMAND ${CMAKE_COMMAND} -E copy
+###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
+###   ${LEGACY_OUTPUT_DIRECTORY}/sd
+###   )
 
 
 ###############################################################################################
@@ -767,11 +793,10 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-include(CTest)
 set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
-   add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionHisingen.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
    add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
@@ -782,6 +807,10 @@ endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
    add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_GNEB_TESTS)
+if (RUN_CUDA_TESTS)
+add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+endif (RUN_CUDA_TESTS)
+set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
 message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
