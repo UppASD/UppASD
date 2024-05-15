@@ -1,4 +1,4 @@
-name: Build wheels on linux and macos
+name: Build wheels on MacOS
 
 #on: [release]
 on: [release, push, pull_request]

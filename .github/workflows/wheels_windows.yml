@@ -1,4 +1,4 @@
-name: Build wheels on windows
+name: Build wheels on windows using cibuildwheel
 
 on: [release] #, push, pull_request]
 

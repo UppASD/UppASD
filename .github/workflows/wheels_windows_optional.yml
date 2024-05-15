@@ -1,4 +1,4 @@
-name: Build wheels on Windows, optional approach
+name: Build wheels on Windows, optional cibuildwheel approach
 
 on:
   release:
@@ -89,7 +89,7 @@ jobs:
           python-version: 3.9
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: dist/*.tar.gz
 

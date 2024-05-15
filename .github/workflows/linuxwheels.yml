@@ -1,4 +1,4 @@
-name: Build wheels on linux and macos
+name: Build wheels on Linux
 
 #on: [release]
 on: [release, push, pull_request]
@@ -82,7 +82,7 @@ jobs:
           FC: gfortran
           CC: gcc
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
 
@@ -103,6 +103,6 @@ jobs:
         run: python -m build . --sdist
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: dist/*.tar.gz
