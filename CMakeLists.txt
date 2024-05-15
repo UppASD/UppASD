@@ -714,10 +714,10 @@ message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fort
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    #-static
-   #   -fopenmp
-   #   -lgomp
-   #   -lgfortran
-   #   -lquadmath
+   #-fopenmp
+      -lgomp
+      -lgfortran
+      -lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
