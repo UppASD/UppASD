@@ -715,9 +715,9 @@ message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fort
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    #-static
    #-fopenmp
-      -lgomp
-      -lgfortran
-      -lquadmath
+   #-lgomp
+   #-lgfortran
+   #-lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
@@ -725,6 +725,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
          #${OpenMP_Fortran_LIB_NAMES}
+         ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
       if(MKL_FOUND)
