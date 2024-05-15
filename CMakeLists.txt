@@ -716,7 +716,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    #-static
    #-fopenmp
    #-lgomp
-   #-lgfortran
+   -lgfortran
    #-lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}

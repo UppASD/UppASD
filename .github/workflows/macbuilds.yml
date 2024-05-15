@@ -29,7 +29,7 @@ jobs:
 
       - name: Build binaries
         run: |
-             FC=gfortran-13 cmake -S . -B build 
+             FC=gfortran-13 CC=gcc-13 cmake -S . -B build 
              cmake --build build --parallel
              mkdir ./dist
              uname -a
