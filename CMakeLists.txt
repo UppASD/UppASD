@@ -713,11 +713,11 @@ endif ()
 message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
-      -static
-      -fopenmp
-      -lgomp
-      -lgfortran
-      -lquadmath
+   #-static
+   #   -fopenmp
+   #   -lgomp
+   #   -lgfortran
+   #   -lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
