@@ -32,11 +32,14 @@ jobs:
              FC=gfortran-13 CC=gcc-13 cmake -S . -B build 
              cmake --build build --parallel
              mkdir ./dist
+             echo "uname -a:"
              uname -a
+             echo "runner.name:"
              echo ${{runner.name}}
              cp ./bin/sd.* ./dist/uppasd.${{matrix.os}}.${{matrix.arch}}
+             echo "Binary:" uppasd.${{matrix.os}}.${{matrix.arch}}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+          name: uppasd.${{matrix.os}}.${{matrix.arch}}
           path: ./dist/

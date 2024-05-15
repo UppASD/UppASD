@@ -22,4 +22,4 @@ manylinux-x86_64-image = "manylinux_2_28"
 
 [tool.cibuildwheel.linux]
 #test-requires = ["pip","setuptools", "wheel", "numpy", "f90wrap","build"]
-before-all = "yum install -y openblas-static blas-devel lapack-static fftw-static || yum install -y  blas-devel lapack-static fftw-static openblas-static atlas-devel || yum install -y  blas-static lapack-static fftw-static atlas-static || apk add --upgrade py3-pip blas-dev lapack-dev fftw-dev openblas-static || apt-get install -y blas-static lapack-static fftw-static"
+before-all = "yum install -y openblas-static blas-devel lapack-static fftw-static ninja-build || yum install -y  blas-devel lapack-static fftw-static openblas-static atlas-devel ninja-build || yum install -y  blas-static lapack-static fftw-static atlas-static ninja-build || apk add --upgrade py3-pip blas-dev lapack-dev fftw-dev openblas-static ninja-build || apt-get install -y blas-static lapack-static fftw-static ninja-build"
