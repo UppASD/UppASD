@@ -237,7 +237,7 @@ contains
     if(do_prnstruct /= 0) then
        open(unit=1234, file=coord_file_name)
        do i = 1, Natom
-          write (1234, *) i, coord(:, i), '1', i
+         write (1234,'(i12,2x,3F19.13,2x,a,2x,i12 )') i, coord(:, i), '1', i
        enddo
        close(1234)
     end if
