@@ -368,7 +368,7 @@
        emom = moments 
     end subroutine put_emom
 !!!    !==============================================================!
-!!!    ! Moment handling routines
+!!!    ! Field handling routines
 !!!    !--------------------------------------------------------------!
 !!! 
     subroutine get_beff(fields, natom, mensemble) bind(c, name='get_beff_')
@@ -400,6 +400,50 @@
 
        beff = fields
     end subroutine put_beff
+!!!    !==============================================================!
+!!!    ! Input data routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_nstep(nstep) bind(c, name='get_nstep_')
+      use iso_c_binding
+         use InputData, only : instep => nstep
+       implicit none
+       !f2py intent(out) nstep
+       integer(c_int), intent(out) :: nstep
+
+       nstep = instep
+    end subroutine get_nstep
+
+    subroutine get_mcnstep(nstep) bind(c, name='get_mcnstep_')
+      use iso_c_binding
+         use InputData, only : mcnstep
+       implicit none
+       !f2py intent(out) nstep
+       integer(c_int), intent(out) :: nstep
+
+       nstep = mcnstep
+    end subroutine get_mcnstep
+
+    subroutine get_temperature(temperature) bind(c, name='get_temperature_')
+      use iso_c_binding
+         use InputData, only : temp
+       implicit none
+       !f2py intent(out) nstep
+       real(c_double), intent(out) :: temperature
+
+       temperature = temp
+    end subroutine get_temperature
+
+    subroutine get_delta_t(timestep) bind(c, name='get_delta_t_')
+      use iso_c_binding
+         use InputData, only : delta_t
+       implicit none
+       !f2py intent(out) nstep
+       real(c_double), intent(out) :: timestep
+
+       timestep = delta_t
+    end subroutine get_delta_t
+
 !!!    !==============================================================!
 !!!    ! Measurement Runners
 !!!    !--------------------------------------------------------------!

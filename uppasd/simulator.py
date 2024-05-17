@@ -1,5 +1,6 @@
 import numpy as np
 from uppasd import pyasd as _asd
+from uppasd import inputdata as _inputdata
 
 class simulator:
     """
@@ -17,6 +18,8 @@ class simulator:
         self.moments = np.zeros((3, self.natom, self.mensemble))
         self.fields = np.zeros((3, self.natom, self.mensemble))
         self.energy = np.float64(0.0)
+        
+        self.inputdata = _inputdata.InputData()
 
     def run_simulation(self):
         """
