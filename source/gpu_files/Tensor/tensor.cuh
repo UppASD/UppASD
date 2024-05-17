@@ -148,7 +148,7 @@ public:
 
 
    // Tensor::copy_async(Tensor) is not supported since it is not an asynchronous operation
-   void copy_async(const CudaTensor<T, dim>& A);
+   void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0);
 
 
    void swap(Tensor<T, dim>& A) noexcept {
@@ -347,15 +347,17 @@ public:
    }
 
 
-   __host__ void copy_async(const Tensor<T, dim>& A) {
+   __host__ void copy_async(const Tensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
+      ASSERT_CUDA_SUCCESS(
+          cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
    }
 
 
-   __host__ void copy_async(const CudaTensor<T, dim>& A) {
+   __host__ void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
+      ASSERT_CUDA_SUCCESS(
+          cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
    }
 
 
@@ -380,7 +382,7 @@ void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
 
 
 template <typename T, index_t dim>
-void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A) {
+void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
+   ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
