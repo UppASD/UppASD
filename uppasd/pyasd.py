@@ -166,7 +166,7 @@ def relaxsldmontecarlo():
     """
     _uppasd.relaxsldmontecarlo()
 
-def relax(natom, mensemble, imode='S', instep=100, itemperature=0.0, itimestep=1.0e-16, idamping=0.5):
+def relax(natom, mensemble, imode='S', instep=10, itemperature=0.0, itimestep=1.0e-16, idamping=0.5):
     """
     relaxllg()
     
@@ -175,14 +175,11 @@ def relax(natom, mensemble, imode='S', instep=100, itemperature=0.0, itimestep=1
     
     
     """
-    print('natom:', natom)
-    print('mensemble:', mensemble)
-    print('imode:', imode)
-    print('instep:', instep)
-    print('itemperature:', itemperature)
-    print('itimestep:', itimestep)
-    print('idamping:', idamping)
-    
+    method = {}
+    method['S'] = 'LLG'
+    method['M'] = 'Metropolis'
+    method['H'] = 'Heat Bath'
+    print(f"Performing relaxation using the {method[imode]} method for {instep} steps.")
     moments = _uppasd.relax(natom, mensemble, imode, instep, itemperature, itimestep, idamping)
     return moments
 
@@ -376,7 +373,6 @@ def get_emom(natom, mensemble):
     
     """
     emom = _uppasd.get_emom(natom, mensemble)
-    print(emom.shape)
     return emom 
 
 def put_emom(emom, natom, mensemble):
@@ -395,6 +391,44 @@ def put_emom(emom, natom, mensemble):
     
     """
     _uppasd.put_emom(emom, natom, mensemble)
+
+def get_beff(natom, mensemble):
+    """
+    emom = get_emom(natom, mensemble)
+    
+    
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 238-242
+    
+    
+    Parameters
+    ----------
+    natom : int
+    mensemble : int
+    
+    Returns
+    -------
+    emom : float array
+    
+    """
+    beff = _uppasd.get_beff(natom, mensemble)
+    return beff 
+
+def put_beff(beff, natom, mensemble):
+    """
+    put_emom(emom, natom, mensemble)
+    
+    
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 244-248
+    
+    
+    Parameters
+    ----------
+    emom : float array
+    natom : int
+    mensemble : int
+    
+    """
+    _uppasd.put_beff(ebeff, natom, mensemble)
 
 
 _array_initialisers = []

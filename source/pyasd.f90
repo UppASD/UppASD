@@ -106,7 +106,11 @@
       use iso_c_binding
            use uppasd, only : setup_simulation
            use InputData, only : natom, mensemble
-           use Energy, only : allocate_energies
+           use energy, only : allocate_energies
+           use MonteCarlo, only : allocate_mcdata
+             use RandomNumbers, only : allocate_randomwork
+      use Depondt,               only : allocate_depondtfields
+      use Midpoint,              only : allocate_aux_midpoint_fields
       implicit none
       !f2py intent(out) :: nat
       integer(c_int), intent(out) :: nat
@@ -115,6 +119,10 @@
       
       call setup_simulation()
       call allocate_energies(1, Mensemble)
+      call allocate_randomwork(Natom,Mensemble,1,'N')
+      call allocate_depondtfields(Natom, Mensemble,1)
+      call allocate_aux_midpoint_fields(1,Natom,Mensemble)
+      call allocate_mcdata(Natom,1)
       men = mensemble
       nat = natom
    end subroutine SetupAll
@@ -144,8 +152,14 @@
    !--------------------------------------------------------------!
    subroutine CleanUp() bind(c,name='cleanup_')
            use uppasd, only : cleanup_simulation
+           use energy, only : allocate_energies
+           use MonteCarlo, only : allocate_mcdata
+             use RandomNumbers, only : allocate_randomwork
       implicit none
       call cleanup_simulation()
+      call allocate_energies(-1)
+      call allocate_mcdata(1,-1)
+      call allocate_randomwork(1,1,-1,'N')
    end subroutine CleanUp
 
 
@@ -169,6 +183,7 @@
  
       call timing(0,'Initial       ','ON')
        call mc_iphase()
+      call timing(0,'Initial       ','OF')
        moments = emom
     end subroutine RelaxMonteCarlo
  
@@ -189,6 +204,7 @@
       call timing(0,'Initial       ','ON')
        ipmode='M'
        call mc_iphase()
+      call timing(0,'Initial       ','OF')
        moments = emom
     end subroutine RelaxMetropolis
  
@@ -209,6 +225,7 @@
       call timing(0,'Initial       ','ON')
        ipmode='H'
        call mc_iphase()
+      call timing(0,'Initial       ','OF')
        moments = emom
     end subroutine RelaxHeatBath
 
@@ -234,14 +251,19 @@
   
       call timing(0,'Initial       ','ON')
        call sd_iphase()
+      call timing(0,'Initial       ','OF')
        moments = emom
     end subroutine RelaxLLG
 
     subroutine Relax(moments, natom, mensemble, imode, instep, itemperature, itimestep, idamping)  bind(c, name='relax_')
       use iso_c_binding
       use uppasd, only : sd_iphase, mc_iphase
-      use InputData, only : ipmode, nstep => ipnstep, temperature => iptemp, timestep => ipdelta_t, damping => iplambda1, ipnphase
-      use MomentData, only : emomM
+      use sd_driver, only : sd_minimal
+      use mc_driver, only : mc_minimal
+      use InputData, only : ipmode, nstep => ipnstep, temperature => iptemp, timestep => ipdelta_t, ipnphase
+      use Damping, only : damping1 => lambda1_array
+      use MomentData, only : emomM, emom, mmom
+      use FieldData, only : beff
       use Profiling, only : timing
 
       implicit none
@@ -262,27 +284,32 @@
       !f2py intent(in) :: idamping
       real(c_double), intent(in) :: idamping
  
-      ipnphase = 1
-         ipmode = imode
-         if (allocated(damping)) deallocate(damping)
-            allocate(damping(1))
-          damping = idamping
-         if (allocated(nstep)) deallocate(nstep)
-            allocate(nstep(1))
-          nstep = instep
-          if (allocated(temperature)) deallocate(temperature)  
-            allocate(temperature(1))
-          temperature = itemperature
-          if (allocated(timestep)) deallocate(timestep)
-            allocate(timestep(1))
-          timestep = itimestep
+
+      !ipnphase = 1
+      !   ipmode = imode
+      !   if (allocated(damping)) deallocate(damping)
+      !      allocate(damping(1))
+      !    damping = idamping
+      !   if (allocated(nstep)) deallocate(nstep)
+      !      allocate(nstep(1))
+      !    nstep = instep
+      !    if (allocated(temperature)) deallocate(temperature)  
+      !      allocate(temperature(1))
+      !    temperature = itemperature
+      !    if (allocated(timestep)) deallocate(timestep)
+      !      allocate(timestep(1))
+      !    timestep = itimestep
 
       call timing(0,'Initial       ','ON')
       if(imode == 'M' .or. imode == 'H') then
-         call mc_iphase()
+         !call mc_iphase()
+         call mc_minimal(emomM,emom,mmom, 1000, 'M ', 10.0d0)
       else
-         call sd_iphase()
+         !call sd_iphase()
+         damping1 = idamping
+         call sd_minimal(emomM,emom,mmom, 1000, 1, 10.0d0)
       end if
+      call timing(0,'Initial       ','OF')
 
       moments = emomM
 
@@ -315,7 +342,6 @@
 !!! 
     subroutine get_emom(moments, natom, mensemble) bind(c, name='get_emom_')
       use iso_c_binding
-       use InputData, only : ipmode
          use MomentData, only : emom
        implicit none
        !f2py intent(in) :: natom
@@ -330,7 +356,6 @@
 
     subroutine put_emom(moments, natom, mensemble) bind(c, name='put_emom_')
       use iso_c_binding
-       use InputData, only : ipmode
          use MomentData, only : emom
        implicit none
        !f2py intent(in) :: natom
@@ -342,6 +367,39 @@
 
        emom = moments 
     end subroutine put_emom
+!!!    !==============================================================!
+!!!    ! Moment handling routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_beff(fields, natom, mensemble) bind(c, name='get_beff_')
+      use iso_c_binding
+         use FieldData, only : beff
+         use HamiltonianActions, only : effective_field
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) fields
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: fields
+
+      call effective_field()
+       fields = beff
+    end subroutine get_beff
+
+    subroutine put_beff(fields, natom, mensemble) bind(c, name='put_beff_')
+      use iso_c_binding
+         use FieldData, only : beff
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(in) moments
+       real(c_double), dimension(3,natom, mensemble), intent(in) :: fields
+
+       beff = fields
+    end subroutine put_beff
 !!!    !==============================================================!
 !!!    ! Measurement Runners
 !!!    !--------------------------------------------------------------!
