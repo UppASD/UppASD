@@ -202,6 +202,10 @@ def InitializeInteractor(window, InteractiveVtk):
     """
     InteractiveVtk.Launch()
 
+    if not hasattr(InteractiveVtk, "asd"):
+        print('asd object not found')
+        return
+    
     CurrentSDStep = str(InteractiveVtk.asd.inputdata.get_nstep())
     window.IntSDSteps.setPlaceholderText(CurrentSDStep)
 

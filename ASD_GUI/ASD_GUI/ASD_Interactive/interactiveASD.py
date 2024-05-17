@@ -16,9 +16,11 @@ from math import acos, atan2
 import vtk
 
 try:
-	import uppasd.simulator as sim
+    import uppasd.simulator as sim
+    print("InteractiveASD initialized")
 except ImportError:
-	pass
+    print('init: UppASD module not installed.')
+
 import matplotlib.cm as cm
 
 # from scipy.ndimage import gaussian_filter
@@ -40,13 +42,11 @@ class InteractiveASD:
     Author: Anders Bergman, after template from Anders Hast. Modified by Erik Karpelin.
 
     """
-
     def __init__(self, ren, renWin, iren):
         self.ren = ren
         self.renWin = renWin
         self.iren = iren
         self.number_of_screenshots = 0
-        print("InteractiveASD initialized")
 
     def Launch(self):
         """
@@ -58,7 +58,11 @@ class InteractiveASD:
         """
 
         print("InteractiveASD launched!")
-        self.asd = sim.simulator()
+        try:
+        	self.asd = sim.simulator()
+        except:
+            print('Launch: UppASD module not installed.')
+            return
 
         self.Datatest = vtk.vtkPolyData()
         self.DataFour = vtk.vtkPolyData()
@@ -296,6 +300,8 @@ class InteractiveASD:
 
     def S_Step(self):
         """Do a simulation using S-mode."""
+        if not hasattr(self, 'asd'):
+            return
         self.asd.relax(mode="S")
         currmom = self.asd.moments[:, :, 0].T
         currcol = self.asd.moments[2, :, 0].T
@@ -307,6 +313,8 @@ class InteractiveASD:
 
     def M_step(self):
         """Do a simulation using M-mode."""
+        if not hasattr(self, 'asd'):
+            return
         self.asd.relax(mode="M")
         currmom = self.asd.moments[:, :, 0].T
         currcol = self.asd.moments[2, :, 0].T
@@ -318,6 +326,8 @@ class InteractiveASD:
 
     def Reset(self):
         """Reset data to initial."""
+        if not hasattr(self, 'asd'):
+            return
         self.asd.put_moments(self.initmom.T)
         vecz = numpy_support.numpy_to_vtk(self.initmom)
         colz = numpy_support.numpy_to_vtk(self.initcol)
@@ -326,12 +336,16 @@ class InteractiveASD:
 
     def UpdateTemperature(self):
         """Update temperature actor."""
+        if not hasattr(self, 'asd'):
+            return
         temp = "{:4.3f}".format(asd.inputdata.get_temp())
         self.temptxt.SetInput("T = " + temp + " K")
         self.renWin.Render()
 
     def UpdateBfield(self):
         """Update B-field actor."""
+        if not hasattr(self, 'asd'):
+            return
         Bfield = asd.inputdata.get_array_hfield()
         self.fieldtxt.SetInput(
             f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T"
@@ -339,6 +353,8 @@ class InteractiveASD:
         self.renWin.Render()
 
     def close_window(self):
+        if not hasattr(self, 'asd'):
+            return
         render_window = self.iren.GetRenderWindow()
         render_window.Finalize()
         self.iren.TerminateApp()
