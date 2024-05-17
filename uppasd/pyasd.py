@@ -8,9 +8,11 @@ Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 41-248
 from __future__ import print_function, absolute_import, division
 import _uppasd
 import logging
+import numpy as np
 
 _arrays = {}
 _objs = {}
+
 
 def runuppasd():
     """
@@ -70,7 +72,8 @@ def setupall():
     
     
     """
-    _uppasd.setupall()
+    natom, mensemble = _uppasd.setupall()
+    return natom, mensemble
 
 def initialphase():
     """
@@ -105,7 +108,7 @@ def cleanup():
     """
     _uppasd.cleanup()
 
-def relaxmontecarlo():
+def relaxmontecarlo(natom, mensemble):
     """
     relaxmontecarlo()
     
@@ -114,9 +117,10 @@ def relaxmontecarlo():
     
     
     """
-    _uppasd.relaxmontecarlo()
+    moments =  _uppasd.relaxmontecarlo(natom, mensemble)
+    return moments
 
-def relaxmetropolis():
+def relaxmetropolis(natom, mensemble):
     """
     relaxmetropolis()
     
@@ -125,9 +129,10 @@ def relaxmetropolis():
     
     
     """
-    _uppasd.relaxmetropolis()
+    moments = _uppasd.relaxmetropolis(natom, mensemble)
+    return moments
 
-def relaxheatbath():
+def relaxheatbath(natom, mensemble):
     """
     relaxheatbath()
     
@@ -136,7 +141,8 @@ def relaxheatbath():
     
     
     """
-    _uppasd.relaxheatbath()
+    moments = _uppasd.relaxheatbath(natom, mensemble)
+    return moments
 
 def relaxmultiscale():
     """
@@ -160,7 +166,7 @@ def relaxsldmontecarlo():
     """
     _uppasd.relaxsldmontecarlo()
 
-def relaxllg():
+def relax(natom, mensemble, imode='S', instep=100, itemperature=0.0, itimestep=1.0e-16, idamping=0.5):
     """
     relaxllg()
     
@@ -169,7 +175,28 @@ def relaxllg():
     
     
     """
-    _uppasd.relaxllg()
+    print('natom:', natom)
+    print('mensemble:', mensemble)
+    print('imode:', imode)
+    print('instep:', instep)
+    print('itemperature:', itemperature)
+    print('itimestep:', itimestep)
+    print('idamping:', idamping)
+    
+    moments = _uppasd.relax(natom, mensemble, imode, instep, itemperature, itimestep, idamping)
+    return moments
+
+def relaxllg(natom, mensemble):
+    """
+    relaxllg()
+    
+    
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 135-137
+    
+    
+    """
+    moments = _uppasd.relaxllg(natom, mensemble)
+    return moments
 
 def relaxmd():
     """
@@ -329,6 +356,45 @@ def totalenergy():
     """
     energy = _uppasd.totalenergy()
     return energy
+
+def get_emom(natom, mensemble):
+    """
+    emom = get_emom(natom, mensemble)
+    
+    
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 238-242
+    
+    
+    Parameters
+    ----------
+    natom : int
+    mensemble : int
+    
+    Returns
+    -------
+    emom : float array
+    
+    """
+    emom = _uppasd.get_emom(natom, mensemble)
+    print(emom.shape)
+    return emom 
+
+def put_emom(emom, natom, mensemble):
+    """
+    put_emom(emom, natom, mensemble)
+    
+    
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 244-248
+    
+    
+    Parameters
+    ----------
+    emom : float array
+    natom : int
+    mensemble : int
+    
+    """
+    _uppasd.put_emom(emom, natom, mensemble)
 
 
 _array_initialisers = []

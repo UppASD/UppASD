@@ -75,17 +75,18 @@
    end subroutine SanityCheck
 
 
-   !!==============================================================!
-   !! Find number of OpenMP processors active
-   !!--------------------------------------------------------------!
-   !function NumProcs() result(nprocs) bind(c,name='numprocs_')
-   !        use uppasd, only : number_of_active_processors
-   !   implicit none
-   !   integer :: nprocs
+   !==============================================================!
+   ! Find number of OpenMP processors active
+   !--------------------------------------------------------------!
+   function NumProcs() result(nprocs) bind(c,name='numprocs_')
+      use iso_c_binding
+           use uppasd, only : number_of_active_processors
+      implicit none
+      integer :: nprocs
 
-   !   nprocs = number_of_active_processors()
-   !   return
-   !end function NumProcs
+      nprocs = number_of_active_processors()
+      return
+   end function NumProcs
 
 
 
@@ -101,11 +102,21 @@
    !==============================================================!
    ! Setup all things needed for a simulation
    !--------------------------------------------------------------!
-   subroutine SetupAll() bind(c, name='setupall_')
+   subroutine SetupAll(nat, men) bind(c, name='setupall_')
+      use iso_c_binding
            use uppasd, only : setup_simulation
+           use InputData, only : natom, mensemble
+           use Energy, only : allocate_energies
       implicit none
-
+      !f2py intent(out) :: nat
+      integer(c_int), intent(out) :: nat
+      !f2py intent(out) :: men
+      integer(c_int), intent(out) :: men
+      
       call setup_simulation()
+      call allocate_energies(1, Mensemble)
+      men = mensemble
+      nat = natom
    end subroutine SetupAll
 
    !==============================================================!
@@ -143,27 +154,64 @@
 !!!    ! Relaxation Runners
 !!!    !--------------------------------------------------------------!
 !!! 
-!!!    subroutine RelaxMonteCarlo()
-!!!       implicit none
-!!! 
-!!!       call mc_iphase()
-!!!    end subroutine RelaxMonteCarlo
-!!! 
-!!!    subroutine RelaxMetropolis()
-!!!       use InputData, only : ipmode
-!!!       implicit none
-!!! 
-!!!       ipmode='M'
-!!!       call mc_iphase()
-!!!    end subroutine RelaxMetropolis
-!!! 
-!!!    subroutine RelaxHeatBath()
-!!!       use InputData, only : ipmode
-!!!       implicit none
-!!! 
-!!!       ipmode='H'
-!!!       call mc_iphase()
-!!!    end subroutine RelaxHeatBath
+    subroutine RelaxMonteCarlo(moments, natom, mensemble) bind(c, name='relaxmontecarlo_')
+      use iso_c_binding
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+ 
+      call timing(0,'Initial       ','ON')
+       call mc_iphase()
+       moments = emom
+    end subroutine RelaxMonteCarlo
+ 
+    subroutine RelaxMetropolis(moments, natom, mensemble) bind(c, name='relaxmetropolis_')
+      use iso_c_binding
+         use InputData, only : ipmode
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+ 
+      call timing(0,'Initial       ','ON')
+       ipmode='M'
+       call mc_iphase()
+       moments = emom
+    end subroutine RelaxMetropolis
+ 
+    subroutine RelaxHeatBath(moments, natom, mensemble) bind(c, name='relaxheatbath_')
+      use iso_c_binding
+       use InputData, only : ipmode
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+
+      call timing(0,'Initial       ','ON')
+       ipmode='H'
+       call mc_iphase()
+       moments = emom
+    end subroutine RelaxHeatBath
+
 !!! 
 !!!    subroutine RelaxMultiScale()
 !!!       implicit none
@@ -171,11 +219,82 @@
 !!!       call ms_iphase()
 !!!    end subroutine RelaxMultiScale
 !!! 
-!!!    subroutine RelaxLLG()
-!!!       implicit none
-!!! 
-!!!       call sd_iphase()
-!!!    end subroutine RelaxLLG
+    subroutine RelaxLLG(moments, natom, mensemble) bind(c, name='relaxllg_')
+      use iso_c_binding
+         use uppasd, only : sd_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+  
+      call timing(0,'Initial       ','ON')
+       call sd_iphase()
+       moments = emom
+    end subroutine RelaxLLG
+
+    subroutine Relax(moments, natom, mensemble, imode, instep, itemperature, itimestep, idamping)  bind(c, name='relax_')
+      use iso_c_binding
+      use uppasd, only : sd_iphase, mc_iphase
+      use InputData, only : ipmode, nstep => ipnstep, temperature => iptemp, timestep => ipdelta_t, damping => iplambda1, ipnphase
+      use MomentData, only : emomM
+      use Profiling, only : timing
+
+      implicit none
+      !f2py intent(out) moments
+      real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+      !f2py intent(in) :: natom
+      integer(c_int), intent(in) :: natom
+      !f2py intent(in) :: mensemble
+      integer(c_int), intent(in) :: mensemble
+      !f2py intent(in) :: imode
+      character(kind=c_char), intent(in) :: imode
+      !f2py intent(in) :: instep
+      integer(c_int), intent(in) :: instep
+      !f2py intent(in) :: itemperature
+      real(c_double), intent(in) :: itemperature
+      !f2py intent(in) :: itimestep
+      real(c_double), intent(in) :: itimestep
+      !f2py intent(in) :: idamping
+      real(c_double), intent(in) :: idamping
+ 
+      ipnphase = 1
+         ipmode = imode
+         if (allocated(damping)) deallocate(damping)
+            allocate(damping(1))
+          damping = idamping
+         if (allocated(nstep)) deallocate(nstep)
+            allocate(nstep(1))
+          nstep = instep
+          if (allocated(temperature)) deallocate(temperature)  
+            allocate(temperature(1))
+          temperature = itemperature
+          if (allocated(timestep)) deallocate(timestep)
+            allocate(timestep(1))
+          timestep = itimestep
+
+      call timing(0,'Initial       ','ON')
+      if(imode == 'M' .or. imode == 'H') then
+         call mc_iphase()
+      else
+         call sd_iphase()
+      end if
+
+      moments = emomM
+
+      !!! nstep = nstep_old
+      !!! temperature = temperature_old
+      !!! timestep = timestep_old
+      !!! ipmode = ipmode_old
+
+      return
+
+      
+    end subroutine Relax
 !!! 
 !!!    subroutine RelaxMD()
 !!!       implicit none
@@ -190,6 +309,39 @@
 !!!    end subroutine RelaxSLDLLG 
 !!! 
 !!! 
+!!!    !==============================================================!
+!!!    ! Moment handling routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_emom(moments, natom, mensemble) bind(c, name='get_emom_')
+      use iso_c_binding
+       use InputData, only : ipmode
+         use MomentData, only : emom
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+
+       moments = emom
+    end subroutine get_emom
+
+    subroutine put_emom(moments, natom, mensemble) bind(c, name='put_emom_')
+      use iso_c_binding
+       use InputData, only : ipmode
+         use MomentData, only : emom
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(in) moments
+       real(c_double), dimension(3,natom, mensemble), intent(in) :: moments
+
+       emom = moments 
+    end subroutine put_emom
 !!!    !==============================================================!
 !!!    ! Measurement Runners
 !!!    !--------------------------------------------------------------!
@@ -254,15 +406,17 @@
 !!!       call mep_mphase()
 !!!    end subroutine RunGNEB
 !!! 
-!!!    function TotalEnergy() result(energy)
-!!!       implicit none
-!!! 
-!!!       real(dblprec) :: energy
-!!! 
-!!!       call calculate_energy(energy)
-!!!       return
-!!! 
-!!!    end function totalenergy
+function TotalEnergy() result(energy) bind(c, name='totalenergy_')
+   use iso_c_binding
+   use uppasd, only : calculate_energy
+   implicit none
+
+   real(c_double) :: energy
+
+   call calculate_energy(energy)
+   return
+
+end function totalenergy
 !!! 
 !!!    !!! function getMoments() result(moments)
 !!!    !!!    use MomentData
