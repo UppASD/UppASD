@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <type_traits>
+#include <utility>
 
 #include "base.cuh"
 
@@ -57,6 +58,7 @@ public:
 
    using IndexBase<T, dim>::dimension;
    using IndexBase<T, dim>::size;
+   using IndexBase<T, dim>::bytes;
    using IndexBase<T, dim>::extent;
    using IndexBase<T, dim>::extents;
 
@@ -77,7 +79,7 @@ public:
 
    // shallow copy of data
    Tensor(const Tensor&) = default;
-   Tensor& operator=(const Tensor&) = delete;
+   Tensor& operator=(const Tensor&) = default;
 
 
    template <typename... Ints>
@@ -145,11 +147,12 @@ public:
    void copy_sync(const CudaTensor<T, dim>& A);
 
 
-   void swap(Tensor<T, dim>& A) noexcept {
-      T* tmp_ptr = data_;
-      data_ = A.data_;
-      A.data_ = tmp_ptr;
+   // Tensor::copy_async(Tensor) is not supported since it is not an asynchronous operation
+   void copy_async(const CudaTensor<T, dim>& A);
 
+
+   void swap(Tensor<T, dim>& A) noexcept {
+      std::swap(data_, A.data_);
       auto tmp_ext = this->extents();
       this->SetExtents(A.extents());
       A.SetExtents(tmp_ext);
@@ -254,6 +257,7 @@ public:
 
    using IndexBase<T, dim>::dimension;
    using IndexBase<T, dim>::size;
+   using IndexBase<T, dim>::bytes;
    using IndexBase<T, dim>::extent;
    using IndexBase<T, dim>::extents;
 
@@ -265,7 +269,7 @@ public:
 
    // shallow copy of data
    CudaTensor(const CudaTensor&) = default;
-   CudaTensor& operator=(const CudaTensor&) = delete;
+   CudaTensor& operator=(const CudaTensor&) = default;
 
 
    template <typename... Ints>
@@ -343,11 +347,20 @@ public:
    }
 
 
-   __host__ void swap(CudaTensor<T, dim>& A) noexcept {
-      T* tmp_ptr = data_;
-      data_ = A.data_;
-      A.data_ = tmp_ptr;
+   __host__ void copy_async(const Tensor<T, dim>& A) {
+      assert(same_extents(*this, A));
+      ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
+   }
 
+
+   __host__ void copy_async(const CudaTensor<T, dim>& A) {
+      assert(same_extents(*this, A));
+      ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
+   }
+
+
+   __host__ void swap(CudaTensor<T, dim>& A) noexcept {
+      std::swap(data_, A.data_);
       auto tmp_ext = this->extents();
       this->SetExtents(A.extents());
       A.SetExtents(tmp_ext);
@@ -363,4 +376,11 @@ template <typename T, index_t dim>
 void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
    assert(same_extents(*this, A));
    ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
+}
+
+
+template <typename T, index_t dim>
+void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A) {
+   assert(same_extents(*this, A));
+   ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
 }

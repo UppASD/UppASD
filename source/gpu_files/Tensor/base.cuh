@@ -105,6 +105,11 @@ public:
    }
 
 
+   __host__ __device__ index_t bytes() const {
+      return ext_.size() * sizeof(T);
+   }
+
+
    __host__ __device__ index_t extent(index_t d) const {
       return ext_[d];
    }
