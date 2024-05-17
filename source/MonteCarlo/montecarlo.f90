@@ -932,8 +932,10 @@ contains
          integer :: i_all, i_stat
 
          if(flag>0) then
-            allocate(iflip_a(natom),stat=i_stat)
-            call memocc(i_stat,product(shape(iflip_a))*kind(iflip_a),'iflip_a','allocate_mcdata')
+            if (.not. allocated(iflip_a)) then
+               allocate(iflip_a(natom),stat=i_stat)
+               call memocc(i_stat,product(shape(iflip_a))*kind(iflip_a),'iflip_a','allocate_mcdata')
+            end if
          else
             i_all=-product(shape(iflip_a))*kind(iflip_a)
             deallocate(iflip_a,stat=i_stat)

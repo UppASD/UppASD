@@ -338,14 +338,14 @@ contains
 
       integer :: i_stat,i_all
 
-      if (flag>0) then
-         allocate(btorque_full(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(btorque_full))*kind(btorque_full),'btorque_full','allocate_aux_midpoint_fields')
-         btorque_full=0.0_dblprec
-      else
-         i_all=-product(shape(btorque_full))*kind(btorque_full)
-         deallocate(btorque_full,stat=i_stat)
-         call memocc(i_stat,i_all,'btorque_full','allocate_aux_midpoint_fields')
+      if (flag > 0 .and. .not. allocated(btorque_full)) then
+         allocate(btorque_full(3,Natom,Mensemble), stat=i_stat)
+         call memocc(i_stat, product(shape(btorque_full))*kind(btorque_full), 'btorque_full', 'allocate_aux_midpoint_fields')
+         btorque_full = 0.0_dblprec
+      elseif (flag < 0 .and. allocated(btorque_full)) then
+         i_all = -product(shape(btorque_full))*kind(btorque_full)
+         deallocate(btorque_full, stat=i_stat)
+         call memocc(i_stat, i_all, 'btorque_full', 'allocate_aux_midpoint_fields')
       endif
 
    end subroutine allocate_aux_midpoint_fields
