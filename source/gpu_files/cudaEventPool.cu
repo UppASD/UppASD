@@ -5,9 +5,9 @@
 
 #include <cuda.h>
 
-#include "c_headers.hpp"
 #include <vector>
 
+#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 
 #ifdef NVPROF
@@ -72,5 +72,4 @@ CudaEventPool::~CudaEventPool() {
       delete *it;
    }
 }
-
 
