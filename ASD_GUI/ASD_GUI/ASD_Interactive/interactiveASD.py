@@ -9,23 +9,18 @@
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
 
 import glob
-import string
-from copy import copy, deepcopy
-from math import acos, atan2
 
 import vtk
 
 try:
     import uppasd.simulator as sim
+
     print("InteractiveASD initialized")
 except ImportError:
-    print('init: UppASD module not installed.')
+    print("init: UppASD module not installed.")
 
-import matplotlib.cm as cm
 
 # from scipy.ndimage import gaussian_filter
-import matplotlib.pyplot as plt
-import numpy as np
 from vtk.util import numpy_support
 
 
@@ -35,13 +30,14 @@ class InteractiveASD:
     ASD_GUI.
 
     Inputs:
-                    ren		:	vtkOpenGLRenderer()
-                    renWin	:	QVTKRenderWindowInteractor().GetRenderWindow()
-                    iren	:	QVTKRenderWindowInteractor().GetRenderWindow().GetInteractor()
+                    ren     :   vtkOpenGLRenderer()
+                    renWin  :   QVTKRenderWindowInteractor().GetRenderWindow()
+                    iren    :   QVTKRenderWindowInteractor().GetRenderWindow().GetInteractor()
 
     Author: Anders Bergman, after template from Anders Hast. Modified by Erik Karpelin.
 
     """
+
     def __init__(self, ren, renWin, iren):
         self.ren = ren
         self.renWin = renWin
@@ -53,15 +49,17 @@ class InteractiveASD:
         Setup function to add all needed Actors and run uppasd setup. The function also
         iclude a simple keyboard interface.
 
-        Todo:	Clean up function, remove unnecessary comments and functionality, such as
+        Todo:   Clean up function, remove unnecessary comments and functionality, such as
                         the keyboard inputs.
         """
 
         print("InteractiveASD launched!")
         try:
-        	self.asd = sim.simulator()
-        except:
-            print('Launch: UppASD module not installed.')
+            self.asd = sim.Simulator()
+            self.asd.init_simulation()
+            print("ASDsimulation initialized.")
+        except ImportError:
+            print("Launch: UppASD module not installed.")
             return
 
         self.Datatest = vtk.vtkPolyData()
@@ -87,9 +85,9 @@ class InteractiveASD:
 
         # Open files
         momfiles = glob.glob("restart.????????.out")
-        directionsFile = open(momfiles[0])
+        # directionsFile = open(momfiles[0])
         posfiles = glob.glob("coord.????????.out")
-        atomsFile = open(posfiles[0])
+        atomsFile = open(posfiles[0], encoding='utf-8')
 
         # Read atom positions
         atomData, nrAtoms = self.readAtoms(atomsFile, Nmax)
@@ -222,7 +220,7 @@ class InteractiveASD:
         # Text
         # create a text actor for Temperature
         self.temptxt = vtk.vtkTextActor()
-        temp = "{:4.3f}".format(0.0)
+        temp = f"{0.0:4.3f}"
         # temp='{:4.3f}'.format(asd.inputdata.get_temp())
         self.temptxt.SetInput("T = " + temp + " K")
         temptxtprop = self.temptxt.GetTextProperty()
@@ -247,8 +245,8 @@ class InteractiveASD:
         # create a text actor for Energy
         enetxt = vtk.vtkTextActor()
         self.asd.calculate_energy()
-        ene = "{:6.4f}".format(self.asd.energy)
-        enetxt.SetInput("E= " + ene + " mRy/atom")
+        ene = f"{self.asd.energy:6.4f}"
+        enetxt.SetInput(f"E = {ene} mRy/atom")
         enetxtprop = enetxt.GetTextProperty()
         enetxtprop.SetFontFamilyToArial()
         enetxtprop.SetFontSize(20)
@@ -266,12 +264,12 @@ class InteractiveASD:
         self.ren.GetActiveCamera().Azimuth(0)
         self.ren.GetActiveCamera().Elevation(0)
         self.ren.GetActiveCamera().ParallelProjectionOn()
-        d = self.ren.GetActiveCamera().GetDistance()
+        # d = self.ren.GetActiveCamera().GetDistance()
         self.ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
         self.ren.GetActiveCamera().SetViewUp(-0.866025403784439, 0.5, 0)
         self.ren.GetActiveCamera().SetParallelScale(0.55 * ymax)
-        l = max(xmax - xmin, zmax - zmin) / 2
-        h = l / 0.26795 * 1.1
+        l_dist = max(xmax - xmin, zmax - zmin) / 2
+        h = l_dist / 0.26795 * 1.1
 
         self.ren.GetActiveCamera().SetPosition(0, 0, h)
 
@@ -300,7 +298,7 @@ class InteractiveASD:
 
     def S_Step(self):
         """Do a simulation using S-mode."""
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
         self.asd.relax(mode="S")
         currmom = self.asd.moments[:, :, 0].T
@@ -313,7 +311,7 @@ class InteractiveASD:
 
     def M_step(self):
         """Do a simulation using M-mode."""
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
         self.asd.relax(mode="M")
         currmom = self.asd.moments[:, :, 0].T
@@ -326,7 +324,7 @@ class InteractiveASD:
 
     def Reset(self):
         """Reset data to initial."""
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
         self.asd.put_moments(self.initmom.T)
         vecz = numpy_support.numpy_to_vtk(self.initmom)
@@ -336,24 +334,24 @@ class InteractiveASD:
 
     def UpdateTemperature(self):
         """Update temperature actor."""
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
-        temp = "{:4.3f}".format(asd.inputdata.get_temp())
+        temp = f"{asd.inputdata.get_temp():4.3f}"
         self.temptxt.SetInput("T = " + temp + " K")
         self.renWin.Render()
 
     def UpdateBfield(self):
         """Update B-field actor."""
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
-        Bfield = asd.inputdata.get_array_hfield()
+        Bfield = asd.inputdata.get_hfield()
         self.fieldtxt.SetInput(
             f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T"
         )
         self.renWin.Render()
 
     def close_window(self):
-        if not hasattr(self, 'asd'):
+        if not hasattr(self, "asd"):
             return
         render_window = self.iren.GetRenderWindow()
         render_window.Finalize()
@@ -425,11 +423,11 @@ class InteractiveASD:
         povexp.SetRenderWindow(self.renWin)
         # povexp.SetInput(renWin)
         self.renWin.Render()
-        povexp.SetFileName("snap%.5d.pov" % self.number_of_screenshots)
+        povexp.SetFileName(f"snap{self.number_of_screenshots:05d}.pov")
         povexp.Write()
         #
         toPNG = vtk.vtkPNGWriter()
-        toPNG.SetFileName("snap%.5d.png" % self.number_of_screenshots)
+        toPNG.SetFileName(f"snap{self.number_of_screenshots:05d}.png")
         # toPNG.SetInput(win2im.GetOutput())
         toPNG.SetInputConnection(win2im.GetOutputPort())
         toPNG.Write()
@@ -437,5 +435,5 @@ class InteractiveASD:
         self.number_of_screenshots += 1
         return
 
-    def UpdateTextPlacement():
+    def UpdateTextPlacement(self):
         pass

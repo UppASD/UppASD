@@ -473,7 +473,7 @@ def put_beff(beff, natom, mensemble):
     mensemble : int
 
     """
-    _uppasd.put_beff(ebeff, natom, mensemble)
+    _uppasd.put_beff(beff, natom, mensemble)
 
 
 _array_initialisers = []

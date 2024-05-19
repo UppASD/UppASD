@@ -88,7 +88,8 @@ def readVectorsData(file, time, nrAtoms, Nmax):
 
 
 # Instantiate the ASD simulation object
-asd = sim.simulator()
+asd = sim.Simulator()
+asd.init_simulation()
 
 renWin = vtk.vtkRenderWindow()
 # win2im=vtk.vtkWindowToImageFilter()

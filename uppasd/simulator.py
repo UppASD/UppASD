@@ -2,7 +2,7 @@ import numpy as np
 from uppasd import pyasd as _asd
 from uppasd import inputdata as _inputdata
 
-class simulator:
+class Simulator:
     """
     Class for atomistic spin dynamics simulations.
     """
@@ -14,12 +14,26 @@ class simulator:
         Parameters:
         - moments: The initial moments of the spins.
         """
-        self.natom, self.mensemble = _asd.setupall()
+        # self.natom, self.mensemble = _asd.setupall()
+        self.natom = 1
+        self.mensemble = 1
         self.moments = np.zeros((3, self.natom, self.mensemble))
         self.fields = np.zeros((3, self.natom, self.mensemble))
         self.energy = np.float64(0.0)
-        
+
         self.inputdata = _inputdata.InputData()
+
+    def init_simulation(self):
+        """
+        Initialize the atomistic spin dynamics simulation.
+
+        This method initializes the atomistic spin dynamics simulation 
+        by calling the necessary functions from the `asd` module.
+        """
+        # Initialize the simulation
+        self.natom, self.mensemble = _asd.setupall()
+        self.get_moments()
+
 
     def run_simulation(self):
         """
@@ -72,7 +86,7 @@ class simulator:
         """
         Update the moments of the spins based on the simulation dynamics.
         """
-        _asd.put_emom(moments=moments,natom=self.natom, mensemble=self.mensemble)
+        _asd.put_emom(emom=moments,natom=self.natom, mensemble=self.mensemble)
         return
 
     def get_fields(self):
@@ -85,7 +99,7 @@ class simulator:
         """
         Apply the external magnetic fields to the spins.
         """
-        _asd.get_beff(fields=fields, natom=self.natom, mensemble=self.mensemble)
+        _asd.put_beff(beff=fields, natom=self.natom, mensemble=self.mensemble)
         
     def evolve(self, evolution_type: str = 'initial'):
         """
