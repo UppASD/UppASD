@@ -191,7 +191,7 @@ def InteractiveDock(window):
     return window.IntDock  
 
 
-def InitializeInteractor(window, InteractiveVtk):
+def InitializeInteractor(window):
     """
     Set up the interactive window based on the files in the 
     current directory. 
@@ -200,28 +200,30 @@ def InitializeInteractor(window, InteractiveVtk):
             window          :   QMainWindow
             InteractiveVtk  :   InteractiveASD object, defined in interactiveASD.py.
     """
-    InteractiveVtk.Launch()
+    window.InteractiveVtk.Launch()
 
-    if not hasattr(InteractiveVtk, "asd"):
+    if not hasattr(window.InteractiveVtk, "asd"):
         print('asd object not found')
         return
+    else:
+        print("asd object found")
 
-    CurrentSDStep = str(InteractiveVtk.asd.inputdata.get_nstep())
+    CurrentSDStep = str(window.InteractiveVtk.asd.inputdata.get_nstep())
     window.IntSDSteps.setPlaceholderText(CurrentSDStep)
 
-    CurrentMCStep = str(InteractiveVtk.asd.inputdata.get_mcnstep())
+    CurrentMCStep = str(window.InteractiveVtk.asd.inputdata.get_mcnstep())
     window.IntMCSteps.setPlaceholderText(CurrentMCStep)
 
-    CurrentTemp = str(InteractiveVtk.asd.inputdata.get_temp())
+    CurrentTemp = str(window.InteractiveVtk.asd.inputdata.get_temp())
     window.IntTempLine.setPlaceholderText(CurrentTemp)
 
-    CurrentTimeStep = str(InteractiveVtk.asd.inputdata.get_delta_t())
+    CurrentTimeStep = str(window.InteractiveVtk.asd.inputdata.get_delta_t())
     window.IntSDStepSize.setPlaceholderText(CurrentTimeStep)
 
-    #CurrentMagField = asd.inputdata.get_array_hfield()
-    #MagArray = [window.IntB_xLine, window.IntB_yLine, window.IntB_zLine]
-    #for component_i, component in enumerate(CurrentMagField):
-    #    MagArray[component_i].setPlaceholderText(str(component))
+    CurrentMagField = window.InteractiveVtk.asd.inputdata.get_hfield()
+    MagArray = [window.IntB_xLine, window.IntB_yLine, window.IntB_zLine]
+    for component_i, component in enumerate(CurrentMagField):
+        MagArray[component_i].setPlaceholderText(str(component))
 
 def UpdateIntInputs(window):
     """
@@ -232,47 +234,42 @@ def UpdateIntInputs(window):
     """
     pass 
 
-#    #import uppasd as asd
-#    import numpy as np
-#
-#    if len(window.IntTempLine.text()) > 0:
-#        NewTemp = float(window.IntTempLine.text())
-#        try:
-#           asd.inputdata.set_temp(NewTemp)
-#        except:
-#            pass
-#
-#    if len(window.IntSDSteps.text()) > 0:
-#        NewStep = int(window.IntSDSteps.text())
-#        try:
-#           asd.inputdata.set_nstep(NewStep)
-#        except:
-#           pass
-#
-#    if len(window.IntMCSteps.text()) > 0:
-#        NewMCStep = int(window.IntMCSteps.text())
-#        try:
-#           asd.inputdata.set_mcnstep(NewMCStep)
-#        except:
-#           pass
-#
-#    if len(window.IntSDStepSize.text()) > 0:
-#        NewTimStep = float(window.IntSDStepSize.text())
-#        try:
-#           asd.inputdata.set_delta_t(NewTimStep)
-#        except:
-#           pass
-#
-#    MagArray = [window.IntB_xLine, window.IntB_yLine, window.IntB_zLine]
-#    CurrentMagField = asd.inputdata.get_array_hfield()
-#    NewMagField = []
-#    for component_i, component in enumerate(MagArray):
-#        if len(component.text()) > 0:
-#            NewMagField.append(float(component.text()))
-#        else:
-#            NewMagField.append(CurrentMagField[component_i])
-#    try:
-#       asd.inputdata.set_array_hfield(np.array(NewMagField))
-#    except:
-#       pass
-#
+    import numpy as np
+
+    if not hasattr(window.InteractiveVtk, "asd"):
+        print('TAB:asd object not found')
+        return
+    else:
+        print("TAB:asd object found")
+
+    if len(window.IntTempLine.text()) > 0:
+        NewTemp = float(window.IntTempLine.text())
+        window.InteractiveVtk.asd.inputdata.update_temp(NewTemp)
+
+    if len(window.IntSDSteps.text()) > 0:
+        NewStep = int(window.IntSDSteps.text())
+        window.InteractiveVtk.asd.inputdata.update_nstep(NewStep)
+
+    if len(window.IntMCSteps.text()) > 0:
+        NewMCStep = int(window.IntMCSteps.text())
+        try:
+           window.InteractiveVtk.asd.inputdata.update_mcnstep(NewMCStep)
+        except:
+           pass
+
+    if len(window.IntSDStepSize.text()) > 0:
+        NewTimStep = float(window.IntSDStepSize.text())
+        try:
+           window.InteractiveVtk.asd.inputdata.update_delta_t(NewTimStep)
+        except:
+           pass
+
+    MagArray = [window.IntB_xLine, window.IntB_yLine, window.IntB_zLine]
+    CurrentMagField = window.InteractiveVtk.asd.inputdata.get_hfield()
+    NewMagField = []
+    for component_i, component in enumerate(MagArray):
+        if len(component.text()) > 0:
+            NewMagField.append(float(component.text()))
+        else:
+            NewMagField.append(CurrentMagField[component_i])
+    window.InteractiveVtk.asd.inputdata.update_hfield(np.array(NewMagField))

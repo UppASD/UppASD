@@ -10,19 +10,19 @@
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
 #
 
-import vtk
-from math import atan2, acos
-from copy import copy, deepcopy
 import glob
-import string
+from copy import copy, deepcopy
+from math import acos, atan2
+
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+import numpy as np
+import vtk
+from scipy.ndimage import gaussian_filter
+from vtk.util import numpy_support
 
 # import uppasd.pyasd as asd
 import uppasd.simulator as sim
-from vtk.util import numpy_support
-import numpy as np
-from scipy.ndimage import gaussian_filter
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 
 
 def close_window(iren):
@@ -515,37 +515,44 @@ def Keypress(obj, event):
     #   Datatest.GetPointData().SetVectors(vecz)
     #   Datatest.GetPointData().SetScalars(colz)
     if key == "B":
-        print('Bfield:', asd.inputdata.iphfield)
-        #asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 1.0
-        #bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-        #fieldtxt.SetInput("Bz = " + bz + " T")
+        asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 1.0
+        asd.inputdata.update_iphfield()
+        bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
+        fieldtxt.SetInput("Bz = " + bz + " T")
     if key == "b":
         asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] - 1.0
+        asd.inputdata.update_iphfield()
         bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
         fieldtxt.SetInput("Bz = " + bz + " T")
     if key == "N":
         asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 10.0
+        asd.inputdata.update_iphfield()
         bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
         fieldtxt.SetInput("Bz = " + bz + " T")
     if key == "n":
         asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] - 10.0
+        asd.inputdata.update_iphfield()
         bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
         fieldtxt.SetInput("Bz = " + bz + " T")
     if key == "T":
         asd.inputdata.iptemp = asd.inputdata.iptemp + 1.0
-        temp = "{:4.3f}".format(asd.inputdata.iptemp[0])
+        asd.inputdata.update_iptemp()
+        temp = "{:4.3f}".format(asd.inputdata.iptemp)
         temptxt.SetInput("T = " + temp + " K")
     if key == "t":
         asd.inputdata.iptemp = max(asd.inputdata.iptemp - 1.0, 1.0e-5)
-        temp = "{:4.3f}".format(asd.inputdata.iptemp[0])
+        asd.inputdata.update_iptemp()
+        temp = "{:4.3f}".format(asd.inputdata.iptemp)
         temptxt.SetInput("T = " + temp + " K")
     if key == "Y":
         asd.inputdata.iptemp = asd.inputdata.iptemp + 10.0
-        temp = "{:4.3f}".format(asd.inputdata.iptemp[0])
+        asd.inputdata.update_iptemp()
+        temp = "{:4.3f}".format(asd.inputdata.iptemp)
         temptxt.SetInput("T = " + temp + " K")
     if key == "y":
         asd.inputdata.iptemp = max(asd.inputdata.iptemp - 10.0, 1.0e-5)
-        temp = "{:4.3f}".format(asd.inputdata.iptemp[0])
+        asd.inputdata.update_iptemp()
+        temp = "{:4.3f}".format(asd.inputdata.iptemp)
         temptxt.SetInput("T = " + temp + " K")
     if key == "g":
         vector.GetProperty().SetInterpolationToGouraud()

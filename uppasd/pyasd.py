@@ -258,6 +258,7 @@ def relax(
     method["M"] = "Metropolis"
     method["H"] = "Heat Bath"
     print(f"Performing relaxation using the {method[imode]} method for {instep} steps.")
+    print("Temperature:", itemperature)
     moments = _uppasd.relax(
         natom, mensemble, imode, instep, itemperature, itimestep, idamping
     )
@@ -497,6 +498,20 @@ def get_iptemperature():
     """
     iptemperature = _uppasd.get_iptemperature()
     return iptemperature
+
+def put_iptemperature(temperature):
+    """
+    Put the initial temperature.
+
+    This function calls the underlying Fortran routine to set the initial temperature.
+
+
+    Returns
+    -------
+    iptemperature : float
+        The initial temperature.
+    """
+    _uppasd.put_iptemperature(temperature)
 
 def get_delta_t():
     """

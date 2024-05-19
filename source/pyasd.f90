@@ -282,10 +282,10 @@
 
       call timing(0,'Initial       ','ON')
       if(imode == 'M' .or. imode == 'H') then
-         call mc_minimal(emomM,emom,mmom, 1000, 'M ', 10.0d0)
+         call mc_minimal(emomM,emom,mmom, instep, imode//" ", itemperature)
       else
          damping1 = idamping
-         call sd_minimal(emomM,emom,mmom, 1000, 1, 10.0d0)
+         call sd_minimal(emomM,emom,mmom, instep, 1, itemperature)
       end if
       call timing(0,'Initial       ','OF')
 
@@ -455,6 +455,16 @@
 
        temperature = itemp(1)
     end subroutine get_iptemperature
+
+    subroutine put_iptemperature(temperature) bind(c, name='put_iptemperature_')
+      use iso_c_binding
+         use InputData, only : otemp => iptemp
+       implicit none
+       !f2py intent(in) temperature
+       real(c_double), intent(in) :: temperature
+
+       otemp = temperature
+    end subroutine put_iptemperature
 
     subroutine get_delta_t(timestep) bind(c, name='get_delta_t_')
       use iso_c_binding

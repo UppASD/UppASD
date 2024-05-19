@@ -232,7 +232,7 @@ class InteractiveASD:
 
         # create a text actor for Field
         self.fieldtxt = vtk.vtkTextActor()
-        # Bfield = asd.inputdata.get_array_hfield()
+        # Bfield = self.asd.inputdata.get_array_hfield()
         # self.fieldtxt.SetInput(f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T")
         self.fieldtxt.SetInput(f"B = ({0:4.1f}, {1:4.1f}, {2:4.1f} ) T")
         fieldtxtprop = self.fieldtxt.GetTextProperty()
@@ -300,7 +300,7 @@ class InteractiveASD:
         """Do a simulation using S-mode."""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="S")
+        self.asd.relax(mode="S", temperature=self.asd.inputdata.temp)
         currmom = self.asd.moments[:, :, 0].T
         currcol = self.asd.moments[2, :, 0].T
         vecz = numpy_support.numpy_to_vtk(currmom)
@@ -313,7 +313,7 @@ class InteractiveASD:
         """Do a simulation using M-mode."""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="M")
+        self.asd.relax(mode="M", temperature=self.asd.inputdata.temp)
         currmom = self.asd.moments[:, :, 0].T
         currcol = self.asd.moments[2, :, 0].T
         vecz = numpy_support.numpy_to_vtk(currmom)
@@ -336,7 +336,7 @@ class InteractiveASD:
         """Update temperature actor."""
         if not hasattr(self, "asd"):
             return
-        temp = f"{asd.inputdata.get_temp():4.3f}"
+        temp = f"{self.asd.inputdata.get_temp():4.3f}"
         self.temptxt.SetInput("T = " + temp + " K")
         self.renWin.Render()
 
@@ -344,7 +344,7 @@ class InteractiveASD:
         """Update B-field actor."""
         if not hasattr(self, "asd"):
             return
-        Bfield = asd.inputdata.get_hfield()
+        Bfield = self.asd.inputdata.get_hfield()
         self.fieldtxt.SetInput(
             f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T"
         )

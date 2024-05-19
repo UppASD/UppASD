@@ -316,7 +316,7 @@ class UppASDVizMainWindow(QMainWindow):
                 self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
                 self.IntWidgetPresent = True
             if self.CheckForInteractorFiles() and not self.IntLaunched:
-                ASDInteractive.InitializeInteractor(self, self.InteractiveVtk)
+                ASDInteractive.InitializeInteractor(self)
                 self.IntLaunched = True
         self.ResetUI()
         return
@@ -2398,11 +2398,11 @@ class UppASDVizMainWindow(QMainWindow):
         # import uppasd as asd
         if self.sender() == self.IntSStepButton:
             ASDInteractiveTab.UpdateIntInputs(self)
-            for _ in range(10 * self.IntSDSlider.value()):
+            for _ in range(1 * self.IntSDSlider.value()):
                 self.InteractiveVtk.S_Step()
         if self.sender() == self.IntMCSimButton:
             ASDInteractiveTab.UpdateIntInputs(self)
-            for __ in range(10 * self.IntMCSlider.value()):
+            for __ in range(1 * self.IntMCSlider.value()):
                 self.InteractiveVtk.M_step()
         if self.sender() == self.IntResetButton:
             self.InteractiveVtk.Reset()

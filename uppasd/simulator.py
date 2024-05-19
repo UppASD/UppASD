@@ -61,12 +61,12 @@ class Simulator:
 
         return self.moments
 
-    def relax(self, mode="M"):
+    def relax(self, mode="M", temperature=0.0):
         """
         Relax the system using Monte Carlo simulations.
         """
         self.moments = _asd.relax(
-            natom=self.natom, mensemble=self.mensemble, imode=mode
+            natom=self.natom, mensemble=self.mensemble, imode=mode, itemperature=temperature
         )
 
     def calculate_energy(self):
