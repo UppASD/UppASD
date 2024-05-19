@@ -8,6 +8,11 @@ Author
 ----------
 Jonathan Chico
 """
+import vtk
+import numpy as np
+from vtk import vtkPoints
+from vtk.util import numpy_support
+
 class ASDMomActors():
     ############################################################################
     # @brief Main wrapper to add the needed actors for visualization of the moments
@@ -36,8 +41,6 @@ class ASDMomActors():
         Jonathan Chico
         """
 
-        import vtk
-        import numpy as np
 
         ASDMomActors.timer_count=0
         ASDMomActors.camera_pos=np.zeros(3,dtype=np.float32)
@@ -447,9 +450,7 @@ class ASDMomActors():
     # @brief Update the magnetic moments for the visualization
     # @author Jonathan Chico
     ############################################################################
-    def UpdateMoments(self,window,ASDdata,ASDGenActors,renWin):
-        from vtk import vtkPoints
-        from vtk.util import numpy_support
+    def UpdateMoments(self,window,ASDdata,ASDGenActors,renWin, is_interactive=False):
         """Function to update the visualization of the moments as one advances in time
         or in ensembles.
         Args:
@@ -465,6 +466,8 @@ class ASDMomActors():
         #-----------------------------------------------------------------------
         # Read the actual data of the magnetic moments
         #-----------------------------------------------------------------------
+        print('Reading data for time step:',window.current_time)
+        print(self.__class__.__name__)
         (ASDdata.moments,ASDdata.colors,ASDdata.number_time_steps,ASDdata.time_sep)=\
         ASDdata.readVectorsData(ASDdata.MagFile,window.current_time,\
         ASDdata.nrAtoms,ASDdata.number_time_steps)
@@ -499,9 +502,8 @@ class ASDMomActors():
         # Update the general actors
         #-----------------------------------------------------------------------
         window.ProgressBar.setValue(int((window.current_time-1)*100/(ASDdata.number_time_steps-1)))
-        window.ProgressLabel.setText('   {:}%'.format(int(window.ProgressBar.value())))
-        time_label=str('{: 4.2f}'\
-        .format(float(window.TimeStepLineEdit.text())*ASDdata.time_sep[window.current_time-1]*1e9))+' ns'
+        window.ProgressLabel.setText(f'   {int(window.ProgressBar.value())}%')
+        time_label = f"{float(window.TimeStepLineEdit.text()) * ASDdata.time_sep[window.current_time-1] * 1e9: 4.2f} ns"
         ASDGenActors.time_label.SetInput(time_label)
         #-----------------------------------------------------------------------
         # Render the window

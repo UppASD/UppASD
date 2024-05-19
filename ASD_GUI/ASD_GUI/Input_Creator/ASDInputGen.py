@@ -131,19 +131,19 @@ class ASDInputGen():
     ############################################################################
 
     def update_file_name(self, window):
-        if window.sender() == window.Posfile_Window.InpPosDone:
-            ASDInputGen.posfile = window.Posfile_Window.posfile_name
+        if window.sender() == window.PosfileWindow.InpPosDone:
+            ASDInputGen.posfile = window.PosfileWindow.posfile_name
             self.posfile_gotten = True
-        if window.sender() == window.Momfile_Window.InpMomDone:
-            ASDInputGen.momfile = window.Momfile_Window.momfile_name
+        if window.sender() == window.MomfileWindow.InpMomDone:
+            ASDInputGen.momfile = window.MomfileWindow.momfile_name
             self.momfile_gotten = True
-        if window.sender() == window.Restart_Window.InpRestartDone:
-            ASDInputGen.restartfile = window.Restart_Window.restartfile_name
-        if window.sender() == window.Jfile_Window.InpJfileDone:
-            ASDInputGen.jfile = window.Jfile_Window.jfile_name
+        if window.sender() == window.RestartWindow.InpRestartDone:
+            ASDInputGen.restartfile = window.RestartWindow.restartfile_name
+        if window.sender() == window.JfileWindow.InpJfileDone:
+            ASDInputGen.jfile = window.JfileWindow.jfile_name
             window.InpXCCheck.setChecked(True)
-        if window.sender() == window.DMfile_Window.InpDMfileDone:
-            ASDInputGen.dmfile = window.DMfile_Window.DMfile_name
+        if window.sender() == window.DMfileWindow.InpDMfileDone:
+            ASDInputGen.dmfile = window.DMfileWindow.DMfile_name
             window.InpDMCheck.setChecked(True)
         return
     ############################################################################
