@@ -260,10 +260,8 @@
       use uppasd, only : sd_iphase, mc_iphase
       use sd_driver, only : sd_minimal
       use mc_driver, only : mc_minimal
-      use InputData, only : ipmode, nstep => ipnstep, temperature => iptemp, timestep => ipdelta_t, ipnphase
       use Damping, only : damping1 => lambda1_array
       use MomentData, only : emomM, emom, mmom
-      use FieldData, only : beff
       use Profiling, only : timing
 
       implicit none
@@ -285,27 +283,10 @@
       real(c_double), intent(in) :: idamping
  
 
-      !ipnphase = 1
-      !   ipmode = imode
-      !   if (allocated(damping)) deallocate(damping)
-      !      allocate(damping(1))
-      !    damping = idamping
-      !   if (allocated(nstep)) deallocate(nstep)
-      !      allocate(nstep(1))
-      !    nstep = instep
-      !    if (allocated(temperature)) deallocate(temperature)  
-      !      allocate(temperature(1))
-      !    temperature = itemperature
-      !    if (allocated(timestep)) deallocate(timestep)
-      !      allocate(timestep(1))
-      !    timestep = itimestep
-
       call timing(0,'Initial       ','ON')
       if(imode == 'M' .or. imode == 'H') then
-         !call mc_iphase()
          call mc_minimal(emomM,emom,mmom, 1000, 'M ', 10.0d0)
       else
-         !call sd_iphase()
          damping1 = idamping
          call sd_minimal(emomM,emom,mmom, 1000, 1, 10.0d0)
       end if
@@ -313,28 +294,10 @@
 
       moments = emomM
 
-      !!! nstep = nstep_old
-      !!! temperature = temperature_old
-      !!! timestep = timestep_old
-      !!! ipmode = ipmode_old
-
       return
 
       
     end subroutine Relax
-!!! 
-!!!    subroutine RelaxMD()
-!!!       implicit none
-!!! 
-!!!       call ld_iphase() 
-!!!    end subroutine RelaxMD 
-!!! 
-!!!    subroutine RelaxSLDLLG()
-!!!       implicit none 
-!!! 
-!!!       call sld_iphase() 
-!!!    end subroutine RelaxSLDLLG 
-!!! 
 !!! 
 !!!    !==============================================================!
 !!!    ! Moment handling routines
@@ -367,6 +330,7 @@
 
        emom = moments 
     end subroutine put_emom
+
 !!!    !==============================================================!
 !!!    ! Field handling routines
 !!!    !--------------------------------------------------------------!
@@ -414,6 +378,47 @@
        nstep = instep
     end subroutine get_nstep
 
+    subroutine get_hfield(hfield) bind(c, name='get_hfield_')
+      use iso_c_binding
+         use InputData, only : ihfield => hfield
+       implicit none
+       !f2py intent(out) hfield
+       real(c_double), dimension(3), intent(out) :: hfield
+
+       hfield = ihfield
+    end subroutine get_hfield
+
+    subroutine put_hfield(hfield) bind(c, name='put_hfield_')
+      use iso_c_binding
+         use InputData, only : ohfield => hfield
+       implicit none
+       !f2py intent(in) hfield
+       real(c_double), dimension(3), intent(in) :: hfield
+
+       ohfield = hfield
+    end subroutine put_hfield
+
+    subroutine get_iphfield(hfield) bind(c, name='get_iphfield_')
+      use iso_c_binding
+         use InputData, only : ihfield => iphfield
+       implicit none
+       !f2py intent(out) hfield
+       real(c_double), dimension(3), intent(out) :: hfield
+
+       hfield = ihfield
+    end subroutine get_iphfield
+
+    subroutine put_iphfield(hfield) bind(c, name='put_iphfield_')
+      use iso_c_binding
+         use InputData, only : ohfield => iphfield
+       implicit none
+       !f2py intent(in) hfield
+       real(c_double), dimension(3), intent(in) :: hfield
+
+       ohfield = hfield
+    end subroutine put_iphfield
+
+
     subroutine get_mcnstep(nstep) bind(c, name='get_mcnstep_')
       use iso_c_binding
          use InputData, only : mcnstep
@@ -426,87 +431,44 @@
 
     subroutine get_temperature(temperature) bind(c, name='get_temperature_')
       use iso_c_binding
-         use InputData, only : temp
+         use InputData, only : itemp => temp
        implicit none
-       !f2py intent(out) nstep
+       !f2py intent(out) temperature
        real(c_double), intent(out) :: temperature
 
-       temperature = temp
+       temperature = itemp
     end subroutine get_temperature
+
+    subroutine put_temperature(temperature) bind(c, name='put_temperature_')
+      use iso_c_binding
+         use InputData, only : otemp => temp
+       implicit none
+       !f2py intent(in) temperature
+       real(c_double), intent(in) :: temperature
+
+       otemp = temperature
+    end subroutine put_temperature
+
+    subroutine get_iptemperature(temperature) bind(c, name='get_iptemperature_')
+      use iso_c_binding
+         use InputData, only : itemp => iptemp
+       implicit none
+       !f2py intent(out) temperature
+       real(c_double), intent(out) :: temperature
+
+       temperature = itemp(1)
+    end subroutine get_iptemperature
 
     subroutine get_delta_t(timestep) bind(c, name='get_delta_t_')
       use iso_c_binding
          use InputData, only : delta_t
        implicit none
-       !f2py intent(out) nstep
+       !f2py intent(out) timestep
        real(c_double), intent(out) :: timestep
 
        timestep = delta_t
     end subroutine get_delta_t
 
-!!!    !==============================================================!
-!!!    ! Measurement Runners
-!!!    !--------------------------------------------------------------!
-!!! 
-!!!    subroutine RelaxGNEB()
-!!!       implicit none
-!!! 
-!!!       call em_iphase()
-!!!    end subroutine RelaxGNEB
-!!! 
-!!!    subroutine RunMonteCarlo()
-!!!       implicit none
-!!! 
-!!!       call mc_mphase() 
-!!!    end subroutine RunMonteCarlo
-!!! 
-!!!    subroutine RunMultiScale()
-!!!       implicit none
-!!! 
-!!!       call ms_mphase()
-!!!    end subroutine RunMultiScale
-!!! 
-!!!    subroutine RunLLGlite()
-!!!       implicit none
-!!! 
-!!!       call sd_mphase_lite() 
-!!!    end subroutine RunLLGlite
-!!! 
-!!!    subroutine RunLLG()
-!!!       implicit none
-!!! 
-!!!       call sd_mphase() 
-!!!    end subroutine RunLLG
-!!! 
-!!!    subroutine RunLLGCUDA()
-!!!       implicit none
-!!! 
-!!!       call sd_mphaseCUDA()
-!!!    end subroutine RunLLGCUDA
-!!! 
-!!!    subroutine RunLD()
-!!!       implicit none
-!!! 
-!!!       call ld_mphase()
-!!!    end subroutine RunLD
-!!! 
-!!!    subroutine RunSLDLLG()
-!!!       implicit none
-!!! 
-!!!       call sld_mphase()
-!!!    end subroutine RunSLDLLG
-!!! 
-!!!    subroutine RunSLDLLGimplicit()
-!!!       implicit none
-!!! 
-!!!       call sld_mphase3()
-!!!    end subroutine RunSLDLLGimplicit
-!!! 
-!!!    subroutine RunGNEB()
-!!!       implicit none
-!!! 
-!!!       call mep_mphase()
-!!!    end subroutine RunGNEB
 !!! 
 function TotalEnergy() result(energy) bind(c, name='totalenergy_')
    use iso_c_binding
@@ -520,17 +482,5 @@ function TotalEnergy() result(energy) bind(c, name='totalenergy_')
 
 end function totalenergy
 !!! 
-!!!    !!! function getMoments() result(moments)
-!!!    !!!    use MomentData
-!!!    !!!    use InputData, only : Natom, Mensemble
-!!!    !!!    implicit none
-!!!    !!!
-!!!    !!!    !f2py integer, parameter : Natom
-!!!    !!!    !f2py integer, parameter : Mensemble
-!!!    !!!    real(dblprec), dimension(3,Natom,Mensemble) :: moments
-!!!    !!!
-!!!    !!!    moments=emom
-!!!    !!!    return 
-!!!    !!! end function getMoments
 
 !!! end module pyasd
