@@ -20,6 +20,7 @@ import numpy as np
 import vtk
 from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
+from vtkmodules.vtkCommonColor import vtkColorSeries
 
 # import uppasd.pyasd as asd
 import uppasd.simulator as sim
@@ -86,6 +87,28 @@ def readVectorsData(file, time, nrAtoms, Nmax):
             i = i + 1
     return vectors, colors
 
+def createLookupTable():
+    lut = vtk.vtkLookupTable()
+    for i in range(0, 128, 1):
+        lut.SetTableValue(i, (127.0 - i) / 127.0, i / 127.0, 0, 1)
+    for i in range(128, 256, 1):
+        lut.SetTableValue(i, 0, (256.0 - i) / 128.0, (i - 128.0) / 128, 1)
+    lut.SetTableRange(-1.0, 1.0)
+    return lut
+
+def cycleColorScheme(lut, colorSeries, backwards=False):
+    cterm = -1 if backwards else 1
+    colorIndex = colorSeries.GetColorScheme() + cterm
+    if colorIndex <= 0:
+        colorSeries.SetColorScheme(colorSeries.GetNumberOfColorSchemes()-1)
+        lut = createLookupTable()
+    elif colorIndex >= colorSeries.GetNumberOfColorSchemes():
+        colorSeries.SetColorScheme(0)
+        lut = createLookupTable()
+    else:
+        colorSeries.SetColorScheme(colorIndex)
+        colorSeries.BuildLookupTable(lut, vtkColorSeries.ORDINAL)
+    return lut, colorSeries
 
 # Instantiate the ASD simulation object
 asd = sim.Simulator()
@@ -175,11 +198,11 @@ class vtkTimerCallback:
 asd.get_moments()
 
 
-initmom = asd.moments
+initmom = asd.moments[:, :, 0]
 currmom = asd.moments[:, :, 0].T
 vecz = numpy_support.numpy_to_vtk(currmom, deep=False)
 
-initcol = asd.moments
+initcol = asd.moments[2, :, 0]
 currcol = asd.moments[2, :, 0].T
 colz = numpy_support.numpy_to_vtk(currcol, deep=False)
 
@@ -222,25 +245,20 @@ DataFour.GetPointData().SetScalars(colz)
 
 # Create colortable for the coloring of the vectors
 lut = vtk.vtkLookupTable()
-# for i in range(0,255,1):
-#    lut.SetTableValue(i,i/255.0,0.6*i/255.0,0,1)
-##    #lut.SetTableValue(i,255.0*(1.0-i/255.0),00.0*(1.0-i/255.0),0,1)
-##    #lut.SetTableValue(i,255.0*(1.0-i/255.0),200.0*(1.0-i/255.0),0,1)
-for i in range(0, 128, 1):
-    lut.SetTableValue(i, (127.0 - i) / 127.0, i / 127.0, 0, 1)
-for i in range(128, 256, 1):
-    lut.SetTableValue(i, 0, (256.0 - i) / 128.0, (i - 128.0) / 128, 1)
-# lut.SetTableRange(0.0,1.0);
-lut.SetTableRange(-1.0, 1.0)
+colorSeries = vtkColorSeries()
+# colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
+colorSeries.SetColorScheme(0)   
+lut = createLookupTable()
 lut.Build()
 
+print('vtkColorSeries ID: ', colorSeries.GetColorScheme(), colorSeries.GetNumberOfColorSchemes())
 
 # ATOMS  ##########################################
 # Set up atoms
 ball = vtk.vtkSphereSource()
 ball.SetRadius(1.00)
-ball.SetThetaResolution(16)
-ball.SetPhiResolution(16)
+ball.SetThetaResolution(24)
+ball.SetPhiResolution(24)
 
 balls = vtk.vtkGlyph3DMapper()
 balls.SetInputData(Datatest)
@@ -278,8 +296,8 @@ atom.GetProperty().ShadingOn()
 # Set up atoms
 fball = vtk.vtkSphereSource()
 fball.SetRadius(1.00)
-fball.SetThetaResolution(16)
-fball.SetPhiResolution(16)
+fball.SetThetaResolution(24)
+fball.SetPhiResolution(24)
 
 fballs = vtk.vtkGlyph3DMapper()
 fballs.SetInputData(DataFour)
@@ -314,11 +332,26 @@ four.GetProperty().SetDiffuse(0.8)
 arrow = vtk.vtkArrowSource()
 arrow.SetTipRadius(0.26)
 arrow.SetShaftRadius(0.15)
-arrow.SetTipResolution(24)
-arrow.SetShaftResolution(24)
+arrow.SetTipResolution(18)
+arrow.SetShaftResolution(18)
+
+# Calculate normals for shading
+arrownormals = vtk.vtkPolyDataNormals()
+arrownormals.SetInputConnection(arrow.GetOutputPort())
+
+# Calculate TCoords for texturing
+arrownormalstmap = vtk.vtkTextureMapToCylinder()
+arrownormalstmap.SetInputConnection(arrownormals.GetOutputPort())
+arrownormalstmap.PreventSeamOn()
+
+
 
 glyph = vtk.vtkGlyph3DMapper()
-glyph.SetSourceConnection(arrow.GetOutputPort())
+# Set input connection to the normals
+#glyph.SetSourceConnection(arrow.GetOutputPort())
+glyph.SetSourceConnection(arrownormalstmap.GetOutputPort())
+glyph.OrientOn()
+#glyph.Update()
 # glyph.SetInputConnection(Datatest.GetProducerPort())
 glyph.SetInputData(Datatest)
 # glyph.SetInput(Datatest) # Position and direction
@@ -349,14 +382,15 @@ vector.SetPosition(-xmid, -ymid, -zmid)
 # vector.SetPosition(-xmid*1.4,-ymid,-zmid)
 
 # vector.GetProperty().SetInterpolationToPBR()
-# vector.GetProperty().SetSpecular(0.0)
-# vector.GetProperty().SetSpecularPower(160)
+vector.GetProperty().SetSpecular(0.0)
+vector.GetProperty().SetSpecularPower(10)
 vector.GetProperty().SetAmbient(0.3)
 vector.GetProperty().SetDiffuse(0.5)
 vector.GetProperty().SetOpacity(1.0)
-vector.GetProperty().SetRoughness(0.6)
+vector.GetProperty().SetRoughness(0.7)
 vector.GetProperty().SetMetallic(0.4)
 vector.GetProperty().ShadingOn()
+vector.GetProperty().SetInterpolationToGouraud()
 print("Interpolation: ", vector.GetProperty().GetInterpolationAsString())
 
 
@@ -438,6 +472,16 @@ h = l / 0.26795 * 1.1
 ren.GetActiveCamera().SetPosition(0, 0, h)
 # ren.GetActiveCamera().SetPosition(0,0,50*d)
 
+# Enable antialiasing
+ren.UseFXAAOn()
+ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
+renWin.SetMultiSamples(4)
+# Enable SSAO
+ren.UseSSAOOn()
+ren.SetSSAOKernelSize(512)
+ren.SetSSAORadius(3.0)
+ren.SetSSAOBias(0.1)
+ren.SSAOBlurOff()
 
 # For the interactive control. Set up a check for aborting rendering.
 def CheckAbort(obj, event):
@@ -455,14 +499,14 @@ def Keypress(obj, event):
         print("Screenshot taken")
     if key == "0":
         print("Resetting UppASD")
-        asd.put_moments(initmom.T)
-        vecz = numpy_support.numpy_to_vtk(initmom)
+        asd.put_moments(initmom[:, :])
+        vecz = numpy_support.numpy_to_vtk(initmom[:, :].T)
         colz = numpy_support.numpy_to_vtk(initcol)
         Datatest.GetPointData().SetVectors(vecz)
         Datatest.GetPointData().SetScalars(colz)
     if key == "M" or key == "m":
         print("Running UppASD")
-        asd.relax(mode="H")
+        asd.relax(mode="M", temperature=asd.inputdata.iptemp)
         asd.get_moments()
         print("Updating graphics")
         currmom = asd.moments[:, :, 0].T
@@ -474,7 +518,7 @@ def Keypress(obj, event):
         renWin.Render()
     if key == "H" or key == "h":
         print("Running UppASD")
-        asd.relax(mode="H")
+        asd.relax(mode="H", temperature=asd.inputdata.iptemp+1.0e-6)
         asd.get_moments()
         print("Updating graphics")
         currmom = asd.moments[:, :, 0].T
@@ -486,7 +530,7 @@ def Keypress(obj, event):
         renWin.Render()
     if key == "S" or key == "s":
         print("Running UppASD")
-        asd.relax(mode="S")
+        asd.relax(mode="S", temperature=asd.inputdata.iptemp)
         asd.get_moments()
         print("Updating graphics")
         currmom = asd.moments[:, :, 0].T
@@ -496,6 +540,9 @@ def Keypress(obj, event):
         Datatest.GetPointData().SetVectors(vecz)
         Datatest.GetPointData().SetScalars(colz)
         renWin.Render()
+    if key == "c" or key == "C":
+        cycleColorScheme(lut, colorSeries, backwards=(key == "c"))
+        lut.Build()
     # if key == "C":
     #   asd.inputdata.ipmode='Q'
     #   asd.pyasd.initialphase()
@@ -557,7 +604,7 @@ def Keypress(obj, event):
     if key == "g":
         vector.GetProperty().SetInterpolationToGouraud()
     if key == "p":
-        vector.GetProperty().SetInterpolationPBR()
+        vector.GetProperty().SetInterpolationToPBR()
     # if key == "m":
     #   vector.SetVisibility(abs(1-vector.GetVisibility()))
     if key == "i":
