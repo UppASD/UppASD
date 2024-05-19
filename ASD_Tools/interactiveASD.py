@@ -462,40 +462,40 @@ def Keypress(obj, event):
         Datatest.GetPointData().SetScalars(colz)
     if key == "M" or key == "m":
         print("Running UppASD")
-        for iter in range(10):
-            asd.relax(mode="H")
-            asd.get_moments()
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
+        asd.relax(mode="H")
+        asd.get_moments()
+        print("Updating graphics")
+        currmom = asd.moments[:, :, 0].T
+        currcol = asd.moments[2, :, 0].T
+        vecz = numpy_support.numpy_to_vtk(currmom)
+        colz = numpy_support.numpy_to_vtk(currcol)
+        Datatest.GetPointData().SetVectors(vecz)
+        Datatest.GetPointData().SetScalars(colz)
+        renWin.Render()
     if key == "H" or key == "h":
         print("Running UppASD")
-        for iter in range(10):
-            asd.relax(mode="H")
-            asd.get_moments()
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
+        asd.relax(mode="H")
+        asd.get_moments()
+        print("Updating graphics")
+        currmom = asd.moments[:, :, 0].T
+        currcol = asd.moments[2, :, 0].T
+        vecz = numpy_support.numpy_to_vtk(currmom)
+        colz = numpy_support.numpy_to_vtk(currcol)
+        Datatest.GetPointData().SetVectors(vecz)
+        Datatest.GetPointData().SetScalars(colz)
+        renWin.Render()
     if key == "S" or key == "s":
         print("Running UppASD")
-        for iter in range(10):
-            asd.relax(mode="S")
-            asd.get_moments()
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
+        asd.relax(mode="S")
+        asd.get_moments()
+        print("Updating graphics")
+        currmom = asd.moments[:, :, 0].T
+        currcol = asd.moments[2, :, 0].T
+        vecz = numpy_support.numpy_to_vtk(currmom)
+        colz = numpy_support.numpy_to_vtk(currcol)
+        Datatest.GetPointData().SetVectors(vecz)
+        Datatest.GetPointData().SetScalars(colz)
+        renWin.Render()
     # if key == "C":
     #   asd.inputdata.ipmode='Q'
     #   asd.pyasd.initialphase()
@@ -515,9 +515,10 @@ def Keypress(obj, event):
     #   Datatest.GetPointData().SetVectors(vecz)
     #   Datatest.GetPointData().SetScalars(colz)
     if key == "B":
-        asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 1.0
-        bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-        fieldtxt.SetInput("Bz = " + bz + " T")
+        print('Bfield:', asd.inputdata.iphfield)
+        #asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 1.0
+        #bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
+        #fieldtxt.SetInput("Bz = " + bz + " T")
     if key == "b":
         asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] - 1.0
         bz = "{:4.1f}".format(asd.inputdata.iphfield[2])

@@ -2,6 +2,7 @@ import numpy as np
 from uppasd import pyasd as _asd
 from uppasd import inputdata as _inputdata
 
+
 class Simulator:
     """
     Class for atomistic spin dynamics simulations.
@@ -21,19 +22,19 @@ class Simulator:
         self.fields = np.zeros((3, self.natom, self.mensemble))
         self.energy = np.float64(0.0)
 
-        self.inputdata = _inputdata.InputData()
+        self.inputdata = _inputdata.InputData(_asd)
 
     def init_simulation(self):
         """
         Initialize the atomistic spin dynamics simulation.
 
-        This method initializes the atomistic spin dynamics simulation 
+        This method initializes the atomistic spin dynamics simulation
         by calling the necessary functions from the `asd` module.
         """
         # Initialize the simulation
         self.natom, self.mensemble = _asd.setupall()
+        self.inputdata.get_all()
         self.get_moments()
-
 
     def run_simulation(self):
         """
@@ -54,17 +55,19 @@ class Simulator:
 
         # Get the moments
         self.moments = _asd.get_emom(natom=self.natom, mensemble=self.mensemble)
-        
+
         # Perform cleanup
         _asd.cleanup()
-        
+
         return self.moments
-    
-    def relax(self, mode='M'):
+
+    def relax(self, mode="M"):
         """
         Relax the system using Monte Carlo simulations.
         """
-        self.moments = _asd.relax(natom=self.natom, mensemble=self.mensemble, imode=mode)
+        self.moments = _asd.relax(
+            natom=self.natom, mensemble=self.mensemble, imode=mode
+        )
 
     def calculate_energy(self):
         """
@@ -73,8 +76,7 @@ class Simulator:
         Returns:
         - energy: The total energy of the system.
         """
-        self.energy = _asd.totalenergy()
-
+        self.energy = _asd.get_energy()
 
     def get_moments(self):
         """
@@ -86,7 +88,7 @@ class Simulator:
         """
         Update the moments of the spins based on the simulation dynamics.
         """
-        _asd.put_emom(emom=moments,natom=self.natom, mensemble=self.mensemble)
+        _asd.put_emom(emom=moments, natom=self.natom, mensemble=self.mensemble)
         return
 
     def get_fields(self):
@@ -100,19 +102,12 @@ class Simulator:
         Apply the external magnetic fields to the spins.
         """
         _asd.put_beff(beff=fields, natom=self.natom, mensemble=self.mensemble)
-        
-    def evolve(self, evolution_type: str = 'initial'):
+
+    def evolve(self, evolution_type: str = "initial"):
         """
         Evolve the system according to the `inpsd.dat` file.
         """
-        if evolution_type == 'initial':
+        if evolution_type == "initial":
             _asd.initialphase()
-        if evolution_type == 'measure':
+        if evolution_type == "measure":
             _asd.measure()
-
-    # def print_simulation_info(self):
-    #     """
-    #     Print information about the simulation.
-    #     """
-    #     # TODO: Implement the simulation info printing logic here
-    #     pass
