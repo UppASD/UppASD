@@ -17,6 +17,7 @@ _arrays = {}
 _objs = {}
 
 
+# Driver routines below
 def runuppasd():
     """
     runuppasd()
@@ -157,29 +158,17 @@ def relaxheatbath(natom, mensemble):
     moments = _uppasd.relaxheatbath(natom, mensemble)
     return moments
 
-
-def relaxmultiscale():
+def relaxllg(natom, mensemble):
     """
-    relaxmultiscale()
+    relaxllg()
 
 
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 127-129
-
-
-    """
-    _uppasd.relaxmultiscale()
-
-
-def relaxsldmontecarlo():
-    """
-    relaxsldmontecarlo()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 131-133
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 135-137
 
 
     """
-    _uppasd.relaxsldmontecarlo()
+    moments = _uppasd.relaxllg(natom, mensemble)
+    return moments
 
 
 def relax(
@@ -192,7 +181,7 @@ def relax(
     idamping=0.5,
 ):
     """
-    relaxllg()
+    relax()
 
 
     Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 135-137
@@ -209,191 +198,7 @@ def relax(
     )
     return moments
 
-
-def relaxllg(natom, mensemble):
-    """
-    relaxllg()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 135-137
-
-
-    """
-    moments = _uppasd.relaxllg(natom, mensemble)
-    return moments
-
-
-def relaxmd():
-    """
-    relaxmd()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 139-141
-
-
-    """
-    _uppasd.relaxmd()
-
-
-def relaxsldllg():
-    """
-    relaxsldllg()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 143-145
-
-
-    """
-    _uppasd.relaxsldllg()
-
-
-def relaxgneb():
-    """
-    relaxgneb()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 180-182
-
-
-    """
-    _uppasd.relaxgneb()
-
-
-def runmontecarlo():
-    """
-    runmontecarlo()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 184-186
-
-
-    """
-    _uppasd.runmontecarlo()
-
-
-def runmultiscale():
-    """
-    runmultiscale()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 188-190
-
-
-    """
-    _uppasd.runmultiscale()
-
-
-def runllglite():
-    """
-    runllglite()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 192-194
-
-
-    """
-    _uppasd.runllglite()
-
-
-def runllg():
-    """
-    runllg()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 196-198
-
-
-    """
-    _uppasd.runllg()
-
-
-def runllgcuda():
-    """
-    runllgcuda()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 200-202
-
-
-    """
-    _uppasd.runllgcuda()
-
-
-def runsldmontecarlo():
-    """
-    runsldmontecarlo()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 204-206
-
-
-    """
-    _uppasd.runsldmontecarlo()
-
-
-def runld():
-    """
-    runld()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 208-210
-
-
-    """
-    _uppasd.runld()
-
-
-def runsldllg():
-    """
-    runsldllg()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 212-214
-
-
-    """
-    _uppasd.runsldllg()
-
-
-def runsldllgimplicit():
-    """
-    runsldllgimplicit()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 216-218
-
-
-    """
-    _uppasd.runsldllgimplicit()
-
-
-def rungneb():
-    """
-    rungneb()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 228-230
-
-
-    """
-    _uppasd.rungneb()
-
-
-def totalenergy():
-    """
-    energy = totalenergy()
-
-
-    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 232-236
-
-
-    Returns
-    -------
-    energy : float
-
-    """
-    energy = _uppasd.totalenergy()
-    return energy
+# Measurable rotuines below
 
 
 def get_emom(natom, mensemble):
@@ -476,14 +281,18 @@ def put_beff(beff, natom, mensemble):
     _uppasd.put_beff(beff, natom, mensemble)
 
 
-_array_initialisers = []
-_dt_array_initialisers = []
+def get_energy():
+    """
+    energy = totalenergy()
 
-try:
-    for func in _array_initialisers:
-        func()
-except ValueError:
-    logging.debug('unallocated array(s) detected on import of module "pyasd".')
 
-for func in _dt_array_initialisers:
-    func()
+    Defined at /home/andersb/CrossPlatform/UppASD/source/pyasd.f90 lines 232-236
+
+
+    Returns
+    -------
+    energy : float
+
+    """
+    energy = _uppasd.get_energy()
+    return energy

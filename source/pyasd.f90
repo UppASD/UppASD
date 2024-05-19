@@ -74,21 +74,19 @@
       call ErrorHandling_check_input_file()
    end subroutine SanityCheck
 
-
    !==============================================================!
    ! Find number of OpenMP processors active
    !--------------------------------------------------------------!
-   function NumProcs() result(nprocs) bind(c,name='numprocs_')
+   subroutine get_numprocs(nprocs) bind(c,name='get_numprocs_')
       use iso_c_binding
-           use uppasd, only : number_of_active_processors
+      use uppasd, only : number_of_active_processors
+
       implicit none
-      integer :: nprocs
+      !f2py intent(out) :: nprocs
+      integer(c_int), intent(out) :: nprocs
 
       nprocs = number_of_active_processors()
-      return
-   end function NumProcs
-
-
+   end subroutine get_numprocs
 
    !==============================================================!
    ! Initialize profiling routines and print the UppASD logo
@@ -161,7 +159,6 @@
       call allocate_mcdata(1,-1)
       call allocate_randomwork(1,1,-1,'N')
    end subroutine CleanUp
-
 
 
 !!!    !==============================================================!
@@ -469,18 +466,18 @@
        timestep = delta_t
     end subroutine get_delta_t
 
-!!! 
-function TotalEnergy() result(energy) bind(c, name='totalenergy_')
-   use iso_c_binding
-   use uppasd, only : calculate_energy
-   implicit none
+   !!! 
+   subroutine get_energy(energy) bind(c, name='get_energy_')
+      use iso_c_binding
+      use uppasd, only : calculate_energy
+      implicit none
 
-   real(c_double) :: energy
+      !f2py intent(out) energy
+      real(c_double), intent(out) :: energy
 
-   call calculate_energy(energy)
-   return
-
-end function totalenergy
+      call calculate_energy(energy)
+   
+   end subroutine get_energy
 !!! 
 
 !!! end module pyasd
