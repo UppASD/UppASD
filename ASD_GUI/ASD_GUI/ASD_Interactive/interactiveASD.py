@@ -36,6 +36,7 @@ class InteractiveASD:
         self.iren = iren
         self.number_of_screenshots = 0
         self.asd = ASDsim
+        self.film = False
 
     def Launch(self):
         """
@@ -316,6 +317,8 @@ class InteractiveASD:
         ene = f"{self.asd.energy:6.4f}"
         self.enetxt.SetInput(f"E = {ene} mRy/atom")
         self.renWin.Render()
+        if self.film:
+            self.Screenshot()
 
     def M_step(self):
         """Do a simulation using Metropolis MC"""
@@ -333,6 +336,8 @@ class InteractiveASD:
         ene = f"{self.asd.energy:6.4f}"
         self.enetxt.SetInput(f"E = {ene} mRy/atom")
         self.renWin.Render()
+        if self.film:
+            self.Screenshot()
 
     def H_step(self):
         """Do a simulation using Heat-bath MC"""
@@ -350,6 +355,8 @@ class InteractiveASD:
         ene = f"{self.asd.energy:6.4f}"
         self.enetxt.SetInput(f"E = {ene} mRy/atom")
         self.renWin.Render()
+        if self.film:
+            self.Screenshot()
 
     def Reset(self):
         """Reset data to initial."""
@@ -374,10 +381,8 @@ class InteractiveASD:
                 moments = np.loadtxt(mag_file)[:, 4:]
                 print('Moments read:', moments.shape)
                 self.asd.put_moments(moments.T)
-                #self.currmom = self.asd.moments[:, :, 0].T
                 self.currmom = moments
                 self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=False)
-                #self.currcol = self.asd.moments[2, :, 0].T
                 self.currcol = moments[:,2]
                 self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=False)
                 self.Datatest.GetPointData().SetVectors(self.vecz)
@@ -478,13 +483,6 @@ class InteractiveASD:
         win2im = vtk.vtkWindowToImageFilter()
         win2im.ReadFrontBufferOff()
         win2im.SetInput(self.renWin)
-        #
-        povexp = vtk.vtkPOVExporter()
-        povexp.SetRenderWindow(self.renWin)
-        # povexp.SetInput(renWin)
-        self.renWin.Render()
-        povexp.SetFileName(f"snap{self.number_of_screenshots:05d}.pov")
-        povexp.Write()
         #
         toPNG = vtk.vtkPNGWriter()
         toPNG.SetFileName(f"snap{self.number_of_screenshots:05d}.png")

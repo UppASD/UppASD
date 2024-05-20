@@ -653,6 +653,7 @@ def InteractiveDock_Setup(window):
     window.IntB_yLine.editingFinished.connect(window.UpdateInteractiveVtk)
     window.IntB_zLine.editingFinished.connect(window.UpdateInteractiveVtk)
     window.IntScreenshot.clicked.connect(window.InteractiveScreenshot)
+    window.IntScreenshotTic.toggled.connect(window.InteractiveScreenshotTic)
 
 
 # ------------------------------------------------------------------------------------

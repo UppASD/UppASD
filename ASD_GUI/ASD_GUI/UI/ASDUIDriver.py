@@ -2427,6 +2427,14 @@ class UppASDVizMainWindow(QMainWindow):
     def InteractiveScreenshot(self):
         self.InteractiveVtk.Screenshot()
 
+    def InteractiveScreenshotTic(self, tic):
+        if tic:
+            print("Taking screenshots")
+            self.InteractiveVtk.film = True
+        else:
+            print("Not taking screenshots")
+            self.InteractiveVtk.film = False
+
     def CheckForInteractorFiles(self):
         """
         Check if we have any input/output files and determines if

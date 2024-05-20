@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QGridLayout,
     QDoubleSpinBox,
+    QCheckBox
 )
 from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtCore import Qt
@@ -46,7 +47,7 @@ def InteractiveDock(window):
     window.TemperatureMagBox = QGroupBox()
     TemperatureMagLayout = QGridLayout()
     window.IntGeneralBox.setTitle("General")
-    window.IntGeneralBox.setMaximumSize(300, 850)
+    window.IntGeneralBox.setMaximumSize(300, 900)
 
     # Temp + Bfield
     window.IntTempLabel = QLabel("Temp")
@@ -110,8 +111,17 @@ def InteractiveDock(window):
     window.IntMomentButton = QPushButton()
     window.IntMomentButton.setText("Load moments")
 
+    window.IntScreenshotBox = QGroupBox()
     window.IntScreenshot = QPushButton()
     window.IntScreenshot.setText("Screenshot")
+    
+    # Screenshot checkbox
+    window.IntScreenshotBox = QGroupBox()
+    ScreenshotLayout = QHBoxLayout()
+    window.IntScreenshotTic = QCheckBox("Continuous screenshots")
+    ScreenshotLayout.addWidget(window.IntScreenshot)
+    ScreenshotLayout.addWidget(window.IntScreenshotTic)
+    window.IntScreenshotBox.setLayout(ScreenshotLayout)
 
     ############################################################################
     # Spin Dynamics inputs
@@ -218,7 +228,7 @@ def InteractiveDock(window):
     GeneralWidgetList = [
         window.IntResetButton,
         window.IntMomentButton,
-        window.IntScreenshot,
+        window.IntScreenshotBox,
         window.TemperatureMagBox,
         window.IntSDBox,
         window.IntMCBox,
