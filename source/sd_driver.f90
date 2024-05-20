@@ -1128,8 +1128,12 @@ contains
       ! Adaptive time stepping
       integer :: ipstep, ia, ik
       real(dblprec) :: temprescale,temprescalegrad, dummy, denergy
+      real(dblprec) :: org_temp
       real(dblprec) :: mavg
 
+      org_temp = temp
+      temp = sd_temp
+      temp_array = sd_temp
       ! Copy inmoments to working array
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1254,6 +1258,10 @@ contains
             emomM_io(:,ia,ik)=emomM(:,ia,ik)
          end do
       end do
+
+      ! Rescale temperature back to original
+      temp_array = org_temp
+      temp = org_temp
 
    end subroutine sd_minimal
 

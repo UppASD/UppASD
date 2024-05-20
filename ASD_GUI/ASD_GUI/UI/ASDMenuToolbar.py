@@ -9,6 +9,11 @@ Author
 ----------
 Jonathan Chico
 """
+from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtWidgets import QProgressBar, QLabel, QStyle, QToolButton
+from PyQt6.QtCore import QSignalBlocker
+
+
 ################################################################################
 ## @brief Function defining the toolbar and actions for the VTK backend.
 # @details This contains several buttons handling the different visualization
@@ -28,123 +33,140 @@ def VTK_Menu_and_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt6.QtGui import QDoubleValidator
-    from PyQt6.QtWidgets import QProgressBar,QLabel,QStyle,QToolButton
+
     window.VTKToolBar.setFixedHeight(24)
-    window.ASD_VTK_Layout.insertWidget(0,window.VTKToolBar)
-    #---------------------------------------------------------------------------
+    window.ASD_VTK_Layout.insertWidget(0, window.VTKToolBar)
+    # ---------------------------------------------------------------------------
     # Button to exit the program
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.VTKExitButton = QToolButton()
-    window.VTKExitButton.setText('Exit')
-    window.VTKExitButton.setToolTip('Exit the UppASD visualizer')
-    window.VTKExitButton.setWhatsThis('Exit the UppASD visualizer')
-    window.VTKExitButton.setStatusTip('Exit the UppASD visualizer')
+    window.VTKExitButton.setText("Exit")
+    window.VTKExitButton.setToolTip("Exit the UppASD visualizer")
+    window.VTKExitButton.setWhatsThis("Exit the UppASD visualizer")
+    window.VTKExitButton.setStatusTip("Exit the UppASD visualizer")
     window.VTKExitButton.clicked.connect(window.close)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # button to take a snapshot of the visualization
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionTake_Snapshot = QToolButton()
-    window.actionTake_Snapshot.setText('Snapshot')
-    window.actionTake_Snapshot.setToolTip('Take a snapshot of the current image')
-    window.actionTake_Snapshot.setWhatsThis('Take a snapshot of the current image')
-    window.actionTake_Snapshot.setStatusTip('Take a snapshot of the current image')
-    #---------------------------------------------------------------------------
+    window.actionTake_Snapshot.setText("Snapshot")
+    window.actionTake_Snapshot.setToolTip("Take a snapshot of the current image")
+    window.actionTake_Snapshot.setWhatsThis("Take a snapshot of the current image")
+    window.actionTake_Snapshot.setStatusTip("Take a snapshot of the current image")
+    # ---------------------------------------------------------------------------
     # Play button to visualize the restartfile
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionMagnetization = QToolButton()
-    window.actionMagnetization.setText('Magnetization')
-    window.actionMagnetization.setToolTip('Visualize a magnetic configuration (restart/moment) from UppASD')
-    window.actionMagnetization.setWhatsThis('Visualize a magnetic configuration (restart/moment) from UppASD')
-    window.actionMagnetization.setStatusTip('Visualize a magnetic configuration (restart/moment) from UppASD')
-    #---------------------------------------------------------------------------
+    window.actionMagnetization.setText("Magnetization")
+    window.actionMagnetization.setToolTip(
+        "Visualize a magnetic configuration (restart/moment) from UppASD"
+    )
+    window.actionMagnetization.setWhatsThis(
+        "Visualize a magnetic configuration (restart/moment) from UppASD"
+    )
+    window.actionMagnetization.setStatusTip(
+        "Visualize a magnetic configuration (restart/moment) from UppASD"
+    )
+    # ---------------------------------------------------------------------------
     # Play button to visualize the momentsfile
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionMoments = QToolButton()
-    window.actionMoments.setText('Moments')
-    window.actionMoments.setToolTip('Visualize the momentsfile from UppASD')
-    window.actionMoments.setWhatsThis('Visualize the momentsfile from UppASD')
-    window.actionMoments.setStatusTip('Visualize the momentsfile from UppASD')
-    #---------------------------------------------------------------------------
+    window.actionMoments.setText("Moments")
+    window.actionMoments.setToolTip("Visualize the momentsfile from UppASD")
+    window.actionMoments.setWhatsThis("Visualize the momentsfile from UppASD")
+    window.actionMoments.setStatusTip("Visualize the momentsfile from UppASD")
+    # ---------------------------------------------------------------------------
     # Play button to visualize the energy
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionEnergy = QToolButton()
-    window.actionEnergy.setText('Energy')
-    window.actionEnergy.setToolTip('Visualize the site dependent energy from UppASD')
-    window.actionEnergy.setWhatsThis('Visualize the site dependent energy from UppASD')
-    window.actionEnergy.setStatusTip('Visualize the site dependent energy from UppASD')
-    #---------------------------------------------------------------------------
+    window.actionEnergy.setText("Energy")
+    window.actionEnergy.setToolTip("Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setWhatsThis("Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setStatusTip("Visualize the site dependent energy from UppASD")
+    # ---------------------------------------------------------------------------
     # Play button to visualize the exchange neighbours
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionNeighbours = QToolButton()
-    window.actionNeighbours.setText('Neighbours')
-    window.actionNeighbours.setToolTip('Visualize the exchange interaction neighbours')
-    window.actionNeighbours.setWhatsThis('Visualize the exchange interaction neighbours')
-    window.actionNeighbours.setStatusTip('Visualize the exchange interaction neighbours')
-    #---------------------------------------------------------------------------
+    window.actionNeighbours.setText("Neighbours")
+    window.actionNeighbours.setToolTip("Visualize the exchange interaction neighbours")
+    window.actionNeighbours.setWhatsThis(
+        "Visualize the exchange interaction neighbours"
+    )
+    window.actionNeighbours.setStatusTip(
+        "Visualize the exchange interaction neighbours"
+    )
+    # ---------------------------------------------------------------------------
     # Play button to visualize the DM neighbours
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionDM_Neigh = QToolButton()
-    window.actionDM_Neigh.setText('DM Neighbours')
-    window.actionDM_Neigh.setToolTip('Visualize the DM interaction neighbours')
-    window.actionDM_Neigh.setWhatsThis('Visualize the DM interaction neighbours')
-    window.actionDM_Neigh.setStatusTip('Visualize the DM interaction neighbours')
-    #---------------------------------------------------------------------------
+    window.actionDM_Neigh.setText("DM Neighbours")
+    window.actionDM_Neigh.setToolTip("Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setWhatsThis("Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setStatusTip("Visualize the DM interaction neighbours")
+    # ---------------------------------------------------------------------------
     # Play button to start the rendering of the scene
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.PlayButton = QToolButton()
     window.PlayButton.setCheckable(True)
     window.PlayButton.setChecked(False)
     window.PlayButton.setEnabled(False)
-    window.PlayButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
-    window.PlayButton.setToolTip('Start/Pause the visualization of animations')
-    window.PlayButton.setWhatsThis('Start/Pause the visualization of animations')
-    window.PlayButton.setStatusTip('Start/Pause the visualization of animations')
+    window.PlayButton.setIcon(
+        window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
+    )
+    window.PlayButton.setToolTip("Start/Pause the visualization of animations")
+    window.PlayButton.setWhatsThis("Start/Pause the visualization of animations")
+    window.PlayButton.setStatusTip("Start/Pause the visualization of animations")
     window.PlayButton.clicked.connect(window.Playback_control)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Play button to stop the rendering of the scene
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.PauseButton = QToolButton()
     window.PauseButton.setEnabled(False)
-    window.PauseButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
-    window.PauseButton.setToolTip('Pause the visualization of animations')
-    window.PauseButton.setWhatsThis('Pause the visualization of animations')
-    window.PauseButton.setStatusTip('Pause the visualization of animations')
+    window.PauseButton.setIcon(
+        window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause)
+    )
+    window.PauseButton.setToolTip("Pause the visualization of animations")
+    window.PauseButton.setWhatsThis("Pause the visualization of animations")
+    window.PauseButton.setStatusTip("Pause the visualization of animations")
     window.PauseButton.clicked.connect(window.Playback_control)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to go to the previous snapshot
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.previousButton = QToolButton()
     window.previousButton.setEnabled(False)
-    window.previousButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipBackward))
-    window.previousButton.setToolTip('Go to the previous image')
-    window.previousButton.setWhatsThis('Go to the previous image')
-    window.previousButton.setStatusTip('Go to the previous image')
+    window.previousButton.setIcon(
+        window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipBackward)
+    )
+    window.previousButton.setToolTip("Go to the previous image")
+    window.previousButton.setWhatsThis("Go to the previous image")
+    window.previousButton.setStatusTip("Go to the previous image")
     window.previousButton.clicked.connect(window.Playback_control)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to go to the next snapshot
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.nextButton = QToolButton()
     window.nextButton.setEnabled(False)
-    window.nextButton.setIcon(window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipForward))
-    window.nextButton.setToolTip('Go to the next image')
-    window.nextButton.setWhatsThis('Go to the next image')
-    window.nextButton.setStatusTip('Go to the next image')
+    window.nextButton.setIcon(
+        window.style().standardIcon(QStyle.StandardPixmap.SP_MediaSkipForward)
+    )
+    window.nextButton.setToolTip("Go to the next image")
+    window.nextButton.setWhatsThis("Go to the next image")
+    window.nextButton.setStatusTip("Go to the next image")
     window.nextButton.clicked.connect(window.Playback_control)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Progress bar showing the progress of the rendering
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.ProgressBar = QProgressBar()
     window.ProgressBar.setValue(0)
     window.ProgressBar.setTextVisible(False)
-    window.ProgressBar.setToolTip('Progress bar of the simulation')
-    window.ProgressBar.setWhatsThis('Progress bar of the simulation')
-    window.ProgressBar.setStatusTip('Progress bar of the simulation')
-    window.ProgressLabel=QLabel()
-    window.ProgressLabel.setText(' {:}% '.format(int(window.ProgressBar.value())))
-    #---------------------------------------------------------------------------
+    window.ProgressBar.setToolTip("Progress bar of the simulation")
+    window.ProgressBar.setWhatsThis("Progress bar of the simulation")
+    window.ProgressBar.setStatusTip("Progress bar of the simulation")
+    window.ProgressLabel = QLabel()
+    window.ProgressLabel.setText(" {:}% ".format(int(window.ProgressBar.value())))
+    # ---------------------------------------------------------------------------
     # Adding the extra buttons to the toolbar
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.VTKToolBar.addWidget(window.VTKExitButton)
     window.VTKToolBar.addSeparator()
     window.VTKToolBar.addWidget(window.actionTake_Snapshot)
@@ -163,25 +185,25 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.VTKToolBar.addSeparator()
     window.VTKToolBar.addWidget(window.ProgressBar)
     window.VTKToolBar.addWidget(window.ProgressLabel)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions for the Menu
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionKMC_File.triggered.connect(window.getFile)
     window.actionStruct_File.triggered.connect(window.getFile)
     window.actionDM_File.triggered.connect(window.getFile)
     window.actionMagnetization_File.triggered.connect(window.getFile)
     window.actionCoordinate_File.triggered.connect(window.getFile)
     window.actionEnergy_File.triggered.connect(window.getFile)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions for the Toolbar
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionEnergy.clicked.connect(window.AddActors)
     window.actionMagnetization.clicked.connect(window.AddActors)
     window.actionNeighbours.clicked.connect(window.AddActors)
     window.actionDM_Neigh.clicked.connect(window.AddActors)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the colormaps
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.ColorMapBox.activated.connect(window.set_lut_db)
     window.SingleColorBox.toggled.connect(window.toggle_singlecolor)
     window.RGBRedColorSlider.valueChanged.connect(window.set_singlecolor)
@@ -193,9 +215,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.BWSinglecolorCheck.clicked.connect(window.toggle_bwSinglecolor)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the background
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.RGBRedBackgroundSlider.valueChanged.connect(window.set_background)
     window.RGBRedBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
     window.RGBGreenBackgroundSlider.valueChanged.connect(window.set_background)
@@ -203,18 +225,18 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RGBBlueBackgroundSlider.valueChanged.connect(window.set_background)
     window.RGBBlueBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
     window.BWBackgroundCheck.clicked.connect(window.toggle_bwBackground)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the moment options
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.ContourCheck.toggled.connect(window.ASDVizOpt.toggle_contours)
     window.SpinCheck.toggled.connect(window.ASDVizOpt.toggle_directions)
     window.ClusBox.toggled.connect(window.ASDVizOpt.toggle_cluster)
     window.ClusBox.toggled.connect(window.UpdateRenderer)
     window.KMCCheck.toggled.connect(window.ASDVizOpt.toggle_KMC)
     window.KMCCheck.toggled.connect(window.UpdateRenderer)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the magnetization density
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.DensBox.toggled.connect(window.ASDVizOpt.toggle_density)
     window.DensX.toggled.connect(window.set_projection)
     window.DensY.toggled.connect(window.set_projection)
@@ -223,9 +245,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinY.toggled.connect(window.set_projection)
     window.SpinZ.toggled.connect(window.set_projection)
     window.actionDisplayMagDens.toggled.connect(window.ASDVizOpt.toggle_density)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the atomic spins
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.SpinsBox.toggled.connect(window.ASDVizOpt.toggle_spins)
     window.SpinsBox.toggled.connect(window.UpdateRenderer)
     window.SpinArrowButton.toggled.connect(window.ChangeGlyphs)
@@ -236,16 +258,16 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
     window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding shading actions to the spins
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.FlatShadeButton.toggled.connect(window.ChangeShading)
     window.GouraudShadeButton.toggled.connect(window.ChangeShading)
     window.PhongShadeButton.toggled.connect(window.ChangeShading)
     window.PBRShadeButton.toggled.connect(window.ChangeShading)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the atoms
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
     window.AtomsBox.toggled.connect(window.UpdateRenderer)
     window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
@@ -254,9 +276,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
     window.AtomQuali.valueChanged.connect(window.ASDVizOpt.ChangeAtomsQuali)
     window.AtomQuali.valueChanged.connect(window.UpdateRenderer)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the neighbours
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.NeighAtomCheck.toggled.connect(window.ASDVizOpt.toggle_NAtoms)
     window.NeighAtomCheck.toggled.connect(window.UpdateRenderer)
     window.NeighNeighsCheck.toggled.connect(window.ASDVizOpt.toggle_Neigh)
@@ -267,9 +289,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.AtomOpacitySlider.valueChanged.connect(window.UpdateRenderer)
     window.NeighSelectLineEdit.editingFinished.connect(window.NeighbourControl)
     window.NeighSelectSlider.valueChanged.connect(window.NeighbourControl)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the camera
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.SetCamButton.clicked.connect(window.camera_handler)
     window.CamResetButton.clicked.connect(window.camera_handler)
     window.SetXView.clicked.connect(window.camera_handler)
@@ -279,9 +301,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ParallelProjectBox.toggled.connect(window.camera_handler)
     window.ParallelScaleSlider.valueChanged.connect(window.camera_handler)
     window.ParallelScaleLineEdit.editingFinished.connect(window.camera_handler)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the general actors
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.ScalarBarCheck.toggled.connect(window.ASDVizOpt.toggle_ScalarBar)
     window.ScalarBarCheck.toggled.connect(window.UpdateRenderer)
     window.AxesCheck.toggled.connect(window.ASDVizOpt.toggle_Axes)
@@ -291,9 +313,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ClippPlaneYCheck.toggled.connect(window.clipperHandler)
     window.ClippPlaneZCheck.toggled.connect(window.clipperHandler)
 
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Actions for advanced visualization options
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.ClippingPlaneSlider.valueChanged.connect(window.clipperHandler)
     window.GlyphQualitySlider.valueChanged.connect(window.Quality_control)
     window.FocusBox.toggled.connect(window.toggle_focus)
@@ -308,8 +330,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.HDRIButtonSelect.clicked.connect(window.getHDRIFile)
     window.SkyBoxCheck.toggled.connect(window.SkyBox_control)
     window.SkyBoxCheck.toggled.connect(window.UpdateRenderer)
-    #window.ShadowCheck.toggled.connect(window.Shadow_control)
-    #window.ShadowCheck.toggled.connect(window.UpdateRenderer)
+    # window.ShadowCheck.toggled.connect(window.Shadow_control)
+    # window.ShadowCheck.toggled.connect(window.UpdateRenderer)
     # Texture controls
     window.TextureSelect.clicked.connect(window.getTextureFile)
     window.ORMTextureSelect.clicked.connect(window.getORMTextureFile)
@@ -331,14 +353,14 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
     window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
     window.PBRMetallicSlider.valueChanged.connect(window.PBRMetallic_control)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the action to display the time step labels
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.TimeStepBox.toggled.connect(window.ASDVizOpt.toggle_time_label)
     window.TimeStepBox.toggled.connect(window.UpdateRenderer)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the actions to the energy contributions
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.TotEneButton.toggled.connect(window.set_energy_proj)
     window.ExcEneButton.toggled.connect(window.set_energy_proj)
     window.DMEneButton.toggled.connect(window.set_energy_proj)
@@ -351,9 +373,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ChirEneButton.toggled.connect(window.set_energy_proj)
     window.EneDensButton.toggled.connect(window.toggle_EneActor)
     window.EneSiteGlyphs.toggled.connect(window.toggle_EneActor)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Setting up validators
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.CamElevationLineEdit.setValidator(QDoubleValidator())
     window.CamAzimuthLineEdit.setValidator(QDoubleValidator())
     window.CamRollLineEdit.setValidator(QDoubleValidator())
@@ -367,6 +389,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.CamPosZ.setValidator(QDoubleValidator())
     window.ParallelScaleLineEdit.setValidator(QDoubleValidator())
     return
+
+
 ################################################################################
 ## @brief Function defining the toolbar and actions for the matplotlib backend.
 # @details This contains several buttons handling the different types of plots
@@ -375,7 +399,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
 ################################################################################
 def Plot_Menu_and_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the Matplotlib backend.
-    This contains several buttons and actions handling the different types of plots 
+    This contains several buttons and actions handling the different types of plots
     modes available in the matplotlib API.
 
     Args
@@ -386,68 +410,68 @@ def Plot_Menu_and_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt6.QtWidgets import QToolButton
+
     window.MatPlotToolbar.setFixedHeight(24)
-    window.ASD_PY_Layout.insertWidget(0,window.MatPlotToolbar)
-    #---------------------------------------------------------------------------
+    window.ASD_PY_Layout.insertWidget(0, window.MatPlotToolbar)
+    # ---------------------------------------------------------------------------
     # Button to exit the program
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.PlotExitButton = QToolButton()
-    window.PlotExitButton.setText('Exit')
-    window.PlotExitButton.setToolTip('Exit the UppASD visualizer')
-    window.PlotExitButton.setWhatsThis('Exit the UppASD visualizer')
-    window.PlotExitButton.setStatusTip('Exit the UppASD visualizer')
+    window.PlotExitButton.setText("Exit")
+    window.PlotExitButton.setToolTip("Exit the UppASD visualizer")
+    window.PlotExitButton.setWhatsThis("Exit the UppASD visualizer")
+    window.PlotExitButton.setStatusTip("Exit the UppASD visualizer")
     window.PlotExitButton.clicked.connect(window.close)
     window.PlotSaveButton = QToolButton()
-    window.PlotSaveButton.setText('Save')
-    window.PlotSaveButton.setToolTip('Save the current image')
-    window.PlotSaveButton.setWhatsThis('Save the current image')
-    window.PlotSaveButton.setStatusTip('Save the current image')
+    window.PlotSaveButton.setText("Save")
+    window.PlotSaveButton.setToolTip("Save the current image")
+    window.PlotSaveButton.setWhatsThis("Save the current image")
+    window.PlotSaveButton.setStatusTip("Save the current image")
     window.PlotSaveButton.clicked.connect(window.SaveFig)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to plot the correlation function
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionS_q_w = QToolButton()
-    window.actionS_q_w.setText('Correlation')
-    window.actionS_q_w.setToolTip('Plot the correlation function')
-    window.actionS_q_w.setWhatsThis('Plot the correlation function')
-    window.actionS_q_w.setStatusTip('Plot the correlation function')
+    window.actionS_q_w.setText("Correlation")
+    window.actionS_q_w.setToolTip("Plot the correlation function")
+    window.actionS_q_w.setWhatsThis("Plot the correlation function")
+    window.actionS_q_w.setStatusTip("Plot the correlation function")
     window.actionS_q_w.clicked.connect(window.PlottingSelector)
     window.actionS_q_w.clicked.connect(window.PlottingWrapper)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to plot the magnetization averages
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionAverages = QToolButton()
-    window.actionAverages.setText('Averages')
-    window.actionAverages.setToolTip('Plot the average magnetization')
-    window.actionAverages.setWhatsThis('Plot the average magnetization')
-    window.actionAverages.setStatusTip('Plot the average magnetization')
+    window.actionAverages.setText("Averages")
+    window.actionAverages.setToolTip("Plot the average magnetization")
+    window.actionAverages.setWhatsThis("Plot the average magnetization")
+    window.actionAverages.setStatusTip("Plot the average magnetization")
     window.actionAverages.clicked.connect(window.PlottingSelector)
     window.actionAverages.clicked.connect(window.PlottingWrapper)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to plot the total energies
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionTotEnergy = QToolButton()
-    window.actionTotEnergy.setText('Energies')
-    window.actionTotEnergy.setToolTip('Plot the total energy')
-    window.actionTotEnergy.setWhatsThis('Plot the total energy')
-    window.actionTotEnergy.setStatusTip('Plot the total energy')
+    window.actionTotEnergy.setText("Energies")
+    window.actionTotEnergy.setToolTip("Plot the total energy")
+    window.actionTotEnergy.setWhatsThis("Plot the total energy")
+    window.actionTotEnergy.setStatusTip("Plot the total energy")
     window.actionTotEnergy.clicked.connect(window.PlottingSelector)
     window.actionTotEnergy.clicked.connect(window.PlottingWrapper)
 
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Button to plot the magnetic moment trajectories
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.actionTrajectory = QToolButton()
-    window.actionTrajectory.setText('Trajectory')
-    window.actionTrajectory.setToolTip('Plot the single moment trajectory')
-    window.actionTrajectory.setWhatsThis('Plot the single moment trajectory')
-    window.actionTrajectory.setStatusTip('Plot the single moment trajectory')
+    window.actionTrajectory.setText("Trajectory")
+    window.actionTrajectory.setToolTip("Plot the single moment trajectory")
+    window.actionTrajectory.setWhatsThis("Plot the single moment trajectory")
+    window.actionTrajectory.setStatusTip("Plot the single moment trajectory")
     window.actionTrajectory.clicked.connect(window.PlottingSelector)
     window.actionTrajectory.clicked.connect(window.PlottingWrapper)
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     # Adding the buttons to the toolbar
-    #---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
     window.MatPlotToolbar.addWidget(window.PlotExitButton)
     window.MatPlotToolbar.addSeparator()
     window.MatPlotToolbar.addWidget(window.PlotSaveButton)
@@ -457,9 +481,9 @@ def Plot_Menu_and_Toolbar_Setup(window):
     window.MatPlotToolbar.addWidget(window.actionTotEnergy)
     window.MatPlotToolbar.addWidget(window.actionTrajectory)
     window.MatPlotToolbar.addSeparator()
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     # Setting misc actions
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     window.SqwCoolwarm.toggled.connect(window.Sqw_ColorMapSelector)
     window.SqwSpectral.toggled.connect(window.Sqw_ColorMapSelector)
     window.SqwBlackbody.toggled.connect(window.Sqw_ColorMapSelector)
@@ -480,9 +504,9 @@ def Plot_Menu_and_Toolbar_Setup(window):
     window.ABYMajGrid.toggled.connect(window.PlotYGridToggle)
     window.ABAMSGrid.toggled.connect(window.PlotSQWGridToggle)
     window.ABAMSGrid.toggled.connect(window.PlotAMSGridToggle)
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     # Setting energy actions
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     window.EneTotCheck.toggled.connect(window.PlotEneCompSelector)
     window.EneExcCheck.toggled.connect(window.PlotEneCompSelector)
     window.EneAniCheck.toggled.connect(window.PlotEneCompSelector)
@@ -494,15 +518,17 @@ def Plot_Menu_and_Toolbar_Setup(window):
     window.EneExtCheck.toggled.connect(window.PlotEneCompSelector)
     window.EneLSFCheck.toggled.connect(window.PlotEneCompSelector)
     window.EneChirCheck.toggled.connect(window.PlotEneCompSelector)
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     # Setting file actions
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     window.actionYaml_File.triggered.connect(window.getPlotFile)
     window.actionS_q_w_File.triggered.connect(window.getPlotFile)
     window.actionAMS_File.triggered.connect(window.getPlotFile)
     window.actionAverages_File.triggered.connect(window.getPlotFile)
     window.actionTrajectory_File.triggered.connect(window.getPlotFile)
     return
+
+
 ################################################################################
 ## @brief Toolbar and UI connections for the Input generator functions.
 # @author Jonathan Chico
@@ -520,23 +546,23 @@ def Input_Toolbar_Setup(window):
     ----------
     Jonathan Chico
     """
-    from PyQt6.QtWidgets import QToolButton
+
     window.InputToolbar.setFixedHeight(24)
-    window.ASDInp_Layout.insertWidget(0,window.InputToolbar)
-    #--------------------------------------------------------------------------------
+    window.ASDInp_Layout.insertWidget(0, window.InputToolbar)
+    # --------------------------------------------------------------------------------
     # Button to exit the program
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     window.InputExitButton = QToolButton()
-    window.InputExitButton.setText('Exit')
-    window.InputExitButton.setToolTip('Exit the UppASD visualizer')
-    window.InputExitButton.setWhatsThis('Exit the UppASD visualizer')
-    window.InputExitButton.setStatusTip('Exit the UppASD visualizer')
+    window.InputExitButton.setText("Exit")
+    window.InputExitButton.setToolTip("Exit the UppASD visualizer")
+    window.InputExitButton.setWhatsThis("Exit the UppASD visualizer")
+    window.InputExitButton.setStatusTip("Exit the UppASD visualizer")
     window.InputExitButton.clicked.connect(window.close)
     window.InputToolbar.addWidget(window.InputExitButton)
     window.InputToolbar.addSeparator()
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     # Set actions
-    #--------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------
     window.InpDoneButton.clicked.connect(window.WriteInputFile)
     window.InpDMCheck.clicked.connect(window.getInpFile)
     window.InpXCCheck.clicked.connect(window.getInpFile)
@@ -582,20 +608,31 @@ def Input_Toolbar_Setup(window):
     window.InpMagnonQuickButton.clicked.connect(window.MagnonQuickSetup)
     window.InpDMButtonSelect.clicked.connect(window.getInpFile)
     window.InpDMButtonCreate.clicked.connect(window.OpenWindow)
-    window.InpKfileButtonSelect.clicked.connect(window.getInpFile)      
+    window.InpKfileButtonSelect.clicked.connect(window.getInpFile)
     window.InpKfileButtonCreate.clicked.connect(window.OpenWindow)
     window.InpImportCIFButton.clicked.connect(window.ImportSystem)
     window.InpImportSPRKKRButton.clicked.connect(window.ImportSystem)
     window.InpImportRSLMTOButton.clicked.connect(window.ImportSystem)
 
     # Structure Templates
-    window.InpTemplateSCButton.clicked.connect(lambda: window.SetStructureTemplate('sc'))
-    window.InpTemplateBCCButton.clicked.connect(lambda: window.SetStructureTemplate('bcc'))
-    window.InpTemplateBCC2TypesButton.clicked.connect(lambda: window.SetStructureTemplate('bcc2'))
-    window.InpTemplateFCCButton.clicked.connect(lambda: window.SetStructureTemplate('fcc'))
-    window.InpTemplateHCPButton.clicked.connect(lambda: window.SetStructureTemplate('hcp'))
+    window.InpTemplateSCButton.clicked.connect(
+        lambda: window.SetStructureTemplate("sc")
+    )
+    window.InpTemplateBCCButton.clicked.connect(
+        lambda: window.SetStructureTemplate("bcc")
+    )
+    window.InpTemplateBCC2TypesButton.clicked.connect(
+        lambda: window.SetStructureTemplate("bcc2")
+    )
+    window.InpTemplateFCCButton.clicked.connect(
+        lambda: window.SetStructureTemplate("fcc")
+    )
+    window.InpTemplateHCPButton.clicked.connect(
+        lambda: window.SetStructureTemplate("hcp")
+    )
 
     return
+
 
 def InteractiveDock_Setup(window):
     """
@@ -606,7 +643,8 @@ def InteractiveDock_Setup(window):
     """
     window.IntSStepButton.clicked.connect(window.IntButtons)
     window.IntResetButton.clicked.connect(window.IntButtons)
-    window.IntMCSimButton.clicked.connect(window.IntButtons)
+    window.IntMCMSimButton.clicked.connect(window.IntButtons)
+    window.IntMCHSimButton.clicked.connect(window.IntButtons)
     window.IntSDSlider.valueChanged.connect(window.SetSDSliderValue)
     window.IntMCSlider.valueChanged.connect(window.SetMCSliderValue)
     window.IntTempLine.editingFinished.connect(window.UpdateInteractiveVtk)
@@ -614,15 +652,16 @@ def InteractiveDock_Setup(window):
     window.IntB_yLine.editingFinished.connect(window.UpdateInteractiveVtk)
     window.IntB_zLine.editingFinished.connect(window.UpdateInteractiveVtk)
     window.IntScreenshot.clicked.connect(window.InteractiveScreenshot)
-   
-#------------------------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------------
 # @brief Function to update the UI objects.
 # @details Function to update the UI objects. Namely used to deal with the update between
 # changes in an object which could have been obtained from other inputs, e.g. a menu
 # that can change the same properties that the docket. This should keep the UI  consistent
 # and ensure clarity.
 # @author Jonathan Chico
-#------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 def UpdateUI(window):
     """Function to update the UI objects. Namely used to deal with the update between
     changes in an object which could have been obtained from other inputs, e.g. a menu
@@ -637,14 +676,13 @@ def UpdateUI(window):
     ----------
     Jonathan Chico
     """
-    from PyQt6.QtCore import QSignalBlocker
 
-    if window.sender()==window.InpInitBox:
+    if window.sender() == window.InpInitBox:
         if window.InpInitBox.isChecked():
             window.InitPhaseOptionsBox.setEnabled(True)
         else:
             window.InitPhaseOptionsBox.setEnabled(False)
-    elif window.sender()==window.InpMeasureLLG:
+    elif window.sender() == window.InpMeasureLLG:
         if window.InpMeasureLLG.isChecked():
             window.InpLLGMeasureBox.setChecked(True)
             QSignalBlocker(window.InpLLGMeasureBox)
@@ -655,7 +693,7 @@ def UpdateUI(window):
             window.HessFinCheck.setEnabled(False)
             window.HessInitCheck.setEnabled(False)
             window.HessSPCheck.setEnabled(False)
-    elif window.sender()==window.InpLLGMeasureBox:
+    elif window.sender() == window.InpLLGMeasureBox:
         if window.InpLLGMeasureBox.isChecked():
             window.InpMeasureLLG.setChecked(True)
             QSignalBlocker(window.InpMeasureLLG)
@@ -666,7 +704,10 @@ def UpdateUI(window):
             window.HessFinCheck.setEnabled(False)
             window.HessInitCheck.setEnabled(False)
             window.HessSPCheck.setEnabled(False)
-    elif window.sender()==window.InpMeasureMCMet or window.sender()==window.InpMeasureMCHeat:
+    elif (
+        window.sender() == window.InpMeasureMCMet
+        or window.sender() == window.InpMeasureMCHeat
+    ):
         if window.InpMeasureMCMet.isChecked() or window.InpMeasureMCHeat.isChecked():
             window.InpLLGMeasureBox.setChecked(False)
             QSignalBlocker(window.InpLLGMeasureBox)
@@ -677,7 +718,7 @@ def UpdateUI(window):
             window.HessFinCheck.setEnabled(False)
             window.HessInitCheck.setEnabled(False)
             window.HessSPCheck.setEnabled(False)
-    elif window.sender()==window.InpMeasureMCBox:
+    elif window.sender() == window.InpMeasureMCBox:
         if window.InpMeasureMCBox.isChecked():
             window.InpLLGMeasureBox.setChecked(False)
             QSignalBlocker(window.InpLLGMeasureBox)
@@ -688,7 +729,7 @@ def UpdateUI(window):
             window.HessFinCheck.setEnabled(False)
             window.HessInitCheck.setEnabled(False)
             window.HessSPCheck.setEnabled(False)
-    elif window.sender()==window.InpMeasureGNEB:
+    elif window.sender() == window.InpMeasureGNEB:
         if window.InpMeasureGNEB.isChecked():
             window.InpMeasureGnebBox.setChecked(True)
             QSignalBlocker(window.InpMeasureGnebBox)
@@ -701,7 +742,7 @@ def UpdateUI(window):
             window.HessSPCheck.setEnabled(True)
             window.InpGNEBMeasureBox.setEnabled(True)
             window.InpMeasureGNEBCI.setEnabled(True)
-    elif window.sender()==window.InpMeasureGnebBox:
+    elif window.sender() == window.InpMeasureGnebBox:
         if window.InpMeasureGnebBox.isChecked():
             window.InpMeasureGNEB.setChecked(True)
             QSignalBlocker(window.InpMeasureGnebBox)
@@ -714,7 +755,7 @@ def UpdateUI(window):
             window.HessSPCheck.setEnabled(True)
             window.InpGNEBMeasureBox.setEnabled(True)
             window.InpMeasureGNEBCI.setEnabled(True)
-    elif window.sender()==window.InpInitmag1Check:
+    elif window.sender() == window.InpInitmag1Check:
         if window.InpInitmag1Check.isChecked():
             window.InpInitmag3Check.setChecked(False)
             window.InpInitmag2Box.setChecked(False)
@@ -722,7 +763,7 @@ def UpdateUI(window):
             window.InpConfBox.setChecked(False)
             window.InpInitMag4Check.setChecked(False)
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpInitmag3Check:
+    elif window.sender() == window.InpInitmag3Check:
         if window.InpInitmag3Check.isChecked():
             window.InpInitmag1Check.setChecked(False)
             window.InpInitmag2Box.setChecked(False)
@@ -730,7 +771,7 @@ def UpdateUI(window):
             window.InpConfBox.setChecked(False)
             window.InpInitMag4Check.setChecked(False)
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpInitmag2Box:
+    elif window.sender() == window.InpInitmag2Box:
         if window.InpInitmag2Box.isChecked():
             window.InpInitmag3Check.setChecked(False)
             window.InpInitmag1Check.setChecked(False)
@@ -738,7 +779,7 @@ def UpdateUI(window):
             window.InpConfBox.setChecked(False)
             window.InpInitMag4Check.setChecked(False)
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpInitMag6Check:
+    elif window.sender() == window.InpInitMag6Check:
         if window.InpInitMag6Check.isChecked():
             window.InpInitmag2Box.setChecked(False)
             window.InpInitmag3Check.setChecked(False)
@@ -746,7 +787,7 @@ def UpdateUI(window):
             window.InpConfBox.setChecked(False)
             window.InpInitMag4Check.setChecked(False)
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpConfBox:
+    elif window.sender() == window.InpConfBox:
         if window.InpConfBox.isChecked():
             window.InpInitmag2Box.setChecked(False)
             window.InpInitmag3Check.setChecked(False)
@@ -754,10 +795,10 @@ def UpdateUI(window):
             window.InpInitMag6Check.setChecked(False)
             window.InpInitMag4Check.setChecked(False)
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpInitMag4Check:
+    elif window.sender() == window.InpInitMag4Check:
         if window.InpInitMag4Check.isChecked():
             window.InpInitmag7Check.setChecked(False)
-    elif window.sender()==window.InpInitmag7Check:
+    elif window.sender() == window.InpInitmag7Check:
         if window.InpInitmag7Check.isChecked():
             window.InpInitMag4Check.setChecked(False)
     return

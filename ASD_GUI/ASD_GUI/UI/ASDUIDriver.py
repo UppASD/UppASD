@@ -2400,10 +2400,14 @@ class UppASDVizMainWindow(QMainWindow):
             ASDInteractiveTab.UpdateIntInputs(self)
             for _ in range(1 * self.IntSDSlider.value()):
                 self.InteractiveVtk.S_Step()
-        if self.sender() == self.IntMCSimButton:
+        if self.sender() == self.IntMCMSimButton:
             ASDInteractiveTab.UpdateIntInputs(self)
             for __ in range(1 * self.IntMCSlider.value()):
                 self.InteractiveVtk.M_step()
+        if self.sender() == self.IntMCHSimButton:
+            ASDInteractiveTab.UpdateIntInputs(self)
+            for __ in range(1 * self.IntMCSlider.value()):
+                self.InteractiveVtk.H_step()
         if self.sender() == self.IntResetButton:
             self.InteractiveVtk.Reset()
 

@@ -220,8 +220,8 @@ class InteractiveASD:
         # Text
         # create a text actor for Temperature
         self.temptxt = vtk.vtkTextActor()
-        temp = f"{0.0:4.3f}"
-        # temp='{:4.3f}'.format(asd.inputdata.get_temp())
+        # temp = f"{0.0:4.3f}"
+        temp='{:4.3f}'.format(self.asd.inputdata.get_temp())
         self.temptxt.SetInput("T = " + temp + " K")
         temptxtprop = self.temptxt.GetTextProperty()
         temptxtprop.SetFontFamilyToArial()
@@ -232,9 +232,9 @@ class InteractiveASD:
 
         # create a text actor for Field
         self.fieldtxt = vtk.vtkTextActor()
-        # Bfield = self.asd.inputdata.get_array_hfield()
-        # self.fieldtxt.SetInput(f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T")
-        self.fieldtxt.SetInput(f"B = ({0:4.1f}, {1:4.1f}, {2:4.1f} ) T")
+        Bfield = self.asd.inputdata.get_hfield()
+        self.fieldtxt.SetInput(f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T")
+        # self.fieldtxt.SetInput(f"B = ({0:4.1f}, {1:4.1f}, {2:4.1f} ) T")
         fieldtxtprop = self.fieldtxt.GetTextProperty()
         fieldtxtprop.SetFontFamilyToArial()
         fieldtxtprop.SetFontSize(30)
@@ -243,16 +243,16 @@ class InteractiveASD:
         self.fieldtxt.SetDisplayPosition(20, 1300)
 
         # create a text actor for Energy
-        enetxt = vtk.vtkTextActor()
+        self.enetxt = vtk.vtkTextActor()
         self.asd.calculate_energy()
         ene = f"{self.asd.energy:6.4f}"
-        enetxt.SetInput(f"E = {ene} mRy/atom")
-        enetxtprop = enetxt.GetTextProperty()
+        self.enetxt.SetInput(f"E = {ene} mRy/atom")
+        enetxtprop = self.enetxt.GetTextProperty()
         enetxtprop.SetFontFamilyToArial()
         enetxtprop.SetFontSize(20)
         enetxtprop.SetColor(0, 0, 0)
         enetxtprop.BoldOn()
-        enetxt.SetDisplayPosition(20, 50)
+        self.enetxt.SetDisplayPosition(20, 50)
 
         # LIGHTS ON
         light = vtk.vtkLight()
@@ -282,7 +282,7 @@ class InteractiveASD:
         # Text
         self.ren.AddActor(self.temptxt)
         self.ren.AddActor(self.fieldtxt)
-        self.ren.AddActor(enetxt)
+        self.ren.AddActor(self.enetxt)
 
         # self.iren.AddObserver("KeyPressEvent", Keypress)
 
@@ -307,10 +307,14 @@ class InteractiveASD:
         colz = numpy_support.numpy_to_vtk(currcol)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
+        # Update enegrgy
+        self.asd.calculate_energy()
+        ene = f"{self.asd.energy:6.4f}"
+        self.enetxt.SetInput(f"E = {ene} mRy/atom")
         self.renWin.Render()
 
     def M_step(self):
-        """Do a simulation using M-mode."""
+        """Do a simulation using Metropolis MC"""
         if not hasattr(self, "asd"):
             return
         self.asd.relax(mode="M", temperature=self.asd.inputdata.temp)
@@ -320,6 +324,27 @@ class InteractiveASD:
         colz = numpy_support.numpy_to_vtk(currcol)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
+        # Update enegrgy
+        self.asd.calculate_energy()
+        ene = f"{self.asd.energy:6.4f}"
+        self.enetxt.SetInput(f"E = {ene} mRy/atom")
+        self.renWin.Render()
+
+    def H_step(self):
+        """Do a simulation using Heat-bath MC"""
+        if not hasattr(self, "asd"):
+            return
+        self.asd.relax(mode="H", temperature=self.asd.inputdata.temp+1.0e-6)
+        currmom = self.asd.moments[:, :, 0].T
+        currcol = self.asd.moments[2, :, 0].T
+        vecz = numpy_support.numpy_to_vtk(currmom)
+        colz = numpy_support.numpy_to_vtk(currcol)
+        self.Datatest.GetPointData().SetVectors(vecz)
+        self.Datatest.GetPointData().SetScalars(colz)
+        # Update enegrgy
+        self.asd.calculate_energy()
+        ene = f"{self.asd.energy:6.4f}"
+        self.enetxt.SetInput(f"E = {ene} mRy/atom")
         self.renWin.Render()
 
     def Reset(self):
