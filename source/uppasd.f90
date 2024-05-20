@@ -72,6 +72,7 @@ contains
 
       implicit none
 
+   print *,'Start UppASD from fortran main()'
    ! Executable statements
    !==============================================================!
    ! Check if inpsd.dat exists and whether it contains anything

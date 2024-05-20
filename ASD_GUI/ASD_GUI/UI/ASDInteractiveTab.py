@@ -20,6 +20,7 @@ from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtCore import Qt
 import numpy as np
 
+
 def InteractiveDock(window):
     """
     Dock creator for the Interactive page of the GUI.
@@ -45,7 +46,7 @@ def InteractiveDock(window):
     window.TemperatureMagBox = QGroupBox()
     TemperatureMagLayout = QGridLayout()
     window.IntGeneralBox.setTitle("General")
-    window.IntGeneralBox.setMaximumSize(300, 750)
+    window.IntGeneralBox.setMaximumSize(300, 850)
 
     # Temp + Bfield
     window.IntTempLabel = QLabel("Temp")
@@ -106,6 +107,9 @@ def InteractiveDock(window):
     window.IntResetButton = QPushButton()
     window.IntResetButton.setText("Reset Simulation")
 
+    window.IntMomentButton = QPushButton()
+    window.IntMomentButton.setText("Load moments")
+
     window.IntScreenshot = QPushButton()
     window.IntScreenshot.setText("Screenshot")
 
@@ -118,7 +122,7 @@ def InteractiveDock(window):
     SliderLayout = QVBoxLayout()
     SliderBox.setMaximumSize(300, 75)
     window.IntSDBox.setTitle("Spin Dynamics")
-    window.IntSDBox.setMaximumSize(300, 225)
+    window.IntSDBox.setMaximumSize(300, 325)
 
     # Buttons + slider
     window.IntSStepButton = QPushButton()
@@ -213,6 +217,7 @@ def InteractiveDock(window):
     # window.IntToolBox.addItem(window.IntMCBox, 'Monte-Carlo')
     GeneralWidgetList = [
         window.IntResetButton,
+        window.IntMomentButton,
         window.IntScreenshot,
         window.TemperatureMagBox,
         window.IntSDBox,

@@ -643,6 +643,7 @@ def InteractiveDock_Setup(window):
     """
     window.IntSStepButton.clicked.connect(window.IntButtons)
     window.IntResetButton.clicked.connect(window.IntButtons)
+    window.IntMomentButton.clicked.connect(window.IntButtons)
     window.IntMCMSimButton.clicked.connect(window.IntButtons)
     window.IntMCHSimButton.clicked.connect(window.IntButtons)
     window.IntSDSlider.valueChanged.connect(window.SetSDSliderValue)

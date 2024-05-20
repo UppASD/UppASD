@@ -267,6 +267,29 @@ def relax(
 # Measurable routines below
 
 
+def get_coords(natom):
+    """
+    Get the effective magnetic moment.
+
+    This function calls the underlying Fortran routine to get the effective magnetic moment.
+
+
+    Parameters
+    ----------
+    natom : int
+        The number of atoms.
+    mensemble : int
+        The number of ensembles.
+
+    Returns
+    -------
+    emom : float array
+        The effective magnetic moment.
+    """
+    coords = _uppasd.get_coord(natom)
+    return coords
+
+
 def get_emom(natom, mensemble):
     """
     Get the effective magnetic moment.

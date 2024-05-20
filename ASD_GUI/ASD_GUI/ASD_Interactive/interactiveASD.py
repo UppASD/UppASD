@@ -8,20 +8,12 @@
 #
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
 
-import glob
-
 import vtk
-
-try:
-    import uppasd.simulator as sim
-
-    print("InteractiveASD initialized")
-except ImportError:
-    print("init: UppASD module not installed.")
-
+import numpy as np
 
 # from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
+from PyQt6.QtWidgets import QFileDialog
 
 
 class InteractiveASD:
@@ -38,11 +30,12 @@ class InteractiveASD:
 
     """
 
-    def __init__(self, ren, renWin, iren):
+    def __init__(self, ren, renWin, iren, ASDsim=None):
         self.ren = ren
         self.renWin = renWin
         self.iren = iren
         self.number_of_screenshots = 0
+        self.asd = ASDsim
 
     def Launch(self):
         """
@@ -53,14 +46,18 @@ class InteractiveASD:
                         the keyboard inputs.
         """
 
-        print("InteractiveASD launched!")
-        try:
-            self.asd = sim.Simulator()
-            self.asd.init_simulation()
-            print("ASDsimulation initialized.")
-        except ImportError:
-            print("Launch: UppASD module not installed.")
+        print("InteractiveASD launched! ----------------------")
+        if self.asd is None:
             return
+            # try:
+            #     self.asd = sim.Simulator()
+            #     print("ASDsimulation initialized.")
+            # except ImportError:
+            #     print("Launch: UppASD module not installed.")
+            #     return
+        else:
+            self.asd.init_simulation()
+        print("InteractiveASD launched!", self.asd.natom, self.asd.mensemble)
 
         self.Datatest = vtk.vtkPolyData()
         self.DataFour = vtk.vtkPolyData()
@@ -84,15 +81,22 @@ class InteractiveASD:
         Nmax = 1000000
 
         # Open files
-        momfiles = glob.glob("restart.????????.out")
+        # momfiles = glob.glob("restart.????????.out")
         # directionsFile = open(momfiles[0])
-        posfiles = glob.glob("coord.????????.out")
-        atomsFile = open(posfiles[0], encoding='utf-8')
+        # posfiles = glob.glob("coord.????????.out")
+        # atomsFile = open(posfiles[0], encoding='utf-8')
 
         # Read atom positions
-        atomData, nrAtoms = self.readAtoms(atomsFile, Nmax)
-        self.Datatest.SetPoints(atomData)
-        self.DataFour.SetPoints(atomData)
+        atomPoints = vtk.vtkPoints()
+        atomData = numpy_support.numpy_to_vtk(self.asd.coords.T, deep=False)
+        atomPoints.SetData(atomData)
+        nrAtoms = self.asd.natom
+        # atomData, nrAtoms = self.readAtoms(atomsFile)
+        print("Coordinates read: ", nrAtoms )
+        print("Coordinates: ", self.asd.coords)
+        print("Number of atoms: ", nrAtoms)
+        self.Datatest.SetPoints(atomPoints)
+        self.DataFour.SetPoints(atomPoints)
 
         # Read data for vectors
         self.Datatest.GetPointData().SetVectors(self.vecz)
@@ -356,6 +360,35 @@ class InteractiveASD:
         colz = numpy_support.numpy_to_vtk(self.initcol)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
+        self.renWin.Render()
+
+    def read_moments(self):
+
+        dlg = QFileDialog()
+        dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dlg.setDirectory(".")
+        if dlg.exec():
+            mag_file = dlg.selectedFiles()[0]
+            print('Reading moments from:', mag_file)
+            try:
+                moments = np.loadtxt(mag_file)[:, 4:]
+                print('Moments read:', moments.shape)
+                self.asd.put_moments(moments.T)
+                #self.currmom = self.asd.moments[:, :, 0].T
+                self.currmom = moments
+                self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=False)
+                #self.currcol = self.asd.moments[2, :, 0].T
+                self.currcol = moments[:,2]
+                self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=False)
+                self.Datatest.GetPointData().SetVectors(self.vecz)
+                self.Datatest.GetPointData().SetScalars(self.colz)
+                self.renWin.Render()
+                print('Moments read and updated')
+            except FileNotFoundError:
+                print('Error reading file')
+        else:
+            print('No file selected')
+        return
 
     def UpdateTemperature(self):
         """Update temperature actor."""
@@ -383,7 +416,8 @@ class InteractiveASD:
         self.iren.TerminateApp()
 
     # Read Location of Atoms
-    def readAtoms(self, file, Nmax):
+    def readAtoms(self, file):
+        print('readAtoms called')
         points = vtk.vtkPoints()
         nrAtoms = 0
         # Read ahead
@@ -392,12 +426,11 @@ class InteractiveASD:
 
         # Read all data
         while line:
-            if nrAtoms <= Nmax:
-                _ = int(data[0])
-                x, y, z = float(data[1]), float(data[2]), float(data[3])
-                # print "a ", a, " x ", x, " y ", y, " z ", z
-                # points.InsertPoint(a, x, y, z)
-                points.InsertPoint(nrAtoms, x, y, z)
+            _ = int(data[0])
+            x, y, z = float(data[1]), float(data[2]), float(data[3])
+            # print "a ", a, " x ", x, " y ", y, " z ", z
+            # points.InsertPoint(a, x, y, z)
+            points.InsertPoint(nrAtoms, x, y, z)
             nrAtoms = nrAtoms + 1
             line = file.readline()
             data = line.split()
@@ -405,7 +438,8 @@ class InteractiveASD:
 
     # Read vectors
     # We must know the time step and the number of atoms per time
-    def readVectorsData(file, time, nrAtoms, Nmax):
+    def readVectorsData(file, time, nrAtoms):
+        print('readVectorsData called')
         # Create a Double array which represents the vectors
         vectors = vtk.vtkFloatArray()
         colors = vtk.vtkFloatArray()
@@ -420,9 +454,9 @@ class InteractiveASD:
         # Read all data for a certain time
         while i < nrAtoms:
             line = file.readline()
-            if i < Nmax:
-                data = line.split()
-                t, a = int(data[0]), int(data[1])
+            data = line.split()
+            t, a = int(data[0]), int(data[1])
+            if a == 1:
                 x, y, z = float(data[4]), float(data[5]), float(data[6])
                 # x, y, z = float(data[3]), float(data[4]), float(data[5])
                 m = (z + 1.0) / 2.0
@@ -434,6 +468,7 @@ class InteractiveASD:
                 vectors.InsertTuple3(i, x, y, z)
                 colors.InsertValue(i, m)
                 i = i + 1
+        print("Vectors read: ", i)
         return vectors, colors
 
         # A function that takes a renderwindow and saves its contents to a .png file

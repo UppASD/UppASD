@@ -15,6 +15,7 @@ import glob
 import os
 import os.path as path
 from enum import Enum
+import sys
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
@@ -203,7 +204,7 @@ class UppASDVizMainWindow(QMainWindow):
 
         # Interactive object
         self.InteractiveVtk = IntASD.InteractiveASD(
-            self.Intren, self.IntrenWin, self.Intiren
+            self.Intren, self.IntrenWin, self.Intiren, self.ASDsim
         )
 
         return
@@ -314,6 +315,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.backend = Backend.UppASD_INT
             if not self.IntWidgetPresent:
                 self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
+                # self.InteractiveWidget_Layout.addWidget(self.vtkWidget)
                 self.IntWidgetPresent = True
             if self.CheckForInteractorFiles() and not self.IntLaunched:
                 ASDInteractive.InitializeInteractor(self)
@@ -2395,7 +2397,6 @@ class UppASDVizMainWindow(QMainWindow):
         one of two simulation modes.
         """
 
-        # import uppasd as asd
         if self.sender() == self.IntSStepButton:
             ASDInteractiveTab.UpdateIntInputs(self)
             for _ in range(1 * self.IntSDSlider.value()):
@@ -2409,7 +2410,11 @@ class UppASDVizMainWindow(QMainWindow):
             for __ in range(1 * self.IntMCSlider.value()):
                 self.InteractiveVtk.H_step()
         if self.sender() == self.IntResetButton:
+            print("Reset button pressed")
             self.InteractiveVtk.Reset()
+        if self.sender() == self.IntMomentButton:
+            print('Moment button pressed')
+            self.InteractiveVtk.read_moments()
 
     def UpdateInteractiveVtk(self):
         """Update text in the interactive window."""
@@ -2435,10 +2440,10 @@ class UppASDVizMainWindow(QMainWindow):
         restartfile, coordfile = "dummystring", "dummystring"
         Check = False
 
-        if len(glob.glob("restart.????????.out")) > 0:
-            restartfile = glob.glob("restart.????????.out")[0]
-        if len(glob.glob("coord.????????.out")) > 0:
-            coordfile = glob.glob("coord.????????.out")[0]
+        # if len(glob.glob("restart.????????.out")) > 0:
+        #     restartfile = glob.glob("restart.????????.out")[0]
+        # if len(glob.glob("coord.????????.out")) > 0:
+        #     coordfile = glob.glob("coord.????????.out")[0]
         if len(self.ASDInputGen.posfile) == 0 and path.exists("posfile"):
             self.ASDInputGen.posfile = glob.glob("posfile")[0]
         if len(self.ASDInputGen.momfile) == 0 and path.exists("momfile"):
@@ -2449,22 +2454,38 @@ class UppASDVizMainWindow(QMainWindow):
             path.exists(self.ASDInputGen.posfile),
             path.exists(self.ASDInputGen.momfile),
         ]
-        OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
+        # OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
 
-        if all(x for x in InputChecklist) and any(not x for x in OutputChecklist):
-            print("Input found, but no output. Running uppasd...")
-            try:
-                import uppasd as asd
-
-                asd.pyasd.runuppasd()
-            except:
-                pass
+        # if all(x for x in InputChecklist) and any(not x for x in OutputChecklist):
+        #    print("Input found, but no output. Running uppasd...")
+        #    # print("These are the modules:", sys.modules.keys())
+        #    if self.ASDsim == None:
+        #        try:
+        #            self.ASDsim= ASDsimulator.Simulator()
+        #            self.ASDsim.init_simulation()
+        #            print("ASDsimulation initialized in CheckForInteractorFiles.")
+        #        except ImportError:
+        #            print("Launch: UppASD module not installed.")
+        #            return
+        #    else:
+        #        print("ASDsimulation already initialized. Running uppasd from CheckForInteractorFiles")
+        #        self.ASDsim.run_uppasd()
+        #        # Reset the simulator
+        #        del self.ASDsim
+        #        self.ASDsim = ASDsimulator.Simulator()
+        #        self.ASDsim.init_simulation()
+        #        # self.ASDsim.init_simulation()
+        #        # self.ASDsim.run_simulation()
+        #        
+        #    Check = True
+            
+        if all(x for x in InputChecklist):
             Check = True
 
-        if all(x is True for x in OutputChecklist) and all(
-            x is True for x in InputChecklist
-        ):
-            Check = True
+        # if all(x is True for x in OutputChecklist) and all(
+        #     x is True for x in InputChecklist
+        # ):
+        #     Check = True
 
         # Error message
         Files = ["inpsd.dat", "posfile", "momfile"]
@@ -2496,12 +2517,12 @@ class UppASDVizMainWindow(QMainWindow):
         if not path.isfile("inpsd.dat"):
             print("inpsd.dat not found, creating from asd_gui")
             self.WriteInputFile()
-        try:
-            import uppasd as asd
 
-            asd.pyasd.runuppasd()
-        except:
-            pass
+        if self.ASDsim is not None:
+            print("Running simulation from RunSimulation")
+            self.ASDsim.init_simulation()
+            self.ASDsim.run_simulation()
+
         return
 
     def SetStructureTemplate(self, structure):

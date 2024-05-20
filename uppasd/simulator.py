@@ -20,9 +20,16 @@ class Simulator:
         self.mensemble = 1
         self.moments = np.zeros((3, self.natom, self.mensemble))
         self.fields = np.zeros((3, self.natom, self.mensemble))
+        self.coords = np.zeros((3, self.natom))
         self.energy = np.float64(0.0)
 
         self.inputdata = _inputdata.InputData(_asd)
+
+    def run_uppasd(self):
+        """
+        Run the UppASD simulation.
+        """
+        _asd.runuppasd()
 
     def init_simulation(self):
         """
@@ -35,14 +42,15 @@ class Simulator:
         self.natom, self.mensemble = _asd.setupall()
         self.inputdata.get_all()
         self.get_moments()
+        self.get_coords()
 
     def run_simulation(self):
         """
         Run the atomistic spin dynamics simulation.
 
         This method executes the steps required to run the atomistic spin dynamics simulation.
-        It calls the necessary functions from the `asd` module to print the logo, initialize the phase,
-        measure the simulation, and perform cleanup afterwards.
+        It calls the necessary functions from the `asd` module to print the logo, 
+        initialize the phase, measure the simulation, and perform cleanup afterwards.
         """
         # Print the logo
         _asd.printlogo()
@@ -77,6 +85,12 @@ class Simulator:
         - energy: The total energy of the system.
         """
         self.energy = _asd.get_energy()
+
+    def get_coords(self):
+        """
+        Update the moments of the spins based on the simulation dynamics.
+        """
+        self.coords = _asd.get_coords(natom=self.natom)
 
     def get_moments(self):
         """

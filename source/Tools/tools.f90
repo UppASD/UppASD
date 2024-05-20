@@ -28,6 +28,7 @@ contains
       use Qvectors, only : q_weight
       use AMS, only : magdos
       use MetaTypes, only : atype_meta, allocate_metatype, allocate_metanumb
+      use Topology, only : simp
       !
       implicit none
       !
@@ -35,6 +36,12 @@ contains
       integer :: i_all,i_stat
       !
       !
+      if (allocated(simp)) then
+         i_all=-product(shape(simp))*kind(simp)
+         deallocate(simp,stat=i_stat)
+         call memocc(i_stat,i_all,'simp','deallocate_rest')
+      end if
+
       i_all=-product(shape(coord))*kind(coord)
       deallocate(coord,stat=i_stat)
       call memocc(i_stat,i_all,'coord','deallocate_rest')

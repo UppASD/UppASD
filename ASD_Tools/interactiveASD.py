@@ -40,10 +40,6 @@ from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
 from vtkmodules.vtkCommonColor import vtkColorSeries
 
-# import uppasd.pyasd as asd
-import uppasd.simulator as sim
-
-
 def close_window(iren):
     """
     Closes the window and terminates the application.
@@ -309,6 +305,7 @@ def main():
 
     # ASD STUFF
     asd.get_moments()
+    asd.get_coords()
 
     initmom = asd.moments[:, :, 0]
     currmom = asd.moments[:, :, 0].T
@@ -328,8 +325,8 @@ def main():
     dollyA = 0.014
     dollyB = 0.000
     # Open files
-    momfiles = glob.glob("restart.????????.out")
-    directionsFile = open(momfiles[0])
+    # momfiles = glob.glob("restart.????????.out")
+    # directionsFile = open(momfiles[0])
     # directionsFile = open("momentsparsed.out")
     posfiles = glob.glob("coord.????????.out")
     # print posfiles
@@ -337,6 +334,14 @@ def main():
     # atomsFile = open("atomsparsed.out")
 
     # Read atom positions
+    atomPoints = vtk.vtkPoints()
+    atomData = numpy_support.numpy_to_vtk(asd.coords.T, deep=False)
+    atomPoints.SetData(atomData)
+    nrAtoms = asd.natom
+    # atomData, nrAtoms = self.readAtoms(atomsFile)
+    print("Number of atoms: ", nrAtoms)
+    Datatest.SetPoints(atomPoints)
+    DataFour.SetPoints(atomPoints)
     atomData, nrAtoms = readAtoms(atomsFile, Nmax)
     # print nrAtoms
     Datatest.SetPoints(atomData)

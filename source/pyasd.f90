@@ -300,6 +300,18 @@
 !!!    ! Moment handling routines
 !!!    !--------------------------------------------------------------!
 !!! 
+    subroutine get_coord(coords, natom) bind(c, name='get_coord_')
+      use iso_c_binding
+         use SystemData, only : icoord => coord
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(out) coords
+       real(c_double), dimension(3,natom), intent(out) :: coords
+
+       coords = icoord
+    end subroutine get_coord
+
     subroutine get_emom(moments, natom, mensemble) bind(c, name='get_emom_')
       use iso_c_binding
          use MomentData, only : emom
@@ -479,13 +491,15 @@
    !!! 
    subroutine get_energy(energy) bind(c, name='get_energy_')
       use iso_c_binding
-      use uppasd, only : calculate_energy
+      use InputData, only : Natom, Mensemble
+      use HamiltonianActions, only : effective_field
       implicit none
 
       !f2py intent(out) energy
       real(c_double), intent(out) :: energy
 
-      call calculate_energy(energy)
+      call effective_field(energy)
+      energy = energy  / (Natom * Mensemble)
    
    end subroutine get_energy
 !!! 
