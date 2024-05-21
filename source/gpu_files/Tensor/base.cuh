@@ -14,7 +14,7 @@
 using index_t = long int;
 
 
-#define ASSERT_CUDA_SUCCESS(cudaCall)                                                                   \
+#define ASSERT_CUDA(cudaCall)                                                                           \
    {                                                                                                    \
       cudaError_t error = cudaCall;                                                                     \
       if(error != cudaSuccess) {                                                                        \

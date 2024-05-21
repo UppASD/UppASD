@@ -82,6 +82,24 @@ public:
    Tensor& operator=(const Tensor&) = default;
 
 
+   void AllocateHost(const Extents<dim>& ext) {
+      IndexBase<T, dim>::SetExtents(ext);
+      ASSERT_CUDA(cudaMallocHost(&data_, size() * sizeof(T)));
+   }
+
+
+   template <typename... Ints>
+   void AllocateHost(Ints... ext) {
+      AllocateHost(Extents<dim>{ext...});
+   }
+
+
+   void FreeHost() {
+      ASSERT_CUDA(cudaFreeHost(data_));
+      IndexBase<T, dim>::SetExtents(Extents<dim>{});
+   }
+
+
    template <typename... Ints>
    void set(T* data, Ints... ext) {
       data_ = data;
@@ -140,7 +158,7 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    void copy_sync(const Tensor& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToHost));
+      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToHost));
    }
 
 
@@ -272,22 +290,21 @@ public:
    CudaTensor& operator=(const CudaTensor&) = default;
 
 
-   template <typename... Ints>
-   __host__ void Allocate(Ints... ext) {
-      IndexBase<T, dim>::SetExtents(ext...);
-      ASSERT_CUDA_SUCCESS(cudaMalloc(&data_, size() * sizeof(T)));
-   }
-
-
    // for example if t is Tensor and ct is CudaTensor, can be used as follows: ct.Allocate(t.extents());
    __host__ void Allocate(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
-      ASSERT_CUDA_SUCCESS(cudaMalloc(&data_, size() * sizeof(T)));
+      ASSERT_CUDA(cudaMalloc(&data_, size() * sizeof(T)));
+   }
+
+
+   template <typename... Ints>
+   __host__ void Allocate(Ints... ext) {
+      Allocate(Extents<dim>{ext...});
    }
 
 
    __host__ void Free() {
-      ASSERT_CUDA_SUCCESS(cudaFree(data_));
+      ASSERT_CUDA(cudaFree(data_));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
    }
 
@@ -337,27 +354,25 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    __host__ void copy_sync(const Tensor<T, dim>& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
+      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
    }
 
 
    __host__ void copy_sync(const CudaTensor<T, dim>& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
+      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
    }
 
 
    __host__ void copy_async(const Tensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(
-          cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
+      ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
    }
 
 
    __host__ void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA_SUCCESS(
-          cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
+      ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
    }
 
 
@@ -377,12 +392,12 @@ private:
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA_SUCCESS(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
+   ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
 
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA_SUCCESS(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
+   ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
