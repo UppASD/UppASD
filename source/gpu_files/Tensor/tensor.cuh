@@ -7,6 +7,7 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -75,8 +76,6 @@ public:
 
 
    Tensor() = default;
-
-
    // shallow copy of data
    Tensor(const Tensor&) = default;
    Tensor& operator=(const Tensor&) = default;
@@ -189,17 +188,16 @@ template <typename T, index_t dim>
 void Tensor<T, dim>::transpose() {
    // statically assert since partial template specialization is not allowed
    static_assert(dim == 2);
-   auto* tr = new T[size()];
+
+   std::unique_ptr<T[]> TR(new T[size()]);
    for(index_t i = 0; i < extent(0); ++i) {
       for(index_t j = 0; j < extent(1); ++j) {
-         tr[i * extent(1) + j] = (*this)(i, j);
+         TR[i * extent(1) + j] = (*this)(i, j);
       }
    }
 
    this->SetExtents(extent(1), extent(0));
-   std::copy(tr, tr + size(), data());
-
-   delete[] tr;
+   std::copy(TR.get(), TR.get() + size(), data());
 }
 
 
