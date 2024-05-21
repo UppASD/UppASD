@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 
 using index_t = long int;
@@ -58,6 +59,13 @@ public:
          p *= x[d];
       }
       return p;
+   }
+
+   friend std::ostream& operator<<(std::ostream& os, const Extents<dim>& ext) {
+      for(index_t d = 0; d < dim; ++d) {
+         os << ext[d] << std::endl;
+      }
+      return os;
    }
 };
 

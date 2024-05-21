@@ -94,21 +94,20 @@ public:
 
 
    void FreeHost() {
-      ASSERT_CUDA(cudaFreeHost(data_));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
+      ASSERT_CUDA(cudaFreeHost(data_));
+   }
+
+
+   void set(T* data, const Extents<dim>& ext) {
+      IndexBase<T, dim>::SetExtents(ext);
+      data_ = data;
    }
 
 
    template <typename... Ints>
    void set(T* data, Ints... ext) {
-      data_ = data;
-      IndexBase<T, dim>::SetExtents(ext...);
-   }
-
-
-   void set(T* data, const Extents<dim>& ext) {
-      data_ = data;
-      IndexBase<T, dim>::SetExtents(ext);
+      set(data, Extents<dim>{ext...});
    }
 
 
@@ -302,8 +301,8 @@ public:
 
 
    __host__ void Free() {
-      ASSERT_CUDA(cudaFree(data_));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
+      ASSERT_CUDA(cudaFree(data_));
    }
 
 
