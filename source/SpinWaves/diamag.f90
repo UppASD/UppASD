@@ -23,7 +23,7 @@ module diamag
    complex(dblprec), dimension(:,:,:), allocatable :: ektij
    !
    real(dblprec), dimension(:,:), allocatable :: nc_eval_q   !< Eigenvalues from NC-AMS
-   real(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvalues from NC-AMS
+   complex(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvectors from NC-AMS
    !
    character(len=1) :: do_diamag       !< Perform frequency based spin-correlation sampling (Y/N/C)
    real(dblprec)    :: diamag_mix      !< Separation between sampling steps
@@ -39,7 +39,8 @@ module diamag
 
    private
    ! public subroutines
-   public :: do_diamag, read_parameters_diamag
+   public :: do_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
+             find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
    !public :: setup_diamag, setup_finite_hamiltonian, setup_infinite_hamiltonian
    public :: setup_tensor_hamiltonian!, setup_altern_hamiltonian
    public :: diamag_qvect
@@ -65,7 +66,7 @@ contains
    subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom)
 
       use Constants
-      use AMS, only : magdos_calc, printEnergies
+      use AMS, only : magdos_calc, printEnergies, printEigVects
       use Qvectors,        only : q,nq
       !use math_functions, only : f_cross_product
       !use Correlation,        only : q,nq
@@ -95,7 +96,7 @@ contains
       !
       real(dblprec) :: msat,tcmfa,tcrpa
       !
-      character(LEN = 22) :: ncams_file
+      character(LEN = 25) :: ncams_file
       !
       print '(1x,a)', 'Calculating LSWT magnon dispersions'
 
@@ -249,7 +250,7 @@ contains
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
          nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
-         nc_evec_q(:,:,iq)=abs(eig_vec)
+         nc_evec_q(:,:,iq)=eig_vec
 
       end do
 
@@ -266,6 +267,12 @@ contains
       call printEnergies(ncams_file,nc_eval_q(1:NA,2*nq+1:3*nq),msat,tcmfa,tcrpa,NA,2)
       !end if
 
+      ncams_file = 'ncams_evec.'//trim(simid)//'.out'
+      call printEigVects(ncams_file,nc_evec_q(1:NA,1:NA,1:nq),nc_eval_q(1:NA,1:nq),q,nq,NA)
+      ncams_file = 'ncams_evec+q.'//trim(simid)//'.out'
+      call printEigVects(ncams_file,nc_evec_q(1:NA,1:NA,nq+1:2*nq),nc_eval_q(1:NA,nq+1:2*nq),q,nq,NA)
+      ncams_file = 'ncams_evec-q.'//trim(simid)//'.out'
+      call printEigVects(ncams_file,nc_evec_q(1:NA,1:NA,2*nq+1:3*nq),nc_eval_q(1:NA,2*nq+1:3*nq),q,nq,NA)
 
       !!! write (filn,'(''ncams_evec.'',a,''.out'')') trim(simid)
       !!! open(ofileno,file=filn, position='append')
