@@ -73,7 +73,7 @@ module AMS
 
    public :: magdos,tcmfa,tcrpa,msat, magdos_freq, do_ams, do_magdos
    public :: magdosfile, magdos_sigma
-   public :: calculate_ams,calc_j,eigenvalue_calculation_lapack,printEnergies
+   public :: calculate_ams,calc_j,eigenvalue_calculation_lapack,printEnergies,printEigVects
    public :: magdos_calc, read_parameters_ams, init_ams
    public :: calculate_random_ams
 

@@ -6,7 +6,8 @@
 !> Edgar Mendez
 !> Nikos Ntallis
 !> Anders Bergman
-!> Manuel Pereiro 
+!> Manuel Pereiro
+!> Nastaran Salehi 
 !> @copyright
 !> GNU Public License.
 !> @details In principle the solver is of Heun type but uses rotations to
@@ -82,7 +83,7 @@ contains
       real(dblprec) :: v,Bnorm,hx,hy,hz
       real(dblprec) :: u,cosv,sinv,lldamp
       real(dblprec) :: sigma, Dp, she_fac, stt_fac,sot_fac
-
+      real(dblprec), dimension(3,Natom,Mensemble) :: bdup !< Resulting effective field
       bdup=0.0_dblprec
 
       if(stt/='N') then
