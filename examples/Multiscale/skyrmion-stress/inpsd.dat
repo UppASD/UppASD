@@ -4,7 +4,7 @@ simid  skyrmion
 multiscale    multiscale.conf
 
 initmag       4     takes moments from restart
-restartfile   restart.out
+restartfile   restart
 
 !! Simulation !!
 ip_mode   N
