@@ -23,21 +23,26 @@ contains
       return
    end subroutine fortrandata_setinputdata
 
-   subroutine cudamdsim_initiateconstants()
+   subroutine cudasim_initiateconstants()
       implicit none
       return
-   end subroutine cudamdsim_initiateconstants
+   end subroutine cudasim_initiateconstants
 
-   subroutine cudamdsim_initiatematrices()
+   subroutine cudasim_initiatematrices()
       implicit none
       return
    end subroutine cudamdsim_initiatematrices
 
-   subroutine cudamdsim_measurementphase()
+   subroutine cudasim_cudarunsimulation(whichsim, whichphase)
+      implicit none
+      integer, dimension(:), intent(inout) :: whichsim, whichphase
+      return
+  end subroutine cudasim_cudarunsimulation
+
+   subroutine cudasim_release()
       implicit none
       return
-   end subroutine cudamdsim_measurementphase
-
+   end subroutine cudamdsim_release
 
    subroutine cmdsim_initiateconstants()
       implicit none
@@ -63,3 +68,4 @@ contains
    end subroutine FortranData_Initiate
 
 end module nocuda
+
