@@ -42,7 +42,7 @@ contains
    subroutine cudasim_release()
       implicit none
       return
-   end subroutine cudamdsim_release
+   end subroutine cudasim_release
 
    subroutine cmdsim_initiateconstants()
       implicit none
