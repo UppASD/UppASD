@@ -6,7 +6,6 @@
 #include "stopwatch.hpp"
 #include "thermfield.hpp"
 
-
 class DepondtIntegrator {
 private:
    // System parameters

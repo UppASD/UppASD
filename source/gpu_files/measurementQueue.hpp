@@ -12,7 +12,6 @@
 
 #include "real_type.h"
 
-
 class MeasurementQueue {
    // Measurement class
    class Measurement {

@@ -28,7 +28,6 @@
       __MAT_ERR();                                                                                  \
    }
 
-
 template <typename T, std::size_t D = 1, std::size_t I = 0, std::size_t J = 0, std::size_t K = 0,
           std::size_t L = 0>
 class matrix {

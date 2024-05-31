@@ -5,7 +5,6 @@
 #include "real_type.h"
 #include "stopwatch.hpp"
 
-
 // Wrapper routine for updating the magnetic moments
 void MomentUpdater::update() {
    // Timing
@@ -33,7 +32,6 @@ void MomentUpdater::update() {
    //   emomM = emom2 * mmom2
 }
 
-
 // Transfer moments from emom2 to emom and emomM
 void MomentUpdater::copyMoment() {
    // Tolerance
@@ -59,7 +57,6 @@ void MomentUpdater::copyMoment() {
       }
    }
 }
-
 
 // Update the magnitude of the magnetic moment if wanted.
 void MomentUpdater::calcMoment() {

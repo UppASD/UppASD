@@ -2,17 +2,15 @@
 
 #include <cuda_runtime.h>
 #include <curand.h>
-
-#include "cudaMatrix.hpp"
 #include "cudaParallelizationHelper.hpp"
-#include "fortMatrix.hpp"
+#include "tensor.cuh"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 
-
 // CUDA thermfield class
 // Optimized for simulations with constant temperatures and timestep.
+
 class CudaThermfield {
 private:
    // Generator
@@ -23,8 +21,8 @@ private:
    bool constantsInitiated;
 
    // Data
-   cudaMatrix<real, 3, 3> field;
-   cudaMatrix<real, 1> sigmaFactor;  // = sqrt(Dp*temperature(i))
+   CudaTensor<real, 3> field;
+   CudaTensor<real, 1> sigmaFactor;  // = sqrt(Dp*temperature(i))
 
    // Timer
    StopwatchDeviceSync stopwatch;
@@ -44,7 +42,7 @@ public:
    // Initiate
    bool initiate(std::size_t N, std::size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
                  unsigned long long seed = 0);
-   bool initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma, real k_bolt,
+   bool initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);
 
    // Initiated?
@@ -53,11 +51,11 @@ public:
    }
 
    // Get field
-   inline const cudaMatrix<real, 3, 3>& getField() {
+   inline const CudaTensor<real, 3>& getField() {
       return field;
    }
 
    // Randomize
-   void randomize(const cudaMatrix<real, 2>& mmom);
+   void randomize(const CudaTensor<real, 2>& mmom);
 };
 

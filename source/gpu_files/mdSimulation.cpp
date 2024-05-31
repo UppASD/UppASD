@@ -10,11 +10,9 @@
 #include "stopwatch.hpp"
 #include "stopwatchPool.hpp"
 
-
 MdSimulation::~MdSimulation() {
    freeOwn();
 }
-
 
 void MdSimulation::initiateConstants() {
    // Only heisge_jij allowed
@@ -43,7 +41,6 @@ void MdSimulation::initiateConstants() {
    do_dm = *FortranData::do_dm;
    max_no_dmneigh = *FortranData::max_no_dmneigh;
 }
-
 
 void MdSimulation::initiateFortran() {
    // Dimensions
@@ -78,7 +75,6 @@ void MdSimulation::initiateFortran() {
 
    isOwnData = false;
 }
-
 
 void MdSimulation::printConstants() {
    std::printf(
@@ -115,7 +111,6 @@ void MdSimulation::printConstants() {
        do_dm,
        max_no_dmneigh);
 }
-
 
 // Spin Dynamics measurement phase
 void MdSimulation::measurementPhase() {
@@ -225,13 +220,11 @@ void MdSimulation::measurementPhase() {
    //	std::printf("C/C++: md simulations done!\n");
 }
 
-
 // Safe copy (allows nullptr pointer)
 static inline void* scopy(void* p1, void* p2, std::size_t s) {
    //	std::printf("memcpy(%10p, %10p, %ld);\n", p1, p2, s);
    return (p1 && p2) ? memcpy(p1, p2, s) : p1;
 }
-
 
 void MdSimulation::copyFromFortran() {
    std::size_t N = Natom;
@@ -259,7 +252,6 @@ void MdSimulation::copyFromFortran() {
    scopy(mmomi.get_data(), FortranData::mmomi, mmomi.data_size());
 }
 
-
 void MdSimulation::copyToFortran() {
    std::size_t N = Natom;
    std::size_t M = Mensemble;
@@ -285,7 +277,6 @@ void MdSimulation::copyToFortran() {
    scopy(FortranData::mmom2, mmom2.get_data(), mmom2.data_size());
    scopy(FortranData::mmomi, mmomi.get_data(), mmomi.data_size());
 }
-
 
 /////////////////////////////////////////////////////////
 // This does not work right now and is not used either //
@@ -325,7 +316,6 @@ void MdSimulation::initiateOwn() {
    // Initiate data
    copyFromFortran();
 }
-
 
 void MdSimulation::freeOwn() {
    if(isOwnData) {

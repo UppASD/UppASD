@@ -1,4 +1,6 @@
 target_sources(${UppASD_LIB} PRIVATE c_helper.h
+#common.cuh
+base.cuh
 cudaCommon.hpp
 cudaDepondtIntegrator.cu
 cudaDepondtIntegrator.hpp
@@ -7,9 +9,10 @@ cudaEventPool.hpp
 cudaGPUErrchk.hpp
 cudaHamiltonianCalculations.cu
 cudaHamiltonianCalculations.hpp
-cudaMatrix.hpp
-cudaMdSimulation.cu
-cudaMdSimulation.hpp
+#cudaMatrix.hpp
+cudaSimulation.cu
+cudaSimulation.hpp
+cudaSDSimulation.cu
 cudaMeasurement.cu
 cudaMeasurement.hpp
 cudaMomentUpdater.cu
@@ -45,4 +48,7 @@ stopwatchPool.cpp
 stopwatchPool.hpp
 stopwatch_fortran.cpp
 thermfield.cpp
-thermfield.hpp)
+thermfield.hpp
+tensor.cuh
+)
+

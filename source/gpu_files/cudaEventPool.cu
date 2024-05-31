@@ -5,15 +5,14 @@
 
 #include <cuda.h>
 
+#include "c_headers.hpp"
 #include <vector>
 
-#include "c_headers.hpp"
 #include "cudaEventPool.hpp"
 
 #ifdef NVPROF
 #include <nvToolsExtCuda.h>
 #endif
-
 
 // Event class methods
 CudaEventPool::Event::Event() {
@@ -21,16 +20,13 @@ CudaEventPool::Event::Event() {
    active = true;
 }
 
-
 cudaEvent_t CudaEventPool::Event::event() {
    return _event;
 }
 
-
 void CudaEventPool::Event::deactivate() {
    active = false;
 }
-
 
 void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void *e) {
 #ifdef NVPROF
@@ -42,11 +38,9 @@ void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void *
 #endif
 }
 
-
 void CudaEventPool::Event::addDeactivateCallback(cudaStream_t stream) {
    cudaStreamAddCallback(stream, deactivate_callback, this, 0);
 }
-
 
 // Pool class methods
 CudaEventPool::Event &CudaEventPool::get() {
@@ -62,7 +56,6 @@ CudaEventPool::Event &CudaEventPool::get() {
    stack.push_back(new Event());
    return *stack.back();
 }
-
 
 // Destroy all events in pool when done
 CudaEventPool::~CudaEventPool() {

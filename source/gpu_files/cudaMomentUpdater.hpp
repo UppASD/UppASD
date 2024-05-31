@@ -1,22 +1,22 @@
 #pragma once
 
-#include "cudaMatrix.hpp"
+#include "tensor.cuh"
 #include "cudaParallelizationHelper.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
-
+#include "cudaStructures.hpp"
 
 class CudaMomentUpdater {
 private:
    // Moments to update
-   cudaMatrix<real, 2>& mmom;
-   cudaMatrix<real, 2>& mmom0;
-   cudaMatrix<real, 2>& mmom2;
-   cudaMatrix<real, 3, 3>& emom;
-   cudaMatrix<real, 3, 3>& emom2;
-   cudaMatrix<real, 3, 3>& emomM;
-   cudaMatrix<real, 2>& mmomi;
+   CudaTensor<real, 2>& mmom;
+   CudaTensor<real, 2>& mmom0;
+   CudaTensor<real, 2>& mmom2;
+   CudaTensor<real, 3>& emom;
+   CudaTensor<real, 3>& emom2;
+   CudaTensor<real, 3>& emomM;
+   CudaTensor<real, 2>& mmomi;
 
    // Parameters
    int mompar;
@@ -36,9 +36,7 @@ public:
    class Copy2;
 
    // Constructor
-   CudaMomentUpdater(cudaMatrix<real, 2>& mmom, cudaMatrix<real, 2>& mmom0, cudaMatrix<real, 2>& mmom2,
-                     cudaMatrix<real, 3, 3>& emom, cudaMatrix<real, 3, 3>& emom2,
-                     cudaMatrix<real, 3, 3>& emomM, cudaMatrix<real, 2> &mmomi, int mompar, char initexc);
+   CudaMomentUpdater(cudaLattice& gpuLattice, int mompar, char initexc);
 
    // Updater
    void update();

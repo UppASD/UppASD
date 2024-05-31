@@ -8,7 +8,6 @@
 
 #include <vector>
 
-
 class CudaEventPool {
 public:
    // Event wrapper class

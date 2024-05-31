@@ -3,9 +3,8 @@
 #include <cuda_runtime.h>
 
 #include "cudaEventPool.hpp"
-#include "cudaMatrix.hpp"
+#include "tensor.cuh"
 #include "cudaParallelizationHelper.hpp"
-#include "hostMatrix.hpp"
 #include "measurementQueue.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -16,7 +15,6 @@
 #else
 #define DEFAULT_FAST_COPY false
 #endif
-
 
 class CudaMeasurement {
    // Queue callback data struct
@@ -32,19 +30,23 @@ class CudaMeasurement {
    static void queue_callback(cudaStream_t, cudaError_t, void* data);
 
    // Temporary device storage vectors
-   cudaMatrix<real, 3, 3> tmp_emomM;
-   cudaMatrix<real, 3, 3> tmp_emom;
-   cudaMatrix<real, 2> tmp_mmom;
+   CudaTensor<real, 3> tmp_emomM;
+   CudaTensor<real, 3> tmp_emom;
+   CudaTensor<real, 2> tmp_mmom;
 
    // Temporary host storage (pinned memory)
-   real* pinned_emomM;
-   real* pinned_emom;
-   real* pinned_mmom;
+   Tensor<real, 3> pinned_emomM;
+   Tensor<real, 3> pinned_emom;
+   Tensor<real, 2> pinned_mmom;
 
    // Vectors to copy
-   const cudaMatrix<real, 3, 3>& emomM;
-   const cudaMatrix<real, 3, 3>& emom;
-   const cudaMatrix<real, 2>& mmom;
+   const CudaTensor<real, 3>& emomM;
+   const CudaTensor<real, 3>& emom;
+   const CudaTensor<real, 2>& mmom;
+
+   Tensor<real, 3>& fortran_emomM;
+   Tensor<real, 3>& fortran_emom;
+   Tensor<real, 2>& fortran_mmom;
 
    // Event stack
    CudaEventPool eventPool;
@@ -69,8 +71,9 @@ class CudaMeasurement {
 
 public:
    // TODO add flag for fast_copy
-   CudaMeasurement(const cudaMatrix<real, 3, 3>& emomM, const cudaMatrix<real, 3, 3>& emom,
-                   const cudaMatrix<real, 2>& mmom, bool fastCopy = DEFAULT_FAST_COPY,
+   CudaMeasurement(const CudaTensor<real, 3>& emomM, const CudaTensor<real, 3>& emom,
+                   const CudaTensor<real, 2>& mmom, Tensor<real, 3>& f_emomM, Tensor<real, 3>& f_emom,
+                   Tensor<real, 2>& f_mmom, bool fastCopy = DEFAULT_FAST_COPY,
                    bool alwaysCopy = false);
    ~CudaMeasurement();
 

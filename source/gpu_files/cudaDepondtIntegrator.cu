@@ -4,18 +4,18 @@
 #include "c_headers.hpp"
 #include "cudaCommon.hpp"
 #include "cudaDepondtIntegrator.hpp"
-#include "cudaMatrix.hpp"
-#include "fortMatrix.hpp"
+#include "tensor.cuh"
 #include "printDebug.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-
+#include "cudaStructures.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
+
 class CudaDepondtIntegrator::BuildEffectiveField : public CudaParallelizationHelper::Atom {
 private:
    real* bdup;
@@ -24,10 +24,10 @@ private:
    real damping;
 
 public:
-   BuildEffectiveField(real* p1, const real* p2, const real* p3, real p4) {
-      bdup = p1;
-      blocal = p2;
-      emom = p3;
+   BuildEffectiveField(CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2, const CudaTensor<real, 3>& p3, real p4) {
+      bdup = p1.data();
+      blocal = p2.data();
+      emom = p3.data();
       damping = p4;
    }
 
@@ -38,9 +38,9 @@ public:
       my_bdup[0] = my_bloc[0] + damping * (my_emom[1] * my_bloc[2] - my_emom[2] * my_bloc[1]);
       my_bdup[1] = my_bloc[1] + damping * (my_emom[2] * my_bloc[0] - my_emom[0] * my_bloc[2]);
       my_bdup[2] = my_bloc[2] + damping * (my_emom[0] * my_bloc[1] - my_emom[1] * my_bloc[0]);
+      //if (atom == 0) printf("%.6lf \n", my_emom[0]); 
    }
 };
-
 
 class CudaDepondtIntegrator::Rotate : public CudaParallelizationHelper::Atom {
 private:
@@ -52,10 +52,10 @@ private:
    real damping;
 
 public:
-   Rotate(real* p1, const real* p2, const real* p3, real p4, real p5, real p6) {
-      mrod = p1;
-      emom = p2;
-      bdup = p3;
+   Rotate(CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2, const CudaTensor<real, 3>& p3, real p4, real p5, real p6) {
+      mrod = p1.data();
+      emom = p2.data();
+      bdup = p3.data();
       timestep = p4;
       gamma = p5;
       damping = p6;
@@ -112,7 +112,6 @@ public:
    }
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,33 +122,30 @@ CudaDepondtIntegrator::CudaDepondtIntegrator()
       parallel(CudaParallelizationHelper::def) {
 }
 
-
 // Destructor
 CudaDepondtIntegrator::~CudaDepondtIntegrator() {
    release();
 }
 
-
 // Initiator
-bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, real _timestep,
-                                     curandRngType_t rng, unsigned long long seed) {
+bool CudaDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    // Assert that we're not already initialized
    release();
 
    // Param
-   stt = _stt;
-   timestep = _timestep;
+   stt = SimParam.stt;
+   timestep = SimParam.delta_t;
 
    // Initiate thermfield
-   if(!thermfield.initiate(N, M, rng, seed)) {
+   if(!thermfield.initiate(SimParam.N, SimParam.M, SimParam.rngType, SimParam.randomSeed)) {
       release();
       return false;
    }
 
    // Allocate device matrices
-   mrod.initiate(3, N, M);
-   blocal.initiate(3, N, M);
-   bdup.initiate(3, N, M);
+   mrod.Allocate(3, SimParam.N, SimParam.M);
+   blocal.Allocate(3, SimParam.N, SimParam.M);
+   bdup.Allocate(3, SimParam.N, SimParam.M);
 
    // All initialized?
    if(cudaDeviceSynchronize() != cudaSuccess) {
@@ -160,116 +156,102 @@ bool CudaDepondtIntegrator::initiate(std::size_t N, std::size_t M, char _stt, re
    return true;
 }
 
-
-bool CudaDepondtIntegrator::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep,
-                                              real gamma_const, real k_bolt_const, real mub_const,
-                                              real damping_const) {
+bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const hostLattice& cpuLattice) {
    // Set parameters
-   gamma = gamma_const;
-   k_bolt = k_bolt_const;
-   mub = mub_const;
-   damping = damping_const;
+   gamma = SimParam.gamma;
+   k_bolt = SimParam.k_bolt;
+   mub = SimParam.mub;
+   damping = SimParam.damping;
    dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
 
    // Initiate thermfield constants
-   if(!thermfield.initiateConstants(temperature, timestep, gamma, k_bolt, mub, damping)) {
-      return false;
+   if(!thermfield.initiateConstants(cpuLattice.temperature, timestep, gamma, k_bolt, mub, damping)) {
+      return false; //TODO
    }
 
    return true;
 }
 
-
 // Releaser
 void CudaDepondtIntegrator::release() {
-   mrod.free();
-   blocal.free();
-   bdup.free();
+   mrod.Free();
+   blocal.Free();
+   bdup.Free();
 }
-
 
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
 // Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
-void CudaDepondtIntegrator::evolveFirst(const cudaMatrix<real, 3, 3>& beff, cudaMatrix<real, 3, 3>& b2eff,
-                                        const cudaMatrix<real, 3, 3>& btorque, cudaMatrix<real, 3, 3>& emom,
-                                        cudaMatrix<real, 3, 3>& emom2, cudaMatrix<real, 3, 3>& emomM,
-                                        const cudaMatrix<real, 2>& mmom) {
+void CudaDepondtIntegrator::evolveFirst(cudaLattice& gpuLattice) {
    // Timing
    stopwatch.skip();
 
    //_dpr;
 
    // Randomize stochastic field
-   thermfield.randomize(mmom);
+   thermfield.randomize(gpuLattice.mmom);
    stopwatch.add("thermfield");
 
-   CudaCommon::Add cm(blocal, beff, thermfield.getField());
+   CudaCommon::Add cm(blocal, gpuLattice.beff, thermfield.getField());
 
    //_dpr;
    // Construct local field
-   parallel.cudaElementCall(CudaCommon::Add(blocal, beff, thermfield.getField()));
+   parallel.cudaElementCall(CudaCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
    stopwatch.add("localfield");
 
    //_dpr;
    // Construct effective field (including damping term)
-   buildbeff(emom, btorque);
+   buildbeff(gpuLattice.emom, gpuLattice.btorque);
    stopwatch.add("buildbeff");
 
    //_dpr;
    // Set up rotation matrices and perform rotations
-   rotate(emom, timestep);
+   rotate(gpuLattice.emom, timestep);
    stopwatch.add("rotate");
 
    // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
-   parallel.cudaElementCall(CudaCommon::ScalarMult(emomM, mrod, mmom));
-   emom2.swap(emom);  // Previous emom will not be needed
-   emom.swap(mrod);   // Previous mrod will not be needed
-   b2eff.swap(bdup);  // Previous bdup will not be needed
+   parallel.cudaElementCall(CudaCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
+   gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed
+   gpuLattice.emom.swap(mrod);   // Previous mrod will not be needed
+   gpuLattice.b2eff.swap(bdup);  // Previous bdup will not be needed
    stopwatch.add("copy");
 }
 
-
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
-void CudaDepondtIntegrator::evolveSecond(const cudaMatrix<real, 3, 3>& beff,
-                                         const cudaMatrix<real, 3, 3>& b2eff,
-                                         const cudaMatrix<real, 3, 3>& btorque, cudaMatrix<real, 3, 3>& emom,
-                                         cudaMatrix<real, 3, 3>& emom2) {
+void CudaDepondtIntegrator::evolveSecond(cudaLattice& gpuLattice) {
    // Timing
    stopwatch.skip();
 
    // Construct local field
-   parallel.cudaElementCall(CudaCommon::Add(blocal, beff, thermfield.getField()));
+   parallel.cudaElementCall(CudaCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
    stopwatch.add("localfield");
 
    // Construct effective field (including damping term)
-   buildbeff(emom, btorque);
+   buildbeff(gpuLattice.emom, gpuLattice.btorque);
    stopwatch.add("buildbeff");
 
    // Corrected field
-   parallel.cudaElementCall(CudaCommon::Avg(bdup, b2eff));
-   emom.swap(emom2);  // Vaild as emom2 wont be used after its coming swap
+   parallel.cudaElementCall(CudaCommon::Avg(bdup, gpuLattice.b2eff));
+   gpuLattice.emom.swap(gpuLattice.emom2);  // Vaild as emom2 wont be used after its coming swap
    stopwatch.add("corrfield");
 
    // Final rotation
-   rotate(emom, timestep);
+   rotate(gpuLattice.emom, timestep);
    stopwatch.add("rotate");
 
    // Swap
-   emom2.swap(mrod);  // Vaild as mrod wont be needed after this
+   gpuLattice.emom2.swap(mrod);  // Vaild as mrod wont be needed after this
    stopwatch.add("copy");
 }
 
-
-void CudaDepondtIntegrator::rotate(const cudaMatrix<real, 3, 3>& emom, real delta_t) {
+void CudaDepondtIntegrator::rotate(const CudaTensor<real, 3>& emom, real delta_t) {
    parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
 
-
 // Constructs the effective field (including damping term)
-void CudaDepondtIntegrator::buildbeff(const cudaMatrix<real, 3, 3>& emom,
-                                      const cudaMatrix<real, 3, 3>& btorque) {
+void CudaDepondtIntegrator::buildbeff(const CudaTensor<real, 3>& emom,
+                                      const CudaTensor<real, 3>& btorque) {
    parallel.cudaAtomCall(BuildEffectiveField(bdup, blocal, emom, damping));
 
    // TODO untested

@@ -7,7 +7,6 @@
 #include "stopwatch.hpp"
 #include "stopwatchPool.hpp"
 
-
 // Name      Type     Dimension  Intent  Description
 // emom      double   (3,N,M)    (out)   Current unit moment vector
 // emom2     double   (3,N,M)    (in)    Final (or temporary) unit moment vector

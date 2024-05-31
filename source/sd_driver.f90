@@ -1055,7 +1055,11 @@ contains
       use InputData, only : gpu_mode
 
       ! Common stuff
-
+      Integer :: whichsim, whichphase
+    
+    ! Set the values of whichsim and whichphase as needed
+      whichsim = 0;
+      whichphase = 1;
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
       call FortranData_Initiate(stt,btorque)
@@ -1066,14 +1070,16 @@ contains
 
       ! Start simulation
       if (gpu_mode==1) then  !CUDA
-         call cudaMdSim_initiateConstants()
-         call cudaMdSim_initiateMatrices()
-         call cudaMdSim_measurementPhase()
+         call cudaSim_initiateConstants()
+         call cudaSim_initiateMatrices()
+             print *, "Value of whichsim before call:", whichsim
+         call cudaSim_cudaRunSimulation(whichsim, whichphase);
+         call cudaSim_release();
 
-      else if (gpu_mode==2) then     !C/C++
-         call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
-         call cMdSim_initiateFortran()   ! calls mdSimulation.cpp to copy and initialize matrices from fortrandata.hpp
-         call cMdSim_measurementPhase()
+      !else if (gpu_mode==2) then     !C/C++
+      !   call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
+      !   call cMdSim_initiateFortran()   ! calls mdSimulation.cpp to copy and initialize matrices from fortrandata.hpp
+      !   call cMdSim_measurementPhase()
 
       else
          stop "Invalid gpu_mode"
