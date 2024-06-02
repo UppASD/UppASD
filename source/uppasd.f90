@@ -264,12 +264,13 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
+      use Qvectors, only : q, nq
       
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq)
          call timing(0,'SpinCorr      ','OF')
       end if
 
