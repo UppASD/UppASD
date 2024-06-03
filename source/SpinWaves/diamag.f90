@@ -62,11 +62,11 @@ contains
    end subroutine setup_diamag
 
    !> Set up the Hamiltonian for first cell
-   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom)
+   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom, q_vect, nq)
 
       use Constants
       use AMS, only : magdos_calc, printEnergies
-      use Qvectors,        only : q,nq
+      !use Qvectors,        only : q,nq
       !use math_functions, only : f_cross_product
       !use Correlation,        only : q,nq
       !
@@ -78,6 +78,8 @@ contains
       character(len=8), intent(in) :: simid !< Name of simulation
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment magnitude
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
+      real(dblprec), dimension(3,nq), intent(in) :: q_vect !< Qpoints
+      integer, intent(in) :: nq    !< Number of qpoints
 
       !
       real(dblprec), dimension(3) :: z
@@ -143,7 +145,7 @@ contains
 
       im=(0.0_dblprec,1.0_dblprec)
 
-      call clone_q(nq,q,nq_ext,q_ext,diamag_qvect)
+      call clone_q(nq,q_vect,nq_ext,q_ext,diamag_qvect)
 
       z(1)=0.0_dblprec;z(2)=0.0_dblprec;z(3)=1.0_dblprec
 
@@ -245,7 +247,7 @@ contains
          !end if
 
          ! Diagonalize Hamiltonian 
-         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
+         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq, nq_ext, S_prime)
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
          nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
@@ -283,7 +285,7 @@ contains
       !end if
 
 
-      call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q,nc_eval_q,S_prime,simid,diamag_nvect)
+      call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
 
       i_all=-product(shape(magham))*kind(magham)
       deallocate(magham,stat=i_stat)
@@ -340,7 +342,7 @@ contains
    end subroutine setup_tensor_hamiltonian
 
 
-   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime)
+   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq, nq_ext, S_prime)
       !
       use Constants
       !
