@@ -31,7 +31,7 @@ contains
    subroutine cudasim_initiatematrices()
       implicit none
       return
-   end subroutine cudamdsim_initiatematrices
+   end subroutine cudasim_initiatematrices
 
    subroutine cudasim_cudarunsimulation(whichsim, whichphase)
       implicit none
@@ -42,7 +42,7 @@ contains
    subroutine cudasim_release()
       implicit none
       return
-   end subroutine cudamdsim_release
+   end subroutine cudasim_release
 
    subroutine cmdsim_initiateconstants()
       implicit none
