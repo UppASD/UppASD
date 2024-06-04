@@ -458,6 +458,9 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
+      use Midpoint_ms,           only : allocate_midpointms_fields
+      use Depondt_ms,            only : allocate_depondtms_fields
+
 
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
@@ -470,6 +473,12 @@ contains
       call allocate_hamiltoniandata(Natom, 1, Natom,1,0, 0, 'N',-1, 'N','N')
       call deallocateDampingBand(dampingBand)
       call deleteLocalInterpolationInfo(interfaceInterpolation) 
+      if (SDEalgh==1 .or. ipSDEalgh==1) then
+          call allocate_midpointms_fields(-1,Natom,Mensemble)
+      endif
+      if (SDEalgh==5 .or. ipSDEalgh==5) then
+          call allocate_depondtms_fields(-1,Natom,Mensemble)
+      endif
    else
 
       write (*,'(1x,a)') "Simulation finished"
@@ -1452,7 +1461,9 @@ contains
 
       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
       if(SDEalgh==5 .or. ipSDEalgh==5) then
-         call allocate_depondtfields(Natom, Mensemble,flag)
+        if  (mode.ne.'MS') then
+           call allocate_depondtfields(Natom, Mensemble,flag)
+        end if
       elseif(SDEalgh==11) then
          call allocate_llgifields(Natom, Mensemble,flag)
       end if
