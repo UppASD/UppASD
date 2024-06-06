@@ -29,9 +29,9 @@ jobs:
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
-            git 
-            cmake
-            ninja
+            mingw-w64-x86_64-git 
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
 
       - uses: actions/checkout@v4
 
