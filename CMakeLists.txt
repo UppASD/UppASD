@@ -665,7 +665,7 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # First fix for msys/mingw having semi-shared .dll.a libraries
 ##############################################################################################
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${LAPACK_LIBRARIES}")
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #if ( $ENV{MSYSTEM})
    message(STATUS " Performing MSYS library pruning.")
@@ -685,9 +685,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       unset(UppASD_links)
       foreach ( elem ${LAPACK_LIBRARIES})
          string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
-         set(UppASD_links "${filtered_elem}")
+	 list(APPEND UppASD_links "${filtered_elem}")
+	 #set(UppASD_links "${filtered_elem}")
+	 message(STATUS " PRUNING LAPACK:", ${filtered_elem})
+	 message(STATUS " PRUNING LAPACK:::", ${UppASD_links})
       endforeach()
       unset(LAPACK_LIBRARIES)
+      message(STATUS " LAPACK PRUNED:", ${filtered_elem})
       set(LAPACK_LIBRARIES ${UppASD_links})
       # FFTW
       unset(UppASD_links)
@@ -710,13 +714,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
    endif ()
 endif ()
 
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${LAPACK_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
-   #-static
-   #-fopenmp
-   #-lgomp
-   -lgfortran
+	-static
+	#-fopenmp
+	#-lgomp
+	#-lgfortran
    #-lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
@@ -724,13 +728,13 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-         #${OpenMP_Fortran_LIB_NAMES}
+	 # ${OpenMP_Fortran_LIB_NAMES}
          ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
-      if(MKL_FOUND)
+      if(MKL_FOUND AND USE_MKL)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
-      endif(MKL_FOUND)
+      endif(MKL_FOUND AND USE_MKL)
       if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
       endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
