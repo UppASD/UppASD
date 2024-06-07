@@ -154,11 +154,13 @@ add_dependencies(${UppASD_EXE} ${UppASD_LIB})
 ##############################################################################################
 # MKL / FFTW actions
 ##############################################################################################
+#if (USE_MKL)
 set(MKL_LINK static)
 set(MKL_INTERFACE lp64)
 set(MKL_THREADING sequential)
 find_package(MKL CONFIG)
 message(STATUS "MKL_IMPORTED_TARGETS:   ${MKL_IMPORTED_TARGETS}") 
+#endif ()
 
 set(FFTW_USE_STATIC_LIBS ON)
 if (USE_FFTW)
@@ -740,7 +742,8 @@ message(STATUS "***********************************************")
 
 # Detect the platform and configure linker flags and libraries
 unset(UppASD_links)
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+#if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # On Linux, use static linking and include libquadmath
     set(UppASD_links "-static")
 #elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -754,7 +757,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    # -lgomp
    # -lgfortran
    # -lquadmath
-         ${UpASD_links}
+         ${UppASD_links}
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
