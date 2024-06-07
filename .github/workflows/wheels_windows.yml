@@ -26,7 +26,6 @@ jobs:
           install: >-
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-gcc-fortran
-            mingw-w64-x86_64-static-libgcc
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw

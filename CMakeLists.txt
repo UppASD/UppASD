@@ -588,13 +588,13 @@ if(BUILD_PYTHON)
       #message(STATUS "=============>  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}")
 
       # Not used by default (invoke only if new header files need to be generated)
-      add_custom_command( 
-         OUTPUT "${F2PY_sources}"
-         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-         COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
-         COMMENT "Writing F90wrappers for F2PY"
-         DEPENDS ${F90wrap_sources}
-         )
+      # add_custom_command( 
+      #    OUTPUT "${F2PY_sources}"
+      #    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      #    COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
+      #    COMMENT "Writing F90wrappers for F2PY"
+      #    DEPENDS ${F90wrap_sources}
+      #    )
 
       ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
       set(CMAKE_C_FLAGS "-std=c99")
@@ -739,9 +739,10 @@ message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
 message(STATUS "***********************************************")
 
 # Detect the platform and configure linker flags and libraries
+unset(UppASD_links)
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # On Linux, use static linking and include libquadmath
-    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -static")
+    set(UppASD_links "-static")
 #elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 #    # On macOS, avoid static linking
 #    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
@@ -753,6 +754,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    # -lgomp
    # -lgfortran
    # -lquadmath
+         ${UpASD_links}
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
