@@ -511,7 +511,8 @@ if(BUILD_PYTHON)
       # Common variables
       set(f2py_module_name "uppasd")
       set(f2py_module_c "_${f2py_module_name}module.c")
-      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers2.f90")
+      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers.f")
+      set(f2py_wrapper_f90 "_${f2py_module_name}-f2pywrappers2.f90")
       set(f2py_wrapper_o "_${f2py_module_name}-f2pywrappers2.o")
       set(UppASD_F90w f90_wraps)
       set(F90wrap_kind
@@ -571,6 +572,7 @@ if(BUILD_PYTHON)
 
       add_custom_command(
          OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}" "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f90}"  
          COMMAND ${Python3_EXECUTABLE}  -m "numpy.f2py"  ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
          #COMMAND f2py   ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
          COMMENT "Generating Python modules"
@@ -586,13 +588,13 @@ if(BUILD_PYTHON)
       #message(STATUS "=============>  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}")
 
       # Not used by default (invoke only if new header files need to be generated)
-      #add_custom_command( 
-      #   OUTPUT "${F2PY_sources}"
-      #   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-      #   COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
-      #   COMMENT "Writing F90wrappers for F2PY"
-      #   DEPENDS ${F90wrap_sources}
-      #   )
+      add_custom_command( 
+         OUTPUT "${F2PY_sources}"
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+         COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
+         COMMENT "Writing F90wrappers for F2PY"
+         DEPENDS ${F90wrap_sources}
+         )
 
       ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
       set(CMAKE_C_FLAGS "-std=c99")
@@ -600,7 +602,8 @@ if(BUILD_PYTHON)
          "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
          #"${F2PY_sources}"
          "${F2PY_INCLUDE_DIR}/fortranobject.c" # From NumPy
-         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f90}"
          )
 
       add_dependencies(_${CMAKE_PROJECT_NAME} ${UppASD_F90w})
@@ -665,7 +668,19 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # First fix for msys/mingw having semi-shared .dll.a libraries
 ##############################################################################################
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+message(STATUS "***********************************************")
+message(STATUS "--> MSYS ENVIROnMENT BEFORE PURGE:")
+message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+
+# message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+# message(STATUS "-> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #if ( $ENV{MSYSTEM})
    message(STATUS " Performing MSYS library pruning.")
@@ -710,14 +725,34 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
    endif ()
 endif ()
 
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+#message(STATUS "--> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+message(STATUS "***********************************************")
+message(STATUS "--> MSYS ENVIROnMENT AFTER PURGE:")
+message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+message(STATUS "***********************************************")
+
+# Detect the platform and configure linker flags and libraries
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # On Linux, use static linking and include libquadmath
+    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -static")
+#elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+#    # On macOS, avoid static linking
+#    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
+endif()
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
-   #-static
-   #-fopenmp
-   #-lgomp
-   -lgfortran
-   #-lquadmath
+   # -static
+   # -fopenmp
+   # -lgomp
+   # -lgfortran
+   # -lquadmath
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
@@ -728,9 +763,9 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
-      if(MKL_FOUND)
+      if(MKL_FOUND AND USE_MKL)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
-      endif(MKL_FOUND)
+      endif(MKL_FOUND AND USE_MKL)
       if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
       endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
