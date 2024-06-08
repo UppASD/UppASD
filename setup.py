@@ -53,7 +53,7 @@ class cmake_build_ext(build_ext):
                 #'-DCMAKE_Fortran_COMPILER=gfortran',
                 '-DBUILD_PYTHON=ON',
                 '-DUSE_MKL=OFF',
-                #'-GNinja',
+                '-GNinja',
                 #'-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
                 #'-DPYTHON_LIBRARY={}'.format(python_lib_dir),
                 #'-DMKL_INTERFACE_FULL=gf_lp64',
