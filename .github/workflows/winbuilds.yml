@@ -17,7 +17,7 @@ jobs:
           - { icon: '🟦', sys: mingw64, arch: x86_64 }
           - { icon: '🟨', sys: ucrt64,  arch: x86_64  } # Experimental!
           #- { icon: '🟧', sys: clang64, arch: x86_64 } # Experimental!
-          #- { icon: '⬛', sys: mingw32, arch: i686 } # Disabled
+          - { icon: '⬛', sys: mingw32, arch: i686 } # Disabled
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }}
     defaults:
       run:
