@@ -10,7 +10,7 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        os: [macOS-latest, macOS-latest-large]
+        os: [macos-14, macos-13
         python-version: ["3.9", "3.10", "3.11", "pypy3.9", "pypy3.10"]
         # arch: [x86_64, arm64]
         # os: [ubuntu-20.04, windows-2019, macOS-11]
