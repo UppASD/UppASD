@@ -2,7 +2,7 @@ name: Build wheels on Windows, optional cibuildwheel approach
 
 on:
   release:
-  # push:
+  push:
   # pull_request:
 
 concurrency:
@@ -62,7 +62,7 @@ jobs:
             ninja:p
 
       - name: Build and test wheels
-        uses: pypa/cibuildwheel@v2.14.0
+        uses: pypa/cibuildwheel@v2.18.1
         with:
           msystem: MINGW64
         env:
