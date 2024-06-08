@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.8'  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.9'  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.10' }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.11' }
+          - { icon: '🐢', sys: mingw64, arch: x86_64, python-version: '3.8'  }
+          - { icon: '🐍', sys: mingw64, arch: x86_64, python-version: '3.9'  }
+          - { icon: '🐉', sys: mingw64, arch: x86_64, python-version: '3.10' }
+          - { icon: '🦖', sys: mingw64, arch: x86_64, python-version: '3.11' }
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
     defaults:
       run:
@@ -82,7 +82,8 @@ jobs:
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
         source ~/my_env/Scripts/activate
-        python setup.py bdist_wheel
+        python -m build .
+        #python setup.py bdist_wheel
         #python -m pip wheel . -v
         
     - uses: actions/upload-artifact@v4
