@@ -26,13 +26,9 @@ jobs:
 
       - name: Provide packages (macOS)
         run: |
-          # fftw3 
-          brew install fftw
+          # fftw3 , ninja, meson
+          brew install fftw ninja meson
           fftw-wisdom -V
-          # ninja
-          brew install ninja
-          # meson
-          brew install meson      - name: Provide fftw
             
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
