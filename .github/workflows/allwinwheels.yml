@@ -41,7 +41,6 @@ jobs:
             toolchain:p
             gcc-fortran:p
             blas:p
-            f2cblaslapack:p
             openblas:p
             lapack:p
             fftw:p
