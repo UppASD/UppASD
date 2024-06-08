@@ -10,10 +10,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - { icon: '🖥️', os: macos-latest ,sys: macos, arch: x86_64 } 
+          - { icon: '🖥️', os: macos-latest-large ,sys: macos, arch: x86_64 } 
           - { icon: '🦾', os: macos-latest ,sys: macos, arch: arm64 } 
           - { icon: '🖥️', os: macos-13 ,sys: macos, arch: x86_64 } 
-          - { icon: '🦾', os: macos-13 ,sys: macos, arch: arm64 } 
+          - { icon: '🦾', os: macos-13-xlarge ,sys: macos, arch: arm64 } 
         #os: [ ubuntu-latest,  macOS-latest]
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 

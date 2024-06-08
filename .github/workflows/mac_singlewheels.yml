@@ -10,10 +10,10 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        os: [macOS-latest]
+        os: [macOS-latest, macOS-latest-large]
         python-version: ["3.9", "3.10", "3.11", "pypy3.9", "pypy3.10"]
-        arch: [x86_64, arm64]
-        #os: [ubuntu-20.04, windows-2019, macOS-11]
+        # arch: [x86_64, arm64]
+        # os: [ubuntu-20.04, windows-2019, macOS-11]
 
     steps:
       - uses: actions/checkout@v4
@@ -36,21 +36,21 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip setuptools wheel build delocate
 
-      - name: Build wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}
+      - name: Build wheel for ${{ matrix.python-version }} on ${{ matrix.os }}
         run: python -m build --wheel
 
-      - name: Delocate wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}
+      - name: Delocate wheel for ${{ matrix.python-version }} on ${{ matrix.os }}
         run: delocate-wheel dist/uppasd*.whl
 
-      - name: '🧪 Test wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}'
+      - name: '🧪 Test wheel for ${{ matrix.python-version }} on ${{ matrix.os }}'
         run: |
           python -m pip install dist/uppasd*.whl
           python -c "import uppasd.pyasd as pyasd ; pyasd.printlogo()"
 
-      - name: Upload wheels for ${{ matrix.python-version }} on ${{ matrix.arch }}
+      - name: Upload wheels for ${{ matrix.python-version }} on ${{ matrix.os }}
         uses: actions/upload-artifact@v4
         with:
-          name: uppasd-${{ matrix.python-version }}-${{ matrix.arch }}-${{ matrix.os }}
+          name: uppasd-${{ matrix.python-version }}-${{ matrix.os }}
           path: ./dist/*.whl
 
   upload:
