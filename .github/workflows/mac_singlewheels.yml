@@ -34,10 +34,13 @@ jobs:
         run: python -c "import sys; print(sys.version)"
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip setuptools wheel build
+        run: python -m pip install --upgrade pip setuptools wheel build delocate
 
       - name: Build wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}
         run: python -m build --wheel
+
+      - name: Delocate wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}
+        run: delocate-wheel dist/uppasd*.whl
 
       - name: '🧪 Test wheel for ${{ matrix.python-version }} on ${{ matrix.arch }}'
         run: |
@@ -47,7 +50,7 @@ jobs:
       - name: Upload wheels for ${{ matrix.python-version }} on ${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.python-version }}-${{ matrix.arch }}-${{ matrix.os }}
+          name: uppasd-${{ matrix.python-version }}-${{ matrix.arch }}-${{ matrix.os }}
           path: ./dist/*.whl
 
   upload:
@@ -58,10 +61,10 @@ jobs:
       - name: Download artefacts
         uses: actions/download-artifact@v4
         with:
-          path: ./wheels
-          pattern: wheel-*.whl
+          path: ./dist
+          pattern: uppasd-*.whl
           merge-multiple: true
-      - run: ls -l ./wheels
+      - run: ls -l ./dist
 
   #build_sdist:
   #  name: Build source distribution

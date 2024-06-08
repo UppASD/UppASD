@@ -67,16 +67,6 @@ jobs:
         echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
         paste github_header $GITHUB_PATH > $GITHUB_PATH
           
-    # - name: '🚧 Build TOOL cmake'
-    #   run: |
-    #     parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-    #     export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
-    #     source ~/my_env/Scripts/activate
-    #     cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION 
-    #     cmake --build build_test --config Release --parallel --verbose
-    #     ls lib
-    #     objdump -x lib/_*pyd | grep -i DLL
-        
     - name: '🚧 Build wheel'
       run: |
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
@@ -98,3 +88,17 @@ jobs:
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
        path: ./dist/uppasd*.whl
+
+  upload:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: uppasd*.whl
+          merge-multiple: true
+      - run: ls -l ./dist
+
