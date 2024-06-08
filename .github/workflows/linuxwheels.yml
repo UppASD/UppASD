@@ -1,7 +1,7 @@
 name: Build wheels on Linux
 
-on: [release]
-#on: [release, push, pull_request]
+#on: [release]
+on: [release, push, pull_request]
 
 jobs:
   build_wheels:
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.10.1
+        run: python -m pip install cibuildwheel build wheel setuptools
 
       - name: Build wheels
         run: 

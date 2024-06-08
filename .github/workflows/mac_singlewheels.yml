@@ -39,8 +39,8 @@ jobs:
       - name: Build wheel for ${{ matrix.python-version }} on ${{ matrix.os }}
         run: python -m build --wheel
 
-      - name: Delocate wheel for ${{ matrix.python-version }} on ${{ matrix.os }}
-        run: delocate-wheel dist/uppasd*.whl
+      # - name: Delocate wheel for ${{ matrix.python-version }} on ${{ matrix.os }}
+      #   run: delocate-wheel dist/uppasd*.whl
 
       - name: '🧪 Test wheel for ${{ matrix.python-version }} on ${{ matrix.os }}'
         run: |

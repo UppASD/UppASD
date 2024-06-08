@@ -2,7 +2,7 @@ name: Build wheels on Windows, optional cibuildwheel approach
 
 on:
   release:
-  # push:
+  push:
   # pull_request:
 
 concurrency:
