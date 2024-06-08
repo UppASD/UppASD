@@ -86,8 +86,11 @@ jobs:
         #python setup.py bdist_wheel
         #python -m pip wheel . -v
 
-    - name: '🚧 Test wheel'
+    - name: '🧪 Test wheel'
       run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        source ~/my_env/Scripts/activate
         python -m pip install dist/uppasd*.whl
         python -c "import uppasd.pyasd as pyasd ; pyasd.printlogo()"
 
