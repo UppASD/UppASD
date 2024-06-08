@@ -62,7 +62,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./dist
-          pattern: uppasd-*.whl
+          pattern: uppasd-*
           merge-multiple: true
       - run: ls -l ./dist
 
