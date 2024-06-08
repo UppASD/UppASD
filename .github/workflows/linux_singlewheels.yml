@@ -23,7 +23,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install ninja-build and meson
-        run: sudo apt-get -y install ninja-build meson
+        run: sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev libatlas-base-dev libatlas3-base
 
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"

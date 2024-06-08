@@ -56,7 +56,7 @@ jobs:
           path: ./wheels
           pattern: wheel-*.whl
           merge-multiple: true
-        - run: ls -l ./wheels
+      - run: ls -l ./wheels
 
   #build_sdist:
   #  name: Build source distribution

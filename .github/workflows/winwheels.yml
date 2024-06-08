@@ -77,7 +77,7 @@ jobs:
     #     ls lib
     #     objdump -x lib/_*pyd | grep -i DLL
         
-    - name: '🚧 Build TOOL wheel'
+    - name: '🚧 Build wheel'
       run: |
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
@@ -85,7 +85,12 @@ jobs:
         python -m build .
         #python setup.py bdist_wheel
         #python -m pip wheel . -v
-        
+
+    - name: '🚧 Test wheel'
+      run: |
+        python -m pip install dist/uppasd*.whl
+        python -c "import uppasd.pyasd as pyasd ; pyasd.printlogo()"
+
     - uses: actions/upload-artifact@v4
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
