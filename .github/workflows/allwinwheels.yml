@@ -1,4 +1,4 @@
-name: Build wheels on Windows (alt)
+name: Build wheels on all platforms (beta)
 
 #on: [release]
 on: [release, push, pull_request]
@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         #os: [ubuntu-20.04, macOS-11]
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macos-13, macos-12]
 
     steps:
       - name: Provide fftw, ninja  (macOS)
@@ -24,7 +24,7 @@ jobs:
       - name: Provide ninja  (linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get -y install ninja-build meson openblas-dev liblapack-dev
+          sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev
 
       - name: Provide gfortran (Windows)
         if: runner.os == 'Windows'
@@ -40,17 +40,19 @@ jobs:
           pacboy: >-
             toolchain:p
             gcc-fortran:p
+            blas:p
+            f2cblaslapack:p
             openblas:p
             lapack:p
             fftw:p
             cmake:p
             ninja:p
 
-      - name: Tell distutils to use mingw (Windows)
-        if: runner.os == 'Windows'
-        run: |
-           #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
-           echo "[build]`ncompiler=mingw32" 
+      #- name: Tell distutils to use mingw (Windows)
+      #  if: runner.os == 'Windows'
+      #  run: |
+      #     #echo "[build]`ncompiler=mingw32" | Out-File -Encoding ASCII ~/pydistutils.cfg
+      #     echo "[build]`ncompiler=mingw32" 
 
       - uses: actions/checkout@v4
 
@@ -59,7 +61,9 @@ jobs:
 
       - name: Install cibuildwheel
         #run: python -m pip install cibuildwheel==2.10.1
-        run: python -m pip install cibuildwheel ninja numpy scipy
+        run: |
+            python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
+            python -m pip install ninja numpy scipy
 
       - name: Build wheels
         run: 
@@ -68,7 +72,7 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: cp36* pp38-manylinux* pp39* pp31* cp38-manylinux_i686 
+          #CIBW_SKIP: cp36* pp38-manylinux* pp39* pp31* cp38-manylinux_i686 
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_ENVIRONMENT_MACOS: CC=gcc-13 CXX=g++-13 FC=gfortran-13
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""

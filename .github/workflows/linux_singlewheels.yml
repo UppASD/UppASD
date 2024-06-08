@@ -1,7 +1,7 @@
 name: Build single wheels on Linux
 
-#on: [release]
-on: [release, push, pull_request]
+on: [release]
+#on: [release, push, pull_request]
 
 jobs:
   build:

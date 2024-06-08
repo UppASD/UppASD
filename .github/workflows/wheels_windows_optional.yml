@@ -2,7 +2,7 @@ name: Build wheels on Windows, optional cibuildwheel approach
 
 on:
   release:
-  push:
+  # push:
   # pull_request:
 
 concurrency:
@@ -13,6 +13,7 @@ jobs:
   build_wheels:
     name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
     defaults:
       run:
         shell: msys2 {0}

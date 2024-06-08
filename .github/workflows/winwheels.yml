@@ -1,10 +1,10 @@
 name: Build wheels on Windows, using old build algo
 
 on:
-  push:
   release:
-  #pull_request:
-  #workflow_dispatch:
+  # push:
+  # pull_request:
+  # workflow_dispatch:
 
 jobs:
 
@@ -19,6 +19,7 @@ jobs:
           - { icon: '🐉', sys: mingw64, arch: x86_64, python-version: '3.10' }
           - { icon: '🦖', sys: mingw64, arch: x86_64, python-version: '3.11' }
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
+    continue-on-error: true
     defaults:
       run:
         #shell: bash
