@@ -80,8 +80,9 @@ jobs:
       - name: Build packages ${{ matrix.icon}}
         run: |
              cd build
+             cpack --help
              cpack
-             ls
+             ls -l
              cd ..
 
       #- name: Build binaries
