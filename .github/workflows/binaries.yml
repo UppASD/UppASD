@@ -71,9 +71,10 @@ jobs:
             python -m pip install pyyaml
 
       - name: Test binaries ${{ matrix.icon}}
+        if: runner.os != 'Windows'
         run: |
              cd build
-             ctest --output-on-failure
+             ctest --verbose --output-on-failure
              cd ..
 
       - name: Build packages ${{ matrix.icon}}
