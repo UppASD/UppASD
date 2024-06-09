@@ -57,10 +57,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-        run: |
-            python -m ensurepip 
-            python -m pip install pyyaml
-
 
       - name: Build binaries ${{ matrix.icon}}
         run: |
@@ -68,6 +64,11 @@ jobs:
              cmake --build build --parallel 
              mkdir ./dist
              cp ./bin/sd.* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+      - name: Install python packages for testing
+        run: |
+            python -m ensurepip 
+            python -m pip install pyyaml
 
       - name: Test binaries ${{ matrix.icon}}
         run: |
