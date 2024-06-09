@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         #os: [ubuntu-20.04, macOS-11]
-        os: [ubuntu-latest, windows-latest, macos-13, macos-12]
+        os: [ubuntu-latest, windows-latest, macos-14]
 
     steps:
       - name: Provide fftw, ninja  (macOS)
@@ -20,6 +20,7 @@ jobs:
           # fftw3 
           brew install fftw ninja meson
           fftw-wisdom -V
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
       - name: Provide ninja  (linux)
         if: runner.os == 'Linux'
@@ -34,18 +35,35 @@ jobs:
           update: true
           path-type: inherit
           install: >-
-            git
-            make
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-lapack
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            git 
 
-          pacboy: >-
-            toolchain:p
-            gcc-fortran:p
-            blas:p
-            openblas:p
-            lapack:p
-            fftw:p
-            cmake:p
-            ninja:p
+      # - name: Provide gfortran (Windows)
+      #   if: runner.os == 'Windows'
+      #   uses: msys2/setup-msys2@v2
+      #   with:
+      #     msystem: MINGW64
+      #     update: true
+      #     path-type: inherit
+      #     install: >-
+      #       git
+      #       make
+
+      #     pacboy: >-
+      #       toolchain:p
+      #       gcc-fortran:p
+      #       blas:p
+      #       openblas:p
+      #       lapack:p
+      #       fftw:p
+      #       cmake:p
+      #       ninja:p
 
       #- name: Tell distutils to use mingw (Windows)
       #  if: runner.os == 'Windows'
@@ -72,14 +90,17 @@ jobs:
         #   CIBW_SOME_OPTION: value
         env:
           #CIBW_SKIP: cp36* pp38-manylinux* pp39* pp31* cp38-manylinux_i686 
-          CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
-          CIBW_ENVIRONMENT_MACOS: CC=gcc-13 CXX=g++-13 FC=gfortran-13
+          # CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
+          CIBW_ENVIRONMENT_WINDOWS: >
+           CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
+          CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           #FC: gfortran
           #CC: gcc
 
       - uses: actions/upload-artifact@v4
         with:
+          name: uppasd.${{matrix.os}}
           path: ./wheelhouse/*.whl
 
   build_sdist:
@@ -104,5 +125,6 @@ jobs:
       - name: Store artifacts
         uses: actions/upload-artifact@v4
         with:
+          name: uppasd_sdist
           path: dist/*.tar.gz
 
