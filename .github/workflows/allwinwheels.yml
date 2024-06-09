@@ -6,12 +6,20 @@ on: [release, push, pull_request]
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       matrix:
+        include:
+          - { os: ubuntu-latest, shell: bash, arch: x86_64 }
+          - { os: windows-latest, shell: msys2, arch: x86_64 }
+          - { os: macos-14, shell: bash, arch: arm64 }
+          - { os: macos-13, shell: bash, arch: x86_64 }
         #os: [ubuntu-20.04, macOS-11]
-        os: [ubuntu-latest, windows-latest, macos-14]
+        #os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+    continue-on-error: true
 
     steps:
       - name: Provide fftw, ninja  (macOS)
@@ -37,6 +45,7 @@ jobs:
           install: >-
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-blas
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
@@ -84,7 +93,9 @@ jobs:
 
       - name: Build wheels
         run: 
-          python -m cibuildwheel --output-dir wheelhouse
+          which gfortran
+          pipx run cibuildwheel --output-dir wheelhouse
+          # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
@@ -94,6 +105,7 @@ jobs:
           CIBW_ENVIRONMENT_WINDOWS: >
            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
           CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
+          CIBW_ARCHS_MACOS: "universal2 arm64"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           #FC: gfortran
           #CC: gcc
