@@ -65,6 +65,19 @@ jobs:
              mkdir ./dist
              cp ./bin/sd.* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
 
+      - name: Test binaries ${{ matrix.icon}}
+        run: |
+             cd build
+             ctest
+             cd ..
+
+      - name: Build packages ${{ matrix.icon}}
+        run: |
+             cd build
+             cpack
+             ls
+             cd ..
+
       #- name: Build binaries
       #  run: |
       #       FC=gfortran-13 CC=gcc-13 cmake -S . -B build 

@@ -17,8 +17,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
 
-PROJECT(uppasd
-   LANGUAGES Fortran)
+PROJECT(uppasd LANGUAGES Fortran)
 # Set the project version
 SET(VERSION 5.1.0)
 ##############################################################################################
@@ -796,7 +795,7 @@ ENDIF(WIN32)
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
@@ -804,6 +803,9 @@ else()
    INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+
 ##############################################################################################
 
 ##############################################################################################
@@ -859,3 +861,20 @@ set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
 message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
+
+
+##############################################################################################
+## ADD Cpack
+##############################################################################################
+# Include CPack
+
+# Set package properties
+set(CPACK_PACKAGE_NAME "UppASD")
+set(CPACK_PACKAGE_VERSION "1.0.1")
+set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "UppASD is a versatile and efficient atomistic spin dynamics simulator.")
+#set(CPACK_GENERATOR "STGZ;DEB;RPM")
+
+include(CPack)
