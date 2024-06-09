@@ -1,7 +1,7 @@
 name: Build binaries on Windows
 
 on:
-  push:
+  #push:
   release:
   #pull_request:
   #workflow_dispatch:
