@@ -15,7 +15,9 @@ module Chern_number
    use Profiling
    use Hamiltoniandata,    only : ham
    use InputData,   only : ham_inp
-   use Diamag,      only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
+   use Diamag ,     only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,&
+                            setup_jtens2_q,setup_jtens_q,sJs, setup_tensor_hamiltonian,&
+                            nc_eval_qchern,nc_evec_qchern
    !
    implicit none
    !
@@ -71,8 +73,6 @@ contains
       complex(dblprec), dimension(:,:), allocatable   :: u1norm,u2norm,u3norm           !< Link unit vectors
       complex(dblprec), dimension(:,:), allocatable   :: u1invnorm,u2invnorm,u3invnorm  !< Link inverse unit vectors
       complex(dblprec), dimension(:,:), allocatable   :: Berry_cuv                      !< Berry curvature
-      complex(dblprec), dimension(:,:,:), allocatable :: nc_evec_q                      !< Eigenvectors from NC-AMS
-      real(dblprec), dimension(:,:), allocatable      :: nc_eval_q                      !< Eigenvalues from NC-AMS
       real(dblprec), dimension(:,:), allocatable      :: rho                            !< Bose-Einstein Distribution
       real(dblprec), dimension(:,:), allocatable      :: c2_func                        !< Function c2
       real(dblprec), dimension(:), allocatable        :: Ch_numq                        !< Chern number for the phason bands
@@ -155,20 +155,16 @@ contains
       call memocc(i_stat,product(shape(Ch_numqminus))*kind(Ch_numqminus),'Ch_numqminus','calculate_chern_number')
       allocate(q_vchern(3,dimen),stat=i_stat)
       call memocc(i_stat,product(shape(q_vchern))*kind(q_vchern),'q_vchern','calculate_chern_number')
-      allocate(nc_evec_q(2*NA,2*NA,dimen*6),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','calculate_chern_number')
       allocate(rho(2*NA,dimen*3),stat=i_stat)
       call memocc(i_stat,product(shape(rho))*kind(rho),'rho','calculate_chern_number')
       allocate(c2_func(2*NA,dimen*3),stat=i_stat)
       call memocc(i_stat,product(shape(c2_func))*kind(c2_func),'c2_func','calculate_chern_number')
-      allocate(nc_eval_q(2*NA,dimen*3),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','calculate_chern_number')
       allocate(therm_conduc_band(2*NA),stat=i_stat)
       call memocc(i_stat,product(shape(therm_conduc_band))*kind(therm_conduc_band),'therm_conduc_band','calculate_chern_number')
       !Calculate the grid in the reciprocal space
       call setup_grid(Nx,Ny,Nz,C1,C2,C3,dimen,q_vchern)
-      !Call eigenvectors
-      call calculate_eigenvector(NA, Natom, Mensemble, simid, emomM, mmom,dimen, q_vchern, nc_evec_q,nc_eval_q)
+      !Calculate eigenvectors and eigenvalues
+      call setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom, q_vchern, dimen,1)
       !Initialize variables
       j=0
       k=0
@@ -266,42 +262,42 @@ contains
           if ( indx(iq).eq.1 .and. indy(iq).eq.1 .and. indz(iq).eq.1 ) then
             j=j+1
             do i=1,NA !band index
-                u1(i,j)=dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+1))
+                u1(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
               if (abs(u1(i,j))== 0.0_dblprec) then
                 u1norm(i,j)=0.0_dblprec
               else
                 u1norm(i,j)=u1(i,j)/abs(u1(i,j))
               end if
 
-                u2(i,j)=dot_product(nc_evec_q(1:NA,i,iq+1),nc_evec_q(1:NA,i,iq+1+kx))
+                u2(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
               if (abs(u2(i,j))== 0.0_dblprec) then
                 u2norm(i,j)=0.0_dblprec
               else
                 u2norm(i,j)=u2(i,j)/abs(u2(i,j))
               end if
 
-                u3(i,j)=dot_product(nc_evec_q(1:NA,i,iq+1+kx),nc_evec_q(1:NA,i,iq+1+kx+kz))
+                u3(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j))== 0.0_dblprec) then
                 u3norm(i,j)=0.0_dblprec
               else
                 u3norm(i,j)=u3(i,j)/abs(u3(i,j))
               end if
 
-                u1inv(i,j)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kx+kz),nc_evec_q(1:NA,i,iq+1+kx+kz))
+                u1inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j))== 0.0_dblprec) then
                 u1invnorm(i,j)=0.0_dblprec
               else
                 u1invnorm(i,j)=u1inv(i,j)/abs(u1inv(i,j))
               end if
 
-                u2inv(i,j)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kz),nc_evec_q(1:NA,i,iq+kx+kz))
+                u2inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j))== 0.0_dblprec) then
                 u2invnorm(i,j)=0.0_dblprec
               else
                 u2invnorm(i,j)=u2inv(i,j)/abs(u2inv(i,j))
               end if
 
-                u3inv(i,j)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+kz))
+                u3inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
               if (abs(u3inv(i,j))== 0.0_dblprec) then
                 u3invnorm(i,j)=0.0_dblprec
               else
@@ -313,42 +309,42 @@ contains
           if ( indx(iq).eq.2 .and. indy(iq).eq.2 .and. indz(iq).eq.2 ) then
             k=k+1
             do i=1,NA !band index
-              u1(i,j+k)=dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+1))
+              u1(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
               if (abs(u1(i,j+k))== 0.0_dblprec) then
               u1norm(i,j+k)=0.0_dblprec
               else
               u1norm(i,j+k)=u1(i,j+k)/abs(u1(i,j+k))
               end if
 
-              u2(i,j+k)=dot_product(nc_evec_q(1:NA,i,iq+1),nc_evec_q(1:NA,i,iq+1+kx))
+              u2(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
               if (abs(u2(i,j+k))== 0.0_dblprec) then
               u2norm(i,j+k)=0.0_dblprec
               else
               u2norm(i,j+k)=u2(i,j+k)/abs(u2(i,j+k))
               end if
 
-              u3(i,j+k)=dot_product(nc_evec_q(1:NA,i,iq+1+kx),nc_evec_q(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j+k))== 0.0_dblprec) then
                 u3norm(i,j+k)=0.0_dblprec
               else
                 u3norm(i,j+k)=u3(i,j+k)/abs(u3(i,j+k))
               end if
 
-              u1inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kx+kz),nc_evec_q(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j+k))== 0.0_dblprec) then
               u1invnorm(i,j+k)=0.0_dblprec
               else
               u1invnorm(i,j+k)=u1inv(i,j+k)/abs(u1inv(i,j+k))
               end if
 
-              u2inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kz),nc_evec_q(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j+k))== 0.0_dblprec) then
               u2invnorm(i,j+k)=0.0_dblprec
               else
               u2invnorm(i,j+k)=u2inv(i,j+k)/abs(u2inv(i,j+k))
               end if
 
-              u3inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+kz))
+              u3inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
               if (abs(u3inv(i,j+k))== 0.0_dblprec) then
                 u3invnorm(i,j+k)=0.0_dblprec
               else
@@ -360,42 +356,42 @@ contains
           if ( indx(iq).eq.3 .and. indy(iq).eq.3 .and. indz(iq).eq.3 ) then
             l=l+1
             do i=1,NA !band index
-              u1(i,j+k+l)=dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+1))
+              u1(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
               if (abs(u1(i,j+k+l))== 0.0_dblprec) then
               u1norm(i,j+k+l)=0.0_dblprec
               else
               u1norm(i,j+k+l)=u1(i,j+k+l)/abs(u1(i,j+k+l))
               end if
 
-              u2(i,j+k+l)=dot_product(nc_evec_q(1:NA,i,iq+1),nc_evec_q(1:NA,i,iq+1+kx))
+              u2(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
               if (abs(u2(i,j+k+l))== 0.0_dblprec) then
               u2norm(i,j+k+l)=0.0_dblprec
               else
               u2norm(i,j+k+l)=u2(i,j+k+l)/abs(u2(i,j+k+l))
               end if
 
-              u3(i,j+k+l)=dot_product(nc_evec_q(1:NA,i,iq+1+kx),nc_evec_q(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j+k+l))== 0.0_dblprec) then
                 u3norm(i,j+k+l)=0.0_dblprec
               else
                 u3norm(i,j+k+l)=u3(i,j+k+l)/abs(u3(i,j+k+l))
               end if
 
-              u1inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kx+kz),nc_evec_q(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j+k+l))== 0.0_dblprec) then
               u1invnorm(i,j+k+l)=0.0_dblprec
               else
               u1invnorm(i,j+k+l)=u1inv(i,j+k+l)/abs(u1inv(i,j+k+l))
               end if
 
-              u2inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq+kz),nc_evec_q(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j+k+l))== 0.0_dblprec) then
               u2invnorm(i,j+k+l)=0.0_dblprec
               else
               u2invnorm(i,j+k+l)=u2inv(i,j+k+l)/abs(u2inv(i,j+k+l))
               end if
 
-              u3inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_q(1:NA,i,iq),nc_evec_q(1:NA,i,iq+kz))
+              u3inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
               if (abs(u3inv(i,j+k+l))== 0.0_dblprec) then
                 u3invnorm(i,j+k+l)=0.0_dblprec
               else
@@ -413,7 +409,7 @@ contains
 
       ! Calculate the thermal magnon conductivity Kxy in units W/K
       ! Definiton of the Bose-Einstein distribution
-       rho=1/(exp(nc_eval_q/(k_bolt_ev*Temp))-1)
+       rho=1/(exp(nc_eval_qchern/(k_bolt_ev*Temp))-1)
       ! Definition of the c2 function
        do i=1,2*NA
          do j=1,3*dimen
@@ -524,16 +520,16 @@ contains
       call memocc(i_stat,product(shape(Ch_numqminus))*kind(Ch_numqminus),'Ch_numqminus','calculate_chern_number')
       deallocate(q_vchern,stat=i_stat)
       call memocc(i_stat,product(shape(q_vchern))*kind(q_vchern),'q_vchern','calculate_chern_number')
-      deallocate(nc_evec_q,stat=i_stat)
-      call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','calculate_chern_number')
       deallocate(rho,stat=i_stat)
       call memocc(i_stat,product(shape(rho))*kind(rho),'rho','calculate_chern_number')
       deallocate(c2_func,stat=i_stat)
       call memocc(i_stat,product(shape(c2_func))*kind(c2_func),'c2_func','calculate_chern_number')
-      deallocate(nc_eval_q,stat=i_stat)
-      call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','calculate_chern_number')
       deallocate(therm_conduc_band,stat=i_stat)
       call memocc(i_stat,product(shape(therm_conduc_band))*kind(therm_conduc_band),'therm_conduc_band','calculate_chern_number')
+      deallocate(nc_eval_qchern,stat=i_stat)
+      call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','calculate_chern_number')
+      deallocate(nc_evec_qchern,stat=i_stat)
+      call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','calculate_chern_number')
       !
       print '(1x,a)', 'Chern calculation done.'
    !
@@ -681,206 +677,6 @@ contains
 
    return
    end subroutine read_parameters_chern_number
-
-   subroutine calculate_eigenvector(NA, Natom, Mensemble, simid, emomM, mmom,dimen, q_vchern,nc_evec_q,nc_eval_q)
-
-      use Constants
-      !
-      implicit none
-      !
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      integer, intent(in) :: Natom     !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles
-      character(len=8), intent(in) :: simid !< Name of simulation
-      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment magnitude
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
-      integer, intent(in) :: dimen                                        !< Number of q-vectors
-      real(dblprec), dimension(3,dimen), intent(in) :: q_vchern   !< q-vectors
-      complex(dblprec), dimension(2*NA,2*NA,dimen*6), intent(out) :: nc_evec_q   !< Eigenvectors from NC-AMS
-      real(dblprec), dimension(2*NA,dimen*3), intent(out) :: nc_eval_q   !< Eigenvalues from NC-AMS
-      !
-      real(dblprec), dimension(:,:), allocatable :: magham !< M(w)
-      complex(dblprec), dimension(:,:), allocatable :: A_k
-      complex(dblprec), dimension(:,:), allocatable :: A_km
-      complex(dblprec), dimension(:,:), allocatable :: B_k
-      complex(dblprec), dimension(:,:), allocatable :: C_k
-      complex(dblprec), dimension(:,:), allocatable :: h_k
-      complex(dblprec), dimension(:,:,:,:,:), allocatable :: S_prime
-      complex(dblprec), dimension(:,:,:), allocatable :: ektij
-      real(dblprec), dimension(3) :: z
-      !
-      integer :: i_stat, ia, ja, hdim, iq, nq_ext
-      integer :: alfa, beta, i_all
-      complex(dblprec), dimension(3) :: ui, vi, uj, vj
-      complex(dblprec) :: im
-      complex(dblprec), dimension(NA,NA) :: dot_mat
-      !
-      complex(dblprec), dimension(:,:), allocatable :: eig_vec
-      real(dblprec), dimension(:), allocatable :: eig_val
-      complex(dblprec), dimension(:,:,:,:,:), allocatable ::   jtens_q  !< FT of Exchange tensor
-      real(dblprec), dimension(:,:), allocatable :: q_ext
-      real(dblprec), dimension(3)    :: diamag_qvect=0.0_dblprec !< Spin spiral ordering vector
-      !
-      real(dblprec) :: msat,tcmfa,tcrpa
-      !
-      !
-      ! Hamiltonian dimension = 4x number of atoms
-      hdim=2*NA
-      ! Extended q-mesh to capture -q and phasons
-      nq_ext=dimen*6
-      allocate(magham(hdim,hdim),stat=i_stat)
-      call memocc(i_stat,product(shape(magham))*kind(magham),'magham','calculate_eigenvector')
-      magham=0.0_dblprec
-      allocate(q_ext(3,0:nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(q_ext))*kind(q_ext),'q_ext','calculate_eigenvector')
-      allocate(jtens_q(3,3,NA,NA,0:nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(jtens_q))*kind(jtens_q),'jtens_q','calculate_eigenvector')
-      !
-      !
-      allocate(ektij(NA,NA,0:nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(ektij))*kind(ektij),'ektij','calculate_eigenvector')
-      allocate(S_prime(hdim,hdim,3,3,nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(S_prime))*kind(S_prime),'S_prime','calculate_eigenvector')
-      S_prime=0.0_dblprec
-      !
-      allocate(A_k(NA,NA),stat=i_stat)
-      call memocc(i_stat,product(shape(A_k))*kind(A_k),'A_k','calculate_eigenvector')
-      allocate(A_km(NA,NA),stat=i_stat)
-      call memocc(i_stat,product(shape(A_km))*kind(A_km),'A_km','calculate_eigenvector')
-      allocate(B_k(NA,NA),stat=i_stat)
-      call memocc(i_stat,product(shape(B_k))*kind(B_k),'B_k','calculate_eigenvector')
-      allocate(C_k(NA,NA),stat=i_stat)
-      call memocc(i_stat,product(shape(C_k))*kind(C_k),'C_k','calculate_eigenvector')
-      !
-      allocate(h_k(hdim,hdim),stat=i_stat)
-      call memocc(i_stat,product(shape(h_k))*kind(h_k),'h_k','calculate_eigenvector')
-      !
-      allocate(eig_vec(hdim,hdim),stat=i_stat)
-      call memocc(i_stat,product(shape(eig_vec))*kind(eig_vec),'eig_vec','calculate_eigenvector')
-      allocate(eig_val(hdim),stat=i_stat)
-      call memocc(i_stat,product(shape(eig_val))*kind(eig_val),'eig_val','calculate_eigenvector')
-
-      im=(0.0_dblprec,1.0_dblprec)
-
-      call clone_q(dimen,q_vchern,nq_ext,q_ext,Chern_qvect)
-
-      z(1)=0.0_dblprec;z(2)=0.0_dblprec;z(3)=1.0_dblprec
-
-      ! Create J(q) tensort
-      if (ham_inp%do_jtensor==1) then
-         call setup_Jtens2_q(Natom,Mensemble,NA,emomM,q_ext,nq_ext,Jtens_q)
-      else
-         call setup_Jtens_q(Natom,Mensemble,NA,emomM,q_ext,nq_ext,Jtens_q)
-      end if
-      ! Create array of exp(i*k*(ri-rj))
-      call setup_ektij(Natom,NA,q_ext,nq_ext,ektij)
-
-      !Toth and Lake loop over k-vectors
-      do iq=1,3*dimen
-         ! Sub-matrices A(k),B(k),C
-         A_k=0.0_dblprec;A_km=0.0_dblprec;B_k=0.0_dblprec;C_k=0.0_dblprec;dot_mat=0.0_dblprec
-         do ia=1,NA
-            !call find_uv(ui,vi,z)
-            call find_uv(ui,vi,emomM(:,ia,1))
-            do ja=1,NA
-               call find_uv(uj,vj,emomM(:,ja,1))
-               ! iq+3*nq -> negative q
-               A_k(ia,ja) =A_k(ia,ja) +0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq+3*dimen),conjg(uj))
-               A_km(ia,ja)=A_km(ia,ja)+0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq),conjg(uj))
-               B_k(ia,ja) =B_k(ia,ja) +0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq+3*dimen),uj)
-               C_k(ia,ia) =C_k(ia,ia) +1.0_dblprec*mmom(ja,1)*sJs(vi,Jtens_q(:,:,ia,ja,0),vj)
-
-               ! Also mount S' for later correlation function use
-               do alfa=1,3
-                  do beta=1,3
-                     ! Y(alfa,beta,k)
-                     S_prime(ia,ja,alfa,beta,iq)= &
-                        sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*ui(alfa)*conjg(uj(beta))*ektij(ia,ja,iq)
-                     ! Z(alfa,beta,k)
-                     S_prime(ia,ja+NA,alfa,beta,iq)= &
-                        sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*ui(alfa)*uj(beta)*ektij(ia,ja,iq)
-                     ! V(alfa,beta,k)
-                     S_prime(ia+NA,ja,alfa,beta,iq)= &
-                        sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*conjg(ui(alfa))*conjg(uj(beta))*ektij(ia,ja,iq)
-                     ! W(alfa,beta,k)
-                     S_prime(ia+NA,ja+NA,alfa,beta,iq)= &
-                        sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*conjg(ui(alfa))*uj(beta)*ektij(ia,ja,iq)
-                  end do
-               end do
-            end do
-         end do
-
-         ! Hamiltonian h = [A(k)-C B(k) ; B'(k) A(-k)+C ]
-         h_k=0.0_dblprec
-         do ia=1,NA
-            do ja=1,NA
-               ! Diagonal as-is
-               h_k(ia,ja)=A_k(ia,ja)-C_k(ia,ja)
-               ! Off-diagonal Transpose and conjugate
-               h_k(ia+NA,ja)=conjg(B_k(ja,ia))
-               !!!h_k(ia+NA,ja)=B_k(ia,ja)
-               ! Off-diagonal as-is
-               h_k(ia,ja+NA)=B_k(ia,ja)
-               !!!h_k(ia,ja+NA)=conjg(B_k(ja,ia))
-               ! Diagonal transpose
-               h_k(ia+NA,ja+NA)=(A_km(ja,ia))-C_k(ia,ja)
-               ! Diagonal Conjugate
-               !h_k(ia+NA,ja+NA)=conjg(A_km(ia,ja))-C_k(ia,ja)
-            end do
-            ! Add diagonal epsilon to ensure positive definiteness
-            !h_k(ia,ia)=h_k(ia,ia)+1.0d-5
-         end do
-
-         ! Diagonalize Hamiltonian
-         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
-
-         ! Store eigenvectors
-         nc_evec_q(:,:,iq)=eig_vec
-         ! Store eigenvalues in eV
-         nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec*1.0d-3
-
-      end do
-
-      i_all=-product(shape(magham))*kind(magham)
-      deallocate(magham,stat=i_stat)
-      call memocc(i_stat,i_all,'magham','calculate_eigenvector')
-      i_all=-product(shape(q_ext))*kind(q_ext)
-      deallocate(q_ext,stat=i_stat)
-      call memocc(i_stat,i_all,'q_ext','calculate_eigenvector')
-      i_all=-product(shape(jtens_q))*kind(jtens_q)
-      deallocate(jtens_q,stat=i_stat)
-      call memocc(i_stat,i_all,'jtens_q','calculate_eigenvector')
-      i_all=-product(shape(ektij))*kind(ektij)
-      deallocate(ektij,stat=i_stat)
-      call memocc(i_stat,i_all,'ektij','calculate_eigenvector')
-      i_all=-product(shape(S_prime))*kind(S_prime)
-      deallocate(S_prime,stat=i_stat)
-      call memocc(i_stat,i_all,'S_prime','calculate_eigenvector')
-      i_all=-product(shape(A_k))*kind(A_k)
-      deallocate(A_k,stat=i_stat)
-      call memocc(i_stat,i_all,'A_k','calculate_eigenvector')
-      i_all=-product(shape(A_km))*kind(A_km)
-      deallocate(A_km,stat=i_stat)
-      call memocc(i_stat,i_all,'A_km','calculate_eigenvector')
-      i_all=-product(shape(B_k))*kind(B_k)
-      deallocate(B_k,stat=i_stat)
-      call memocc(i_stat,i_all,'B_k','calculate_eigenvector')
-      i_all=-product(shape(C_k))*kind(C_k)
-      deallocate(C_k,stat=i_stat)
-      call memocc(i_stat,i_all,'C_k','calculate_eigenvector')
-      i_all=-product(shape(h_k))*kind(h_k)
-      deallocate(h_k,stat=i_stat)
-      call memocc(i_stat,i_all,'h_k','calculate_eigenvector')
-      i_all=-product(shape(eig_vec))*kind(eig_vec)
-      deallocate(eig_vec,stat=i_stat)
-      call memocc(i_stat,i_all,'eig_vec','calculate_eigenvector')
-      i_all=-product(shape(eig_val))*kind(eig_val)
-      deallocate(eig_val,stat=i_stat)
-      call memocc(i_stat,i_all,'eig_val','calculate_eigenvector')
-
-      return
-      !
-   end subroutine calculate_eigenvector
 
 ! Dilogaritmic real function
 
