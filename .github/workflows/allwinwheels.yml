@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        shell: ${{ matrix.shell }} {0pyproject.toml}
+        shell: ${{ matrix.shell }} {0}
     continue-on-error: true
 
     steps:
