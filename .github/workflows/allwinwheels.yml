@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        shell: ${{ matrix.shell }} {0}
+        shell: ${{ matrix.shell }} {0pyproject.toml}
     continue-on-error: true
 
     steps:
@@ -92,10 +92,10 @@ jobs:
             python -m pip install ninja numpy scipy
 
       - name: Build wheels
-        run: 
+        run: |
           which gfortran
           pipx run cibuildwheel --output-dir wheelhouse
-          # python -m cibuildwheel --output-dir wheelhouse
+        # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
@@ -105,8 +105,8 @@ jobs:
           CIBW_ENVIRONMENT_WINDOWS: >
            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
           CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
-          CIBW_ARCHS_MACOS: "universal2 arm64"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          #CIBW_ARCHS_MACOS: "universal2 arm64"
           #FC: gfortran
           #CC: gcc
 
