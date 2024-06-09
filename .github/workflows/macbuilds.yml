@@ -1,6 +1,7 @@
 name: Build binaries for MacOS
 
-on: [push, pull_request]
+on: [release]
+#on: [relase, push, pull_request]
 
 jobs:
   build_wheels:
