@@ -1,7 +1,7 @@
 name: Build wheels on windows using cibuildwheel
 
-#on: [release]
-on: [release , push, pull_request]
+on: [release]
+#on: [release , push, pull_request]
 
 jobs:
   build_wheels:
@@ -41,43 +41,30 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build and test wheels
-        uses: pypa/cibuildwheel@v2.18.1
-        with:
-          output-dir: wheelhouse
-          # to supply options, put them in 'env', like:
+      - name: Install cibuildwheel
+        run: |
+          python -m ensurepip 
+          python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
+          #python -m pip install cibuildwheel==2.10.1
+
+      - name: Build wheels
+        run: |
+          which gfortran
+          pipx run cibuildwheel --output-dir wheelhouse
+        # python -m cibuildwheel --output-dir wheelhouse
+        # to supply options, put them in 'env', like:
+        # env:
+        #   CIBW_SOME_OPTION: value
         env:
+          #CIBW_SKIP: pp38-manylinux*
+          #CIBW_SKIP: pp39* pp31*
+          #CIBW_ENVIRONMENT_WINDOWS: >
+          #  PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
           CIBW_ENVIRONMENT_WINDOWS: >
-            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
-          CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
+           CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
+          #CMAKE_PREFIX_PATH="C:\\\\msys64\\mingw64" CC=gcc CXX=g++ FC=gfortran 
+          #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
-          FC: gfortran-12
-          CC: gcc-12
-
-      #- name: Install cibuildwheel
-      #  run: |
-      #    python -m ensurepip 
-      #    python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
-      #    #python -m pip install cibuildwheel==2.10.1
-
-      #- name: Build wheels
-      #  run: |
-      #    which gfortran
-      #    pipx run cibuildwheel --output-dir wheelhouse
-      #  # python -m cibuildwheel --output-dir wheelhouse
-      #  # to supply options, put them in 'env', like:
-      #  # env:
-      #  #   CIBW_SOME_OPTION: value
-      #  env:
-      #    #CIBW_SKIP: pp38-manylinux*
-      #    #CIBW_SKIP: pp39* pp31*
-      #    #CIBW_ENVIRONMENT_WINDOWS: >
-      #    #  PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
-      #    CIBW_ENVIRONMENT_WINDOWS: >
-      #     CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
-      #    #CMAKE_PREFIX_PATH="C:\\\\msys64\\mingw64" CC=gcc CXX=g++ FC=gfortran 
-      #    #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
-      #    CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
       - uses: actions/upload-artifact@v4
         with:
