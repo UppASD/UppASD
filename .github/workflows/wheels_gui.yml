@@ -26,10 +26,22 @@ jobs:
           python -m build . --wheel
           cd ..
 
+      - name: Build the Qt5 wheel
+        run: |
+          cd ASD_GUI
+          ./downgrade_me.sh
+          python -m build . --wheel --outdir dist_qt5
+          cd ..
+
       - uses: actions/upload-artifact@v4
         with:
-          name: asdgui.${{matrix.os}}
+          name: asdgui_wheel
           path: ASD_GUI/dist/*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asdgui_qt5_wheel
+          path: ASD_GUI/dist_qt5/*.whl
 
   build_sdist:
     name: Build source distribution
