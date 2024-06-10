@@ -8,7 +8,7 @@ for i in setup.py bin/asd_gui `find . -name "*.py"` ;
 do 
    sed -i  "s/Qt6/Qt5/g" $i 
 done
-sed -i "s/asd_gui/asd_gui_qt5/g" setup.py
+sed -i "0,/asd_gui/s/asd_gui/asd_gui_qt5/" setup.py
 echo '-----------------------------------------------'
 
 echo 'Downgrade complete.'
@@ -22,5 +22,5 @@ echo '> pip install numpy matplotlib pyyaml pandas pyqt5 vtk'
 echo '> pip install . ' 
 echo '-----------------------------------------------'
 echo 'If successful, you can then invoke the GUI with' 
-echo '> asd_gui_qt5'
+echo '> asd_gui'
 echo 'If not, please consider reporting this at https://github.com/UppASD/UppASD/issues'
