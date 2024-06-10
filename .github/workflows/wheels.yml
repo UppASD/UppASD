@@ -94,6 +94,7 @@ jobs:
           FC: gfortran-12
           CC: gcc-12
           MACOSX_DEPLOYMENT_TARGET: 12
+          CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
         with:
