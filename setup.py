@@ -66,7 +66,7 @@ class CmakeBuildExt(build_ext):
                 # Hint CMake to use the same Python executable that
                 # is launching the build, prevents possible mismatching if
                 # multiple versions of Python are installed
-                # f"-DPython3_ROOT_DIR={sys.exec_prefix}",
+                f"-DPython3_ROOT_DIR={sys.exec_prefix}",
                 "-DPython3_FIND_STRATEGY=LOCATION",
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
