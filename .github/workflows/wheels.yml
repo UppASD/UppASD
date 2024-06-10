@@ -93,7 +93,7 @@ jobs:
           # CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           FC: gfortran-12
           CC: gcc-12
-          MACOSX_DEPLOYMENT_TARGET: 12
+          MACOSX_DEPLOYMENT_TARGET: $(sw_vers -productVersion)
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
