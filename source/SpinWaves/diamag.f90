@@ -68,9 +68,6 @@ contains
 
       use Constants
       use AMS, only : magdos_calc, printEnergies
-      use Qvectors,        only : q,nq
-      !use math_functions, only : f_cross_product
-      !use Correlation,        only : q,nq
       !
       implicit none
       !
