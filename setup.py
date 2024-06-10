@@ -50,6 +50,7 @@ class cmake_build_ext(build_ext):
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
                 "-GNinja",
+                "-DCMAKE_OSX_DEPLOYMENT_TARGET=12",
                 # '-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
                 # '-DPYTHON_LIBRARY={}'.format(python_lib_dir),
                 # '-DMKL_INTERFACE_FULL=gf_lp64',
