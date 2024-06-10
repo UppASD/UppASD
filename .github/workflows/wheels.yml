@@ -89,10 +89,10 @@ jobs:
           #CIBW_ENVIRONMENT_WINDOWS: >
           #  CMAKE_PREFIX_PATH="C:\\\\msys64\\mingw64" CC=gcc CXX=g++ FC=gfortran 
           #  CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
-          CIBW_ENVIRONMENT_MACOS: CC=gcc-13 CXX=g++-13 FC=gfortran-13
+          CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
           # CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
-          FC: gfortran-13
-          CC: gcc-13
+          FC: gfortran-12
+          CC: gcc-12
           MACOSX_DEPLOYMENT_TARGET: 12
 
       - uses: actions/upload-artifact@v4
