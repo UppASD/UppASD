@@ -79,6 +79,10 @@ jobs:
           CIBW_ENVIRONMENT_WINDOWS: >
            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
 
+      - name: Set MACOSX_DEPLOYMENT_TARGET
+        if: runner.os == 'macOS'
+        run: echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion)" >> $GITHUB_ENV
+   
       - name: Build wheels on Linux and macOS ${{ matrix.icon}}
         uses: pypa/cibuildwheel@v2.18.1
         if: runner.os != 'Windows'
@@ -93,7 +97,6 @@ jobs:
           # CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           FC: gfortran-12
           CC: gcc-12
-          MACOSX_DEPLOYMENT_TARGET: $(sw_vers -productVersion)
           CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
