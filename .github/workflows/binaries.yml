@@ -97,6 +97,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
              cd build
+             cat CPackConfig.cmake
              cpack -G NSIS64
              ls -l
              cd ..
@@ -124,21 +125,21 @@ jobs:
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
-          path: ./build/UppaSD*.deb
+          path: ./build/UppASD*.deb
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
-          path: ./build/UppaSD*.rpm
+          path: ./build/UppASD*.rpm
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.exe
-          path: ./build/UppaSD*.exe
+          path: ./build/UppASD*.exe
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
