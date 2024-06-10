@@ -93,7 +93,7 @@ jobs:
              ls -l
              cd ..
 
-      - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
+      - name: Build installation packages on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
         run: |
              cd build
@@ -113,13 +113,42 @@ jobs:
       #       cp ./bin/sd.* ./dist/uppasd.${{matrix.os}}.${{matrix.arch}}
       #       echo "Binary:" uppasd.${{matrix.os}}.${{matrix.arch}}
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload self-extracting package
+        uses: actions/upload-artifact@v4
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}
+          path: ./build/UppaSD*.sh
+
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
+          path: ./build/UppaSD*.deb
+
+      - name: Upload .rpm package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
+          path: ./build/UppaSD*.rpm
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.exe
+          path: ./build/UppaSD*.exe
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
         with:
           name: uppasd.${{runner.os}}.${{matrix.arch}}
           path: ./dist/uppasd*
 
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
         with:
           name: ctest_log.${{runner.os}}.${{matrix.arch}}
           path: ./build/Testing/Temporary/LastTest.log
