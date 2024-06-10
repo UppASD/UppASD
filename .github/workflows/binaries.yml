@@ -77,11 +77,27 @@ jobs:
              ctest --verbose --output-on-failure
              cd ..
 
-      - name: Build packages ${{ matrix.icon}}
+      - name: Build self-extracting package ${{ matrix.icon}}
         run: |
              cd build
-             cpack --help
-             cpack
+             cpack -G STGZ
+             ls -l
+             cd ..
+
+      - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
+        if: runner.os == 'Linux'
+        run: |
+             cd build
+             cpack -G DEB
+             cpack -G RPM
+             ls -l
+             cd ..
+
+      - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        run: |
+             cd build
+             cpack -G NSIS64
              ls -l
              cd ..
 
