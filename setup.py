@@ -1,49 +1,20 @@
-"""
-Setup script for the UppASD Python wrapper.
-"""
 import os
-import subprocess
+import sys
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+import sysconfig
 
 
 class CMakeExtension(Extension):
-    """
-    A custom extension class for CMake-based extensions.
-
-    This class extends the `Extension` class and provides additional functionality
-    for CMake-based extensions. It allows specifying the CMakeLists.txt directory
-    and provides an abstraction for building CMake-based extensions.
-
-    Args:
-        name (str): The name of the extension.
-        cmake_lists_dir (str, optional): The directory containing the CMakeLists.txt file.
-            Defaults to the current directory.
-        **kwa: Additional keyword arguments to be passed to the `Extension` class.
-
-    Attributes:
-        cmake_lists_dir (str): The absolute path to the CMakeLists.txt directory.
-
-    """
-
+    # def __init__(self, name, cmake_lists_dir='../', **kwa):
     def __init__(self, name, cmake_lists_dir=".", **kwa):
         Extension.__init__(self, name, sources=[], **kwa)
         self.cmake_lists_dir = os.path.abspath(cmake_lists_dir)
 
 
-class CmakeBuildExt(build_ext):
-    """
-    Custom build_ext class for building CMake extensions.
-
-    This class extends the build_ext class from setuptools to provide
-    custom build behavior for CMake extensions. It ensures that CMake
-    is present and working, and then builds the extensions using CMake.
-
-    Attributes:
-        build_temp (str): The directory where the build files will be placed.
-    """
-
+class cmake_build_ext(build_ext):
     def build_extensions(self):
+        import subprocess
 
         # Ensure that CMake is present and working
         try:
@@ -58,19 +29,33 @@ class CmakeBuildExt(build_ext):
                 if os.environ.get("DISPTOOLS_DEBUG", "OFF") == "ON"
                 else "Release"
             )
+            python_inc_dir = sysconfig.get_path("include")
+            python_lib_dir = sysconfig.get_config_var("LIBDIR")
+
             cmake_args = [
-                f"-DCMAKE_BUILD_TYPE={cfg}",
+                "-DCMAKE_BUILD_TYPE=%s" % cfg,
                 # Ask CMake to place the resulting library in the directory
                 # containing the extension
-                f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}",
+                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}".format(cfg.upper(), extdir),
+                # Other intermediate static libraries are placed in a
+                # temporary build directory instead
+                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), extdir),
+                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), self.build_temp),
                 # Hint CMake to use the same Python executable that
                 # is launching the build, prevents possible mismatching if
                 # multiple versions of Python are installed
-                f"-DPython3_ROOT_DIR={sys.exec_prefix}",
+                "-DPython3_ROOT_DIR={}".format(sys.exec_prefix),
                 "-DPython3_FIND_STRATEGY=LOCATION",
+                # '-DCMAKE_Fortran_COMPILER=gfortran',
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
                 "-GNinja",
+                # '-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
+                # '-DPYTHON_LIBRARY={}'.format(python_lib_dir),
+                # '-DMKL_INTERFACE_FULL=gf_lp64',
+                # '-DMKL_THREADING=gnu_thread',
+                # '-DLAPACK="-framework Accelerate"',
+                # '-DBLAS="-framework Accelerate"',
             ]
 
             if not os.path.exists(self.build_temp):
@@ -87,19 +72,20 @@ class CmakeBuildExt(build_ext):
                 cwd=self.build_temp,
             )
 
+
 setup(
-    # name = 'uppasd',
-    # version = '1.0.1',
-    # description = 'An UppASD Python wrapper',
-    # url = 'https://github.com/UppASD/UppASD',
-    # author = 'UppASD group',
-    # author_email = 'uppasd@physics.uu.se',
-    # license = 'GPLv2',
-    cmdclass={"build_ext": CmakeBuildExt},
-    # include_package_data = True,
-    # packages=['uppasd'],
-    # package_dir={'uppasd': 'uppasd'},
+    name="uppasd",
+    version="1.0.1",
+    description="An UppASD Python wrapper",
+    url="https://github.com/UppASD/UppASD",
+    author="UppASD group",
+    author_email="uppasd@physics.uu.se",
+    license="GPLv2",
+    cmdclass={"build_ext": cmake_build_ext},
+    include_package_data=True,
+    packages=["uppasd"],
+    package_dir={"uppasd": "uppasd"},
     ext_modules=[CMakeExtension(name="_uppasd")],
-    # scripts=['scripts/uppasd','scripts/uppasd_interactive'],
-    # install_requires=['numpy>1.19']
+    scripts=["scripts/uppasd", "scripts/uppasd_interactive"],
+    install_requires=["numpy>1.19"],
 )

@@ -1,38 +1,29 @@
-[project]
-name = "uppasd"
-version = "1.0.1"
-description = "An UppASD Python wrapper"
-readme = "README.md"
-authors = [
-    { name = "UppASD group", email = "uppasd@physics.uu.se" }
-]
-urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
-license = { text = "GPLv2" }
-dependencies = [
-    "python>=3.6",
-    "numpy>1.19"
-]
+[build-system]
+requires = [
+    "setuptools",
+    "wheel",
+    "numpy>1.19",
+   "ninja"]
 
-
-[project.scripts]
-uppasd = "scripts.uppasd:main"
-uppasd_interactive = "scripts.uppasd_interactive"
-
-[tool.setuptools.packages.find]
-where = ["uppasd"]
-include = ["uppasd"]
-
-#[tool.setuptools.cmdclass]
-#build_ext = "setup_custom.cmake_build_ext"
-#
-#[project.ext_modules]
-#_uppasd = { package = "setup_custom", path = "uppasd" }
+build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-before-build = "python -m pip install --upgrade numpy>1.19 ninja"
-skip = ["*-musllinux*", "pp*", "cp36-*", "cp37-*", "*-win32"]
+# Install something required for the build
+# (you might want to use build-system.requires instead)
+before-build ='python -m pip install --upgrade numpy>1.19 ninja'
+#before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
+#repair-wheel-command = ""
+#
+skip = ["*-musllinux*", "pp*","cp36-*", "cp37-*", "*-win32"]
+#skip = ["*-musllinux*", "pp*","cp36-*", "cp37-*", "*-macosx_x86_64", "*-win32"]
+#skip = ["*-musllinux.*", "pp*-macosx-*","cp36-*","pp37-*", "cp37-*", "*-macosx_x86_64", "*-win32"]]
+#
 manylinux-x86_64-image = "manylinux_2_28"
+#manylinux-aarch64-image = "manylinux_2_28"
+#manylinux-ppc64le-image = "manylinux_2_28"
+#manylinux-s390x-image = "manylinux_2_28"
 
 [tool.cibuildwheel.linux]
-before-all = "yum clean packages; yum install -y openblas-static blas-devel lapack-static fftw-static --nogpgcheck || yum install -y blas-devel lapack-devel blas-static lapack-static fftw-devel fftw-static atlas-devel atlas-static --nogpgcheck"
-
+#test-requires = ["pip","setuptools", "wheel", "numpy", "f90wrap","build"]
+#before-all = "yum install -y openblas-static blas-devel lapack-static fftw-static  || yum install -y  blas-devel lapack-static fftw-static openblas-static atlas-devel  || yum install -y  openblas-static lapack-static fftw-static  || apk add --upgrade py3-pip blas-dev lapack-dev fftw-dev openblas-static  || apt-get install -y openblas-static lapack-static fftw-static "
+before-all = "yum clean packages; yum install -y openblas-static blas-devel lapack-static fftw-static --nogpgcheck || yum install -y blas-devel lapack-devel blas-static lapack-static fftw-devel fftw-static atlas-devel atlas-static --nogpgcheck" 
