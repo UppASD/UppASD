@@ -118,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}
-          path: ./build/UppaSD*.sh
+          path: ./build/UppASD*.sh
 
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
@@ -138,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
-          name: UppASD.${{runner.os}}.${{matrix.arch}}.exe
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
           path: ./build/UppASD*.exe
 
       - name: Upload binaries
@@ -149,6 +149,7 @@ jobs:
 
 
       - name: Upload test logs
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ctest_log.${{runner.os}}.${{matrix.arch}}
