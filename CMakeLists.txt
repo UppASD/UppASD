@@ -880,4 +880,19 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "UppASD is a package for atomistic spin dy
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/UppASD/UppASD")
 #set(CPACK_GENERATOR "STGZ;DEB;RPM")
 
+if(WIN32)
+   include(InstallRequiredSystemLibraries)
+
+    # Include NSIS for creating Windows installers
+    # set(CPACK_GENERATOR "NSIS64")
+
+    # Include the custom NSIS script
+    set(CPACK_NSIS_INCLUDE "cmake/CustomInstallNSIS.nsh")
+
+    # Additional NSIS settings if needed
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "Call AddToPath")
+endif()
+
 include(CPack)
