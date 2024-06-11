@@ -26,7 +26,6 @@ jobs:
           # fftw3 
           brew install fftw ninja meson
           fftw-wisdom -V
-          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
       - name: Provide ninja on Linux ${{ matrix.icon}}
         if: runner.os == 'Linux'
@@ -79,9 +78,11 @@ jobs:
           CIBW_ENVIRONMENT_WINDOWS: >
            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
 
-      - name: Set MACOSX_DEPLOYMENT_TARGET
+      - name: Set macOS environment target ${{ matrix.icon}}
         if: runner.os == 'macOS'
-        run: echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion)" >> $GITHUB_ENV
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion)" >> $GITHUB_ENV
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
    
       - name: Build wheels on Linux and macOS ${{ matrix.icon}}
         uses: pypa/cibuildwheel@v2.18.1
@@ -97,7 +98,7 @@ jobs:
           # CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           FC: gfortran-12
           CC: gcc-12
-          CIBW_BUILD_VERBOSITY: 3
+          # CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
         with:
