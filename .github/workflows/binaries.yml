@@ -143,12 +143,19 @@ jobs:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
           path: ./build/UppASD*.rpm
 
-      - name: Upload Windows installer
+      - name: Upload Windows NSIS installer
         uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
           path: ./build/UppASD*.exe
+
+      - name: Upload Windows WIX installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+          path: ./build/UppASD*.msi
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
