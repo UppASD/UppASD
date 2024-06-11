@@ -20,12 +20,9 @@ license = { text = "GPLv2" }
 dependencies = [
     "numpy>1.19"
 ]
-#include = true
 
 [project.scripts]
-#uppasd = "scripts.uppasd:main"
 uppasd = "uppasd.pyasd:runuppasd"
-#uppasd_interactive = "scripts.uppasd_interactive:main"
 uppasd_interactive = "uppasd.interactive:main"
 
 [tool.setuptools.package-dir]
