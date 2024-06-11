@@ -1,11 +1,43 @@
 [build-system]
 requires = [
     "setuptools",
+   "setuptools-git-versioning",
     "wheel",
     "numpy>1.19",
    "ninja"]
-
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "uppasd"
+dynamic = ["version"]
+description = "UppASD: Atomistic Spin Dynamics and Monte Carlo simulations"
+readme = "README.md"
+authors = [
+    { name = "UppASD group", email = "uppasd@physics.uu.se" }
+]
+urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
+license = { text = "GPLv2" }
+dependencies = [
+    "numpy>1.19"
+]
+#include = true
+
+[project.scripts]
+#uppasd = "scripts.uppasd:main"
+uppasd = "uppasd.pyasd:runuppasd"
+#uppasd_interactive = "scripts.uppasd_interactive:main"
+uppasd_interactive = "uppasd.interactive:main"
+
+[tool.setuptools.package-dir]
+uppasd = "uppasd"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["uppasd"]
+#where = ["uppasd"]
+
+[tool.setuptools-git-versioning]
+enabled = true
 
 [tool.cibuildwheel]
 # Install something required for the build
