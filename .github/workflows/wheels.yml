@@ -78,7 +78,7 @@ jobs:
           CIBW_ENVIRONMENT_WINDOWS: >
            CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
 
-      - name: Set macOS environment target ${{ matrix.icon}}
+      - name: Set macOS environment variables ${{ matrix.icon}}
         if: runner.os == 'macOS'
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion)" >> $GITHUB_ENV
