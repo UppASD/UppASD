@@ -44,12 +44,18 @@ class Simulator:
         self.get_moments()
         self.get_coords()
 
+    def print_logo(self):
+        """
+        Print the UppASD logo.
+        """
+        _asd.printlogo()
+
     def run_simulation(self):
         """
         Run the atomistic spin dynamics simulation.
 
         This method executes the steps required to run the atomistic spin dynamics simulation.
-        It calls the necessary functions from the `asd` module to print the logo, 
+        It calls the necessary functions from the `asd` module to print the logo,
         initialize the phase, measure the simulation, and perform cleanup afterwards.
         """
         # Print the logo
@@ -74,7 +80,10 @@ class Simulator:
         Relax the system using Monte Carlo simulations.
         """
         self.moments = _asd.relax(
-            natom=self.natom, mensemble=self.mensemble, imode=mode, itemperature=temperature
+            natom=self.natom,
+            mensemble=self.mensemble,
+            imode=mode,
+            itemperature=temperature,
         )
 
     def calculate_energy(self):
@@ -96,7 +105,9 @@ class Simulator:
         """
         Update the moments of the spins based on the simulation dynamics.
         """
-        self.moments = _asd.get_emom(natom=self.natom, mensemble=self.mensemble)
+        self.moments = np.copy(
+            _asd.get_emom(natom=self.natom, mensemble=self.mensemble)
+        )
 
     def put_moments(self, moments):
         """
