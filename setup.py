@@ -46,7 +46,6 @@ class cmake_build_ext(build_ext):
                 # multiple versions of Python are installed
                 "-DPython3_ROOT_DIR={}".format(sys.exec_prefix),
                 "-DPython3_FIND_STRATEGY=LOCATION",
-                # '-DCMAKE_Fortran_COMPILER=gfortran',
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
                 "-GNinja",
@@ -55,8 +54,6 @@ class cmake_build_ext(build_ext):
                 # '-DPYTHON_LIBRARY={}'.format(python_lib_dir),
                 # '-DMKL_INTERFACE_FULL=gf_lp64',
                 # '-DMKL_THREADING=gnu_thread',
-                # '-DLAPACK="-framework Accelerate"',
-                # '-DBLAS="-framework Accelerate"',
             ]
 
             if not os.path.exists(self.build_temp):
