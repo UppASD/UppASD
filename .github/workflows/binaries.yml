@@ -93,14 +93,14 @@ jobs:
              ls -l
              cd ..
 
-      - name: Build NSIS installation package on Windows ${{ matrix.icon}}
-        if: runner.os == 'Windows'
-        run: |
-             cd build
-             cat CPackConfig.cmake
-             cpack -G NSIS64
-             ls -l
-             cd ..
+      # - name: Build NSIS installation package on Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #        cd build
+      #        cat CPackConfig.cmake
+      #        cpack -G NSIS64
+      #        ls -l
+      #        cd ..
 
       - name: Build WIX installation package on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
