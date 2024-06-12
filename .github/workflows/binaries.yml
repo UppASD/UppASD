@@ -163,13 +163,12 @@ jobs:
           name: uppasd.${{runner.os}}.${{matrix.arch}}
           path: ./dist/uppasd*
 
-
-      - name: Upload NSIS log
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nsis_log.${{runner.os}}.${{matrix.arch}}
-          path: ./build/_CPack_Packages/win64/NSIS64/NSISOutput.log
+      # - name: Upload NSIS log
+      #   if: runner.os == 'Windows'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: nsis_log.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/_CPack_Packages/win64/NSIS64/NSISOutput.log
 
       - name: Upload test logs
         if: runner.os != 'Windows'
