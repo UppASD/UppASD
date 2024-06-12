@@ -826,8 +826,8 @@ add_custom_command(
 add_custom_command(
    TARGET ${UppASD_EXE} POST_BUILD
    COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}
+   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
    # ${LEGACY_OUTPUT_DIRECTORY}/sd
    )
 
