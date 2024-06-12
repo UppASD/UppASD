@@ -148,7 +148,7 @@ jobs:
         if: runner.os == 'Windows'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
-          path: ./build/UppASD*.exe
+          path: ./build/uppasd*.exe
 
       - name: Upload Windows WIX installer
         uses: actions/upload-artifact@v4
