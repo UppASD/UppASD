@@ -889,7 +889,7 @@ if(WIN32)
     # set(CPACK_GENERATOR "NSIS64")
 
     # Include the custom NSIS script
-    set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
+    # set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
 
     # Additional NSIS settings if needed
     set(CPACK_NSIS_MODIFY_PATH ON)
