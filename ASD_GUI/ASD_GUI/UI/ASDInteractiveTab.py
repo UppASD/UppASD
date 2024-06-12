@@ -3,6 +3,7 @@ This file contains the code for the InteractiveTab in the GUI.
 The InteractiveTab provides options for interactive simulation and visualization.
 """
 from PyQt6.QtWidgets import (
+    QWidget,
     QDockWidget,
     QHBoxLayout,
     QWidget,
@@ -22,6 +23,18 @@ from PyQt6.QtCore import Qt
 import numpy as np
 
 
+class QTextEditLogger:
+    def __init__(self, text_edit):
+        self.text_edit = text_edit
+
+    def write(self, message):
+        self.text_edit.append(message)
+        self.text_edit.ensureCursorVisible()  # Optional: Scroll to the end
+
+    def flush(self):
+        pass  # Needed for compatibility with the `sys.stdout` interface
+ 
+
 def InteractiveDock(window):
     """
     Dock creator for the Interactive page of the GUI.
@@ -32,7 +45,6 @@ def InteractiveDock(window):
     Returns:
             self.InDock :   QDockWidget
     """
-
     window.IntDock = QDockWidget("Options", window)
     Docklayout = QHBoxLayout()
     window.IntContents = QWidget()
@@ -265,13 +277,11 @@ def InitializeInteractor(window):
             window          :   QMainWindow
             InteractiveVtk  :   InteractiveASD object, defined in interactiveASD.py.
     """
-    window.InteractiveVtk.Launch()
-
-    if not hasattr(window.InteractiveVtk, "asd"):
-        print("asd object not found")
+    if window.InteractiveVtk.asd is None:
+        print("ASD object not found")
         return
-    else:
-        print("asd object found")
+    
+    window.InteractiveVtk.Launch()
 
     CurrentSDStep = str(window.InteractiveVtk.asd.inputdata.get_nstep())
     window.IntSDSteps.setPlaceholderText(CurrentSDStep)
@@ -300,8 +310,7 @@ def UpdateIntInputs(window):
     Inputs:
             window  :   QMainWindow
     """
-    if not hasattr(window.InteractiveVtk, "asd"):
-        print("asd object not found")
+    if window.InteractiveVtk.asd is None:
         return
 
     if len(window.IntTempLine.text()) > 0:

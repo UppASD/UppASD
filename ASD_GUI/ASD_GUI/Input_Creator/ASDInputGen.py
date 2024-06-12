@@ -1191,6 +1191,24 @@ class ASDInputGen():
         #    if len(ASDInputGen.UppASDKeywords[name])==0:
         #        del ASDInputGen.UppASDKeywords[name]
         return
+    def GetPosMomFiles(self):
+        """
+        Retrieves the names of the position and momentum files from the 'inpsd.dat' file.
+
+        Returns:
+            Tuple[str, str]: A tuple containing the names of the position and momentum files.
+        """
+        with open('inpsd.dat', 'r', encoding='utf-8') as infile:
+            for line in infile:
+                if line.startswith('posfile'):
+                    entries = line.split()
+                    if len(entries) >= 2:
+                        posfile = entries[1]
+                if line.startswith('momfile'):
+                    entries = line.split()
+                    if len(entries) >= 2:
+                        momfile = entries[1]
+        return posfile, momfile
     ############################################################################
     # @brief Function to write a standard inpsd.dat and a inpsd.yaml file
     # @author Jonathan Chico
