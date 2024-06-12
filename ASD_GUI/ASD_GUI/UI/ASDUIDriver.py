@@ -55,6 +55,7 @@ from ASD_GUI.VTK_Viz import (
 try:
     import uppasd.simulator as ASDsimulator
 except ImportError:
+    ASDsimulator = None
     print("Warning: uppasd module not found, interactive functions disabled")
 
 
@@ -123,10 +124,19 @@ class UppASDVizMainWindow(QMainWindow):
         # data and the visualization
         # -----------------------------------------------------------------------
         self.ASDdata = ASDVTKReading.ASDReading()
+        self.ASDsim = None
         try:
-            self.ASDsim = ASDsimulator.Simulator()
-        except ImportError:
-            self.ASDsim = None
+            if ASDsimulator is not None:
+                self.ASDsim = ASDsimulator.Simulator()
+            else:
+                raise ImportError("ASDsimulator is None")
+        except (ImportError, AttributeError):
+            print("ASDsimulator module not found or is None. Interactive functions disabled")
+        # self.ASDsim = None
+        # try:
+        #     self.ASDsim = ASDsimulator.Simulator()
+        # except NameError:
+        #     print("Warning: uppasd module not found, interactive functions disabled")
 
         self.ASDVizOpt = ASDVTKVizOptions.ASDVizOptions()
         self.ASDGenActors = ASDVTKGenActors.ASDGenActors()
@@ -311,15 +321,22 @@ class UppASDVizMainWindow(QMainWindow):
             self.backend = Backend.UppASD_INP
             self.vtkWidget.setVisible(False)
         elif self.ModeSelector.currentIndex() == 3:
-            print("Interactive")
+            if self.ASDsim is None:
+                print("Interactive features disabled")
+                self.ModeSelector.setCurrentIndex(self.ModeSelector.oldIndex)
+                return
             self.backend = Backend.UppASD_INT
             if not self.IntWidgetPresent:
                 self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
                 # self.InteractiveWidget_Layout.addWidget(self.vtkWidget)
                 self.IntWidgetPresent = True
+
+            # Rest of the code
             if self.CheckForInteractorFiles() and not self.IntLaunched:
                 ASDInteractive.InitializeInteractor(self)
                 self.IntLaunched = True
+                
+        self.ModeSelector.oldIndex = self.ModeSelector.currentIndex()
         self.ResetUI()
         return
 
@@ -2452,10 +2469,13 @@ class UppASDVizMainWindow(QMainWindow):
         #     restartfile = glob.glob("restart.????????.out")[0]
         # if len(glob.glob("coord.????????.out")) > 0:
         #     coordfile = glob.glob("coord.????????.out")[0]
-        if len(self.ASDInputGen.posfile) == 0 and path.exists("posfile"):
-            self.ASDInputGen.posfile = glob.glob("posfile")[0]
+        if len(self.ASDInputGen.posfile) == 0 and path.exists("inpsd.dat"):
+            posfile, momfile = self.ASDInputGen.GetPosMomFiles()
+            self.ASDInputGen.posfile = glob.glob(posfile)[0]
+            print('posfile:', self.ASDInputGen.posfile)
         if len(self.ASDInputGen.momfile) == 0 and path.exists("momfile"):
-            self.ASDInputGen.momfile = glob.glob("momfile")[0]
+            self.ASDInputGen.momfile = glob.glob(momfile)[0]
+            print('momfile:', self.ASDInputGen.momfile)
 
         InputChecklist = [
             path.exists("inpsd.dat"),

@@ -20,7 +20,8 @@ dependencies = [
     "PyQt6",
     "PyYAML",
     "setuptools",
-    "vtk>=9.0.0"
+    "vtk>=9.0.0",
+    "spglib"
 ]
 
 [tool.setuptools.packages.find]
