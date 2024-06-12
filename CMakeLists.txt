@@ -108,13 +108,13 @@ set(ASD_binary uppasd)
 string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv|ifx current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
-set(ASD_spec_binary ${ASD_binary})
+set(ASD_legacy_binary sd)
 if(current_compiler)
-   string(APPEND ASD_spec_binary ".${current_compiler}")
+   string(APPEND ASD_legacy_binary ".${current_compiler}")
 endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
-   string(APPEND ASD_spec_binary ".cuda")
+   string(APPEND ASD_legacy_binary ".cuda")
 endif()
 SET(UppASD_EXE ${ASD_binary})
 message(STATUS "ASD_binary ${ASD_binary}.")
@@ -820,14 +820,14 @@ add_custom_command(
    )
 
 #################################################################################################
-#### Copy binary to ./source/sd for legacy purposes
+#### Copy binary to ./bin/sd.<compiler> for legacy purposes
 #### currently disabled..
 #################################################################################################
 add_custom_command(
    TARGET ${UppASD_EXE} POST_BUILD
    COMMAND ${CMAKE_COMMAND} -E copy
    ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-   ${CMAKE_SOURCE_DIR}/bin/${ASD_spec_binary}
+   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}
    # ${LEGACY_OUTPUT_DIRECTORY}/sd
    )
 
