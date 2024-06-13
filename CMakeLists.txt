@@ -871,7 +871,7 @@ message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
 # Include CPack
 
 # Set package properties
-set(CPACK_PACKAGE_NAME "UppASD")
+set(CPACK_PACKAGE_NAME "uppasd")
 set(CPACK_PACKAGE_VERSION "${gitversion}")
 message(STATUS "CPACK_PACKAGE_VERSION: ${CPACK_PACKAGE_VERSION}")
 set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")

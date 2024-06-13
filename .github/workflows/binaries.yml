@@ -131,21 +131,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}
-          path: ./build/UppASD*.sh
+          path: ./build/uppasd*.sh
 
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
-          path: ./build/UppASD*.deb
+          path: ./build/uppasd*.deb
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
-          path: ./build/UppASD*.rpm
+          path: ./build/uppasd*.rpm
 
       # - name: Upload Windows NSIS installer
       #   uses: actions/upload-artifact@v4
