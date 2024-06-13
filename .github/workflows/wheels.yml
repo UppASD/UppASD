@@ -117,6 +117,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Fetch tags for versioning
+        run: git fetch --prune --unshallow --tags
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
