@@ -1,7 +1,7 @@
 name: Build binaries on Windows
 
 on:
-  push:
+  #push:
   release:
   #pull_request:
   #workflow_dispatch:
@@ -19,6 +19,7 @@ jobs:
           #- { icon: '🟧', sys: clang64, arch: x86_64 } # Experimental!
           #- { icon: '⬛', sys: mingw32, arch: i686 } # Disabled
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }}
+    continue-on-error: true
     defaults:
       run:
         shell: msys2 {0}

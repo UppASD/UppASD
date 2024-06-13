@@ -1,6 +1,7 @@
 name: Build binaries for Linux
 
-on: [push, pull_request]
+on: [release]
+# on: [release, push, pull_request]
 
 jobs:
   build_binaries:
@@ -11,6 +12,7 @@ jobs:
       matrix:
         include:
           - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
+          - { icon: '🚧', os: ubuntu-latest,sys: linux, arch: i686 }
 
     steps:
       - uses: actions/checkout@v4

@@ -257,8 +257,8 @@ def relax(
     method["S"] = "LLG"
     method["M"] = "Metropolis"
     method["H"] = "Heat Bath"
-    print(f"Performing relaxation using the {method[imode]} method for {instep} steps.")
-    print("Temperature:", itemperature)
+    # print(f"Performing relaxation using the {method[imode]} method for {instep} steps.")
+    # print("Temperature:", itemperature)
     moments = _uppasd.relax(
         natom, mensemble, imode, instep, itemperature, itimestep, idamping
     )

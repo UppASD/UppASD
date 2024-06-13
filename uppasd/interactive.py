@@ -13,32 +13,29 @@ Author: Anders Bergman
 """
 
 import glob
-from copy import copy, deepcopy
-from math import acos, atan2
 
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 import numpy as np
-import vtk
-from scipy.ndimage import gaussian_filter
-from vtk.util import numpy_support
-from vtkmodules.vtkCommonColor import vtkColorSeries
-
 # import uppasd.pyasd as asd
 import uppasd.simulator as sim
+try:
+    import vtk
+    from vtk.util import numpy_support
+    from vtkmodules.vtkCommonColor import vtkColorSeries
+except ImportError:
+    print("VTK is not installed. Please install it using 'pip install vtk'.")
+    exit()
+try:
+    from scipy.ndimage import gaussian_filter
+except ImportError:
+    print("Scipy is not installed. Please install it using 'pip install scipy'.")
+    exit()
+try:
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+except ImportError:
+    print("Matplotlib is not installed. Please install it using 'pip install matplotlib'.")
+    exit()
 
-
-import glob
-from copy import copy, deepcopy
-from math import acos, atan2
-
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-import numpy as np
-import vtk
-from scipy.ndimage import gaussian_filter
-from vtk.util import numpy_support
-from vtkmodules.vtkCommonColor import vtkColorSeries
 
 def close_window(iren):
     """
@@ -211,6 +208,7 @@ def cycleColorScheme(lut, colorSeries, backwards=False):
 
 number_of_screenshots = 1
 
+
 # A function that takes a renderwindow and saves its contents to a .png file
 def Screenshot(renWin):
     """
@@ -278,6 +276,7 @@ def CheckAbort(obj, event):
 
 
 def main():
+
     # Instantiate the ASD simulation object
     asd = sim.Simulator()
     asd.init_simulation()
@@ -322,8 +321,8 @@ def main():
 
     # Viewing distance
     # decrease number to zoom out and vice versa
-    dollyA = 0.014
-    dollyB = 0.000
+    # dollyA = 0.014
+    # dollyB = 0.000
     # Open files
     # momfiles = glob.glob("restart.????????.out")
     # directionsFile = open(momfiles[0])
@@ -571,7 +570,7 @@ def main():
     # xy-direction (almost)
     ren.GetActiveCamera().ParallelProjectionOn()
     # ren.GetActiveCamera().ParallelProjectionOff()
-    d = ren.GetActiveCamera().GetDistance()
+    # d = ren.GetActiveCamera().GetDistance()
     # ren.GetActiveCamera().SetParallelScale(0.55*max(zmax,xmax))
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
     ren.GetActiveCamera().SetViewUp(-0.866025403784439, 0.5, 0)
@@ -579,11 +578,11 @@ def main():
     ren.GetActiveCamera().SetParallelScale(0.55 * ymax)
     # ren.GetActiveCamera().SetPosition(0,0,-100*d)
     # print ren.GetActiveCamera().GetViewAngle()
-    l = max(xmax - xmin, zmax - zmin) / 2
-    h = l / 0.26795 * 1.1
+    l_vp = max(xmax - xmin, zmax - zmin) / 2
+    h_vp = l_vp / 0.26795 * 1.1
     # print l,h
 
-    ren.GetActiveCamera().SetPosition(0, 0, h)
+    ren.GetActiveCamera().SetPosition(0, 0, h_vp)
     # ren.GetActiveCamera().SetPosition(0,0,50*d)
 
     # Enable antialiasing
@@ -788,7 +787,7 @@ def main():
     #
     #
     # cb = vtkTimerCallback()
-    ###cb.AddActor = vector
+    # ##cb.AddActor = vector
     # iren.AddObserver('TimerEvent', cb.execute)
     # timerId = iren.CreateRepeatingTimer(100);
     # iren.SetStillUpdateRate(0.050)

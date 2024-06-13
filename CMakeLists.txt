@@ -17,8 +17,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
 
-PROJECT(uppasd
-   LANGUAGES Fortran)
+PROJECT(uppasd LANGUAGES Fortran)
 # Set the project version
 SET(VERSION 5.1.0)
 ##############################################################################################
@@ -100,7 +99,7 @@ ENDIF(FCNAME STREQUAL "pgf90")
 ##############################################################################################
 # Define the executable name
 ##############################################################################################
-set(ASD_binary sd)
+set(ASD_binary uppasd)
 #if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #   string(APPEND CMAKE_Fortran_COMPILER ".exe")
 #   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
@@ -109,12 +108,13 @@ set(ASD_binary sd)
 string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv|ifx current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
+set(ASD_legacy_binary sd)
 if(current_compiler)
-   string(APPEND ASD_binary ".${current_compiler}")
+   string(APPEND ASD_legacy_binary ".${current_compiler}")
 endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
-   string(APPEND ASD_binary ".cuda")
+   string(APPEND ASD_legacy_binary ".cuda")
 endif()
 SET(UppASD_EXE ${ASD_binary})
 message(STATUS "ASD_binary ${ASD_binary}.")
@@ -670,16 +670,16 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # First fix for msys/mingw having semi-shared .dll.a libraries
 ##############################################################################################
-message(STATUS "***********************************************")
-message(STATUS "--> MSYS ENVIROnMENT BEFORE PURGE:")
-message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
-message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
-message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
-message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
-message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
-message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
-message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
-message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+# message(STATUS "***********************************************")
+# message(STATUS "--> MSYS ENVIROnMENT BEFORE PURGE:")
+# message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+# message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+# message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+# message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+# message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+# message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+# message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+# message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
 
 # message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
 # message(STATUS "-> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
@@ -702,9 +702,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       unset(UppASD_links)
       foreach ( elem ${LAPACK_LIBRARIES})
          string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
-         set(UppASD_links "${filtered_elem}")
+	      list(APPEND UppASD_links "${filtered_elem}")
+	      #set(UppASD_links "${filtered_elem}")
+	      #message(STATUS " PRUNING LAPACK: ", ${filtered_elem})
+	      #message(STATUS " PRUNING LAPACK::: ", ${UppASD_links})
       endforeach()
       unset(LAPACK_LIBRARIES)
+      #message(STATUS " LAPACK PRUNED: ", ${filtered_elem})
       set(LAPACK_LIBRARIES ${UppASD_links})
       # FFTW
       unset(UppASD_links)
@@ -727,18 +731,18 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
    endif ()
 endif ()
 
-#message(STATUS "--> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
-message(STATUS "***********************************************")
-message(STATUS "--> MSYS ENVIROnMENT AFTER PURGE:")
-message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
-message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
-message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
-message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
-message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
-message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
-message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
-message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
-message(STATUS "***********************************************")
+# message(STATUS "--> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+# message(STATUS "***********************************************")
+# message(STATUS "--> MSYS ENVIROnMENT AFTER PURGE:")
+# message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+# message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+# message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+# message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+# message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+# message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+# message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+# message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+# message(STATUS "***********************************************")
 
 # Detect the platform and configure linker flags and libraries
 unset(UppASD_links)
@@ -764,7 +768,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-         #${OpenMP_Fortran_LIB_NAMES}
+	 # ${OpenMP_Fortran_LIB_NAMES}
          ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
@@ -783,7 +787,7 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})
 # Tell where to install this executable
 ##############################################################################################
 IF(WIN32)
-   SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
+   SET(CMAKE_INSTALL_PREFIX "C:/Program Files")
 ELSE()
    SET(CMAKE_INSTALL_PREFIX /usr/local)
 ENDIF(WIN32)
@@ -792,7 +796,7 @@ ENDIF(WIN32)
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
@@ -800,6 +804,9 @@ else()
    INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+
 ##############################################################################################
 
 ##############################################################################################
@@ -813,15 +820,16 @@ add_custom_command(
    )
 
 #################################################################################################
-#### Copy binary to ./source/sd for legacy purposes
+#### Copy binary to ./bin/sd.<compiler> for legacy purposes
 #### currently disabled..
 #################################################################################################
-###add_custom_command(
-###   TARGET ${UppASD_EXE} POST_BUILD
-###   COMMAND ${CMAKE_COMMAND} -E copy
-###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-###   ${LEGACY_OUTPUT_DIRECTORY}/sd
-###   )
+add_custom_command(
+   TARGET ${UppASD_EXE} POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy
+   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
+   # ${LEGACY_OUTPUT_DIRECTORY}/sd
+   )
 
 
 ###############################################################################################
@@ -855,3 +863,51 @@ set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
 message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
+
+
+##############################################################################################
+## ADD Cpack
+##############################################################################################
+# Include CPack
+
+# Set package properties
+set(CPACK_PACKAGE_NAME "UppASD")
+set(CPACK_PACKAGE_VERSION "1.0.1")
+set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
+set(CPACK_PACKAGE_VENDOR "The UppASD group")
+set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_SOURCE_DIR}/cpack/WELCOME.txt")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/README.txt")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "UppASD is a package for atomistic spin dynamics and Monte Carlo simulations.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/UppASD/UppASD")
+#set(CPACK_GENERATOR "STGZ;DEB;RPM")
+
+if(WIN32)
+   include(InstallRequiredSystemLibraries)
+
+    # Include NSIS for creating Windows installers
+    # set(CPACK_GENERATOR "NSIS64")
+
+    # Include the custom NSIS script
+    # set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
+
+    # Additional NSIS settings if needed
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "Call AddToPath")
+
+    # WIX installer
+    # set(CPACK_WIX_UPGRADE_GUID "E25F58C1-EC45-422A-9700-7254DB19547B")
+    # WIX installer
+    set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+    set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+    set(CPACK_WIX_UI_DIALOG "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+    set(CPACK_WIX_UPGRADE_GUID "02cf4cf7-fa5b-43de-a8ff-b39098d35db3")
+    set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+    # set(CPACK_WIX_EXTRA_SOURCES "${CMAKE_SOURCE_DIR}/PathEnvironment.wxs")
+   set(CPACK_WIX_VERSION "4")
+   endif()
+
+include(CPack)

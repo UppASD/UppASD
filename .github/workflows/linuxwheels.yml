@@ -1,7 +1,7 @@
 name: Build wheels on Linux
 
-#on: [release]
-on: [release, push, pull_request]
+on: [release]
+#on: [release, push, pull_request]
 
 jobs:
   build_wheels:
@@ -19,8 +19,11 @@ jobs:
       # Used to host cibuildwheel
       - uses: actions/setup-python@v5
 
+      - name: Install needed apt packages
+        run: sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev
+
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.10.1
+        run: python -m pip install cibuildwheel build wheel setuptools ninja
 
       - name: Build wheels
         run: 
@@ -29,7 +32,7 @@ jobs:
         # env:
         #   CIBW_SOME_OPTION: value
         env:
-          CIBW_SKIP: cp36* cp37* pp38-manylinux* pp39* pp31* cp38-manylinux_i686 cp*-musllinux*
+          CIBW_SKIP: cp36* cp37* pp* cp38-manylinux_i686 cp*-musllinux*
           CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           FC: gfortran
