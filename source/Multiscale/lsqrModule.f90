@@ -53,7 +53,7 @@ contains
          real(dp), intent(inout) :: y(m)
        end subroutine Aprod1
 
-       subroutine Aprod2(m,n,x,y)                   ! x := x + A'*y
+       subroutine Aprod2(m,n,x,y)                   ! x := x + A´*y
          use lsqrDataModule, only : dp
          integer,  intent(in)    :: m,n
          real(dp), intent(inout) :: x(n)
