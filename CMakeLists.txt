@@ -16,10 +16,7 @@
 #CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
-
 PROJECT(uppasd LANGUAGES Fortran)
-# Set the project version
-SET(VERSION 5.1.0)
 ##############################################################################################
 unset(CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES)
 ##############################################################################################
@@ -359,9 +356,12 @@ ENDIF()
 
 
 ##############################################################################################
-# Extract git-stamp
+# Extract git-stamp for versioning
 ##############################################################################################
 INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
+message(STATUS "Git version info : ${gitversion}.")
+# Set the project version
+SET(VERSION ${gitversion})
 ##############################################################################################
 
 ##############################################################################################
@@ -872,7 +872,7 @@ message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
 
 # Set package properties
 set(CPACK_PACKAGE_NAME "UppASD")
-set(CPACK_PACKAGE_VERSION "1.0.1")
+set(CPACK_PACKAGE_VERSION "${gitversion}")
 set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
 set(CPACK_PACKAGE_VENDOR "The UppASD group")
 set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
