@@ -180,7 +180,7 @@ contains
     trimmedBox = box
     trimmedBox%sizes(1:dim) = min(trimmedBox%sizes(1:dim),space%universeSize(1:dim))
 
-    ! We'll offset the box on each direction with periodicity, one universe size below and above.
+    ! We´ll offset the box on each direction with periodicity, one universe size below and above.
     ! Here we find the offsets we'll apply, in terms of universe sizes, for each direction.
     ! ranks(1,:) contains the lower-bound offsets and ranks(2,:) the upper bounds.
     periodic = space%periodicBoundary .and. (abs(space%universeSize) >1d-10)    

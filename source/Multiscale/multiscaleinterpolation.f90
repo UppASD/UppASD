@@ -35,7 +35,7 @@
 contains
   
   !> Initializes a new LocalInterpolationInfo structure
-  !! Don't use uninitialized structures, as non-nullified pointers inside them
+  !! Don´t use uninitialized structures, as non-nullified pointers inside them
   !! will cause crashes when deallocating or running solvers
   subroutine newLocalInterpolationInfo(localInterp)
     implicit none

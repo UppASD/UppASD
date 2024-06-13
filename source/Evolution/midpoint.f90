@@ -148,7 +148,7 @@ contains
             ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
             ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
             ! Ax,Ay,Az off-diagonal components of A
-            ! solve with Cramers' rule => define detAi=1/determinant(A)
+            ! solve with Cramers´ rule => define detAi=1/determinant(A)
             !
             A(:)=0.5_dblprec*dtg*a1(:)+0.5_dblprec*sqrtdtg*s1(:)
 
@@ -163,10 +163,10 @@ contains
             et(2)=a2(1)*(A(2)*A(1)-A(3))+a2(2)*(1+A(2)*A(2))+a2(3)*(A(2)*A(3)+A(1))
             et(3)=a2(1)*(A(3)*A(1)+A(2))+a2(2)*(A(3)*A(2)-A(1))+a2(3)*(1+A(3)*A(3))
 
-            ! now use et for writing et'=(e1+et)/2 in emom2
+            ! now use et for writing et´=(e1+et)/2 in emom2
             et(:)=0.5_dblprec*(emom(:,i,j)+et(:)*detAi)
             !
-            ! write et'=(e1+et)/2 in emom2
+            ! write et´=(e1+et)/2 in emom2
             emom2(:,i,j)=et(:)
 
             ! write new emomM
@@ -281,7 +281,7 @@ contains
             sqrtdt=sqrt(dt)
             dtg=dt*Landeg(i)
             sqrtdtg=sqrtdt*Landeg(i)
-            etp(:)=emom2(:,i,j) ! load etp=et' back from emom2
+            etp(:)=emom2(:,i,j) ! load etp=et´ back from emom2
             !
             ! a1 = -b1 - lambda*(et cross b1)
             a1(1)=-btorque_full(1,i,j)-beff(1,i,j)-lambda1_array(i)*(etp(2)*beff(3,i,j)-etp(3)*beff(2,i,j))
@@ -298,7 +298,7 @@ contains
             ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
             ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
             ! Ax,Ay,Az off-diagonal components of A
-            ! solve with Cramers' rule => define detAi=1/determinant(A)
+            ! solve with Cramers´ rule => define detAi=1/determinant(A)
             !
             A(:)=0.5_dblprec*dtg*a1(:)+0.5_dblprec*sqrtdtg*s1(:)
             detAi=1.0_dblprec/(1.0_dblprec+sum(A(:)*A(:)))

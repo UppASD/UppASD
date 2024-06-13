@@ -102,7 +102,7 @@ contains
       real(dblprec), dimension(3,Natom,nim), intent(in)     :: external_field !< External magnetic field
       integer, dimension(:), intent(in) :: maxNoConstl   !< Number of existing entries in for each ensemble in the constellation matrix
       integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom's neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom´s neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
       real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup  !< Couplings for saved constellations
       real(dblprec), dimension(:,:,:), intent(in) :: constellations !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. In/out variables
