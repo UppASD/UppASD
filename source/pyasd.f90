@@ -258,7 +258,7 @@
       use sd_driver, only : sd_minimal
       use mc_driver, only : mc_minimal
       use Damping, only : damping1 => lambda1_array
-      use MomentData, only : emomM, emom, mmom
+      use MomentData, only : emomM, emom, mmom, emom2
       use Profiling, only : timing
 
       implicit none
@@ -282,10 +282,11 @@
 
       call timing(0,'Initial       ','ON')
       if(imode == 'M' .or. imode == 'H') then
-         call mc_minimal(emomM,emom,mmom, instep, imode//" ", itemperature)
+         !call sd_minimal(emomM,emom,mmom, 1, 1, itemperature)
+         call mc_minimal(emomM, emom, mmom, instep, imode//" ", itemperature)
       else
          damping1 = idamping
-         call sd_minimal(emomM,emom,mmom, instep, 1, itemperature)
+         call sd_minimal(emomM, emom, mmom, instep, 1, itemperature)
       end if
       call timing(0,'Initial       ','OF')
 
@@ -328,7 +329,7 @@
 
     subroutine put_emom(moments, natom, mensemble) bind(c, name='put_emom_')
       use iso_c_binding
-         use MomentData, only : emom
+         use MomentData, only : emom, emomM, mmom, emom2
        implicit none
        !f2py intent(in) :: natom
        integer(c_int), intent(in) :: natom
@@ -336,8 +337,16 @@
        integer(c_int), intent(in) :: mensemble
        !f2py intent(in) moments
        real(c_double), dimension(3,natom, mensemble), intent(in) :: moments
+       !
+       integer(c_int) :: i_atom, i_ensemble
 
        emom = moments 
+       emom2 = emom
+       do i_ensemble = 1, mensemble
+          do i_atom = 1, natom
+            emomM(:,i_atom,i_ensemble) = moments(:,i_atom,i_ensemble) * mmom(i_atom,i_ensemble)
+         end do
+       end do
     end subroutine put_emom
 
 !!!    !==============================================================!
@@ -465,7 +474,11 @@
        !f2py intent(out) temperature
        real(c_double), intent(out) :: temperature
 
-       temperature = itemp(1)
+       if (allocated(itemp)) then
+          temperature = itemp(1)
+       else
+          temperature = 1.0d-6
+       end if
     end subroutine get_iptemperature
 
     subroutine put_iptemperature(temperature) bind(c, name='put_iptemperature_')

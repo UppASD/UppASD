@@ -1144,6 +1144,10 @@ contains
          end do
       end do
 
+      ! Calculate demagnitization field
+      if(demag=='Y') then
+         call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+      endif
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
@@ -1156,10 +1160,10 @@ contains
             call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
-      ! Calculate external fields
-      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
-         do_bpulse,sitefld,sitenatomfld)
 
+      ! Calculate external fields
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,&
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Main initial loop
       !--------------------------------------!
@@ -1250,6 +1254,7 @@ contains
 
       enddo
 
+      ! emom2 = 0.0_dblprec
       ! Copy working moments to outdata
       do ik=1,Mensemble
          do ia=1,Natom
