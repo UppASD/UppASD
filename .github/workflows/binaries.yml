@@ -53,6 +53,9 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Fetch tags for versioning
+        run: git fetch --prune --unshallow --tags
+
       # Used to host cibuildwheel
       - uses: actions/setup-python@v5
         with:
