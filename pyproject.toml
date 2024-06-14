@@ -38,7 +38,7 @@ enabled = true
 template = "{tag}"
 # Proper naming would be as below
 dirty_template = "{tag}.dev{ccount}+g{sha}"
-dev_template = "{tag}.dev{ccount}+g{sha}"
+dev_template = "{tag}.dev{ccount}"
 
 [tool.cibuildwheel]
 # Install something required for the build
