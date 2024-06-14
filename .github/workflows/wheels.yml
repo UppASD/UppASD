@@ -161,7 +161,6 @@ jobs:
     - name: Download all the dists
       uses: actions/download-artifact@v4
       with:
-        name: uppasd*
         path: dist/
 
     - name: Check the dists
