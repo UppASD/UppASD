@@ -35,6 +35,8 @@ include = ["uppasd"]
 
 [tool.setuptools-git-versioning]
 enabled = true
+template = "{tag}"
+version_file = "uppasd/VERSION"
 
 [tool.cibuildwheel]
 # Install something required for the build
