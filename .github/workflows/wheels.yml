@@ -125,8 +125,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install build
-        run: python -m pip install build wheel setuptools
+      - name: Install build tools
+        run: python -m pip install build wheel setuptools setuptools-git-versioning
+
+      - name: Check setuptools-git-versioning
+        run: python -m setuptools_git_versioning -v
+
+      - name: Check git status
+        run: git status
 
       - name: Build source distribution
         run: python -m build . --sdist
