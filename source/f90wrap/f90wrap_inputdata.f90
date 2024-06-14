@@ -1,4 +1,4 @@
-! Module inputdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputdata.f90
+! Module inputdata defined in file Input/inputdata.f90
 
 subroutine f90wrap_set_input_defaults
     use inputdata, only: set_input_defaults
@@ -36,8 +36,8 @@ subroutine f90wrap_reshape_hamiltonianinput
 end subroutine f90wrap_reshape_hamiltonianinput
 
 subroutine f90wrap_allocate_hamiltonianinput(ham_inp, no_shells, flag)
-    use inputdatatype, only: ham_inp_t
     use inputdata, only: allocate_hamiltonianinput
+    use inputdatatype, only: ham_inp_t
     implicit none
     
     type ham_inp_t_ptr_type
@@ -3253,5 +3253,5 @@ subroutine f90wrap_inputdata__set__multiscale_old_format(f90wrap_multiscale_old_
     inputdata_multiscale_old_format = f90wrap_multiscale_old_format
 end subroutine f90wrap_inputdata__set__multiscale_old_format
 
-! End of module inputdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputdata.f90
+! End of module inputdata defined in file Input/inputdata.f90
 

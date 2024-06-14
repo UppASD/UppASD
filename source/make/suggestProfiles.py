@@ -198,7 +198,9 @@ def guessEnvironmentSettings():
             if(have_cuda):
                 prof_list.append('gfortran-cuda')
     if(have_ftn):
+        prof_list.append('crayftn-ftn')
         prof_list.append('gfortran-ftn')
+        prof_list.append('aocc-ftn')
         print("   Cray Fortran compiler wrapper found")
         print("    FC = ftn")
     print('  '+'; '.join('{}'.format(k) for k in prof_list))

@@ -26,7 +26,7 @@ MAKELOG = make.log
 CURRENT = .profile
 
 # List of available building configs (found in make/default-profiles/systemname.make)
-DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx gfortran-win64 ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-FC gfortran-wFC gfortran-ftn
+DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx gfortran-win64 ifort ifort-cuda ifort-nomkl ifort-cuda-nomkl pathscale pgf90 pgf90-nomkl jureca gfortran-FC gfortran-wFC gfortran-ftn crayftn-ftn aocc-ftn
 LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//'))
 #LOCAL_SYSTEMS := $(shell ls make/user_profiles/*.make | sed 's/make.user_profiles.//' | sed 's/.make//')
 SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
@@ -92,7 +92,7 @@ endif
 
 endif
 
-.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal sources asd-tests sld-tests gneb-tests lib python f2py  $(MDIR) $(SYSTEMS)
+.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests dist dist_minimal sources asd-tests sld-tests gneb-tests cuda-tests lib python f2py  $(MDIR) $(SYSTEMS)
 
 # Including the help files
 include make/makefileHELP
@@ -119,19 +119,23 @@ tests:
 	@echo ''
 
 asd-tests:
-	@cd ../tests; python -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ../tests; python -u ./bergtest.py --file regulartests.yaml | tee asd-tests.log
 	@cd ../tests; python -u ./bergtest.py --clean
 
 sld-tests:
-	@cd ../tests; python -u ./bergtest.py --file sldtests.yaml | tee tests.log
+	@cd ../tests; python -u ./bergtest.py --file sldtests.yaml | tee sld-tests.log
 	@cd ../tests; python -u ./bergtest.py --clean
 
 gneb-tests:
-	@cd ../tests; python -u ./bergtest.py --file regressionGNEB_15d7169b.yaml | tee tests.log
+	@cd ../tests; python -u ./bergtest.py --file regressionGNEB_15d7169b.yaml | tee gneb-tests.log
 	@cd ../tests; python -u ./bergtest.py --clean
 
 regression-test:
-	@cd ../tests; python -u ./bergtest.py --file regressionHisingen.yaml | tee regression-tests.log
+	@cd ../tests; python -u ./bergtest.py --file regressionResaro.yaml | tee regression-tests.log
+	@cd ../tests; python -u ./bergtest.py --clean
+
+cuda-tests:
+	@cd ../tests; python -u ./bergtest.py --file cudatests.yaml | tee cuda-tests.log
 	@cd ../tests; python -u ./bergtest.py --clean
 
 

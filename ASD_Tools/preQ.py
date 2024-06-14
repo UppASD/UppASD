@@ -53,16 +53,16 @@ def get_reciprocal_lattice(lattice):
 # Read atom positions from UppASD position file
 ############################################################
 def read_posfile(posfile):
-   with open(posfile,'r') as pfile:
-      lines=pfile.readlines()
-      positions=np.empty([0,3])
-      numbers=[]
-      for idx,line in enumerate(lines):
-         line_data=line.rstrip('\n').split()
-         if len(line_data)>0:
-            positions=np.vstack((positions,np.asarray(line_data[2:5]).astype(np.float64)))
-            numbers=np.append(numbers,np.asarray(line_data[1]).astype(np.int32))
-      return positions,numbers
+    with open(posfile,'r') as pfile:
+       lines=pfile.readlines()
+       positions=np.empty([0,3])
+       numbers=[]
+       for idx,line in enumerate(lines):
+          line_data=line.rstrip('\n').split()
+          if len(line_data)>0:
+             positions=np.vstack((positions,np.asarray(line_data[2:5]).astype(np.float64)))
+             numbers=np.append(numbers,np.asarray(line_data[1]).astype(np.int32))
+       return positions,numbers
 
 
 
@@ -135,7 +135,8 @@ if posfiletype=='C':
 ############################################################
 print("\nStructural data for UppASD simulation ",simid)
 cell=(lattice,positions,numbers)
-spacegroup = spg.get_spacegroup(cell, symprec=1e-5)
+#spacegroup = spg.get_spacegroup(cell, symprec=1e-5)
+spacegroup = spg.get_spacegroup(cell)
 print("\nLattice:")
 print(tabulate(lattice,floatfmt=".4f"))
 print("\nAtomic positions:")

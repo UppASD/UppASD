@@ -15,7 +15,7 @@ from math import atan2, acos
 from copy import copy, deepcopy
 import glob
 import string
-import asd
+import uppasd as asd
 from vtk.util import numpy_support
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter

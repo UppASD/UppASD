@@ -182,12 +182,27 @@ def VTK_Menu_and_Toolbar_Setup(window):
     #---------------------------------------------------------------------------
     # Adding the actions to the colormaps
     #---------------------------------------------------------------------------
-    window.ColorMapCM.toggled.connect(window.set_lut)
-    window.ColorMapBB.toggled.connect(window.set_lut)
-    window.ColorMapRdGy.toggled.connect(window.set_lut)
-    window.ColorMapSpectral.toggled.connect(window.set_lut)
+    window.ColorMapBox.activated.connect(window.set_lut_db)
+    window.SingleColorBox.toggled.connect(window.toggle_singlecolor)
+    window.RGBRedColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBRedColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBGreenColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBGreenColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBBlueColorSlider.valueChanged.connect(window.set_singlecolor)
+    window.RGBBlueColorSlider.valueChanged.connect(window.UpdateRenderer)
+    window.BWSinglecolorCheck.clicked.connect(window.toggle_bwSinglecolor)
     window.LinearScale.toggled.connect(window.set_lut)
     window.LogScale.toggled.connect(window.set_lut)
+    #---------------------------------------------------------------------------
+    # Adding the actions to the background
+    #---------------------------------------------------------------------------
+    window.RGBRedBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBRedBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBGreenBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBGreenBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.RGBBlueBackgroundSlider.valueChanged.connect(window.set_background)
+    window.RGBBlueBackgroundSlider.valueChanged.connect(window.UpdateRenderer)
+    window.BWBackgroundCheck.clicked.connect(window.toggle_bwBackground)
     #---------------------------------------------------------------------------
     # Adding the actions to the moment options
     #---------------------------------------------------------------------------
@@ -215,10 +230,28 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinsBox.toggled.connect(window.UpdateRenderer)
     window.SpinArrowButton.toggled.connect(window.ChangeGlyphs)
     window.SpinCubeButton.toggled.connect(window.ChangeGlyphs)
+    window.SpinBarButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSphereButton.toggled.connect(window.ChangeGlyphs)
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
+    window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
+    #---------------------------------------------------------------------------
+    # Adding shading actions to the spins
+    #---------------------------------------------------------------------------
+    window.FlatShadeButton.toggled.connect(window.ChangeShading)
+    window.GouraudShadeButton.toggled.connect(window.ChangeShading)
+    window.PhongShadeButton.toggled.connect(window.ChangeShading)
+    window.PBRShadeButton.toggled.connect(window.ChangeShading)
+    #---------------------------------------------------------------------------
+    # Adding the actions to the atoms
+    #---------------------------------------------------------------------------
+    window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
+    window.AtomsBox.toggled.connect(window.UpdateRenderer)
+    window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
+    window.AtomSize.valueChanged.connect(window.UpdateRenderer)
+    window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
+    window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
     #---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     #---------------------------------------------------------------------------
@@ -255,8 +288,47 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ClippPlaneXCheck.toggled.connect(window.clipperHandler)
     window.ClippPlaneYCheck.toggled.connect(window.clipperHandler)
     window.ClippPlaneZCheck.toggled.connect(window.clipperHandler)
+
+    #---------------------------------------------------------------------------
+    # Actions for advanced visualization options
+    #---------------------------------------------------------------------------
     window.ClippingPlaneSlider.valueChanged.connect(window.clipperHandler)
     window.GlyphQualitySlider.valueChanged.connect(window.Quality_control)
+    window.FocusBox.toggled.connect(window.toggle_focus)
+    window.AutoFocusCheck.toggled.connect(window.toggle_autofocus)
+    window.FocusSlider.valueChanged.connect(window.FocalDisk_control)
+    window.FXAACheck.toggled.connect(window.FXAA_control)
+    window.FXAACheck.toggled.connect(window.UpdateRenderer)
+    window.SSAOCheck.toggled.connect(window.SSAO_control)
+    window.SSAOCheck.toggled.connect(window.UpdateRenderer)
+    window.HDRICheck.toggled.connect(window.HDRI_control)
+    window.HDRICheck.toggled.connect(window.UpdateRenderer)
+    window.HDRIButtonSelect.clicked.connect(window.getHDRIFile)
+    window.SkyBoxCheck.toggled.connect(window.SkyBox_control)
+    window.SkyBoxCheck.toggled.connect(window.UpdateRenderer)
+    #window.ShadowCheck.toggled.connect(window.Shadow_control)
+    #window.ShadowCheck.toggled.connect(window.UpdateRenderer)
+    # Texture controls
+    window.TextureSelect.clicked.connect(window.getTextureFile)
+    window.ORMTextureSelect.clicked.connect(window.getORMTextureFile)
+    window.NTextureSelect.clicked.connect(window.getNTextureFile)
+    window.ATextureSelect.clicked.connect(window.getATextureFile)
+    window.ETextureSelect.clicked.connect(window.getETextureFile)
+    #
+    window.TextureCheck.toggled.connect(window.Texture_control)
+    window.ORMTextureCheck.toggled.connect(window.ORMTexture_control)
+    window.NTextureCheck.toggled.connect(window.NTexture_control)
+    window.ATextureCheck.toggled.connect(window.ATexture_control)
+    window.ETextureCheck.toggled.connect(window.ETexture_control)
+    #
+    window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
+    window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
+    window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
+    window.RenSpecularPowerSlider.valueChanged.connect(window.RenSpecularPower_control)
+    window.PBREmissionSlider.valueChanged.connect(window.PBREmission_control)
+    window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
+    window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
+    window.PBRMetallicSlider.valueChanged.connect(window.PBRMetallic_control)
     #---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     #---------------------------------------------------------------------------

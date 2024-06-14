@@ -339,6 +339,7 @@ class ASDReading():
     ############################################################################
     def readAtoms(self,file_coord):
         from vtk import vtkPoints
+        from vtk.util import numpy_support
         import numpy as np
         import pandas as pd
         #-----------------------------------------------------------------------
@@ -353,8 +354,7 @@ class ASDReading():
         #-----------------------------------------------------------------------
         # Read the data with pandas
         #-----------------------------------------------------------------------
-        coord=pd.read_csv(file_coord,header=None,delim_whitespace=True,             \
-        usecols=[1,2,3]).values
+        coord=np.genfromtxt(fname=file_coord,usecols=[1,2,3])
         #-----------------------------------------------------------------------
         # Define the number of atoms in the system
         #-----------------------------------------------------------------------
@@ -362,8 +362,7 @@ class ASDReading():
         #-----------------------------------------------------------------------
         # Pass the numpy type arrays to vtk objects
         #-----------------------------------------------------------------------
-        for ii in range(0,ASDReading.nrAtoms):
-            points.InsertPoint(ii,coord[ii,0],coord[ii,1],coord[ii,2])
+        points.SetData(numpy_support.numpy_to_vtk(coord))
         #-----------------------------------------------------------------------
         # Data to check if one should consider the data to be rendered in 2D or 3D
         #-----------------------------------------------------------------------
@@ -477,6 +476,7 @@ class ASDReading():
     #--------------------------------------------------------------------------------
     def readVectorsData(self,file_mom,time,nrAtoms,temp_count):
         from vtk import vtkFloatArray
+        from vtk.util import numpy_support
         import numpy as np
         import pandas as pd
         #----------------------------------------------------------------------------
@@ -505,8 +505,9 @@ class ASDReading():
             # Check if the file is in the new format
             #------------------------------------------------------------------------
             if type_fmt=='new':
-                ASDReading.full_mom=pd.read_csv(file_mom,header=None,               \
-                delim_whitespace=True,skiprows=7,usecols=[4,5,6]).values
+                #ASDReading.full_mom=pd.read_csv(file_mom,header=None,               \
+                #delim_whitespace=True,skiprows=7,usecols=[4,5,6]).values
+                ASDReading.full_mom=np.genfromtxt(fname=file_mom,usecols=[4,5,6])
                 file_mom.seek(0)
                 # Find how many different "times" there are
                 ASDReading.number_time_steps=len(ASDReading.full_mom)/nrAtoms
@@ -515,16 +516,18 @@ class ASDReading():
                 #--------------------------------------------------------------------
                 if ASDReading.number_time_steps>1:
                     # Read the times
-                    ASDReading.time_sep=pd.read_csv(file_mom,header=None,skiprows=7,\
-                    delim_whitespace=True,usecols=[0]).values
+                    ASDReading.time_sep=np.genfromtxt(file_mom,usecols=[0])
+                    #ASDReading.time_sep=pd.read_csv(file_mom,header=None,skiprows=7,\
+                    #delim_whitespace=True,usecols=[0]).values
                     # Find the separations between different times
                     ASDReading.time_sep=np.unique(ASDReading.time_sep)
                     # If there is only one time check if there are several ensembles
                     if len(ASDReading.time_sep)==1:
                         # Read the ensembles
                         file_mom.seek(0)
-                        ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
-                        skiprows=7,delim_whitespace=True,usecols=[1]).values
+                        ASDReading.time_sep=np.genfromtxt(file_mom,usecols=[1])
+                        #ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
+                        #skiprows=7,delim_whitespace=True,usecols=[1]).values
                         # Find how many different ensembles there are
                         ASDReading.time_sep=np.unique(ASDReading.time_sep)
                 elif ASDReading.number_time_steps==1:
@@ -538,15 +541,18 @@ class ASDReading():
                 #--------------------------------------------------------------------
                 if file_type=='restart':
                     # Read the restartfile
-                    ASDReading.full_mom=pd.read_csv(file_mom,header=None,skiprows=1,\
-                    delim_whitespace=True,usecols=[3,4,5]).values
+                    ASDReading.full_mom=np.genfromtxt(file_mom,skip_header=1, \
+                                                      usecols=[3,4,5])
+                    #ASDReading.full_mom=pd.read_csv(file_mom,header=None,skiprows=1,\
+                    #delim_whitespace=True,usecols=[3,4,5]).values
                     file_mom.seek(0)
                     # Find how many different "times" there are
                     ASDReading.number_time_steps=len(ASDReading.full_mom)/nrAtoms
                     if ASDReading.number_time_steps>1:
                         # Read the ensembles
-                        ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
-                        delim_whitespace=True,usecols=[0]).values
+                        ASDReading.time_sep=np.genfromtxt(file_mom,usecols=[0])
+                        #ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
+                        #delim_whitespace=True,usecols=[0]).values
                         # Find how many different ensembles there are
                         ASDReading.time_sep=np.unique(ASDReading.time_sep)
                     elif ASDReading.number_time_steps==1:
@@ -583,21 +589,30 @@ class ASDReading():
         #----------------------------------------------------------------------------
         # Loop over all the atoms
         #----------------------------------------------------------------------------
-        for ii in range(0,nrAtoms):
-            #------------------------------------------------------------------------
-            # Pass the data from the numpy arrays to vtk data structures
-            #------------------------------------------------------------------------
-            vectors.InsertTuple3(ii,ASDReading.full_mom[time*(nrAtoms)+ii,0],\
-                ASDReading.full_mom[time*(nrAtoms)+ii,1],\
-                ASDReading.full_mom[time*(nrAtoms)+ii,2])
-            if ASDReading.flag2D:
-                colors_x.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,0])
-                colors_y.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,1])
-                colors_z.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,2])
-            else:
-                colors_x.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,0]-min_x)/(max_x-min_x))
-                colors_y.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,1]-min_y)/(max_y-min_y))
-                colors_z.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,2]-min_z)/(max_z-min_z))
+        print('Setting up vtk moment arrays')
+        vectors = numpy_support.numpy_to_vtk(ASDReading.full_mom)
+        colors_x = (ASDReading.full_mom[:,0] - min_x) / ( max_x - min_x)
+        colors_y = (ASDReading.full_mom[:,1] - min_y) / ( max_y - min_y)
+        colors_z = (ASDReading.full_mom[:,2] - min_z) / ( max_z - min_z)
+        colors_x = numpy_support.numpy_to_vtk(colors_x)
+        colors_y = numpy_support.numpy_to_vtk(colors_y)
+        colors_z = numpy_support.numpy_to_vtk(colors_z)
+        #for ii in range(0,nrAtoms):
+        #    #------------------------------------------------------------------------
+        #    # Pass the data from the numpy arrays to vtk data structures
+        #    #------------------------------------------------------------------------
+        #    #vectors.InsertTuple3(ii,ASDReading.full_mom[time*(nrAtoms)+ii,0],\
+        #    #    ASDReading.full_mom[time*(nrAtoms)+ii,1],\
+        #    #    ASDReading.full_mom[time*(nrAtoms)+ii,2])
+        #    if ASDReading.flag2D:
+        #        colors_x.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,0])
+        #        colors_y.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,1])
+        #        #colors_z.InsertValue(ii,ASDReading.full_mom[time*(nrAtoms)+ii,2])
+        #    else:
+        #        colors_x.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,0]-min_x)/(max_x-min_x))
+        #        colors_y.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,1]-min_y)/(max_y-min_y))
+        #        #colors_z.InsertValue(ii,(ASDReading.full_mom[time*(nrAtoms)+ii,2]-min_z)/(max_z-min_z))
+        print('     done.')
         #-----------------------------------------------------------------------
         # Pass the colors to an array
         #-----------------------------------------------------------------------

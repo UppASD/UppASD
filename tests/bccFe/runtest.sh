@@ -22,7 +22,7 @@ do
    $SD_BINARY | tee out.$mode
    cp ./averages.bcc_Fe_T.out averages.$mode
    cp ./cumulants.bcc_Fe_T.out cumulants.$mode
-   rm *.out
+   rm *.out *.json *.yaml
 done
 
 rm -f inpsd.dat

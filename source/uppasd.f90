@@ -264,12 +264,13 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
+      use Qvectors, only : q, nq
       
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq)
          call timing(0,'SpinCorr      ','OF')
       end if
 
@@ -457,6 +458,9 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
+      use Midpoint_ms,           only : allocate_midpointms_fields
+      use Depondt_ms,            only : allocate_depondtms_fields
+
 
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
@@ -469,6 +473,12 @@ contains
       call allocate_hamiltoniandata(Natom, 1, Natom,1,0, 0, 'N',-1, 'N','N')
       call deallocateDampingBand(dampingBand)
       call deleteLocalInterpolationInfo(interfaceInterpolation) 
+      if (SDEalgh==1 .or. ipSDEalgh==1) then
+          call allocate_midpointms_fields(-1,Natom,Mensemble)
+      endif
+      if (SDEalgh==5 .or. ipSDEalgh==5) then
+          call allocate_depondtms_fields(-1,Natom,Mensemble)
+      endif
    else
 
       write (*,'(1x,a)') "Simulation finished"
@@ -617,6 +627,7 @@ contains
       use prn_trajectories
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
+      use DemagField
       
       implicit none
 
@@ -842,6 +853,11 @@ contains
       else
          mconf=1
       endif
+
+      ! Demagnetizing field (simple approach)
+      if (demag == 'Y') then
+         call allocate_demag(Mensemble)
+      end if
 
       ! Site dependent damping for the initial phase
       if (ipmode=='S'.and.do_site_ip_damping=='Y') then
@@ -1186,7 +1202,7 @@ contains
          call cluster_creation(NT,ham_inp%do_dm,Natom,initmag,conf_num,Mensemble,    &
             do_ralloy,Natom_full,ham_inp%do_jtensor,do_prnstruct,do_anisotropy_clus,        &
             index_clus,atype_clus,anumb_clus,coord,coord_clus,simid,mult_axis_clus, &
-            atype,anumb,asite_ch,achem_ch,mmom,emom,     &
+            atype,anumb,asite_ch,achem_ch,mmom,mmomi,emom,     &
             emomM,Landeg)
          call allocate_clusdata(flag=-1)
          if (do_ralloy/=0) call allocate_chemicaldata_clus(flag=-1)
@@ -1195,7 +1211,7 @@ contains
 
       ! Calculate the macrospin magnetic moments per macrocell if the dipolar interaction is considered
       ! with the macro spin model
-      if (ham_inp%do_dip.eq.2) then
+      if (ham_inp%do_dip==2) then
          call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,     &
             macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,emom_macro, &
             emomM_macro)
@@ -1445,7 +1461,9 @@ contains
 
       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
       if(SDEalgh==5 .or. ipSDEalgh==5) then
-         call allocate_depondtfields(Natom, Mensemble,flag)
+        if  (mode.ne.'MS') then
+           call allocate_depondtfields(Natom, Mensemble,flag)
+        end if
       elseif(SDEalgh==11) then
          call allocate_llgifields(Natom, Mensemble,flag)
       end if

@@ -37,7 +37,7 @@ contains
       endif
       call copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
 
-      call copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
+      !call copym(Natom, Mensemble,emom, emom2, emomM, mmom2, mmom, mmomi, initexc)
 
    end subroutine moment_update
 

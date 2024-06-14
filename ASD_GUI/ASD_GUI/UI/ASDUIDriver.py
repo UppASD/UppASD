@@ -60,6 +60,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.VTKWidgetPresent=False
         self.can_plot_ams=False
         self.can_plot_sqw=False
+        self.hdrifile=[]
+        self.hdrifile_gotten = False
+        self.bwBackground = False
+        self.bwSinglecolor = False
         #-----------------------------------------------------------------------
         # Plotting global variables
         #-----------------------------------------------------------------------
@@ -255,13 +259,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.CamMainBox.setEnabled(False)
         self.MagMainGroup.setEnabled(False)
         self.NeighMainBox.setEnabled(False)
-        self.GenVizOptMainBox.setEnabled(False)
+        self.SceneOptMainBox.setEnabled(False)
         self.SpinGlyphSelectBox.setEnabled(True)
         self.ClippBox.setEnabled(False)
         self.ClippBox.setChecked(False)
         self.ClusBox.setVisible(False)
         self.KMCCheck.setVisible(False)
-        self.GenVizOptMainBox.setEnabled(True)
+        self.SceneOptMainBox.setEnabled(True)
         self.CamMainBox.setEnabled(True)
         self.actionSave_pov.setEnabled(True)
         self.actionSave_png.setEnabled(True)
@@ -1126,14 +1130,187 @@ class UppASDVizMainWindow(QMainWindow):
                 print('Viewing the localenergy file')
         return
     ############################################################################
+    # @brief Enable rgb-values for single color
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_singlecolor(self, check):
+        if check:
+            self.RGBRedColorSlider.setEnabled(True)
+            self.RGBGreenColorSlider.setEnabled(True)
+            self.RGBBlueColorSlider.setEnabled(True)
+        else:
+            self.RGBRedColorSlider.setEnabled(False)
+            self.RGBGreenColorSlider.setEnabled(False)
+            self.RGBBlueColorSlider.setEnabled(False)
+
+        return
+    ############################################################################
+    # @brief Toggle grayscale background on/off
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_bwSinglecolor(self, check):
+
+        self.bwSinglecolor = check
+        rgb = [ self.RGBRedColorSlider.value(),
+                self.RGBGreenColorSlider.value(),
+                self.RGBBlueColorSlider.value()]
+        bw = int(sum(rgb)/3)
+
+        if check:
+            self.RGBRedColorSlider.setValue(bw)
+            self.RGBGreenColorSlider.setValue(bw)
+            self.RGBRedColorSlider.setValue(bw)
+
+
+        return
+    ############################################################################
+    # @brief Toggle depth of field focus
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_focus(self, check):
+        self.ASDVizOpt.toggle_Focus(check=check,ren=self.ren, renWin=self.renWin)
+
+    ############################################################################
+    # @brief Toggle focal disk
+    # @author Anders Bergman
+    ############################################################################
+    def FocalDisk_control(self, value):
+        self.ASDVizOpt.setFocalDisk(value=value,ren=self.ren, renWin=self.renWin)
+
+
+    ############################################################################
+    # @brief Toggle depth of field focus
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_autofocus(self, check):
+        self.ASDVizOpt.toggle_autoFocus(check=check, renWin=self.renWin)
+
+
+    ############################################################################
+    # @brief Toggle grayscale background on/off
+    # @author Anders Bergman
+    ############################################################################
+    def toggle_bwBackground(self, check):
+
+        self.bwBackground = check
+        rgb = [   self.RGBRedBackgroundSlider.value(),
+                self.RGBGreenBackgroundSlider.value(),
+                 self.RGBBlueBackgroundSlider.value()]
+        bw = int(sum(rgb)/3)
+
+        if check:
+            self.RGBRedBackgroundSlider.setValue(bw)
+            self.RGBGreenBackgroundSlider.setValue(bw)
+            self.RGBRedBackgroundSlider.setValue(bw)
+
+
+        return
+    ############################################################################
+    # @brief Update rgb-values for single color coloring
+    # @author Anders Bergman
+    ############################################################################
+    def set_singlecolor(self, value):
+
+        if self.bwSinglecolor:
+            self.RGBRedColorSlider.setValue(value)
+            self.RGBGreenColorSlider.setValue(value)
+            self.RGBBlueColorSlider.setValue(value)
+
+        rgb = [ self.RGBRedColorSlider.value(),
+                self.RGBGreenColorSlider.value(),
+                self.RGBBlueColorSlider.value()]
+
+        self.ASDVizOpt.set_RGBcolor(window=self,rgb=rgb ,
+           flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
+
+        return
+    ############################################################################
+    # @brief Update rgb-values for the background
+    # @author Anders Bergman
+    ############################################################################
+    def set_background(self, value):
+
+        if self.bwBackground:
+            self.RGBRedBackgroundSlider.setValue(value)
+            self.RGBGreenBackgroundSlider.setValue(value)
+            self.RGBBlueBackgroundSlider.setValue(value)
+
+        rgb = [ self.RGBRedBackgroundSlider.value(),
+                self.RGBGreenBackgroundSlider.value(),
+                self.RGBBlueBackgroundSlider.value()]
+
+
+        self.ASDVizOpt.set_RGBbackground(rgb=rgb, ren=self.ren,renWin=self.renWin)
+
+        return
+    ############################################################################
+    # @brief Set the lookup table for the actors
+    # @details Set the lookup table for the actors, it also allows for the change
+    # of the scale type for the plotting, either linear or logarithmic scale.
+    # @author Jonathan Chico
+    ############################################################################
+    def set_lut_db(self, mapnum):
+        from vtkmodules.vtkCommonColor import  vtkColorSeries, vtkNamedColors
+
+        colorSeries = vtkColorSeries()
+
+        if mapnum <= 3:
+            self.ASDVizOpt.set_colormap_db(window=self,mapnum=mapnum, \
+               flag2D=self.ASDdata.flag2D,viz_type=self.viz_type,renWin=self.renWin)
+        elif mapnum == 4: # Spectrum
+            colorSeries.SetColorScheme(vtkColorSeries.SPECTRUM)
+        elif mapnum == 5: # Warm
+            colorSeries.SetColorScheme(vtkColorSeries.WARM)
+        elif mapnum == 6: # Cool
+            colorSeries.SetColorScheme(vtkColorSeries.COOL)
+        elif mapnum == 7: # Blues
+            colorSeries.SetColorScheme(vtkColorSeries.BLUES)
+        elif mapnum == 8: # Wildflower
+            colorSeries.SetColorScheme(vtkColorSeries.WILD_FLOWER)
+        elif mapnum == 9: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.CITRUS)
+        elif mapnum ==10: # BREWER_DIVERGING_PURPLE_ORANGE_11
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
+        elif mapnum ==11: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11)
+        elif mapnum ==12: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
+        elif mapnum ==13: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9)
+        elif mapnum ==14: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
+        elif mapnum ==15: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
+        elif mapnum ==16: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
+        elif mapnum ==17: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_DARK2)
+        elif mapnum ==18: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
+        elif mapnum ==19: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
+        elif mapnum ==20: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET1)
+        elif mapnum ==21: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET2)
+        elif mapnum ==22: # Citrus
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET3)
+
+        if mapnum > 3:
+            colorSeries.BuildLookupTable(self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
+        self.ASDVizOpt.lut.Build()
+
+        self.renWin.Render()
+        return
+    ############################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
     ############################################################################
     def set_lut(self):
-        self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
-        viz_type=self.viz_type,renWin=self.renWin)
+        #self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
+        #viz_type=self.viz_type,renWin=self.renWin)
         if self.sender()==self.LinearScale and self.LinearScale.isChecked():
             self.ASDVizOpt.lut.SetScaleToLinear()
         if self.sender()==self.LogScale and self.LogScale.isChecked():
@@ -1239,18 +1416,62 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
+        if self.sender() == self.SpinBarButton:
+            if self.SpinBarButton.isChecked():
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Bars')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cubes')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinSphereButton:
             if self.SpinSphereButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Spheres')
+                self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinArrowButton:
             if self.SpinArrowButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Arrows')
+                self.SpinCenterCheck.setChecked(False)
+                self.SpinCenterCheck.setEnabled(True)
         if self.sender() == self.SpinConeButton:
             if self.SpinConeButton.isChecked():
                 self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='Cones')
+                self.SpinCenterCheck.setEnabled(False)
+        if self.sender() == self.SpinCenterCheck:
+            if self.SpinCenterCheck.isChecked():
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOn')
+            else:
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin,keyword='CenterOff')
+        self.renWin.Render()
+        return
+    ############################################################################
+    # Function to change the shading of the glyphs that display the individual 
+    # magnetic moments
+    ############################################################################
+    def ChangeShading(self):
+        """Function to change the type of glyphs that display the individual magnetic
+        moments
+
+        Author
+        ----------
+        Anders Bergman, Jonathan Chico
+        """
+        if self.sender() == self.FlatShadeButton:
+            if self.FlatShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Flat')
+                
+        if self.sender() == self.GouraudShadeButton:
+            if self.GouraudShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Gouraud')
+                
+        if self.sender() == self.PBRShadeButton:
+            if self.PBRShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='PBR')
+                
+        if self.sender() == self.PhongShadeButton:
+            if self.PhongShadeButton.isChecked():
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin,keyword='Phong')
+                
         self.renWin.Render()
         return
     ############################################################################
@@ -1326,8 +1547,167 @@ class UppASDVizMainWindow(QMainWindow):
         png_mode=self.actionSave_png.isChecked(),pov_mode=self.actionSave_pov.isChecked())
         self.number_of_screenshots=self.number_of_screenshots+1
         return
+    ############################################################################
+    # Function that calls for updating the glyph resolutions
+    ############################################################################
     def Quality_control(self,value):
         self.ASDVizOpt.GlyphQualityUpdate(value=value,viz_type=self.viz_type,mode=self.mode,renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling FXAA
+    ############################################################################
+    def FXAA_control(self, check):
+        self.ASDVizOpt.toggle_FXAA(check=check,ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling surface texture
+    ############################################################################
+    def Texture_control(self, check):
+        self.ASDVizOpt.toggle_Texture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.texturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ORMTexture_control(self, check):
+        self.ASDVizOpt.toggle_ORMTexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.ORMtexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def NTexture_control(self, check):
+        self.ASDVizOpt.toggle_NTexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Ntexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ETexture_control(self, check):
+        self.ASDVizOpt.toggle_ETexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Etexturefile)
+    ############################################################################
+    # Function that calls for toggling ORM texture
+    ############################################################################
+    def ATexture_control(self, check):
+        self.ASDVizOpt.toggle_ATexture(check=check,ren=self.ren,renWin=self.renWin,
+                                      texfile=self.Atexturefile)
+    ############################################################################
+    # Function that calls for toggling SSAO
+    ############################################################################
+    def SSAO_control(self, check):
+        self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
+    ############################################################################
+    # Function that calls for toggling shadows
+    ############################################################################
+    #def Shadow_control(self, check):
+    #    self.ASDVizOpt.toggle_Shadows(check=check,ren=self.ren, renWin=self.renWin)
+    
+    ############################################################################
+    # Function that calls for toggling HDRI
+    ############################################################################
+    def HDRI_control(self, check):
+        self.ASDVizOpt.toggle_HDRI(check=check,ren=self.ren,renWin=self.renWin,
+                                        hdrifile=self.hdrifile)
+        return
+    ############################################################################
+    # Function that calls for toggling skybox
+    ############################################################################
+    def SkyBox_control(self, check):
+        self.ASDVizOpt.toggle_SkyBox(check=check,ren=self.ren,renWin=self.renWin,
+                                       skyboxfile=self.hdrifile)
+        return
+    ############################################################################
+    # Finding the file name for the HDR file
+    ############################################################################
+    def getHDRIFile(self):
+        self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
+        self.hdrifile_gotten = len(self.hdrifile)>0
+        if self.hdrifile_gotten:
+            self.HDRICheck.setEnabled(True)
+            self.SkyBoxCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the texture image
+    ############################################################################
+    def getTextureFile(self):
+        self.texturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.texturefile_gotten = len(self.texturefile)>0
+        if self.texturefile_gotten:
+            self.TextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the ORM texture image
+    ############################################################################
+    def getORMTextureFile(self):
+        self.ORMtexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.ORMtexturefile_gotten = len(self.ORMtexturefile)>0
+        if self.ORMtexturefile_gotten:
+            self.ORMTextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the normal texture image
+    ############################################################################
+    def getNTextureFile(self):
+        self.Ntexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Ntexturefile_gotten = len(self.Ntexturefile)>0
+        if self.Ntexturefile_gotten:
+            self.NTextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the anisotropy texture image
+    ############################################################################
+    def getATextureFile(self):
+        self.Atexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Atexturefile_gotten = len(self.Atexturefile)>0
+        if self.Atexturefile_gotten:
+            self.ATextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Finding the file name for the emissive texture image
+    ############################################################################
+    def getETextureFile(self):
+        self.Etexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Etexturefile_gotten = len(self.Etexturefile)>0
+        if self.Etexturefile_gotten:
+            self.ETextureCheck.setEnabled(True)
+        return
+    ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecular_control(self, value):
+        self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling specular scattering
+    ############################################################################
+    def RenSpecularPower_control(self, value):
+        self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling ambient scattering
+    ############################################################################
+    def RenAmbient_control(self, value):
+        self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling diffuse scattering
+    ############################################################################
+    def RenDiffuse_control(self, value):
+        self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Emission value
+    ############################################################################
+    def PBREmission_control(self, value):
+        self.ASDVizOpt.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Occlusion value
+    ############################################################################
+    def PBROcclusion_control(self, value):
+        self.ASDVizOpt.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRRoughness_control(self, value):
+        self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
+    ############################################################################
+    # Function that calls for toggling PBR Roughness value
+    ############################################################################
+    def PBRMetallic_control(self, value):
+        self.ASDVizOpt.PBRMetallicUpdate(value=value, renWin=self.renWin)
+
     #--------------------------------------------------------------------------------
     # @brief Playback control for the animation of different movies, either for moments
     # or energies.
