@@ -37,7 +37,7 @@ include = ["uppasd"]
 enabled = true
 template = "{tag}"
 # Proper naming would be as below
-dirty_template = "{tag}.dev{ccount}+g{sha}"
+dirty_template = "{tag}.dev{ccount}"
 dev_template = "{tag}.dev{ccount}"
 
 [tool.cibuildwheel]
