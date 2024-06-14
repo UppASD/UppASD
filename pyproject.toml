@@ -36,8 +36,9 @@ include = ["uppasd"]
 [tool.setuptools-git-versioning]
 enabled = true
 template = "{tag}"
+# Proper naming would be as below
 dirty_template = "{tag}.dev{ccount}+g{sha}"
-#version_file = "uppasd/VERSION"
+dev_template = "{tag}.dev{ccount}+g{sha}"
 
 [tool.cibuildwheel]
 # Install something required for the build
