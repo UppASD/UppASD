@@ -71,3 +71,31 @@ jobs:
           name: asdgui_sdist
           path: ASD_GUI/dist
 
+  publish-to-testpypi:
+    name: Publish Python 🐍 distribution 📦 to TestPyPI
+    needs:
+    - build_wheels
+    - build_sdist
+    runs-on: ubuntu-latest
+ 
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/asd_gui
+ 
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+ 
+    steps:
+    - name: Download all the wheels
+      uses: actions/download-artifact@v4
+      with:
+        path: dist/
+        merge-multiple: true
+ 
+    - name: Confirm the wheels
+      run: ls -lR dist/
+ 
+    - name: Publish distribution 📦 to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
