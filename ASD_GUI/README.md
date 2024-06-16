@@ -1,6 +1,8 @@
+<h1>asd_gui</h1>
+[![Build wheels for ASD_GUI](https://github.com/UppASD/UppASD/actions/workflows/wheels_gui.yml/badge.svg?branch=python_pip)](https://github.com/UppASD/UppASD/actions/workflows/wheels_gui.yml)
 
 # Graphical User Interface
-A `python` based `QT` GUI, named `asd_gui`, for the code is also available in the repository. 
+A `python` based `QT` GUI, named `asd_gui`, for the code is available in the repository. 
 The GUI allows for:
 - Visualization of outputs via `VTK`.
 - Plotting of several quantities via integrated `matplotlib` functionalities.

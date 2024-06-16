@@ -1,9 +1,12 @@
+
 <h1>UppASD</h1>
 
 <b>Upp</b>sala <b>A</b>tomistic <b>S</b>pin <b>D</b>ynamics software
 <!--![logo][logo]-->
 
 
+[![Build binaries](https://github.com/UppASD/UppASD/actions/workflows/binaries.yml/badge.svg?branch=python_pip)](https://github.com/UppASD/UppASD/actions/workflows/binaries.yml)
+[![Build wheels](https://github.com/UppASD/UppASD/actions/workflows/wheels.yml/badge.svg?branch=python_pip)](https://github.com/UppASD/UppASD/actions/workflows/wheels.yml)
 <!---[![build status](https://gitlab.com/UppASD/UppASD/badges/master/pipeline.svg)](https://gitlab.com/UppASD/UppASD/pipelines)--->
 
 The `UppASD` software package is a simulation suite to study magnetization dynamics by means of the atomistic version of the Landau-Lifshitz-Gilbert (LLG) equation.
