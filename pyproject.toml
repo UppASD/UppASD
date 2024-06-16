@@ -18,7 +18,7 @@ authors = [
 urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
 license = { text = "GPLv2" }
 dependencies = [
-    "numpy>1.19"
+    "numpy>1.19" ,"pyyaml"
 ]
 
 [project.scripts]
