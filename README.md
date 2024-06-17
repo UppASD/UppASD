@@ -35,10 +35,11 @@ O. Eriksson et. al,  Oxford University Press 2017][1]
 
 ---
 # Installation:
-## Binary
-Download and unpack a binary from the [Release][Release] page. Installers for Linux and Windows are also available.
+## Precompiled binaries
+Download and unpack a binary from the [Release][Release] page. Installers are available for Linux and Windows. After a successful installation, the code can be run by `uppasd` from the command line.
 
-*Note: The pre-compiled binaries are not optimized, so building from source is recommended for production usage*
+_Note: The pre-compiled binaries are not optimized, so building from source is recommended for production usage_
+
 ---
 
 ## Build from source
@@ -48,14 +49,17 @@ cmake -S . -B build
 cmake --build build
 ```
 which results in a compiled binary `uppasd` locade in the `./bin/` directory.
+
 ---
 
 ### Install as Python package (beta)
+
 Python bindings for UppASD are available for installation using `pip` as follows
 ```python
 python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple uppasd
 ```
 The `pip` installation also provides the binary `uppasd`.
+
 ---
 # Examples and documentation
 
@@ -65,7 +69,7 @@ The code is documented in the [UppASD manual](https://uppasd.github.io/UppASD-ma
 
 A tutorial with examples and exercises on atomistic spin-dynamics are contained in the [UppASD tutorial](https://uppasd.github.io/UppASD-tutorial/).
 
-**Developers please look at the development guidelines in the `CONTRIBUTING.md` file, about how to make your contributions to UppASD.**
+_For developers:_ Please look at the development guidelines in the `CONTRIBUTING.md` file, about how to make your contributions to UppASD.
 
 
 ---
@@ -83,6 +87,7 @@ The recommended way to use `asd_gui` is to install the offical version using `pi
 pip install asd_gui
 ```
 This will install the GUI as a Python module that is started by issuing the `asd_gui` command at the command prompt.
+
 ---
 ## Installation Guide (local)
 
