@@ -213,7 +213,7 @@ contains
          write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
          write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
          write(ofileno,'(a)') repeat("#",80)
-         write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
+         write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
       else if (type=='M') then
       ! Write the name of the moment and the position of the writing of file
          write (filn,'(''moment'',a,''.'',a,''.out'')') suffix,trim(simid)
@@ -227,7 +227,7 @@ contains
             write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
             write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
             write(ofileno,'(a)') repeat("#",80)
-            write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
+            write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#iter","ens","iatom","|Mom|","M_x","M_y","M_z"
          else
             fil_pos="append"
             open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
@@ -282,7 +282,7 @@ contains
          write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
          write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
          write(ofileno,'(a)') repeat("#",80)
-         write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
+         write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
       else if (type=='M') then
       ! Write the name of the moment and the position of the writing of file
          write (filn,'(''moment'',a,''.'',a,''.out'')') suffix,trim(simid)
@@ -295,7 +295,7 @@ contains
             write(ofileno,'(a,1x,i8)')"# Number of atoms: ", Natom
             write(ofileno,'(a,1x,i8)')"# Number of ensembles: ", Mensemble
             write(ofileno,'(a)') repeat("#",80)
-            write(ofileno,'(a8,a,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
+            write(ofileno,'(a8,a8,a8,a16,a16,a16,a16)') "#Time [s]","ens","iatom","|Mom|","M_x","M_y","M_z"
          else
             fil_pos="append"
             open(ofileno,file=filn,position=trim(fil_pos),access='stream',form='formatted')
