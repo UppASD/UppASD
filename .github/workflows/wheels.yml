@@ -1,4 +1,4 @@
-name: Build wheels on all platforms (beta)
+name: Build and publish Python wheels
 
 #on: [release]
 on: [release, push, pull_request]

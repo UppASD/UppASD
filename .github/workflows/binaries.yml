@@ -1,4 +1,4 @@
-name: Build binaries on all platforms (beta)
+name: Build and test binaries
 
 #on: [release]
 on: [release, push, pull_request]
