@@ -264,14 +264,21 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
-      use Qvectors, only : q, nq
-      
+      use Qvectors,        only : q,nq
+      use Chern_number
+
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq,0)
          call timing(0,'SpinCorr      ','OF')
+      end if
+
+      if(do_chern=='Y') then
+         call timing(0,'ChernNumber      ','ON')
+         call calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
+         call timing(0,'ChernNumber      ','OF')
       end if
 
       write (*,'(1x,a)') "Enter measurement phase:"
@@ -458,9 +465,6 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
-      use Midpoint_ms,           only : allocate_midpointms_fields
-      use Depondt_ms,            only : allocate_depondtms_fields
-
 
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
@@ -473,12 +477,6 @@ contains
       call allocate_hamiltoniandata(Natom, 1, Natom,1,0, 0, 'N',-1, 'N','N')
       call deallocateDampingBand(dampingBand)
       call deleteLocalInterpolationInfo(interfaceInterpolation) 
-      if (SDEalgh==1 .or. ipSDEalgh==1) then
-          call allocate_midpointms_fields(-1,Natom,Mensemble)
-      endif
-      if (SDEalgh==5 .or. ipSDEalgh==5) then
-          call allocate_depondtms_fields(-1,Natom,Mensemble)
-      endif
    else
 
       write (*,'(1x,a)') "Simulation finished"
@@ -616,6 +614,7 @@ contains
       use prn_latticetrajectories
       use WangLandau
       use Diamag
+      use Chern_number
       use ElkGeometry
       use Qminimizer
       use Correlation_core
@@ -745,6 +744,8 @@ contains
       call read_parameters_wanglandau(ifileno)
       rewind(ifileno)
       call read_parameters_diamag(ifileno)
+      rewind(ifileno)
+      call read_parameters_chern_number(ifileno)
       rewind(ifileno)
       call read_parameters_elkgeometry(ifileno)
       rewind(ifileno)
@@ -1461,9 +1462,7 @@ contains
 
       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
       if(SDEalgh==5 .or. ipSDEalgh==5) then
-        if  (mode.ne.'MS') then
-           call allocate_depondtfields(Natom, Mensemble,flag)
-        end if
+         call allocate_depondtfields(Natom, Mensemble,flag)
       elseif(SDEalgh==11) then
          call allocate_llgifields(Natom, Mensemble,flag)
       end if

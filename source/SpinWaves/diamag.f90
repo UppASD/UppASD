@@ -23,6 +23,8 @@ module diamag
    complex(dblprec), dimension(:,:,:), allocatable :: ektij
    !
    real(dblprec), dimension(:,:), allocatable :: nc_eval_q   !< Eigenvalues from NC-AMS
+   real(dblprec), dimension(:,:), allocatable :: nc_eval_qchern   !< Eigenvalues from NC-AMS
+   complex(dblprec),  dimension(:,:,:), allocatable :: nc_evec_qchern   !< Eigenvalues from NC-AMS in Chern
    real(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvalues from NC-AMS
    !
    character(len=1) :: do_diamag       !< Perform frequency based spin-correlation sampling (Y/N/C)
@@ -39,9 +41,9 @@ module diamag
 
    private
    ! public subroutines
-   public :: do_diamag, read_parameters_diamag
-   !public :: setup_diamag, setup_finite_hamiltonian, setup_infinite_hamiltonian
-   public :: setup_tensor_hamiltonian!, setup_altern_hamiltonian
+   public :: do_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
+             find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
+   public :: setup_tensor_hamiltonian, nc_evec_qchern, nc_eval_qchern
    public :: diamag_qvect
 
 contains
@@ -62,17 +64,15 @@ contains
    end subroutine setup_diamag
 
    !> Set up the Hamiltonian for first cell
-   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom, q_vect, nq)
+   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom, q_vect, nq,flag)
 
       use Constants
       use AMS, only : magdos_calc, printEnergies
-      !use Qvectors,        only : q,nq
-      !use math_functions, only : f_cross_product
-      !use Correlation,        only : q,nq
       !
       implicit none
       !
       integer, intent(in) :: NA  !< Number of atoms in one cell
+      integer, intent(in) :: flag !< Type of calculation (0=NC-AMS, 1=Chern number)
       integer, intent(in) :: Natom     !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       character(len=8), intent(in) :: simid !< Name of simulation
@@ -80,7 +80,6 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
       real(dblprec), dimension(3,nq), intent(in) :: q_vect !< Qpoints
       integer, intent(in) :: nq    !< Number of qpoints
-
       !
       real(dblprec), dimension(3) :: z
       !
@@ -97,9 +96,11 @@ contains
       !
       real(dblprec) :: msat,tcmfa,tcrpa
       !
-      character(LEN = 22) :: ncams_file
+      character(LEN = 25) :: ncams_file
       !
-      print '(1x,a)', 'Calculating LSWT magnon dispersions'
+      if (flag == 0) then
+        print '(1x,a)', 'Calculating LSWT magnon dispersions'
+      end if
 
       ! Hamiltonian dimension = 4x number of atoms
       hdim=2*NA
@@ -131,11 +132,18 @@ contains
       !
       allocate(h_k(hdim,hdim),stat=i_stat)
       call memocc(i_stat,product(shape(h_k))*kind(h_k),'h_k','setup_tensor_hamiltonian')
-      allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
-      allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
-      !
+      if (flag == 0) then
+        allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
+        allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
+      else
+        allocate(nc_eval_qchern(hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','setup_tensor_hamiltonian')
+        allocate(nc_evec_qchern(hdim,hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','setup_tensor_hamiltonian')
+      end if
+         !
       allocate(eig_vec(hdim,hdim),stat=i_stat)
       call memocc(i_stat,product(shape(eig_vec))*kind(eig_vec),'eig_vec','setup_tensor_hamiltonian')
       allocate(eig_val(hdim),stat=i_stat)
@@ -247,46 +255,51 @@ contains
          !end if
 
          ! Diagonalize Hamiltonian 
-         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq, nq_ext, S_prime)
+         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
-         nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
-         nc_evec_q(:,:,iq)=abs(eig_vec)
-
+         if (flag==0) then
+           nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+           nc_evec_q(:,:,iq)=abs(eig_vec)
+         else
+           nc_eval_qchern(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+           nc_evec_qchern(:,:,iq)=eig_vec
+         end if
       end do
 
+      if (flag==0) then
+        ncams_file = 'ncams.'//trim(simid)//'.out'
+        tcmfa=0.0_dblprec
+        tcrpa=0.0_dblprec
+        msat=sum(mmom(:,1),1)/natom
+        call printEnergies(ncams_file,nc_eval_q(1:NA,1:nq),msat,tcmfa,tcrpa,NA,2)
+        !if(norm2(diamag_qvect)>1.0e-12_dblprec) then
+        ncams_file = 'ncams+q.'//trim(simid)//'.out'
+        call printEnergies(ncams_file,nc_eval_q(1:NA,nq+1:2*nq),msat,tcmfa,tcrpa,NA,2)
+        ncams_file = 'ncams-q.'//trim(simid)//'.out'
+        call printEnergies(ncams_file,nc_eval_q(1:NA,2*nq+1:3*nq),msat,tcmfa,tcrpa,NA,2)
+        !end if
 
-      ncams_file = 'ncams.'//trim(simid)//'.out'
-      tcmfa=0.0_dblprec
-      tcrpa=0.0_dblprec
-      msat=sum(mmom(:,1),1)/natom
-      call printEnergies(ncams_file,nc_eval_q(1:NA,1:nq),msat,tcmfa,tcrpa,NA,2)
-      !if(norm2(diamag_qvect)>1.0e-12_dblprec) then
-      ncams_file = 'ncams+q.'//trim(simid)//'.out'
-      call printEnergies(ncams_file,nc_eval_q(1:NA,nq+1:2*nq),msat,tcmfa,tcrpa,NA,2)
-      ncams_file = 'ncams-q.'//trim(simid)//'.out'
-      call printEnergies(ncams_file,nc_eval_q(1:NA,2*nq+1:3*nq),msat,tcmfa,tcrpa,NA,2)
-      !end if
+        !!! write (filn,'(''ncams_evec.'',a,''.out'')') trim(simid)
+        !!! open(ofileno,file=filn, position='append')
+        !!! do iq=1,nq
+        !!!    do iv=1,hdim
+        !!!       write(ofileno,'(2i6,100f18.8)') iq,iv,nc_evec_q(:,iv,iq)
+        !!!    end do
+        !!! end do
+        !!! close(ofileno)
+        !   subroutine magdos_calc(filename,wres,magdos,iat)
+        !if (do_magdos=='Y') then
+        !   magdos_file = 'ncmagdos.'//simid//'.out'
+        !   call magdos_calc(magdos_file,nc_eval_q(1:na,1:nq),na)
+        !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
+        !end if
 
 
-      !!! write (filn,'(''ncams_evec.'',a,''.out'')') trim(simid)
-      !!! open(ofileno,file=filn, position='append')
-      !!! do iq=1,nq
-      !!!    do iv=1,hdim
-      !!!       write(ofileno,'(2i6,100f18.8)') iq,iv,nc_evec_q(:,iv,iq)
-      !!!    end do
-      !!! end do
-      !!! close(ofileno)
-      !   subroutine magdos_calc(filename,wres,magdos,iat)
-      !if (do_magdos=='Y') then
-      !   magdos_file = 'ncmagdos.'//simid//'.out'
-      !   call magdos_calc(magdos_file,nc_eval_q(1:na,1:nq),na)
-      !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
-      !end if
+        call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
 
-
-      call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
-
+      end if
+      
       i_all=-product(shape(magham))*kind(magham)
       deallocate(magham,stat=i_stat)
       call memocc(i_stat,i_all,'magham','setup_tensor_hamiltonian')
@@ -320,13 +333,16 @@ contains
       i_all=-product(shape(h_k))*kind(h_k)
       deallocate(h_k,stat=i_stat)
       call memocc(i_stat,i_all,'h_k','setup_tensor_hamiltonian')
-
+      !
+      if (flag == 0) then
       i_all=-product(shape(nc_eval_q))*kind(nc_eval_q)
       deallocate(nc_eval_q,stat=i_stat)
       call memocc(i_stat,i_all,'nc_eval_q','setup_tensor_hamiltonian')
       i_all=-product(shape(nc_evec_q))*kind(nc_evec_q)
       deallocate(nc_evec_q,stat=i_stat)
       call memocc(i_stat,i_all,'nc_evec_q','setup_tensor_hamiltonian')
+      end if
+      !
       i_all=-product(shape(eig_vec))*kind(eig_vec)
       deallocate(eig_vec,stat=i_stat)
       call memocc(i_stat,i_all,'eig_vec','setup_tensor_hamiltonian')
@@ -334,15 +350,17 @@ contains
       deallocate(eig_val,stat=i_stat)
       call memocc(i_stat,i_all,'eig_val','setup_tensor_hamiltonian')
 
-
+      if (flag == 0) then
       print '(1x,a)', 'LSWT done.'
+      end if
+      
 
       return
       !
    end subroutine setup_tensor_hamiltonian
 
 
-   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq, nq_ext, S_prime)
+   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime)
       !
       use Constants
       !
