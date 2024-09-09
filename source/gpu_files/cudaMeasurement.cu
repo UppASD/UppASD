@@ -3,7 +3,6 @@
 
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "tensor.cuh"
 #include "cudaMeasurement.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "fortranData.hpp"
@@ -11,6 +10,7 @@
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
+#include "tensor.cuh"
 
 #ifdef NVPROF
 #include <nvToolsExtCuda.h>
@@ -21,7 +21,7 @@
 // Constructor
 CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2,
                                  const CudaTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
-                                 Tensor<real, 2>& p6,bool p7, bool p8)
+                                 Tensor<real, 2>& p6, bool p7, bool p8)
     : emomM(p1),
       emom(p2),
       mmom(p3),
@@ -38,8 +38,8 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor
 
    if(fastCopy) {
       // Initate temporary
-       unsigned int N = emomM.extent(1);
-       unsigned int M = emomM.extent(2);
+      unsigned int N = emomM.extent(1);
+      unsigned int M = emomM.extent(2);
 
 
       tmp_emomM.Allocate(3, N, M);
@@ -52,22 +52,18 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor
       pinned_emomM.AllocateHost(3, N, M);
       pinned_emom.AllocateHost(3, N, M);
       pinned_mmom.AllocateHost(N, M);
-      //cudaHostAlloc(&pinned_emomM, emomM.bytes(), cudaHostAllocDefault);
-      //cudaHostAlloc(&pinned_emom, emom.bytes(), cudaHostAllocDefault);
-      //cudaHostAlloc(&pinned_mmom, mmom.bytes(), cudaHostAllocDefault);
-
-      
+      // cudaHostAlloc(&pinned_emomM, emomM.bytes(), cudaHostAllocDefault);
+      // cudaHostAlloc(&pinned_emom, emom.bytes(), cudaHostAllocDefault);
+      // cudaHostAlloc(&pinned_mmom, mmom.bytes(), cudaHostAllocDefault);
    }
 }
 
 // Destructor
 CudaMeasurement::~CudaMeasurement() {
-
-
-   if(fastCopy) {      
-        tmp_emomM.Free();
-   tmp_emom.Free();
-   tmp_mmom.Free(); 
+   if(fastCopy) {
+      tmp_emomM.Free();
+      tmp_emom.Free();
+      tmp_mmom.Free();
 
       pinned_emomM.FreeHost();
       pinned_emom.FreeHost();
@@ -118,7 +114,7 @@ void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    stopwatch.add("fast - D2D");
 
    // Then write to host in copy stream (asynchronously with work stream)
-   
+
    pinned_emomM.copy_async(tmp_emomM, copyStream);
    pinned_emom.copy_async(tmp_emom, copyStream);
    pinned_mmom.copy_async(tmp_mmom, copyStream);
@@ -144,13 +140,13 @@ void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
    fortran_emom.copy_sync(emom);
 
 
-   //emomM.write(FortranData::emomM);
-   //emom.write(FortranData::emom);
-   //mmom.write(FortranData::mmom);
+   // emomM.write(FortranData::emomM);
+   // emom.write(FortranData::emom);
+   // mmom.write(FortranData::mmom);
    stopwatch.add("slow - D2H copy");
 
    // Queue measurement
-   measurementQueue.push(mstep,fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
+   measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
 }
 
 void CudaMeasurement::measure(std::size_t mstep) {

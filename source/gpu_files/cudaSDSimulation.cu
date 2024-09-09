@@ -5,22 +5,21 @@
 #include "c_helper.h"
 #include "cudaDepondtIntegrator.hpp"
 #include "cudaGPUErrchk.hpp"
-#include "tensor.cuh"
 #include "cudaHamiltonianCalculations.hpp"
-
-#include "cudaStructures.hpp"
-#include "cudaSimulation.hpp"
 #include "cudaMeasurement.hpp"
 #include "cudaMomentUpdater.hpp"
 #include "cudaParallelizationHelper.hpp"
+#include "cudaSimulation.hpp"
+#include "cudaStructures.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
+#include "tensor.cuh"
 
 CudaSimulation::CudaSDSimulation::CudaSDSimulation() {
-   //isInitiatedSD = false;
+   // isInitiatedSD = false;
 }
 
 CudaSimulation::CudaSDSimulation::~CudaSDSimulation() {
@@ -28,13 +27,15 @@ CudaSimulation::CudaSDSimulation::~CudaSDSimulation() {
 
 // Printing simulation status
 // Added copy to fortran line so that simulation status is printed correctly > Thomas Nystrand 14/09/09
-void CudaSimulation::CudaSDSimulation::printMdStatus(std::size_t mstep, CudaSimulation& cudaSim)  {
+void CudaSimulation::CudaSDSimulation::printMdStatus(std::size_t mstep, CudaSimulation& cudaSim) {
    if(cudaSim.SimParam.nstep > 20) {
       if(mstep % ((cudaSim.SimParam.rstep + cudaSim.SimParam.nstep) / 20) == 0) {
          cudaSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
          fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
-         std::printf(
-             "CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n", mstep * 100 / (cudaSim.SimParam.rstep + cudaSim.SimParam.nstep), *cudaSim.SimParam.mavg, *cudaSim.SimParam.binderc);
+         std::printf("CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
+                     mstep * 100 / (cudaSim.SimParam.rstep + cudaSim.SimParam.nstep),
+                     *cudaSim.SimParam.mavg,
+                     *cudaSim.SimParam.binderc);
       }
    } else {
       cudaSim.copyToFortran();
@@ -68,13 +69,13 @@ void CudaSimulation::CudaSDSimulation::SDiphase(CudaSimulation& cudaSim) {
    CudaHamiltonianCalculations hamCalc;
 
    // Moment updater
-   CudaMomentUpdater momUpdater(cudaSim.gpuLattice, cudaSim.SimParam.mompar, cudaSim.SimParam.initexc); 
+   CudaMomentUpdater momUpdater(cudaSim.gpuLattice, cudaSim.SimParam.mompar, cudaSim.SimParam.initexc);
 
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(cudaSim.SimParam)) {
-   std::fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
-   return;
+      std::fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
+      return;
    }
    if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {
       std::fprintf(stderr, "CudaSDSimulation: Hamiltonian failed to initiate!\n");
@@ -103,15 +104,15 @@ void CudaSimulation::CudaSDSimulation::SDiphase(CudaSimulation& cudaSim) {
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Print simulation status for each 5% of the simulation length
-      //printMdStatus(mstep); -- Do we need it in initial phase?
+      // printMdStatus(mstep); -- Do we need it in initial phase?
 
       // Apply Hamiltonian to obtain effective field
       hamCalc.heisge(cudaSim.gpuLattice);
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
-     integrator.evolveFirst(cudaSim.gpuLattice);
-     stopwatch.add("evolution");
+      integrator.evolveFirst(cudaSim.gpuLattice);
+      stopwatch.add("evolution");
 
       // Apply Hamiltonian to obtain effective field
       hamCalc.heisge(cudaSim.gpuLattice);
@@ -164,17 +165,22 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    CudaHamiltonianCalculations hamCalc;
 
    // Moment updater
-   CudaMomentUpdater momUpdater(cudaSim.gpuLattice, cudaSim.SimParam.mompar, cudaSim.SimParam.initexc); 
+   CudaMomentUpdater momUpdater(cudaSim.gpuLattice, cudaSim.SimParam.mompar, cudaSim.SimParam.initexc);
    // Measurement
-  CudaMeasurement measurement(cudaSim.gpuLattice.emomM, cudaSim.gpuLattice.emom, cudaSim.gpuLattice.mmom, cudaSim.cpuLattice.emomM, cudaSim.cpuLattice.emom, cudaSim.cpuLattice.mmom); 
+   CudaMeasurement measurement(cudaSim.gpuLattice.emomM,
+                               cudaSim.gpuLattice.emom,
+                               cudaSim.gpuLattice.mmom,
+                               cudaSim.cpuLattice.emomM,
+                               cudaSim.cpuLattice.emom,
+                               cudaSim.cpuLattice.mmom);
 
    // Initiate integrator and Hamiltonian
-   if(!integrator.initiate(cudaSim.SimParam)) { //TODO
+   if(!integrator.initiate(cudaSim.SimParam)) {  // TODO
       std::fprintf(stderr, "CudaMdSimulation: integrator failed to initiate!\n");
       return;
    }
-  
-   if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {//TODO
+
+   if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {  // TODO
       std::fprintf(stderr, "CudaSDSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
@@ -204,7 +210,7 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
 
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
-       // Measure
+      // Measure
       measurement.measure(mstep);
       stopwatch.add("measurement");
 
@@ -241,11 +247,11 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    }  // End loop over simulation steps
 
    // Final measure
-    measurement.measure(rstep + nstep + 1);//TODO
+   measurement.measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(rstep + nstep + 1);//TODO
+   measurement.flushMeasurements(rstep + nstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device
