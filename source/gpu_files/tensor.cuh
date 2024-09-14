@@ -208,6 +208,11 @@ public:
    void transpose();
 
 
+   void zeros() {
+      std::fill(begin(), end(), T{});
+   }
+
+
 private:
    T* data_{};
 };
@@ -408,6 +413,11 @@ public:
       auto tmp_ext = this->extents();
       this->SetExtents(A.extents());
       A.SetExtents(tmp_ext);
+   }
+
+
+   void zeros() {
+      ASSERT_CUDA(cudaMemset(data(), T{}, size() * sizeof(T)));
    }
 
 
