@@ -7,6 +7,7 @@
 !> Nikos Ntallis
 !> Anders Bergman
 !> Manuel Pereiro 
+!> Nastaran Salehi
 !> @copyright
 !> GNU Public License.
 !> @details In principle the solver is of Heun type but uses rotations to
@@ -20,7 +21,6 @@ module Depondt_ms
 !  use Depondt
    use Profiling
    use Parameters
-   use Profiling
    !
    implicit none
 
@@ -39,29 +39,29 @@ module Depondt_ms
 !     end function Dmdt
 !   end interface
 
-   private
+   private ::  mrod,btherm,bloc,bdup,dedt
 
    public :: depondt_evolve_first_ms, depondt_evolve_second_ms
 
 contains
 
-   subroutine depondt_evolve_first_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
+   subroutine depondt_evolve_first_ms(Natom,Mensemble,lambda1_array,beff,b2eff,   &
          btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale,stt,      &
-         thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list,dband)
+         thermal_field,do_she,she_btorque,do_sot,sot_btorque,dband)
       !
       use Constants, only : k_bolt, gama, mub
-      use RandomNumbers, only : rng_gaussian, rng_gaussianP
+      use RandomNumbers, only : rng_gaussian, rng_gaussianP, use_vsl
 
       implicit none
       !
-      integer, intent(in) :: Nred            !< Number of atoms that evolve
+      
       integer, intent(in) :: Natom           !< Number of atoms in system
       integer, intent(in) :: Mensemble       !< Number of ensembles
       real(dblprec), intent(in) :: delta_t   !< Time step
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the spin hall effect transfer torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      integer, dimension(Nred), intent(in) :: red_atom_list !< List of indices of atoms that evolve
+      
       real(dblprec), dimension(Natom), intent(in) :: Temp_array !< Temperature (array)
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
@@ -90,7 +90,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+               
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+stt_fac*btorque(:,i,k)
             end do
@@ -105,7 +105,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+               
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)= bdup(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -119,7 +119,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+              
                ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
                bdup(:,i,k)= bdup(:,i,k)+sot_fac*sot_btorque(:,i,k)
             end do
@@ -140,7 +140,7 @@ contains
       do k=1,Mensemble
          do i=1,Natom
 
-            !i=red_atom_list(ired)
+            
             ! Thermal field
             !   LL equations ONE universal damping
             Dp=(2.0_dblprec*lambda1_array(i)*k_bolt)/(delta_t*gama*mub)   !LLG
@@ -255,22 +255,21 @@ contains
    !
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine depondt_evolve_second_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,  &
-         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,  &
-         red_atom_list,dband)
+   subroutine depondt_evolve_second_ms(Natom,Mensemble,lambda1_array,beff,b2eff,  &
+         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,dband)
 
       use Constants, only : gama
       !
       implicit none
       !
-      integer, intent(in) :: Nred   !< Number of atoms that evolve
+      
       integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       real(dblprec), intent(in) :: delta_t !< Time step
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      integer, dimension(Nred), intent(in) :: red_atom_list !< List of indices of atoms that evolve
+      
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff !< Temporary storage of magnetic field
@@ -306,7 +305,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+               
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+stt_fac*btorque(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -317,7 +316,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+               
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+sot_fac*sot_btorque(:,i,k)
             end do
@@ -328,7 +327,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+               
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -340,7 +339,7 @@ contains
       do k=1,Mensemble
          do i=1,Natom
 
-            !i=red_atom_list(ired)
+            
             ! Construct local field
             bloc(:,i,k)=beff(:,i,k)+btherm(:,i,k)
 
@@ -480,5 +479,49 @@ contains
       end if
 
    end subroutine buildbeff_ms
+
+   !-----------------------------------------------------------------------------
+   !  SUBROUTINE: allocate_depondtms_fields
+   !> @brief
+   !> Allocates work arrays for the Depondtms solver
+   !-----------------------------------------------------------------------------
+   subroutine allocate_depondtms_fields(flag,Natom,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+
+      integer :: i_all, i_stat
+
+      if(flag>0) then
+         allocate(bloc(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(bloc))*kind(bloc),'bloc','allocate_depondtms_fields')
+         bloc=0.0_dblprec
+         allocate(btherm(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btherm))*kind(btherm),'btherm','allocate_depondtms_fields')
+         btherm=0.0_dblprec
+         allocate(bdup(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(bdup))*kind(bdup),'bdup','allocate_depondtms_fields')
+         bdup=0.0_dblprec
+         allocate(mrod(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(mrod))*kind(mrod),'mrod','allocate_depondtms_fields')
+         mrod=0.0_dblprec
+      else
+         i_all=-product(shape(bloc))*kind(bloc)
+         deallocate(bloc,stat=i_stat)
+         call memocc(i_stat,i_all,'bloc','allocate_depondtms_fields')
+         i_all=-product(shape(btherm))*kind(btherm)
+         deallocate(btherm,stat=i_stat)
+         call memocc(i_stat,i_all,'btherm','allocate_depondtms_fields')
+         i_all=-product(shape(bdup))*kind(bdup)
+         deallocate(bdup,stat=i_stat)
+         call memocc(i_stat,i_all,'bdup','allocate_depondtms_fields')
+         i_all=-product(shape(mrod))*kind(mrod)
+         deallocate(mrod,stat=i_stat)
+         call memocc(i_stat,i_all,'mrod','allocate_depondtms_fields')
+      end if
+   end subroutine allocate_depondtms_fields
 
 end module Depondt_ms

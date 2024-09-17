@@ -1,4 +1,4 @@
-name: Build binaries Linux, Macos
+name: Build binaries for MacOS
 
 on: [push, pull_request]
 
@@ -10,26 +10,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - { icon: '🟦', os: macOS-latest ,sys: macos, arch: x86_64 } 
-          - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
+          - { icon: '🟦', os: macos-latest ,sys: macos, arch: x86_64 } 
+          - { icon: '🟦', os: macos-latest ,sys: macos, arch: arm64 } 
+          - { icon: '🟦', os: macos-13 ,sys: macos, arch: x86_64 } 
+          - { icon: '🟦', os: macos-13 ,sys: macos, arch: arm64 } 
         #os: [ ubuntu-latest,  macOS-latest]
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 
     steps:
-      - name: Provide gfortran (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          # https://github.com/actions/virtual-environments/issues/2524
-          # https://github.com/cbg-ethz/dce/blob/master/.github/workflows/pkgdown.yaml
-          sudo ln -s /usr/local/bin/gfortran-12 /usr/local/bin/gfortran
-          sudo ln -s /usr/local/bin/gcc-12 /usr/local/bin/gcc
-          sudo mkdir /usr/local/gfortran
-          sudo ln -s /usr/local/Cellar/gcc@12/*/lib/gcc/12 /usr/local/gfortran/lib
-          gfortran --version
-          gcc --version
-          which gcc
-          which gfortran
-
       - name: Provide fftw  (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -41,8 +29,8 @@ jobs:
 
       - name: Build binaries
         run: |
-             cmake -S . -B build 
-             cmake --build build
+             FC=gfortran-13 cmake -S . -B build 
+             cmake --build build --parallel
              mkdir ./dist
              uname -a
              echo ${{runner.name}}

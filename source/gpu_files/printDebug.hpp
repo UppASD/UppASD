@@ -1,11 +1,10 @@
-#ifndef __PRINT_DEBUG_CPP__
-#define __PRINT_DEBUG_CPP__
+#pragma once
 
-#define _dpr {printDebug(__LINE__,__FILE__);}
+#include "c_headers.hpp"
 
-#include <stdio.h>
+#define _dpr \
+   { printDebug(__LINE__, __FILE__); }
 
-inline void printDebug(const int line, const char * file) {
-	printf("Reached: %d in %s\n",line,file);
+inline void printDebug(const int line, const char* file) {
+   std::printf("Reached: %d in %s\n", line, file);
 }
-#endif

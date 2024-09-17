@@ -66,6 +66,7 @@ contains
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
       use DemagField
+      use MacroCells
 
       implicit none
 
@@ -192,6 +193,18 @@ contains
 
             case('block_size')
                read(ifile,*,iostat=i_err) block_size
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_x')
+               read(ifile,*,iostat=i_err) block_size_x
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_y')
+               read(ifile,*,iostat=i_err) block_size_y
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_z')
+               read(ifile,*,iostat=i_err) block_size_z
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR CRYSTAL STRUCTURE
