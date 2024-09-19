@@ -2,6 +2,7 @@
 !> Edgar Mendez
 !> Nikos Ntallis
 !> Manuel Pereiro 
+!> Nastaran Salehi
 
  module MultiscaleSetupSystem
   use Parameters, only : dblprec
@@ -237,7 +238,7 @@ contains
     if(do_prnstruct /= 0) then
        open(unit=1234, file=coord_file_name)
        do i = 1, Natom
-          write (1234, *) i, coord(:, i), '1', i
+          write (1234,'(i12,2x,3F19.13,2x,a,2x,i12 )') i, coord(:, i), '1', i
        enddo
        close(1234)
     end if
@@ -446,12 +447,14 @@ contains
     subroutine allocate_general(flag)
     !
     use LLGI,          only : allocate_llgifields
-    use Depondt,       only : allocate_depondtfields
+    !use Depondt,       only : allocate_depondtfields
     use InputData
     use FieldData,     only : allocate_fields, read_local_field, allocation_field_time
     use Measurements,  only : allocate_measurementdata
     use RandomNumbers, only : allocate_randomwork
-    
+    use Midpoint_ms,   only : allocate_midpointms_fields
+    use Depondt_ms,    only : allocate_depondtms_fields
+
     !
     implicit none
     !
@@ -462,12 +465,17 @@ contains
 
     if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
     if(SDEalgh==5) then
-       call allocate_depondtfields(Natom, Mensemble,flag)
+       call allocate_depondtms_fields(flag,Natom, Mensemble)
     elseif(SDEalgh==11) then
        call allocate_llgifields(Natom, Mensemble,flag)
     end if
 
-    if(SDEalgh>=1.and.SDEalgh<=4) call allocate_randomwork(Natom,Mensemble,flag,'N')
+    if (SDEalgh==1 .or. ipSDEalgh==1) then
+      call allocate_midpointms_fields(flag,Natom,Mensemble)
+    endif
+
+
+    if(SDEalgh>=1.and.SDEalgh<=5) call allocate_randomwork(Natom,Mensemble,flag,'N')
  
 
     call allocate_measurementdata(NA,NT,Natom,Mensemble,Nchmax,plotenergy,flag)

@@ -43,7 +43,7 @@ contains
       do_ll_phonopy, Natom_phonopy, atomindex_phonopy, ll_inptens_phonopy )
 
       use NeighbourMap, only : setup_nm, setup_nm_nelem
-      use LatticeInputData, only : allocate_latthamiltonianinput
+      use LatticeInputData, only : allocate_latthamiltonianinput, ll_scale
       use LatticeHamiltonianData, only : allocate_llhamiltoniandata, allocate_lllhamiltoniandata, &
          allocate_llllhamiltoniandata, allocate_mlhamiltoniandata, allocate_mmlhamiltoniandata, allocate_mmllhamiltoniandata, &
          mml_tens_diag, lmm_tens_diag
@@ -228,6 +228,9 @@ contains
             0, 0)
          write(*,'(a)') ' done'
 
+         ! Rescale LL couplings if needed
+         if(ll_scale.ne.1.0_dblprec) ll_tens = ll_scale * ll_tens
+
          ! Print LL interactions
          if(do_prnstruct==1.or.do_prnstruct==4) then
             write(*,'(2x,a)',advance='no') "Print LL coordination shells"
@@ -272,6 +275,9 @@ contains
                ll_tens(1:3,1:3,j,i) = ll_inptens_phonopy(1:3,1:3,ja,ia) * fc_unitconv_phonopy
             end do
          end do
+
+         ! Rescale LL couplings if needed
+         if(ll_scale.ne.1.0_dblprec) ll_tens = ll_scale * ll_tens
 
          ! Print LL phonopy interactions
          if(do_prnstruct==1.or.do_prnstruct==4) then

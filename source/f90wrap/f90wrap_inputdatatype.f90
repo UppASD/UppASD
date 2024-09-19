@@ -1,4 +1,4 @@
-! Module inputdatatype defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputdatatype.f90
+! Module inputdatatype defined in file Input/inputdatatype.f90
 
 subroutine f90wrap_ham_inp_t__get__do_jtensor(this, f90wrap_do_jtensor)
     use inputdatatype, only: ham_inp_t
@@ -2228,5 +2228,5 @@ subroutine f90wrap_ham_inp_t_finalise(this)
     deallocate(this_ptr%p)
 end subroutine f90wrap_ham_inp_t_finalise
 
-! End of module inputdatatype defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/Input/inputdatatype.f90
+! End of module inputdatatype defined in file Input/inputdatatype.f90
 

@@ -49,12 +49,13 @@ contains
    !> Anders Bergman
    !> Jonathan Chico --> Separated into its own individual module
    !---------------------------------------------------------------------------------
-   subroutine print_topology(NT,N1,N2,sstep,mstep,Natom,Mensemble,delta_t,          &
+   subroutine print_topology(NT,NA,N1,N2,sstep,mstep,Natom,Mensemble,delta_t,          &
          real_time_measure,emomM,emom,simid,atype)
 
       implicit none
 
       integer, intent(in) :: NT            !< Number of types of atoms
+      integer, intent(in) :: NA            !< Number atoms in unit cell
       integer, intent(in) :: N1            !< Number of cell repetitions in x direction
       integer, intent(in) :: N2            !< Number of cell repetitions in y direction
       integer, intent(in) :: mstep         !< Current simulation step
@@ -89,8 +90,13 @@ contains
 
          else if (skyno=='T') then
             ! Wite the total skyrmion number to the buffer
-            call buffer_skyno_tri(Natom, Mensemble,N1,N2,mstep-1,emom,            &
+            call buffer_skyno_tri(NA, Natom, Mensemble,N1,N2,mstep-1,emom,            &
                bcount_skyno,delta_t,real_time_measure)
+            ! Write the type projected skyrmion number to the buffer
+            if ( do_proj_skyno=='Y' .or. do_proj_skyno=='T') then
+               call buffer_proj_skyno(NA,Natom, Mensemble,N1,N2,mstep-1,emomM,emom,&
+                  bcount_skyno,delta_t,real_time_measure,atype)
+            endif
             ! Write the site dependent skyrmion number to the buffer
             if (do_skyno_den=='Y') then
                call buffer_dens_skyno(Natom, Mensemble,N1,N2,mstep-1,emomM,emom,&
@@ -553,8 +559,8 @@ contains
    end subroutine buffer_skyno
 
    !---------------------------------------------------------------------------------
-        ! SUBROUTINE buffer_proj_skyno  
-        !> Buffer the projected skyrmion number
+   ! SUBROUTINE buffer_proj_skyno  
+   !> Buffer the projected skyrmion number
    !---------------------------------------------------------------------------------
    subroutine buffer_proj_skyno(NT,Natom, Mensemble,N1,N2,mstep,emomM,emom,                     &
          bcount_skyno,delta_t,real_time_measure,atype)
@@ -564,7 +570,7 @@ contains
 
       implicit none
 
-      integer, intent(in) :: NT    !< Number of typed of atoms
+      integer, intent(in) :: NT    !< Number of types of atoms (or NA depending on call)
       integer, intent(in) :: N1    !< Number of cell repetitions in x direction
       integer, intent(in) :: N2    !< Number of cell repetitions in y direction
       integer, intent(in) :: mstep !< Current simulation step
@@ -577,8 +583,12 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
-      call proj_grad_moments(NT,Natom, Mensemble,atype,emomM,proj_grad_mom)
-      proj_skynob(bcount_skyno,1:NT)=proj_pontryagin_no(NT,Natom,Mensemble,atype,emomM,proj_grad_mom)
+      if (skyno == 'T') then
+         proj_skynob(bcount_skyno,1:NT)=pontryagin_tri_proj(NT, Natom,Mensemble,emom)
+      else
+         call proj_grad_moments(NT,Natom, Mensemble,atype,emomM,proj_grad_mom)
+         proj_skynob(bcount_skyno,1:NT)=proj_pontryagin_no(NT,Natom,Mensemble,atype,emomM,proj_grad_mom)
+      end if
 
       if (real_time_measure=='Y') then
          indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)
@@ -653,10 +663,10 @@ contains
    end subroutine buffer_dens_skyno
 
    !---------------------------------------------------------------------------------
-        ! SUBROUTINE buffer_skyno_tri
-        !> Buffer the skyrmion number using triangular mesh
+   ! SUBROUTINE buffer_skyno_tri
+   !> Buffer the skyrmion number using triangular mesh
    !---------------------------------------------------------------------------------
-        subroutine buffer_skyno_tri(Natom, Mensemble,N1,N2,mstep,emom,bcount_skyno,           &
+   subroutine buffer_skyno_tri(NA, Natom, Mensemble,N1,N2,mstep,emom,bcount_skyno,           &
                 delta_t,real_time_measure)
       !
       use Gradients
@@ -664,6 +674,7 @@ contains
 
       implicit none
 
+      integer, intent(in) :: NA    !< Number of atoms in unit cell
       integer, intent(in) :: N1    !< Number of cell repetitions in x direction
       integer, intent(in) :: N2    !< Number of cell repetitions in y direction
       integer, intent(in) :: mstep !< Current simulation step
@@ -674,7 +685,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
 
-      skynob(bcount_skyno)=pontryagin_tri(Natom, Mensemble,emom)
+      skynob(bcount_skyno)=pontryagin_tri(Natom, Mensemble,emom) / NA
 
       if (real_time_measure=='Y') then
          indxb_skyno(bcount_skyno)=nint(real(mstep,dblprec)*delta_t)

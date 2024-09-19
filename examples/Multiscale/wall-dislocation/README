@@ -1,0 +1,4 @@
+# Wall-dislocation
+Interaction between a domain wall and an dislocation.
+The effect of the dislocation in the wall is pretty small, but can be appreciated with proper visualization.
+It is actually expected, as the dislocation is much smaller than the wall.

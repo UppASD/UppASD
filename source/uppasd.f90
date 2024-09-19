@@ -264,13 +264,21 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
-      
+      use Qvectors,        only : q,nq
+      use Chern_number
+
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq,0)
          call timing(0,'SpinCorr      ','OF')
+      end if
+
+      if(do_chern=='Y') then
+         call timing(0,'ChernNumber      ','ON')
+         call calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
+         call timing(0,'ChernNumber      ','OF')
       end if
 
       write (*,'(1x,a)') "Enter measurement phase:"
@@ -606,6 +614,7 @@ contains
       use prn_latticetrajectories
       use WangLandau
       use Diamag
+      use Chern_number
       use ElkGeometry
       use Qminimizer
       use Correlation_core
@@ -617,6 +626,7 @@ contains
       use prn_trajectories
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
+      use DemagField
       
       implicit none
 
@@ -735,6 +745,8 @@ contains
       rewind(ifileno)
       call read_parameters_diamag(ifileno)
       rewind(ifileno)
+      call read_parameters_chern_number(ifileno)
+      rewind(ifileno)
       call read_parameters_elkgeometry(ifileno)
       rewind(ifileno)
       call read_parameters_qminimizer(ifileno)
@@ -844,6 +856,11 @@ contains
       else
          mconf=1
       endif
+
+      ! Demagnetizing field (simple approach)
+      if (demag == 'Y') then
+         call allocate_demag(Mensemble)
+      end if
 
       ! Site dependent damping for the initial phase
       if (ipmode=='S'.and.do_site_ip_damping=='Y') then
@@ -1197,7 +1214,7 @@ contains
 
       ! Calculate the macrospin magnetic moments per macrocell if the dipolar interaction is considered
       ! with the macro spin model
-      if (ham_inp%do_dip.eq.2) then
+      if (ham_inp%do_dip==2) then
          call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,     &
             macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,emom_macro, &
             emomM_macro)
