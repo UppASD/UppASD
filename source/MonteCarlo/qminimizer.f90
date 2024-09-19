@@ -467,9 +467,9 @@ contains
                !print *,'---------------'
 
                if (.not. qm_excluded_atoms(ia)) then
-                  emomm(1:3,ia,k)=matmul(r_mat,emomm_start(:,ia,k))
+                  emomM(1:3,ia,k)=matmul(R_mat,emomM_start(:,ia,k))
                else
-                  emomm(1:3,ia,k)=emomm_start(:,ia,k)
+                  emomM(1:3,ia,k)=emomM_start(:,ia,k)
                end if
             end do
             !print '(3f12.5)', emomm

@@ -12,7 +12,7 @@ DEFAULT_SYSTEMS := gfortran gfortran-cuda gfortran-osx gfortran-cuda-osx ifort i
 LOCAL_SYSTEMS := $(filter-out $(DEFAULT_SYSTEMS),$(shell ls ./source/make/user_profiles/*.make | sed 's/..source.make.user_profiles.//' | sed 's/.make//'))
 SYSTEMS := $(DEFAULT_SYSTEMS) $(LOCAL_SYSTEMS)
 
-.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests asd-tests sld-tests dist dist_minimal gneb-tests $(SYSTEMS)
+.PHONY: deps PRINT nocopyprofile copyprofile help clean probe docs tests asd-tests sld-tests dist dist_minimal gneb-tests cuda-tests $(SYSTEMS)
 
 # Including the help files
 include ./source/make/makefileHELP
@@ -41,19 +41,23 @@ tests:
 	@echo ''
 
 asd-tests:
-	@cd ./tests; python3 -u ./bergtest.py --file regulartests.yaml | tee tests.log
+	@cd ./tests; python3 -u ./bergtest.py --file regulartests.yaml | tee asd-tests.log
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 sld-tests:
-	@cd ./tests; python3 -u ./bergtest.py --file sldtests.yaml | tee tests.log
+	@cd ./tests; python3 -u ./bergtest.py --file sldtests.yaml | tee sld-tests.log
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 gneb-tests:
-	@cd ./tests; python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml | tee tests.log
+	@cd ./tests; python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml | tee gneb-tests.log
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 regression-test:
 	@cd ./tests; python3 -u ./bergtest.py --file regressionResaro.yaml | tee regression-tests.log
+	@cd ./tests; python3 -u ./bergtest.py --clean
+
+cuda-tests:
+	@cd ./tests; python3 -u ./bergtest.py --file cudatests.yaml | tee cuda-tests.log
 	@cd ./tests; python3 -u ./bergtest.py --clean
 
 # Clean all .mod and .o files as well as mod and obj folders
