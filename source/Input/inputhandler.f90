@@ -376,6 +376,10 @@ contains
                read(ifile,*,iostat=i_err) ham_inp%ea_sigma
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('ea_algo')
+               read(ifile,*,iostat=i_err) ham_inp%ea_algo
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('exc_inter')
                read(ifile,*,iostat=i_err) ham_inp%exc_inter
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -453,6 +457,18 @@ contains
 
             case('dm_scale')
                read(ifile,*,iostat=i_err) ham_inp%dm_scale
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_model')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_model
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_sigma')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_algo')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_algo
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('sa')
