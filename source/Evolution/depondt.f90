@@ -542,7 +542,13 @@ contains
    !!!       Dp=(2.0_dblprec*lambda1_array*k_bolt)/(deltat*gama*mub)   !LLG
    !!! 
    !!!       !   LLG equations ONE universal damping
-   !!!       call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
+   !   if (do_quant_colour=='N') then
+   !      call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
+   !      mu=0.0_dblprec
+   !   else
+   !      call qc_generator(btherm,3*Natom*Mensemble,deltat)
+   !   end if
+   !!!       ! call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
    !!!       mu=0.0_dblprec
    !!! 
    !!!       !$omp parallel do default(shared) private(k,i,sigma) collapse(2) schedule(static)

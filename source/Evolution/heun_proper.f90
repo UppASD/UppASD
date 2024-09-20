@@ -31,7 +31,8 @@ contains
       red_atom_list)
 
       use Constants
-      use RandomNumbers, only : ranv, rng_gaussian
+      use RandomNumbers, only : rng_gaussian
+      use RandomDrivers, only : ranv
       !
       implicit none
 
@@ -261,7 +262,7 @@ contains
    subroutine heun4p(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emomM,    &
       emom2,mmom,dt,Nred,red_atom_list)
       !
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
       !
       implicit none
 
@@ -376,7 +377,7 @@ contains
    subroutine heun4f(Natom,Mensemble,Landeg,lambda1_array,beff,b2eff,emom,emom2,dt, &
       Nred,red_atom_list)
 
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 

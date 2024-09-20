@@ -25,7 +25,8 @@ contains
          temprescale,thermal_field,Nred,red_atom_list)
       !
       use Constants
-      use RandomNumbers, only : ranv, rng_gaussian
+      use RandomNumbers, only : rng_gaussian
+      use RandomDrivers, only : ranv
       !
       implicit none
 
@@ -178,7 +179,8 @@ contains
          red_atom_list)
 
       use Constants
-      use RandomNumbers, only : rng_norm, ranv
+      use RandomNumbers, only : rng_norm
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -277,7 +279,7 @@ contains
    subroutine heun2(Natom,Mensemble,Landeg,lambda1_array,lambda2_array,llg,beff,    &
          beff2,emom2,dt,b2h1,b2h2,Nred,red_atom_list)
       !
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
       !
       implicit none
 
@@ -392,7 +394,7 @@ contains
    !-----------------------------------------------------------------------------
    subroutine heun3(Natom,Mensemble,Landeg,lambda1_array,beff,emom2,dt,Nred,red_atom_list)
 
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 

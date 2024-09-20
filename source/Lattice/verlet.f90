@@ -7,7 +7,7 @@
 module Verlet
    use Parameters
    use Profiling
-   use RandomNumbers, only : lattranv
+   use RandomDrivers, only : lattranv
 
    implicit none
 

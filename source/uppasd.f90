@@ -627,6 +627,7 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
+      use Chroma
       
       implicit none
 
@@ -752,6 +753,8 @@ contains
       call read_parameters_qminimizer(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
+      rewind(ifileno)
+      call read_parameters_qc(ifileno)
       close(ifileno)
       
        
@@ -1389,6 +1392,10 @@ contains
       end if
     endif
 
+    if(do_quant_colour=='Y'.or.do_quant_colour=='F'.or.do_quant_colour=='S') then
+         call initialize_qc(Natom,Mensemble,1)
+    end if
+
     !call get_rlist_corr(Natom,NA,coord,1)
    end subroutine setup_simulation
 
@@ -1446,7 +1453,7 @@ contains
       use MonteCarlo,            only : mcmavg_buff, indxb_mcavrg
       use Heun_proper,           only : allocate_aux_heun_fields
       use Measurements,          only : allocate_measurementdata
-      use RandomNumbers,         only : allocate_randomwork
+      use RandomDrivers,         only : allocate_randomwork
       use LatticeInputData,      only : do_ld
       use LatticeFieldData,      only : latt_allocate_fields
       use LatticeMeasurements,   only : allocate_lattmeasurementdata

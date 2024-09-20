@@ -63,7 +63,7 @@ contains
                             STT,do_she,do_sot,btorque,she_btorque,sot_btorque)
            !  nlist,nlistsize,constellationsUnitVec2,unitCellType,OPT_flag,cos_thr)
     use Constants
-    use RandomNumbers, only : ranv
+    use RandomDrivers, only : ranv
     implicit none
 
     integer, intent(in) :: Natom !< Number of atoms in system
@@ -297,7 +297,7 @@ contains
   subroutine modeulermpf_ms(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, deltat, dband,STT,do_she,do_sot,&
                             btorque,she_btorque,sot_btorque)
     use Constants
-    use RandomNumbers, only : ranv
+    use RandomDrivers, only : ranv
     implicit none
 
     integer, intent(in) :: Natom !< Number of atoms in system

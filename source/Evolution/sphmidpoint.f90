@@ -37,7 +37,7 @@ contains
       mmom,deltat,thermal_field)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -270,7 +270,7 @@ contains
    subroutine sibf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,deltat)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -486,7 +486,7 @@ contains
       mmom,deltat,thermal_field)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -721,7 +721,7 @@ contains
    subroutine sisphf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,deltat)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -935,7 +935,7 @@ contains
 
       use Constants
       use SpinTorques, only : STT,do_sot,do_she,btorque,she_btorque,sot_btorque
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 

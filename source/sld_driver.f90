@@ -55,7 +55,7 @@ contains
       !use LatticeCorrelation
       use Verlet
       use Temperature
-      use RandomNumbers
+      use RandomDrivers, only : lattrannum
 
       implicit none
 
@@ -181,7 +181,7 @@ contains
       use Correlation
       use Verlet
       use Temperature
-      use RandomNumbers
+      use RandomDrivers
 
       implicit none
 
@@ -420,7 +420,7 @@ contains
       use SpinTorques
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
       use Temperature
-      use RandomNumbers
+      use RandomDrivers
       use VelocityRescale
       use FixedMom
       use macrocells
@@ -864,7 +864,7 @@ contains
       use SpinTorques
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
       use Temperature
-      use RandomNumbers
+      use RandomDrivers
       use VelocityRescale
       use FixedMom
       use Math_functions, only : f_logstep
@@ -1521,7 +1521,7 @@ contains
       use Measurements
       use Polarization
       use prn_averages
-      use RandomNumbers
+      use RandomDrivers
       use UpdateMoments
       use MicroWaveField
       use Math_functions, only : f_logstep

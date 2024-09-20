@@ -36,7 +36,7 @@ contains
       sot_btorque,Nred,red_atom_list)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
@@ -189,7 +189,7 @@ contains
       deltat,STT,do_she,do_sot,btorque,she_btorque,sot_btorque,Nred,red_atom_list)
 
       use Constants
-      use RandomNumbers, only : ranv
+      use RandomDrivers, only : ranv
 
       implicit none
 
