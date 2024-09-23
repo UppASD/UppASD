@@ -82,131 +82,6 @@ class ASDVizOptions:
         return
 
     ##########################################################################
-    # @brief Toggle the parallel projection for the camera
-    # @author Jonathan Chico
-    ##########################################################################
-    def toggle_projections(self, renWin, window, ren, checked):
-        """
-        Toggles the parallel projection mode of the active camera in the given renderer.
-
-        Parameters:
-        renWin (vtkRenderWindow): The render window to be updated.
-        window (QMainWindow): The main window containing UI elements.
-        ren (vtkRenderer): The renderer whose camera projection mode is to be toggled.
-        checked (bool): If True, enables parallel projection; otherwise, disables it.
-
-        Author: Jonathan Chico
-        """
-        if checked:
-            ren.GetActiveCamera().ParallelProjectionOn()
-            window.ParallelScaleLineEdit.setText(
-                str(window.ParallelScaleSlider.value())
-            )
-            ren.GetActiveCamera().SetParallelScale(
-                float(window.ParallelScaleLineEdit.text())
-            )
-            renWin.Render()
-        else:
-            ren.GetActiveCamera().ParallelProjectionOff()
-            renWin.Render()
-        return
-
-    ##########################################################################
-    # @brief Change the parameters of the parallel projection
-    # @author Jonathan Chico
-    ##########################################################################
-    def ChangeParallelProj(self, ren, renWin, line, slider, MainWindow):
-        """
-        Adjusts the parallel projection scale based on input from a line edit or slider.
-        """
-        if line:
-            MainWindow.ParallelScaleSlider.setValue(
-                float(MainWindow.ParallelScaleLineEdit.text())
-            )
-            ren.GetActiveCamera().SetParallelScale(
-                float(MainWindow.ParallelScaleLineEdit.text())
-            )
-            renWin.Render()
-        if slider:
-            ren.GetActiveCamera().SetParallelScale(
-                MainWindow.ParallelScaleSlider.value()
-            )
-            MainWindow.ParallelScaleLineEdit.setText(
-                str(MainWindow.ParallelScaleSlider.value())
-            )
-            renWin.Render()
-        return
-
-    ##########################################################################
-    # @brief Function to reset the camera to the initial positions
-    # @author Jonathan Chico
-    ##########################################################################
-
-    def reset_camera(self, ren, renWin, current_Actors):
-        """Function to reset the camera to the initial position.
-
-        Args:
-            ren: current VTK renderer.
-            renWin: current VTK rendering window.
-            current_Actors: current actors which are being visualized.
-
-        Author
-        ----------
-        Jonathan Chico
-        """
-        # Defining the camera rdirections
-        ren.GetActiveCamera().SetFocalPoint(
-            current_Actors.xmid, current_Actors.ymid, current_Actors.zmid
-        )
-        ren.GetActiveCamera().SetPosition(
-            current_Actors.xmid, current_Actors.ymid, current_Actors.height
-        )
-        ren.GetActiveCamera().Azimuth(0)
-        ren.GetActiveCamera().Elevation(0)
-        ren.GetActiveCamera().Yaw(0)
-        ren.GetActiveCamera().Roll(0)
-        ren.GetActiveCamera().Pitch(0)
-        ren.GetActiveCamera().SetViewUp(0, 1, 0)
-        renWin.Render()
-        return
-
-    ##########################################################################
-    # @brief Update the camera values for those defined by the user in the GUI.
-    # @author Jonathan Chico
-    ##########################################################################
-
-    def Update_Camera(self, Window, ren, renWin):
-        """Function to update the value of the camera for the current visualization from
-        the values entered by the user in the GUI.
-
-        Args:
-            Window: QMainWindow where the visualizations are being carried out.
-            ren: current VTK renderer.
-            renWin: current VTK rendering window.
-
-        Author
-        ----------
-        Jonathan Chico
-        """
-        camera_focal = [0] * 3
-        camera_pos = [0] * 3
-        camera_pos[0] = float(Window.CamPosX.text())
-        camera_pos[1] = float(Window.CamPosY.text())
-        camera_pos[2] = float(Window.CamPosZ.text())
-        camera_focal[0] = float(Window.FocalPosX.text())
-        camera_focal[1] = float(Window.FocalPosY.text())
-        camera_focal[2] = float(Window.FocalPosZ.text())
-        ren.GetActiveCamera().SetFocalPoint(camera_focal)
-        ren.GetActiveCamera().SetPosition(camera_pos)
-        ren.GetActiveCamera().Elevation(float(Window.CamElevationLineEdit.text()))
-        ren.GetActiveCamera().Azimuth(float(Window.CamAzimuthLineEdit.text()))
-        ren.GetActiveCamera().Pitch(float(Window.CamPitchLineEdit.text()))
-        ren.GetActiveCamera().Roll(float(Window.CamRollLineEdit.text()))
-        ren.GetActiveCamera().Yaw(float(Window.CamYawLineEdit.text()))
-        renWin.Render()
-        return
-
-    ##########################################################################
     # Update the dock window information when the camera is setup
     ##########################################################################
     def update_dock_info(self, current_Actors, Window):
@@ -224,17 +99,6 @@ class ASDVizOptions:
         Window.CamPitchLineEdit.setText(str(current_Actors.camera_pitch))
         Window.CamAzimuthLineEdit.setText(str(current_Actors.camera_azimuth))
         Window.CamElevationLineEdit.setText(str(current_Actors.camera_elevation))
-        return
-
-    ##########################################################################
-    # Set the camera view up to be defined to the (1,0,0)
-    ##########################################################################
-    def set_Camera_viewUp(self, ren, renWin, rdir):
-        """
-        Sets the camera's view up direction and renders the window.
-        """
-        ren.GetActiveCamera().SetViewUp(rdir)
-        renWin.Render()
         return
 
     ##########################################################################
@@ -277,9 +141,9 @@ class ASDVizOptions:
         return
 
     ##########################################################################
-    # Toggle the rdirections arrows
+    # Toggle the directions arrows
     ##########################################################################
-    def toggle_rdirections(self, check):
+    def toggle_directions(self, check):
         """
         Toggles the visibility of MomActors.vector based on the check parameter.
         """
@@ -290,7 +154,7 @@ class ASDVizOptions:
         return
 
     ##########################################################################
-    # Toggle the rdirections arrows
+    # Toggle the directions arrows
     ##########################################################################
     def toggle_spins(self, check):
         """
@@ -397,9 +261,9 @@ class ASDVizOptions:
         """
         ASDVizOptions.GenActors.plane.SetOrigin(origin)
         ASDVizOptions.GenActors.plane.SetNormal(rdir)
-        window.ClippingPlaneSlider.setMinimum(vmin)
-        window.ClippingPlaneSlider.setMaximum(vmax)
-        window.ClippingPlaneSlider.setValue(vmin)
+        window.ClippingPlaneSlider.setMinimum(int(vmin))
+        window.ClippingPlaneSlider.setMaximum(int(vmax))
+        window.ClippingPlaneSlider.setValue(int(vmin))
         renWin.Render()
         return
 
@@ -676,7 +540,7 @@ class ASDVizOptions:
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
         hdrifile = dlg.getOpenFileName(
-            caption="Open HDR file", rdirectory=".", filter="HDR images (*.pic *.hdr)"
+            caption="Open HDR file", directory=".", filter="HDR images (*.pic *.hdr)"
         )[0]
         return hdrifile
 
@@ -691,7 +555,7 @@ class ASDVizOptions:
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
         texturefile = dlg.getOpenFileName(
-            caption="Open texture file", rdirectory=".", filter="Images (*.png)"
+            caption="Open texture file", directory=".", filter="Images (*.png)"
         )[0]
         return texturefile
 
@@ -864,7 +728,7 @@ class ASDVizOptions:
             texture = vtkTexture()
             texture.InterpolateOn()
             texture.MipmapOn()
-            texture.SetColorModeTordirectScalars()
+            texture.SetColorModeToDirectScalars()
             texture.SetInputConnection(reader.GetOutputPort())
 
             self.MomActors.SkyBox.SetTexture(texture)
@@ -894,7 +758,7 @@ class ASDVizOptions:
             texture = vtkTexture()
             texture.InterpolateOn()
             texture.MipmapOn()
-            texture.SetColorModeTordirectScalars()
+            texture.SetColorModeToDirectScalars()
             texture.SetInputConnection(reader.GetOutputPort())
 
             # ren.RemoveAllLights()

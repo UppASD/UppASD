@@ -296,6 +296,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.SetCamButton.clicked.connect(window.camera_handler)
     window.CamResetButton.clicked.connect(window.camera_handler)
+    window.CamSaveButton.clicked.connect(window.camera_handler)
+    window.CamLoadButton.clicked.connect(window.camera_handler)
     window.SetXView.clicked.connect(window.camera_handler)
     window.SetYView.clicked.connect(window.camera_handler)
     window.SetZView.clicked.connect(window.camera_handler)

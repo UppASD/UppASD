@@ -5940,6 +5940,44 @@
                                        </widget>
                                     </item>
                                     <item>
+                                       <widget class="QPushButton" name="CamSaveButton">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Save current camera settings</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Save current camera settings</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Save current camera settings</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Save Camera settings</string>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
+                                       <widget class="QPushButton" name="CamLoadButton">
+                                          <property name="enabled">
+                                             <bool>true</bool>
+                                          </property>
+                                          <property name="toolTip">
+                                             <string>Load previous camera settings</string>
+                                          </property>
+                                          <property name="statusTip">
+                                             <string>Load previous camera settings</string>
+                                          </property>
+                                          <property name="whatsThis">
+                                             <string>Load previous camera settings</string>
+                                          </property>
+                                          <property name="text">
+                                             <string>Load Camera settings</string>
+                                          </property>
+                                       </widget>
+                                    </item>
+                                    <item>
                                        <spacer name="CamOptVerticalLayout">
                                           <property name="orientation">
                                              <enum>Qt::Vertical</enum>

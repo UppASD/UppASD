@@ -201,7 +201,6 @@ class ASDGenActors:
     ##########################################################################
     # Setting up data for adding the impurity cluster
     ##########################################################################
-
     def Add_ClusterActors(self, ASDdata, iren, renWin, ren):
 
         #######################################################################
@@ -297,75 +296,75 @@ class ASDGenActors:
         Jonathan Chico
         """
         if window.sender() == window.ClippBox:
-            dir = (1, 0, 0)
+            rdir = (1, 0, 0)
             origin = (current_Actors.xmin, current_Actors.ymid, current_Actors.zmid)
-            min = current_Actors.xmin
-            max = current_Actors.xmax
+            vmin = current_Actors.xmin
+            vmax = current_Actors.xmax
             if viz_type == "M":
                 ASDVizOpt.toggle_clipper(
                     check=window.ClippBox.isChecked(),
                     current_Actors=current_Actors.MagDensActor,
-                    dir=dir,
+                    rdir=rdir,
                     window=window,
                     origin=origin,
-                    min=min,
-                    max=max,
+                    vmin=vmin,
+                    vmax=vmax,
                     renWin=renWin,
                 )
             if viz_type == "N":
                 ASDVizOpt.toggle_clipper(
                     check=window.ClippBox.isChecked(),
                     current_Actors=current_Actors.NeighActor,
-                    dir=dir,
+                    rdir=rdir,
                     window=window,
                     origin=origin,
-                    min=min,
-                    max=max,
+                    vmin=vmin,
+                    vmax=vmax,
                     renWin=renWin,
                 )
             if viz_type == "E":
                 ASDVizOpt.toggle_clipper(
                     check=window.ClippBox.isChecked(),
                     current_Actors=current_Actors.EneDensActor,
-                    dir=dir,
+                    rdir=rdir,
                     window=window,
                     origin=origin,
-                    min=min,
-                    max=max,
+                    vmin=vmin,
+                    vmax=vmax,
                     renWin=renWin,
                 )
         #######################################################################
         # set the clipping plane to be in the x-direction
         #######################################################################
         if window.sender() == window.ClippPlaneXCheck:
-            dir = (1, 0, 0)
+            rdir = (1, 0, 0)
             origin = (current_Actors.xmin, current_Actors.ymid, current_Actors.zmid)
-            min = current_Actors.xmin
-            max = current_Actors.xmax
+            vmin = current_Actors.xmin
+            vmax = current_Actors.xmax
             ASDVizOpt.set_clipp_plane(
-                dir=dir, window=window, origin=origin, min=min, max=max, renWin=renWin
+                rdir=rdir, window=window, origin=origin, vmin=vmin, vmax=vmax, renWin=renWin
             )
         #######################################################################
         # set the clipping plane to be in the y-direction
         #######################################################################
         if window.sender() == window.ClippPlaneYCheck:
-            dir = (0, 1, 0)
+            rdir = (0, 1, 0)
             origin = (current_Actors.xmid, current_Actors.ymin, current_Actors.zmid)
-            min = current_Actors.ymin
-            max = current_Actors.ymax
+            vmin = current_Actors.ymin
+            vmax = current_Actors.ymax
             ASDVizOpt.set_clipp_plane(
-                dir=dir, window=window, origin=origin, min=min, max=max, renWin=renWin
+                rdir=rdir, window=window, origin=origin, vmin=vmin, vmax=vmax, renWin=renWin
             )
         #######################################################################
         # set the clipping plane to be in the z-direction
         #######################################################################
         if window.sender() == window.ClippPlaneZCheck:
-            dir = (0, 0, 1)
+            rdir = (0, 0, 1)
             origin = (current_Actors.xmid, current_Actors.ymid, current_Actors.zmin)
-            min = current_Actors.zmin
-            max = current_Actors.zmax
+            vmin = current_Actors.zmin
+            vmax = current_Actors.zmax
             ASDVizOpt.set_clipp_plane(
-                dir=dir, window=window, origin=origin, min=min, max=max, renWin=renWin
+                rdir=rdir, window=window, origin=origin, vmin=vmin, vmax=vmax, renWin=renWin
             )
         #######################################################################
         # Update the clipping plane location

@@ -850,7 +850,7 @@ class ASDReading:
         """
         try:
             file_data = open(filename, encoding="utf-8")
-        except FileNotFoundError:
+        except:
             file_data = filename
         line = file_data.readline()
         data = str.split(line)

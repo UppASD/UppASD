@@ -49,6 +49,7 @@ from ASD_GUI.VTK_Viz import (
     ASDVTKNeighActors,
     ASDVTKReading,
     ASDVTKVizOptions,
+    ASDVTKCamera
 )
 
 try:
@@ -84,8 +85,6 @@ class Backend(Enum):
 # - VTK rendering of 3D \c UppASD data.
 # @author Jonathan Chico
 ##########################################################################
-
-
 class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # @brief Class constructor for the main window
@@ -187,6 +186,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.Intiren.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
         self.Intren.SetBackground(1.0, 1.0, 1.0)
         # -----------------------------------------------------------------------
+        # Initialize and setup the camera manager
+        # -----------------------------------------------------------------------
+        self.ASDCamera = ASDVTKCamera.CameraManager(self.ren.GetActiveCamera())
+        # -----------------------------------------------------------------------
         # Initialize and setup the necessary structures for the UI
         # -----------------------------------------------------------------------
         self.SetupUI()
@@ -217,6 +220,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.InteractiveVtk = IntASD.InteractiveASD(
             self.Intren, self.IntrenWin, self.Intiren, self.ASDsim
         )
+        
+
 
         return
 
@@ -2035,41 +2040,41 @@ class UppASDVizMainWindow(QMainWindow):
         # -----------------------------------------------------------------------
         if self.sender() == self.CamResetButton:
             if self.viz_type == "M":
-                self.ASDVizOpt.reset_camera(
+                self.ASDCamera.reset_camera(
                     ren=self.ren, renWin=self.renWin, current_Actors=self.MomActors
                 )
             elif self.viz_type == "N":
-                self.ASDVizOpt.reset_camera(
+                self.ASDCamera.reset_camera(
                     ren=self.ren, renWin=self.renWin, current_Actors=self.NeighActors
                 )
             elif self.viz_type == "E":
-                self.ASDVizOpt.reset_camera(
+                self.ASDCamera.reset_camera(
                     ren=self.ren, renWin=self.renWin, current_Actors=self.EneActors
                 )
         # -----------------------------------------------------------------------
         # Controlling what is up in the camera
         # -----------------------------------------------------------------------
         if self.sender() == self.SetXView:
-            self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(1, 0, 0)
+            self.ASDCamera.set_Camera_viewUp(
+                ren=self.ren, renWin=self.renWin, rdir=(1, 0, 0)
             )
         if self.sender() == self.SetYView:
-            self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(0, 1, 0)
+            self.ASDCamera.set_Camera_viewUp(
+                ren=self.ren, renWin=self.renWin, rdir=(0, 1, 0)
             )
         if self.sender() == self.SetZView:
-            self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(0, 0, 1)
+            self.ASDCamera.set_Camera_viewUp(
+                ren=self.ren, renWin=self.renWin, rdir=(0, 0, 1)
             )
         if self.sender() == self.SetCamButton:
-            self.ASDVizOpt.Update_Camera(Window=self, ren=self.ren, renWin=self.renWin)
+            self.ASDCamera.Update_Camera(Window=self, ren=self.ren, renWin=self.renWin)
         # -----------------------------------------------------------------------
         # Controlling the parallel scale
         # -----------------------------------------------------------------------
         if self.sender() == self.ParallelScaleLineEdit:
             line = True
             slider = False
-            self.ASDVizOpt.ChangeParallelProj(
+            self.ASDCamera.ChangeParallelProj(
                 ren=self.ren,
                 renWin=self.renWin,
                 line=line,
@@ -2079,7 +2084,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.ParallelScaleSlider:
             line = False
             slider = True
-            self.ASDVizOpt.ChangeParallelProj(
+            self.ASDCamera.ChangeParallelProj(
                 ren=self.ren,
                 renWin=self.renWin,
                 line=line,
@@ -2087,12 +2092,35 @@ class UppASDVizMainWindow(QMainWindow):
                 MainWindow=self,
             )
         if self.sender() == self.ParallelProjectBox:
-            self.ASDVizOpt.toggle_projections(
+            self.ASDCamera.toggle_projections(
                 renWin=self.renWin,
                 window=self,
                 ren=self.ren,
                 checked=self.ParallelProjectBox.isChecked(),
             )
+        if self.sender() == self.CamSaveButton:
+            
+            # Get and print the current camera settings
+            camera_settings = self.ASDCamera.get_camera_settings()
+            print("Current Camera Settings:")
+            for key, value in camera_settings.items():
+                print(f"{key}: {value}")
+            print("================================")
+            camera_settings = self.ASDCamera.save_camera_settings()
+
+        if self.sender() == self.CamLoadButton:
+            
+            # Get and print the current camera settings
+            camera_settings = self.ASDCamera.load_camera_settings()
+            camera_settings = self.ASDCamera.get_camera_settings()
+            self.ASDVizOpt.update_dock_info(
+                    current_Actors=self.MomActors, Window=self
+                )
+            print("Current Camera Settings:")
+            for key, value in camera_settings.items():
+                print(f"{key}: {value}")
+            print("================================")
+
         return
 
     ##########################################################################
