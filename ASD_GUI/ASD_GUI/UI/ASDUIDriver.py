@@ -28,7 +28,6 @@ from vtk import vtkInteractorStyleTrackballCamera, vtkOpenGLRenderer
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvas
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from vtkmodules.vtkCommonColor import vtkColorSeries
 
 import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
 import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
@@ -49,6 +48,7 @@ from ASD_GUI.VTK_Viz import (
     ASDVTKNeighActors,
     ASDVTKReading,
     ASDVTKVizOptions,
+    ASDVTKColor,
     ASDVTKCamera
 )
 
@@ -152,6 +152,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.DMfileWindow = ASDInputWindows.DMfileWindow()
         self.KfileWindow = ASDInputWindows.KfileWindow()
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
+        self.ASDColor = ASDVTKColor.ASDVTKColor()
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -220,8 +221,6 @@ class UppASDVizMainWindow(QMainWindow):
         self.InteractiveVtk = IntASD.InteractiveASD(
             self.Intren, self.IntrenWin, self.Intiren, self.ASDsim
         )
-        
-
 
         return
 
@@ -1211,7 +1210,6 @@ class UppASDVizMainWindow(QMainWindow):
     #   - DM neighbours
     # @author Jonathan Chico
     ##########################################################################
-
     def AddActors(self):
         """Wrapper function that takes care of adding the necessary actors and the
         options for the different types of visualizations. It controls the visualization of:
@@ -1281,7 +1279,7 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Setup several global variables
                 # ---------------------------------------------------------------
-                self.ASDVizOpt.lut = self.MomActors.lut
+                self.ASDColor.lut = self.MomActors.lut
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
@@ -1289,7 +1287,7 @@ class UppASDVizMainWindow(QMainWindow):
                     iren=self.iren,
                     renWin=self.renWin,
                     method=self.MomActors.MagDensMethod,
-                    lut=self.ASDVizOpt.lut,
+                    lut=self.ASDColor.lut,
                     ren=self.ren,
                     window=self,
                     current_Actors=self.MomActors,
@@ -1350,7 +1348,7 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Set several global variables
                 # ---------------------------------------------------------------
-                self.ASDVizOpt.lut = self.NeighActors.lut
+                self.ASDColor.lut = self.NeighActors.lut
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
@@ -1358,7 +1356,7 @@ class UppASDVizMainWindow(QMainWindow):
                     iren=self.iren,
                     renWin=self.renWin,
                     method=self.NeighActors.NeighGlyph3D,
-                    lut=self.ASDVizOpt.lut,
+                    lut=self.ASDColor.lut,
                     ren=self.ren,
                     window=self,
                     current_Actors=self.NeighActors,
@@ -1446,7 +1444,7 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Set several global variables
                 # ---------------------------------------------------------------
-                self.ASDVizOpt.lut = self.NeighActors.lut
+                self.ASDColor.lut = self.NeighActors.lut
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
@@ -1454,7 +1452,7 @@ class UppASDVizMainWindow(QMainWindow):
                     iren=self.iren,
                     renWin=self.renWin,
                     method=self.NeighActors.NeighGlyph3D,
-                    lut=self.ASDVizOpt.lut,
+                    lut=self.ASDColor.lut,
                     ren=self.ren,
                     window=self,
                     current_Actors=self.NeighActors,
@@ -1540,7 +1538,7 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Setup several global variables
                 # ---------------------------------------------------------------
-                self.ASDVizOpt.lut = self.EneActors.lut
+                self.ASDColor.lut = self.EneActors.lut
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
@@ -1548,7 +1546,7 @@ class UppASDVizMainWindow(QMainWindow):
                     iren=self.iren,
                     renWin=self.renWin,
                     method=self.EneActors.EneDensMethod,
-                    lut=self.ASDVizOpt.lut,
+                    lut=self.ASDColor.lut,
                     ren=self.ren,
                     window=self,
                     current_Actors=self.EneActors,
@@ -1676,24 +1674,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Set the single color for the RGB sliders and update the visualization.
         """
-        if self.bwSinglecolor:
-            self.RGBRedColorSlider.setValue(value)
-            self.RGBGreenColorSlider.setValue(value)
-            self.RGBBlueColorSlider.setValue(value)
-
-        rgb = [
-            self.RGBRedColorSlider.value(),
-            self.RGBGreenColorSlider.value(),
-            self.RGBBlueColorSlider.value(),
-        ]
-
-        self.ASDVizOpt.set_RGBcolor(
-            window=self,
-            rgb=rgb,
-            flag2D=self.ASDdata.flag2D,
-            viz_type=self.viz_type,
-            renWin=self.renWin,
-        )
+        self.ASDColor.set_singlecolor(window=self, value=value)
 
         return
 
@@ -1705,18 +1686,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Sets the background color based on the provided value.
         """
-        if self.bwBackground:
-            self.RGBRedBackgroundSlider.setValue(value)
-            self.RGBGreenBackgroundSlider.setValue(value)
-            self.RGBBlueBackgroundSlider.setValue(value)
-
-        rgb = [
-            self.RGBRedBackgroundSlider.value(),
-            self.RGBGreenBackgroundSlider.value(),
-            self.RGBBlueBackgroundSlider.value(),
-        ]
-
-        self.ASDVizOpt.set_RGBbackground(rgb=rgb, ren=self.ren, renWin=self.renWin)
+        self.ASDColor.set_background(value=value, window=self)
 
         return
 
@@ -1730,63 +1700,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Sets the lookup table (LUT) for the visualization based on the provided colormap number.
         """
-        colorSeries = vtkColorSeries()
-
-        if mapnum <= 3:
-            self.ASDVizOpt.set_colormap_db(
-                window=self,
-                mapnum=mapnum,
-                flag2D=self.ASDdata.flag2D,
-                viz_type=self.viz_type,
-                renWin=self.renWin,
-            )
-        elif mapnum == 4:  # Spectrum
-            colorSeries.SetColorScheme(vtkColorSeries.SPECTRUM)
-        elif mapnum == 5:  # Warm
-            colorSeries.SetColorScheme(vtkColorSeries.WARM)
-        elif mapnum == 6:  # Cool
-            colorSeries.SetColorScheme(vtkColorSeries.COOL)
-        elif mapnum == 7:  # Blues
-            colorSeries.SetColorScheme(vtkColorSeries.BLUES)
-        elif mapnum == 8:  # Wildflower
-            colorSeries.SetColorScheme(vtkColorSeries.WILD_FLOWER)
-        elif mapnum == 9:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.CITRUS)
-        elif mapnum == 10:  # BREWER_DIVERGING_PURPLE_ORANGE_11
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
-        elif mapnum == 11:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11
-            )
-        elif mapnum == 12:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
-        elif mapnum == 13:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9
-            )
-        elif mapnum == 14:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
-        elif mapnum == 15:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
-        elif mapnum == 16:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
-        elif mapnum == 17:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_DARK2)
-        elif mapnum == 18:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
-        elif mapnum == 19:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
-        elif mapnum == 20:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET1)
-        elif mapnum == 21:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET2)
-        elif mapnum == 22:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET3)
-
-        if mapnum > 3:
-            colorSeries.BuildLookupTable(self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
-        self.ASDVizOpt.lut.Build()
-
+        self.ASDColor.set_lut_db(mapnum=mapnum, window=self)
         self.renWin.Render()
         return
 
@@ -1800,12 +1714,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Sets the lookup table (LUT) scale based on the sender's state.
         """
-        # self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
-        # viz_type=self.viz_type,renWin=self.renWin)
-        if self.sender() == self.LinearScale and self.LinearScale.isChecked():
-            self.ASDVizOpt.lut.SetScaleToLinear()
-        if self.sender() == self.LogScale and self.LogScale.isChecked():
-            self.ASDVizOpt.lut.SetScaleToLog10()
+        self.ASDColor.set_lut(window=self)
+            
         return
 
     ##########################################################################
@@ -1815,7 +1725,6 @@ class UppASDVizMainWindow(QMainWindow):
     # and the spins.
     # @author Jonathan Chico
     ##########################################################################
-
     def set_projection(self):
         """Set the projection of the vectors and the magnetization continuum
         allowing one to set independent projections of the continuum visualization
@@ -1826,17 +1735,17 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
         """
         if self.sender() == self.DensX and self.DensX.isChecked():
-            self.ASDVizOpt.set_projection(type="density", axis=0)
+            self.ASDVizOpt.set_projection(atype="density", axis=0)
         if self.sender() == self.DensY and self.DensY.isChecked():
-            self.ASDVizOpt.set_projection(type="density", axis=1)
+            self.ASDVizOpt.set_projection(atype="density", axis=1)
         if self.sender() == self.DensZ and self.DensZ.isChecked():
-            self.ASDVizOpt.set_projection(type="density", axis=2)
+            self.ASDVizOpt.set_projection(atype="density", axis=2)
         if self.sender() == self.SpinX and self.SpinX.isChecked():
-            self.ASDVizOpt.set_projection(type="spins", axis=0)
+            self.ASDVizOpt.set_projection(atype="spins", axis=0)
         if self.sender() == self.SpinY and self.SpinY.isChecked():
-            self.ASDVizOpt.set_projection(type="spins", axis=1)
+            self.ASDVizOpt.set_projection(atype="spins", axis=1)
         if self.sender() == self.SpinZ and self.SpinZ.isChecked():
-            self.ASDVizOpt.set_projection(type="spins", axis=2)
+            self.ASDVizOpt.set_projection(atype="spins", axis=2)
         self.renWin.Render()
         return
 
@@ -1926,7 +1835,6 @@ class UppASDVizMainWindow(QMainWindow):
     # Function to change the type of glyphs that display the individual magnetic
     # moments
     ##########################################################################
-
     def ChangeGlyphs(self):
         """Function to change the type of glyphs that display the individual magnetic
         moments
@@ -1968,7 +1876,6 @@ class UppASDVizMainWindow(QMainWindow):
     # Function to change the shading of the glyphs that display the individual
     # magnetic moments
     ##########################################################################
-
     def ChangeShading(self):
         """Function to change the type of glyphs that display the individual magnetic
         moments
@@ -2101,32 +2008,23 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.CamSaveButton:
             
             # Get and print the current camera settings
-            camera_settings = self.ASDCamera.get_camera_settings()
-            print("Current Camera Settings:")
-            for key, value in camera_settings.items():
-                print(f"{key}: {value}")
-            print("================================")
-            camera_settings = self.ASDCamera.save_camera_settings()
+            # camera_settings = self.ASDCamera.get_camera_settings()
+            self.ASDCamera.save_camera_settings()
 
         if self.sender() == self.CamLoadButton:
             
             # Get and print the current camera settings
-            camera_settings = self.ASDCamera.load_camera_settings()
-            camera_settings = self.ASDCamera.get_camera_settings()
+            self.ASDCamera.load_camera_settings()
+            # camera_settings = self.ASDCamera.get_camera_settings()
             self.ASDVizOpt.update_dock_info(
-                    current_Actors=self.MomActors, Window=self
-                )
-            print("Current Camera Settings:")
-            for key, value in camera_settings.items():
-                print(f"{key}: {value}")
-            print("================================")
+                current_Actors=self.MomActors, Window=self
+            )
 
         return
 
     ##########################################################################
     # Wrapper to handle the clipper actions
     ##########################################################################
-
     def clipperHandler(self):
         """
         Handles the clipping operation for different visualization types.

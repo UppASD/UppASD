@@ -1,3 +1,38 @@
+"""
+ASDVTKCamera Module
+This module provides the CameraManager class, which manages VTK camera settings,
+including saving and loading configurations, resetting the camera,
+updating camera values from a GUI, toggling parallel projection,
+changing parallel projection parameters, and setting the camera's view up direction.
+
+Classes:
+    CameraManager: Manages VTK camera settings.
+    
+CameraManager Methods:
+    __init__(self, camera):
+        Initializes the CameraManager with a VTK camera.
+    get_camera_settings(self):
+        Retrieves the current camera settings.
+    set_camera_settings(self, settings):
+        Sets the camera to the stored settings.
+    save_camera_settings(self, filename='camera_settings.json'):
+        Saves the current camera settings to a JSON file.
+    load_camera_settings(self, filename='camera_settings.json'):
+        Loads camera settings from a JSON file and applies them.
+    reset_camera(self, ren, renWin, current_Actors):
+        Resets the camera to the initial position.
+    Update_Camera(self, Window, ren, renWin):
+        Updates the camera values for the current visualization from the GUI.
+    toggle_projections(self, renWin, window, ren, checked):
+        Toggles the parallel projection mode of the active camera.
+    ChangeParallelProj(self, ren, renWin, line, slider, MainWindow):
+        Adjusts the parallel projection scale based on input from a line edit or slider.
+    set_Camera_viewUp(self, ren, renWin, rdir):
+        Sets the camera's view up direction and renders the window.
+        
+Author:
+    Anders Bergman, Jonathan Chico
+"""
 import json
 
 class CameraManager:
@@ -58,7 +93,7 @@ class CameraManager:
             filename (str, optional): The name of the file to save the settings to. Defaults to 'camera_settings.json'.
         """
         settings = self.get_camera_settings()
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=4)
         print(f"Camera settings saved to {filename}.")
 
@@ -73,7 +108,7 @@ class CameraManager:
             FileNotFoundError: If the specified file does not exist.
         """
         try:
-            with open(filename, 'r') as f:
+            with open(filename, 'r', encoding='utf-8') as f:
                 settings = json.load(f)
             self.set_camera_settings(settings)
             print(f"Camera settings loaded from {filename}.")

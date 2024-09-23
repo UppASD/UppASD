@@ -31,10 +31,10 @@ from ASD_GUI.VTK_Viz import (ASDVTKEneActors, ASDVTKGenActors, ASDVTKMomActors,
 
 class ASDVizOptions:
 
-    GenActors = ASDVTKGenActors.ASDGenActors()
-    EneActors = ASDVTKEneActors.ASDEneActors()
-    MomActors = ASDVTKMomActors.ASDMomActors()
-    NeighActors = ASDVTKNeighActors.ASDNeighActors()
+    # GenActors = ASDVTKGenActors.ASDGenActors()
+    # EneActors = ASDVTKEneActors.ASDEneActors()
+    # MomActors = ASDVTKMomActors.ASDMomActors()
+    # NeighActors = ASDVTKNeighActors.ASDNeighActors()
 
     lut = vtkLookupTable()
 
@@ -109,9 +109,9 @@ class ASDVizOptions:
         Toggles the visibility of the orientation marker based on the check value.
         """
         if check:
-            ASDVizOptions.GenActors.OrientMarker.SetEnabled(1)
+            self.GenActors.OrientMarker.SetEnabled(1)
         else:
-            ASDVizOptions.GenActors.OrientMarker.SetEnabled(0)
+            self.GenActors.OrientMarker.SetEnabled(0)
         return
 
     ##########################################################################
@@ -122,9 +122,9 @@ class ASDVizOptions:
         Toggles the visibility of the scalar bar widget based on the check parameter.
         """
         if check:
-            ASDVizOptions.GenActors.scalar_bar_widget.SetEnabled(1)
+            self.GenActors.scalar_bar_widget.SetEnabled(1)
         else:
-            ASDVizOptions.GenActors.scalar_bar_widget.SetEnabled(0)
+            self.GenActors.scalar_bar_widget.SetEnabled(0)
         return
 
     ##########################################################################
@@ -135,9 +135,9 @@ class ASDVizOptions:
         Toggles the visibility of contour actors based on the check parameter.
         """
         if check:
-            ASDVizOptions.MomActors.contActor.VisibilityOn()
+            self.MomActors.contActor.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.contActor.VisibilityOff()
+            self.MomActors.contActor.VisibilityOff()
         return
 
     ##########################################################################
@@ -148,9 +148,9 @@ class ASDVizOptions:
         Toggles the visibility of MomActors.vector based on the check parameter.
         """
         if check:
-            ASDVizOptions.MomActors.vector.VisibilityOn()
+            self.MomActors.vector.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.vector.VisibilityOff()
+            self.MomActors.vector.VisibilityOff()
         return
 
     ##########################################################################
@@ -161,9 +161,9 @@ class ASDVizOptions:
         Toggles the visibility of the spin actors based on the check value.
         """
         if check:
-            ASDVizOptions.MomActors.Spins.VisibilityOn()
+            self.MomActors.Spins.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.Spins.VisibilityOff()
+            self.MomActors.Spins.VisibilityOff()
         return
 
     ##########################################################################
@@ -174,9 +174,9 @@ class ASDVizOptions:
         Toggles the visibility of atoms based on the given check value.
         """
         if check:
-            ASDVizOptions.MomActors.Atoms.VisibilityOn()
+            self.MomActors.Atoms.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.Atoms.VisibilityOff()
+            self.MomActors.Atoms.VisibilityOff()
         return
 
     ##########################################################################
@@ -187,9 +187,9 @@ class ASDVizOptions:
         Toggles the visibility of the magnetic density actor based on the check value.
         """
         if check:
-            ASDVizOptions.MomActors.MagDensActor.VisibilityOn()
+            self.MomActors.MagDensActor.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.MagDensActor.VisibilityOff()
+            self.MomActors.MagDensActor.VisibilityOff()
         return
 
     ##########################################################################
@@ -200,11 +200,11 @@ class ASDVizOptions:
         Toggles the visibility of atom and atom_imp actors based on the check parameter.
         """
         if check:
-            ASDVizOptions.GenActors.atom.VisibilityOn()
-            ASDVizOptions.GenActors.atom_imp.VisibilityOn()
+            self.GenActors.atom.VisibilityOn()
+            self.GenActors.atom_imp.VisibilityOn()
         else:
-            ASDVizOptions.GenActors.atom.VisibilityOff()
-            ASDVizOptions.GenActors.atom_imp.VisibilityOff()
+            self.GenActors.atom.VisibilityOff()
+            self.GenActors.atom_imp.VisibilityOff()
         return
 
     ##########################################################################
@@ -215,9 +215,9 @@ class ASDVizOptions:
         Toggles the visibility of the KMC part actor based on the check value.
         """
         if check:
-            ASDVizOptions.MomActors.KMC_part_actor.VisibilityOn()
+            self.MomActors.KMC_part_actor.VisibilityOn()
         else:
-            ASDVizOptions.MomActors.KMC_part_actor.VisibilityOff()
+            self.MomActors.KMC_part_actor.VisibilityOff()
         return
 
     ##########################################################################
@@ -230,11 +230,11 @@ class ASDVizOptions:
         Toggles the visibility of the clipper and current actors based on the check flag.
         """
         if check:
-            ASDVizOptions.GenActors.clipperActor.VisibilityOn()
+            self.GenActors.clipperActor.VisibilityOn()
             current_Actors.VisibilityOff()
             self.set_clipp_plane(rdir, window, origin, vmin, vmax, renWin)
         else:
-            ASDVizOptions.GenActors.clipperActor.VisibilityOff()
+            self.GenActors.clipperActor.VisibilityOff()
             current_Actors.VisibilityOn()
             renWin.Render()
         return
@@ -247,9 +247,9 @@ class ASDVizOptions:
         Toggles the visibility of the time label widget based on the check value.
         """
         if check:
-            ASDVizOptions.GenActors.time_label_widget.On()
+            self.GenActors.time_label_widget.On()
         else:
-            ASDVizOptions.GenActors.time_label_widget.Off()
+            self.GenActors.time_label_widget.Off()
         return
 
     ##########################################################################
@@ -259,8 +259,8 @@ class ASDVizOptions:
         """
         Configures and sets the clipping plane for the visualization.
         """
-        ASDVizOptions.GenActors.plane.SetOrigin(origin)
-        ASDVizOptions.GenActors.plane.SetNormal(rdir)
+        self.GenActors.plane.SetOrigin(origin)
+        self.GenActors.plane.SetNormal(rdir)
         window.ClippingPlaneSlider.setMinimum(int(vmin))
         window.ClippingPlaneSlider.setMaximum(int(vmax))
         window.ClippingPlaneSlider.setValue(int(vmin))
@@ -274,7 +274,7 @@ class ASDVizOptions:
         """
         Updates the clipping plane position and refreshes the render window.
         """
-        ASDVizOptions.GenActors.plane.SetOrigin(origin)
+        self.GenActors.plane.SetOrigin(origin)
         window.ClipPlaneLabel.setText(
             f"Clip. Plane Pos.={float(origin[0]):.1f},{float(origin[1]):.1f},{float(origin[2]):.1f}"
         )
@@ -289,12 +289,12 @@ class ASDVizOptions:
         Set the projection type and axis for visualization.
         """
         if atype == "density":
-            ASDVizOptions.MomActors.src.GetPointData().SetScalars(
-                ASDVizOptions.MomActors.glob_color[axis]
+            self.MomActors.src.GetPointData().SetScalars(
+                self.MomActors.glob_color[axis]
             )
         elif atype == "spins":
-            ASDVizOptions.MomActors.src_spins.GetPointData().SetScalars(
-                ASDVizOptions.MomActors.glob_color[axis]
+            self.MomActors.src_spins.GetPointData().SetScalars(
+                self.MomActors.glob_color[axis]
             )
         return
 
@@ -305,7 +305,7 @@ class ASDVizOptions:
         """
         Adjusts the scale factor of the SpinMapper based on the provided value.
         """
-        ASDVizOptions.MomActors.SpinMapper.SetScaleFactor(0.50 * value / 10)
+        self.MomActors.SpinMapper.SetScaleFactor(0.50 * value / 10)
         return
 
     ##########################################################################
@@ -316,25 +316,25 @@ class ASDVizOptions:
         Change the shading model of the Spin and Atom actors based on the given keyword.
         """
         if keyword == "Flat":
-            if hasattr(ASDVizOptions.MomActors, "Spins"):
-                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToFlat()
+            if hasattr(self.MomActors, "Spins"):
+                self.MomActors.Spins.GetProperty().SetInterpolationToFlat()
         elif keyword == "Gouraud":
-            if hasattr(ASDVizOptions.MomActors, "Spins"):
-                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToGouraud()
-            if hasattr(ASDVizOptions.MomActors, "Atoms"):
-                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToGouraud()
+            if hasattr(self.MomActors, "Spins"):
+                self.MomActors.Spins.GetProperty().SetInterpolationToGouraud()
+            if hasattr(self.MomActors, "Atoms"):
+                self.MomActors.Atoms.GetProperty().SetInterpolationToGouraud()
         elif keyword == "PBR":
-            if hasattr(ASDVizOptions.MomActors, "Spins"):
-                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPBR()
-                ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(0.5)
-            if hasattr(ASDVizOptions.MomActors, "Atoms"):
-                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
-                ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(0.5)
+            if hasattr(self.MomActors, "Spins"):
+                self.MomActors.Spins.GetProperty().SetInterpolationToPBR()
+                self.MomActors.Spins.GetProperty().SetMetallic(0.5)
+            if hasattr(self.MomActors, "Atoms"):
+                self.MomActors.Atoms.GetProperty().SetInterpolationToPBR()
+                self.MomActors.Atoms.GetProperty().SetMetallic(0.5)
         elif keyword == "Phong":
-            if hasattr(ASDVizOptions.MomActors, "Spins"):
-                ASDVizOptions.MomActors.Spins.GetProperty().SetInterpolationToPhong()
-            if hasattr(ASDVizOptions.MomActors, "Atoms"):
-                ASDVizOptions.MomActors.Atoms.GetProperty().SetInterpolationToPhong()
+            if hasattr(self.MomActors, "Spins"):
+                self.MomActors.Spins.GetProperty().SetInterpolationToPhong()
+            if hasattr(self.MomActors, "Atoms"):
+                self.MomActors.Atoms.GetProperty().SetInterpolationToPhong()
 
         renWin.Render()
         return
@@ -346,8 +346,8 @@ class ASDVizOptions:
         """
         Update the ambient property of MomActors.Spins and render the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetAmbient(float(value * 0.02))
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetAmbient(float(value * 0.02))
         renWin.Render()
         return
 
@@ -358,8 +358,8 @@ class ASDVizOptions:
         """
         Updates the diffuse property of MomActors.Spins and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetDiffuse(float(value * 0.01))
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetDiffuse(float(value * 0.01))
         renWin.Render()
         return
 
@@ -370,8 +370,8 @@ class ASDVizOptions:
         """
         Updates the specular property of MomActors' Spins and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetSpecular(float(value * 0.01))
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetSpecular(float(value * 0.01))
         renWin.Render()
         return
 
@@ -382,8 +382,8 @@ class ASDVizOptions:
         """
         Updates the specular power of the Spins actor and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetSpecularPower(float(value))
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetSpecularPower(float(value))
         renWin.Render()
         return
 
@@ -395,10 +395,10 @@ class ASDVizOptions:
         Update the emissive factor for the PBR material and render the window.
         """
         emvec = [float(value * 0.01), float(value * 0.01), float(value * 0.01)]
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetEmissiveFactor(emvec)
-        if hasattr(ASDVizOptions.MomActors, "Atoms"):
-            ASDVizOptions.MomActors.Atoms.GetProperty().SetEmissiveFactor(emvec)
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetEmissiveFactor(emvec)
+        if hasattr(self.MomActors, "Atoms"):
+            self.MomActors.Atoms.GetProperty().SetEmissiveFactor(emvec)
         renWin.Render()
         return
 
@@ -409,12 +409,12 @@ class ASDVizOptions:
         """
         Updates the occlusion strength for Spins and Atoms actors and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetOcclusionStrength(
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetOcclusionStrength(
                 float(value * 0.01)
             )
-        if hasattr(ASDVizOptions.MomActors, "Atoms"):
-            ASDVizOptions.MomActors.Atoms.GetProperty().SetOcclusionStrength(
+        if hasattr(self.MomActors, "Atoms"):
+            self.MomActors.Atoms.GetProperty().SetOcclusionStrength(
                 float(value * 0.01)
             )
         renWin.Render()
@@ -427,12 +427,12 @@ class ASDVizOptions:
         """
         Updates the roughness property for Spins and Atoms actors and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetRoughness(
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetRoughness(
                 float(value * 0.01)
             )
-        if hasattr(ASDVizOptions.MomActors, "Atoms"):
-            ASDVizOptions.MomActors.Atoms.GetProperty().SetRoughness(
+        if hasattr(self.MomActors, "Atoms"):
+            self.MomActors.Atoms.GetProperty().SetRoughness(
                 float(value * 0.01)
             )
         renWin.Render()
@@ -445,10 +445,10 @@ class ASDVizOptions:
         """
         Updates the metallic property of MomActors' Spins and Atoms and renders the window.
         """
-        if hasattr(ASDVizOptions.MomActors, "Spins"):
-            ASDVizOptions.MomActors.Spins.GetProperty().SetMetallic(float(value * 0.01))
-        if hasattr(ASDVizOptions.MomActors, "Atoms"):
-            ASDVizOptions.MomActors.Atoms.GetProperty().SetMetallic(float(value * 0.01))
+        if hasattr(self.MomActors, "Spins"):
+            self.MomActors.Spins.GetProperty().SetMetallic(float(value * 0.01))
+        if hasattr(self.MomActors, "Atoms"):
+            self.MomActors.Atoms.GetProperty().SetMetallic(float(value * 0.01))
         renWin.Render()
         return
 
@@ -459,7 +459,7 @@ class ASDVizOptions:
         """
         Adjusts the size of atoms in the visualization by scaling the atom mapper.
         """
-        ASDVizOptions.MomActors.AtomMapper.SetScaleFactor(1.00 * value / 10.0)
+        self.MomActors.AtomMapper.SetScaleFactor(1.00 * value / 10.0)
         return
 
     ##########################################################################
@@ -469,7 +469,7 @@ class ASDVizOptions:
         """
         Adjusts the opacity of atom actors based on the given value.
         """
-        ASDVizOptions.MomActors.Atoms.GetProperty().SetOpacity(value * 0.01)
+        self.MomActors.Atoms.GetProperty().SetOpacity(value * 0.01)
         return
 
     ##########################################################################
@@ -479,8 +479,8 @@ class ASDVizOptions:
         """
         Adjusts the resolution of the atom sphere visualization.
         """
-        ASDVizOptions.MomActors.AtomSphere.SetThetaResolution(value)
-        ASDVizOptions.MomActors.AtomSphere.SetPhiResolution(value)
+        self.MomActors.AtomSphere.SetThetaResolution(value)
+        self.MomActors.AtomSphere.SetPhiResolution(value)
         return
 
     ##########################################################################
@@ -491,9 +491,9 @@ class ASDVizOptions:
         Toggles the visibility of the AtomsActor based on the check value.
         """
         if check:
-            ASDVizOptions.NeighActors.AtomsActor.VisibilityOn()
+            self.NeighActors.AtomsActor.VisibilityOn()
         else:
-            ASDVizOptions.NeighActors.AtomsActor.VisibilityOff()
+            self.NeighActors.AtomsActor.VisibilityOff()
         return
 
     ##########################################################################
@@ -504,9 +504,9 @@ class ASDVizOptions:
         Toggles the visibility of the NeighActor based on the check value.
         """
         if check:
-            ASDVizOptions.NeighActors.NeighActor.VisibilityOn()
+            self.NeighActors.NeighActor.VisibilityOn()
         else:
-            ASDVizOptions.NeighActors.NeighActor.VisibilityOff()
+            self.NeighActors.NeighActor.VisibilityOff()
         return
 
     ##########################################################################
@@ -516,7 +516,7 @@ class ASDVizOptions:
         """
         Update the opacity of the NeighActor based on the given value.
         """
-        ASDVizOptions.NeighActors.NeighActor.GetProperty().SetOpacity(value * 0.1)
+        self.NeighActors.NeighActor.GetProperty().SetOpacity(value * 0.1)
         return
 
     ##########################################################################
@@ -526,7 +526,7 @@ class ASDVizOptions:
         """
         Updates the opacity of the AtomsActor based on the given value.
         """
-        ASDVizOptions.NeighActors.AtomsActor.GetProperty().SetOpacity(value * 0.1)
+        self.NeighActors.AtomsActor.GetProperty().SetOpacity(value * 0.1)
         return
 
     ##########################################################################
@@ -911,30 +911,30 @@ class ASDVizOptions:
         """
         if viz_type == "M":
             try:
-                ASDVizOptions.MomActors.spinarrow.SetTipResolution(value)
-                ASDVizOptions.MomActors.spinarrow.SetShaftResolution(value)
+                self.MomActors.spinarrow.SetTipResolution(value)
+                self.MomActors.spinarrow.SetShaftResolution(value)
             except AttributeError:
                 pass
             try:
-                ASDVizOptions.MomActors.spinsphere.SetThetaResolution(value)
-                ASDVizOptions.MomActors.spinsphere.SetPhiResolution(value)
+                self.MomActors.spinsphere.SetThetaResolution(value)
+                self.MomActors.spinsphere.SetPhiResolution(value)
             except AttributeError:
                 pass
             try:
-                ASDVizOptions.MomActors.spincones.SetResolution(value)
+                self.MomActors.spincones.SetResolution(value)
             except AttributeError:
                 pass
 
         if viz_type == "N":
             if mode == 1:
-                ASDVizOptions.NeighActors.NeighGlyphs.SetThetaResolution(value)
-                ASDVizOptions.NeighActors.NeighGlyphs.SetPhiResolution(value)
+                self.NeighActors.NeighGlyphs.SetThetaResolution(value)
+                self.NeighActors.NeighGlyphs.SetPhiResolution(value)
             if mode == 2:
-                ASDVizOptions.NeighActors.NeighGlyphs.SetTipResolution(value)
-                ASDVizOptions.NeighActors.NeighGlyphs.SetShaftResolution(value)
+                self.NeighActors.NeighGlyphs.SetTipResolution(value)
+                self.NeighActors.NeighGlyphs.SetShaftResolution(value)
         if viz_type == "E":
-            ASDVizOptions.EneActors.EneAtom.SetThetaResolution(value)
-            ASDVizOptions.EneActors.EneAtom.SetPhiResolution(value)
+            self.EneActors.EneAtom.SetThetaResolution(value)
+            self.EneActors.EneAtom.SetPhiResolution(value)
 
         renWin.Render()
         return
@@ -972,527 +972,194 @@ class ASDVizOptions:
 
         if keyword == "Cubes":
             try:
-                del ASDVizOptions.MomActors.spinarrow
+                del self.MomActors.spinarrow
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spinsphere
+                del self.MomActors.spinsphere
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincones
+                del self.MomActors.spincones
             except AttributeError:
                 pass
-            ASDVizOptions.MomActors.spincube = vtk.vtkCubeSource()
-            ASDVizOptions.MomActors.spincube.SetXLength(1.0)
-            ASDVizOptions.MomActors.spincube.SetYLength(1.0)
-            ASDVizOptions.MomActors.spincube.SetZLength(1.0)
+            self.MomActors.spincube = vtk.vtkCubeSource()
+            self.MomActors.spincube.SetXLength(1.0)
+            self.MomActors.spincube.SetYLength(1.0)
+            self.MomActors.spincube.SetZLength(1.0)
 
             # Calculate TCoords for texturing
-            # ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
-            # ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
-            # ASDVizOptions.MomActors.spincubetmap.PreventSeamOn()
+            # self.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
+            # self.MomActors.spincubetmap.SetInputConnection(self.MomActors.spincube.GetOutputPort())
+            # self.MomActors.spincubetmap.PreventSeamOn()
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(
-                ASDVizOptions.MomActors.spincube.GetOutputPort()
+            self.MomActors.SpinMapper.SetSourceConnection(
+                self.MomActors.spincube.GetOutputPort()
             )
-            # ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(ASDVizOptions.MomActors.spincubetmap.GetOutputPort())
-            ASDVizOptions.MomActors.SpinMapper.ClampingOn()
-            ASDVizOptions.MomActors.SpinMapper.OrientOff()
+            # self.MomActors.SpinMapper.SetSourceConnection(self.MomActors.spincubetmap.GetOutputPort())
+            self.MomActors.SpinMapper.ClampingOn()
+            self.MomActors.SpinMapper.OrientOff()
             renWin.Render()
         if keyword == "Bars":
             try:
-                del ASDVizOptions.MomActors.spinarrow
+                del self.MomActors.spinarrow
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spinsphere
+                del self.MomActors.spinsphere
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincones
+                del self.MomActors.spincones
             except AttributeError:
                 pass
-            ASDVizOptions.MomActors.spincube = vtk.vtkCubeSource()
-            ASDVizOptions.MomActors.spincube.SetXLength(2.0)
-            ASDVizOptions.MomActors.spincube.SetYLength(0.4)
-            ASDVizOptions.MomActors.spincube.SetZLength(0.4)
+            self.MomActors.spincube = vtk.vtkCubeSource()
+            self.MomActors.spincube.SetXLength(2.0)
+            self.MomActors.spincube.SetYLength(0.4)
+            self.MomActors.spincube.SetZLength(0.4)
 
             # Calculate TCoords for texturing
-            ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToCylinder()
-            ASDVizOptions.MomActors.spincubetmap.SetInputConnection(
-                ASDVizOptions.MomActors.spincube.GetOutputPort()
+            self.MomActors.spincubetmap = vtk.vtkTextureMapToCylinder()
+            self.MomActors.spincubetmap.SetInputConnection(
+                self.MomActors.spincube.GetOutputPort()
             )
-            # ASDVizOptions.MomActors.spincubetmap.AutomaticCylinderGenerationOff()
-            # ASDVizOptions.MomActors.spincubetmap.SetPoint1([ 1.0,0.0,0.0])
-            # ASDVizOptions.MomActors.spincubetmap.SetPoint2([-1.0,0.0,0.0])
+            # self.MomActors.spincubetmap.AutomaticCylinderGenerationOff()
+            # self.MomActors.spincubetmap.SetPoint1([ 1.0,0.0,0.0])
+            # self.MomActors.spincubetmap.SetPoint2([-1.0,0.0,0.0])
 
             # Calculate TCoords for texturing
-            # ASDVizOptions.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
-            # ASDVizOptions.MomActors.spincubetmap.SetInputConnection(ASDVizOptions.MomActors.spincube.GetOutputPort())
-            # ASDVizOptions.MomActors.spincubetmap.AutomaticSphereGenerationOff()
-            # ASDVizOptions.MomActors.spincubetmap.SetCenter([ 0.0,0.0,0.0])
+            # self.MomActors.spincubetmap = vtk.vtkTextureMapToSphere()
+            # self.MomActors.spincubetmap.SetInputConnection(self.MomActors.spincube.GetOutputPort())
+            # self.MomActors.spincubetmap.AutomaticSphereGenerationOff()
+            # self.MomActors.spincubetmap.SetCenter([ 0.0,0.0,0.0])
 
-            ASDVizOptions.MomActors.spincubetmap.PreventSeamOff()
+            self.MomActors.spincubetmap.PreventSeamOff()
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(
-                ASDVizOptions.MomActors.spincubetmap.GetOutputPort()
+            self.MomActors.SpinMapper.SetSourceConnection(
+                self.MomActors.spincubetmap.GetOutputPort()
             )
-            ASDVizOptions.MomActors.SpinMapper.ClampingOn()
-            ASDVizOptions.MomActors.SpinMapper.OrientOn()
+            self.MomActors.SpinMapper.ClampingOn()
+            self.MomActors.SpinMapper.OrientOn()
             renWin.Render()
 
         if keyword == "Spheres":
             try:
-                del ASDVizOptions.MomActors.spinarrow
+                del self.MomActors.spinarrow
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincube
+                del self.MomActors.spincube
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincones
+                del self.MomActors.spincones
             except AttributeError:
                 pass
-            ASDVizOptions.MomActors.spinsphere = vtk.vtkTexturedSphereSource()
-            ASDVizOptions.MomActors.spinsphere.SetRadius(0.50)
-            ASDVizOptions.MomActors.spinsphere.SetThetaResolution(12)
-            ASDVizOptions.MomActors.spinsphere.SetPhiResolution(12)
+            self.MomActors.spinsphere = vtk.vtkTexturedSphereSource()
+            self.MomActors.spinsphere.SetRadius(0.50)
+            self.MomActors.spinsphere.SetThetaResolution(12)
+            self.MomActors.spinsphere.SetPhiResolution(12)
 
             # Placeholder comment for testing tangent extraction for normal textures
             # tritri = vtk.vtkTriangleFilter()
-            # tritri.SetInputConnection(ASDVizOptions.MomActors.spinsphere.GetOutputPort())
+            # tritri.SetInputConnection(self.MomActors.spinsphere.GetOutputPort())
             # tritan = vtk.vtkPolyDataTangents()
             # tritan.SetInputConnection(tritri.GetOutputPort())
-            # ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(tritan.GetOutputPort())
+            # self.MomActors.SpinMapper.SetSourceConnection(tritan.GetOutputPort())
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(
-                ASDVizOptions.MomActors.spinsphere.GetOutputPort()
+            self.MomActors.SpinMapper.SetSourceConnection(
+                self.MomActors.spinsphere.GetOutputPort()
             )
-            ASDVizOptions.MomActors.SpinMapper.ClampingOn()
-            ASDVizOptions.MomActors.SpinMapper.OrientOn()
-            # ASDVizOptions.MomActors.SpinMapper.OrientOff()
+            self.MomActors.SpinMapper.ClampingOn()
+            self.MomActors.SpinMapper.OrientOn()
+            # self.MomActors.SpinMapper.OrientOff()
             renWin.Render()
         if keyword == "Arrows":
             try:
-                del ASDVizOptions.MomActors.spinsphere
+                del self.MomActors.spinsphere
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincube
+                del self.MomActors.spincube
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincones
+                del self.MomActors.spincones
             except AttributeError:
                 pass
 
             # Create vectors
-            ASDVizOptions.MomActors.spinarrow = vtk.vtkArrowSource()
-            ASDVizOptions.MomActors.spinarrow.SetTipRadius(0.20)
-            ASDVizOptions.MomActors.spinarrow.SetShaftRadius(0.10)
-            ASDVizOptions.MomActors.spinarrow.SetTipResolution(12)
-            ASDVizOptions.MomActors.spinarrow.SetShaftResolution(12)
+            self.MomActors.spinarrow = vtk.vtkArrowSource()
+            self.MomActors.spinarrow.SetTipRadius(0.20)
+            self.MomActors.spinarrow.SetShaftRadius(0.10)
+            self.MomActors.spinarrow.SetTipResolution(12)
+            self.MomActors.spinarrow.SetShaftResolution(12)
 
             # Calculate normals for shading
-            ASDVizOptions.MomActors.spinarrownormals = vtk.vtkPolyDataNormals()
-            ASDVizOptions.MomActors.spinarrownormals.SetInputConnection(
-                ASDVizOptions.MomActors.spinarrow.GetOutputPort()
+            self.MomActors.spinarrownormals = vtk.vtkPolyDataNormals()
+            self.MomActors.spinarrownormals.SetInputConnection(
+                self.MomActors.spinarrow.GetOutputPort()
             )
 
             # Calculate TCoords for texturing
-            ASDVizOptions.MomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
-            ASDVizOptions.MomActors.spinarrownormalstmap.SetInputConnection(
-                ASDVizOptions.MomActors.spinarrownormals.GetOutputPort()
+            self.MomActors.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
+            self.MomActors.spinarrownormalstmap.SetInputConnection(
+                self.MomActors.spinarrownormals.GetOutputPort()
             )
-            ASDVizOptions.MomActors.spinarrownormalstmap.PreventSeamOn()
+            self.MomActors.spinarrownormalstmap.PreventSeamOn()
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(
-                ASDVizOptions.MomActors.spinarrownormalstmap.GetOutputPort()
+            self.MomActors.SpinMapper.SetSourceConnection(
+                self.MomActors.spinarrownormalstmap.GetOutputPort()
             )
-            ASDVizOptions.MomActors.SpinMapper.OrientOn()
-            ASDVizOptions.MomActors.SpinMapper.Update()
+            self.MomActors.SpinMapper.OrientOn()
+            self.MomActors.SpinMapper.Update()
 
             renWin.Render()
         if keyword == "CenterOn":
-            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToCenter()
+            self.MomActors.spinarrow.SetArrowOriginToCenter()
             renWin.Render()
 
         if keyword == "CenterOff":
-            ASDVizOptions.MomActors.spinarrow.SetArrowOriginToDefault()
+            self.MomActors.spinarrow.SetArrowOriginToDefault()
             renWin.Render()
 
         if keyword == "Cones":
             try:
-                del ASDVizOptions.MomActors.spinsphere
+                del self.MomActors.spinsphere
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spincube
+                del self.MomActors.spincube
             except AttributeError:
                 pass
             try:
-                del ASDVizOptions.MomActors.spinarrow
+                del self.MomActors.spinarrow
             except AttributeError:
                 pass
 
-            ASDVizOptions.MomActors.spincones = vtk.vtkConeSource()
-            ASDVizOptions.MomActors.spincones.SetRadius(0.50)
-            ASDVizOptions.MomActors.spincones.SetHeight(1.00)
-            ASDVizOptions.MomActors.spincones.SetResolution(12)
+            self.MomActors.spincones = vtk.vtkConeSource()
+            self.MomActors.spincones.SetRadius(0.50)
+            self.MomActors.spincones.SetHeight(1.00)
+            self.MomActors.spincones.SetResolution(12)
 
             # Calculate normals for shading
-            ASDVizOptions.MomActors.spinconenormals = vtk.vtkPolyDataNormals()
-            ASDVizOptions.MomActors.spinconenormals.SetInputConnection(
-                ASDVizOptions.MomActors.spincones.GetOutputPort()
+            self.MomActors.spinconenormals = vtk.vtkPolyDataNormals()
+            self.MomActors.spinconenormals.SetInputConnection(
+                self.MomActors.spincones.GetOutputPort()
             )
 
             # Calculate TCoords for texturing
-            ASDVizOptions.MomActors.spinconeormalstmap = vtk.vtkTextureMapToCylinder()
-            ASDVizOptions.MomActors.spinconeormalstmap.SetInputConnection(
-                ASDVizOptions.MomActors.spinconenormals.GetOutputPort()
+            self.MomActors.spinconeormalstmap = vtk.vtkTextureMapToCylinder()
+            self.MomActors.spinconeormalstmap.SetInputConnection(
+                self.MomActors.spinconenormals.GetOutputPort()
             )
-            ASDVizOptions.MomActors.spinconeormalstmap.PreventSeamOn()
+            self.MomActors.spinconeormalstmap.PreventSeamOn()
 
-            ASDVizOptions.MomActors.SpinMapper.SetSourceConnection(
-                ASDVizOptions.MomActors.spinconeormalstmap.GetOutputPort()
+            self.MomActors.SpinMapper.SetSourceConnection(
+                self.MomActors.spinconeormalstmap.GetOutputPort()
             )
-            ASDVizOptions.MomActors.SpinMapper.OrientOn()
-            ASDVizOptions.MomActors.SpinMapper.Update()
+            self.MomActors.SpinMapper.OrientOn()
+            self.MomActors.SpinMapper.Update()
             renWin.Render()
         return
 
-    ##########################################################################
-    # @brief Select the type of colormap that will be used for the different actors
-    # @details Select the type of colormap that will be used for the different actors
-    # It allows the user to choose between the following color schemes:
-    #
-    #   - Coolwarm
-    #   - RdGy
-    #   - Spectral
-    #   - BlackBody
-    # @author Jonathan Chico
-    ##########################################################################
-
-    def set_colormap(self, window, flag2D, viz_type, renWin):
-        """Select the type of colormap that will be used for the different actors
-        It allows the user to choose between the following color schemes:
-            * Coolwarm
-            * RdGy
-            * Spectral
-            * BlackBody
-
-        Args:
-            window: QMainWindow where the visualizations are being carried out.
-            flag2D: (logical) identifier indicating whether the system is in 2D or 3D.
-            viz_type: (str) identifier for the different types of visualization possible in the VTK API.
-            renWin: current VTK rendering window.
-
-        Author
-        ----------
-        Jonathan Chico
-        """
-        ASDVizOptions.lut = vtk.vtkLookupTable()
-        num_colors = 256
-        ASDVizOptions.lut.SetNumberOfTableValues(num_colors)
-        ASDVizOptions.transfer_func = vtk.vtkColorTransferFunction()
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging Coolwarm scheme by Kenneth Moreland
-        # -----------------------------------------------------------------------
-        if window.sender() == window.ColorMapCM and window.ColorMapCM.isChecked():
-            ASDVizOptions.transfer_func.SetColorSpaceToDiverging()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                ASDVizOptions.transfer_func.AddRGBPoint(0, 0.230, 0.299, 0.754)
-                ASDVizOptions.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
-            else:
-                ASDVizOptions.transfer_func.AddRGBPoint(-1, 0.230, 0.299, 0.754)
-                ASDVizOptions.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
-        # -----------------------------------------------------------------------
-        # Set the color to be given by the black body function
-        # -----------------------------------------------------------------------
-        if window.sender() == window.ColorMapBB and window.ColorMapBB.isChecked():
-            ASDVizOptions.transfer_func.SetColorSpaceToRGB()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                # ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.0, 0.0, 0.0);
-                # ASDVizOptions.transfer_func.AddRGBPoint(0.25, 0.9, 0.0, 0.0);
-                # ASDVizOptions.transfer_func.AddRGBPoint(0.75, 0.9, 0.9, 0.0);
-                # ASDVizOptions.transfer_func.AddRGBPoint(1.00, 1.0, 1.0, 1.0);
-                ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.000, 0.000, 0.000)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.39, 0.698, 0.133, 0.133)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.58, 0.890, 0.412, 0.020)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.89, 0.902, 0.902, 0.208)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.00, 1.000, 1.000, 1.000)
-            else:
-                ASDVizOptions.transfer_func.AddRGBPoint(-1.0, 0.0, 0.0, 0.0)
-                ASDVizOptions.transfer_func.AddRGBPoint(-0.5, 0.9, 0.0, 0.0)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.5, 0.9, 0.9, 0.0)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.0, 1.0, 1.0, 1.0)
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging RdGy
-        # -----------------------------------------------------------------------
-        if window.sender() == window.ColorMapRdGy and window.ColorMapRdGy.isChecked():
-            ASDVizOptions.transfer_func.SetColorSpaceToDiverging()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                ASDVizOptions.transfer_func.AddRGBPoint(0.0, 0.79216, 0.00000, 0.12549)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.5, 1.00000, 1.00000, 1.00000)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
-            else:
-                ASDVizOptions.transfer_func.AddRGBPoint(-1.0, 0.79216, 0.00000, 0.12549)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.0, 1.00000, 1.00000, 1.00000)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging spectral clor map
-        # -----------------------------------------------------------------------
-        if (
-            window.sender() == window.ColorMapSpectral
-            and window.ColorMapSpectral.isChecked()
-        ):
-            ASDVizOptions.transfer_func.SetColorSpaceToRGB()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                ASDVizOptions.transfer_func.AddRGBPoint(0.00, 0.61961, 0.00392, 0.25882)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.25, 0.95686, 0.42745, 0.26275)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.50, 1.00000, 1.00000, 0.74902)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.75, 0.40000, 0.76078, 0.64706)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
-            else:
-                ASDVizOptions.transfer_func.AddRGBPoint(
-                    -1.00, 0.61961, 0.00392, 0.25882
-                )
-                ASDVizOptions.transfer_func.AddRGBPoint(
-                    -0.50, 0.95686, 0.42745, 0.26275
-                )
-                ASDVizOptions.transfer_func.AddRGBPoint(0.00, 1.00000, 1.00000, 0.74902)
-                ASDVizOptions.transfer_func.AddRGBPoint(0.50, 0.40000, 0.76078, 0.64706)
-                ASDVizOptions.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
-        # -----------------------------------------------------------------------
-        # Construct the lut with the selected colomap
-        # -----------------------------------------------------------------------
-        for ii, ss in enumerate(
-            [float(xx) / float(num_colors) for xx in range(num_colors)]
-        ):
-            cc = ASDVizOptions.transfer_func.GetColor(ss)
-            ASDVizOptions.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
-        ASDVizOptions.lut.SetTableRange(0.0, 1.0)
-        ASDVizOptions.lut.Build()
-        # -----------------------------------------------------------------------
-        # Color the actors depending of the type of visualization
-        # -----------------------------------------------------------------------
-        if viz_type == "M":
-            if (
-                (flag2D and viz_type == "M")
-                or (flag2D and viz_type == "E")
-                or viz_type == "N"
-            ):
-                ASDVizOptions.MomActors.MagDensMap.SetLookupTable(ASDVizOptions.lut)
-                ASDVizOptions.MomActors.SpinMapper.SetLookupTable(ASDVizOptions.lut)
-                ASDVizOptions.GenActors.scalar_bar.SetLookupTable(ASDVizOptions.lut)
-                ASDVizOptions.GenActors.clipperMapper.SetLookupTable(ASDVizOptions.lut)
-            else:
-                ASDVizOptions.MomActors.volumeProperty.SetColor(
-                    ASDVizOptions.transfer_func
-                )
-                ASDVizOptions.MomActors.SpinMapper.SetLookupTable(
-                    ASDVizOptions.transfer_func
-                )
-                ASDVizOptions.GenActors.scalar_bar.SetLookupTable(
-                    ASDVizOptions.transfer_func
-                )
-                ASDVizOptions.GenActors.clipperMapper.SetLookupTable(
-                    ASDVizOptions.transfer_func
-                )
-        elif viz_type == "N":
-            ASDVizOptions.NeighActors.NeighMapper.SetLookupTable(ASDVizOptions.lut)
-            ASDVizOptions.GenActors.scalar_bar.SetLookupTable(ASDVizOptions.lut)
-            ASDVizOptions.GenActors.clipperMapper.SetLookupTable(ASDVizOptions.lut)
-        elif viz_type == "E":
-            if flag2D:
-                ASDVizOptions.EneActors.EneDensMap.SetLookupTable(ASDVizOptions.lut)
-                ASDVizOptions.GenActors.scalar_bar.SetLookupTable(ASDVizOptions.lut)
-                ASDVizOptions.GenActors.clipperMapper.SetLookupTable(ASDVizOptions.lut)
-            else:
-                ASDVizOptions.EneActors.volumeProperty.SetColor(
-                    ASDVizOptions.transfer_func
-                )
-                ASDVizOptions.GenActors.scalar_bar.SetLookupTable(
-                    ASDVizOptions.transfer_func
-                )
-                ASDVizOptions.GenActors.clipperMapper.SetLookupTable(
-                    ASDVizOptions.transfer_func
-                )
-        # -----------------------------------------------------------------------
-        # Render the scene
-        # -----------------------------------------------------------------------
-        renWin.Render()
-        return
-
-    ##########################################################################
-    # @brief Select the type of colormap that will be used for the different actors
-    # @details Select the type of colormap that will be used for the different actors
-    # It allows the user to choose between the following color schemes:
-    #
-    #   - Coolwarm
-    #   - RdGy
-    #   - Spectral
-    #   - BlackBody
-    # @author Jonathan Chico
-    ##########################################################################
-    def set_colormap_db(self, mapnum, window, flag2D, viz_type, renWin):
-        """Select the type of colormap that will be used for the different actors
-        It allows the user to choose between the following color schemes:
-            * Coolwarm (mapnum 0)
-            * RdGy (mapnum 1)
-            * Spectral (mapnum 2)
-            * BlackBody (mapnum 3)
-
-        Args:
-            window: QMainWindow where the visualizations are being carried out.
-            flag2D: (logical) identifier indicating whether the system is in 2D or 3D.
-            viz_type: (str) identifier for the different types of visualization possible in the VTK API.
-            renWin: current VTK rendering window.
-
-        Author
-        ----------
-        Jonathan Chico
-        """
-        # self.lut = vtk.vtkLookupTable()
-        num_colors = 256
-        self.lut.SetNumberOfTableValues(num_colors)
-        self.transfer_func = vtk.vtkColorTransferFunction()
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging Coolwarm scheme by Kenneth Moreland
-        # -----------------------------------------------------------------------
-        if mapnum == 0:
-            self.transfer_func.SetColorSpaceToDiverging()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                self.transfer_func.AddRGBPoint(0, 0.230, 0.299, 0.754)
-                self.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
-            else:
-                self.transfer_func.AddRGBPoint(-1, 0.230, 0.299, 0.754)
-                self.transfer_func.AddRGBPoint(1, 0.706, 0.016, 0.150)
-        # -----------------------------------------------------------------------
-        # Set the color to be given by the black body function
-        # -----------------------------------------------------------------------
-        if mapnum == 1:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                self.transfer_func.AddRGBPoint(0.00, 0.000, 0.000, 0.000)
-                self.transfer_func.AddRGBPoint(0.39, 0.698, 0.133, 0.133)
-                self.transfer_func.AddRGBPoint(0.58, 0.890, 0.412, 0.020)
-                self.transfer_func.AddRGBPoint(0.89, 0.902, 0.902, 0.208)
-                self.transfer_func.AddRGBPoint(1.00, 1.000, 1.000, 1.000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 0.0, 0.0, 0.0)
-                self.transfer_func.AddRGBPoint(-0.5, 0.9, 0.0, 0.0)
-                self.transfer_func.AddRGBPoint(0.5, 0.9, 0.9, 0.0)
-                self.transfer_func.AddRGBPoint(1.0, 1.0, 1.0, 1.0)
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging RdGy
-        # -----------------------------------------------------------------------
-        if mapnum == 2:
-            self.transfer_func.SetColorSpaceToDiverging()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                self.transfer_func.AddRGBPoint(0.0, 0.79216, 0.00000, 0.12549)
-                self.transfer_func.AddRGBPoint(0.5, 1.00000, 1.00000, 1.00000)
-                self.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 0.79216, 0.00000, 0.12549)
-                self.transfer_func.AddRGBPoint(0.0, 1.00000, 1.00000, 1.00000)
-                self.transfer_func.AddRGBPoint(1.0, 0.25098, 0.25098, 0.25098)
-        # -----------------------------------------------------------------------
-        # Set the color map to be given by the diverging spectral clor map
-        # -----------------------------------------------------------------------
-        if mapnum == 3:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                self.transfer_func.AddRGBPoint(0.00, 0.61961, 0.00392, 0.25882)
-                self.transfer_func.AddRGBPoint(0.25, 0.95686, 0.42745, 0.26275)
-                self.transfer_func.AddRGBPoint(0.50, 1.00000, 1.00000, 0.74902)
-                self.transfer_func.AddRGBPoint(0.75, 0.40000, 0.76078, 0.64706)
-                self.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
-            else:
-                self.transfer_func.AddRGBPoint(-1.00, 0.61961, 0.00392, 0.25882)
-                self.transfer_func.AddRGBPoint(-0.50, 0.95686, 0.42745, 0.26275)
-                self.transfer_func.AddRGBPoint(0.00, 1.00000, 1.00000, 0.74902)
-                self.transfer_func.AddRGBPoint(0.50, 0.40000, 0.76078, 0.64706)
-                self.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
-        # -----------------------------------------------------------------------
-        # High-jacking this scheme for Single colors
-        if mapnum == -1:
-            self.transfer_func.SetColorSpaceToRGB()
-            if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-                self.transfer_func.AddRGBPoint(0.0, 1.00000, 1.00000, 1.00000)
-                self.transfer_func.AddRGBPoint(1.0, 1.00000, 1.00000, 1.00000)
-            else:
-                self.transfer_func.AddRGBPoint(-1.0, 1.00000, 1.00000, 1.00000)
-                self.transfer_func.AddRGBPoint(1.0, 1.00000, 1.00000, 1.00000)
-        # Construct the lut with the selected colomap
-        # -----------------------------------------------------------------------
-        for ii, ss in enumerate(
-            [float(xx) / float(num_colors) for xx in range(num_colors)]
-        ):
-            cc = self.transfer_func.GetColor(ss)
-            self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
-        self.lut.Build()
-        return
-
-    ##########################################################################
-    # @brief Set the background color given RGB values
-    # @author Anders Bergman
-    ##########################################################################
-    def set_RGBbackground(self, rgb, ren, renWin):
-        """
-        Sets the background color of the renderer using an RGB tuple.
-        """
-
-        nrgb = [i / 255.0 for i in rgb]
-        ren.SetBackground(nrgb)
-
-        return
-
-    ##########################################################################
-    # @brief Setup a single color colormap
-    # @details Used since glyphs are colored after colormaps and not single colors
-    # @author Anders Bergman
-    ##########################################################################
-    def set_RGBcolor(self, rgb, window, flag2D, viz_type, renWin):
-        """
-        Set the RGB color for the lookup table (LUT) and color transfer function.
-
-        Parameters:
-        rgb (list): A list of three integers representing the RGB color values.
-        window (object): The window object where the color will be applied.
-        flag2D (bool): A flag indicating if the visualization is 2D.
-        viz_type (str): The type of visualization (e.g., "M", "E", "N").
-        renWin (object): The render window object.
-
-        Returns:
-        None
-
-        Author:
-        Anders Bergman
-        """
-
-        num_colors = 2
-        red = rgb[0] / 255.0
-        green = rgb[1] / 255.0
-        blue = rgb[2] / 255.0
-
-        self.lut.SetNumberOfTableValues(num_colors)
-        self.transfer_func = vtk.vtkColorTransferFunction()
-        self.transfer_func.SetColorSpaceToRGB()
-        if (viz_type == "M") or (viz_type == "E") or viz_type == "N":
-            self.transfer_func.AddRGBPoint(0.00, red, green, blue)
-            self.transfer_func.AddRGBPoint(1.00, red, green, blue)
-        else:
-            self.transfer_func.AddRGBPoint(-1.0, red, green, blue)
-            self.transfer_func.AddRGBPoint(1.0, red, green, blue)
-
-        for ii, ss in enumerate(
-            [float(xx) / float(num_colors) for xx in range(num_colors)]
-        ):
-            cc = self.transfer_func.GetColor(ss)
-            self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
-
-        self.lut.Build()
-        return

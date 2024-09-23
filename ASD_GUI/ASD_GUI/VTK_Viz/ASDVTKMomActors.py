@@ -344,8 +344,8 @@ class ASDMomActors:
         ASDMomActors.spinarrow = vtk.vtkArrowSource()
         ASDMomActors.spinarrow.SetTipRadius(0.20)
         ASDMomActors.spinarrow.SetShaftRadius(0.10)
-        ASDMomActors.spinarrow.SetTipResolution(12)
-        ASDMomActors.spinarrow.SetShaftResolution(12)
+        ASDMomActors.spinarrow.SetTipResolution(16)
+        ASDMomActors.spinarrow.SetShaftResolution(16)
 
         ASDMomActors.spinarrowtriangles = vtk.vtkTriangleFilter()
         ASDMomActors.spinarrowtriangles.SetInputConnection(
