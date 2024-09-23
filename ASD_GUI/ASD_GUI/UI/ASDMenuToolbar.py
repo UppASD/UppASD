@@ -9,17 +9,19 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import QProgressBar, QLabel, QStyle, QToolButton
 from PyQt6.QtCore import QSignalBlocker
 
 
-################################################################################
-## @brief Function defining the toolbar and actions for the VTK backend.
+##########################################################################
+# @brief Function defining the toolbar and actions for the VTK backend.
 # @details This contains several buttons handling the different visualization
 # modes available in the VTK API.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def VTK_Menu_and_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the VTK backend.
     This contains several buttons and actions handling the different types of visualization
@@ -163,7 +165,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ProgressBar.setWhatsThis("Progress bar of the simulation")
     window.ProgressBar.setStatusTip("Progress bar of the simulation")
     window.ProgressLabel = QLabel()
-    window.ProgressLabel.setText(" {:}% ".format(int(window.ProgressBar.value())))
+    window.ProgressLabel.setText(f" {int(window.ProgressBar.value())}% ")
     # ---------------------------------------------------------------------------
     # Adding the extra buttons to the toolbar
     # ---------------------------------------------------------------------------
@@ -391,12 +393,12 @@ def VTK_Menu_and_Toolbar_Setup(window):
     return
 
 
-################################################################################
-## @brief Function defining the toolbar and actions for the matplotlib backend.
+##########################################################################
+# @brief Function defining the toolbar and actions for the matplotlib backend.
 # @details This contains several buttons handling the different types of plots
 # that can be performed in the matplotlib API
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def Plot_Menu_and_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the Matplotlib backend.
     This contains several buttons and actions handling the different types of plots
@@ -529,10 +531,10 @@ def Plot_Menu_and_Toolbar_Setup(window):
     return
 
 
-################################################################################
-## @brief Toolbar and UI connections for the Input generator functions.
+##########################################################################
+# @brief Toolbar and UI connections for the Input generator functions.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def Input_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the Input generator backend.
     This contains several buttons and actions handling the different functions for the

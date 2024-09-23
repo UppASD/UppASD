@@ -35,24 +35,28 @@ Author
 ----------
 Jonathan Chico
 """
+
 import sys
 from PyQt6.QtWidgets import QApplication
 from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 
-################################################################################
-## @brief Main executable class to run the ASD_Visualizer
+##########################################################################
+# @brief Main executable class to run the ASD_Visualizer
 # @details It calls the ASDUIDriver which contains the UppASDVizMainWindow class
 # containing the wrapper class defining the data needed to setup the GUI.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
+
+
 def main():
     # Open the Application Window
     app = QApplication(sys.argv)
     window = UppASDVizMainWindow()
     window.show()
-    window.iren.Initialize() # Need this line to actually show the render inside Qt
+    window.iren.Initialize()  # Need this line to actually show the render inside Qt
     # Return
     sys.exit(app.exec())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

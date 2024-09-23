@@ -21,6 +21,8 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 import glob
 
 import numpy as np
@@ -32,20 +34,20 @@ from vtk.util import numpy_support
 from ASD_GUI.UI import ASDInputWindows
 
 
-################################################################################
+##########################################################################
 # @brief Class dealing with the reading of data for the VTK mode.
 # @ details Class for reading the data from ASD files, it makes use of the pandas framework
 # to read the data needed for the visualization of magnetic moments, neighbours, etc.
 # That is any data needed for the VTK visualization.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 class ASDReading:
-    ############################################################################
+    ##########################################################################
     # @brief Constructor for the ASDReading class.
     # @details Constructor for the ASDReading class. It contains a set of definitions
     # mainly dealing with the names of the data files.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def __init__(self):
         ASDReading.restart = []
         ASDReading.posfiles = []
@@ -65,7 +67,7 @@ class ASDReading:
         ASDReading.not_read_dmneigh = True
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to get the file names for the different types of visualizations
     # @details Function that gets the file names needed for the different types
     # of visualization in the VTK mode, namely:
@@ -78,8 +80,19 @@ class ASDReading:
     #   - localenergy.*.out
     #   - kmc_info.*.out
     #   - clus_info.*.out
-    ############################################################################
+    ##########################################################################
     def getFileName(self, window):
+        """
+        Opens a file dialog to select a file based on the sender of the action.
+
+        Depending on which action triggered the file dialog, it updates the corresponding
+        attribute in the ASDReading class and sets the appropriate flags.
+
+        Parameters:
+        window (QtWidgets.QMainWindow): The main window instance that contains the actions.
+
+        Author: Jonathan Chico
+        """
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
@@ -111,6 +124,23 @@ class ASDReading:
     # @author Jonathan Chico
     # --------------------------------------------------------------------------------
     def ReadingWrapper(self, mode, viz_type, file_names, window):
+        """
+        Handles the reading and initialization of various files required
+        for different types of visualizations.
+
+        Parameters:
+        - mode (int): The mode of operation, determines specific file handling.
+        - viz_type (str): The type of visualization
+         ('M' for Magnetization, 'N' for Neighbours, 'E' for Energy).
+        - file_names (list): List of file names required for the visualization.
+        - window (object): The window object for displaying messages and errors.
+
+        Returns:
+        - None
+
+        Author:
+        - Jonathan Chico
+        """
 
         ASDReading.posfiles = file_names[0]
         ASDReading.magnetization = file_names[1]
@@ -130,14 +160,14 @@ class ASDReading:
             # Find the restartfile
             # ------------------------------------------------------------------------
             if len(ASDReading.magnetization) > 0:
-                ASDReading.MagFile = open(ASDReading.magnetization, encoding='utf-8')
+                ASDReading.MagFile = open(ASDReading.magnetization, encoding="utf-8")
             else:
                 print(
                     "No file name selected from menu. Trying to find a 'localenergy.*.out' file"
                 )
                 ASDReading.MagFiles = glob.glob("restart.*.out")
                 if len(ASDReading.MagFiles) > 0:
-                    ASDReading.MagFile = open(ASDReading.MagFiles[0], encoding='utf-8')
+                    ASDReading.MagFile = open(ASDReading.MagFiles[0], encoding="utf-8")
                     window.Res_InfoWindow = ASDInputWindows.InfoWindow()
                     window.Res_InfoWindow.FunMsg.setText(
                         "Information: no magnetic configuration given"
@@ -247,7 +277,7 @@ class ASDReading:
         # Find the coordinate file
         # -----------------------------------------------------------------------
         if len(ASDReading.posfiles) > 0:
-            atomsFile = open(ASDReading.posfiles, encoding='utf-8')
+            atomsFile = open(ASDReading.posfiles, encoding="utf-8")
         else:
             print(
                 "No file name selected from menu. Trying to find a 'coord.*.out' file"
@@ -277,7 +307,7 @@ class ASDReading:
             # -------------------------------------------------------------------
             # Open the file if it exists with utf-8 encoding
             # -------------------------------------------------------------------
-            atomsFile_c = open(posfiles_c[0], encoding='utf-8')
+            atomsFile_c = open(posfiles_c[0], encoding="utf-8")
         else:
             ASDReading.cluster_flag = False
         # -----------------------------------------------------------------------
@@ -435,13 +465,29 @@ class ASDReading:
         ASDReading.viz_type = viz_type
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Read Location of Atoms
     # @details Function to read the position of the atoms in the system, as well
     # as calculating if the system should be treated like a 2D or 3D system.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def readAtoms(self, file_coord):
+        """
+        Reads atomic coordinates from a file and determines if the system is 2D or 3D.
+
+        Parameters:
+        file_coord (str): Path to the file containing atomic coordinates.
+
+        Returns:
+        tuple: A tuple containing:
+            - points (vtkPoints): VTK points object containing atomic coordinates.
+            - nrAtoms (int): Number of atoms in the system.
+            - flag2D (bool): Flag indicating if the system is considered 2D.
+            - min_val (float): Minimum z-coordinate value.
+
+        Author:
+        Jonathan Chico
+        """
 
         # -----------------------------------------------------------------------
         # Define the parameters used to check if the system is 2D
@@ -467,27 +513,27 @@ class ASDReading:
             ASDReading.nrAtoms = len(coord)
         del tmp_c
         ASDReading.full_coord = coord
-        ####-----------------------------------------------------------------------
-        #### Read the data with pandas
-        ####-----------------------------------------------------------------------
-        ###coord=np.genfromtxt(fname=file_coord,usecols=[1,2,3])
-        ####-----------------------------------------------------------------------
-        #### Define the number of atoms in the system
-        ####-----------------------------------------------------------------------
-        ###ASDReading.nrAtoms=len(coord)
-        ####-----------------------------------------------------------------------
+        # -----------------------------------------------------------------------
+        # Read the data with pandas
+        # -----------------------------------------------------------------------
+        # coord=np.genfromtxt(fname=file_coord,usecols=[1,2,3])
+        # -----------------------------------------------------------------------
+        # Define the number of atoms in the system
+        # -----------------------------------------------------------------------
+        # ASDReading.nrAtoms=len(coord)
+        # -----------------------------------------------------------------------
         # Pass the numpy type arrays to vtk objects
         # -----------------------------------------------------------------------
-        points.SetData(numpy_support.numpy_to_vtk(coord[0 : ASDReading.nrAtoms]))
+        points.SetData(numpy_support.numpy_to_vtk(coord[0: ASDReading.nrAtoms]))
         # -----------------------------------------------------------------------
         # Data to check if one should consider the data to be rendered in 2D or 3D
         # -----------------------------------------------------------------------
-        max_x = max(coord[0 : ASDReading.nrAtoms, 0])
-        min_x = min(coord[0 : ASDReading.nrAtoms, 0])
-        max_y = max(coord[0 : ASDReading.nrAtoms, 1])
-        min_y = min(coord[0 : ASDReading.nrAtoms, 1])
-        max_z = max(coord[0 : ASDReading.nrAtoms, 2])
-        min_z = min(coord[0 : ASDReading.nrAtoms, 2])
+        max_x = max(coord[0: ASDReading.nrAtoms, 0])
+        min_x = min(coord[0: ASDReading.nrAtoms, 0])
+        max_y = max(coord[0: ASDReading.nrAtoms, 1])
+        min_y = min(coord[0: ASDReading.nrAtoms, 1])
+        max_z = max(coord[0: ASDReading.nrAtoms, 2])
+        min_z = min(coord[0: ASDReading.nrAtoms, 2])
         dist_x = np.sqrt((max_x - min_x) ** 2)
         dist_y = np.sqrt((max_y - min_y) ** 2)
         dist_z = np.sqrt((max_z - min_z) ** 2)
@@ -506,14 +552,32 @@ class ASDReading:
         del coord
         return points, ASDReading.nrAtoms, ASDReading.flag2D, ASDReading.min_val
 
-    ############################################################################
+    ##########################################################################
     # @biref Read Location of the cluster Atoms notice that this uses the clus_info file
     # @details Function to read the positions of the atoms in the cluster,
     # this also contains information about whether one should plot the inpurity
     # center atom.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def readAtoms_clus(self, file_clus):
+        """
+        Reads atomic cluster data from a file and processes it into VTK structures.
+
+        Parameters:
+        file_clus (str): Path to the file containing cluster data.
+
+        Returns:
+        tuple: A tuple containing:
+            - points_clus (vtkPoints): VTK points for the cluster.
+            - nrAtoms_clus (int): Number of atoms in the cluster.
+            - colors_clus (vtkUnsignedCharArray): Colors for the cluster points.
+            - points_clus_imp (vtkPoints): VTK points for the impurity cluster.
+            - colors_imp (vtkUnsignedCharArray): Colors for the impurity points.
+            - imp_nr (int): Number of impurity atoms.
+
+        Author:
+        Jonathan Chico
+        """
 
         tol = 0.0001
         # -----------------------------------------------------------------------
@@ -609,6 +673,25 @@ class ASDReading:
     # @author Jonathan Chico
     # --------------------------------------------------------------------------------
     def readVectorsData(self, file_mom, time, nrAtoms, temp_count):
+        """
+        Reads vector data from a given file and processes it for visualization.
+
+        Parameters:
+        file_mom (file object): The file containing the vector data.
+        time (int): The current time step.
+        nrAtoms (int): The number of atoms.
+        temp_count (int): Temporary count of time steps.
+
+        Returns:
+        tuple: A tuple containing:
+            - vectors (vtkFloatArray): The processed vector data.
+            - colors (list of vtkFloatArray): The color data for each vector component.
+            - number_time_steps (int): The number of time steps.
+            - time_sep (numpy array): The time separations.
+
+        Author:
+        Jonathan Chico
+        """
 
         # ----------------------------------------------------------------------------
         # Create a Double array which represents the vectors
@@ -652,7 +735,8 @@ class ASDReading:
                     # delim_whitespace=True,usecols=[0]).values
                     # Find the separations between different times
                     ASDReading.time_sep = np.unique(ASDReading.time_sep)
-                    # If there is only one time check if there are several ensembles
+                    # If there is only one time check if there are several
+                    # ensembles
                     if len(ASDReading.time_sep) == 1:
                         # Read the ensembles
                         file_mom.seek(0)
@@ -716,25 +800,25 @@ class ASDReading:
         # ----------------------------------------------------------------------------
         t_off = np.int32(time * nrAtoms)
         nrAtoms = np.int32(nrAtoms)
-        min_x = min(ASDReading.full_mom[t_off:t_off + nrAtoms, 0])
-        min_y = min(ASDReading.full_mom[t_off:t_off + nrAtoms, 1])
-        min_z = min(ASDReading.full_mom[t_off:t_off + nrAtoms, 2])
-        max_x = max(ASDReading.full_mom[t_off:t_off + nrAtoms, 0])
-        max_y = max(ASDReading.full_mom[t_off:t_off + nrAtoms, 1])
-        max_z = max(ASDReading.full_mom[t_off:t_off + nrAtoms, 2])
+        min_x = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 0])
+        min_y = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 1])
+        min_z = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 2])
+        max_x = max(ASDReading.full_mom[t_off: t_off + nrAtoms, 0])
+        max_y = max(ASDReading.full_mom[t_off: t_off + nrAtoms, 1])
+        max_z = max(ASDReading.full_mom[t_off: t_off + nrAtoms, 2])
         # ----------------------------------------------------------------------------
         # Loop over all the atoms
         # ----------------------------------------------------------------------------
         vectors = numpy_support.numpy_to_vtk(
-            ASDReading.full_mom[t_off : t_off + nrAtoms, :]
+            ASDReading.full_mom[t_off: t_off + nrAtoms, :]
         )
-        colors_x = (ASDReading.full_mom[t_off : t_off + nrAtoms, 0] - min_x) / (
+        colors_x = (ASDReading.full_mom[t_off: t_off + nrAtoms, 0] - min_x) / (
             max_x - min_x + 1.0e-12
         )
-        colors_y = (ASDReading.full_mom[t_off : t_off + nrAtoms, 1] - min_y) / (
+        colors_y = (ASDReading.full_mom[t_off: t_off + nrAtoms, 1] - min_y) / (
             max_y - min_y + 1.0e-12
         )
-        colors_z = (ASDReading.full_mom[t_off : t_off + nrAtoms, 2] - min_z) / (
+        colors_z = (ASDReading.full_mom[t_off: t_off + nrAtoms, 2] - min_z) / (
             max_z - min_z + 1.0e-12
         )
         colors_x = numpy_support.numpy_to_vtk(colors_x)
@@ -765,8 +849,8 @@ class ASDReading:
                The file type can be 'restart' or 'moment'.
         """
         try:
-            file_data = open(filename, encoding='utf-8')
-        except:
+            file_data = open(filename, encoding="utf-8")
+        except FileNotFoundError:
             file_data = filename
         line = file_data.readline()
         data = str.split(line)
@@ -791,6 +875,24 @@ class ASDReading:
     # @author Jonathan Chico
     # --------------------------------------------------------------------------------
     def readEnergyData(self, file_ene, time, nrAtoms, temp_count):
+        """
+        Reads energy data from a file and converts it into VTK data structures.
+
+        Parameters:
+        file_ene (str): Path to the energy data file.
+        time (int): Current time step.
+        nrAtoms (int): Number of atoms.
+        temp_count (int): Temporary count of time steps.
+
+        Returns:
+        tuple: A tuple containing:
+            - energies (list): List of VTK float arrays for different energy components.
+            - number_time_steps (int): Total number of time steps.
+            - time_sep (numpy.ndarray): Unique time steps.
+
+        Author:
+        Jonathan Chico
+        """
 
         # -----------------------------------------------------------------------
         # Create a Double array which represents the vectors
@@ -873,15 +975,31 @@ class ASDReading:
         energies.append(ene_chir)
         return energies, ASDReading.number_time_steps, ASDReading.time_sep
 
-    ############################################################################
+    ##########################################################################
     # @brief Read the data needed to visualize the time evolution of the KMC particles
     # @details Read the data needed to visualize the time evolution of the KMC particles,
     # it works in the same way that the visualization of the magnetic moments.
     # in the same way that for the moments one must calculate and then pass back the
     # number of time steps in the system.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def readKMCData(self, file_KMC, time, temp_nrKMCpar):
+        """
+        Reads KMC data from a file and returns the coordinates of KMC particles.
+
+        Parameters:
+        file_KMC (str): Path to the KMC data file.
+        time (int): Time step to read the data for.
+        temp_nrKMCpar (int): Temporary number of KMC particles.
+
+        Returns:
+        tuple: A tuple containing:
+            - vtkPoints: Coordinates of KMC particles.
+            - int: Number of KMC particles.
+
+        Author:
+        Jonathan Chico
+        """
 
         coord_KMC = vtkPoints()
         # -----------------------------------------------------------------------
@@ -910,13 +1028,30 @@ class ASDReading:
             )
         return coord_KMC, ASDReading.nrKMCpar
 
-    ############################################################################
+    ##########################################################################
     # Read and arrange the neighbours from the struct file
     # If one reads this file correctly one can generate a visual representation
     # of the neighbouring atoms as defined in the neighbour map
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def readNeighbours(self, file):
+        """
+        Reads neighbor data from a file and returns relevant information.
+
+        Parameters:
+        file (str): Path to the file containing neighbor data.
+
+        Returns:
+        tuple: A tuple containing the following elements:
+            - neighbours (ndarray): Array of neighbor indices.
+            - Neigh_strength (ndarray): Array of neighbor strengths.
+            - curr_atom (ndarray): Array of current atom indices.
+            - neigh_types (ndarray): Array of neighbor types.
+            - num_types_total (int): Total number of unique neighbor types.
+
+        Author:
+        Jonathan Chico
+        """
 
         # Read the data using pandas
         neigh_data = pd.read_csv(
@@ -930,13 +1065,31 @@ class ASDReading:
         num_types_total = len(np.unique(neigh_types))
         return neighbours, Neigh_strength, curr_atom, neigh_types, num_types_total
 
-    ############################################################################
+    ##########################################################################
     # Read and arrange the neighbours from the dmdata file
     # If one reads this file correctly one can generate a visual representation
     # of the neighbouring atoms as defined in the dm neighbour map
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def readDMNeighbours(self, file):
+        """
+        Reads and processes neighbor data from a specified file.
+
+        Parameters:
+        file (str): Path to the file containing neighbor data.
+
+        Returns:
+        tuple: A tuple containing the following elements:
+            - neighbours (ndarray): Array of neighbor indices.
+            - DM_vec (ndarray): Array of Dzyaloshinskii-Moriya vectors.
+            - DM_strength (ndarray): Array of Dzyaloshinskii-Moriya strengths.
+            - curr_atom (ndarray): Array of current atom indices.
+            - neigh_types (ndarray): Array of neighbor types.
+            - num_types_total (int): Total number of unique neighbor types.
+
+        Author:
+        Jonathan Chico
+        """
 
         # Read the data using pandas
         neigh_data = pd.read_csv(
@@ -957,16 +1110,41 @@ class ASDReading:
         num_types_total = len(np.unique(neigh_types))
         return neighbours, DM_vec, DM_strength, curr_atom, neigh_types, num_types_total
 
-    ############################################################################
+    ##########################################################################
     # The previously defined set of data from the neighbours can then be
     # stored in vtk friendly arrays
     # Notice the variable iAtom, which defines which atom is being currently
     # visualized, that is the variable to be set by the slider
     # @author Anders Bergman
-    ############################################################################
+    ##########################################################################
     def setNeighbours(
         self, neighbours, iAtom, coords, Neigh_strength, curr_atom, neigh_types
     ):
+        """
+        Set the arrays for the neighbours and the center atom.
+
+        Parameters:
+        - neighbours (array-like): Array of neighbour indices.
+        - iAtom (int): Index of the current atom.
+        - coords (vtkPoints): VTK points object containing coordinates.
+        - Neigh_strength (array-like): Array of neighbour strengths.
+        - curr_atom (array-like): Array indicating the current atom.
+        - neigh_types (array-like): Array of neighbour types.
+
+        Returns:
+        - tuple: Contains the following elements:
+            - neighpoints (vtkPoints): VTK points object for neighbours.
+            - atompoint (vtkPoints): VTK points object for the current atom.
+            - ntypes (vtkFloatArray): VTK float array of neighbour types.
+            - colors (vtkFloatArray): VTK float array of neighbour strengths.
+            - nNeighs (int): Number of neighbours.
+            - num_types (int): Number of unique neighbour types.
+            - types_counters (array-like): Counts of each neighbour type.
+            - types (array-like): Unique neighbour types.
+
+        Author:
+        Jonathan Chico
+        """
 
         # -----------------------------------------------------------------------
         # Set the arrays for the neighbours and the center atom
@@ -1009,7 +1187,7 @@ class ASDReading:
             types,
         )
 
-    ############################################################################
+    ##########################################################################
     # @brief The previously defined set of data from the DM vectors neighbours can then be
     # stored in vtk friendly arrays
     # @detailsThe previously defined set of data from the DM vectors neighbours can then be
@@ -1017,10 +1195,35 @@ class ASDReading:
     #  Notice the variable iAtom, which defines which atom is being currently
     # visualized, that is the variable to be set by the slider
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def setDMNeighbours(
         self, neighbours, iAtom, coords, DM_vec, DM_strength, curr_atom, neigh_types
     ):
+        """
+        Set the arrays for the neighbours and the center atom.
+
+        Parameters:
+        - neighbours (array-like): List of neighbour indices.
+        - iAtom (int): Index of the current atom.
+        - coords (vtkPoints): VTK points object containing coordinates of atoms.
+        - DM_vec (array-like): Dzyaloshinskii-Moriya vectors.
+        - DM_strength (array-like): Strength of the Dzyaloshinskii-Moriya interaction.
+        - curr_atom (array-like): Array indicating the current atom.
+        - neigh_types (array-like): Types of neighbours.
+
+        Returns:
+        - neighpoints (vtkPoints): VTK points object for neighbour atoms.
+        - atompoint (vtkPoints): VTK points object for the current atom.
+        - ntypes (vtkFloatArray): VTK array of neighbour types.
+        - colors (vtkFloatArray): VTK array of DM strengths.
+        - DM_vectors (vtkFloatArray): VTK array of normalized DM vectors.
+        - nNeighs (int): Number of neighbours.
+        - num_types (int): Number of unique neighbour types.
+        - types_counters (array-like): Counts of each neighbour type.
+        - types (array-like): Unique neighbour types.
+
+        Author: Jonathan Chico
+        """
 
         # -----------------------------------------------------------------------
         # Set the arrays for the neighbours and the center atom

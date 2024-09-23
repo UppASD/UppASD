@@ -10,12 +10,12 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 import glob
 import os
 import os.path as path
 from enum import Enum
-import sys
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
@@ -28,11 +28,10 @@ from vtk import vtkInteractorStyleTrackballCamera, vtkOpenGLRenderer
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvas
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from vtkmodules.vtkCommonColor import vtkColorSeries, vtkNamedColors
+from vtkmodules.vtkCommonColor import vtkColorSeries
 
 import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
 import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
-import ASD_GUI.UI.ASDInteractiveTab as ASDInteractive
 import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
 from ASD_GUI.PLOT import ASDPlots2D, ASDPlotsReading
 from ASD_GUI.UI import ASDInputWindows
@@ -76,7 +75,7 @@ class Backend(Enum):
     UppASD_INT = 4
 
 
-################################################################################
+##########################################################################
 # @brief Class that defines the main window where all the widgets and rendering take place.
 # @details It controls the actions which take place in the GUI. It defined the main window
 # that allows for the following features:
@@ -84,16 +83,16 @@ class Backend(Enum):
 # - Matplotlib plotting of several key \c UppASD outputs.
 # - VTK rendering of 3D \c UppASD data.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 
 
 class UppASDVizMainWindow(QMainWindow):
-    ############################################################################
+    ##########################################################################
     # @brief Class constructor for the main window
     # @details Class constructor for the main waindow. It initializes the inclusion
     # of several auxiliary classes that are used to setup the GUI functionality.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def __init__(self):
         super(UppASDVizMainWindow, self).__init__()
         # -----------------------------------------------------------------------
@@ -131,7 +130,9 @@ class UppASDVizMainWindow(QMainWindow):
             else:
                 raise ImportError("ASDsimulator is None")
         except (ImportError, AttributeError):
-            print("ASDsimulator module not found or is None. Interactive functions disabled")
+            print(
+                "ASDsimulator module not found or is None. Interactive functions disabled"
+            )
         # self.ASDsim = None
         # try:
         #     self.ASDsim = ASDsimulator.Simulator()
@@ -219,22 +220,25 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper for the writing of the input file
     # @details This function first create the dictionary of key words, this is then
     # populated with the parameters from the GUI. The dictionary is then cleaned
     # and written to file.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def WriteInputFile(self):
+        """
+        Generates and writes the input file using ASDInputGen methods.
+        """
         self.ASDInputGen.ASDSetDefaults()
         self.ASDInputGen.ASDInputGatherer(self)
         self.ASDInputGen.clean_var()
         self.ASDInputGen.write_inpsd()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Initialize the UI and set the relevant actions
     # @details Initialize the UI and set the relevant actions. Defines the Toolbars
     # and calls for their initialization and population, as well as the reading of the
@@ -242,9 +246,12 @@ class UppASDVizMainWindow(QMainWindow):
     # Also sets up several validators to forbid erroneous data to be fed into the
     # GUI.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def SetupUI(self):
+        """
+        Set up the user interface and connect signals to slots.
+        """
         self.VTKToolBar = QToolBar()
         self.MatPlotToolbar = QToolBar()
         self.InputToolbar = QToolBar()
@@ -291,21 +298,26 @@ class UppASDVizMainWindow(QMainWindow):
         self.InitPhaseWindow.InitPhaseDoneButton.clicked.connect(self.getInitPhase)
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper to create the restartfile
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def create_restart(self):
+        """
+        Creates a restart file using the ASDInputGen instance.
+        """
         self.RestartWindow.write_restartfile(self.ASDInputGen)
         return
 
-    ############################################################################
+    ##########################################################################
     # Choose which kind of backend one will use to display VTK based visualizations,
     # matplotlib based visualizations
-    ############################################################################
-
+    ##########################################################################
     def chooseBackend(self):
+        """
+        Selects and configures the backend based on the current mode selected in the ModeSelector.
+        """
         if self.ModeSelector.currentIndex() == 0:
             print("VTK")
             self.backend = Backend.UppASD_VTK
@@ -333,19 +345,21 @@ class UppASDVizMainWindow(QMainWindow):
 
             # Rest of the code
             if self.CheckForInteractorFiles() and not self.IntLaunched:
-                ASDInteractive.InitializeInteractor(self)
+                ASDInteractiveTab.InitializeInteractor(self)
                 self.IntLaunched = True
-                
+
         self.ModeSelector.oldIndex = self.ModeSelector.currentIndex()
         self.ResetUI()
         return
 
-    ############################################################################
+    ##########################################################################
     # Reset the UI to change between the VTK based visualization and the matplotlib
     # based visualization
-    ############################################################################
-
+    ##########################################################################
     def ResetUI(self):
+        """
+        Resets the UI elements based on the selected backend.
+        """
         if self.backend == Backend.UppASD_VTK:
             self.OptionDock.setVisible(True)
             self.OptionDock.setEnabled(True)
@@ -391,11 +405,13 @@ class UppASDVizMainWindow(QMainWindow):
             self.IntrenWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Initialization of some of the UI properties
-    ############################################################################
-
+    ##########################################################################
     def InitUI(self):
+        """
+        Initializes the user interface components and sets their initial states.
+        """
         self.EneMainBox.setEnabled(False)
         self.CamMainBox.setEnabled(False)
         self.MagMainGroup.setEnabled(False)
@@ -425,11 +441,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.ProgressLabel.setText(f"   {int(self.ProgressBar.value())}%")
         return
 
-    ############################################################################
+    ##########################################################################
     # Initialization of some of the UI properties for 2D plots
-    ############################################################################
-
+    ##########################################################################
     def InitPlotUI(self):
+        """
+        Initializes the plot UI by setting file names and disabling certain UI elements.
+        """
         self.plotfile_names[0] = self.ASDPlotData.yamlfile
         self.plotfile_names[1] = self.ASDPlotData.amsfile
         self.plotfile_names[2] = self.ASDPlotData.sqwfile
@@ -444,41 +462,50 @@ class UppASDVizMainWindow(QMainWindow):
         self.AMSDisplayOpts.setVisible(False)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the VTK plots
-    ############################################################################
-
+    ##########################################################################
     def getFile(self):
+        """
+        Prompts the user to select a file using a file dialog.
+        """
         self.ASDdata.getFileName(window=self)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the matplotlib plots
-    ############################################################################
-
+    ##########################################################################
     def getPlotFile(self):
+        """
+        Opens a file dialog to get the plot file name.
+        """
         self.ASDPlotData.getFileName(window=self)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the input file generation
-    ############################################################################
-
+    ##########################################################################
     def getInpFile(self):
+        """
+        Opens a file dialog to select an input file using ASDInputGen.
+        """
         self.ASDInputGen.getFileName(window=self)
         return
 
-    ############################################################################
-    ############################################################################
+    ##########################################################################
+    ##########################################################################
 
     def getInitPhase(self):
+        """
+        Handles the initialization phase when the InitPhaseDoneButton is pressed.
+        """
         if self.sender() == self.InitPhaseWindow.InitPhaseDoneButton:
             self.init_phase_data = self.InitPhaseWindow.init_phase_data
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Open auxiliary windows for the inputfile creation GUI
-    ############################################################################
+    ##########################################################################
 
     def OpenWindow(self):
         """Wrapper function to display auxiliary windows in the Main Window. This handles
@@ -558,22 +585,27 @@ class UppASDVizMainWindow(QMainWindow):
             self.InitPhaseWindow.show()
         return
 
-    ############################################################################
-    ############################################################################
+    ##########################################################################
+    ##########################################################################
 
     def update_names(self):
+        """
+        Updates the file name using ASDInputGen.
+        """
         self.ASDInputGen.update_file_name(window=self)
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to determine if the restartfile can be created.
     # @details This function will test if the lattice vectors have been defined,
     # as well as the posfile and momfile, that is everything which is necessary to
     # generate a restartfile
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def check_for_restart(self):
+        """
+        Checks if all required inputs are provided and attempts to restart the process.
+        """
         everything_okay = True
         self.ASDInputGen.ASDInputGatherer(self)
         if not len(self.InpLineEditC1_x.text()) > 0:
@@ -625,11 +657,13 @@ class UppASDVizMainWindow(QMainWindow):
             print("Error: The unit cell vectors need to be defined")
         return
 
-    ############################################################################
+    ##########################################################################
     # Function to select the appropriate data to plot
-    ############################################################################
-
+    ##########################################################################
     def PlottingSelector(self):
+        """
+        Handles the selection and plotting of different data types based on the sender action.
+        """
         # -----------------------------------------------------------------------
         # Plot the spin-spin correlation function
         # -----------------------------------------------------------------------
@@ -675,15 +709,17 @@ class UppASDVizMainWindow(QMainWindow):
         self.set_ams_checkboxes()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function for the creation of checkboxes for the ams display
     # @details This should allow for the dynamical creation of checkboxes for each
     # branch in the ams. It also connects it to a function that prunes the data
     # so that it can be selectively plotted.
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def set_ams_checkboxes(self):
+        """
+        Initializes and sets up checkboxes for AMS branches in the UI.
+        """
         self.AMSCheckboxes = dict()
         for ii in reversed(range(self.AMSDisplayLayout.count())):
             self.AMSDisplayLayout.itemAt(ii).widget().setParent(None)
@@ -702,11 +738,13 @@ class UppASDVizMainWindow(QMainWindow):
                 self.AMSCheckboxes[name] = checkbox
         return
 
-    ############################################################################
+    ##########################################################################
     # Select the projection of the S(q,w)
-    ############################################################################
-
+    ##########################################################################
     def SQW_Proj_Select(self):
+        """
+        Handles the selection of SQW projection index based on the sender.
+        """
         if self.sender() == self.Sqw_x:
             self.SQW_proj_indx = 0
         if self.sender() == self.Sqw_y:
@@ -718,11 +756,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.PlottingWrapper()
         return
 
-    ############################################################################
+    ##########################################################################
     # Select the colormap over which the S(q,w) will be plotted
-    ############################################################################
-
+    ##########################################################################
     def Sqw_ColorMapSelector(self):
+        """
+        Selects the colormap for 2D plotting based on the sender of the signal.
+        """
         if self.sender() == self.SqwCoolwarm:
             self.plot2D_cmap_indx = 0
         if self.sender() == self.SqwSpectral:
@@ -732,11 +772,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.PlottingWrapper()
         return
 
-    ############################################################################
+    ##########################################################################
     # Plotting the directions of the magnetization
-    ############################################################################
-
+    ##########################################################################
     def PlotMagDirSelector(self):
+        """
+        Updates the MagDirIndx list based on the checked state of plot options and calls the plotting function.
+        """
         self.MagDirIndx = []
         if self.Plot_M_x.isChecked():
             self.MagDirIndx.append(0)
@@ -748,68 +790,84 @@ class UppASDVizMainWindow(QMainWindow):
             self.MagDirIndx.append(3)
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Changing the marker size of the lines
-    ############################################################################
-
+    ##########################################################################
     def PlotLineChanger(self, value):
+        """
+        Adjusts the linewidth of the 2D plot and updates the plot.
+        """
         self.ASDPlots2D.linewidth = value / 2.0
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Changing the marker size of the lines
-    ############################################################################
-
+    ##########################################################################
     def PlotMarkerChanger(self, value):
+        """
+        Adjusts the marker size for 2D plots and updates the plot.
+        """
         self.ASDPlots2D.markersize = value / 2.0
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Changing the marker size of the lines
-    ############################################################################
-
+    ##########################################################################
     def PlotXGridToggle(self):
+        """
+        Toggles the visibility of the X-axis grid in the 2D plots.
+        """
         self.ASDPlots2D.xgrid = not self.ASDPlots2D.xgrid
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Changing the marker size of the lines
-    ############################################################################
-
+    ##########################################################################
     def PlotYGridToggle(self):
+        """
+        Toggles the visibility of the Y-axis grid in the 2D plots.
+        """
         self.ASDPlots2D.ygrid = not self.ASDPlots2D.ygrid
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     #  Toggling SQW grid lines on/off
-    ############################################################################
-
+    ##########################################################################
     def PlotSQWGridToggle(self):
+        """
+        Toggles the grid state for ASD correlation plots and updates the plot.
+        """
         self.ASDCorrelationPlots.grid = not self.ASDCorrelationPlots.grid
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     #  Toggling SQW grid lines on/off
-    ############################################################################
-
+    ##########################################################################
     def PlotAMSGridToggle(self):
+        """
+        Toggles the AMS grid visibility and updates the plot.
+        """
         self.ASDPlots2D.amsgrid = not self.ASDPlots2D.amsgrid
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Changing the width of S(q,w) plots
-    ############################################################################
-
+    ##########################################################################
     def SqwWidthChanger(self, value):
+        """
+        Adjusts the width parameter for the ASD correlation plots and updates the UI.
+        """
         self.ASDCorrelationPlots.sigma_w = self.ASDCorrelationPlots.w_min * value
         self.ABCorrWidthTX.setText(f"{self.ASDCorrelationPlots.w_min*value:.3f}")
         self.PlottingWrapper()
 
-    ############################################################################
+    ##########################################################################
     # Plotting the components of the energy
-    ############################################################################
-
+    ##########################################################################
     def PlotEneCompSelector(self):
+        """
+        Updates the energy index list based on selected checkboxes and triggers plotting.
+        """
         self.EneIndx = []
         if self.EneTotCheck.isChecked():
             self.EneIndx.append(0)
@@ -836,26 +894,34 @@ class UppASDVizMainWindow(QMainWindow):
         self.PlottingWrapper()
         return
 
-    ############################################################################
-    ############################################################################
+    ##########################################################################
+    ##########################################################################
 
     def ToggleInitPhase(self):
+        """
+        Toggles the initialization phase of the UI.
+        """
         UpdateUI(self)
         return
 
     def ToggleHessians(self):
+        """
+        Toggles the Hessians in the UI.
+        """
         UpdateUI(self)
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to selective plot the ams branches
     # @details Function to selectively plot the ams branches. It functions by
     # finding which of the checkboxes identifying each branch is selected
     # after this it creates a new data set that contains only the necessary data
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def AMS_PrunePlot(self):
+        """
+        Prunes and plots AMS data based on the state of checkboxes.
+        """
         self.ams_data_y = []
         self.ams_data_x = []
         self.ams_label = []
@@ -868,7 +934,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.PlottingWrapper()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper function that takes care of plotting the selected plot
     # @details Wrapper function that takes care of plotting the selected plot, it allows
     # the user to choose between the following different types of plots
@@ -878,7 +944,7 @@ class UppASDVizMainWindow(QMainWindow):
     #   - Magnetization averages
     #   - Single spin trajectories
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def PlottingWrapper(self):
         """Wrapper function that takes care of plotting the selected plot, it allows
@@ -1107,12 +1173,14 @@ class UppASDVizMainWindow(QMainWindow):
         self.Plotting_Figure.canvas.flush_events()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to save the current figure to file
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def SaveFig(self):
+        """
+        Save the current figure to a file with specified DPI.
+        """
         fig_name, _ = QFileDialog.getSaveFileName(self, "Save File")
         if len(self.InpFigDPI.text()) > 0:
             dpi = int(self.InpFigDPI.text())
@@ -1126,7 +1194,7 @@ class UppASDVizMainWindow(QMainWindow):
             fig_plot.print_figure(fig_name, dpi=dpi)
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper function that takes care of adding the necessary actors and the
     # options for the different types of visualizations
     # @details Wrapper function that takes care of adding the necessary actors and the
@@ -1137,7 +1205,7 @@ class UppASDVizMainWindow(QMainWindow):
     #   - Exchange neighbours
     #   - DM neighbours
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def AddActors(self):
         """Wrapper function that takes care of adding the necessary actors and the
@@ -1155,7 +1223,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         try:
             self.ASDGenActors.scalar_bar_widget
-        except:
+        except BaseException:
             pass
         else:
             self.ASDGenActors.reset_GenActors()
@@ -1500,12 +1568,14 @@ class UppASDVizMainWindow(QMainWindow):
                 print("Viewing the localenergy file")
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Enable rgb-values for single color
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def toggle_singlecolor(self, check):
+        """
+        Enable or disable RGB color sliders based on the check value.
+        """
         if check:
             self.RGBRedColorSlider.setEnabled(True)
             self.RGBGreenColorSlider.setEnabled(True)
@@ -1517,12 +1587,14 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Toggle grayscale background on/off
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def toggle_bwSinglecolor(self, check):
+        """
+        Toggles the color sliders between black & white and single color mode.
+        """
         self.bwSinglecolor = check
         rgb = [
             self.RGBRedColorSlider.value(),
@@ -1538,35 +1610,44 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Toggle depth of field focus
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def toggle_focus(self, check):
+        """
+        Toggles the focus state in the visualization options.
+        """
         self.ASDVizOpt.toggle_Focus(check=check, ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # @brief Toggle focal disk
     # @author Anders Bergman
-    ############################################################################
+    ##########################################################################
     def FocalDisk_control(self, value):
+        """
+        Controls the focal disk setting in the ASD visualization.
+        """
         self.ASDVizOpt.setFocalDisk(value=value, ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # @brief Toggle depth of field focus
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def toggle_autofocus(self, check):
+        """
+        Toggles the autofocus feature in the visualization options.
+        """
         self.ASDVizOpt.toggle_autoFocus(check=check, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # @brief Toggle grayscale background on/off
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def toggle_bwBackground(self, check):
+        """
+        Toggles the background color between black and white based on the check value.
+        """
         self.bwBackground = check
         rgb = [
             self.RGBRedBackgroundSlider.value(),
@@ -1582,12 +1663,14 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Update rgb-values for single color coloring
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def set_singlecolor(self, value):
+        """
+        Set the single color for the RGB sliders and update the visualization.
+        """
         if self.bwSinglecolor:
             self.RGBRedColorSlider.setValue(value)
             self.RGBGreenColorSlider.setValue(value)
@@ -1609,12 +1692,14 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Update rgb-values for the background
     # @author Anders Bergman
-    ############################################################################
-
+    ##########################################################################
     def set_background(self, value):
+        """
+        Sets the background color based on the provided value.
+        """
         if self.bwBackground:
             self.RGBRedBackgroundSlider.setValue(value)
             self.RGBGreenBackgroundSlider.setValue(value)
@@ -1630,14 +1715,16 @@ class UppASDVizMainWindow(QMainWindow):
 
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def set_lut_db(self, mapnum):
+        """
+        Sets the lookup table (LUT) for the visualization based on the provided colormap number.
+        """
         colorSeries = vtkColorSeries()
 
         if mapnum <= 3:
@@ -1698,14 +1785,16 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def set_lut(self):
+        """
+        Sets the lookup table (LUT) scale based on the sender's state.
+        """
         # self.ASDVizOpt.set_colormap(window=self,flag2D=self.ASDdata.flag2D,\
         # viz_type=self.viz_type,renWin=self.renWin)
         if self.sender() == self.LinearScale and self.LinearScale.isChecked():
@@ -1714,13 +1803,13 @@ class UppASDVizMainWindow(QMainWindow):
             self.ASDVizOpt.lut.SetScaleToLog10()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Set the projection of the vectors
     # @details Set the projection of the vectors and the magnetization continuum
     # allowing one to set independent projections of the continuum visualization
     # and the spins.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
 
     def set_projection(self):
         """Set the projection of the vectors and the magnetization continuum
@@ -1746,11 +1835,13 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Display the different energy contributions
-    ############################################################################
-
+    ##########################################################################
     def set_energy_proj(self):
+        """
+        Sets the energy projection based on the sender button's state.
+        """
         if self.sender() == self.TotEneButton and self.TotEneButton.isChecked():
             self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[0])
             self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
@@ -1826,10 +1917,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Function to change the type of glyphs that display the individual magnetic
     # moments
-    ############################################################################
+    ##########################################################################
 
     def ChangeGlyphs(self):
         """Function to change the type of glyphs that display the individual magnetic
@@ -1868,10 +1959,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Function to change the shading of the glyphs that display the individual
     # magnetic moments
-    ############################################################################
+    ##########################################################################
 
     def ChangeShading(self):
         """Function to change the type of glyphs that display the individual magnetic
@@ -1900,11 +1991,15 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Update the neighbours
-    ############################################################################
+    ##########################################################################
 
     def NeighbourControl(self):
+        """
+        Updates the neighbour actors with the current window, ASD data,
+        general actors, render window, and mode.
+        """
         self.NeighActors.UpdateNeighbour(
             window=self,
             ASDdata=self.ASDdata,
@@ -1914,11 +2009,27 @@ class UppASDVizMainWindow(QMainWindow):
         )
         return
 
-    ############################################################################
+    ##########################################################################
     # Wrapper function to handle the camera functions
-    ############################################################################
+    ##########################################################################
 
     def camera_handler(self):
+        """
+        Handles various camera operations based on the sender of the signal.
+
+        This method performs different camera-related actions such as resetting the camera,
+        setting the camera view direction, updating the camera, and controlling the parallel scale.
+        The specific action is determined by the sender of the signal.
+
+        Actions:
+        - Reset the camera to the original position if the sender is CamResetButton.
+        - Set the camera view direction to X, Y, or Z axis if the sender is SetXView,
+             SetYView, or SetZView respectively.
+        - Update the camera if the sender is SetCamButton.
+        - Change the parallel projection scale based on input from ParallelScaleLineEdit
+            or ParallelScaleSlider.
+        - Toggle parallel projections if the sender is ParallelProjectBox.
+        """
         # -----------------------------------------------------------------------
         # Reset the camera to the original position
         # -----------------------------------------------------------------------
@@ -1984,11 +2095,19 @@ class UppASDVizMainWindow(QMainWindow):
             )
         return
 
-    ############################################################################
+    ##########################################################################
     # Wrapper to handle the clipper actions
-    ############################################################################
+    ##########################################################################
 
     def clipperHandler(self):
+        """
+        Handles the clipping operation for different visualization types.
+        
+        Depending on the value of `self.viz_type`, this method selects the appropriate
+        actors (MomActors, NeighActors, or EneActors) and updates the clipper using
+        the `ASDGenActors.UpdateClipper` method with the selected actors and other
+        relevant parameters.
+        """
         if self.viz_type == "M":
             current_Actors = self.MomActors
         if self.viz_type == "N":
@@ -2004,11 +2123,23 @@ class UppASDVizMainWindow(QMainWindow):
         )
         return
 
-    ############################################################################
+    ##########################################################################
     # Function that calls the taking of a Snapshot of the current rendering window
-    ############################################################################
+    ##########################################################################
 
     def Snapshot(self):
+        """
+        Capture and save a screenshot of the current visualization.
+
+        This method captures a screenshot of the current visualization using the ASDVizOpt.Screenshot method.
+        It increments the number_of_screenshots counter after saving the screenshot.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         self.ASDVizOpt.Screenshot(
             renWin=self.renWin,
             number_of_screenshots=self.number_of_screenshots,
@@ -2018,104 +2149,135 @@ class UppASDVizMainWindow(QMainWindow):
         self.number_of_screenshots = self.number_of_screenshots + 1
         return
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for updating the glyph resolutions
-    ############################################################################
+    ##########################################################################
 
     def Quality_control(self, value):
+        """
+        Updates the glyph quality in the visualization.
+        """
         self.ASDVizOpt.GlyphQualityUpdate(
             value=value, viz_type=self.viz_type, mode=self.mode, renWin=self.renWin
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling FXAA
-    ############################################################################
+    ##########################################################################
 
     def FXAA_control(self, check):
+        """
+        Toggles the FXAA (Fast Approximate Anti-Aliasing) setting.
+        """
         self.ASDVizOpt.toggle_FXAA(check=check, ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling surface texture
-    ############################################################################
+    ##########################################################################
 
     def Texture_control(self, check):
+        """
+        Toggles the texture control in the visualization options.
+        """
         self.ASDVizOpt.toggle_Texture(
             check=check, ren=self.ren, renWin=self.renWin, texfile=self.texturefile
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling ORM texture
-    ############################################################################
+    ##########################################################################
 
     def ORMTexture_control(self, check):
+        """
+        Toggles the ORM texture visualization based on the given check state.
+        """
         self.ASDVizOpt.toggle_ORMTexture(
             check=check, ren=self.ren, renWin=self.renWin, texfile=self.ORMtexturefile
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling ORM texture
-    ############################################################################
+    ##########################################################################
 
     def NTexture_control(self, check):
+        """
+        Toggles the NTexture visualization option.
+        """
         self.ASDVizOpt.toggle_NTexture(
             check=check, ren=self.ren, renWin=self.renWin, texfile=self.Ntexturefile
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling ORM texture
-    ############################################################################
+    ##########################################################################
 
     def ETexture_control(self, check):
+        """
+        Toggles the ETexture visualization option.
+        """
         self.ASDVizOpt.toggle_ETexture(
             check=check, ren=self.ren, renWin=self.renWin, texfile=self.Etexturefile
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling ORM texture
-    ############################################################################
+    ##########################################################################
 
     def ATexture_control(self, check):
+        """
+        Toggles the ATexture visualization option.
+        """
         self.ASDVizOpt.toggle_ATexture(
             check=check, ren=self.ren, renWin=self.renWin, texfile=self.Atexturefile
         )
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling SSAO
-    ############################################################################
+    ##########################################################################
 
     def SSAO_control(self, check):
+        """
+        Toggle the SSAO (Screen Space Ambient Occlusion) control.
+        """
         self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling shadows
-    ############################################################################
+    ##########################################################################
     # def Shadow_control(self, check):
     #    self.ASDVizOpt.toggle_Shadows(check=check,ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling HDRI
-    ############################################################################
+    ##########################################################################
     def HDRI_control(self, check):
+        """
+        Toggles HDRI visualization in the ASD visualization options.
+        """
         self.ASDVizOpt.toggle_HDRI(
             check=check, ren=self.ren, renWin=self.renWin, hdrifile=self.hdrifile
         )
         return
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling skybox
-    ############################################################################
-
+    ##########################################################################
     def SkyBox_control(self, check):
+        """
+        Toggles the SkyBox visualization option.
+        """
         self.ASDVizOpt.toggle_SkyBox(
             check=check, ren=self.ren, renWin=self.renWin, skyboxfile=self.hdrifile
         )
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the HDR file
-    ############################################################################
-
+    ##########################################################################
     def getHDRIFile(self):
+        """
+        Retrieves the HDRI file name and updates the UI elements based on the file's existence.
+        """
         self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
         self.hdrifile_gotten = len(self.hdrifile) > 0
         if self.hdrifile_gotten:
@@ -2123,115 +2285,141 @@ class UppASDVizMainWindow(QMainWindow):
             self.SkyBoxCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the texture image
-    ############################################################################
-
+    ##########################################################################
     def getTextureFile(self):
+        """
+        Retrieves the texture file name and updates the UI accordingly.
+        """
         self.texturefile = self.ASDVizOpt.getTextureFileName(window=self)
         self.texturefile_gotten = len(self.texturefile) > 0
         if self.texturefile_gotten:
             self.TextureCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the ORM texture image
-    ############################################################################
-
+    ##########################################################################
     def getORMTextureFile(self):
+        """
+        Retrieves the ORM texture file name and updates the UI accordingly.
+        """
         self.ORMtexturefile = self.ASDVizOpt.getTextureFileName(window=self)
         self.ORMtexturefile_gotten = len(self.ORMtexturefile) > 0
         if self.ORMtexturefile_gotten:
             self.ORMTextureCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the normal texture image
-    ############################################################################
-
+    ##########################################################################
     def getNTextureFile(self):
+        """
+        Retrieves the texture file name and updates the UI accordingly.
+        """
         self.Ntexturefile = self.ASDVizOpt.getTextureFileName(window=self)
         self.Ntexturefile_gotten = len(self.Ntexturefile) > 0
         if self.Ntexturefile_gotten:
             self.NTextureCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the anisotropy texture image
-    ############################################################################
-
+    ##########################################################################
     def getATextureFile(self):
+        """
+        Retrieves a texture file name and updates the UI accordingly.
+        """
         self.Atexturefile = self.ASDVizOpt.getTextureFileName(window=self)
         self.Atexturefile_gotten = len(self.Atexturefile) > 0
         if self.Atexturefile_gotten:
             self.ATextureCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Finding the file name for the emissive texture image
-    ############################################################################
-
+    ##########################################################################
     def getETextureFile(self):
+        """
+        Retrieves the texture file name and updates the UI accordingly.
+        """
         self.Etexturefile = self.ASDVizOpt.getTextureFileName(window=self)
         self.Etexturefile_gotten = len(self.Etexturefile) > 0
         if self.Etexturefile_gotten:
             self.ETextureCheck.setEnabled(True)
         return
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling specular scattering
-    ############################################################################
-
+    ##########################################################################
     def RenSpecular_control(self, value):
+        """
+        Updates the specular rendering option with the given value.
+        """
         self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling specular scattering
-    ############################################################################
-
+    ##########################################################################
     def RenSpecularPower_control(self, value):
+        """
+        Updates the specular power in the visualization options.
+        """
         self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling ambient scattering
-    ############################################################################
-
+    ##########################################################################
     def RenAmbient_control(self, value):
+        """
+        Updates the ambient rendering settings.
+        """
         self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling diffuse scattering
-    ############################################################################
-
+    ##########################################################################
     def RenDiffuse_control(self, value):
+        """
+        Updates the rendering window with the given diffuse value.
+        """
         self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling PBR Emission value
-    ############################################################################
-
+    ##########################################################################
     def PBREmission_control(self, value):
+        """
+        Controls the PBR emission update with the given value.
+        """
         self.ASDVizOpt.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling PBR Occlusion value
-    ############################################################################
-
+    ##########################################################################
     def PBROcclusion_control(self, value):
+        """
+        Controls the PBROcclusion update with the given value.
+        """
         self.ASDVizOpt.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling PBR Roughness value
-    ############################################################################
-
+    ##########################################################################
     def PBRRoughness_control(self, value):
+        """
+        Updates the PBR roughness value in the visualization options.
+        """
         self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
 
-    ############################################################################
+    ##########################################################################
     # Function that calls for toggling PBR Roughness value
-    ############################################################################
-
+    ##########################################################################
     def PBRMetallic_control(self, value):
+        """
+        Updates the PBR metallic value in the visualization options.
+        """
         self.ASDVizOpt.PBRMetallicUpdate(value=value, renWin=self.renWin)
 
     # --------------------------------------------------------------------------------
@@ -2244,6 +2432,9 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     # --------------------------------------------------------------------------------
     def Playback_control(self):
+        """
+        Controls playback, pause, and navigation of the movie.
+        """
         # -----------------------------------------------------------------------
         # Play the movie
         # -----------------------------------------------------------------------
@@ -2278,7 +2469,7 @@ class UppASDVizMainWindow(QMainWindow):
                 self.UpdateImage()
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to control the playback of the animation, whilst taking a snapshot
     # and updating the necessary data structures.
     # @details Function to control the playback of the animation, whilst taking a snapshot
@@ -2286,9 +2477,11 @@ class UppASDVizMainWindow(QMainWindow):
     # moments, the site dependent energy, as well as the timers to ensure that the
     # visualization finishes with the last image.
     # @author Jonathan Chico
-    ############################################################################
-
+    ##########################################################################
     def Playback(self, event, obj):
+        """
+        Handles playback events for updating visualization and taking snapshots.
+        """
         if self.viz_type == "M":
             print("UpdateImage:", self.__class__.__name__)
             # -------------------------------------------------------------------
@@ -2341,12 +2534,14 @@ class UppASDVizMainWindow(QMainWindow):
             self.current_time += 1
         return
 
-    ############################################################################
+    ##########################################################################
     # Individual update of the image, either by increasing the timer count
     # by one or by minus one
-    ############################################################################
-
+    ##########################################################################
     def UpdateImage(self):
+        """
+        Updates the visualization based on the current visualization type.
+        """
         if self.viz_type == "M":
             print("UpdateImage:", self.__class__.__name__)
             # -------------------------------------------------------------------
@@ -2370,11 +2565,13 @@ class UppASDVizMainWindow(QMainWindow):
             )
         return
 
-    ############################################################################
+    ##########################################################################
     # Select the energy actor
-    ############################################################################
-
+    ##########################################################################
     def toggle_EneActor(self):
+        """
+        Toggles the visibility of EneActors based on the sender of the signal.
+        """
         if self.sender() == self.EneDensButton and self.EneDensButton.isChecked():
             self.EneActors.EneDensActor.VisibilityOn()
             self.EneActors.EneActor.VisibilityOff()
@@ -2385,11 +2582,13 @@ class UppASDVizMainWindow(QMainWindow):
             self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Update the UI
-    ############################################################################
-
+    ##########################################################################
     def UpdateRenderer(self):
+        """
+        Update the renderer based on the state of the SpinsBox and SpinGlyphSelectBox.
+        """
         if self.sender() == self.SpinsBox:
             if self.SpinsBox.isChecked():
                 self.SpinGlyphSelectBox.setEnabled(True)
@@ -2398,14 +2597,19 @@ class UppASDVizMainWindow(QMainWindow):
         self.renWin.Render()
         return
 
-    ############################################################################
+    ##########################################################################
     # Interactive Simulations and Dock
-    ############################################################################
-
+    ##########################################################################
     def SetSDSliderValue(self, NSimulations):
+        """
+        Updates the slider value display with the number of simulations.
+        """
         self.IntSDSliderVal.setText(f"Simulations: {10*NSimulations}")
 
     def SetMCSliderValue(self, NSimulations):
+        """
+        Sets the text of IntMCSliderVal to display the number of simulations.
+        """
         self.IntMCSliderVal.setText(f"Simulations: {10*NSimulations}")
 
     def IntButtons(self):
@@ -2430,7 +2634,7 @@ class UppASDVizMainWindow(QMainWindow):
             print("Reset button pressed")
             self.InteractiveVtk.Reset()
         if self.sender() == self.IntMomentButton:
-            print('Moment button pressed')
+            print("Moment button pressed")
             self.InteractiveVtk.read_moments()
 
     def UpdateInteractiveVtk(self):
@@ -2442,9 +2646,15 @@ class UppASDVizMainWindow(QMainWindow):
         self.InteractiveVtk.UpdateBfield()
 
     def InteractiveScreenshot(self):
+        """
+        Captures an interactive screenshot using the InteractiveVtk instance.
+        """
         self.InteractiveVtk.Screenshot()
 
     def InteractiveScreenshotTic(self, tic):
+        """
+        Toggles the screenshot mode based on the provided tic value.
+        """
         if tic:
             print("Taking screenshots")
             self.InteractiveVtk.film = True
@@ -2472,10 +2682,10 @@ class UppASDVizMainWindow(QMainWindow):
         if len(self.ASDInputGen.posfile) == 0 and path.exists("inpsd.dat"):
             posfile, momfile = self.ASDInputGen.GetPosMomFiles()
             self.ASDInputGen.posfile = glob.glob(posfile)[0]
-            print('posfile:', self.ASDInputGen.posfile)
+            print("posfile:", self.ASDInputGen.posfile)
         if len(self.ASDInputGen.momfile) == 0 and path.exists("momfile"):
             self.ASDInputGen.momfile = glob.glob(momfile)[0]
-            print('momfile:', self.ASDInputGen.momfile)
+            print("momfile:", self.ASDInputGen.momfile)
 
         InputChecklist = [
             path.exists("inpsd.dat"),
@@ -2496,7 +2706,8 @@ class UppASDVizMainWindow(QMainWindow):
         #            print("Launch: UppASD module not installed.")
         #            return
         #    else:
-        #        print("ASDsimulation already initialized. Running uppasd from CheckForInteractorFiles")
+        #        print("ASDsimulation already initialized.
+        #                   Running uppasd from CheckForInteractorFiles")
         #        self.ASDsim.run_uppasd()
         #        # Reset the simulator
         #        del self.ASDsim
@@ -2504,9 +2715,9 @@ class UppASDVizMainWindow(QMainWindow):
         #        self.ASDsim.init_simulation()
         #        # self.ASDsim.init_simulation()
         #        # self.ASDsim.run_simulation()
-        #        
+        #
         #    Check = True
-            
+
         if all(x for x in InputChecklist):
             Check = True
 
@@ -2568,4 +2779,5 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDInputGen.MagnonQuickSetup(self)
 
     def ImportSystem(self):
+        """Relay function for importing system"""
         self.ASDInputGen.import_system(self)
