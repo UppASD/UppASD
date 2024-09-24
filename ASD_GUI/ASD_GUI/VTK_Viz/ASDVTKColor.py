@@ -5,7 +5,7 @@ types of glyphs, colormap used etc.
 
 Author
 ----------
-Jonathan Chico
+Jonathan Chico, Anders Bergman
 """
 # pylint: disable=invalid-name, no-name-in-module, no-member
 

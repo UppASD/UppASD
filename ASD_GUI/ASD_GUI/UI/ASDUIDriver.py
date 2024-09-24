@@ -49,6 +49,7 @@ from ASD_GUI.VTK_Viz import (
     ASDVTKReading,
     ASDVTKVizOptions,
     ASDVTKColor,
+    ASDVTKTexture,
     ASDVTKCamera
 )
 
@@ -57,7 +58,6 @@ try:
 except ImportError:
     ASDsimulator = None
     print("Warning: uppasd module not found, interactive functions disabled")
-
 
 class Backend(Enum):
     """
@@ -138,7 +138,10 @@ class UppASDVizMainWindow(QMainWindow):
         # except NameError:
         #     print("Warning: uppasd module not found, interactive functions disabled")
 
+        # Early initialization of MomActors, will be overwritten
+        self.MomActors = ASDVTKMomActors.ASDMomActors()
         self.ASDVizOpt = ASDVTKVizOptions.ASDVizOptions()
+        self.ASDTexture = ASDVTKTexture.ASDTexture()
         self.ASDGenActors = ASDVTKGenActors.ASDGenActors()
         self.ASDPlotData = ASDPlotsReading.ReadPlotData()
         self.ASDPlots2D = ASDPlots2D.Abstract2DPlot()
@@ -1241,7 +1244,7 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Call the Moments class
             # -------------------------------------------------------------------
-            self.MomActors = ASDVTKMomActors.ASDMomActors()
+            # self.MomActors = ASDVTKMomActors.ASDMomActors()
             self.viz_type = "M"
             self.mode = 1
             self.current_time = 0
@@ -1735,17 +1738,17 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
         """
         if self.sender() == self.DensX and self.DensX.isChecked():
-            self.ASDVizOpt.set_projection(atype="density", axis=0)
+            self.MomActors.set_projection(atype="density", axis=0)
         if self.sender() == self.DensY and self.DensY.isChecked():
-            self.ASDVizOpt.set_projection(atype="density", axis=1)
+            self.MomActors.set_projection(atype="density", axis=1)
         if self.sender() == self.DensZ and self.DensZ.isChecked():
-            self.ASDVizOpt.set_projection(atype="density", axis=2)
+            self.MomActors.set_projection(atype="density", axis=2)
         if self.sender() == self.SpinX and self.SpinX.isChecked():
-            self.ASDVizOpt.set_projection(atype="spins", axis=0)
+            self.MomActors.set_projection(atype="spins", axis=0)
         if self.sender() == self.SpinY and self.SpinY.isChecked():
-            self.ASDVizOpt.set_projection(atype="spins", axis=1)
+            self.MomActors.set_projection(atype="spins", axis=1)
         if self.sender() == self.SpinZ and self.SpinZ.isChecked():
-            self.ASDVizOpt.set_projection(atype="spins", axis=2)
+            self.MomActors.set_projection(atype="spins", axis=2)
         self.renWin.Render()
         return
 
@@ -1845,30 +1848,30 @@ class UppASDVizMainWindow(QMainWindow):
         """
         if self.sender() == self.SpinBarButton:
             if self.SpinBarButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Bars")
+                self.MomActors.ChangeSpinGlyph(keyword="Bars")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Cubes")
+                self.MomActors.ChangeSpinGlyph(keyword="Cubes")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinSphereButton:
             if self.SpinSphereButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Spheres")
+                self.MomActors.ChangeSpinGlyph(keyword="Spheres")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinArrowButton:
             if self.SpinArrowButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Arrows")
+                self.MomActors.ChangeSpinGlyph(keyword="Arrows")
                 self.SpinCenterCheck.setChecked(False)
                 self.SpinCenterCheck.setEnabled(True)
         if self.sender() == self.SpinConeButton:
             if self.SpinConeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Cones")
+                self.MomActors.ChangeSpinGlyph(keyword="Cones")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCenterCheck:
             if self.SpinCenterCheck.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="CenterOn")
+                self.MomActors.ChangeSpinGlyph(keyword="CenterOn")
             else:
-                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="CenterOff")
+                self.MomActors.ChangeSpinGlyph(keyword="CenterOff")
         self.renWin.Render()
         return
 
@@ -1886,19 +1889,19 @@ class UppASDVizMainWindow(QMainWindow):
         """
         if self.sender() == self.FlatShadeButton:
             if self.FlatShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Flat")
+                self.MomActors.ChangeSpinShade(keyword="Flat")
 
         if self.sender() == self.GouraudShadeButton:
             if self.GouraudShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Gouraud")
+                self.MomActors.ChangeSpinShade(keyword="Gouraud")
 
         if self.sender() == self.PBRShadeButton:
             if self.PBRShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="PBR")
+                self.MomActors.ChangeSpinShade(keyword="PBR")
 
         if self.sender() == self.PhongShadeButton:
             if self.PhongShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Phong")
+                self.MomActors.ChangeSpinShade(keyword="Phong")
 
         self.renWin.Render()
         return
@@ -2083,7 +2086,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the glyph quality in the visualization.
         """
-        self.ASDVizOpt.GlyphQualityUpdate(
+        self.ASDVizOpt.GlyphQualityUpdate( window=self,
             value=value, viz_type=self.viz_type, mode=self.mode, renWin=self.renWin
         )
 
@@ -2105,8 +2108,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the texture control in the visualization options.
         """
-        self.ASDVizOpt.toggle_Texture(
-            check=check, ren=self.ren, renWin=self.renWin, texfile=self.texturefile
+        self.ASDTexture.toggle_Texture(
+            check=check, actor=self.MomActors, texfile=self.texturefile
         )
 
     ##########################################################################
@@ -2117,8 +2120,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the ORM texture visualization based on the given check state.
         """
-        self.ASDVizOpt.toggle_ORMTexture(
-            check=check, ren=self.ren, renWin=self.renWin, texfile=self.ORMtexturefile
+        self.ASDTexture.toggle_ORMTexture(
+            check=check, actor=self.MomActors, texfile=self.ORMtexturefile
         )
 
     ##########################################################################
@@ -2129,8 +2132,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the NTexture visualization option.
         """
-        self.ASDVizOpt.toggle_NTexture(
-            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Ntexturefile
+        self.ASDTexture.toggle_NTexture(
+            check=check, actor=self.MomActors, texfile=self.Ntexturefile
         )
 
     ##########################################################################
@@ -2141,8 +2144,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the ETexture visualization option.
         """
-        self.ASDVizOpt.toggle_ETexture(
-            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Etexturefile
+        self.ASDTexture.toggle_ETexture(
+            check=check, actor=self.MomActors, texfile=self.Etexturefile
         )
 
     ##########################################################################
@@ -2153,8 +2156,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the ATexture visualization option.
         """
-        self.ASDVizOpt.toggle_ATexture(
-            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Atexturefile
+        self.ASDTexture.toggle_ATexture(
+            check=check, actor=self.MomActors, texfile=self.Atexturefile
         )
 
     ##########################################################################
@@ -2180,7 +2183,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles HDRI visualization in the ASD visualization options.
         """
-        self.ASDVizOpt.toggle_HDRI(
+        self.ASDTexture.toggle_HDRI(
             check=check, ren=self.ren, renWin=self.renWin, hdrifile=self.hdrifile
         )
         return
@@ -2192,9 +2195,10 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the SkyBox visualization option.
         """
-        self.ASDVizOpt.toggle_SkyBox(
-            check=check, ren=self.ren, renWin=self.renWin, skyboxfile=self.hdrifile
+        self.ASDTexture.toggle_SkyBox(
+            check=check, actor=self.MomActors, skyboxfile=self.hdrifile
         )
+        
         return
 
     ##########################################################################
@@ -2204,7 +2208,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves the HDRI file name and updates the UI elements based on the file's existence.
         """
-        self.hdrifile = self.ASDVizOpt.getHDRIFileName(window=self)
+        self.hdrifile = self.ASDTexture.getHDRIFileName(window=self)
         self.hdrifile_gotten = len(self.hdrifile) > 0
         if self.hdrifile_gotten:
             self.HDRICheck.setEnabled(True)
@@ -2218,7 +2222,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves the texture file name and updates the UI accordingly.
         """
-        self.texturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.texturefile = self.ASDTexture.getTextureFileName(window=self)
         self.texturefile_gotten = len(self.texturefile) > 0
         if self.texturefile_gotten:
             self.TextureCheck.setEnabled(True)
@@ -2231,7 +2235,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves the ORM texture file name and updates the UI accordingly.
         """
-        self.ORMtexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.ORMtexturefile = self.ASDTexture.getTextureFileName(window=self)
         self.ORMtexturefile_gotten = len(self.ORMtexturefile) > 0
         if self.ORMtexturefile_gotten:
             self.ORMTextureCheck.setEnabled(True)
@@ -2244,7 +2248,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves the texture file name and updates the UI accordingly.
         """
-        self.Ntexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Ntexturefile = self.ASDTexture.getTextureFileName(window=self)
         self.Ntexturefile_gotten = len(self.Ntexturefile) > 0
         if self.Ntexturefile_gotten:
             self.NTextureCheck.setEnabled(True)
@@ -2257,7 +2261,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves a texture file name and updates the UI accordingly.
         """
-        self.Atexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Atexturefile = self.ASDTexture.getTextureFileName(window=self)
         self.Atexturefile_gotten = len(self.Atexturefile) > 0
         if self.Atexturefile_gotten:
             self.ATextureCheck.setEnabled(True)
@@ -2270,7 +2274,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Retrieves the texture file name and updates the UI accordingly.
         """
-        self.Etexturefile = self.ASDVizOpt.getTextureFileName(window=self)
+        self.Etexturefile = self.ASDTexture.getTextureFileName(window=self)
         self.Etexturefile_gotten = len(self.Etexturefile) > 0
         if self.Etexturefile_gotten:
             self.ETextureCheck.setEnabled(True)
@@ -2283,7 +2287,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the specular rendering option with the given value.
         """
-        self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
+        self.MomActors.RenSpecularUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling specular scattering
@@ -2292,7 +2296,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the specular power in the visualization options.
         """
-        self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
+        self.MomActors.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling ambient scattering
@@ -2301,7 +2305,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the ambient rendering settings.
         """
-        self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
+        self.MomActors.RenAmbientUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling diffuse scattering
@@ -2310,7 +2314,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the rendering window with the given diffuse value.
         """
-        self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
+        self.MomActors.RenDiffuseUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Emission value
@@ -2319,7 +2323,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBR emission update with the given value.
         """
-        self.ASDVizOpt.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Occlusion value
@@ -2328,7 +2332,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBROcclusion update with the given value.
         """
-        self.ASDVizOpt.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Roughness value
@@ -2337,7 +2341,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the PBR roughness value in the visualization options.
         """
-        self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
+        self.MomActors.PBRRoughnessUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Roughness value
@@ -2346,7 +2350,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Updates the PBR metallic value in the visualization options.
         """
-        self.ASDVizOpt.PBRMetallicUpdate(value=value, renWin=self.renWin)
+        self.MomActors.PBRMetallicUpdate(value=value, renWin=self.renWin)
 
     # --------------------------------------------------------------------------------
     # @brief Playback control for the animation of different movies, either for moments
@@ -2618,39 +2622,9 @@ class UppASDVizMainWindow(QMainWindow):
             path.exists(self.ASDInputGen.posfile),
             path.exists(self.ASDInputGen.momfile),
         ]
-        # OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
-
-        # if all(x for x in InputChecklist) and any(not x for x in OutputChecklist):
-        #    print("Input found, but no output. Running uppasd...")
-        #    # print("These are the modules:", sys.modules.keys())
-        #    if self.ASDsim == None:
-        #        try:
-        #            self.ASDsim= ASDsimulator.Simulator()
-        #            self.ASDsim.init_simulation()
-        #            print("ASDsimulation initialized in CheckForInteractorFiles.")
-        #        except ImportError:
-        #            print("Launch: UppASD module not installed.")
-        #            return
-        #    else:
-        #        print("ASDsimulation already initialized.
-        #                   Running uppasd from CheckForInteractorFiles")
-        #        self.ASDsim.run_uppasd()
-        #        # Reset the simulator
-        #        del self.ASDsim
-        #        self.ASDsim = ASDsimulator.Simulator()
-        #        self.ASDsim.init_simulation()
-        #        # self.ASDsim.init_simulation()
-        #        # self.ASDsim.run_simulation()
-        #
-        #    Check = True
 
         if all(x for x in InputChecklist):
             Check = True
-
-        # if all(x is True for x in OutputChecklist) and all(
-        #     x is True for x in InputChecklist
-        # ):
-        #     Check = True
 
         # Error message
         Files = ["inpsd.dat", "posfile", "momfile"]

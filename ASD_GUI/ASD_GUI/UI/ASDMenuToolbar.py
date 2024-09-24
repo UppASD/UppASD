@@ -230,8 +230,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the moment options
     # ---------------------------------------------------------------------------
-    window.ContourCheck.toggled.connect(window.ASDVizOpt.toggle_contours)
-    window.SpinCheck.toggled.connect(window.ASDVizOpt.toggle_directions)
+    window.ContourCheck.toggled.connect(window.MomActors.toggle_contours)
+    window.SpinCheck.toggled.connect(window.MomActors.toggle_directions)
     window.ClusBox.toggled.connect(window.ASDVizOpt.toggle_cluster)
     window.ClusBox.toggled.connect(window.UpdateRenderer)
     window.KMCCheck.toggled.connect(window.ASDVizOpt.toggle_KMC)
@@ -239,25 +239,25 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the magnetization density
     # ---------------------------------------------------------------------------
-    window.DensBox.toggled.connect(window.ASDVizOpt.toggle_density)
+    window.DensBox.toggled.connect(window.MomActors.toggle_density)
     window.DensX.toggled.connect(window.set_projection)
     window.DensY.toggled.connect(window.set_projection)
     window.DensZ.toggled.connect(window.set_projection)
     window.SpinX.toggled.connect(window.set_projection)
     window.SpinY.toggled.connect(window.set_projection)
     window.SpinZ.toggled.connect(window.set_projection)
-    window.actionDisplayMagDens.toggled.connect(window.ASDVizOpt.toggle_density)
+    window.actionDisplayMagDens.toggled.connect(window.MomActors.toggle_density)
     # ---------------------------------------------------------------------------
     # Adding the actions to the atomic spins
     # ---------------------------------------------------------------------------
-    window.SpinsBox.toggled.connect(window.ASDVizOpt.toggle_spins)
+    window.SpinsBox.toggled.connect(window.MomActors.toggle_spins)
     window.SpinsBox.toggled.connect(window.UpdateRenderer)
     window.SpinArrowButton.toggled.connect(window.ChangeGlyphs)
     window.SpinCubeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinBarButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSphereButton.toggled.connect(window.ChangeGlyphs)
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
-    window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
+    window.SpinSize.valueChanged.connect(window.MomActors.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
     window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
     # ---------------------------------------------------------------------------
@@ -270,13 +270,13 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the atoms
     # ---------------------------------------------------------------------------
-    window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
+    window.AtomsBox.toggled.connect(window.MomActors.toggle_atoms)
     window.AtomsBox.toggled.connect(window.UpdateRenderer)
-    window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
+    window.AtomSize.valueChanged.connect(window.MomActors.ChangeAtomsSize)
     window.AtomSize.valueChanged.connect(window.UpdateRenderer)
-    window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
+    window.AtomOpaq.valueChanged.connect(window.MomActors.ChangeAtomsOpaq)
     window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
-    window.AtomQuali.valueChanged.connect(window.ASDVizOpt.ChangeAtomsQuali)
+    window.AtomQuali.valueChanged.connect(window.MomActors.ChangeAtomsQuali)
     window.AtomQuali.valueChanged.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the neighbours

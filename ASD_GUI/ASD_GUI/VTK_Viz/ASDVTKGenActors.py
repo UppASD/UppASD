@@ -18,7 +18,7 @@ class ASDGenActors:
     ##########################################################################
     # Tries to eliminate the general actors
     ##########################################################################
-    def reset_GenActors(self, window):
+    def reset_GenActors(self):
         """
         Reset the visualization actors by deleting their references.
         """
