@@ -18,8 +18,7 @@ from enum import Enum
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtCore import QSignalBlocker
-from PyQt6.QtWidgets import QCheckBox, QFileDialog, QMainWindow
+from PyQt6.QtWidgets import QMainWindow
 from vtk import vtkInteractorStyleTrackballCamera, vtkOpenGLRenderer
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvas
@@ -29,7 +28,13 @@ import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
 import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
 import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
 from ASD_GUI.PLOT import ASDPlots2D, ASDPlotsReading
-from ASD_GUI.UI import ASDInputWindows, ASDUIInitHelper, ASDUIActorHelper, ASDUIPlottingHelper
+from ASD_GUI.UI import (
+    ASDInputWindows,
+    ASDUIInitHelper,
+    ASDUIActorHelper,
+    ASDUIPlottingHelper,
+    ASDUISettings,
+)
 from ASD_GUI.UI.ASDMenuToolbar import (
     UpdateUI,
 )
@@ -147,6 +152,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.KfileWindow = ASDInputWindows.KfileWindow()
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         self.ASDColor = ASDVTKColor.ASDVTKColor()
+        self.UISettings = ASDUISettings.ASDUISettings()
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -225,7 +231,6 @@ class UppASDVizMainWindow(QMainWindow):
     # and written to file.
     # @author Jonathan Chico
     ##########################################################################
-
     def WriteInputFile(self):
         """
         Generates and writes the input file using ASDInputGen methods.
@@ -240,7 +245,6 @@ class UppASDVizMainWindow(QMainWindow):
     # @brief Wrapper to create the restartfile
     # @author Jonathan Chico
     ##########################################################################
-
     def create_restart(self):
         """
         Creates a restart file using the ASDInputGen instance.
@@ -344,27 +348,6 @@ class UppASDVizMainWindow(QMainWindow):
         return
 
     ##########################################################################
-    # Initialization of some of the UI properties for 2D plots
-    ##########################################################################
-    #def InitPlotUI(self):
-    #    """
-    #    Initializes the plot UI by setting file names and disabling certain UI elements.
-    #    """
-    #    self.plotfile_names[0] = self.ASDPlotData.yamlfile
-    #    self.plotfile_names[1] = self.ASDPlotData.amsfile
-    #    self.plotfile_names[2] = self.ASDPlotData.sqwfile
-    #    self.plotfile_names[3] = self.ASDPlotData.averages
-    #    self.plotfile_names[4] = self.ASDPlotData.trajectory
-    #    self.plotfile_names[5] = self.ASDPlotData.totenergy
-    #    self.plotfile_names[6] = self.ASDPlotData.qfile
-    #    self.SqwProjBox.setEnabled(False)
-    #    self.SqwColorMapSelect.setEnabled(False)
-    #    self.AveOpts.setEnabled(False)
-    #    self.EneOpts.setEnabled(False)
-    #    self.AMSDisplayOpts.setVisible(False)
-    #    return
-
-    ##########################################################################
     # Finding the file name for the VTK plots
     ##########################################################################
     def getFile(self):
@@ -396,7 +379,6 @@ class UppASDVizMainWindow(QMainWindow):
 
     ##########################################################################
     ##########################################################################
-
     def getInitPhase(self):
         """
         Handles the initialization phase when the InitPhaseDoneButton is pressed.
@@ -408,7 +390,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # @brief Open auxiliary windows for the inputfile creation GUI
     ##########################################################################
-
     def OpenWindow(self):
         """Wrapper function to display auxiliary windows in the Main Window. This handles
         the creation of the:
@@ -489,8 +470,6 @@ class UppASDVizMainWindow(QMainWindow):
         return
 
     ##########################################################################
-    ##########################################################################
-
     def update_names(self):
         """
         Updates the file name using ASDInputGen.
@@ -609,7 +588,8 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     def PlotMagDirSelector(self):
         """
-        Updates the MagDirIndx list based on the checked state of plot options and calls the plotting function.
+        Updates the MagDirIndx list based on the checked state of plot
+        options and calls the plotting function.
         """
         self.MagDirIndx = []
         if self.Plot_M_x.isChecked():
@@ -964,11 +944,11 @@ class UppASDVizMainWindow(QMainWindow):
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
     ##########################################################################
-    def set_lut(self):
+    def set_lut_scale(self):
         """
         Sets the lookup table (LUT) scale based on the sender's state.
         """
-        self.ASDColor.set_lut(window=self)
+        self.ASDColor.set_lut_scale(window=self)
 
         return
 
@@ -1160,7 +1140,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Update the neighbours
     ##########################################################################
-
     def NeighbourControl(self):
         """
         Updates the neighbour actors with the current window, ASD data,
@@ -1178,7 +1157,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Wrapper function to handle the camera functions
     ##########################################################################
-
     def camera_handler(self):
         """
         Handles various camera operations based on the sender of the signal.
@@ -1196,81 +1174,7 @@ class UppASDVizMainWindow(QMainWindow):
             or ParallelScaleSlider.
         - Toggle parallel projections if the sender is ParallelProjectBox.
         """
-        # -----------------------------------------------------------------------
-        # Reset the camera to the original position
-        # -----------------------------------------------------------------------
-        if self.sender() == self.CamResetButton:
-            if self.viz_type == "M":
-                self.ASDCamera.reset_camera(
-                    ren=self.ren, renWin=self.renWin, current_Actors=self.MomActors
-                )
-            elif self.viz_type == "N":
-                self.ASDCamera.reset_camera(
-                    ren=self.ren, renWin=self.renWin, current_Actors=self.NeighActors
-                )
-            elif self.viz_type == "E":
-                self.ASDCamera.reset_camera(
-                    ren=self.ren, renWin=self.renWin, current_Actors=self.EneActors
-                )
-        # -----------------------------------------------------------------------
-        # Controlling what is up in the camera
-        # -----------------------------------------------------------------------
-        if self.sender() == self.SetXView:
-            self.ASDCamera.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, rdir=(1, 0, 0)
-            )
-        if self.sender() == self.SetYView:
-            self.ASDCamera.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, rdir=(0, 1, 0)
-            )
-        if self.sender() == self.SetZView:
-            self.ASDCamera.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, rdir=(0, 0, 1)
-            )
-        if self.sender() == self.SetCamButton:
-            self.ASDCamera.Update_Camera(Window=self, ren=self.ren, renWin=self.renWin)
-        # -----------------------------------------------------------------------
-        # Controlling the parallel scale
-        # -----------------------------------------------------------------------
-        if self.sender() == self.ParallelScaleLineEdit:
-            line = True
-            slider = False
-            self.ASDCamera.ChangeParallelProj(
-                ren=self.ren,
-                renWin=self.renWin,
-                line=line,
-                slider=slider,
-                MainWindow=self,
-            )
-        if self.sender() == self.ParallelScaleSlider:
-            line = False
-            slider = True
-            self.ASDCamera.ChangeParallelProj(
-                ren=self.ren,
-                renWin=self.renWin,
-                line=line,
-                slider=slider,
-                MainWindow=self,
-            )
-        if self.sender() == self.ParallelProjectBox:
-            self.ASDCamera.toggle_projections(
-                renWin=self.renWin,
-                window=self,
-                ren=self.ren,
-                checked=self.ParallelProjectBox.isChecked(),
-            )
-        if self.sender() == self.CamSaveButton:
-            # Get and print the current camera settings
-            # camera_settings = self.ASDCamera.get_camera_settings()
-            self.ASDCamera.save_camera_settings()
-
-        if self.sender() == self.CamLoadButton:
-            # Get and print the current camera settings
-            self.ASDCamera.load_camera_settings()
-            # camera_settings = self.ASDCamera.get_camera_settings()
-            self.ASDVizOpt.update_dock_info(current_Actors=self.MomActors, Window=self)
-
-        return
+        self.ASDCamera.camera_handler(self)
 
     ##########################################################################
     # Wrapper to handle the clipper actions
@@ -1302,21 +1206,15 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls the taking of a Snapshot of the current rendering window
     ##########################################################################
-
     def Snapshot(self):
         """
         Capture and save a screenshot of the current visualization.
 
-        This method captures a screenshot of the current visualization using the ASDVizOpt.Screenshot method.
-        It increments the number_of_screenshots counter after saving the screenshot.
-
-        Args:
-            None
-
-        Returns:
-            None
+        This method captures a screenshot of the current visualization using the
+        ASDCamera.Screenshot method.  It increments the number_of_screenshots
+        counter after saving the screenshot.
         """
-        self.ASDVizOpt.Screenshot(
+        self.ASDCamera.Screenshot(
             renWin=self.renWin,
             number_of_screenshots=self.number_of_screenshots,
             png_mode=self.actionSave_png.isChecked(),
@@ -1326,9 +1224,23 @@ class UppASDVizMainWindow(QMainWindow):
         return
 
     ##########################################################################
+    # Function that saves the current configuration
+    ##########################################################################
+    def SaveSettings(self):
+        """
+        Saves the current UI settings to both JSON and YAML files.
+
+        Gathers settings from the UI, then writes them to "ASDUIConfig.json" and "ASDUIConfig.yaml".
+        """
+        self.UISettings.gather_dicts(self)
+        self.UISettings.write_to_json("ASDUIConfig.json")
+        self.UISettings.write_to_yaml("ASDUIConfig.yaml")
+
+        return
+
+    ##########################################################################
     # Function that calls for updating the glyph resolutions
     ##########################################################################
-
     def Quality_control(self, value):
         """
         Updates the glyph quality in the visualization.
@@ -1344,7 +1256,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling FXAA
     ##########################################################################
-
     def FXAA_control(self, check):
         """
         Toggles the FXAA (Fast Approximate Anti-Aliasing) setting.
@@ -1354,7 +1265,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling surface texture
     ##########################################################################
-
     def Texture_control(self, check):
         """
         Toggles the texture control in the visualization options.
@@ -1366,7 +1276,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling ORM texture
     ##########################################################################
-
     def ORMTexture_control(self, check):
         """
         Toggles the ORM texture visualization based on the given check state.
@@ -1378,7 +1287,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling ORM texture
     ##########################################################################
-
     def NTexture_control(self, check):
         """
         Toggles the NTexture visualization option.
@@ -1390,7 +1298,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling ORM texture
     ##########################################################################
-
     def ETexture_control(self, check):
         """
         Toggles the ETexture visualization option.
@@ -1402,7 +1309,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling ORM texture
     ##########################################################################
-
     def ATexture_control(self, check):
         """
         Toggles the ATexture visualization option.
@@ -1414,7 +1320,6 @@ class UppASDVizMainWindow(QMainWindow):
     ##########################################################################
     # Function that calls for toggling SSAO
     ##########################################################################
-
     def SSAO_control(self, check):
         """
         Toggle the SSAO (Screen Space Ambient Occlusion) control.
@@ -1460,8 +1365,8 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves the HDRI file name and updates the UI elements based on the file's existence.
         """
         self.hdrifile = self.ASDTexture.getHDRIFileName(window=self)
-        self.hdrifile_gotten = len(self.hdrifile) > 0
-        if self.hdrifile_gotten:
+        hdrifile_gotten = len(self.hdrifile) > 0
+        if hdrifile_gotten:
             self.HDRICheck.setEnabled(True)
             self.SkyBoxCheck.setEnabled(True)
         return
@@ -1474,8 +1379,8 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves the texture file name and updates the UI accordingly.
         """
         self.texturefile = self.ASDTexture.getTextureFileName(window=self)
-        self.texturefile_gotten = len(self.texturefile) > 0
-        if self.texturefile_gotten:
+        texturefile_gotten = len(self.texturefile) > 0
+        if texturefile_gotten:
             self.TextureCheck.setEnabled(True)
         return
 
@@ -1487,8 +1392,8 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves the ORM texture file name and updates the UI accordingly.
         """
         self.ORMtexturefile = self.ASDTexture.getTextureFileName(window=self)
-        self.ORMtexturefile_gotten = len(self.ORMtexturefile) > 0
-        if self.ORMtexturefile_gotten:
+        ORMtexturefile_gotten = len(self.ORMtexturefile) > 0
+        if ORMtexturefile_gotten:
             self.ORMTextureCheck.setEnabled(True)
         return
 
@@ -1500,8 +1405,8 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves the texture file name and updates the UI accordingly.
         """
         self.Ntexturefile = self.ASDTexture.getTextureFileName(window=self)
-        self.Ntexturefile_gotten = len(self.Ntexturefile) > 0
-        if self.Ntexturefile_gotten:
+        Ntexturefile_gotten = len(self.Ntexturefile) > 0
+        if Ntexturefile_gotten:
             self.NTextureCheck.setEnabled(True)
         return
 
@@ -1513,9 +1418,9 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves a texture file name and updates the UI accordingly.
         """
         self.Atexturefile = self.ASDTexture.getTextureFileName(window=self)
-        self.Atexturefile_gotten = len(self.Atexturefile) > 0
-        if self.Atexturefile_gotten:
-            self.ATextureCheck.setEnabled(True)
+        Atexturefile_gotten = len(self.Atexturefile) > 0
+        if Atexturefile_gotten:
+            ATextureCheck.setEnabled(True)
         return
 
     ##########################################################################
@@ -1526,8 +1431,8 @@ class UppASDVizMainWindow(QMainWindow):
         Retrieves the texture file name and updates the UI accordingly.
         """
         self.Etexturefile = self.ASDTexture.getTextureFileName(window=self)
-        self.Etexturefile_gotten = len(self.Etexturefile) > 0
-        if self.Etexturefile_gotten:
+        Etexturefile_gotten = len(self.Etexturefile) > 0
+        if Etexturefile_gotten:
             self.ETextureCheck.setEnabled(True)
         return
 
@@ -1853,7 +1758,6 @@ class UppASDVizMainWindow(QMainWindow):
                 Check   :   Bool
         """
 
-        restartfile, coordfile = "dummystring", "dummystring"
         Check = False
 
         # if len(glob.glob("restart.????????.out")) > 0:

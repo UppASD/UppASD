@@ -40,7 +40,7 @@ class ASDVTKColor:
             Sets the single color for the RGB sliders and updates the visualization.
         set_background(self, window, value):
         set_lut_db(self, window, mapnum):
-        set_lut(self, window):
+        set_lut_scale(self, window):
     """
 
     def __init__(self):
@@ -53,7 +53,9 @@ class ASDVTKColor:
         self.NUM_RGB_COLORS = 1
         self.num_colors = self.NUM_LUT_COLORS
         self.mapnum = 1
-        self.rgb = [1.0, 1.0, 1.0]
+        self.rgb = [0.0, 0.0, 0.0]
+        self.rgb_background = [1.0, 1.0, 1.0]
+        self.lut_scale = "Linear"
 
     def get_color_settings(self):
         """
@@ -66,6 +68,8 @@ class ASDVTKColor:
             "num_colors": self.num_colors,
             "mapnum": self.mapnum,
             "rgb": self.rgb,
+            "rgb_background": self.rgb_background,
+            "lut_scale": self.lut_scale,
         }
         return settings
 
@@ -83,7 +87,9 @@ class ASDVTKColor:
         """
         self.num_colors = settings.get("num_colors", self.NUM_LUT_COLORS)
         self.mapnum = settings.get("mapnum", 1)
-        self.rgb = settings.get("rgb", [1.0, 1.0, 1.0])
+        self.rgb = settings.get("rgb", [0.0, 0.0, 0.0])
+        self.rgb_background = settings.get("rgb_background", [1.0, 1.0, 1.0])
+        self.lut_scale = settings.get("lut_scale", "Linear")
 
         if self.num_colors == 256:
             self.set_lut_db(window, self.mapnum)
@@ -404,6 +410,7 @@ class ASDVTKColor:
             rgb=rgb,
             viz_type=window.viz_type,
         )
+        self.rgb = rgb
         return
 
     ##########################################################################
@@ -426,6 +433,7 @@ class ASDVTKColor:
         ]
 
         self.set_RGBbackground(rgb=rgb, ren=window.ren)
+        self.rgb_background = rgb
 
         return
 
@@ -508,7 +516,7 @@ class ASDVTKColor:
     # of the scale type for the plotting, either linear or logarithmic scale.
     # @author Jonathan Chico
     ##########################################################################
-    def set_lut(self, window):
+    def set_lut_scale(self, window):
         """
         Sets the lookup table (LUT) scale based on the sender's state.
         """
@@ -516,6 +524,8 @@ class ASDVTKColor:
         # viz_type=self.viz_type,renWin=self.renWin)
         if window.sender() == window.LinearScale and window.LinearScale.isChecked():
             self.lut.SetScaleToLinear()
+            self.lut_scale = "Linear"
         if window.sender() == window.LogScale and window.LogScale.isChecked():
             self.lut.SetScaleToLog10()
+            self.lut_scale = "Logarithmic"
         return

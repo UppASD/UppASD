@@ -10,15 +10,13 @@ Jonathan Chico
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
 import vtk
-from PyQt6 import QtWidgets
-from vtk import vtkPNGWriter, vtkPOVExporter, vtkWindowToImageFilter
-from vtkmodules.vtkIOImage import vtkHDRReader
-from vtkmodules.vtkRenderingCore import vtkTexture
 
 from ASD_GUI.VTK_Viz import ASDVTKMomActors
 from ASD_GUI.VTK_Viz import ASDVTKGenActors
 from ASD_GUI.VTK_Viz import ASDVTKEneActors
 from ASD_GUI.VTK_Viz import ASDVTKNeighActors
+
+
 ##########################################################################
 # @brief Class containing the majority of the actions to update the visualizer
 # @details Class containing the majority of the actions to update the visualizer.
@@ -27,58 +25,26 @@ from ASD_GUI.VTK_Viz import ASDVTKNeighActors
 # updated during runtime, allowing for finer control of the visualization.
 # @author Jonathan Chico
 ##########################################################################
-
-
 class ASDVizOptions:
+    """
+    ASDVizOptions class provides various methods to control visualization options in the ASD_GUI.
+    """
     # lut = vtkLookupTable()
     def __init__(self):
         self.GenActors = ASDVTKGenActors.ASDGenActors()
         self.EneActors = ASDVTKEneActors.ASDEneActors()
         self.MomActors = ASDVTKMomActors.ASDMomActors()
         self.NeighActors = ASDVTKNeighActors.ASDNeighActors()
-        
-    ##########################################################################
-    # @ brief A function that takes a renderwindow and saves its contents to a .png file
-    # @author Anders Bergman
-    ##########################################################################
-    def Screenshot(self, renWin, number_of_screenshots, png_mode, pov_mode):
-        """Function to take the rendering window and save it to file, either in .png
-        or in .pov format.
 
-        Args:
-            renWin: current rendering window.
-            number_of_screenshots: current number of the screenshot that is being saved.
-            png_mode: (logical) variable indicated if the scene should be stored as a png
-            pov_mode: (logical) variable indicated if the scene should be stored as a pov
-
-        Author
-        ----------
-        Anders Bergman
-        """
-
-        win2im = vtkWindowToImageFilter()
-        win2im.SetInput(renWin)
-        win2im.Update()
-        win2im.SetInputBufferTypeToRGBA()
-        win2im.ReadFrontBufferOff()
-        # -----------------------------------------------------------------------
-        # Save snapshot as a '.pov'
-        # -----------------------------------------------------------------------
-        if pov_mode:
-            povexp = vtkPOVExporter()
-            povexp.SetInput(renWin)
-            renWin.Render()
-            povexp.SetFileName(f"snap{number_of_screenshots:05d}.pov")
-            povexp.Write()
-        # -----------------------------------------------------------------------
-        # Save snapshot as a '.png'
-        # -----------------------------------------------------------------------
-        if png_mode:
-            toPNG = vtkPNGWriter()
-            toPNG.SetFileName(f"snap{number_of_screenshots:05d}.png")
-            toPNG.SetInputConnection(win2im.GetOutputPort())
-            toPNG.Write()
-        return
+        # Settings to be saved
+        self.ssao = False
+        self.fxxa = False
+        self.axes = True
+        self.colorbar = True
+        self.time_label = False
+        self.focal_disc = 100
+        self.auto_focus = False
+        self.focal_blur = False
 
     ##########################################################################
     # Update the dock window information when the camera is setup
@@ -109,8 +75,10 @@ class ASDVizOptions:
         """
         if check:
             self.GenActors.OrientMarker.SetEnabled(1)
+            self.axes = True
         else:
             self.GenActors.OrientMarker.SetEnabled(0)
+            self.axes = False
         return
 
     ##########################################################################
@@ -122,8 +90,10 @@ class ASDVizOptions:
         """
         if check:
             self.GenActors.scalar_bar_widget.SetEnabled(1)
+            self.colorbar = True
         else:
             self.GenActors.scalar_bar_widget.SetEnabled(0)
+            self.colorbar = False
         return
 
     ##########################################################################
@@ -182,8 +152,10 @@ class ASDVizOptions:
         """
         if check:
             self.GenActors.time_label_widget.On()
+            self.time_label = True
         else:
             self.GenActors.time_label_widget.Off()
+            self.time_label = False
         return
 
     ##########################################################################
@@ -214,7 +186,6 @@ class ASDVizOptions:
         )
         renWin.Render()
         return
-
 
     ##########################################################################
     # Toggle the atoms for the neighbour map
@@ -276,11 +247,10 @@ class ASDVizOptions:
             ren.SetSSAORadius(3.0)
             ren.SetSSAOBias(0.1)
             ren.SSAOBlurOff()
-
-            # self.toggle_HDRI(check=check,ren=ren)
-
+            self.ssao = True
         else:
             ren.UseSSAOOff()
+            self.ssao = False
 
         return
 
@@ -293,6 +263,7 @@ class ASDVizOptions:
         """
 
         ren.GetActiveCamera().SetFocalDisk(value / 200.0)
+        self.focal_disc = value
 
         renWin.Render()
 
@@ -306,8 +277,10 @@ class ASDVizOptions:
 
         if check:
             self.dofPass.AutomaticFocalDistanceOn()
+            self.auto_focus = True
         else:
             self.dofPass.AutomaticFocalDistanceOff()
+            self.auto_focus = False
 
         renWin.Render()
         return
@@ -322,21 +295,25 @@ class ASDVizOptions:
 
         if check:
             # create the basic VTK render steps
-            self.basicPasses = vtk.vtkRenderStepsPass()
+            basicPasses = vtk.vtkRenderStepsPass()
 
-            self.dofPass = vtk.vtkDepthOfFieldPass()
-            self.dofPass.AutomaticFocalDistanceOff()
-            self.dofPass.SetDelegatePass(self.basicPasses)
+            dofPass = vtk.vtkDepthOfFieldPass()
+            dofPass.AutomaticFocalDistanceOff()
+            dofPass.SetDelegatePass(basicPasses)
 
             # Tell the renderer to use our render pass pipeline.
             ren.GetActiveCamera().SetFocalDisk(0.5)
-            ren.SetPass(self.dofPass)
+            ren.SetPass(dofPass)
 
             renWin.Render()
+
+            self.focal_blur = True
 
         else:
             print("DOF render pass can not be disabled.")
             ren.ReleaseGraphicsResources(renWin)
+
+            self.focal_blur = False
 
         return
 
@@ -345,14 +322,17 @@ class ASDVizOptions:
     ##########################################################################
     def toggle_FXAA(self, check, ren, renWin):
         """
-        Toggles FXAA (Fast Approximate Anti-Aliasing) on or off for the given renderer and render window.
+        Toggles FXAA (Fast Approximate Anti-Aliasing) on or off for
+        the given renderer and render window.
         """
         if check:
             ren.UseFXAAOn()
             ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
             renWin.SetMultiSamples(4)
+            self.fxxa = True
         else:
             ren.UseFXAAOff()
+            self.fxxa = False
         return
 
     ##########################################################################
@@ -377,6 +357,7 @@ class ASDVizOptions:
                 window.MomActors.spincones.SetResolution(value)
             except AttributeError:
                 pass
+            window.MomActors.spin_resolution = value
 
         if viz_type == "N":
             if mode == 1:

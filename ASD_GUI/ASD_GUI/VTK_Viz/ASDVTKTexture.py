@@ -14,6 +14,7 @@ from PyQt6 import QtWidgets
 from vtkmodules.vtkIOImage import vtkHDRReader
 from vtkmodules.vtkRenderingCore import vtkTexture
 
+
 ##########################################################################
 # @brief Class containing the majority of the actions to update the visualizer
 # @details Class containing the majority of the actions to update the visualizer.
@@ -22,9 +23,23 @@ from vtkmodules.vtkRenderingCore import vtkTexture
 # updated during runtime, allowing for finer control of the visualization.
 # @author Jonathan Chico
 ##########################################################################
-
-
 class ASDTexture:
+    """
+    ASDTexture class provides methods to manage and toggle various textures and HDRI for VTK actors.
+
+    Methods:
+        __init__(): Initializes texture attributes.
+        gather_settings(): Gathers texture settings into a dictionary.
+        getHDRIFileName(window): Opens a file dialog to select an HDR image file.
+        getTextureFileName(window): Opens a file dialog to select a texture file.
+        toggle_Texture(check, actor, texfile): Toggles the albedo texture on or off.
+        toggle_ORMTexture(check, actor, texfile): Toggles the ORM texture on or off.
+        toggle_ATexture(check, actor, texfile): Toggles the anisotropy texture on or off.
+        toggle_NTexture(check, actor, texfile): Toggles the normal texture on or off.
+        toggle_ETexture(check, actor, texfile): Toggles the emissive texture on or off.
+        toggle_HDRI(check, ren, renWin, hdrifile): Toggles HDRI for the renderer and render window.
+        toggle_SkyBox(check, actor, skyboxfile): Toggles the visibility of a skybox.
+    """
     # lut = vtkLookupTable()
     def __init__(self):
         self.albedoTex = None
@@ -32,7 +47,21 @@ class ASDTexture:
         self.anisotropyTex = None
         self.normalTex = None
         self.emissiveTex = None
+        self.skybox = False
 
+    def gather_settings(self):
+        """
+        Gathers texture settings into the provided dictionary.
+        """
+        settings = {}
+        settings["albedoTex"] = self.albedoTex
+        settings["materialTex"] = self.materialTex
+        settings["anisotropyTex"] = self.anisotropyTex
+        settings["normalTex"] = self.normalTex
+        settings["emissiveTex"] = self.emissiveTex
+        settings["skybox"] = self.skybox
+
+        return settings
 
     ##########################################################################
     # @brief Function to find the needed file names for the HDR file
@@ -255,7 +284,9 @@ class ASDTexture:
             actor.SkyBox.SetTexture(texture)
             actor.SkyBox.SetProjectionToSphere()
             actor.SkyBox.VisibilityOn()
+            self.skybox = True
         else:
             actor.SkyBox.VisibilityOff()
+            self.skybox = False
 
         return

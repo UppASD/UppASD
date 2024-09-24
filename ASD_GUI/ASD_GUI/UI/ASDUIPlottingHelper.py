@@ -1,3 +1,19 @@
+"""
+ASDUIPlottingHelper.py
+
+This module provides helper functions for initializing and managing the plotting UI in the ASD GUI.
+It includes functions for setting up the UI, selecting data to plot, creating checkboxes for AMS
+branches, and saving figures.
+
+Functions:
+- InitPlotUI(window): Initializes the plot UI.
+- PlottingSelector(window): Handles the selection and plotting of different data types based on the
+    sender action.
+- set_ams_checkboxes(window): Initializes and sets up checkboxes for AMS branches in the UI.
+- PlottingWrapper(window): Wrapper function that takes care of plotting the selected plot, allowing
+    the user to choose between different types of plots.
+- SaveFig(self): Saves the current figure to a file with specified DPI.
+"""
 # pylint: disable=invalid-name, no-name-in-module, no-member
 from PyQt6.QtCore import QSignalBlocker
 from PyQt6.QtWidgets import QCheckBox, QFileDialog

@@ -7,7 +7,7 @@ changing parallel projection parameters, and setting the camera's view up direct
 
 Classes:
     CameraManager: Manages VTK camera settings.
-    
+
 CameraManager Methods:
     __init__(self, camera):
         Initializes the CameraManager with a VTK camera.
@@ -29,16 +29,21 @@ CameraManager Methods:
         Adjusts the parallel projection scale based on input from a line edit or slider.
     set_Camera_viewUp(self, ren, renWin, rdir):
         Sets the camera's view up direction and renders the window.
-        
+
 Author:
     Anders Bergman, Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 import json
+from vtk import vtkPNGWriter, vtkPOVExporter, vtkWindowToImageFilter
+
 
 class CameraManager:
     """
     Manages VTK camera settings, including saving and loading configurations.
     """
+
     def __init__(self, camera):
         self.camera = camera
 
@@ -53,15 +58,16 @@ class CameraManager:
                 - 'view_up': The camera's view up vector.
                 - 'clipping_range': The camera's clipping range.
                 - 'parallel_scale': The camera's parallel scale.
-                - 'is_parallel': A boolean indicating whether the camera is in parallel projection mode.
+                - 'is_parallel': A boolean indicating whether the camera is in
+                    parallel projection mode.
         """
         settings = {
-            'position': self.camera.GetPosition(),
-            'focal_point': self.camera.GetFocalPoint(),
-            'view_up': self.camera.GetViewUp(),
-            'clipping_range': self.camera.GetClippingRange(),
-            'parallel_scale': self.camera.GetParallelScale(),
-            'is_parallel': self.camera.GetParallelProjection()
+            "position": self.camera.GetPosition(),
+            "focal_point": self.camera.GetFocalPoint(),
+            "view_up": self.camera.GetViewUp(),
+            "clipping_range": self.camera.GetClippingRange(),
+            "parallel_scale": self.camera.GetParallelScale(),
+            "is_parallel": self.camera.GetParallelProjection(),
         }
         return settings
 
@@ -76,39 +82,39 @@ class CameraManager:
                 - 'view_up': The camera's view up vector.
                 - 'clipping_range': The camera's clipping range.
                 - 'parallel_scale': The camera's parallel scale.
-                - 'is_parallel': A boolean indicating whether the camera is in parallel projection mode.
+                - 'is_parallel': A boolean indicating whether the camera is in
+                    parallel projection mode.
         """
-        self.camera.SetPosition(settings['position'])
-        self.camera.SetFocalPoint(settings['focal_point'])
-        self.camera.SetViewUp(settings['view_up'])
-        self.camera.SetClippingRange(settings['clipping_range'])
-        self.camera.SetParallelScale(settings['parallel_scale'])
-        self.camera.SetParallelProjection(settings['is_parallel'])
+        self.camera.SetPosition(settings["position"])
+        self.camera.SetFocalPoint(settings["focal_point"])
+        self.camera.SetViewUp(settings["view_up"])
+        self.camera.SetClippingRange(settings["clipping_range"])
+        self.camera.SetParallelScale(settings["parallel_scale"])
+        self.camera.SetParallelProjection(settings["is_parallel"])
 
-    def save_camera_settings(self, filename='camera_settings.json'):
+    def save_camera_settings(self, filename="camera_settings.json"):
         """
         Save the current camera settings to a JSON file.
 
         Args:
-            filename (str, optional): The name of the file to save the settings to. Defaults to 'camera_settings.json'.
+            filename (str, optional): The name of the file to save the settings to.
+            Defaults to 'camera_settings.json'.
         """
         settings = self.get_camera_settings()
-        with open(filename, 'w', encoding='utf-8') as f:
+        with open(filename, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=4)
         print(f"Camera settings saved to {filename}.")
 
-    def load_camera_settings(self, filename='camera_settings.json'):
+    def load_camera_settings(self, filename="camera_settings.json"):
         """
         Load camera settings from a JSON file and apply them.
 
         Args:
-            filename (str, optional): The name of the file to load the settings from. Defaults to 'camera_settings.json'.
-
-        Raises:
-            FileNotFoundError: If the specified file does not exist.
+            filename (str, optional): The name of the file to load the settings from.
+            Defaults to 'camera_settings.json'.
         """
         try:
-            with open(filename, 'r', encoding='utf-8') as f:
+            with open(filename, "r", encoding="utf-8") as f:
                 settings = json.load(f)
             self.set_camera_settings(settings)
             print(f"Camera settings loaded from {filename}.")
@@ -181,7 +187,7 @@ class CameraManager:
         ren.GetActiveCamera().Yaw(float(Window.CamYawLineEdit.text()))
         renWin.Render()
         return
-    
+
     ##########################################################################
     # @brief Toggle the parallel projection for the camera
     # @author Jonathan Chico
@@ -248,3 +254,143 @@ class CameraManager:
         ren.GetActiveCamera().SetViewUp(rdir)
         renWin.Render()
         return
+
+    ##########################################################################
+    # Wrapper function to handle the camera functions
+    ##########################################################################
+    def camera_handler(self, window):
+        """
+        Handles various camera operations based on the sender of the signal.
+
+        This method performs different camera-related actions such as resetting the camera,
+        setting the camera view direction, updating the camera, and controlling the parallel scale.
+        The specific action is determined by the sender of the signal.
+
+        Actions:
+        - Reset the camera to the original position if the sender is CamResetButton.
+        - Set the camera view direction to X, Y, or Z axis if the sender is SetXView,
+             SetYView, or SetZView respectively.
+        - Update the camera if the sender is SetCamButton.
+        - Change the parallel projection scale based on input from ParallelScaleLineEdit
+            or ParallelScaleSlider.
+        - Toggle parallel projections if the sender is ParallelProjectBox.
+        """
+        # -----------------------------------------------------------------------
+        # Reset the camera to the original position
+        # -----------------------------------------------------------------------
+        if window.sender() == window.CamResetButton:
+            if window.viz_type == "M":
+                self.reset_camera(
+                    ren=window.ren,
+                    renWin=window.renWin,
+                    current_Actors=window.MomActors,
+                )
+            elif window.viz_type == "N":
+                self.reset_camera(
+                    ren=window.ren,
+                    renWin=window.renWin,
+                    current_Actors=window.NeighActors,
+                )
+            elif window.viz_type == "E":
+                self.reset_camera(
+                    ren=window.ren,
+                    renWin=window.renWin,
+                    current_Actors=window.EneActors,
+                )
+        # -----------------------------------------------------------------------
+        # Controlling what is up in the camera
+        # -----------------------------------------------------------------------
+        if window.sender() == window.SetXView:
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(1, 0, 0))
+        if window.sender() == window.SetYView:
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 1, 0))
+        if window.sender() == window.SetZView:
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 0, 1))
+        if window.sender() == window.SetCamButton:
+            self.Update_Camera(Window=window, ren=window.ren, renWin=window.renWin)
+        # -----------------------------------------------------------------------
+        # Controlling the parallel scale
+        # -----------------------------------------------------------------------
+        if window.sender() == window.ParallelScaleLineEdit:
+            line = True
+            slider = False
+            self.ChangeParallelProj(
+                ren=window.ren,
+                renWin=window.renWin,
+                line=line,
+                slider=slider,
+                MainWindow=window,
+            )
+        if window.sender() == window.ParallelScaleSlider:
+            line = False
+            slider = True
+            self.ChangeParallelProj(
+                ren=window.ren,
+                renWin=window.renWin,
+                line=line,
+                slider=slider,
+                MainWindow=window,
+            )
+        if window.sender() == window.ParallelProjectBox:
+            self.toggle_projections(
+                renWin=window.renWin,
+                window=window,
+                ren=window.ren,
+                checked=window.ParallelProjectBox.isChecked(),
+            )
+        if window.sender() == window.CamSaveButton:
+            # Get and print the current camera settings
+            # camera_settings = self.ASDCamera.get_camera_settings()
+            self.save_camera_settings()
+
+        if window.sender() == window.CamLoadButton:
+            # Get and print the current camera settings
+            self.load_camera_settings()
+            # camera_settings = self.ASDCamera.get_camera_settings()
+            window.ASDVizOpt.update_dock_info(
+                current_Actors=window.MomActors, Window=window
+            )
+
+        return
+
+    ##########################################################################
+    # @ brief A function that takes a renderwindow and saves its contents to a .png file
+    # @author Anders Bergman
+    ##########################################################################
+    def Screenshot(self, renWin, number_of_screenshots, png_mode, pov_mode):
+        """Function to take the rendering window and save it to file, either in .png
+        or in .pov format.
+
+        Args:
+            renWin: current rendering window.
+            number_of_screenshots: current number of the screenshot that is being saved.
+            png_mode: (logical) variable indicated if the scene should be stored as a png
+            pov_mode: (logical) variable indicated if the scene should be stored as a pov
+
+        Author
+        ----------
+        Anders Bergman
+        """
+
+        win2im = vtkWindowToImageFilter()
+        win2im.SetInput(renWin)
+        win2im.Update()
+        win2im.SetInputBufferTypeToRGBA()
+        win2im.ReadFrontBufferOff()
+        # -----------------------------------------------------------------------
+        # Save snapshot as a '.pov'
+        # -----------------------------------------------------------------------
+        if pov_mode:
+            povexp = vtkPOVExporter()
+            povexp.SetInput(renWin)
+            renWin.Render()
+            povexp.SetFileName(f"snap{number_of_screenshots:05d}.pov")
+            povexp.Write()
+        # -----------------------------------------------------------------------
+        # Save snapshot as a '.png'
+        # -----------------------------------------------------------------------
+        if png_mode:
+            toPNG = vtkPNGWriter()
+            toPNG.SetFileName(f"snap{number_of_screenshots:05d}.png")
+            toPNG.SetInputConnection(win2im.GetOutputPort())
+            toPNG.Write()

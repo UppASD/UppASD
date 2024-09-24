@@ -1,3 +1,24 @@
+"""
+Wrapper function that takes care of adding the necessary actors and the
+options for the different types of visualizations.
+
+This class controls the visualization of:
+    - Restartfiles
+    - Momentsfiles
+    - Energy
+    - Exchange neighbours
+    - DM neighbours
+
+Attributes
+window : object
+    The main window object which contains various UI elements and data structures.
+
+Methods
+-------
+AddActors(window)
+    Wrapper function that takes care of adding the necessary actors and the
+    options for the different types of visualizations.
+"""
 ##########################################################################
 # @brief Wrapper function that takes care of adding the necessary actors and the
 # options for the different types of visualizations

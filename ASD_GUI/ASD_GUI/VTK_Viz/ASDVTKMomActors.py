@@ -16,6 +16,71 @@ from vtk.util import numpy_support
 
 
 class ASDMomActors:
+    def __init__(self):
+        # Settings needed for saving
+        self.spin_resolution = 16
+        self.atom_resolution = 12
+        self.show_spins = False
+        self.show_atoms = False
+        self.spin_glyph = "Arrows"
+        self.center_on = False
+        self.contour = False
+        self.vector_directions = False
+        self.show_spins = False
+        self.show_atoms = False
+        self.show_density = False
+        self.projection_type = "spins"
+        self.projection_vector = [0, 0, 1]
+        self.spin_size = 20
+        self.spin_shade = "Gouraud"
+        self.ambient = 0.6
+        self.specular = 0.4
+        self.specular_power = 80
+        self.diffuse = 0.4
+        self.pbr_emission = 1.0
+        self.pbr_occlusion = 1.0
+        self.pbr_roughness = 0.5
+        self.pbr_metallic = 0.5
+        self.atom_size = 0.1
+        self.atom_opacity = 1.0
+
+    def gather_settings(self):
+        """
+        Collects and returns the visualization settings as a dictionary.
+
+        Returns:
+            dict: A dictionary containing various visualization settings
+            such as resolution, visibility, glyph type, projection parameters,
+            shading properties, and material properties.
+        """
+        settings = {}
+        settings["spin_resolution"] = self.spin_resolution
+        settings["atom_resolution"] = self.atom_resolution
+        settings["show_spins"] = self.show_spins
+        settings["show_atoms"] = self.show_atoms
+        settings["spin_glyph"] = self.spin_glyph
+        settings["center_on"] = self.center_on
+        settings["contour"] = self.contour
+        settings["vector_directions"] = self.vector_directions
+        settings["show_spins"] = self.show_spins
+        settings["show_atoms"] = self.show_atoms
+        settings["show_density"] = self.show_density
+        settings["projection_type"] = self.projection_type
+        settings["projection_vector"] = self.projection_vector
+        settings["spin_size"] = self.spin_size
+        settings["spin_shade"] = self.spin_shade
+        settings["ambient"] = self.ambient
+        settings["specular"] = self.specular
+        settings["specular_power"] = self.specular_power
+        settings["diffuse"] = self.diffuse
+        settings["pbr_emission"] = self.pbr_emission
+        settings["pbr_occlusion"] = self.pbr_occlusion
+        settings["pbr_roughness"] = self.pbr_roughness
+        settings["pbr_metallic"] = self.pbr_metallic
+        settings["atom_size"] = self.atom_size
+        settings["atom_opacity"] = self.atom_opacity
+        return settings
+
     ##########################################################################
     # @brief Main wrapper to add the needed actors for visualization of the moments
     # @details Main wrapper to add the needed actors for visualization of the moments.
@@ -122,9 +187,7 @@ class ASDMomActors:
         self.xmid = (self.xmin + self.xmax) * 0.5
         self.ymid = (self.ymin + self.ymax) * 0.5
         self.zmid = (self.zmin + self.zmax) * 0.5
-        self.height = (
-            max(self.xmax, self.ymax, self.zmax) * 1.75
-        )
+        self.height = max(self.xmax, self.ymax, self.zmax) * 1.75
         self.dist_x = np.absolute(self.xmax - self.xmin)
         self.dist_y = np.absolute(self.ymax - self.ymin)
         self.dist_z = np.absolute(self.zmax - self.zmin)
@@ -146,16 +209,7 @@ class ASDMomActors:
         # -----------------------------------------------------------------------
         self.ungrid = vtk.vtkUnstructuredGrid()
         self.ungrid.SetPoints(ASDdata.coord)
-        self.ungrid.GetPointData().SetScalars(
-            self.src.GetPointData().GetScalars()
-        )
-        # writer = vtk.vtkUnstructuredGridWriter()
-        # writer.SetFileName('out.vtk')
-        # writer.SetInputData(ASDMomActors.ungrid)
-        # writer.Write()
-        # ASDMomActors.ungrid.SetPoints(ASDdata.coord)
-        # ASDMomActors.ungrid.GetPointData().SetScalars(ASDdata.colors[2])
-        # ASDMomActors.ungrid.GetPointData().SetVectors(ASDdata.moments)
+        self.ungrid.GetPointData().SetScalars(self.src.GetPointData().GetScalars())
 
         # -----------------------------------------------------------------------
         # The delaunay tessellation seems to be the best way to transform the point cloud
@@ -181,9 +235,7 @@ class ASDMomActors:
             # Creating the mapper for the smooth surfaces
             self.MagDensMap = vtk.vtkDataSetMapper()
             self.MagDensMap.SetScalarRange(scalar_range)
-            self.MagDensMap.SetInputConnection(
-                self.MagDensMethod.GetOutputPort()
-            )
+            self.MagDensMap.SetInputConnection(self.MagDensMethod.GetOutputPort())
             self.MagDensMap.SetLookupTable(self.lut)
             self.MagDensMap.SetColorModeToMapScalars()
             self.MagDensMap.Update()
@@ -203,17 +255,12 @@ class ASDMomActors:
             # -------------------------------------------------------------------
             self.MagDensMethod = vtk.vtkGaussianSplatter()
             self.MagDensMethod.SetInputData(self.src)
-            # print( ASDMomActors.MagDensMethod.GetSampleDimensions())
-            # ASDMomActors.MagDensMethod.SetSampleDimensions([10,10,2])
-            # print( ASDMomActors.MagDensMethod.GetSampleDimensions())
             # -------------------------------------------------------------------
             # Options for the Gaussian splatter. These determine the quality of the
             # rendering, increasing the radius smoothens out the volume but performance
             # decreases rapidly
             # -------------------------------------------------------------------
-            dist = np.asarray(self.src.GetPoint(0)) - np.asarray(
-                self.src.GetPoint(1)
-            )
+            dist = np.asarray(self.src.GetPoint(0)) - np.asarray(self.src.GetPoint(1))
             norm = np.sqrt(dist.dot(dist))
             if norm < 10:
                 rad_fac = 0.040
@@ -300,9 +347,7 @@ class ASDMomActors:
 
             self.MagDensMap = vtk.vtkSmartVolumeMapper()
             # ASDMomActors.MagDensMap = vtk.vtkUnstructuredGridVolumeRayCastMapper()
-            self.MagDensMap.SetInputConnection(
-                self.MagDensMethod.GetOutputPort()
-            )
+            self.MagDensMap.SetInputConnection(self.MagDensMethod.GetOutputPort())
             # ASDMomActors.MagDensMap.Update()
 
             # Volume Actor
@@ -344,13 +389,11 @@ class ASDMomActors:
         self.spinarrow = vtk.vtkArrowSource()
         self.spinarrow.SetTipRadius(0.20)
         self.spinarrow.SetShaftRadius(0.10)
-        self.spinarrow.SetTipResolution(16)
-        self.spinarrow.SetShaftResolution(16)
+        self.spinarrow.SetTipResolution(self.spin_resolution)
+        self.spinarrow.SetShaftResolution(self.spin_resolution)
 
         self.spinarrowtriangles = vtk.vtkTriangleFilter()
-        self.spinarrowtriangles.SetInputConnection(
-            self.spinarrow.GetOutputPort()
-        )
+        self.spinarrowtriangles.SetInputConnection(self.spinarrow.GetOutputPort())
 
         # Calculate normals for shading
         self.spinarrownormals = vtk.vtkPolyDataNormals()
@@ -359,21 +402,15 @@ class ASDMomActors:
         )
 
         self.spinarrowtcoords = vtk.vtkTextureMapToCylinder()
-        self.spinarrowtcoords.SetInputConnection(
-            self.spinarrownormals.GetOutputPort()
-        )
+        self.spinarrowtcoords.SetInputConnection(self.spinarrownormals.GetOutputPort())
         self.spinarrowtcoords.PreventSeamOn()
 
         self.spinarrowtangents = vtk.vtkPolyDataTangents()
-        self.spinarrowtangents.SetInputConnection(
-            self.spinarrowtcoords.GetOutputPort()
-        )
+        self.spinarrowtangents.SetInputConnection(self.spinarrowtcoords.GetOutputPort())
 
         # Create the mapper for the spins
         self.SpinMapper = vtk.vtkGlyph3DMapper()
-        self.SpinMapper.SetSourceConnection(
-            self.spinarrowtangents.GetOutputPort()
-        )
+        self.SpinMapper.SetSourceConnection(self.spinarrowtangents.GetOutputPort())
 
         self.SpinMapper.SetInputData(self.src_spins)
         self.SpinMapper.SetScalarRange(scalar_range_spins)
@@ -396,8 +433,10 @@ class ASDMomActors:
         self.Spins.GetProperty().SetEdgeTint(0.0, 0.0, 0.0)
         if window.SpinsBox.isChecked():
             self.Spins.VisibilityOn()
+            self.show_spins = True
         else:
             self.Spins.VisibilityOff()
+            self.show_spins = False
 
         # -----------------------------------------------------------------------
         # Setting information for the atoms
@@ -405,14 +444,12 @@ class ASDMomActors:
         # Create vectors
         self.AtomSphere = vtk.vtkTexturedSphereSource()
         self.AtomSphere.SetRadius(0.10)
-        self.AtomSphere.SetThetaResolution(12)
-        self.AtomSphere.SetPhiResolution(12)
+        self.AtomSphere.SetThetaResolution(self.atom_resolution)
+        self.AtomSphere.SetPhiResolution(self.atom_resolution)
 
         # Create the mapper for the atoms
         self.AtomMapper = vtk.vtkGlyph3DMapper()
-        self.AtomMapper.SetSourceConnection(
-            self.AtomSphere.GetOutputPort()
-        )
+        self.AtomMapper.SetSourceConnection(self.AtomSphere.GetOutputPort())
         self.AtomMapper.SetInputData(self.src_spins)
         self.AtomMapper.SetScaleFactor(1.00)
         self.AtomMapper.SetScaleModeToNoDataScaling()
@@ -431,8 +468,10 @@ class ASDMomActors:
         self.Atoms.GetProperty().SetColor(colors.GetColor3d("Silver"))
         if window.AtomsBox.isChecked():
             self.Atoms.VisibilityOn()
+            self.show_atoms = True
         else:
             self.Atoms.VisibilityOff()
+            self.show_atoms = False
 
         # -----------------------------------------------------------------------
         # Setting information for the skybox actor
@@ -450,8 +489,8 @@ class ASDMomActors:
             # Atom sphere
             KMC_part = vtk.vtkSphereSource()
             KMC_part.SetRadius(1.75)
-            KMC_part.SetThetaResolution(12)
-            KMC_part.SetPhiResolution(12)
+            KMC_part.SetThetaResolution(self.atom_resolution)
+            KMC_part.SetPhiResolution(self.atom_resolution)
             # Atom glyph
             KMC_part_mapper = vtk.vtkGlyph3DMapper()
             KMC_part_mapper.SetInputData(self.KMC_src)
@@ -563,7 +602,7 @@ class ASDMomActors:
             t_off = window.current_time * ASDdata.nrAtoms
             ASDdata.coord.SetData(
                 numpy_support.numpy_to_vtk(
-                    ASDdata.full_coord[t_off: t_off + ASDdata.nrAtoms]
+                    ASDdata.full_coord[t_off : t_off + ASDdata.nrAtoms]
                 )
             )
             self.src.SetPoints(ASDdata.coord)
@@ -635,12 +674,12 @@ class ASDMomActors:
             # self.spincubetmap.SetInputConnection(self.spincube.GetOutputPort())
             # self.spincubetmap.PreventSeamOn()
 
-            self.SpinMapper.SetSourceConnection(
-                self.spincube.GetOutputPort()
-            )
+            self.SpinMapper.SetSourceConnection(self.spincube.GetOutputPort())
             # self.SpinMapper.SetSourceConnection(self.spincubetmap.GetOutputPort())
             self.SpinMapper.ClampingOn()
             self.SpinMapper.OrientOff()
+            self.spin_glyph = "Cubes"
+
         if keyword == "Bars":
             try:
                 del self.spinarrow
@@ -661,9 +700,7 @@ class ASDMomActors:
 
             # Calculate TCoords for texturing
             self.spincubetmap = vtk.vtkTextureMapToCylinder()
-            self.spincubetmap.SetInputConnection(
-                self.spincube.GetOutputPort()
-            )
+            self.spincubetmap.SetInputConnection(self.spincube.GetOutputPort())
             # self.spincubetmap.AutomaticCylinderGenerationOff()
             # self.spincubetmap.SetPoint1([ 1.0,0.0,0.0])
             # self.spincubetmap.SetPoint2([-1.0,0.0,0.0])
@@ -676,11 +713,10 @@ class ASDMomActors:
 
             self.spincubetmap.PreventSeamOff()
 
-            self.SpinMapper.SetSourceConnection(
-                self.spincubetmap.GetOutputPort()
-            )
+            self.SpinMapper.SetSourceConnection(self.spincubetmap.GetOutputPort())
             self.SpinMapper.ClampingOn()
             self.SpinMapper.OrientOn()
+            self.spin_glyph = "Bars"
 
         if keyword == "Spheres":
             try:
@@ -697,8 +733,8 @@ class ASDMomActors:
                 pass
             self.spinsphere = vtk.vtkTexturedSphereSource()
             self.spinsphere.SetRadius(0.50)
-            self.spinsphere.SetThetaResolution(12)
-            self.spinsphere.SetPhiResolution(12)
+            self.spinsphere.SetThetaResolution(self.spin_resolution)
+            self.spinsphere.SetPhiResolution(self.spin_resolution)
 
             # Placeholder comment for testing tangent extraction for normal textures
             # tritri = vtk.vtkTriangleFilter()
@@ -707,12 +743,12 @@ class ASDMomActors:
             # tritan.SetInputConnection(tritri.GetOutputPort())
             # self.SpinMapper.SetSourceConnection(tritan.GetOutputPort())
 
-            self.SpinMapper.SetSourceConnection(
-                self.spinsphere.GetOutputPort()
-            )
+            self.SpinMapper.SetSourceConnection(self.spinsphere.GetOutputPort())
             self.SpinMapper.ClampingOn()
             self.SpinMapper.OrientOn()
             # self.SpinMapper.OrientOff()
+            self.spin_glyph = "Spheres"
+
         if keyword == "Arrows":
             try:
                 del self.spinsphere
@@ -731,14 +767,12 @@ class ASDMomActors:
             self.spinarrow = vtk.vtkArrowSource()
             self.spinarrow.SetTipRadius(0.20)
             self.spinarrow.SetShaftRadius(0.10)
-            self.spinarrow.SetTipResolution(12)
-            self.spinarrow.SetShaftResolution(12)
+            self.spinarrow.SetTipResolution(self.spin_resolution)
+            self.spinarrow.SetShaftResolution(self.spin_resolution)
 
             # Calculate normals for shading
             self.spinarrownormals = vtk.vtkPolyDataNormals()
-            self.spinarrownormals.SetInputConnection(
-                self.spinarrow.GetOutputPort()
-            )
+            self.spinarrownormals.SetInputConnection(self.spinarrow.GetOutputPort())
 
             # Calculate TCoords for texturing
             self.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
@@ -752,12 +786,15 @@ class ASDMomActors:
             )
             self.SpinMapper.OrientOn()
             self.SpinMapper.Update()
+            self.spin_glyph = "Arrows"
 
         if keyword == "CenterOn":
             self.spinarrow.SetArrowOriginToCenter()
+            self.center_on = True
 
         if keyword == "CenterOff":
             self.spinarrow.SetArrowOriginToDefault()
+            self.center_on = False
 
         if keyword == "Cones":
             try:
@@ -776,13 +813,11 @@ class ASDMomActors:
             self.spincones = vtk.vtkConeSource()
             self.spincones.SetRadius(0.50)
             self.spincones.SetHeight(1.00)
-            self.spincones.SetResolution(12)
+            self.spincones.SetResolution(self.spin_resolution)
 
             # Calculate normals for shading
             self.spinconenormals = vtk.vtkPolyDataNormals()
-            self.spinconenormals.SetInputConnection(
-                self.spincones.GetOutputPort()
-            )
+            self.spinconenormals.SetInputConnection(self.spincones.GetOutputPort())
 
             # Calculate TCoords for texturing
             self.spinconeormalstmap = vtk.vtkTextureMapToCylinder()
@@ -791,13 +826,13 @@ class ASDMomActors:
             )
             self.spinconeormalstmap.PreventSeamOn()
 
-            self.SpinMapper.SetSourceConnection(
-                self.spinconeormalstmap.GetOutputPort()
-            )
+            self.SpinMapper.SetSourceConnection(self.spinconeormalstmap.GetOutputPort())
             self.SpinMapper.OrientOn()
             self.SpinMapper.Update()
+            self.spin_glyph = "Cones"
+
         return
-    
+
     ##########################################################################
     # Toggle options for the contours
     ##########################################################################
@@ -807,8 +842,10 @@ class ASDMomActors:
         """
         if check:
             self.contActor.VisibilityOn()
+            self.contour = True
         else:
             self.contActor.VisibilityOff()
+            self.contour = False
         return
 
     ##########################################################################
@@ -820,8 +857,10 @@ class ASDMomActors:
         """
         if check:
             self.vector.VisibilityOn()
+            self.vector_directions = True
         else:
             self.vector.VisibilityOff()
+            self.vector_directions = False
         return
 
     ##########################################################################
@@ -833,8 +872,10 @@ class ASDMomActors:
         """
         if check:
             self.Spins.VisibilityOn()
+            self.show_spins = True
         else:
             self.Spins.VisibilityOff()
+            self.show_spins = False
         return
 
     ##########################################################################
@@ -846,8 +887,10 @@ class ASDMomActors:
         """
         if check:
             self.Atoms.VisibilityOn()
+            self.show_atoms = True
         else:
             self.Atoms.VisibilityOff()
+            self.show_atoms = False
         return
 
     ##########################################################################
@@ -859,8 +902,10 @@ class ASDMomActors:
         """
         if check:
             self.MagDensActor.VisibilityOn()
+            self.show_density = True
         else:
             self.MagDensActor.VisibilityOff()
+            self.show_density = False
         return
 
     ##########################################################################
@@ -871,13 +916,11 @@ class ASDMomActors:
         Set the projection type and axis for visualization.
         """
         if atype == "density":
-            self.src.GetPointData().SetScalars(
-                self.glob_color[axis]
-            )
+            self.src.GetPointData().SetScalars(self.glob_color[axis])
         elif atype == "spins":
-            self.src_spins.GetPointData().SetScalars(
-                self.glob_color[axis]
-            )
+            self.src_spins.GetPointData().SetScalars(self.glob_color[axis])
+        self.projection_type = atype
+        self.projection_vector = axis
         return
 
     ##########################################################################
@@ -888,6 +931,7 @@ class ASDMomActors:
         Adjusts the scale factor of the SpinMapper based on the provided value.
         """
         self.SpinMapper.SetScaleFactor(0.50 * value / 10)
+        self.spin_size = value
         return
 
     ##########################################################################
@@ -910,15 +954,17 @@ class ASDMomActors:
         elif keyword == "PBR":
             if hasattr(self, "Spins"):
                 self.Spins.GetProperty().SetInterpolationToPBR()
-                self.Spins.GetProperty().SetMetallic(0.5)
+                self.Spins.GetProperty().SetMetallic(self.pbr_metallic)
             if hasattr(self, "Atoms"):
                 self.Atoms.GetProperty().SetInterpolationToPBR()
-                self.Atoms.GetProperty().SetMetallic(0.5)
+                self.Atoms.GetProperty().SetMetallic(self.pbr_metallic)
         elif keyword == "Phong":
             if hasattr(self, "Spins"):
                 self.Spins.GetProperty().SetInterpolationToPhong()
             if hasattr(self, "Atoms"):
                 self.Atoms.GetProperty().SetInterpolationToPhong()
+
+        self.spin_shade = keyword
 
         return
 
@@ -931,6 +977,8 @@ class ASDMomActors:
         """
         if hasattr(self, "Spins"):
             self.Spins.GetProperty().SetAmbient(float(value * 0.02))
+
+        self.ambient = value
         renWin.Render()
         return
 
@@ -943,6 +991,8 @@ class ASDMomActors:
         """
         if hasattr(self, "Spins"):
             self.Spins.GetProperty().SetDiffuse(float(value * 0.01))
+
+        self.diffuse = value
         renWin.Render()
         return
 
@@ -955,6 +1005,8 @@ class ASDMomActors:
         """
         if hasattr(self, "Spins"):
             self.Spins.GetProperty().SetSpecular(float(value * 0.01))
+
+        self.specular = value
         renWin.Render()
         return
 
@@ -967,6 +1019,8 @@ class ASDMomActors:
         """
         if hasattr(self, "Spins"):
             self.Spins.GetProperty().SetSpecularPower(float(value))
+
+        self.specular_power = value
         renWin.Render()
         return
 
@@ -982,6 +1036,8 @@ class ASDMomActors:
             self.Spins.GetProperty().SetEmissiveFactor(emvec)
         if hasattr(self, "Atoms"):
             self.Atoms.GetProperty().SetEmissiveFactor(emvec)
+
+        self.pbr_emission = value
         renWin.Render()
         return
 
@@ -996,6 +1052,8 @@ class ASDMomActors:
             self.Spins.GetProperty().SetOcclusionStrength(float(value * 0.01))
         if hasattr(self, "Atoms"):
             self.Atoms.GetProperty().SetOcclusionStrength(float(value * 0.01))
+
+        self.pbr_occlusion = value
         renWin.Render()
         return
 
@@ -1010,6 +1068,8 @@ class ASDMomActors:
             self.Spins.GetProperty().SetRoughness(float(value * 0.01))
         if hasattr(self, "Atoms"):
             self.Atoms.GetProperty().SetRoughness(float(value * 0.01))
+
+        self.pbr_roughness = value
         renWin.Render()
         return
 
@@ -1024,6 +1084,8 @@ class ASDMomActors:
             self.Spins.GetProperty().SetMetallic(float(value * 0.01))
         if hasattr(self, "Atoms"):
             self.Atoms.GetProperty().SetMetallic(float(value * 0.01))
+
+        self.pbr_metallic = value
         renWin.Render()
         return
 
@@ -1035,6 +1097,7 @@ class ASDMomActors:
         Adjusts the size of atoms in the visualization by scaling the atom mapper.
         """
         self.AtomMapper.SetScaleFactor(1.00 * value / 10.0)
+        self.atom_size = value
         return
 
     ##########################################################################
@@ -1045,6 +1108,7 @@ class ASDMomActors:
         Adjusts the opacity of atom actors based on the given value.
         """
         self.Atoms.GetProperty().SetOpacity(value * 0.01)
+        self.atom_opacity = value
         return
 
     ##########################################################################
@@ -1056,4 +1120,5 @@ class ASDMomActors:
         """
         self.AtomSphere.SetThetaResolution(value)
         self.AtomSphere.SetPhiResolution(value)
+        self.atom_resolution = value
         return

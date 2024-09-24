@@ -167,6 +167,14 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ProgressLabel = QLabel()
     window.ProgressLabel.setText(f" {int(window.ProgressBar.value())}% ")
     # ---------------------------------------------------------------------------
+    # button to save the parameters of the visualization
+    # ---------------------------------------------------------------------------
+    window.actionTake_SaveCFG = QToolButton()
+    window.actionTake_SaveCFG.setText("Save config")
+    window.actionTake_SaveCFG.setToolTip("Save the current configuration")
+    window.actionTake_SaveCFG.setWhatsThis("Save the current configuration")
+    window.actionTake_SaveCFG.setStatusTip("Save the current configuration")
+    # ---------------------------------------------------------------------------
     # Adding the extra buttons to the toolbar
     # ---------------------------------------------------------------------------
     window.VTKToolBar.addWidget(window.VTKExitButton)
@@ -187,6 +195,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.VTKToolBar.addSeparator()
     window.VTKToolBar.addWidget(window.ProgressBar)
     window.VTKToolBar.addWidget(window.ProgressLabel)
+    window.VTKToolBar.addSeparator()
+    window.VTKToolBar.addWidget(window.actionTake_SaveCFG)
+    window.VTKToolBar.addSeparator()
     # ---------------------------------------------------------------------------
     # Adding the actions for the Menu
     # ---------------------------------------------------------------------------
@@ -215,8 +226,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RGBBlueColorSlider.valueChanged.connect(window.set_singlecolor)
     window.RGBBlueColorSlider.valueChanged.connect(window.UpdateRenderer)
     window.BWSinglecolorCheck.clicked.connect(window.toggle_bwSinglecolor)
-    window.LinearScale.toggled.connect(window.set_lut)
-    window.LogScale.toggled.connect(window.set_lut)
+    window.LinearScale.toggled.connect(window.set_lut_scale)
+    window.LogScale.toggled.connect(window.set_lut_scale)
     # ---------------------------------------------------------------------------
     # Adding the actions to the background
     # ---------------------------------------------------------------------------
@@ -302,6 +313,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SetYView.clicked.connect(window.camera_handler)
     window.SetZView.clicked.connect(window.camera_handler)
     window.actionTake_Snapshot.clicked.connect(window.Snapshot)
+    window.actionTake_SaveCFG.clicked.connect(window.SaveSettings)
     window.ParallelProjectBox.toggled.connect(window.camera_handler)
     window.ParallelScaleSlider.valueChanged.connect(window.camera_handler)
     window.ParallelScaleLineEdit.editingFinished.connect(window.camera_handler)
