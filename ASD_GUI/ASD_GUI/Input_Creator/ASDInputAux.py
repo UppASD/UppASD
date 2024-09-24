@@ -1,4 +1,4 @@
-""" @package ASDInputAux
+"""@package ASDInputAux
 Set of auxiliary functions to write restartfiles .
 It has functions to generate the coordinate file, as well as to write the
 following magnetic configurations:
@@ -15,6 +15,7 @@ Author
 ----------
 Jonathan Chico
 """
+import numpy as np
 
 ##########################################################################
 # @brief Function to generate domain wall profiles.
@@ -32,7 +33,18 @@ Jonathan Chico
 
 
 def write_domain_wall(Natom, Mensemble, coord, DWInfo):
-    import numpy as np
+    """
+    Generate magnetization for a domain wall in a system of atoms.
+
+    Parameters:
+    Natom (int): Number of atoms.
+    Mensemble (int): Number of ensembles.
+    coord (ndarray): Atomic coordinates.
+    DWInfo (dict): Domain wall information.
+
+    Returns:
+    ndarray: Magnetization array.
+    """
 
     tol = 1e-9
     # Magnetization of the system
@@ -188,7 +200,6 @@ def write_skyrmion(Natom, Mensemble, coord, SkxInfo):
     * .math: m_y = \\sin(m\\phi+\\gamma)\\sin(\theta(r))
     * .math: m_z = \\cos(\theta(r))
     """
-    import numpy as np
 
     tol = 1e-9
     # Magnetization of the system
@@ -240,7 +251,9 @@ def write_skyrmion(Natom, Mensemble, coord, SkxInfo):
 ##########################################################################
 # @brief Function to generate a generalized spin spiral configuration
 # @details This function creates a generalized spin spiral via Rodrigues rotations
-# @f$ \mathbf{v}_{rot}= \mathbf{v}\cos\theta +\left(\mathbf{v}\times\mathbf{k}\right)\sin\theta+\mathbf{k}\left(\mathbf{k}\cdot\mathbf{v}\right)\left(1-\cos\theta\right)@f$
+# @f$ \mathbf{v}_{rot}= \mathbf{v}\cos\theta
+# +\left(\mathbf{v}\times\mathbf{k}\right)\sin\theta
+# +\mathbf{k}\left(\mathbf{k}\cdot\mathbf{v}\right)\left(1-\cos\theta\right)@f$
 # First a rotation is done to generate the cone angle, this is done by generating an
 # axis that is perpendicular to the \textbf{pitch vector} (that is @f$v@f$ in the Rodrigues formula)
 # which is dubbed the \textbf{cone axis}.
@@ -250,10 +263,23 @@ def write_skyrmion(Natom, Mensemble, coord, SkxInfo):
 # with @f$\mathbf{q}@f$ being the spiral wavevector.
 # @author Jonathan Chico
 ##########################################################################
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 
 def create_spiral(Natom, Mensemble, coord, HLInfo):
-    import numpy as np
+    """
+    Create a helical spiral magnetic configuration.
+
+    Args:
+        Natom (int): Number of atoms.
+        Mensemble (int): Number of ensembles.
+        coord (np.ndarray): Atomic coordinates.
+        HLInfo (dict): Helical spiral parameters including 'pitch_vector',
+                       'prop_vector', 'cone_angle', and 'handness'.
+
+    Returns:
+        np.ndarray: Magnetic configuration array of shape (Mensemble, Natom, 3).
+    """
 
     # Transform lists to np arrays to avoid problems
     rot_vector = np.asarray(HLInfo["pitch_vector"], dtype=np.float64)
@@ -309,7 +335,19 @@ def create_spiral(Natom, Mensemble, coord, HLInfo):
 
 
 def create_coord(cell, ncell, Bas, block_size, mom):
-    import numpy as np
+    """
+    Generate coordinates and magnetic moments for a crystal structure.
+
+    Args:
+        cell (np.ndarray): 3x3 matrix defining the unit cell vectors.
+        ncell (tuple): Number of cells in each direction (nx, ny, nz).
+        Bas (np.ndarray): Basis vectors of the atoms in the unit cell.
+        block_size (int): Size of the blocks for iteration.
+        mom (np.ndarray): Magnetic moments of the atoms in the unit cell.
+
+    Returns:
+        tuple: Coordinates and magnetic moments of the atoms in the crystal.
+    """
 
     tol = 1e-9
 

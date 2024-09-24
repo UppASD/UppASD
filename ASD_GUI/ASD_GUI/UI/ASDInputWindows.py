@@ -127,9 +127,13 @@ class InitPhaseWindow(QDialog):
                     tmp = []
                     for col in range(0, self.MCannealTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.MCannealTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.MCannealTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.MCannealTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.MCannealTable.item(
+                                        row, col).text()))
                     self.init_phase_data.append(tmp)
             if self.IpNphaseTable.isEnabled():
                 self.init_phase_data.append(self.IpNphaseTable.rowCount())
@@ -137,18 +141,27 @@ class InitPhaseWindow(QDialog):
                     tmp = []
                     for col in range(0, self.IpNphaseTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.IpNphaseTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.IpNphaseTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.IpNphaseTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.IpNphaseTable.item(
+                                        row, col).text()))
                     self.init_phase_data.append(tmp)
             if self.IpVPOBox.isEnabled():
                 for row in range(0, self.VPOTable.rowCount()):
                     tmp = []
                     for col in range(0, self.VPOTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.VPOTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.VPOTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.VPOTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.VPOTable.item(
+                                        row,
+                                        col).text()))
                     self.init_phase_data.append(tmp)
             self.close()
         return
@@ -382,13 +395,15 @@ class RestartWindow(QDialog):
         self.InpDWPosN3Validator.setRange(1, self.ncell[2])
         self.InpDWPosN3.setValidator(self.InpDWPosN3Validator)
         # Write the coordinate file
-        coord_name, _ = QFileDialog.getSaveFileName(self, "Save Coordinate File")
+        coord_name, _ = QFileDialog.getSaveFileName(
+            self, "Save Coordinate File")
         coord_fmt = "{: 6d}  {: 4.8f}  {: 4.8f}  {: 4.8f}\n"
         coord_file = open(coord_name, "w", encoding="utf-8")
         for iat in range(0, self.Natom):
             coord_file.write(
                 coord_fmt.format(
-                    iat + 1, self.coord[iat, 0], self.coord[iat, 1], self.coord[iat, 2]
+                    iat + 1, self.coord[iat,
+                                        0], self.coord[iat, 1], self.coord[iat, 2]
                 )
             )
         return
@@ -446,7 +461,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                     DWInfo["center"] = cent
                 if self.DWPlane_y.isChecked():
                     DWInfo["plane"] = 1
@@ -455,7 +471,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                     DWInfo["center"] = cent
                 if self.DWPlane_z.isChecked():
                     DWInfo["plane"] = 2
@@ -464,7 +481,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                 # ---------------------------------------------------------------
                 # Setting the magnetization easy axis
                 # ---------------------------------------------------------------
@@ -510,7 +528,8 @@ class RestartWindow(QDialog):
             # -------------------------------------------------------------------
             # Create the domain wall
             # -------------------------------------------------------------------
-            mag = write_domain_wall(self.Natom, self.Mensemble, self.coord, DWInfo)
+            mag = write_domain_wall(
+                self.Natom, self.Mensemble, self.coord, DWInfo)
         # -----------------------------------------------------------------------
         # Write a restartfile with an isolated skyrmion
         # -----------------------------------------------------------------------
@@ -585,14 +604,19 @@ class RestartWindow(QDialog):
             # -------------------------------------------------------------------
             # Create the skyrmion
             # -------------------------------------------------------------------
-            mag = write_skyrmion(self.Natom, self.Mensemble, self.coord, SkxInfo)
+            mag = write_skyrmion(
+                self.Natom,
+                self.Mensemble,
+                self.coord,
+                SkxInfo)
         if self.HLOptBox.isChecked():
             HLInfo = dict()
             # -------------------------------------------------------------------
             # Read the cone angle
             # -------------------------------------------------------------------
             if len(self.InpHLConeAngle.text()) > 0:
-                HLInfo["cone_angle"] = float(self.InpHLConeAngle.text()) * np.pi / 180.0
+                HLInfo["cone_angle"] = float(
+                    self.InpHLConeAngle.text()) * np.pi / 180.0
             else:
                 HLInfo["cone_angle"] = 90.0
             if HLInfo["cone_angle"] == 0:
@@ -657,7 +681,8 @@ class RestartWindow(QDialog):
         # Set the restart file name
         # -----------------------------------------------------------------------
         if self.curr_image == 0:
-            restart_name, _ = QFileDialog.getSaveFileName(self, "Save Restart File")
+            restart_name, _ = QFileDialog.getSaveFileName(
+                self, "Save Restart File")
             # -----------------------------------------------------------------------
             # Save the restarfile name to the input
             # -----------------------------------------------------------------------
@@ -670,7 +695,10 @@ class RestartWindow(QDialog):
             # If it is the first image generate a new file and write the header
             # ------------------------------------------------------------------------
             if self.curr_image == 0:
-                restart = open(RestartWindow.restartfile_name, "w", encoding="utf-8")
+                restart = open(
+                    RestartWindow.restartfile_name,
+                    "w",
+                    encoding="utf-8")
                 restart.write("#" * 55 + "\n")
                 restart.write("# File type: R\n")
                 restart.write("# Simulation type: Init\n")
@@ -685,7 +713,10 @@ class RestartWindow(QDialog):
             # If the image is larger than 1 and one writes each image repone the file to append
             # ------------------------------------------------------------------------
             elif self.curr_image > 0 and self.InpRestSingleEnsButton.isChecked():
-                restart = open(RestartWindow.restartfile_name, "a", encoding="utf-8")
+                restart = open(
+                    RestartWindow.restartfile_name,
+                    "a",
+                    encoding="utf-8")
             # ------------------------------------------------------------------------
             # Write to the restartfile
             # ------------------------------------------------------------------------
@@ -893,23 +924,35 @@ class PosfileWindow(QDialog):
                 self.InPosTable.setItem(0, column, item)
             self.close()
         if self.sender() == self.InpPosDone:
-            posfile_name = open(PosfileWindow.posfile_name, "w", encoding="utf-8")
+            posfile_name = open(
+                PosfileWindow.posfile_name,
+                "w",
+                encoding="utf-8")
             if self.InPosBoxRand.isEnabled():
                 for row in range(0, self.InPosTableRand.rowCount()):
                     for col in range(0, self.InPosTableRand.columnCount()):
                         if col < 3:
-                            entry = int(self.InPosTableRand.item(row, col).text())
+                            entry = int(
+                                self.InPosTableRand.item(
+                                    row, col).text())
                         else:
-                            entry = float(self.InPosTableRand.item(row, col).text())
+                            entry = float(
+                                self.InPosTableRand.item(
+                                    row, col).text())
                         posfile_name.write(f"{entry}  ")
                     posfile_name.write(f"{entry}  ")
             if self.InPosBox.isEnabled():
                 for row in range(0, self.InPosTable.rowCount()):
                     for col in range(0, self.InPosTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InPosTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InPosTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InPosTable.item(row, col).text())
+                            entry = float(
+                                self.InPosTable.item(
+                                    row, col).text())
                         posfile_name.write(f"{entry}  ")
                     posfile_name.write("\n")
             self.close()
@@ -1026,11 +1069,17 @@ class MomfileWindow(QDialog):
                 self.InMomTable.setItem(0, column, item)
             self.close()
         if self.sender() == self.InpMomDone:
-            momfile_name = open(MomfileWindow.momfile_name, "w", encoding="utf-8")
+            momfile_name = open(
+                MomfileWindow.momfile_name,
+                "w",
+                encoding="utf-8")
             for row in range(0, self.InMomTable.rowCount()):
                 for col in range(0, self.InMomTable.columnCount()):
                     if col < 2:
-                        entry = int(float(self.InMomTable.item(row, col).text()))
+                        entry = int(
+                            float(
+                                self.InMomTable.item(
+                                    row, col).text()))
                     else:
                         entry = float(self.InMomTable.item(row, col).text())
                     momfile_name.write(f"{entry}  ")
@@ -1089,7 +1138,8 @@ class JfileWindow(QDialog):
         """If a jfile have already been selected, input it into the creator."""
 
         if len(mainwindow.ASDInputGen.jfile) > 0:
-            jfile = np.genfromtxt(mainwindow.ASDInputGen.jfile.split("/")[-1], ndmin=2)
+            jfile = np.genfromtxt(
+                mainwindow.ASDInputGen.jfile.split("/")[-1], ndmin=2)
             jfile = [list(line) for line in jfile]
             self.jfile_gotten = True
 
@@ -1207,9 +1257,14 @@ class JfileWindow(QDialog):
                 else:
                     for col in range(0, self.InJfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InJfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InJfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InJfileTable.item(row, col).text())
+                            entry = float(
+                                self.InJfileTable.item(
+                                    row, col).text())
                         jfile_name.write(f"{entry}  ")
                     jfile_name.write("\n")
                 self.close()
@@ -1349,7 +1404,8 @@ class DMfileWindow(QDialog):
 
         for key in VectorDict:
             for vector in VectorDict[key]:
-                Row = [key[0], key[-1], vector[0], vector[1], vector[2], 0, 0, 0]
+                Row = [key[0], key[-1], vector[0],
+                       vector[1], vector[2], 0, 0, 0]
                 row = Table.rowCount()
                 Table.insertRow(row)
                 for column, value in enumerate(Row):
@@ -1369,7 +1425,8 @@ class DMfileWindow(QDialog):
 
         if self.sender() == self.InpDMfileCancel:
             self.InDMfileTable.setRowCount(1)
-            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+            for column, value in enumerate(
+                    [1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
                 item = QTableWidgetItem(str(value))
                 self.InDMfileTable.setItem(0, column, item)
             self.InDMfileNNCutoff.setValue(0)
@@ -1387,9 +1444,14 @@ class DMfileWindow(QDialog):
                 else:
                     for col in range(0, self.InDMfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InDMfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InDMfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InDMfileTable.item(row, col).text())
+                            entry = float(
+                                self.InDMfileTable.item(
+                                    row, col).text())
                         DMfile_name.write(f"{entry}  ")
                     DMfile_name.write("\n")
                 self.close()
@@ -1455,7 +1517,8 @@ class KfileWindow(QDialog):
         """If a jfile have already been selected, input it into the creator."""
 
         if len(mainwindow.ASDInputGen.kfile) > 0:
-            kfile = np.genfromtxt(mainwindow.ASDInputGen.kfile.split("/")[-1], ndmin=2)
+            kfile = np.genfromtxt(
+                mainwindow.ASDInputGen.kfile.split("/")[-1], ndmin=2)
             self.Kfile_gotten = True
 
             Table = self.InKfileTable
@@ -1479,7 +1542,8 @@ class KfileWindow(QDialog):
 
         if self.sender() == self.InpKfileCancel:
             self.InKfileTable.setRowCount(1)
-            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+            for column, value in enumerate(
+                    [1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
                 item = QTableWidgetItem(str(value))
                 self.InKfileTable.setItem(0, column, item)
             self.InKfileNNCutoff.setValue(0)
@@ -1497,9 +1561,14 @@ class KfileWindow(QDialog):
                 else:
                     for col in range(0, self.InKfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InKfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InKfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InKfileTable.item(row, col).text())
+                            entry = float(
+                                self.InKfileTable.item(
+                                    row, col).text())
                         Kfile_name.write(f"{entry}  ")
                     Kfile_name.write("\n")
                 self.close()

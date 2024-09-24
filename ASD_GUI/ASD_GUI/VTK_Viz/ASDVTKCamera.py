@@ -301,13 +301,34 @@ class CameraManager:
         # Controlling what is up in the camera
         # -----------------------------------------------------------------------
         if window.sender() == window.SetXView:
-            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(1, 0, 0))
+            self.set_Camera_viewUp(
+                ren=window.ren,
+                renWin=window.renWin,
+                rdir=(
+                    1,
+                    0,
+                    0))
         if window.sender() == window.SetYView:
-            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 1, 0))
+            self.set_Camera_viewUp(
+                ren=window.ren,
+                renWin=window.renWin,
+                rdir=(
+                    0,
+                    1,
+                    0))
         if window.sender() == window.SetZView:
-            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 0, 1))
+            self.set_Camera_viewUp(
+                ren=window.ren,
+                renWin=window.renWin,
+                rdir=(
+                    0,
+                    0,
+                    1))
         if window.sender() == window.SetCamButton:
-            self.Update_Camera(Window=window, ren=window.ren, renWin=window.renWin)
+            self.Update_Camera(
+                Window=window,
+                ren=window.ren,
+                renWin=window.renWin)
         # -----------------------------------------------------------------------
         # Controlling the parallel scale
         # -----------------------------------------------------------------------

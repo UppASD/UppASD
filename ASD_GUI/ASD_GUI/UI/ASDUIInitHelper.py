@@ -87,15 +87,19 @@ def SetupUI(window):
     window.DMfileWindow.InDMfileGenVectors.clicked.connect(
         lambda: window.DMfileWindow.GenerateVectorsFromCell(window)
     )
-    window.RestartWindow.InpRestAppendButton.clicked.connect(window.create_restart)
+    window.RestartWindow.InpRestAppendButton.clicked.connect(
+        window.create_restart)
     window.RestartWindow.InpRestartDone.clicked.connect(window.create_restart)
     window.RestartWindow.InpRestartDone.clicked.connect(window.update_names)
-    window.InitPhaseWindow.InitPhaseDoneButton.clicked.connect(window.getInitPhase)
+    window.InitPhaseWindow.InitPhaseDoneButton.clicked.connect(
+        window.getInitPhase)
     return
 
 ##########################################################################
 # Initialization of some of the UI properties
 ##########################################################################
+
+
 def InitUI(window):
     """
     Initializes the user interface components and sets their initial states.

@@ -9,6 +9,7 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 ##########################################################################
 # @brief Class containing the structures needed for the creation of the inpsd.dat
@@ -18,6 +19,20 @@ Jonathan Chico
 # that one keeps only the minimal set of input variables needed.
 # @author Jonathan Chico
 ##########################################################################
+
+import collections
+import os
+
+import numpy as np
+import yaml
+from PyQt6 import QtWidgets
+from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtWidgets import (QCheckBox, QGroupBox, QLineEdit, QRadioButton,
+                             QSpinBox)
+
+import ASD_GUI.Extras.preQ as preQ
+import ASD_GUI.Input_Creator.System_import.ASDImportSys as ASDImportSys
+import ASD_GUI.Input_Creator.System_import.SPRKKR_parser as SPRKKR_parser
 
 
 class ASDInputGen:
@@ -32,9 +47,9 @@ class ASDInputGen:
     """
 
     def __init__(self):
-        import collections
-        from PyQt6.QtGui import QIntValidator, QDoubleValidator
-
+        """
+        Initializes the ASDInputGen class with validators and various file attributes.
+        """
         ASDInputGen.UppASDKeywords = collections.OrderedDict()
         ASDInputGen.IntegerValidator = QIntValidator()
         ASDInputGen.IntegerValidator.setRange(0, 99999999)
@@ -65,8 +80,10 @@ class ASDInputGen:
     ##########################################################################
 
     def getFileName(self, window):
-        from PyQt6 import QtWidgets
-        import os
+        """
+        Opens a file dialog to select a file and assigns the selected file to appropriate attribute
+        based on the sender widget. Handles various button and checkbox interactions.
+        """
 
         # Check implemented to prevent window to open on unchecking the button.
         if (
@@ -157,6 +174,12 @@ class ASDInputGen:
     ##########################################################################
 
     def update_file_name(self, window):
+        """
+        Updates file names based on the sender window and sets corresponding flags or checks.
+        
+        Args:
+            window (QMainWindow): The main window containing sender and file name attributes.
+        """
         if window.sender() == window.PosfileWindow.InpPosDone:
             ASDInputGen.posfile = window.PosfileWindow.posfile_name
             self.posfile_gotten = True
@@ -180,6 +203,12 @@ class ASDInputGen:
     ##########################################################################
 
     def ASDInputGatherer(self, window):
+        """
+        Gathers input from the GUI window and updates the ASDInputGen.UppASDKeywords dictionary.
+        
+        Args:
+            window: The GUI window containing input fields and checkboxes.
+        """
 
         # Find the simulation name
         if len(window.InpLineEditSimid.text()) > 0:
@@ -407,7 +436,6 @@ class ASDInputGen:
         if window.InpAMSCheck.isChecked():
             ASDInputGen.UppASDKeywords["Mag_corr"]["do_ams"] = "Y"
             if len(ASDInputGen.qfile) == 0:
-                import ASD_GUI.Extras.preQ as preQ
 
                 Positions, numbers = preQ.read_posfile(ASDInputGen.posfile)
                 Cell = (
@@ -700,7 +728,8 @@ class ASDInputGen:
             ASDInputGen.UppASDKeywords["geometry"]["momfile"] = ASDInputGen.momfile
         elif len(ASDInputGen.posfile) != 0:
             print('No momfile name given, generating "momfile.dummy"')
-            ASDInputGen.UppASDKeywords["geometry"]["momfile"] = ["momfile.dummy"]
+            ASDInputGen.UppASDKeywords["geometry"]["momfile"] = [
+                "momfile.dummy"]
             vector = [1, 0, 0]
             self.GenDummyMomfile(vector, 1)
         else:
@@ -721,7 +750,6 @@ class ASDInputGen:
 
         Author: Erik Karpelin
         """
-        import numpy as np
 
         ASDInputGen.posfile_gotten = True
         ASDInputGen.posfile = "./posfile"
@@ -817,8 +845,8 @@ class ASDInputGen:
 
     def GenerateFile(self, filename, string):
         """Helper function which generates a file given a filename and string for input."""
-        file = open(filename, "w")
-        file.write(string)
+        file = open(filename, "w", encoding="utf-8")
+        file.write(string, encoding='utf-8')
         file.close()
         return
 
@@ -834,16 +862,6 @@ class ASDInputGen:
 
         Author: Erik Karpelin
         """
-
-        import numpy as np
-        import os
-        from PyQt6.QtWidgets import (
-            QLineEdit,
-            QCheckBox,
-            QSpinBox,
-            QGroupBox,
-            QRadioButton,
-        )
 
         LineEditList = window.findChildren(QLineEdit)
         CheckBoxList = window.findChildren(QCheckBox)
@@ -867,7 +885,10 @@ class ASDInputGen:
             "InpInitLLG",
             "InpDipBruteForceCheck",
         ]
-        SpinResetDict = {"InpPairSym": 0, "ImpPairMaptype": 1, "InpASDLLGAlgh": 1}
+        SpinResetDict = {
+            "InpPairSym": 0,
+            "ImpPairMaptype": 1,
+            "InpASDLLGAlgh": 1}
 
         for Box in GroupBoxList:
             if "Inp" in Box.objectName():
@@ -886,11 +907,13 @@ class ASDInputGen:
                 Check.setChecked(True)
 
         for Button in RadioButtonList:
-            if Button.objectName() in RadioResetList and Button.isChecked() == False:
+            if Button.objectName() in RadioResetList and not Button.isChecked():
                 Button.toggle()
 
         for SpinBox in SpinBoxList:
-            if SpinBox.objectName() in SpinResetDict.keys():
+            for key, value in SpinResetDict.items():
+                if SpinBox.objectName() == key:
+                    SpinBox.setValue(value)
                 SpinBox.setValue(SpinResetDict[SpinBox.objectName()])
 
         return
@@ -902,7 +925,6 @@ class ASDInputGen:
         Inputs:
                 fileobject  :   list containing name of file
         """
-        import os
 
         if len(fileobject) > 0:
             if isinstance(fileobject, str):
@@ -926,7 +948,6 @@ class ASDInputGen:
                 vector          :   list
                 configuration   :   int
         """
-        import numpy as np
 
         ASDInputGen.momfile_gotten = True
         ASDInputGen.momfile = "./momfile.dummy"
@@ -954,8 +975,6 @@ class ASDInputGen:
     def update_gui_from_import(
         self, window, output_files, lattice, input_type, lattice_const
     ):
-        import numpy as np
-        from PyQt6.QtWidgets import QLineEdit
 
         """ Update GUI with files and input from file-parser. """
         if len(output_files["jfile"]) > 0:
@@ -992,19 +1011,16 @@ class ASDInputGen:
             self.InsertBasisvectors(gui_lines, lattice)
 
         if input_type == "SPRKKR":
-            window.InpLineEditAlat.setText(str("{:2.5e}".format(lattice_const * 1e-10)))
+            window.InpLineEditAlat.setText(
+                f"{lattice_const * 1e-10:.5e}")
             self.InsertBasisvectors(gui_lines, lattice)
 
         if input_type == "RSLMTO":
-            window.InpLineEditAlat.setText(str("{:2.5e}".format(lattice_const * 1e-10)))
+            window.InpLineEditAlat.setText(f"{lattice_const * 1e-10:.5e}")
             self.SetStructureTemplate(window, lattice)
 
     def import_system(self, window):
         """Select import file."""
-
-        from PyQt6 import QtWidgets
-        import ASD_GUI.Input_Creator.System_import.ASDImportSys as ASDImportSys
-        import ASD_GUI.Input_Creator.System_import.SPRKKR_parser as SPRKKR_parser
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.AnyFile)
@@ -1017,11 +1033,13 @@ class ASDInputGen:
                 input_type = "cif"
             if window.sender() == window.InpImportSPRKKRButton:
                 filename = dlg.selectedFiles()[0]
-                output_files, lattice, alat = SPRKKR_parser.parse_sprkkr(filename)
+                output_files, lattice, alat = SPRKKR_parser.parse_sprkkr(
+                    filename)
                 input_type = "SPRKKR"
             if window.sender() == window.InpImportRSLMTOButton:
                 filename = dlg.selectedFiles()[0]
-                output_files, lattice, alat = ASDImportSys.parse_rs_lmto(filename)
+                output_files, lattice, alat = ASDImportSys.parse_rs_lmto(
+                    filename)
                 input_type = "RSLMTO"
 
             output_files = {
@@ -1030,7 +1048,8 @@ class ASDInputGen:
                 "posfile": output_files[2],
                 "momfile": output_files[3],
             }
-            self.update_gui_from_import(window, output_files, lattice, input_type, alat)
+            self.update_gui_from_import(
+                window, output_files, lattice, input_type, alat)
 
     ##########################################################################
     # @brief Function to ensure that if there is no entry it is set to zero
@@ -1038,6 +1057,15 @@ class ASDInputGen:
     ##########################################################################
 
     def text_to_num(self, text):
+        """
+        Convert a text string to a float. Return 0.0 if the string is empty.
+
+        Args:
+            text (str): The text string to convert.
+
+        Returns:
+            float: The converted float value or 0.0 if the string is empty.
+        """
         if len(text) > 0:
             num = float(text)
         else:
@@ -1053,10 +1081,17 @@ class ASDInputGen:
     ##########################################################################
 
     def ASDInputConstrainer(self, window):
+        """
+        Sets validators for various input fields in the given window object.
+
+        Args:
+            window: The window object containing input fields to be validated.
+        """
         window.InpN1.setValidator(ASDInputGen.IntegerValidator)
         window.InpN2.setValidator(ASDInputGen.IntegerValidator)
         window.InpN3.setValidator(ASDInputGen.IntegerValidator)
-        window.InpDipBlockSizeLineEdit.setValidator(ASDInputGen.IntegerValidator)
+        window.InpDipBlockSizeLineEdit.setValidator(
+            ASDInputGen.IntegerValidator)
         window.InpMensemble.setValidator(ASDInputGen.IntegerValidator)
         window.InpASDLLGSteps.setValidator(ASDInputGen.IntegerValidator)
         window.InpMCSteps.setValidator(ASDInputGen.IntegerValidator)
@@ -1115,7 +1150,19 @@ class ASDInputGen:
     ##########################################################################
 
     def ASDSetDefaults(self):
-        import collections
+        """
+        Sets default values for various simulation parameters in ASDInputGen.UppASDKeywords.
+
+        This method initializes several categories of simulation parameters, including general
+        simulation variables, geometry variables, Hamiltonian variables, LLG measure variables,
+        GNEB measure variables, LLG initial phase variables, VPO initial phase variables, MC
+        measure variables, MC initial phase variables, magnetization variables, correlation
+        variables, spin-torque variables, averages, trajectories, cumulants, topology, energy,
+        and Hessians.
+
+        Returns:
+            None
+        """
 
         # General simulation variables
         ASDInputGen.UppASDKeywords["general"] = collections.OrderedDict()
@@ -1156,7 +1203,8 @@ class ASDInputGen:
         ASDInputGen.UppASDKeywords["Hamiltonian"]["do_dip"] = 0
         ASDInputGen.UppASDKeywords["Hamiltonian"]["block_size"] = 1
         ASDInputGen.UppASDKeywords["Hamiltonian"]["hfield"] = [0.0, 0.0, 0.0]
-        ASDInputGen.UppASDKeywords["Hamiltonian"]["ip_hfield"] = [0.0, 0.0, 0.0]
+        ASDInputGen.UppASDKeywords["Hamiltonian"]["ip_hfield"] = [
+            0.0, 0.0, 0.0]
         # LLG measure  variables
         ASDInputGen.UppASDKeywords["LLG_mphase"] = collections.OrderedDict()
         ASDInputGen.UppASDKeywords["LLG_mphase"]["SDEAlgh"] = 1
@@ -1204,7 +1252,8 @@ class ASDInputGen:
         ASDInputGen.UppASDKeywords["spintorque"]["do_she"] = "N"
         ASDInputGen.UppASDKeywords["spintorque"]["sot_field"] = 0.0
         ASDInputGen.UppASDKeywords["spintorque"]["sot_damping"] = 0.0
-        ASDInputGen.UppASDKeywords["spintorque"]["sot_pol_vec"] = [0.0, 0.0, 0.0]
+        ASDInputGen.UppASDKeywords["spintorque"]["sot_pol_vec"] = [
+            0.0, 0.0, 0.0]
         ASDInputGen.UppASDKeywords["spintorque"]["thick_ferro"] = 1.0
         ASDInputGen.UppASDKeywords["spintorque"]["she_angle"] = 0.0
         # Prn avrg variables
@@ -1247,6 +1296,10 @@ class ASDInputGen:
     ##########################################################################
 
     def clean_var(self):
+        """
+        Cleans up ASDInputGen.UppASDKeywords by removing unnecessary keys based on
+        specific conditions.
+        """
         tol = 1e-10
         if (
             ASDInputGen.UppASDKeywords["spintorque"]["stt"] == "N"
@@ -1415,8 +1468,6 @@ class ASDInputGen:
         ----------
         Jonathan Chico
         """
-        import collections
-        import yaml
 
         yaml.add_representer(
             collections.OrderedDict,
@@ -1424,33 +1475,33 @@ class ASDInputGen:
                 "tag:yaml.org,2002:map", data.items()
             ),
         )
-        with open("inpsd.yaml", "w") as outfile:
-            yaml.dump(ASDInputGen.UppASDKeywords, outfile, default_flow_style=False)
+        with open("inpsd.yaml", "w", encoding="utf-8") as outfile:
+            yaml.dump(
+                ASDInputGen.UppASDKeywords,
+                outfile,
+                default_flow_style=False)
 
-        inpsd_file = open("inpsd.dat", "w")
+        inpsd_file = open("inpsd.dat", "w", encoding="utf-8")
         for name in ASDInputGen.UppASDKeywords:
             for descriptor in ASDInputGen.UppASDKeywords[name]:
                 current = ASDInputGen.UppASDKeywords[name][descriptor]
                 if isinstance(current, list):
                     if len(descriptor) > 0:
-                        inpsd_file.write("{descriptor}  ".format(**locals()))
-                    for ii in range(len(current)):
-                        line = current[ii]
+                        inpsd_file.write(f"{descriptor}  ")
+                    for ii, line in enumerate(current):
                         if isinstance(line, list):
-                            for jj in range(len(line)):
-                                entry = line[jj]
-                                inpsd_file.write("{entry}  ".format(**locals()))
+                            for jj, entry in enumerate(line):
+                                inpsd_file.write(f"{entry}  ")
                             inpsd_file.write("\n")
                         else:
-                            inpsd_file.write("{line}  ".format(**locals()))
+                            inpsd_file.write(f"{line}  ")
                     inpsd_file.write("\n")
                 elif isinstance(current, tuple):
-                    inpsd_file.write("{descriptor} ".format(**locals()))
-                    for ii in range(len(current)):
-                        entry = current[ii]
-                        inpsd_file.write("{entry}  ".format(**locals()))
+                    inpsd_file.write(f"{descriptor} ")
+                    for ii, entry in enumerate(current):
+                        inpsd_file.write(f"{entry}  ")
                     inpsd_file.write("\n")
                 else:
-                    inpsd_file.write("{descriptor}  {current}\n".format(**locals()))
+                    inpsd_file.write(f"{descriptor}  {current}\n")
             inpsd_file.write("\n")
         return

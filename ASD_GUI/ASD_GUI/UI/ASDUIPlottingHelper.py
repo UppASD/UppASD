@@ -162,7 +162,8 @@ def PlottingWrapper(window):
     ):
         window.plotting_mode = "correlation"
         if window.ASDPlotData.not_read_sqw or window.ASDPlotData.not_read_ams:
-            window.ASDPlotData.PlotReadingWrapper(window.plotfile_names, window)
+            window.ASDPlotData.PlotReadingWrapper(
+                window.plotfile_names, window)
             if window.AMSDispCheckBox.isChecked():
                 window.ams_data_x = window.ASDPlotData.ams_data_x
                 window.ams_data_y = window.ASDPlotData.ams_data_y
@@ -284,9 +285,12 @@ def PlottingWrapper(window):
             curr_data_y = []
             curr_labels = []
             for ii, _ in enumerate(window.MagDirIndx):
-                curr_data_x.append(window.ASDPlotData.mitr_data[window.MagDirIndx[ii]])
-                curr_data_y.append(window.ASDPlotData.mag_data[window.MagDirIndx[ii]])
-                curr_labels.append(window.ASDPlotData.mag_labels[window.MagDirIndx[ii]])
+                curr_data_x.append(
+                    window.ASDPlotData.mitr_data[window.MagDirIndx[ii]])
+                curr_data_y.append(
+                    window.ASDPlotData.mag_data[window.MagDirIndx[ii]])
+                curr_labels.append(
+                    window.ASDPlotData.mag_labels[window.MagDirIndx[ii]])
             if len(window.MagDirIndx) > 0:
                 window.ASDPlots2D.LinePlot(
                     window.Plotting_ax,

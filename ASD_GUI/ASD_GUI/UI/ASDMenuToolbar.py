@@ -52,9 +52,12 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.actionTake_Snapshot = QToolButton()
     window.actionTake_Snapshot.setText("Snapshot")
-    window.actionTake_Snapshot.setToolTip("Take a snapshot of the current image")
-    window.actionTake_Snapshot.setWhatsThis("Take a snapshot of the current image")
-    window.actionTake_Snapshot.setStatusTip("Take a snapshot of the current image")
+    window.actionTake_Snapshot.setToolTip(
+        "Take a snapshot of the current image")
+    window.actionTake_Snapshot.setWhatsThis(
+        "Take a snapshot of the current image")
+    window.actionTake_Snapshot.setStatusTip(
+        "Take a snapshot of the current image")
     # ---------------------------------------------------------------------------
     # Play button to visualize the restartfile
     # ---------------------------------------------------------------------------
@@ -82,15 +85,19 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.actionEnergy = QToolButton()
     window.actionEnergy.setText("Energy")
-    window.actionEnergy.setToolTip("Visualize the site dependent energy from UppASD")
-    window.actionEnergy.setWhatsThis("Visualize the site dependent energy from UppASD")
-    window.actionEnergy.setStatusTip("Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setToolTip(
+        "Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setWhatsThis(
+        "Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setStatusTip(
+        "Visualize the site dependent energy from UppASD")
     # ---------------------------------------------------------------------------
     # Play button to visualize the exchange neighbours
     # ---------------------------------------------------------------------------
     window.actionNeighbours = QToolButton()
     window.actionNeighbours.setText("Neighbours")
-    window.actionNeighbours.setToolTip("Visualize the exchange interaction neighbours")
+    window.actionNeighbours.setToolTip(
+        "Visualize the exchange interaction neighbours")
     window.actionNeighbours.setWhatsThis(
         "Visualize the exchange interaction neighbours"
     )
@@ -103,8 +110,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.actionDM_Neigh = QToolButton()
     window.actionDM_Neigh.setText("DM Neighbours")
     window.actionDM_Neigh.setToolTip("Visualize the DM interaction neighbours")
-    window.actionDM_Neigh.setWhatsThis("Visualize the DM interaction neighbours")
-    window.actionDM_Neigh.setStatusTip("Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setWhatsThis(
+        "Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setStatusTip(
+        "Visualize the DM interaction neighbours")
     # ---------------------------------------------------------------------------
     # Play button to start the rendering of the scene
     # ---------------------------------------------------------------------------
@@ -116,8 +125,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
         window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
     )
     window.PlayButton.setToolTip("Start/Pause the visualization of animations")
-    window.PlayButton.setWhatsThis("Start/Pause the visualization of animations")
-    window.PlayButton.setStatusTip("Start/Pause the visualization of animations")
+    window.PlayButton.setWhatsThis(
+        "Start/Pause the visualization of animations")
+    window.PlayButton.setStatusTip(
+        "Start/Pause the visualization of animations")
     window.PlayButton.clicked.connect(window.Playback_control)
     # ---------------------------------------------------------------------------
     # Play button to stop the rendering of the scene
@@ -169,11 +180,19 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # button to save the parameters of the visualization
     # ---------------------------------------------------------------------------
-    window.actionTake_SaveCFG = QToolButton()
-    window.actionTake_SaveCFG.setText("Save config")
-    window.actionTake_SaveCFG.setToolTip("Save the current configuration")
-    window.actionTake_SaveCFG.setWhatsThis("Save the current configuration")
-    window.actionTake_SaveCFG.setStatusTip("Save the current configuration")
+    window.actionSaveConfig = QToolButton()
+    window.actionSaveConfig.setText("Save config")
+    window.actionSaveConfig.setToolTip("Save the current configuration")
+    window.actionSaveConfig.setWhatsThis("Save the current configuration")
+    window.actionSaveConfig.setStatusTip("Save the current configuration")
+    # ---------------------------------------------------------------------------
+    # button to save the parameters of the visualization
+    # ---------------------------------------------------------------------------
+    window.actionLoadConfig = QToolButton()
+    window.actionLoadConfig.setText("Load config")
+    window.actionLoadConfig.setToolTip("Load a previous configuration")
+    window.actionLoadConfig.setWhatsThis("Load a previous configuration")
+    window.actionLoadConfig.setStatusTip("Load a previous configuration")
     # ---------------------------------------------------------------------------
     # Adding the extra buttons to the toolbar
     # ---------------------------------------------------------------------------
@@ -196,7 +215,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.VTKToolBar.addWidget(window.ProgressBar)
     window.VTKToolBar.addWidget(window.ProgressLabel)
     window.VTKToolBar.addSeparator()
-    window.VTKToolBar.addWidget(window.actionTake_SaveCFG)
+    window.VTKToolBar.addWidget(window.actionSaveConfig)
+    window.VTKToolBar.addWidget(window.actionLoadConfig)
     window.VTKToolBar.addSeparator()
     # ---------------------------------------------------------------------------
     # Adding the actions for the Menu
@@ -257,7 +277,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SpinX.toggled.connect(window.set_projection)
     window.SpinY.toggled.connect(window.set_projection)
     window.SpinZ.toggled.connect(window.set_projection)
-    window.actionDisplayMagDens.toggled.connect(window.MomActors.toggle_density)
+    window.actionDisplayMagDens.toggled.connect(
+        window.MomActors.toggle_density)
     # ---------------------------------------------------------------------------
     # Adding the actions to the atomic spins
     # ---------------------------------------------------------------------------
@@ -296,9 +317,11 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.NeighAtomCheck.toggled.connect(window.UpdateRenderer)
     window.NeighNeighsCheck.toggled.connect(window.ASDVizOpt.toggle_Neigh)
     window.NeighNeighsCheck.toggled.connect(window.UpdateRenderer)
-    window.NeighOpacitySlider.valueChanged.connect(window.ASDVizOpt.NeighOpacityUpdate)
+    window.NeighOpacitySlider.valueChanged.connect(
+        window.ASDVizOpt.NeighOpacityUpdate)
     window.NeighOpacitySlider.valueChanged.connect(window.UpdateRenderer)
-    window.AtomOpacitySlider.valueChanged.connect(window.ASDVizOpt.AtomOpacityUpdate)
+    window.AtomOpacitySlider.valueChanged.connect(
+        window.ASDVizOpt.AtomOpacityUpdate)
     window.AtomOpacitySlider.valueChanged.connect(window.UpdateRenderer)
     window.NeighSelectLineEdit.editingFinished.connect(window.NeighbourControl)
     window.NeighSelectSlider.valueChanged.connect(window.NeighbourControl)
@@ -313,7 +336,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.SetYView.clicked.connect(window.camera_handler)
     window.SetZView.clicked.connect(window.camera_handler)
     window.actionTake_Snapshot.clicked.connect(window.Snapshot)
-    window.actionTake_SaveCFG.clicked.connect(window.SaveSettings)
+    window.actionSaveConfig.clicked.connect(window.SaveSettings)
+    window.actionLoadConfig.clicked.connect(window.LoadSettings)
     window.ParallelProjectBox.toggled.connect(window.camera_handler)
     window.ParallelScaleSlider.valueChanged.connect(window.camera_handler)
     window.ParallelScaleLineEdit.editingFinished.connect(window.camera_handler)
@@ -364,7 +388,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
-    window.RenSpecularPowerSlider.valueChanged.connect(window.RenSpecularPower_control)
+    window.RenSpecularPowerSlider.valueChanged.connect(
+        window.RenSpecularPower_control)
     window.PBREmissionSlider.valueChanged.connect(window.PBREmission_control)
     window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
     window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)

@@ -1,3 +1,19 @@
+"""
+This module provides functions to read and process UppASD simulation data files.
+It includes functions to calculate reciprocal lattices, read atomic positions,
+moments, and important keywords from UppASD input files.
+Additionally, it provides functions to read and process spin Hamiltonian data.
+
+Functions:
+- get_reciprocal_lattice(lattice): Calculate the reciprocal lattice from a given lattice.
+- read_posfile(posfile): Read atomic positions from a UppASD position file.
+- read_momfile(momfile): Read atomic moments from a UppASD moment file.
+- read_inpsd(ifile): Read important keywords from a UppASD input file `inpsd.dat`.
+- get_uppasd_cell(infile): Convert UppASD geometry data to a cell tuple and get symmetry data.
+- read_spin_hamiltonian(hamfile, atoms): Read spin Hamiltonian from UppASD `struct.simid.out` file.
+- read_spin_hamiltonian_arr(hamfile, atoms): Read spin Hamiltonian from UppASD `struct.simid.out`
+    file and store output as arrays.
+"""
 import numpy as np
 import spglib as spg
 
@@ -123,8 +139,9 @@ def get_uppasd_cell(infile):
 
 
 def read_spin_hamiltonian(hamfile, atoms):
-    """Read spin Hamiltonian from UppASD struct.simid.out"""
-    """ - stores output as lists """
+    """Read spin Hamiltonian from UppASD struct.simid.out
+        - stores output as lists
+    """
 
     hamdata = np.genfromtxt(hamfile)
 
@@ -155,8 +172,9 @@ def read_spin_hamiltonian(hamfile, atoms):
 
 
 def read_spin_hamiltonian_arr(hamfile, atoms):
-    """Read spin Hamiltonian from UppASD struct.simid.out"""
-    """ - stores output as arrays """
+    """Read spin Hamiltonian from UppASD struct.simid.out
+        - stores output as arrays
+    """
 
     hamdata = np.genfromtxt(hamfile)
 

@@ -133,7 +133,9 @@ class ASDNeighActors:
         ASDNeighActors.ymid = (ASDNeighActors.ymin + ASDNeighActors.ymax) * 0.5
         ASDNeighActors.zmid = (ASDNeighActors.zmin + ASDNeighActors.zmax) * 0.5
         ASDNeighActors.height = (
-            max(ASDNeighActors.xmax, ASDNeighActors.ymax, ASDNeighActors.zmax) * 1.75
+            max(ASDNeighActors.xmax,
+                ASDNeighActors.ymax,
+                ASDNeighActors.zmax) * 1.75
         )
         self.dist_x = np.absolute(ASDNeighActors.xmax - ASDNeighActors.xmin)
         self.dist_y = np.absolute(ASDNeighActors.ymax - ASDNeighActors.ymin)

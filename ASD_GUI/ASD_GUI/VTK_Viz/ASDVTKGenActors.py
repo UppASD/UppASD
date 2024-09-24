@@ -224,7 +224,8 @@ class ASDGenActors:
         atomSource.Update()
         bound = atomSource.GetModelBounds()
         atomSource.SetModelBounds(
-            bound[0], bound[1], bound[2], bound[3], bound[4] * 0.25, bound[5] * 0.25
+            bound[0], bound[1], bound[2], bound[3], bound[4] *
+            0.25, bound[5] * 0.25
         )
         atomSource.Update()
         # Setting up a contour filter
@@ -277,7 +278,8 @@ class ASDGenActors:
     # Update the clipper actor for each of the possible visualization types
     ##########################################################################
 
-    def UpdateClipper(self, window, current_Actors, ASDVizOpt, renWin, viz_type):
+    def UpdateClipper(self, window, current_Actors,
+                      ASDVizOpt, renWin, viz_type):
         """
         Update the clipping settings based on the sender widget.
 
@@ -297,7 +299,10 @@ class ASDGenActors:
         """
         if window.sender() == window.ClippBox:
             rdir = (1, 0, 0)
-            origin = (current_Actors.xmin, current_Actors.ymid, current_Actors.zmid)
+            origin = (
+                current_Actors.xmin,
+                current_Actors.ymid,
+                current_Actors.zmid)
             vmin = current_Actors.xmin
             vmax = current_Actors.xmax
             if viz_type == "M":
@@ -338,7 +343,10 @@ class ASDGenActors:
         #######################################################################
         if window.sender() == window.ClippPlaneXCheck:
             rdir = (1, 0, 0)
-            origin = (current_Actors.xmin, current_Actors.ymid, current_Actors.zmid)
+            origin = (
+                current_Actors.xmin,
+                current_Actors.ymid,
+                current_Actors.zmid)
             vmin = current_Actors.xmin
             vmax = current_Actors.xmax
             ASDVizOpt.set_clipp_plane(
@@ -349,7 +357,10 @@ class ASDGenActors:
         #######################################################################
         if window.sender() == window.ClippPlaneYCheck:
             rdir = (0, 1, 0)
-            origin = (current_Actors.xmid, current_Actors.ymin, current_Actors.zmid)
+            origin = (
+                current_Actors.xmid,
+                current_Actors.ymin,
+                current_Actors.zmid)
             vmin = current_Actors.ymin
             vmax = current_Actors.ymax
             ASDVizOpt.set_clipp_plane(
@@ -360,7 +371,10 @@ class ASDGenActors:
         #######################################################################
         if window.sender() == window.ClippPlaneZCheck:
             rdir = (0, 0, 1)
-            origin = (current_Actors.xmid, current_Actors.ymid, current_Actors.zmin)
+            origin = (
+                current_Actors.xmid,
+                current_Actors.ymid,
+                current_Actors.zmin)
             vmin = current_Actors.zmin
             vmax = current_Actors.zmax
             ASDVizOpt.set_clipp_plane(
@@ -376,19 +390,22 @@ class ASDGenActors:
                     current_Actors.ymid,
                     current_Actors.zmid,
                 )
-                ASDVizOpt.ClippingUpdate(origin=origin, window=window, renWin=renWin)
+                ASDVizOpt.ClippingUpdate(
+                    origin=origin, window=window, renWin=renWin)
             if window.ClippPlaneYCheck.isChecked():
                 origin = (
                     current_Actors.xmid,
                     window.ClippingPlaneSlider.value(),
                     current_Actors.zmid,
                 )
-                ASDVizOpt.ClippingUpdate(origin=origin, window=window, renWin=renWin)
+                ASDVizOpt.ClippingUpdate(
+                    origin=origin, window=window, renWin=renWin)
             if window.ClippPlaneZCheck.isChecked():
                 origin = (
                     current_Actors.xmid,
                     current_Actors.ymid,
                     window.ClippingPlaneSlider.value(),
                 )
-                ASDVizOpt.ClippingUpdate(origin=origin, window=window, renWin=renWin)
+                ASDVizOpt.ClippingUpdate(
+                    origin=origin, window=window, renWin=renWin)
         return

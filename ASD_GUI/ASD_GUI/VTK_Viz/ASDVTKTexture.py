@@ -41,13 +41,22 @@ class ASDTexture:
         toggle_SkyBox(check, actor, skyboxfile): Toggles the visibility of a skybox.
     """
     # lut = vtkLookupTable()
+
     def __init__(self):
+        self.albedo = False
         self.albedoTex = None
+        self.material = False
         self.materialTex = None
+        self.anisotropy = False
         self.anisotropyTex = None
+        self.normal = False
         self.normalTex = None
+        self.emissive = False
         self.emissiveTex = None
         self.skybox = False
+        self.skyboxfile = None
+        self.hdri = False
+        self.hdrifile = None
 
     def gather_settings(self):
         """
@@ -112,8 +121,11 @@ class ASDTexture:
             albedo.MipmapOn()
 
             actor.Spins.GetProperty().SetBaseColorTexture(albedo)
+            self.albedoTex = texfile
+            self.albedo = True
         else:
             actor.Spins.GetProperty().RemoveTexture("albedoTex")
+            self.albedo = False
 
         return
 
@@ -135,8 +147,11 @@ class ASDTexture:
             material.MipmapOn()
 
             actor.Spins.GetProperty().SetORMTexture(material)
+            self.materialTex = texfile
+            self.material = True
         else:
             actor.Spins.GetProperty().RemoveTexture("materialTex")
+            self.material = False
 
         return
 
@@ -158,9 +173,12 @@ class ASDTexture:
             anisotropy.MipmapOn()
 
             actor.Spins.GetProperty().SetAnisotropyTexture(anisotropy)
+            self.anisotropyTex = texfile
+            self.anisotropy = True
 
         else:
             actor.Spins.GetProperty().RemoveTexture("anisotropyTex")
+            self.anisotropy = False
 
         return
 
@@ -199,10 +217,13 @@ class ASDTexture:
                 False,  # only do it once
             )
             actor.Spins.GetProperty().SetNormalTexture(normal)
+            self.normalTex = texfile
+            self.normal = True
 
         else:
             actor.SpinShader.ClearAllVertexShaderReplacements()
             actor.Spins.GetProperty().RemoveTexture("normalTex")
+            self.normal = False
 
         return
 
@@ -225,9 +246,12 @@ class ASDTexture:
             emissive.MipmapOn()
 
             actor.Spins.GetProperty().SetEmissiveTexture(emissive)
+            self.emissiveTex = texfile
+            self.emissive = True
 
         else:
             actor.Spins.GetProperty().RemoveTexture("emissiveTex")
+            self.emissive = False
 
         return
 
@@ -256,11 +280,14 @@ class ASDTexture:
             ren.UseImageBasedLightingOn()
             ren.UseSphericalHarmonicsOn()
             ren.SetEnvironmentTexture(texture)
+            self.hdrifile = hdrifile
+            self.hdri = True
 
         else:
             ren.UseSphericalHarmonicsOff()
             ren.UseImageBasedLightingOff()
             ren.AutomaticLightCreationOn()
+            self.hdri = False
 
         renWin.Render()
         return
@@ -285,6 +312,7 @@ class ASDTexture:
             actor.SkyBox.SetProjectionToSphere()
             actor.SkyBox.VisibilityOn()
             self.skybox = True
+            self.skyboxfile = skyboxfile
         else:
             actor.SkyBox.VisibilityOff()
             self.skybox = False

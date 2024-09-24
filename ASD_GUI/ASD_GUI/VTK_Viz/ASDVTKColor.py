@@ -196,7 +196,8 @@ class ASDVTKColor:
                 # window.ASDGenActors.scalar_bar.SetLookupTable(
                 #     self.transfer_func
                 # )
-                window.ASDGenActors.clipperMapper.SetLookupTable(self.transfer_func)
+                window.ASDGenActors.clipperMapper.SetLookupTable(
+                    self.transfer_func)
         elif viz_type == "N":
             window.NeighActors.NeighMapper.SetLookupTable(self.lut)
             window.ASDGenActors.scalar_bar.SetLookupTable(self.lut)
@@ -208,8 +209,10 @@ class ASDVTKColor:
                 window.ASDGenActors.clipperMapper.SetLookupTable(self.lut)
             else:
                 window.EneActors.volumeProperty.SetColor(self.transfer_func)
-                window.ASDGenActors.scalar_bar.SetLookupTable(self.transfer_func)
-                window.ASDGenActors.clipperMapper.SetLookupTable(self.transfer_func)
+                window.ASDGenActors.scalar_bar.SetLookupTable(
+                    self.transfer_func)
+                window.ASDGenActors.clipperMapper.SetLookupTable(
+                    self.transfer_func)
         # -----------------------------------------------------------------------
         # Render the scene
         # -----------------------------------------------------------------------
@@ -301,8 +304,10 @@ class ASDVTKColor:
                 self.transfer_func.AddRGBPoint(0.75, 0.40000, 0.76078, 0.64706)
                 self.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
             else:
-                self.transfer_func.AddRGBPoint(-1.00, 0.61961, 0.00392, 0.25882)
-                self.transfer_func.AddRGBPoint(-0.50, 0.95686, 0.42745, 0.26275)
+                self.transfer_func.AddRGBPoint(-1.00,
+                                               0.61961, 0.00392, 0.25882)
+                self.transfer_func.AddRGBPoint(-0.50,
+                                               0.95686, 0.42745, 0.26275)
                 self.transfer_func.AddRGBPoint(0.00, 1.00000, 1.00000, 0.74902)
                 self.transfer_func.AddRGBPoint(0.50, 0.40000, 0.76078, 0.64706)
                 self.transfer_func.AddRGBPoint(1.00, 0.36863, 0.30980, 0.63529)
@@ -319,7 +324,8 @@ class ASDVTKColor:
         # Construct the lut with the selected colomap
         # -----------------------------------------------------------------------
         for ii, ss in enumerate(
-            [float(xx) / float(self.num_colors) for xx in range(self.num_colors)]
+            [float(xx) / float(self.num_colors)
+             for xx in range(self.num_colors)]
         ):
             cc = self.transfer_func.GetColor(ss)
             self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
@@ -364,7 +370,8 @@ class ASDVTKColor:
             self.transfer_func.AddRGBPoint(1.0, red, green, blue)
 
         for ii, ss in enumerate(
-            [float(xx) / float(self.num_colors) for xx in range(self.num_colors)]
+            [float(xx) / float(self.num_colors)
+             for xx in range(self.num_colors)]
         ):
             cc = self.transfer_func.GetColor(ss)
             self.lut.SetTableValue(ii, cc[0], cc[1], cc[2], 1.0)
@@ -467,29 +474,36 @@ class ASDVTKColor:
         elif mapnum == 9:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.CITRUS)
         elif mapnum == 10:  # BREWER_DIVERGING_PURPLE_ORANGE_11
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
         elif mapnum == 11:  # Citrus
             colorSeries.SetColorScheme(
                 vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11
             )
         elif mapnum == 12:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
         elif mapnum == 13:  # Citrus
             colorSeries.SetColorScheme(
                 vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9
             )
         elif mapnum == 14:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
         elif mapnum == 15:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
         elif mapnum == 16:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
         elif mapnum == 17:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_DARK2)
         elif mapnum == 18:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
         elif mapnum == 19:  # Citrus
-            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
+            colorSeries.SetColorScheme(
+                vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
         elif mapnum == 20:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET1)
         elif mapnum == 21:  # Citrus

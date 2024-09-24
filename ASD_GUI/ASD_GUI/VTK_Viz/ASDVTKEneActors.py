@@ -246,7 +246,8 @@ class ASDEneActors:
             ASDEneActors.volumeProperty.SetAmbient(0.6)
             ASDEneActors.volumeProperty.SetDiffuse(0.6)
             ASDEneActors.volumeProperty.SetSpecular(0.1)
-            ASDEneActors.volumeProperty.SetGradientOpacity(volumeGradientOpacity)
+            ASDEneActors.volumeProperty.SetGradientOpacity(
+                volumeGradientOpacity)
             # Volume actor, this works in a different way than LOD actors
             ASDEneActors.EneDensActor = vtk.vtkVolume()
             ASDEneActors.EneDensActor.SetMapper(ASDEneActors.EneDensMap)
@@ -262,7 +263,8 @@ class ASDEneActors:
         # Set the mapper for the energies
         # -----------------------------------------------------------------------
         ASDEneActors.EneMapper = vtk.vtkGlyph3DMapper()
-        ASDEneActors.EneMapper.SetSourceConnection(ASDEneActors.EneAtom.GetOutputPort())
+        ASDEneActors.EneMapper.SetSourceConnection(
+            ASDEneActors.EneAtom.GetOutputPort())
         ASDEneActors.EneMapper.SetInputData(ASDEneActors.src)
         ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.scalar_range)
         ASDEneActors.EneMapper.SetScaleFactor(1.00)
@@ -353,7 +355,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the exchange energy is clicked update it
         # -----------------------------------------------------------------------
@@ -364,7 +367,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the DMI energy is clicked update it
         # -----------------------------------------------------------------------
@@ -388,7 +392,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the biquadratic energy is clicked update it
         # -----------------------------------------------------------------------
@@ -399,7 +404,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the biquadratic DMI energy is clicked update it
         # -----------------------------------------------------------------------
@@ -410,7 +416,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the pseudodipolar energy is clicked update it
         # -----------------------------------------------------------------------
@@ -421,7 +428,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the Zeeman energy is clicked update it
         # -----------------------------------------------------------------------
@@ -432,7 +440,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the dipolar energy is clicked update it
         # -----------------------------------------------------------------------
@@ -443,7 +452,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # If the CHIR  energy is clicked update it
         # -----------------------------------------------------------------------
@@ -454,7 +464,8 @@ class ASDEneActors:
                     ASDEneActors.src.GetScalarRange()
                 )
             if window.EneSiteGlyphs.isChecked():
-                ASDEneActors.EneMapper.SetScalarRange(ASDEneActors.src.GetScalarRange())
+                ASDEneActors.EneMapper.SetScalarRange(
+                    ASDEneActors.src.GetScalarRange())
         # -----------------------------------------------------------------------
         # Update the UI
         # -----------------------------------------------------------------------

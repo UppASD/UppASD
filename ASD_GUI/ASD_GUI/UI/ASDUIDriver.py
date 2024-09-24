@@ -670,7 +670,8 @@ class UppASDVizMainWindow(QMainWindow):
         Adjusts the width parameter for the ASD correlation plots and updates the UI.
         """
         self.ASDCorrelationPlots.sigma_w = self.ASDCorrelationPlots.w_min * value
-        self.ABCorrWidthTX.setText(f"{self.ASDCorrelationPlots.w_min*value:.3f}")
+        self.ABCorrWidthTX.setText(
+            f"{self.ASDCorrelationPlots.w_min*value:.3f}")
         self.PlottingWrapper()
 
     ##########################################################################
@@ -855,7 +856,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the focus state in the visualization options.
         """
-        self.ASDVizOpt.toggle_Focus(check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_Focus(
+            check=check, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # @brief Toggle focal disk
@@ -865,7 +867,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the focal disk setting in the ASD visualization.
         """
-        self.ASDVizOpt.setFocalDisk(value=value, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.setFocalDisk(
+            value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # @brief Toggle depth of field focus
@@ -991,71 +994,91 @@ class UppASDVizMainWindow(QMainWindow):
         Sets the energy projection based on the sender button's state.
         """
         if self.sender() == self.TotEneButton and self.TotEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[0])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[0])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.ExcEneButton and self.ExcEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[1])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[1])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.DMEneButton and self.DMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[2])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[2])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.AniEneButton and self.AniEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[3])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[3])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BqEneButton and self.BqEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[4])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[4])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BqDMEneButton and self.BqDMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[5])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[5])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.PdEneButton and self.PdEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[6])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[6])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BextEneButton and self.BextEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[7])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[7])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.DipEneButton and self.DipEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[8])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[8])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.ChirEneButton and self.ChirEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[9])
-            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(
+                self.ASDdata.energies[9])
+            self.EneActors.EneMapper.SetScalarRange(
+                self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
@@ -1224,6 +1247,23 @@ class UppASDVizMainWindow(QMainWindow):
         return
 
     ##########################################################################
+    # Function that loads a previous configuration
+    ##########################################################################
+    def LoadSettings(self):
+        """
+        Loads a set of previous UI settings to both JSON and YAML files.
+
+        Gathers settings from the UI, then writes them to "ASDUIConfig.json" and "ASDUIConfig.yaml".
+        """
+        print("Loading settings")
+        #self.UISettings.read_from_json("ASDUIConfig.json")
+        self.UISettings.read_from_yaml("ASDUIConfig.yaml")
+        self.UISettings.restore_from_settings(self)
+        self.renWin.Render()
+
+        return
+
+    ##########################################################################
     # Function that saves the current configuration
     ##########################################################################
     def SaveSettings(self):
@@ -1260,7 +1300,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the FXAA (Fast Approximate Anti-Aliasing) setting.
         """
-        self.ASDVizOpt.toggle_FXAA(check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_FXAA(
+            check=check, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling surface texture
@@ -1479,7 +1520,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBR emission update with the given value.
         """
-        self.MomActors.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBREmissionUpdate(
+            value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Occlusion value
@@ -1488,7 +1530,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBROcclusion update with the given value.
         """
-        self.MomActors.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBROcclusionUpdate(
+            value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Roughness value
@@ -1784,12 +1827,14 @@ class UppASDVizMainWindow(QMainWindow):
         # Error message
         Files = ["inpsd.dat", "posfile", "momfile"]
         MissingFiles = ", ".join(
-            [file for index, file in enumerate(Files) if not InputChecklist[index]]
+            [file for index, file in enumerate(
+                Files) if not InputChecklist[index]]
         )
 
         if not Check:
             self.InteractiveErrorWindow = ASDInputWindows.ErrorWindow()
-            self.InteractiveErrorWindow.FunMsg.setText("Task failed successfully!")
+            self.InteractiveErrorWindow.FunMsg.setText(
+                "Task failed successfully!")
             self.InteractiveErrorWindow.ErrorMsg.setText(
                 f"Could not launch interactive simulation. Missing input files: {MissingFiles}"
             )

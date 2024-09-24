@@ -1,23 +1,32 @@
-""" Create neighbour lists. Currently not stored"""
+""" Create neighbour lists. Currently not stored
 
-""" - Input: """
-"""      inpsd.dat   : UppASD input file """
-"""      posfile     : The posfile as defined in `inpsd.dat` """
-"""      momfile     : The momfile as defined in `inpsd.dat` """
-"""      cutoff      : Range for which to extract neighbours """
-""" - Output: """
-"""      nnvec_list  : list of neighbouring vectors """
-"""      nntype_list : list of neighbour types """
-"""      clust_list  : list of which vectors belong to which symmetry cluster (shell)"""
+ - Input:
+      inpsd.dat   : UppASD input file
+      posfile     : The posfile as defined in `inpsd.dat`
+      momfile     : The momfile as defined in `inpsd.dat`
+      cutoff      : Range for which to extract neighbours
+ - Output:
+      nnvec_list  : list of neighbouring vectors
+      nntype_list : list of neighbour types
+      clust_list  : list of which vectors belong to which symmetry cluster (shell)
+"""
 
 # from structure import get_full_nnlist, sym_identify_clusters
 
 
 import numpy as np
+import spglib as spg
+from ASD_GUI.Extras.nn_list_maker.read_uppasd import get_uppasd_cell
 
 
 def create_neighbour_list():
-    from read_uppasd import get_uppasd_cell
+    # from read_uppasd import get_uppasd_cell
+    """
+    Creates a neighbor list by reading the 'inpsd.dat' file.
+
+    Returns:
+        tuple: A tuple containing the cell and symmetry data.
+    """
 
     fname = "./inpsd.dat"
 
@@ -38,7 +47,15 @@ def get_symmetry_ops_from_dataset(sym_data):
 
 
 def get_symmetry_data_from_structure(cell):
-    import spglib as spg
+    """
+    Extract symmetry data from a given cell structure using spglib.
+
+    Args:
+        cell (tuple): A tuple containing lattice vectors, atomic positions, and atomic numbers.
+
+    Returns:
+        dict: A dictionary containing symmetry dataset with augmented rotations and translations.
+    """
 
     # Create spglib dataset from original cell (using primitive_matrix which
     # is in units of a_lat)

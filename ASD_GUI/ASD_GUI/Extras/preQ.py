@@ -1,4 +1,4 @@
-# preQ.py
+""" preQ.py
 # Automagically creates a standardized path in reciprocal space from your `inpsd.dat`
 # Also constructs the reduced q-mesh with proper symmetries for all your magnon DOS needs..
 # (C) Anders Bergman, Uppsala University 2019
@@ -15,15 +15,17 @@
 
 # All important functionalities are provided by `spglib` and `seekpath`.
 # References:
-# 𝚂𝚙𝚐𝚕𝚒𝚋: a software library for crystal symmetry search”, Atsushi Togo and Isao Tanaka, https://arxiv.org/abs/1808.01590 (written at version 1.10.4)
-# SeeKpath: Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka, Band structure diagram paths based on crystallography, Comp. Mat. Sci. 128, 140 (2017)
+# 𝚂𝚙𝚐𝚕𝚒𝚋: a software library for crystal symmetry search”, Atsushi Togo and Isao Tanaka,
+#   https://arxiv.org/abs/1808.01590 (written at version 1.10.4)
+# SeeKpath: Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka,
+#   Band structure diagram paths based on crystallography, Comp. Mat. Sci. 128, 140 (2017)
 # UppASD: a simulation tool for atomistic spin dynamics and Monte Carlo
 # simulations of Heisenberg spin systems. https://github.com/UppASD
+"""
 
-
-#!pip install spglib
-#!pip install tabulate
-#!pip install seekpath
+# !pip install spglib
+# !pip install tabulate
+# !pip install seekpath
 import numpy as np
 import spglib as spg
 from tabulate import tabulate
@@ -37,6 +39,15 @@ import seekpath as spth
 
 
 def get_reciprocal_lattice(lattice):
+    """
+    Calculate the reciprocal lattice vectors from the given lattice vectors.
+
+    Args:
+        lattice (np.ndarray): 3x3 array of lattice vectors.
+
+    Returns:
+        np.ndarray: 3x3 array of reciprocal lattice vectors.
+    """
     a1 = lattice[0, :]
     a2 = lattice[1, :]
     a3 = lattice[2, :]
@@ -45,20 +56,31 @@ def get_reciprocal_lattice(lattice):
     k1 = np.cross(a2, a3) / vol
     k2 = np.cross(a3, a1) / vol
     k3 = np.cross(a1, a2) / vol
-    K = 2.0 * np.pi * np.asarray([k1, k2, k3]).reshape(3, 3)
+    inv_latt = 2.0 * np.pi * np.asarray([k1, k2, k3]).reshape(3, 3)
 
-    return K
+    return inv_latt
 
 
 ############################################################
 # Read atom positions from UppASD position file
 ############################################################
 def read_posfile(posfile):
-    with open(posfile, "r") as pfile:
+    """
+    Reads a position file and extracts positions and numbers.
+
+    Args:
+        posfile (str): Path to the position file.
+
+    Returns:
+        tuple: A tuple containing:
+            - positions (np.ndarray): Array of positions.
+            - numbers (np.ndarray): Array of numbers.
+    """
+    with open(posfile, "r", encoding="utf-8") as pfile:
         lines = pfile.readlines()
         positions = np.empty([0, 3])
         numbers = []
-        for idx, line in enumerate(lines):
+        for _, line in enumerate(lines):
             line_data = line.rstrip("\n").split()
             if len(line_data) > 0:
                 positions = np.vstack(
@@ -72,8 +94,17 @@ def read_posfile(posfile):
 # Read important keywords from UppASD inputfile `inpsd.dat`
 ############################################################
 def read_inpsd(ifile):
+    """
+    Reads input file and extracts simulation data.
+
+    Args:
+        ifile (str): Path to the input file.
+
+    Returns:
+        tuple: Contains lattice, positions, numbers, simid, mesh, posfiletype.
+    """
     posfiletype = "C"
-    with open(ifile, "r") as infile:
+    with open(ifile, "r", encoding="utf-8") as infile:
         lines = infile.readlines()
         for idx, line in enumerate(lines):
             line_data = line.rstrip("\n").split()
@@ -116,6 +147,18 @@ def read_inpsd(ifile):
 
 
 def Run(cell, simid, mesh, posfiletype):
+    """
+    Run the simulation with the given cell, simulation ID, mesh, and position file type.
+
+    Args:
+        cell (tuple): Tuple containing lattice, positions, and atomic numbers.
+        simid (str): Simulation identifier.
+        mesh (list): Mesh dimensions for k-point sampling.
+        posfiletype (str): Type of position file ("C" for Cartesian, otherwise direct).
+
+    Returns:
+        None
+    """
     ############################################################
     # Open and read input files
     ############################################################
@@ -150,7 +193,7 @@ def Run(cell, simid, mesh, posfiletype):
     # Get symmetry points from seekpath
     ############################################################
     kpath_obj = spth.get_path(cell)
-    BZ = np.asarray(kpath_obj["reciprocal_primitive_lattice"])
+    # BZ = np.asarray(kpath_obj["reciprocal_primitive_lattice"])
     sympoints = kpath_obj["point_coords"]
     print("\nPrimitive lattice:")
     plattice = np.asarray(kpath_obj["primitive_lattice"])
@@ -158,7 +201,7 @@ def Run(cell, simid, mesh, posfiletype):
 
     dictlist = []
     for key, value in sympoints.items():
-        str1 = " ".join("{: 4.4f}".format(e) for e in value)
+        str1 = " ".join(f"{e: 4.4f}" for e in value)
         temp = [key, str1]
         dictlist.append(temp)
 
@@ -172,7 +215,7 @@ def Run(cell, simid, mesh, posfiletype):
     # print(kpath_obj['path'])
     klist = list(sum(kpath_obj["path"], ()))
     kpath = [" -> ".join(x) for x in zip(klist[0::2], klist[1::2])]
-    kstr = ", ".join("{}".format(e) for e in kpath)
+    kstr = ", ".join(f"{e}" for e in kpath)
     print(kstr, "\n")
 
     # First get the symmetry points within the path
@@ -180,7 +223,7 @@ def Run(cell, simid, mesh, posfiletype):
     mypath = mypath["explicit_kpoints_rel"]
 
     # Then interpolate to get a path commensurate with the UppASD geometry
-    nintp = mesh[0]
+    # nintp = mesh[0]
     lpath = []
     # xpath=[] #mypath[0,:]
     xpath = mypath[0, :]
@@ -216,23 +259,23 @@ def Run(cell, simid, mesh, posfiletype):
 
     # Save q-point mesh to file
     nq = xpath.shape[0]
-    with open("qfile.kpath", "w") as qf:
+    with open("qfile.kpath", "w", encoding="utf-8") as qf:
         print("         ", nq, file=qf)
         for i, gp in enumerate(xpath):
             print(
-                "%s     %s" % (" ".join(format(f, "10.8f") for f in gp), lpath[i]),
+                f"{' '.join(format(f, '10.8f') for f in gp)}     {lpath[i]}",
                 file=qf,
             )
 
     # Save q-point mesh to file
     xpath2d = xpath[xpath[:, 2] == 0]
     nq = xpath2d.shape[0]
-    with open("qfile.kpath2d", "w") as qf:
+    with open("qfile.kpath2d", "w", encoding="utf-8") as qf:
         print("         ", nq, file=qf)
         for i, gp in enumerate(xpath):
             if gp[2] == 0:
                 print(
-                    "%s     %s" % (" ".join(format(f, "10.8f") for f in gp), lpath[i]),
+                    f"{' '.join(format(f, '10.8f') for f in gp)}     {lpath[i]}",
                     file=qf,
                 )
 
@@ -283,12 +326,11 @@ def Run(cell, simid, mesh, posfiletype):
     )
 
     # Save q-point mesh to file
-    with open("qfile.reduced", "w") as qf:
+    with open("qfile.reduced", "w", encoding="utf-8") as qf:
         print("         ", irk_idx.size, file=qf)
-        for i, (ir_gp_id, gp) in enumerate(zip(irk_idx, grid[irk_idx])):
+        for i, (_, gp) in enumerate(zip(irk_idx, grid[irk_idx])):
             print(
-                "%s     %10.4f"
-                % (" ".join(format(f, "10.8f") for f in gp / mesh), mult[i]),
+                f"{' '.join(format(f, '10.8f') for f in gp / mesh)}     {mult[i]:10.4f}",
                 file=qf,
             )
 

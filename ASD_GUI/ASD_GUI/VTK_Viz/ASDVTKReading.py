@@ -160,20 +160,23 @@ class ASDReading:
             # Find the restartfile
             # ------------------------------------------------------------------------
             if len(ASDReading.magnetization) > 0:
-                ASDReading.MagFile = open(ASDReading.magnetization, encoding="utf-8")
+                ASDReading.MagFile = open(
+                    ASDReading.magnetization, encoding="utf-8")
             else:
                 print(
                     "No file name selected from menu. Trying to find a 'localenergy.*.out' file"
                 )
                 ASDReading.MagFiles = glob.glob("restart.*.out")
                 if len(ASDReading.MagFiles) > 0:
-                    ASDReading.MagFile = open(ASDReading.MagFiles[0], encoding="utf-8")
+                    ASDReading.MagFile = open(
+                        ASDReading.MagFiles[0], encoding="utf-8")
                     window.Res_InfoWindow = ASDInputWindows.InfoWindow()
                     window.Res_InfoWindow.FunMsg.setText(
                         "Information: no magnetic configuration given"
                     )
                     window.Res_InfoWindow.InfoMsg.setText(
-                        "File " + str(ASDReading.MagFiles[0]) + " chosen as default."
+                        "File " +
+                        str(ASDReading.MagFiles[0]) + " chosen as default."
                     )
                     window.Res_InfoWindow.show()
                 else:
@@ -455,7 +458,8 @@ class ASDReading:
         elif viz_type == "E" and ASDReading.not_read_ene and not ASDReading.error_trap:
             # Read the data for the energy
             (ASDReading.energies, ASDReading.number_time_steps, ASDReading.time_sep) = (
-                self.readEnergyData(ASDReading.eneFile, 0, ASDReading.nrAtoms, 1)
+                self.readEnergyData(
+                    ASDReading.eneFile, 0, ASDReading.nrAtoms, 1)
             )
             ASDReading.not_read_ene = False
         # -----------------------------------------------------------------------
@@ -524,7 +528,8 @@ class ASDReading:
         # -----------------------------------------------------------------------
         # Pass the numpy type arrays to vtk objects
         # -----------------------------------------------------------------------
-        points.SetData(numpy_support.numpy_to_vtk(coord[0: ASDReading.nrAtoms]))
+        points.SetData(numpy_support.numpy_to_vtk(
+            coord[0: ASDReading.nrAtoms]))
         # -----------------------------------------------------------------------
         # Data to check if one should consider the data to be rendered in 2D or 3D
         # -----------------------------------------------------------------------
@@ -625,7 +630,8 @@ class ASDReading:
         # Pass the numpy type data to vtk data
         # -----------------------------------------------------------------------
         for ii in range(0, ASDReading.nrAtoms_clus):
-            points_clus.InsertPoint(ii, coord[ii, 0], coord[ii, 1], coord[ii, 2])
+            points_clus.InsertPoint(
+                ii, coord[ii, 0], coord[ii, 1], coord[ii, 2])
             colors_clus.InsertTuple3(ii, 0, 0, 0)
             for jj in range(0, len(ind_type[0])):
                 # ---------------------------------------------------------------
@@ -721,10 +727,12 @@ class ASDReading:
             if type_fmt == "new":
                 # ASDReading.full_mom=pd.read_csv(file_mom,header=None,               \
                 # delim_whitespace=True,skiprows=7,usecols=[4,5,6]).values
-                ASDReading.full_mom = np.genfromtxt(fname=file_mom, usecols=[4, 5, 6])
+                ASDReading.full_mom = np.genfromtxt(
+                    fname=file_mom, usecols=[4, 5, 6])
                 file_mom.seek(0)
                 # Find how many different "times" there are
-                ASDReading.number_time_steps = len(ASDReading.full_mom) / nrAtoms
+                ASDReading.number_time_steps = len(
+                    ASDReading.full_mom) / nrAtoms
                 # --------------------------------------------------------------------
                 # If there are more than one time step
                 # --------------------------------------------------------------------
@@ -740,7 +748,8 @@ class ASDReading:
                     if len(ASDReading.time_sep) == 1:
                         # Read the ensembles
                         file_mom.seek(0)
-                        ASDReading.time_sep = np.genfromtxt(file_mom, usecols=[1])
+                        ASDReading.time_sep = np.genfromtxt(
+                            file_mom, usecols=[1])
                         # ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
                         # skiprows=7,delim_whitespace=True,usecols=[1]).values
                         # Find how many different ensembles there are
@@ -763,10 +772,12 @@ class ASDReading:
                     # delim_whitespace=True,usecols=[3,4,5]).values
                     file_mom.seek(0)
                     # Find how many different "times" there are
-                    ASDReading.number_time_steps = len(ASDReading.full_mom) / nrAtoms
+                    ASDReading.number_time_steps = len(
+                        ASDReading.full_mom) / nrAtoms
                     if ASDReading.number_time_steps > 1:
                         # Read the ensembles
-                        ASDReading.time_sep = np.genfromtxt(file_mom, usecols=[0])
+                        ASDReading.time_sep = np.genfromtxt(
+                            file_mom, usecols=[0])
                         # ASDReading.time_sep=pd.read_csv(file_mom,header=None,       \
                         # delim_whitespace=True,usecols=[0]).values
                         # Find how many different ensembles there are
@@ -783,7 +794,8 @@ class ASDReading:
                     ).values
                     file_mom.seek(0)
                     # Find how many different "times" there are
-                    ASDReading.number_time_steps = len(ASDReading.full_mom) / nrAtoms
+                    ASDReading.number_time_steps = len(
+                        ASDReading.full_mom) / nrAtoms
                     if ASDReading.number_time_steps > 1:
                         # Read the times
                         ASDReading.time_sep = pd.read_csv(
@@ -850,7 +862,7 @@ class ASDReading:
         """
         try:
             file_data = open(filename, encoding="utf-8")
-        except:
+        except BaseException:
             file_data = filename
         line = file_data.readline()
         data = str.split(line)
@@ -949,16 +961,26 @@ class ASDReading:
             # -------------------------------------------------------------------
             # Pass the data from the numpy arrays to vtk data structures
             # -------------------------------------------------------------------
-            ene_tot.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 1])
-            ene_xc.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 2])
-            ene_ani.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 3])
-            ene_dm.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 4])
-            ene_pd.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 5])
-            ene_bqdm.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 6])
-            ene_bq.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 7])
-            ene_dip.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 8])
-            ene_bext.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 9])
-            ene_chir.InsertValue(ii, ASDReading.full_ene[time * (nrAtoms) + ii, 10])
+            ene_tot.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 1])
+            ene_xc.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 2])
+            ene_ani.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 3])
+            ene_dm.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 4])
+            ene_pd.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 5])
+            ene_bqdm.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 6])
+            ene_bq.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 7])
+            ene_dip.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 8])
+            ene_bext.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 9])
+            ene_chir.InsertValue(
+                ii, ASDReading.full_ene[time * (nrAtoms) + ii, 10])
         # -----------------------------------------------------------------------
         # Pass the energies to an array
         # -----------------------------------------------------------------------
@@ -1156,7 +1178,8 @@ class ASDReading:
         # Find the number of neighbours
         nNeighs = len(ind[0])
         # Find the number of types
-        (types, types_counters) = np.unique(neigh_types[ind[0]], return_counts=True)
+        (types, types_counters) = np.unique(
+            neigh_types[ind[0]], return_counts=True)
         num_types = len(types)
         # Find the positions of the current atom
         (x, y, z) = coords.GetPoint(iAtom)
@@ -1242,7 +1265,8 @@ class ASDReading:
         ind_non_zero = np.where(DM_strength[ind[0]] > tol)
         nNeighs = len(ind[0][ind_non_zero[0]])
         # Find the number of types
-        (types, types_counters) = np.unique(neigh_types[ind[0]], return_counts=True)
+        (types, types_counters) = np.unique(
+            neigh_types[ind[0]], return_counts=True)
         num_types = len(types)
         # Find the positions of the current atom
         (x, y, z) = coords.GetPoint(iAtom)
@@ -1260,8 +1284,10 @@ class ASDReading:
             cNeigh = int(neighbours[ind[0][ind_non_zero[0]][iNeigh]] - 1)
             (xx, yy, zz) = coords.GetPoint(cNeigh)
             neighpoints.InsertPoint(iNeigh, xx, yy, zz)
-            ntypes.InsertValue(iNeigh, neigh_types[ind[0][ind_non_zero[0]][iNeigh]])
-            colors.InsertValue(iNeigh, DM_strength[ind[0][ind_non_zero[0]][iNeigh]])
+            ntypes.InsertValue(iNeigh,
+                               neigh_types[ind[0][ind_non_zero[0]][iNeigh]])
+            colors.InsertValue(iNeigh,
+                               DM_strength[ind[0][ind_non_zero[0]][iNeigh]])
             DM_vectors.InsertTuple3(
                 iNeigh,
                 DM_vec[ind[0][ind_non_zero[0]][iNeigh], 0]

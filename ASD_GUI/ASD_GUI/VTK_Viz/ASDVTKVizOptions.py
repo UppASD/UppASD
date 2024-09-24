@@ -30,6 +30,7 @@ class ASDVizOptions:
     ASDVizOptions class provides various methods to control visualization options in the ASD_GUI.
     """
     # lut = vtkLookupTable()
+
     def __init__(self):
         self.GenActors = ASDVTKGenActors.ASDGenActors()
         self.EneActors = ASDVTKEneActors.ASDEneActors()
@@ -63,7 +64,8 @@ class ASDVizOptions:
         Window.CamRollLineEdit.setText(str(current_Actors.camera_roll))
         Window.CamPitchLineEdit.setText(str(current_Actors.camera_pitch))
         Window.CamAzimuthLineEdit.setText(str(current_Actors.camera_azimuth))
-        Window.CamElevationLineEdit.setText(str(current_Actors.camera_elevation))
+        Window.CamElevationLineEdit.setText(
+            str(current_Actors.camera_elevation))
         return
 
     ##########################################################################
