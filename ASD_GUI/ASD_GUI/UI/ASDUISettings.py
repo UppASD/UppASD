@@ -287,9 +287,9 @@ class ASDUISettings:
         viz_settings = self.settings["ASDVizOptions"]
         window.ASDVizOpt.toggle_SSAO(viz_settings["ssao"], window.ren)
         window.ASDVizOpt.toggle_FXAA(viz_settings["fxxa"], window.ren, window.renWin)
-        # window.ASDVizOpt.toggle_Axes(viz_settings["axes"])
-        # window.ASDVizOpt.toggle_ScalarBar(viz_settings["colorbar"])
-        # window.ASDVizOpt.toggle_time_label(viz_settings["time_label"])
+        window.ASDVizOpt.toggle_Axes(window, viz_settings["axes"])
+        window.ASDVizOpt.toggle_ScalarBar(window, viz_settings["colorbar"])
+        window.ASDVizOpt.toggle_time_label(window, viz_settings["time_label"])
         if viz_settings["focal_blur"]:
             window.ASDVizOpt.toggle_autoFocus(viz_settings["auto_focus"], window.renWin)
             window.ASDVizOpt.toggle_focal_disc(
