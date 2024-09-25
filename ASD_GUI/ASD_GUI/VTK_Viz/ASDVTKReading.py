@@ -42,6 +42,7 @@ from ASD_GUI.UI import ASDInputWindows
 # @author Jonathan Chico
 ##########################################################################
 class ASDReading:
+    """Class for reading the data from ASD files"""
     ##########################################################################
     # @brief Constructor for the ASDReading class.
     # @details Constructor for the ASDReading class. It contains a set of definitions
@@ -54,9 +55,9 @@ class ASDReading:
         ASDReading.kmcfiles = []
         ASDReading.enefiles = []
         ASDReading.full_coord = []
-        ASDReading.full_mom = []
-        ASDReading.full_ene = []
-        ASDReading.full_KMC = []
+        ASDReading.full_mom = np.empty([0, 0])
+        ASDReading.full_ene = np.empty([0, 0])
+        ASDReading.full_KMC = np.empty([0, 0])
         ASDReading.structfiles = []
         ASDReading.dmdatafiles = []
         ASDReading.magnetization = []
@@ -175,8 +176,8 @@ class ASDReading:
                         "Information: no magnetic configuration given"
                     )
                     window.Res_InfoWindow.InfoMsg.setText(
-                        "File " +
-                        str(ASDReading.MagFiles[0]) + " chosen as default."
+                        "File "
+                        + str(ASDReading.MagFiles[0]) + " chosen as default."
                     )
                     window.Res_InfoWindow.show()
                 else:
@@ -285,6 +286,7 @@ class ASDReading:
             print(
                 "No file name selected from menu. Trying to find a 'coord.*.out' file"
             )
+            atomsFile = None
             ASDReading.posfiles = glob.glob("coord.*.out")
             if len(ASDReading.posfiles) > 0:
                 ASDReading.posfiles = ASDReading.posfiles[0]
@@ -810,8 +812,8 @@ class ASDReading:
         # ----------------------------------------------------------------------------
         # Find the boundaries
         # ----------------------------------------------------------------------------
-        t_off = np.int32(time * nrAtoms)
-        nrAtoms = np.int32(nrAtoms)
+        t_off = int(time * nrAtoms)
+        nrAtoms = int(nrAtoms)
         min_x = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 0])
         min_y = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 1])
         min_z = min(ASDReading.full_mom[t_off: t_off + nrAtoms, 2])

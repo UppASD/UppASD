@@ -12,15 +12,46 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 import glob
 import yaml
 import numpy as np
 import pandas as pd
 from PyQt6 import QtWidgets
+from ASD_GUI.UI import ASDInputWindows
 
 
 class ReadPlotData:
+    """
+    Class for reading and managing plot data files for ASD simulations.
+
+    Attributes:
+        sc_step (int): Sampling step for S(q, w) calculations.
+        timestep (float): Time step in nanoseconds.
+        h_mev (float): Planck constant in meV.
+        amsfile (list): List of AMS file names.
+        sqwfile (list): List of S(q, w) file names.
+        yamlfile (list): List of YAML file names.
+        averages (list): List of averages file names.
+        totenergy (list): List of total energy file names.
+        trajectory (list): List of trajectory file names.
+        not_read_sqw (bool): Flag indicating if S(q, w) file is not read.
+        not_read_ams (bool): Flag indicating if AMS file is not read.
+        not_read_yaml (bool): Flag indicating if YAML file is not read.
+        not_read_averages (bool): Flag indicating if averages file is not read.
+        not_read_totenergy (bool): Flag indicating if total energy file is not read.
+        not_read_trajectory (bool): Flag indicating if trajectory file is not read.
+        ams_file_present (bool): Flag indicating if AMS file is present.
+        sqw_file_present (bool): Flag indicating if S(q, w) file is present.
+        ave_file_present (bool): Flag indicating if averages file is present.
+        ene_file_present (bool): Flag indicating if total energy file is present.
+        yaml_file_present (bool): Flag indicating if YAML file is present.
+        trajectory_file_present (bool): Flag indicating if trajectory file is present.
+        qfile (list): List of q-file names.
+        q_labels (list): List of q-file labels.
+        q_idx (list): List of q-file indices.
+    """
     ##########################################################################
     # @brief Class constructor
     # @details Class constructor for the reading of the plotting data. Contains
@@ -29,6 +60,10 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def __init__(self):
+        """
+        Initializes the ReadPlotData class with default values for attributes
+        related to plot data reading.
+        """
         ReadPlotData.sc_step = 1
         ReadPlotData.timestep = 1
         ReadPlotData.h_mev = 4.135667662e-12
@@ -62,6 +97,10 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def getFileName(self, window):
+        """
+        Opens a file dialog to select a file and updates the corresponding attribute
+        in ReadPlotData based on the sender.
+        """
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
@@ -99,7 +138,10 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def PlotReadingWrapper(self, file_names, window):
-        from ASD_GUI.UI import ASDInputWindows
+        """
+        Handles reading and plotting data from various files based on
+        user input and file availability.
+        """
 
         ReadPlotData.yamlfile = file_names[0]
         ReadPlotData.amsfile = file_names[1]
@@ -394,6 +436,10 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def Yaml_Read_Wrapper(self, filename, window):
+        """
+        Reads YAML file and updates ReadPlotData attributes and GUI elements
+        based on simulation data.
+        """
 
         with open(filename, "r", encoding="utf-8") as stream:
             try:
@@ -539,6 +585,9 @@ class ReadPlotData:
     # @author Anders Bergman and Jonathan Chico
     ##########################################################################
     def read_sqw(self, filename):
+        """
+        Reads SQW data from a file and returns the data, labels, and axis limits for plotting.
+        """
 
         sqwa = np.genfromtxt(filename)
         qd = int(sqwa[sqwa.shape[0] - 1, 0])
@@ -554,7 +603,7 @@ class ReadPlotData:
         # Raw copy the un-postprocessed data for later processing
         # -----------------------------------------------------------------------
         for ii in range(5, len(sqwa[0])):
-            sqw = np.transpose((np.reshape(sqwa[:, ii], (qd, ed))[:, 0 : int(ed)]))
+            sqw = np.transpose((np.reshape(sqwa[:, ii], (qd, ed))[:, 0: int(ed)]))
             sqw_data.append(sqw)
         sqw_labels = [
             r"$S_x(q,\omega)$ [meV]",
@@ -571,6 +620,9 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def read_ams(self, filename):
+        """
+        Reads AMS data from a file and returns x, y data, axis labels, and data labels.
+        """
 
         data = pd.read_csv(
             filename, header=None, delim_whitespace=True, skiprows=0
@@ -595,6 +647,10 @@ class ReadPlotData:
     # @author Jonathan Chico
     ##########################################################################
     def read_trajectories(self, filename):
+        """
+        Reads trajectory data from a list of filenames and returns labels and
+        x, y, z coordinates.
+        """
 
         traj_label = []
         traj_data_x = []
@@ -604,7 +660,7 @@ class ReadPlotData:
             ind = curr_filename.find(".")
             ind = ind + 10  # To correct for the simid
             ind_2 = curr_filename[ind:].find(".")
-            ntraj = curr_filename[ind : ind + ind_2]
+            ntraj = curr_filename[ind: ind + ind_2]
             data = pd.read_csv(
                 curr_filename, header=None, delim_whitespace=True, usecols=[2, 3, 4]
             ).values
@@ -618,6 +674,10 @@ class ReadPlotData:
     # General function to read-in data for 2D plots that have headers, e.g. averages, energies
     ##########################################################################
     def read_gen_plot_data(self, filename):
+        """
+        Reads and processes plot data from a file, returning time data,
+        iteration data, and data labels.
+        """
 
         data_df = pd.read_csv(filename, header=0, delim_whitespace=True, escapechar="#")
         data = data_df.values
@@ -635,6 +695,10 @@ class ReadPlotData:
     # Read qpoints file to get axis labels
     ##########################################################################
     def read_qfile(self, filename):
+        """
+        Reads q-points and optional symmetry points from a file,
+        returning q-points, labels, and indices.
+        """
 
         qpts = np.genfromtxt(filename, skip_header=1, usecols=(0, 1, 2))
         axlab = []
@@ -651,6 +715,6 @@ class ReadPlotData:
                 axlab.append(rs[3])
                 axidx.append(idx + 1)
 
-        axlab = [r"$\Gamma$" if x[0] == "G" else "{}".format(x) for x in axlab]
+        axlab = ["$\\Gamma$" if x[0] == "G" else x for x in axlab]
 
         return qpts, axlab, axidx

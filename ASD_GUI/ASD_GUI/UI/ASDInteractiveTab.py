@@ -25,6 +25,8 @@ import numpy as np
 
 
 class QTextEditLogger:
+    """QTextEditLogger class to log messages to a QTextEdit widget."""
+
     def __init__(self, text_edit):
         """
         Initializes the ASDInteractiveTab with a text editor.

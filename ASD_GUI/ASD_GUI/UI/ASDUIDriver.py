@@ -82,6 +82,66 @@ class Backend(Enum):
 # @author Jonathan Chico
 ##########################################################################
 class UppASDVizMainWindow(QMainWindow):
+    """
+    UppASDVizMainWindow class for managing the main window of the UppASD visualization GUI.
+
+    Attributes:
+        file_names (list): List of file names for visualization.
+        plotfile_names (list): List of plot file names.
+        current_time (int): Current time in the simulation.
+        number_of_screenshots (int): Number of screenshots taken.
+        VTKWidgetPresent (bool): Flag for VTK widget presence.
+        IntWidgetPresent (bool): Flag for interactive widget presence.
+        IntLaunched (bool): Flag for interactive mode launch status.
+        can_plot_ams (bool): Flag for AMS plotting capability.
+        can_plot_sqw (bool): Flag for SQW plotting capability.
+        hdrifile (list): List of HDRI files.
+        hdrifile_gotten (bool): Flag for HDRI file status.
+        bwBackground (bool): Flag for black and white background.
+        bwSinglecolor (bool): Flag for single color background.
+        plot2D_cmap_indx (int): Index for 2D plot colormap.
+        SQW_proj_indx (int): Index for SQW projection.
+        MagDirIndx (list): List of magnetization direction indices.
+        EneIndx (list): List of energy indices.
+        ASDdata (ASDVTKReading.ASDReading): Instance for reading ASD data.
+        ASDsim (ASDsimulator.Simulator): Instance for ASD simulation.
+        MomActors (ASDVTKMomActors.ASDMomActors): Instance for managing mom actors.
+        ASDVizOpt (ASDVTKVizOptions.ASDVizOptions): Instance for visualization options.
+        ASDTexture (ASDVTKTexture.ASDTexture): Instance for texture management.
+        ASDGenActors (ASDVTKGenActors.ASDGenActors): Instance for general actors.
+        ASDPlotData (ASDPlotsReading.ReadPlotData): Instance for reading plot data.
+        ASDPlots2D (ASDPlots2D.Abstract2DPlot): Instance for 2D plotting.
+        ASDCorrelationPlots (ASDPlots2D.Correlation_Plots): Instance for correlation plots.
+        ASDInputGen (ASDInputGen.ASDInputGen): Instance for input generation.
+        RestartWindow (ASDInputWindows.RestartWindow): Instance for restart window.
+        PosfileWindow (ASDInputWindows.PosfileWindow): Instance for posfile window.
+        MomfileWindow (ASDInputWindows.MomfileWindow): Instance for momfile window.
+        InitPhaseWindow (ASDInputWindows.InitPhaseWindow): Instance for init phase window.
+        JfileWindow (ASDInputWindows.JfileWindow): Instance for J file window.
+        DMfileWindow (ASDInputWindows.DMfileWindow): Instance for DM file window.
+        KfileWindow (ASDInputWindows.KfileWindow): Instance for K file window.
+        InteractiveDockWidget (ASDInteractiveTab.InteractiveDock): Instance for interactive dock.
+        ASDColor (ASDVTKColor.ASDVTKColor): Instance for color management.
+        UISettings (ASDUISettings.ASDUISettings): Instance for UI settings.
+        vtkWidget (QVTKRenderWindowInteractor): VTK render window interactor.
+        ren (vtkOpenGLRenderer): VTK OpenGL renderer.
+        renWin (vtkRenderWindow): VTK render window.
+        iren (vtkRenderWindowInteractor): VTK render window interactor.
+        IntVtkWidget (QVTKRenderWindowInteractor): Interactive VTK render window interactor.
+        Intren (vtkOpenGLRenderer): Interactive VTK OpenGL renderer.
+        IntrenWin (vtkRenderWindow): Interactive VTK render window.
+        Intiren (vtkRenderWindowInteractor): Interactive VTK render window interactor.
+        ASDCamera (ASDVTKCamera.CameraManager): Camera manager.
+        Plotting_Figure (Figure): Matplotlib figure for plotting.
+        Plotting_canvas (FigureCanvas): Matplotlib canvas for plotting.
+        Plotting_ax (Axes): Matplotlib axes for 2D plotting.
+        Plotting_Figure3D (Figure): Matplotlib figure for 3D plotting.
+        Plotting_canvas3D (FigureCanvas): Matplotlib canvas for 3D plotting.
+        Plotting_ax3D (Axes3D): Matplotlib axes for 3D plotting.
+        backend (Backend): Backend for visualization.
+        InteractiveVt
+    """
+
     ##########################################################################
     # @brief Class constructor for the main window
     # @details Class constructor for the main waindow. It initializes the inclusion
@@ -670,8 +730,7 @@ class UppASDVizMainWindow(QMainWindow):
         Adjusts the width parameter for the ASD correlation plots and updates the UI.
         """
         self.ASDCorrelationPlots.sigma_w = self.ASDCorrelationPlots.w_min * value
-        self.ABCorrWidthTX.setText(
-            f"{self.ASDCorrelationPlots.w_min*value:.3f}")
+        self.ABCorrWidthTX.setText(f"{self.ASDCorrelationPlots.w_min*value:.3f}")
         self.PlottingWrapper()
 
     ##########################################################################
@@ -804,7 +863,83 @@ class UppASDVizMainWindow(QMainWindow):
 
         Utilizes ASDUIActorHelper to add actors to the current UI context.
         """
+        print("Adding actors")
         ASDUIActorHelper.AddActors(self)
+
+    ##########################################################################
+    # Toggle the time label
+    ##########################################################################
+    def toggle_time_label(self, check):
+        """
+        Toggles the visibility of the time label widget based on the check value.
+        """
+        self.ASDVizOpt.toggle_time_label(self, check)
+
+    ##########################################################################
+    # Toggle the atoms for the neighbour map
+    ##########################################################################
+    def toggle_NAtoms(self, check):
+        """
+        Toggles the visibility of the AtomsActor based on the check value.
+        """
+        if check:
+            self.NeighActors.AtomsActor.VisibilityOn()
+        else:
+            self.NeighActors.AtomsActor.VisibilityOff()
+        return
+
+    ##########################################################################
+    # Toggle the neighbour cloud for the neighbour map
+    ##########################################################################
+    def toggle_Neigh(self, check):
+        """
+        Toggles the visibility of the NeighActor based on the check value.
+        """
+        if check:
+            self.NeighActors.NeighActor.VisibilityOn()
+        else:
+            self.NeighActors.NeighActor.VisibilityOff()
+        return
+
+    ##########################################################################
+    # Toggle the KMC particle visualization
+    ##########################################################################
+    def toggle_KMC(self, window, check):
+        """
+        Toggles the visibility of the KMC part actor based on the check value.
+        """
+        if check:
+            window.MomActors.KMC_part_actor.VisibilityOn()
+        else:
+            window.MomActors.KMC_part_actor.VisibilityOff()
+        return
+
+    ##########################################################################
+    # Toggle the visualization of the embedded cluster
+    ##########################################################################
+    def toggle_cluster(self, check):
+        """
+        Toggles the visibility of atom and atom_imp actors based on the check parameter.
+        """
+        self.ASDVizOpt.toggle_cluster(self, check)
+
+    ##########################################################################
+    # Toggle option for the axes
+    ##########################################################################
+    def toggle_Axes(self, check):
+        """
+        Toggles the visibility of the orientation marker based on the check value.
+        """
+        self.ASDVizOpt.toggle_Axes(self, check)
+
+    ##########################################################################
+    # Toggle option for the scalar bar
+    ##########################################################################
+    def toggle_ScalarBar(self, check):
+        """
+        Toggles the visibility of the scalar bar widget based on the check parameter.
+        """
+        self.ASDVizOpt.toggle_ScalarBar(self, check)
 
     ##########################################################################
     # @brief Enable rgb-values for single color
@@ -856,8 +991,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the focus state in the visualization options.
         """
-        self.ASDVizOpt.toggle_Focus(
-            check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_Focus(check=check, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # @brief Toggle focal disk
@@ -867,8 +1001,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the focal disk setting in the ASD visualization.
         """
-        self.ASDVizOpt.setFocalDisk(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.setFocalDisk(value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # @brief Toggle depth of field focus
@@ -994,91 +1127,71 @@ class UppASDVizMainWindow(QMainWindow):
         Sets the energy projection based on the sender button's state.
         """
         if self.sender() == self.TotEneButton and self.TotEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[0])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[0])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.ExcEneButton and self.ExcEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[1])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[1])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.DMEneButton and self.DMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[2])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[2])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.AniEneButton and self.AniEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[3])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[3])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BqEneButton and self.BqEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[4])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[4])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BqDMEneButton and self.BqDMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[5])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[5])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.PdEneButton and self.PdEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[6])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[6])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.BextEneButton and self.BextEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[7])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[7])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.DipEneButton and self.DipEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[8])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[8])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
             )
         if self.sender() == self.ChirEneButton and self.ChirEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[9])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[9])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
                 self.EneActors.src.GetScalarRange()
@@ -1256,7 +1369,6 @@ class UppASDVizMainWindow(QMainWindow):
         Gathers settings from the UI, then writes them to "ASDUIConfig.json" and "ASDUIConfig.yaml".
         """
         print("Loading settings")
-        #self.UISettings.read_from_json("ASDUIConfig.json")
         self.UISettings.read_from_yaml("ASDUIConfig.yaml")
         self.UISettings.restore_from_settings(self)
         self.renWin.Render()
@@ -1300,8 +1412,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the FXAA (Fast Approximate Anti-Aliasing) setting.
         """
-        self.ASDVizOpt.toggle_FXAA(
-            check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_FXAA(check=check, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling surface texture
@@ -1461,7 +1572,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.Atexturefile = self.ASDTexture.getTextureFileName(window=self)
         Atexturefile_gotten = len(self.Atexturefile) > 0
         if Atexturefile_gotten:
-            ATextureCheck.setEnabled(True)
+            self.ATextureCheck.setEnabled(True)
         return
 
     ##########################################################################
@@ -1520,8 +1631,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBR emission update with the given value.
         """
-        self.MomActors.PBREmissionUpdate(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Occlusion value
@@ -1530,8 +1640,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Controls the PBROcclusion update with the given value.
         """
-        self.MomActors.PBROcclusionUpdate(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.MomActors.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Roughness value
@@ -1827,14 +1936,12 @@ class UppASDVizMainWindow(QMainWindow):
         # Error message
         Files = ["inpsd.dat", "posfile", "momfile"]
         MissingFiles = ", ".join(
-            [file for index, file in enumerate(
-                Files) if not InputChecklist[index]]
+            [file for index, file in enumerate(Files) if not InputChecklist[index]]
         )
 
         if not Check:
             self.InteractiveErrorWindow = ASDInputWindows.ErrorWindow()
-            self.InteractiveErrorWindow.FunMsg.setText(
-                "Task failed successfully!")
+            self.InteractiveErrorWindow.FunMsg.setText("Task failed successfully!")
             self.InteractiveErrorWindow.ErrorMsg.setText(
                 f"Could not launch interactive simulation. Missing input files: {MissingFiles}"
             )

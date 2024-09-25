@@ -15,6 +15,7 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 import numpy as np
 
 ##########################################################################
@@ -263,7 +264,6 @@ def write_skyrmion(Natom, Mensemble, coord, SkxInfo):
 # with @f$\mathbf{q}@f$ being the spiral wavevector.
 # @author Jonathan Chico
 ##########################################################################
-# pylint: disable=invalid-name, no-name-in-module, no-member
 
 
 def create_spiral(Natom, Mensemble, coord, HLInfo):

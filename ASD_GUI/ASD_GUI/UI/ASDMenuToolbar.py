@@ -263,9 +263,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.ContourCheck.toggled.connect(window.MomActors.toggle_contours)
     window.SpinCheck.toggled.connect(window.MomActors.toggle_directions)
-    window.ClusBox.toggled.connect(window.ASDVizOpt.toggle_cluster)
+    window.ClusBox.toggled.connect(window.toggle_cluster)
     window.ClusBox.toggled.connect(window.UpdateRenderer)
-    window.KMCCheck.toggled.connect(window.ASDVizOpt.toggle_KMC)
+    window.KMCCheck.toggled.connect(window.toggle_KMC)
     window.KMCCheck.toggled.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the magnetization density
@@ -313,9 +313,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     # ---------------------------------------------------------------------------
-    window.NeighAtomCheck.toggled.connect(window.ASDVizOpt.toggle_NAtoms)
+    window.NeighAtomCheck.toggled.connect(window.toggle_NAtoms)
     window.NeighAtomCheck.toggled.connect(window.UpdateRenderer)
-    window.NeighNeighsCheck.toggled.connect(window.ASDVizOpt.toggle_Neigh)
+    window.NeighNeighsCheck.toggled.connect(window.toggle_Neigh)
     window.NeighNeighsCheck.toggled.connect(window.UpdateRenderer)
     window.NeighOpacitySlider.valueChanged.connect(
         window.ASDVizOpt.NeighOpacityUpdate)
@@ -344,9 +344,9 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the general actors
     # ---------------------------------------------------------------------------
-    window.ScalarBarCheck.toggled.connect(window.ASDVizOpt.toggle_ScalarBar)
+    window.ScalarBarCheck.toggled.connect(window.toggle_ScalarBar)
     window.ScalarBarCheck.toggled.connect(window.UpdateRenderer)
-    window.AxesCheck.toggled.connect(window.ASDVizOpt.toggle_Axes)
+    window.AxesCheck.toggled.connect(window.toggle_Axes)
     window.AxesCheck.toggled.connect(window.UpdateRenderer)
     window.ClippBox.toggled.connect(window.clipperHandler)
     window.ClippPlaneXCheck.toggled.connect(window.clipperHandler)
@@ -397,7 +397,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     # ---------------------------------------------------------------------------
-    window.TimeStepBox.toggled.connect(window.ASDVizOpt.toggle_time_label)
+    window.TimeStepBox.toggled.connect(window.toggle_time_label)
     window.TimeStepBox.toggled.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the energy contributions

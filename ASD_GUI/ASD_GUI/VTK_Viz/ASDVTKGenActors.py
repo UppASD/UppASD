@@ -24,6 +24,7 @@ class ASDGenActors:
         """
         del self.scalar_bar
         del self.scalar_bar_widget
+        print("Scalar bar actor Off")
         del self.scalarBarRep
         del self.axes
         del self.OrientMarker
@@ -139,6 +140,7 @@ class ASDGenActors:
         # Create the scalar bar widget
         self.scalar_bar_widget = vtk.vtkScalarBarWidget()
         self.scalar_bar_widget.SetScalarBarActor(self.scalar_bar)
+        print("Scalar bar actor set")
         # Representation to actually control where the scalar bar is
         self.scalarBarRep = self.scalar_bar_widget.GetRepresentation()
         self.scalarBarRep.SetOrientation(0)  # 0 = Horizontal, 1 = Vertical
@@ -146,6 +148,7 @@ class ASDGenActors:
         self.scalarBarRep.GetPosition2Coordinate().SetValue(0.50, 0.05)
         self.scalar_bar_widget.SetInteractor(iren)
         self.scalar_bar_widget.On()
+        print("Scalar bar actor On")
         #######################################################################
         # Setting the information for the axes widget
         #######################################################################

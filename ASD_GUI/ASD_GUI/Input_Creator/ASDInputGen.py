@@ -176,7 +176,7 @@ class ASDInputGen:
     def update_file_name(self, window):
         """
         Updates file names based on the sender window and sets corresponding flags or checks.
-        
+
         Args:
             window (QMainWindow): The main window containing sender and file name attributes.
         """
@@ -205,7 +205,7 @@ class ASDInputGen:
     def ASDInputGatherer(self, window):
         """
         Gathers input from the GUI window and updates the ASDInputGen.UppASDKeywords dictionary.
-        
+
         Args:
             window: The GUI window containing input fields and checkboxes.
         """
@@ -812,11 +812,11 @@ class ASDInputGen:
 
         if structure == "bcc":
             self.InsertBasisvectors(UiBasisVectors, BodyCentric)
-            Positions = "1 1    0.000   0.000   0.000\n" "2 1    0.500   0.500   0.500"
+            Positions = "1 1    0.000   0.000   0.000\n2 1    0.500   0.500   0.500"
 
         if structure == "bcc2":
             self.InsertBasisvectors(UiBasisVectors, BodyCentric)
-            Positions = "1 1    0.000   0.000   0.000\n" "2 2    0.500   0.500   0.500"
+            Positions = "1 1    0.000   0.000   0.000\n2 2    0.500   0.500   0.500"
 
         if structure == "fcc":
             self.InsertBasisvectors(UiBasisVectors, FaceCentered)
@@ -957,7 +957,7 @@ class ASDInputGen:
         magnitude = np.ones((len(numbers), 1))
 
         if len(numbers) > 1:
-            for i in range(1, len(numbers)):
+            for _ in range(1, len(numbers)):
                 moment_vectors = np.vstack((vector, configuration * vector))
         else:
             moment_vectors = [vector]
@@ -1488,9 +1488,9 @@ class ASDInputGen:
                 if isinstance(current, list):
                     if len(descriptor) > 0:
                         inpsd_file.write(f"{descriptor}  ")
-                    for ii, line in enumerate(current):
+                    for _, line in enumerate(current):
                         if isinstance(line, list):
-                            for jj, entry in enumerate(line):
+                            for _, entry in enumerate(line):
                                 inpsd_file.write(f"{entry}  ")
                             inpsd_file.write("\n")
                         else:
@@ -1498,7 +1498,7 @@ class ASDInputGen:
                     inpsd_file.write("\n")
                 elif isinstance(current, tuple):
                     inpsd_file.write(f"{descriptor} ")
-                    for ii, entry in enumerate(current):
+                    for _, entry in enumerate(current):
                         inpsd_file.write(f"{entry}  ")
                     inpsd_file.write("\n")
                 else:

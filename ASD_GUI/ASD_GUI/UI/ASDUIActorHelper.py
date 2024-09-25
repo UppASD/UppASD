@@ -111,6 +111,7 @@ def AddActors(window):
             # ---------------------------------------------------------------
             # Add the general widgets such as the scalar bar and the axes
             # ---------------------------------------------------------------
+            print("Adding the general actors")
             window.ASDGenActors.Add_GenActors(
                 iren=window.iren,
                 renWin=window.renWin,

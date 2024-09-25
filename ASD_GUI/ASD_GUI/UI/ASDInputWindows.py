@@ -52,6 +52,7 @@ class InitPhaseWindow(QDialog):
         self.InitPhaseDelButton.clicked.connect(self.table_control)
         self.InitPhaseDoneButton.clicked.connect(self.window_close)
         self.InitPhaseCancelButton.clicked.connect(self.window_close)
+        self.init_phase_data = []  # Initialize the attribute here
         return
 
     def table_control(self):
@@ -270,10 +271,23 @@ class RestartWindow(QDialog):
         # Setting validators
         # ----------------------------------------------------------------------------
         self.InpSkyrOrder.setValidator(QIntValidator())
+        self.InpDWPosN1Validator = QIntValidator()
+        self.InpDWPosN2Validator = QIntValidator()
+        self.InpDWPosN3Validator = QIntValidator()
         # ----------------------------------------------------------------------------
         # Initializing counters
         # ----------------------------------------------------------------------------
         self.curr_image = 0
+        self.Bas = None
+        self.mom = None
+        self.cell = None
+        self.ncell = None
+        self.Mensemble = None
+        self.block_size = None
+        self.coord = None
+        self.mom_mag = None
+        self.Natom = None
+
         return
 
     def UpdateRestartUI(self):
@@ -1179,7 +1193,7 @@ class JfileWindow(QDialog):
         Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
         Cell = (np.float64(Basis), Positions, numbers)
 
-        for i_site, site in enumerate(Positions):
+        for i_site, _ in enumerate(Positions):
             NeighbourVectors, NeighbourTypes, _ = get_full_nnlist(
                 Cell, i_site, CutoffRadius, in_cell_only=False
             )
@@ -1370,7 +1384,7 @@ class DMfileWindow(QDialog):
         Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
         Cell = (np.float64(Basis), Positions, numbers)
 
-        for i_site, site in enumerate(Positions):
+        for i_site, _ in enumerate(Positions):
             NeighbourVectors, NeighbourTypes, _ = get_full_nnlist(
                 Cell, i_site, CutoffRadius, in_cell_only=False
             )

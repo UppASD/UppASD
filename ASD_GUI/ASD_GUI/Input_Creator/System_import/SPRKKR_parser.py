@@ -2,14 +2,14 @@
 sprkkr_parser
 Reads inputs and outputs from SPRKKR and writes to UppASD-compatible files
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 import numpy as np
-import os
 
 
 def parse_sysfile(filename):
     """Reads SPRKKR .sys-file and extracts relevant data. Currently not in use."""
-    with open(filename, "r") as sysfile:
+    with open(filename, "r", encoding="utf-8") as sysfile:
         sysdata = sysfile.read()
 
     sysrows = sysdata.split("\n")
@@ -19,7 +19,7 @@ def parse_sysfile(filename):
 
     lattice_idx = sysrows.index("primitive vectors     (cart. coord.) [A]") + 1
     lattice = np.array(
-        "".join(sysrows[lattice_idx : lattice_idx + 3]).split(), dtype=np.float64
+        "".join(sysrows[lattice_idx: lattice_idx + 3]).split(), dtype=np.float64
     ).reshape(3, 3)
 
     nat_idx = sysrows.index("number of sites NQ") + 1
@@ -27,7 +27,7 @@ def parse_sysfile(filename):
 
     pos_idx = nat_idx + 2
     posdata = np.array(
-        "".join(sysrows[pos_idx : pos_idx + natoms]).split(), dtype=np.float64
+        "".join(sysrows[pos_idx: pos_idx + natoms]).split(), dtype=np.float64
     ).reshape(natoms, 9)
     # pos_sites = np.int32(posdata[:, 0])
     pos_types = np.int32(posdata[:, 1])
@@ -37,7 +37,7 @@ def parse_sysfile(filename):
     ntypes = np.int32(sysrows[nt_idx])
 
     num_idx = nt_idx + 2
-    number_rows = sysrows[num_idx : num_idx + ntypes]
+    number_rows = sysrows[num_idx: num_idx + ntypes]
     numbers = np.zeros(natoms, dtype=np.int32)
     for row in number_rows:
         nentry = np.int32(row.split()[3])
@@ -50,7 +50,7 @@ def parse_sysfile(filename):
 
 def parse_potfile(filename):
     """Reads SPRKKR .pot-file and extracts relevant data."""
-    with open(filename, "r") as potfile:
+    with open(filename, "r", encoding="utf-8") as potfile:
         potdata = potfile.read()
 
     potrows = potdata.split("\n")
@@ -103,7 +103,7 @@ def parse_potfile(filename):
 
 def parse_inpfile(inpname):
     """Reads SPRKKR .inp-file and extracts relevant data."""
-    with open(inpname, "r") as ifile:
+    with open(inpname, "r", encoding="utf-8") as ifile:
         inpdata = ifile.read()
         inprows = inpdata.split("\n")
 
@@ -111,19 +111,19 @@ def parse_inpfile(inpname):
         suffix = [row for row in inprows if "ADSI" in row][0].split()[2]
         potfile = [row for row in inprows if "POTFIL" in row][0].split()[2]
         task = [row for row in inprows if "TASK" in row][0].split()[1]
-        fullrel = not "SP-SREL" in inpdata.split()
+        fullrel = "SP-SREL" not in inpdata.split()
 
         return label, suffix, potfile, task, fullrel
 
 
 def parse_outfile(outfilename, types, natoms, ntypes):
     """Reads SPRKKR .out-file and extracts relevant data."""
-    with open(outfilename, "r") as outfile:
+    with open(outfilename, "r", encoding="utf-8") as outfile:
         outdata = outfile.read()
         outrows = outdata.split("\n")
 
     magmoms = np.array(
-        np.array([row.split() for row in outrows if "sum  " in row][-ntypes - 1 : -1])[
+        np.array([row.split() for row in outrows if "sum  " in row][-ntypes - 1: -1])[
             :, 4
         ],
         dtype=np.float64,
@@ -140,7 +140,7 @@ def parse_outfile(outfilename, types, natoms, ntypes):
 
 def parse_xcfile(filename):
     """Reads SPRKKR .dat-file and extracts relevant exchange interactions."""
-    with open(filename, "r") as file:
+    with open(filename, "r", encoding="utf-8") as file:
         nheader = 0
         row = []
         while "DRZ" not in row:
@@ -202,7 +202,7 @@ def write_jfile(xcdata, filename, is_dmi=False, write_full=True):
 
 def write_celldata(lattice, filename):
     """Writes celldata and relevant keywords to inpsd.dat"""
-    with open(filename, "w") as outfile:
+    with open(filename, "w", encoding="utf-8") as outfile:
         outfile.write("# Data parsed from SPRKKR calculation\n")
         outfile.write("cell\n")
         for row in lattice:
@@ -220,13 +220,11 @@ def parse_sprkkr(ifile):
 
     prefix = ifile[:-4]
 
-    label, suffix, potfile, task, fullrel = parse_inpfile(ifile)
+    _, suffix, potfile, _, fullrel = parse_inpfile(ifile)
 
     potfile = path + potfile
 
-    sysname, alat, lattice, natoms, ntypes, positions, numbers, types = parse_potfile(
-        potfile
-    )
+    sysname, alat, lattice, natoms, ntypes, positions, _, types = parse_potfile(potfile)
 
     if fullrel:
         xcfile = prefix + "_JJij.dat"

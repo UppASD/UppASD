@@ -1,4 +1,4 @@
-""" @package ASDPlots2D
+"""@package ASDPlots2D
 Set of classes to perform the matplotlib plots of the UppASD data.
 
 It contains two major classes:
@@ -9,6 +9,7 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 ##########################################################################
 # @brief Class defining the needed structures for line and scatter plots.
@@ -17,9 +18,14 @@ Jonathan Chico
 #
 # @author Jonathan Chico
 ##########################################################################
+from matplotlib import cm
+import numpy as np
 
 
 class Abstract2DPlot:
+    """
+    Abstract2DPlot class for creating 2D line and 3D trajectory plots with customizable properties.
+    """
     def __init__(self):
         Abstract2DPlot.font_size = 12
         Abstract2DPlot.markersize = 0
@@ -38,19 +44,19 @@ class Abstract2DPlot:
     ##########################################################################
 
     def LinePlot(self, axis, data_x, data_y, labels, ax_label, **kwargs):
-        from matplotlib import cm as cm
-        import numpy as np
-
+        """
+        Create a line plot on the given axis with specified data, labels, and tick settings.
+        """
         tick_labels = kwargs.get("tick_labels", None)
         tick_idx = kwargs.get("tick_idx", None)
 
         # AB -> add figure properties
         axis.cla()
         colors = cm.Paired(np.linspace(0, 1, len(data_x) + 2))
-        for ii in range(0, len(data_x)):
+        for ii, (x, y) in enumerate(zip(data_x, data_y)):
             axis.plot(
-                data_x[ii],
-                data_y[ii],
+                x,
+                y,
                 lw=self.linewidth,
                 c=colors[ii],
                 label=labels[ii],
@@ -58,7 +64,7 @@ class Abstract2DPlot:
                 markersize=self.markersize,
                 marker="o",
             )
-            # axis.scatter(data_x[ii],data_y[ii],color=colors[ii],alpha=0.75, s=150,lw=1.00, edgecolor='black')
+        # axis.scatter(x, y, color=colors[ii], alpha=0.75, s=150, lw=1.00, edgecolor='black')
 
         axis.xaxis.grid(visible=self.xgrid, which="major")
         axis.yaxis.grid(visible=self.ygrid, which="major")
@@ -102,15 +108,15 @@ class Abstract2DPlot:
     ##########################################################################
 
     def TrajPlot(self, axis, traj_data_x, traj_data_y, traj_data_z, traj_label):
-        from matplotlib import cm as cm
-        import numpy as np
-
+        """
+        Plots 3D trajectory data on a given axis with a wireframe sphere and custom labels.
+        """
         axis.cla()
         axis.set_xlim([-1, 1])
         axis.set_ylim([-1, 1])
         axis.set_zlim([-1, 1])
         # draw sphere
-        u, v = np.mgrid[0 : 2 * np.pi : 200j, 0 : np.pi : 100j]
+        u, v = np.mgrid[0: 2 * np.pi: 200j, 0: np.pi: 100j]
         x = np.cos(u) * np.sin(v)
         y = np.sin(u) * np.sin(v)
         z = np.cos(v)
@@ -119,15 +125,8 @@ class Abstract2DPlot:
         axis.set_yticks([-1, 0, 1])
         axis.set_zticks([-1, 0, 1])
         colors = cm.Paired(np.linspace(0, 1, len(traj_data_x) + 2))
-        for ii in range(len(traj_data_x)):
-            axis.plot(
-                traj_data_x[ii],
-                traj_data_y[ii],
-                traj_data_z[ii],
-                c=colors[ii],
-                lw=3,
-                label=traj_label[ii],
-            )
+        for ii, (x, y, z) in enumerate(zip(traj_data_x, traj_data_y, traj_data_z)):
+            axis.plot(x, y, z, c=colors[ii], lw=3, label=traj_label[ii],)
         axis.legend(fontsize=Abstract2DPlot.font_size)
         axis.tick_params(
             axis="x", colors="black", labelsize=Abstract2DPlot.font_size, width=2
@@ -155,13 +154,21 @@ class Abstract2DPlot:
 
 
 class Correlation_Plots:
+    """
+    Correlation_Plots class for plotting spin-spin correlation functions
+    and AMS data with Gaussian smearing.
+    """
     ##########################################################################
     # @brief Constructor of the class
-    # @details It contains the different colormaps used for the \f$\mathbf{S}(\mathbf{q},\omega)\f$ plotting
+    # @details It contains the different colormaps used for the
+    # \f$\mathbf{S}(\mathbf{q},\omega)\f$ plotting
     # @author Jonathan Chico
     ##########################################################################
     def __init__(self):
-        from matplotlib import cm as cm
+        """
+        Initialize default settings for Correlation_Plots including font size,
+        colormap, sigma, and grid options.
+        """
 
         Correlation_Plots.font_size = 12
         Correlation_Plots.cmap = [cm.coolwarm, cm.Spectral, cm.inferno]
@@ -177,7 +184,9 @@ class Correlation_Plots:
     ##########################################################################
 
     def gaussian(self, M, std):
-        import numpy as np
+        """
+        Generate a Gaussian distribution array with given mean and standard deviation.
+        """
 
         x = np.linspace(-self.w_max / 2.0, self.w_max / 2.0, M)
         y = (1.0) / (std * np.sqrt(2.0 * np.pi)) * np.exp(-0.5 * x * x / std**2)
@@ -190,17 +199,21 @@ class Correlation_Plots:
     # @author Anders Bergman
     ##########################################################################
     def convolve(self, func, kern):
-        import numpy as np
+        """
+        Convolves a function with a kernel using FFT.
+        """
 
         n = func.shape[0] + kern.shape[0]
         F = np.fft.fft(func, n=n)
         G = np.fft.fft(kern, n=n)
         FG = F * G
         zpos = int((kern.shape[0] - 1) / 2.0)
-        return np.real(np.fft.ifft(FG))[zpos : zpos + func.shape[0]]
+        return np.real(np.fft.ifft(FG))[zpos: zpos + func.shape[0]]
 
     def sqw_convolve(self, sqwa):
-        import numpy as np
+        """
+        Convolves the input array with a Gaussian and normalizes the result.
+        """
 
         # -----------------------------------------------------------------------
         # Perform a convolution with a windowing function for each q-point
@@ -214,7 +227,7 @@ class Correlation_Plots:
         # -----------------------------------------------------------------------
         # Find the peaks and normalize the data
         # -----------------------------------------------------------------------
-        sqw_peaks = np.argmax(sqw_in, axis=0)
+        # sqw_peaks = np.argmax(sqw_in, axis=0)
         normMat = np.diag(1.0 / np.amax(sqw_in, axis=0))
         sqw_out = np.matmul(sqw_in, normMat)
         return sqw_out
@@ -228,8 +241,10 @@ class Correlation_Plots:
     def Sqw_Plot(
         self, axis, sqw_data, proj, sqw_labels, col_indx, ax_limits, q_labels, q_idx
     ):
+        """
+        Plot S(q,w) data on the given axis with specified properties and labels.
+        """
         axis.cla()
-        import numpy as np
 
         # Energy maximim
         self.w_max = ax_limits[3]
@@ -280,21 +295,11 @@ class Correlation_Plots:
     # @author Jonathan Chico
     ##########################################################################
 
-    def AMS_Sqw_Plot(
-        self,
-        axis,
-        sqw_data,
-        proj,
-        sqw_labels,
-        ams_data_x,
-        ams_data_y,
-        hf_scale,
-        col_indx,
-        ax_limits,
-        q_labels,
-        q_idx,
-    ):
-        import numpy as np
+    def AMS_Sqw_Plot(self, axis, sqw_data, proj, sqw_labels, ams_data_x,
+                     ams_data_y, hf_scale, col_indx, ax_limits, q_labels, q_idx,):
+        """
+        Plot the S(q,w) and AMS data on the given axis with specified properties.
+        """
 
         axis.cla()
         # Energy maximim
@@ -316,12 +321,12 @@ class Correlation_Plots:
         )
         axis.set_xlim(ax_limits[0], ax_limits[1])
         axis.set_ylim(ax_limits[2], ax_limits[3])
-        for ii in range(len(ams_data_y)):
+        for ii, y_data in enumerate(ams_data_y):
             ams_data_x[ii] = np.arange(ax_limits[0], ax_limits[1] + 1, 1)
             if ii == 0:
-                axis.plot(ams_data_x[ii], ams_data_y[ii], c="b", lw=3, label="AMS")
+                axis.plot(ams_data_x[ii], y_data, c="b", lw=3, label="AMS")
             else:
-                axis.plot(ams_data_x[ii], ams_data_y[ii], c="b", lw=3)
+                axis.plot(ams_data_x[ii], y_data, c="b", lw=3)
         # -----------------------------------------------------------------------
         # Axis properties
         # -----------------------------------------------------------------------

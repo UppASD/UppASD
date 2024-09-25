@@ -11,11 +11,6 @@ Jonathan Chico
 
 import vtk
 
-from ASD_GUI.VTK_Viz import ASDVTKMomActors
-from ASD_GUI.VTK_Viz import ASDVTKGenActors
-from ASD_GUI.VTK_Viz import ASDVTKEneActors
-from ASD_GUI.VTK_Viz import ASDVTKNeighActors
-
 
 ##########################################################################
 # @brief Class containing the majority of the actions to update the visualizer
@@ -32,10 +27,10 @@ class ASDVizOptions:
     # lut = vtkLookupTable()
 
     def __init__(self):
-        self.GenActors = ASDVTKGenActors.ASDGenActors()
-        self.EneActors = ASDVTKEneActors.ASDEneActors()
-        self.MomActors = ASDVTKMomActors.ASDMomActors()
-        self.NeighActors = ASDVTKNeighActors.ASDNeighActors()
+        # self.GenActors = ASDVTKGenActors.ASDGenActors()
+        # self.EneActors = ASDVTKEneActors.ASDEneActors()
+        # self.MomActors = ASDVTKMomActors.ASDMomActors()
+        # self.NeighActors = ASDVTKNeighActors.ASDNeighActors()
 
         # Settings to be saved
         self.ssao = False
@@ -71,60 +66,48 @@ class ASDVizOptions:
     ##########################################################################
     # Toggle option for the axes
     ##########################################################################
-    def toggle_Axes(self, check):
+    def toggle_Axes(self, window, check):
         """
         Toggles the visibility of the orientation marker based on the check value.
         """
         if check:
-            self.GenActors.OrientMarker.SetEnabled(1)
+            window.ASDGenActors.OrientMarker.SetEnabled(1)
             self.axes = True
         else:
-            self.GenActors.OrientMarker.SetEnabled(0)
+            window.ASDGenActors.OrientMarker.SetEnabled(0)
             self.axes = False
         return
 
     ##########################################################################
     # Toggle option for the scalar bar
     ##########################################################################
-    def toggle_ScalarBar(self, check):
+    def toggle_ScalarBar(self, window, check):
         """
         Toggles the visibility of the scalar bar widget based on the check parameter.
         """
         if check:
-            self.GenActors.scalar_bar_widget.SetEnabled(1)
+            window.ASDGenActors.scalar_bar_widget.SetEnabled(1)
             self.colorbar = True
         else:
-            self.GenActors.scalar_bar_widget.SetEnabled(0)
+            window.ASDGenActors.scalar_bar_widget.SetEnabled(0)
             self.colorbar = False
         return
 
     ##########################################################################
     # Toggle the visualization of the embedded cluster
     ##########################################################################
-    def toggle_cluster(self, check):
+    def toggle_cluster(self, window, check):
         """
         Toggles the visibility of atom and atom_imp actors based on the check parameter.
         """
         if check:
-            self.GenActors.atom.VisibilityOn()
-            self.GenActors.atom_imp.VisibilityOn()
+            window.ASDGenActors.atom.VisibilityOn()
+            window.ASDGenActors.atom_imp.VisibilityOn()
         else:
-            self.GenActors.atom.VisibilityOff()
-            self.GenActors.atom_imp.VisibilityOff()
+            window.ASDGenActors.atom.VisibilityOff()
+            window.ASDGenActors.atom_imp.VisibilityOff()
         return
 
-    ##########################################################################
-    # Toggle the KMC particle visualization
-    ##########################################################################
-    def toggle_KMC(self, check):
-        """
-        Toggles the visibility of the KMC part actor based on the check value.
-        """
-        if check:
-            self.MomActors.KMC_part_actor.VisibilityOn()
-        else:
-            self.MomActors.KMC_part_actor.VisibilityOff()
-        return
 
     ##########################################################################
     # Toggle the plane clipper
@@ -136,11 +119,11 @@ class ASDVizOptions:
         Toggles the visibility of the clipper and current actors based on the check flag.
         """
         if check:
-            self.GenActors.clipperActor.VisibilityOn()
+            window.ASDGenActors.clipperActor.VisibilityOn()
             current_Actors.VisibilityOff()
             self.set_clipp_plane(rdir, window, origin, vmin, vmax, renWin)
         else:
-            self.GenActors.clipperActor.VisibilityOff()
+            window.ASDGenActors.clipperActor.VisibilityOff()
             current_Actors.VisibilityOn()
             renWin.Render()
         return
@@ -148,15 +131,15 @@ class ASDVizOptions:
     ##########################################################################
     # Toggle the time label
     ##########################################################################
-    def toggle_time_label(self, check):
+    def toggle_time_label(self, window, check):
         """
         Toggles the visibility of the time label widget based on the check value.
         """
         if check:
-            self.GenActors.time_label_widget.On()
+            window.ASDGenActors.time_label_widget.On()
             self.time_label = True
         else:
-            self.GenActors.time_label_widget.Off()
+            window.ASDGenActors.time_label_widget.Off()
             self.time_label = False
         return
 
@@ -167,8 +150,8 @@ class ASDVizOptions:
         """
         Configures and sets the clipping plane for the visualization.
         """
-        self.GenActors.plane.SetOrigin(origin)
-        self.GenActors.plane.SetNormal(rdir)
+        window.ASDGenActors.plane.SetOrigin(origin)
+        window.ASDGenActors.plane.SetNormal(rdir)
         window.ClippingPlaneSlider.setMinimum(int(vmin))
         window.ClippingPlaneSlider.setMaximum(int(vmax))
         window.ClippingPlaneSlider.setValue(int(vmin))
@@ -182,37 +165,11 @@ class ASDVizOptions:
         """
         Updates the clipping plane position and refreshes the render window.
         """
-        self.GenActors.plane.SetOrigin(origin)
+        self.ASDGenActors.plane.SetOrigin(origin)
         window.ClipPlaneLabel.setText(
             f"Clip. Plane Pos.={float(origin[0]):.1f},{float(origin[1]):.1f},{float(origin[2]):.1f}"
         )
         renWin.Render()
-        return
-
-    ##########################################################################
-    # Toggle the atoms for the neighbour map
-    ##########################################################################
-    def toggle_NAtoms(self, check):
-        """
-        Toggles the visibility of the AtomsActor based on the check value.
-        """
-        if check:
-            self.NeighActors.AtomsActor.VisibilityOn()
-        else:
-            self.NeighActors.AtomsActor.VisibilityOff()
-        return
-
-    ##########################################################################
-    # Toggle the neighbour cloud for the neighbour map
-    ##########################################################################
-    def toggle_Neigh(self, check):
-        """
-        Toggles the visibility of the NeighActor based on the check value.
-        """
-        if check:
-            self.NeighActors.NeighActor.VisibilityOn()
-        else:
-            self.NeighActors.NeighActor.VisibilityOff()
         return
 
     ##########################################################################
@@ -299,13 +256,13 @@ class ASDVizOptions:
             # create the basic VTK render steps
             basicPasses = vtk.vtkRenderStepsPass()
 
-            dofPass = vtk.vtkDepthOfFieldPass()
-            dofPass.AutomaticFocalDistanceOff()
-            dofPass.SetDelegatePass(basicPasses)
+            self.dofPass = vtk.vtkDepthOfFieldPass()
+            self.dofPass.AutomaticFocalDistanceOff()
+            self.dofPass.SetDelegatePass(basicPasses)
 
             # Tell the renderer to use our render pass pipeline.
             ren.GetActiveCamera().SetFocalDisk(0.5)
-            ren.SetPass(dofPass)
+            ren.SetPass(self.dofPass)
 
             renWin.Render()
 

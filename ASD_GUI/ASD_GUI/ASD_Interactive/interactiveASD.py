@@ -1,3 +1,4 @@
+"""
 #!/usr/bin/env python3
 # Script for creating a snapshot from SD-data
 # Written by Anders Bergman, after template from Anders Hast
@@ -8,6 +9,7 @@
 #
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll,
 # and Azimuth
+"""
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
 import vtk
@@ -81,7 +83,7 @@ class InteractiveASD:
         self.lut.Build()
 
         # Size of system
-        Nmax = 1000000
+        # Nmax = 1000000
 
         # Open files
         # momfiles = glob.glob("restart.????????.out")
@@ -299,11 +301,11 @@ class InteractiveASD:
         self.iren.Start()
 
         # For the interactive control. Set up a check for aborting rendering.
-        def CheckAbort(obj, event):
-            # obj will be the object generating the event.  In this case it
-            # is renWin.
-            if obj.GetEventPending() != 0:
-                obj.SetAbortRender(1)
+        # def CheckAbort(obj, event):
+        #     # obj will be the object generating the event.  In this case it
+        #     # is renWin.
+        #     if obj.GetEventPending() != 0:
+        #         obj.SetAbortRender(1)
 
     def S_Step(self):
         """Do a simulation using S-mode."""
@@ -375,7 +377,8 @@ class InteractiveASD:
 
     def read_moments(self):
         """
-        Opens a file dialog to read magnetic moments from a selected file and updates the visualization.
+        Opens a file dialog to read magnetic moments from a selected file and
+        updates the visualization.
         """
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
@@ -455,7 +458,7 @@ class InteractiveASD:
 
     # Read vectors
     # We must know the time step and the number of atoms per time
-    def readVectorsData(file, time, nrAtoms):
+    def readVectorsData(self, file, time, nrAtoms):
         """
         Reads vector data from a file and returns vectors and colors arrays.
         """

@@ -1,12 +1,66 @@
 #!/usr/bin/env python
+"""
+ASDImportSys.py
+
+This module provides functions to parse .cif and .nml files and convert them into UppASD format.
+
+    Parse .cif files and return them in UppASD format.
+
+    Args:
+        filename (str): Path to the .cif file.
+
+    Returns:
+        tuple: A tuple containing filenames, lattice, and alat.
+    ...
+
+    Read important keywords from UppASD input file `inpsd.dat`.
+
+    Args:
+        ifile (str): Path to the `inpsd.dat` file.
+
+    Returns:
+        tuple: A tuple containing lattice and alat.
+    ...
+
+    Parse .nml files and return them in UppASD format.
+
+    Args:
+        filename (str): Path to the .nml file.
+
+    Returns:
+        tuple: A tuple containing filenames, lattice_type, and alat.
+    ...
+
+    Read nml-file into dictionary with atom number, magnitude, and vector.
+
+    Args:
+        element_list (list): List of elements.
+        path (str): Path to the directory containing .nml files.
+        lattice (str): Lattice type.
+
+    Returns:
+        dict: A dictionary with moment information.
+    ...
+
+    Create momfile from dictionary.
+
+    Args:
+        momfile_dict (dict): Dictionary containing moment information.
+
+    Returns:
+        None
+    ...
+"""
+# pylint: disable=invalid-name, no-name-in-module, no-member
 # coding: utf-8
-import tempfile
-import subprocess
-import numpy as np
-import shutil
 import os
+import copy
+import shutil
+import subprocess
+import tempfile
+
 import f90nml
-import ASD_GUI.Input_Creator.System_import.SPRKKR_parser as SPRKKR_parser
+import numpy as np
 
 
 def parse_cif(filename):
@@ -17,7 +71,8 @@ def parse_cif(filename):
 
     shutil.copy2(filename, temp_path)
 
-    subprocess.run("cif2cell -p uppasd -f FeCo_56273.cif", cwd=temp_path, shell=True)
+    subprocess.run("cif2cell -p uppasd -f " + filename, cwd=temp_path, shell=True, check=True)
+    # subprocess.run("cif2cell -p uppasd -f FeCo_56273.cif", cwd=temp_path, shell=True, check=True)
 
     lattice, alat = read_inpsd(os.path.join(temp_path, "inpsd.dat"))
 
@@ -73,7 +128,7 @@ def parse_rs_lmto(filename):
     filenames = ["./jij.out", "./dij.out", "./posfile", "./momfile"]
 
     if lattice_type == "data":
-        raise Exception("data-file import not yet implemented!")
+        raise NotImplementedError("data-file import not yet implemented!")
 
     momfile_dict = get_rs_lmto_moments(elements, path, lattice_type)
     write_momfile(momfile_dict)
@@ -87,8 +142,6 @@ def get_rs_lmto_moments(element_list, path, lattice):
     particle in the unit cell is quite ugly as it is rigth now. Would like to
     read the information from the poosition file instead.
     """
-
-    import copy
 
     parser = f90nml.Parser()
     momfile_dict = {}
@@ -115,7 +168,7 @@ def get_rs_lmto_moments(element_list, path, lattice):
 
 def write_momfile(momfile_dict):
     """Create momfile from dict."""
-    momfile = open("momfile", "w")
+    momfile = open("momfile", "w", encoding="utf-8")
     momfile_string = ""
 
     for key in momfile_dict:
@@ -124,7 +177,7 @@ def write_momfile(momfile_dict):
                 momfile_string += "\t".join(str(inp) for inp in inputs) + "\t"
             else:
                 momfile_string += (
-                    "\t".join(str("{:2.5f}".format(inp)) for inp in inputs) + "\t"
+                    "\t".join(f"{inp:2.5f}" for inp in inputs) + "\t"
                 )
         momfile_string += "\n"
 

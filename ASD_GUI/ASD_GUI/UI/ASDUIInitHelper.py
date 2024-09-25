@@ -1,5 +1,19 @@
-# pylint: disable=invalid-name, no-name-in-module, no-member
+"""
+ASDUIInitHelper.py
 
+This module initializes and sets up the user interface for the ASD GUI application.
+
+
+
+
+    Args:
+        window (QMainWindow): The main window of the application.
+
+
+    Args:
+        window (QMainWindow): The main window of the application.
+"""
+# pylint: disable=invalid-name, no-name-in-module, no-member
 import os
 from enum import Enum
 
