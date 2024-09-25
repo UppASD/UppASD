@@ -13,7 +13,7 @@ The GUI has the following capabilities
             - Plot the DMI vectors between neighbours, with the colormap being determined
             by the magnitude of the vectors.
         - Site dependent energy, allowing for time-dependent rendering.
-        - It also includes several general actors, such a colorbars, axes and time step visualization
+        - Also includes several general actors, such a colorbars, axes and time step visualization
         - It allows for on the fly modification of the glyphs for the magnetization,
         visualization of the magnetization density.
         - On the fly change of the size of the magnetization glyphs.
@@ -35,10 +35,29 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
 
 import sys
+import argparse
 from PyQt6.QtWidgets import QApplication
 from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
+
+
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="UppASDViz visualization tool.")
+
+    # Relevant arguments
+    parser.add_argument('--settings', '-s', type=str, help='Path to the configuration file.')
+    parser.add_argument('--coords', '-c', type=str, help='Filename for atomic coordinates.')
+    parser.add_argument('--moments', '-m', type=str, help='Filename for magnetic moments.')
+    parser.add_argument('--energies', '-e', type=str, help='Filename for site-resolved energies.')
+    parser.add_argument('--neighbours', '-n', type=str, help='Filename for interacting neighbours.')
+    parser.add_argument('--dmi-neighbours', '-d', type=str, help='Filename for DMI vectors.')
+    # parser.add_argument('--magnons', action='store_true', help='Spin wave spectrum visualization.')
+
+    return parser.parse_args()
+
 
 ##########################################################################
 # @brief Main executable class to run the ASD_Visualizer
@@ -46,12 +65,16 @@ from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 # containing the wrapper class defining the data needed to setup the GUI.
 # @author Jonathan Chico
 ##########################################################################
-
-
 def main():
+    """
+    Initialize and run the UppASDVizMainWindow application.
+    """
+    # Parse command-line arguments
+    args = parse_args()
+
     # Open the Application Window
     app = QApplication(sys.argv)
-    window = UppASDVizMainWindow()
+    window = UppASDVizMainWindow(args=args)
     window.show()
     window.iren.Initialize()  # Need this line to actually show the render inside Qt
     # Return

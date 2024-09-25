@@ -38,7 +38,7 @@ from ASD_GUI.UI import ASDUIInitHelper
 from ASD_GUI.VTK_Viz import ASDVTKEneActors, ASDVTKNeighActors
 
 
-def AddActors(window):
+def AddActors(window, viz_type=None):
     """Wrapper function that takes care of adding the necessary actors and the
     options for the different types of visualizations. It controls the visualization of:
         * Restartfiles
@@ -65,11 +65,12 @@ def AddActors(window):
     # This takes care of setting up the options for the visualization of the
     # magnetic moments obtained from the restart file
     # -----------------------------------------------------------------------
-    if window.sender() == window.actionMagnetization:
+    if window.sender() == window.actionMagnetization or viz_type == "M":
         # -------------------------------------------------------------------
         # Call the Moments class
         # -------------------------------------------------------------------
         # self.MomActors = ASDVTKMomActors.ASDMomActors()
+        print("Magnetization mode chosen")
         window.viz_type = "M"
         window.mode = 1
         window.current_time = 0
@@ -144,7 +145,7 @@ def AddActors(window):
     # -----------------------------------------------------------------------
     # This takes care of setting up the options for the Neighbour visualization
     # -----------------------------------------------------------------------
-    if window.sender() == window.actionNeighbours:
+    if window.sender() == window.actionNeighbours or viz_type == "N":
         # -------------------------------------------------------------------
         # Call the Neighbour class
         # -------------------------------------------------------------------
@@ -240,7 +241,7 @@ def AddActors(window):
     # -----------------------------------------------------------------------
     # This takes care of setting up the options for the DM Neighbour visualization
     # -----------------------------------------------------------------------
-    if window.sender() == window.actionDM_Neigh:
+    if window.sender() == window.actionDM_Neigh or viz_type == "D":
         # -------------------------------------------------------------------
         # Call the Neighbour class
         # -------------------------------------------------------------------
@@ -334,7 +335,7 @@ def AddActors(window):
     # -----------------------------------------------------------------------
     # This takes care of setting up the options for the Energy visualization
     # -----------------------------------------------------------------------
-    if window.sender() == window.actionEnergy:
+    if window.sender() == window.actionEnergy or viz_type == "E":
         window.EneActors = ASDVTKEneActors.ASDEneActors()
         window.viz_type = "E"
         window.mode = 1

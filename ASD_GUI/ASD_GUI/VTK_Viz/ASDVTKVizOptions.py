@@ -227,24 +227,6 @@ class ASDVizOptions:
         renWin.Render()
 
     ##########################################################################
-    # Toggle automatic focal point determination on/off
-    ##########################################################################
-    def toggle_autoFocus(self, check, renWin):
-        """
-        Toggles the automatic focal distance for the depth of field pass and renders the window.
-        """
-
-        if check:
-            self.dofPass.AutomaticFocalDistanceOn()
-            self.auto_focus = True
-        else:
-            self.dofPass.AutomaticFocalDistanceOff()
-            self.auto_focus = False
-
-        renWin.Render()
-        return
-
-    ##########################################################################
     # Toggle depth of field focus on/off
     ##########################################################################
     def toggle_Focus(self, check, ren, renWin):
@@ -269,11 +251,30 @@ class ASDVizOptions:
             self.focal_blur = True
 
         else:
-            print("DOF render pass can not be disabled.")
-            ren.ReleaseGraphicsResources(renWin)
-
+            self.dofPass = None
             self.focal_blur = False
 
+            ren.ReleaseGraphicsResources(renWin)
+
+        return
+
+    ##########################################################################
+    # Toggle automatic focal point determination on/off
+    ##########################################################################
+    def toggle_autoFocus(self, check, renWin):
+        """
+        Toggles the automatic focal distance for the depth of field pass and renders the window.
+        """
+
+        if self.dofPass:
+            if check:
+                self.dofPass.AutomaticFocalDistanceOn()
+                self.auto_focus = True
+            else:
+                self.dofPass.AutomaticFocalDistanceOff()
+                self.auto_focus = False
+
+            renWin.Render()
         return
 
     ##########################################################################

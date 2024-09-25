@@ -165,7 +165,7 @@ class ASDReading:
                     ASDReading.magnetization, encoding="utf-8")
             else:
                 print(
-                    "No file name selected from menu. Trying to find a 'localenergy.*.out' file"
+                    "No file name selected from menu. Trying to find a 'restart.*.out' file"
                 )
                 ASDReading.MagFiles = glob.glob("restart.*.out")
                 if len(ASDReading.MagFiles) > 0:

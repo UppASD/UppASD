@@ -34,6 +34,7 @@ from ASD_GUI.UI import (
     ASDUIActorHelper,
     ASDUIPlottingHelper,
     ASDUISettings,
+    ASDUICLIHelper,
 )
 from ASD_GUI.UI.ASDMenuToolbar import (
     UpdateUI,
@@ -148,8 +149,9 @@ class UppASDVizMainWindow(QMainWindow):
     # of several auxiliary classes that are used to setup the GUI functionality.
     # @author Jonathan Chico
     ##########################################################################
-    def __init__(self):
+    def __init__(self, args):
         super(UppASDVizMainWindow, self).__init__()
+        self.args = args
         # -----------------------------------------------------------------------
         # Define the array containing the file names necessary for visualization
         # -----------------------------------------------------------------------
@@ -166,6 +168,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.hdrifile_gotten = False
         self.bwBackground = False
         self.bwSinglecolor = False
+        self.viz_type = None
         # -----------------------------------------------------------------------
         # Plotting global variables
         # -----------------------------------------------------------------------
@@ -213,6 +216,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         self.ASDColor = ASDVTKColor.ASDVTKColor()
         self.UISettings = ASDUISettings.ASDUISettings()
+        self.settings_file = "ASDUIConfig.yaml"
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -281,6 +285,10 @@ class UppASDVizMainWindow(QMainWindow):
         self.InteractiveVtk = IntASD.InteractiveASD(
             self.Intren, self.IntrenWin, self.Intiren, self.ASDsim
         )
+
+        ASDCLIHelper = ASDUICLIHelper.ASDUICLIHelper(self, self.args)
+        ASDCLIHelper.InitActorsFromCLI(self)
+        ASDCLIHelper.InitSettingsFromCLI(self)
 
         return
 
@@ -1368,8 +1376,8 @@ class UppASDVizMainWindow(QMainWindow):
 
         Gathers settings from the UI, then writes them to "ASDUIConfig.json" and "ASDUIConfig.yaml".
         """
-        print("Loading settings")
-        self.UISettings.read_from_yaml("ASDUIConfig.yaml")
+        print(f"Loading settings from {self.settings_file}")
+        self.UISettings.read_from_yaml(self.settings_file)
         self.UISettings.restore_from_settings(self)
         self.renWin.Render()
 
@@ -1384,9 +1392,10 @@ class UppASDVizMainWindow(QMainWindow):
 
         Gathers settings from the UI, then writes them to "ASDUIConfig.json" and "ASDUIConfig.yaml".
         """
+        print(f"Saving settings to {self.settings_file}")
         self.UISettings.gather_dicts(self)
-        self.UISettings.write_to_json("ASDUIConfig.json")
-        self.UISettings.write_to_yaml("ASDUIConfig.yaml")
+        # self.UISettings.write_to_json("ASDUIConfig.json")
+        self.UISettings.write_to_yaml(self.settings_file)
 
         return
 
