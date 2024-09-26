@@ -166,9 +166,11 @@ class UppASDVizMainWindow(QMainWindow):
         self.can_plot_sqw = False
         self.hdrifile = []
         self.hdrifile_gotten = False
+        self.skyboxfile = None
         self.bwBackground = False
         self.bwSinglecolor = False
         self.viz_type = None
+        self.current_actor = None
         # -----------------------------------------------------------------------
         # Plotting global variables
         # -----------------------------------------------------------------------
@@ -1512,8 +1514,10 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Toggles the SkyBox visualization option.
         """
+        print(f"-->   SkyBox file: {self.skyboxfile}")
+        print(f"-->   HDRI file: {self.hdrifile}")
         self.ASDTexture.toggle_SkyBox(
-            check=check, actor=self.MomActors, skyboxfile=self.hdrifile
+            check=check, actor=self.MomActors, skyboxfile=self.skyboxfile
         )
 
         return
@@ -1527,6 +1531,8 @@ class UppASDVizMainWindow(QMainWindow):
         """
         self.hdrifile = self.ASDTexture.getHDRIFileName(window=self)
         hdrifile_gotten = len(self.hdrifile) > 0
+        if self.skyboxfile is None:
+            self.skyboxfile = self.hdrifile
         if hdrifile_gotten:
             self.HDRICheck.setEnabled(True)
             self.SkyBoxCheck.setEnabled(True)

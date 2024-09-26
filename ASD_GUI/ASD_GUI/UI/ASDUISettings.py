@@ -104,7 +104,7 @@ class ASDUISettings:
         # The ASDVizOptions settings
         viz_settings = {
             "ssao": window.ASDVizOpt.ssao,
-            "fxxa": window.ASDVizOpt.fxxa,
+            "fxaa": window.ASDVizOpt.fxaa,
             "axes": window.ASDVizOpt.axes,
             "colorbar": window.ASDVizOpt.colorbar,
             "time_label": window.ASDVizOpt.time_label,
@@ -209,139 +209,225 @@ class ASDUISettings:
 
         # Restore ASDColor settings
         color_settings = self.settings.get("ASDColors", {})
-        if (
-            "num_colors" in color_settings
-        ):
+        if "num_colors" in color_settings:
+            window.ColorMapBox.setCurrentIndex(color_settings.get("mapnum"))
             window.ASDColor.set_lut_db(window, color_settings.get("mapnum"))
+
         if "rgb" in color_settings and window.ASDColor.num_colors == 1:
             window.ASDColor.set_RGBcolor(color_settings["rgb"], window.viz_type)
+            window.RGBRedColorSlider.blockSignals(True)
+            window.RGBRedColorSlider.setValue(int(color_settings["rgb"][0]))
+            window.RGBGreenColorSlider.setValue(int(color_settings["rgb"][1]))
+            window.RGBBlueColorSlider.setValue(int(color_settings["rgb"][2]))
+            window.RGBRedColorSlider.blockSignals(False)
+
         if "rgb_background" in color_settings:
             window.ASDColor.set_RGBbackground(
                 rgb=color_settings["rgb_background"], ren=window.ren
             )
+            window.RGBRedBackgroundSlider.blockSignals(True)
+            window.RGBRedBackgroundSlider.setValue(int(color_settings["rgb_background"][0]))
+            window.RGBGreenBackgroundSlider.setValue(
+                int(color_settings["rgb_background"][1])
+            )
+            window.RGBBlueBackgroundSlider.setValue(int(color_settings["rgb_background"][2]))
+            window.RGBRedBackgroundSlider.blockSignals(False)
 
         # Restore ASDVTKTexture settings
         tex_settings = self.settings.get("ASDVTKTexture", {})
         if tex_settings.get("albedo") and tex_settings.get("albedoTex") is not None:
-            window.ASDTexture.toggle_Texture(
-                True, window.MomActors, tex_settings["albedoTex"]
-            )
+            window.texturefile = tex_settings["albedoTex"]
+            window.TextureCheck.setEnabled(True)
+            window.TextureCheck.setChecked(True)
+
         if tex_settings.get("material") and tex_settings.get("materialTex") is not None:
-            window.ASDTexture.toggle_ORMTexture(
-                True, window.MomActors, tex_settings["materialTex"]
-            )
+            window.ORMtexturefile = tex_settings["materialTex"]
+            window.ORMTextureCheck.setEnabled(True)
+            window.ORMTextureCheck.setChecked(True)
+
         if (
             tex_settings.get("anisotropy")
             and tex_settings.get("anisotropyTex") is not None
         ):
-            window.ASDTexture.toggle_ATexture(
-                True, window.MomActors, tex_settings["anisotropyTex"]
-            )
+            window.Atexturefile = tex_settings["anisotropyTex"]
+            window.ATextureCheck.setEnabled(True)
+            window.ATextureCheck.setChecked(True)
+
         if tex_settings.get("normal") and tex_settings.get("normalTex") is not None:
-            window.ASDTexture.toggle_NTexture(
-                True, window.MomActors, tex_settings["normalTex"]
-            )
+            window.Ntexturefile = tex_settings["normalTex"]
+            window.NTextureCheck.setEnabled(True)
+            window.NTextureCheck.setChecked(True)
+
         if tex_settings.get("emissive") and tex_settings.get("emissiveTex") is not None:
-            window.ASDTexture.toggle_ETexture(
-                True, window.MomActors, tex_settings["emissiveTex"]
-            )
-        if tex_settings.get("skybox") and tex_settings.get("skyboxfile") is not None:
-            window.ASDTexture.toggle_Texture(
-                True, window.MomActors, tex_settings["skyboxfile"]
-            )
+            window.Etexturefile = tex_settings["emissiveTex"]
+            window.ETextureCheck.setEnabled(True)
+            window.ETextureCheck.setChecked(True)
+
         if tex_settings.get("hdri") and tex_settings.get("hdrifile") is not None:
-            window.ASDTexture.toggle_HDRI(
-                True, window.ren, window.renWin, tex_settings["hdrifile"]
-            )
+            window.hdrifile = tex_settings["hdrifile"]
+            window.HDRICheck.setEnabled(True)
+            window.HDRICheck.setChecked(True)
+
+        if tex_settings.get("skybox") and tex_settings.get("skyboxfile") is not None:
+            window.skyboxfile = tex_settings["skyboxfile"]
+            window.SkyBoxCheck.setEnabled(True)
+            window.SkyBoxCheck.setChecked(True)
 
         # Restore MomActors settings
         mom_settings = self.settings.get("MomActors", {})
+        if "show_spins" in mom_settings:
+            window.SpinsBox.blockSignals(True)
+            window.SpinsBox.setChecked(mom_settings["show_spins"])
+            window.MomActors.toggle_spins(mom_settings["show_spins"])
+            window.SpinsBox.blockSignals(False)
+
+        if "show_atoms" in mom_settings:
+            window.AtomsBox.blockSignals(True)
+            window.AtomsBox.setChecked(mom_settings["show_atoms"])
+            window.AtomsBox.blockSignals(False)
+            window.MomActors.toggle_atoms(mom_settings["show_atoms"])
+
+        if "show_density" in mom_settings:
+            window.DensBox.blockSignals(True)
+            window.DensBox.setChecked(mom_settings["show_atoms"])
+            window.DensBox.blockSignals(False)
+            window.MomActors.toggle_density(mom_settings["show_density"])
+
+        if "projection_type" in mom_settings and "projection_vector" in mom_settings:
+            if mom_settings["projection_vector"] == 0:
+                window.SpinX.setChecked(True)
+            elif mom_settings["projection_vector"] == 1:
+                window.SpinY.setChecked(True)
+            elif mom_settings["projection_vector"] == 2:
+                window.SpinZ.setChecked(True)
+
         if "spin_resolution" in mom_settings:
             window.MomActors.spin_resolution = mom_settings["spin_resolution"]
+            window.GlyphQualitySlider.setValue(int(mom_settings["spin_resolution"]))
+
         if "atom_resolution" in mom_settings:
             window.MomActors.atom_resolution = mom_settings["atom_resolution"]
+            window.AtomQuali.setValue(int(mom_settings["atom_resolution"]))
+
         if "spin_glyph" in mom_settings:
-            window.MomActors.ChangeSpinGlyph(mom_settings["spin_glyph"])
+            if mom_settings["spin_glyph"] == "Arrow":
+                window.SpinArrowButton.setChecked(True)
+                window.SpinCenterCheck.setChecked(False)
+                window.SpinCenterCheck.setEnabled(True)
+            if mom_settings["spin_glyph"] == "Bars":
+                window.SpinBarButton.setChecked(True)
+                window.SpinCenterCheck.setChecked(False)
+                window.SpinCenterCheck.setEnabled(False)
+            if mom_settings["spin_glyph"] == "Spheres":
+                window.SpinSphereButton.setChecked(True)
+                window.SpinCenterCheck.setChecked(False)
+                window.SpinCenterCheck.setEnabled(False)
+            if mom_settings["spin_glyph"] == "Cones":
+                window.SpinConeButton.setChecked(True)
+                window.SpinCenterCheck.setChecked(False)
+                window.SpinCenterCheck.setEnabled(False)
+            if mom_settings["spin_glyph"] == "Cube":
+                window.SpinCubeButton.setChecked(True)
+                window.SpinCenterCheck.setChecked(False)
+                window.SpinCenterCheck.setEnabled(False)
+
         if "center_on" in mom_settings:
-            window.MomActors.ChangeSpinGlyph(mom_settings["center_on"])
+            if mom_settings["spin_glyph"] == "Arrow":
+                window.SpinCenterCheck.setChecked(mom_settings["center_on"])
+
         if "contour" in mom_settings:
-            window.MomActors.toggle_contours(mom_settings["contour"])
+            window.ContourCheck.setChecked(mom_settings["contour"])
+
         # if "vector_directions" in mom_settings:
         #     window.MomActors.toggle_directions(mom_settings["vector_directions"])
-        if "show_spins" in mom_settings:
-            window.MomActors.toggle_spins(mom_settings["show_spins"])
-        if "show_atoms" in mom_settings:
-            window.MomActors.toggle_atoms(mom_settings["show_atoms"])
-        if "show_density" in mom_settings:
-            window.MomActors.toggle_density(mom_settings["show_density"])
-        if "projection_type" in mom_settings and "projection_vector" in mom_settings:
-            window.MomActors.set_projection(
-                mom_settings["projection_type"], mom_settings["projection_vector"]
-            )
+
         if "spin_size" in mom_settings:
-            window.MomActors.ChangeSpinsSize(mom_settings["spin_size"])
+            window.SpinSize.setValue(int(mom_settings["spin_size"]))
+
         if "spin_shade" in mom_settings:
-            window.MomActors.ChangeSpinShade(mom_settings["spin_shade"])
+            if mom_settings["spin_shade"] == "Flat":
+                window.FlatShadeButton.setChecked(True)
+            elif mom_settings["spin_shade"] == "Gouraud":
+                window.GouraudShadeButton.setChecked(True)
+            elif mom_settings["spin_shade"] == "Phong":
+                window.PhongShadeButton.setChecked(True)
+            elif mom_settings["spin_shade"] == "PBR":
+                window.PBRShadeButton.setChecked(True)
+
         if "ambient" in mom_settings:
-            window.MomActors.RenAmbientUpdate(
-                mom_settings["ambient"] / 0.02, window.renWin
-            )
+            window.RenAmbientSlider.setValue(int(mom_settings["ambient"] / 0.02))
+
         if "diffuse" in mom_settings:
-            window.MomActors.RenDiffuseUpdate(
-                mom_settings["diffuse"] / 0.01, window.renWin
-            )
+            window.RenDiffuseSlider.setValue(int(mom_settings["diffuse"] / 0.01))
+
         if "specular" in mom_settings:
-            window.MomActors.RenSpecularUpdate(
-                mom_settings["specular"] / 0.01, window.renWin
-            )
+            window.RenSpecularSlider.setValue(int(mom_settings["specular"] / 0.01))
+
         if "specular_power" in mom_settings:
-            window.MomActors.RenSpecularPowerUpdate(
-                mom_settings["specular_power"] / 0.01, window.renWin
-            )
+            window.RenSpecularPowerSlider.setValue(int(mom_settings["specular_power"]))
+
         if "pbr_emission" in mom_settings:
-            window.MomActors.PBREmissionUpdate(
-                mom_settings["pbr_emission"] / 0.01, window.ren, window.renWin
-            )
+            window.PBREmissionSlider.setValue(int(mom_settings["pbr_emission"] / 0.01))
+            #   window.MomActors.PBREmissionUpdate(
+            #       mom_settings["pbr_emission"] / 0.01, window.ren, window.renWin
+            #   )
         if "pbr_occlusion" in mom_settings:
-            window.MomActors.PBROcclusionUpdate(
-                mom_settings["pbr_occlusion"] / 0.01, window.ren, window.renWin
+            window.PBROcclusionSlider.setValue(
+                int(mom_settings["pbr_occlusion"] / 0.01)
             )
+            #   window.MomActors.PBROcclusionUpdate(
+            #       mom_settings["pbr_occlusion"] / 0.01, window.ren, window.renWin
+            #   )
         if "pbr_roughness" in mom_settings:
-            window.MomActors.PBRRoughnessUpdate(
-                mom_settings["pbr_roughness"] / 0.01, window.renWin
+            window.PBRRoughnessSlider.setValue(
+                int(mom_settings["pbr_roughness"] / 0.01)
             )
+            #   window.MomActors.PBRRoughnessUpdate(
+            #       mom_settings["pbr_roughness"] / 0.01, window.renWin
+            #   )
         if "pbr_metallic" in mom_settings:
-            window.MomActors.PBRMetallicUpdate(
-                mom_settings["pbr_metallic"] / 0.01, window.renWin
-            )
+            window.PBRMetallicSlider.setValue(int(mom_settings["pbr_metallic"] / 0.01))
+            # window.MomActors.PBRMetallicUpdate(
+            #     mom_settings["pbr_metallic"] / 0.01, window.renWin
+            # )
         if "atom_size" in mom_settings:
-            window.MomActors.ChangeAtomsSize(mom_settings["atom_size"] * 10.0)
+            window.AtomSize.setValue(int(mom_settings["atom_size"] * 10.0))
+            # window.MomActors.ChangeAtomsSize(mom_settings["atom_size"] * 10.0)
         if "atom_opacity" in mom_settings:
-            window.MomActors.ChangeAtomsOpaq(mom_settings["atom_opacity"])
+            window.AtomOpaq.setValue(int(mom_settings["atom_opacity"] / 0.01))
+            # window.MomActors.ChangeAtomsOpaq(mom_settings["atom_opacity"] / 0.01)
 
         # Restore ASDVizOptions settings
         viz_settings = self.settings.get("ASDVizOptions", {})
         if "ssao" in viz_settings:
-            window.ASDVizOpt.toggle_SSAO(viz_settings["ssao"], window.ren)
-        if "fxxa" in viz_settings:
-            window.ASDVizOpt.toggle_FXAA(
-                viz_settings["fxxa"], window.ren, window.renWin
-            )
+            window.SSAOCheck.setChecked(viz_settings["ssao"])
+            # window.ASDVizOpt.toggle_SSAO(viz_settings["ssao"], window.ren)
+        if "fxaa" in viz_settings:
+            window.FXAACheck.setChecked(viz_settings["fxaa"])
+            # window.ASDVizOpt.toggle_FXAA(
+            #     viz_settings["fxaa"], window.ren, window.renWin
+            # )
         if "axes" in viz_settings:
-            window.ASDVizOpt.toggle_Axes(window, viz_settings["axes"])
+            window.AxesCheck.setChecked(viz_settings["axes"])
+            # window.ASDVizOpt.toggle_Axes(window, viz_settings["axes"])
         if "colorbar" in viz_settings:
-            window.ASDVizOpt.toggle_ScalarBar(window, viz_settings["colorbar"])
+            window.ScalarBarCheck.setChecked(viz_settings["colorbar"])
+            # window.ASDVizOpt.toggle_ScalarBar(window, viz_settings["colorbar"])
         if "time_label" in viz_settings:
-            window.ASDVizOpt.toggle_time_label(window, viz_settings["time_label"])
+            window.TimeStepBox.setChecked(viz_settings["time_label"])
+            # window.ASDVizOpt.toggle_time_label(window, viz_settings["time_label"])
         if "focal_blur" in viz_settings:
-            window.ASDVizOpt.toggle_Focus(
-                viz_settings.get("focal_blur", False), window.ren, window.renWin
-            )
-            window.ASDVizOpt.toggle_autoFocus(
-                viz_settings.get("auto_focus", False), window.renWin
-            )
-            window.ASDVizOpt.setFocalDisk(
-                viz_settings.get("focal_disc", 100), window.ren, window.renWin
-            )
+            window.FocusBox.setChecked(viz_settings["focal_blur"])
+            # window.ASDVizOpt.toggle_Focus(
+            #     viz_settings.get("focal_blur", False), window.ren, window.renWin
+            # )
+            window.AutoFocusCheck.setChecked(viz_settings.get("auto_focus", False))
+            #   window.ASDVizOpt.toggle_autoFocus(
+            #       viz_settings.get("auto_focus", False), window.renWin
+            #   )
+            window.FocusSlider.setValue(int(viz_settings.get("focal_disc", 100)))
+            # window.ASDVizOpt.setFocalDisk(
+            #     viz_settings.get("focal_disc", 100), window.ren, window.renWin
+            # )
 
         window.renWin.Render()

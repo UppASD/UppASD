@@ -54,7 +54,7 @@ class ASDVTKColor:
         self.num_colors = self.NUM_LUT_COLORS
         self.mapnum = 1
         self.rgb = [0.0, 0.0, 0.0]
-        self.rgb_background = [1.0, 1.0, 1.0]
+        self.rgb_background = [255.0, 255.0, 255.0]
         self.lut_scale = "Linear"
 
     def get_color_settings(self):
@@ -88,7 +88,7 @@ class ASDVTKColor:
         self.num_colors = settings.get("num_colors", self.NUM_LUT_COLORS)
         self.mapnum = settings.get("mapnum", 1)
         self.rgb = settings.get("rgb", [0.0, 0.0, 0.0])
-        self.rgb_background = settings.get("rgb_background", [1.0, 1.0, 1.0])
+        self.rgb_background = settings.get("rgb_background", [255.0, 255.0, 255.0])
         self.lut_scale = settings.get("lut_scale", "Linear")
 
         if self.num_colors == 256:
@@ -417,7 +417,7 @@ class ASDVTKColor:
             rgb=rgb,
             viz_type=window.viz_type,
         )
-        self.rgb = rgb
+        self.rgb = rgb * 255.0
         return
 
     ##########################################################################
@@ -440,7 +440,7 @@ class ASDVTKColor:
         ]
 
         self.set_RGBbackground(rgb=rgb, ren=window.ren)
-        self.rgb_background = rgb
+        self.rgb_background = rgb * 255
 
         return
 

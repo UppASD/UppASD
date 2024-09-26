@@ -103,8 +103,9 @@ def AddActors(window, viz_type=None):
                 window=window,
             )
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.MomActors, Window=window
+                current_actors=window.MomActors, window=window
             )
+            window.current_actor = window.MomActors
             # ---------------------------------------------------------------
             # Setup several global variables
             # ---------------------------------------------------------------
@@ -203,8 +204,9 @@ def AddActors(window, viz_type=None):
             window.NeighValidator.setRange(1, window.ASDdata.nrAtoms)
             window.NeighSelectLineEdit.setValidator(window.NeighValidator)
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.NeighActors, Window=window
+                current_actors=window.NeighActors, window=window
             )
+            window.current_actor = window.NeighActors
             # ---------------------------------------------------------------
             # Update the UI
             # ---------------------------------------------------------------
@@ -297,8 +299,9 @@ def AddActors(window, viz_type=None):
                 f"Number of neighbours = {window.NeighActors.NumNeigh: 4d}"
             )
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.NeighActors, Window=window
+                current_actors=window.NeighActors, window=window
             )
+            window.current_actor = window.NeighActors
             # ---------------------------------------------------------------
             # Update the UI
             # ---------------------------------------------------------------
@@ -363,8 +366,9 @@ def AddActors(window, viz_type=None):
                 ASDdata=window.ASDdata,
             )
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.EneActors, Window=window
+                current_actors=window.EneActors, window=window
             )
+            window.current_actor = window.EneActors
             # ---------------------------------------------------------------
             # Setup several global variables
             # ---------------------------------------------------------------

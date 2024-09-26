@@ -311,7 +311,7 @@ class ASDGenActors:
             if viz_type == "M":
                 ASDVizOpt.toggle_clipper(
                     check=window.ClippBox.isChecked(),
-                    current_Actors=current_Actors.MagDensActor,
+                    current_actors=current_Actors.MagDensActor,
                     rdir=rdir,
                     window=window,
                     origin=origin,

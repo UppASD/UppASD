@@ -62,8 +62,6 @@ class ASDMomActors:
         settings["center_on"] = self.center_on
         settings["contour"] = self.contour
         settings["vector_directions"] = self.vector_directions
-        settings["show_spins"] = self.show_spins
-        settings["show_atoms"] = self.show_atoms
         settings["show_density"] = self.show_density
         settings["projection_type"] = self.projection_type
         settings["projection_vector"] = self.projection_vector

@@ -34,7 +34,7 @@ class ASDVizOptions:
 
         # Settings to be saved
         self.ssao = False
-        self.fxxa = False
+        self.fxaa = False
         self.axes = True
         self.colorbar = True
         self.time_label = False
@@ -45,22 +45,22 @@ class ASDVizOptions:
     ##########################################################################
     # Update the dock window information when the camera is setup
     ##########################################################################
-    def update_dock_info(self, current_Actors, Window):
+    def update_dock_info(self, current_actors, window):
         """
         Updates the dock information in the GUI with the current camera settings.
         """
-        Window.FocalPosX.setText(str(current_Actors.camera_focal[0]))
-        Window.FocalPosY.setText(str(current_Actors.camera_focal[1]))
-        Window.FocalPosZ.setText(str(current_Actors.camera_focal[2]))
-        Window.CamPosX.setText(str(current_Actors.camera_pos[0]))
-        Window.CamPosY.setText(str(current_Actors.camera_pos[1]))
-        Window.CamPosZ.setText(str(current_Actors.camera_pos[2]))
-        Window.CamYawLineEdit.setText(str(current_Actors.camera_yaw))
-        Window.CamRollLineEdit.setText(str(current_Actors.camera_roll))
-        Window.CamPitchLineEdit.setText(str(current_Actors.camera_pitch))
-        Window.CamAzimuthLineEdit.setText(str(current_Actors.camera_azimuth))
-        Window.CamElevationLineEdit.setText(
-            str(current_Actors.camera_elevation))
+        window.FocalPosX.setText(str(current_actors.camera_focal[0]))
+        window.FocalPosY.setText(str(current_actors.camera_focal[1]))
+        window.FocalPosZ.setText(str(current_actors.camera_focal[2]))
+        window.CamPosX.setText(str(current_actors.camera_pos[0]))
+        window.CamPosY.setText(str(current_actors.camera_pos[1]))
+        window.CamPosZ.setText(str(current_actors.camera_pos[2]))
+        window.CamYawLineEdit.setText(str(current_actors.camera_yaw))
+        window.CamRollLineEdit.setText(str(current_actors.camera_roll))
+        window.CamPitchLineEdit.setText(str(current_actors.camera_pitch))
+        window.CamAzimuthLineEdit.setText(str(current_actors.camera_azimuth))
+        window.CamElevationLineEdit.setText(
+            str(current_actors.camera_elevation))
         return
 
     ##########################################################################
@@ -108,23 +108,22 @@ class ASDVizOptions:
             window.ASDGenActors.atom_imp.VisibilityOff()
         return
 
-
     ##########################################################################
     # Toggle the plane clipper
     ##########################################################################
     def toggle_clipper(
-        self, check, current_Actors, rdir, window, origin, vmin, vmax, renWin
+        self, check, current_actors, rdir, window, origin, vmin, vmax, renWin
     ):
         """
         Toggles the visibility of the clipper and current actors based on the check flag.
         """
         if check:
             window.ASDGenActors.clipperActor.VisibilityOn()
-            current_Actors.VisibilityOff()
+            current_actors.VisibilityOff()
             self.set_clipp_plane(rdir, window, origin, vmin, vmax, renWin)
         else:
             window.ASDGenActors.clipperActor.VisibilityOff()
-            current_Actors.VisibilityOn()
+            current_actors.VisibilityOn()
             renWin.Render()
         return
 
@@ -289,10 +288,10 @@ class ASDVizOptions:
             ren.UseFXAAOn()
             ren.GetFXAAOptions().SetUseHighQualityEndpoints(True)
             renWin.SetMultiSamples(4)
-            self.fxxa = True
+            self.fxaa = True
         else:
             ren.UseFXAAOff()
-            self.fxxa = False
+            self.fxaa = False
         return
 
     ##########################################################################

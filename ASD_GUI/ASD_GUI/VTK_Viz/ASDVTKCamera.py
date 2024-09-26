@@ -369,7 +369,7 @@ class CameraManager:
             self.load_camera_settings()
             # camera_settings = self.ASDCamera.get_camera_settings()
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.MomActors, Window=window
+                current_Actors=window.MomActors, window=window
             )
 
         return
