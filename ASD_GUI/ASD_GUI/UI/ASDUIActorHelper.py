@@ -19,6 +19,7 @@ AddActors(window)
     Wrapper function that takes care of adding the necessary actors and the
     options for the different types of visualizations.
 """
+
 ##########################################################################
 # @brief Wrapper function that takes care of adding the necessary actors and the
 # options for the different types of visualizations
@@ -59,6 +60,8 @@ def AddActors(window, viz_type=None):
         pass
     else:
         window.ASDGenActors.reset_GenActors()
+    if window.ren.GetActiveCamera() is not None:
+        window.ASDCamera.get_camera_settings()
     window.ren.RemoveAllViewProps()
     window.ren.ResetCamera()
     ASDUIInitHelper.InitUI(window)
@@ -423,5 +426,5 @@ def AddActors(window, viz_type=None):
             # ---------------------------------------------------------------
             print("Visualization of the energy mode chosen")
             print("Viewing the localenergy file")
-            
+
     return

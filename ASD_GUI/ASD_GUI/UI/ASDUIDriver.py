@@ -12,7 +12,6 @@ Jonathan Chico
 """
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
-import io
 import glob
 import os.path as path
 from enum import Enum

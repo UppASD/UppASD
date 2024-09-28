@@ -118,7 +118,6 @@ def InitUI(window):
     """
     Initializes the user interface components and sets their initial states.
     """
-    #if True:
     if not window.initialized:
         window.EneMainBox.setEnabled(False)
         window.CamMainBox.setEnabled(False)

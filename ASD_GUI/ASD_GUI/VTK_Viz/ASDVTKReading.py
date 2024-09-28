@@ -1079,7 +1079,7 @@ class ASDReading:
 
         # Read the data using pandas
         neigh_data = pd.read_csv(
-            file, skiprows=5, header=None, delim_whitespace=True, usecols=[0, 1, 3, 7]
+            file, skiprows=5, header=None, sep='\s+', usecols=[0, 1, 3, 7]
         ).values
         # Store the data in convenient arrays
         curr_atom = neigh_data[:, 0]

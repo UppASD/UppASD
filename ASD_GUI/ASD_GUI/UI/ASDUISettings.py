@@ -166,7 +166,6 @@ class ASDUISettings:
             yaml.dump(self.settings, file_path, sort_keys=False)
             file_path.seek(0)
             self.settings = yaml.safe_load(file_path)
-            #print("Settings loaded from file")
 
     def read_from_json(self, file_path):
         """
@@ -198,9 +197,6 @@ class ASDUISettings:
         else:
             file_path.seek(0)
             self.settings = yaml.safe_load(file_path)
-            print("Settings loaded from memory")
-            print(self.settings)
-
 
     def restore_from_settings(self, window):
         """

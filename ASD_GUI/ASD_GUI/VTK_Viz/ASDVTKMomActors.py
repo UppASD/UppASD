@@ -44,6 +44,18 @@ class ASDMomActors:
         self.atom_size = 0.1
         self.atom_opacity = 1.0
         self.active = False
+        # initial camera settings
+        self.camera_pos = np.zeros(3, dtype=np.float32)
+        self.camera_focal = np.zeros(3, dtype=np.float32)
+        self.camera_up = np.zeros(3, dtype=np.float32)
+        self.camera_yaw = 0.0
+        self.camera_roll = 0.0
+        self.camera_pitch = 0.0
+        self.camera_azimuth = 0.0
+        self.camera_elevation = 0.0
+        self.camera_initialized = False
+        # Default spins as arrows
+        self.spin_glyph = "Arrow"
 
     def gather_settings(self):
         """
@@ -108,13 +120,6 @@ class ASDMomActors:
         """
 
         self.timer_count = 0
-        self.camera_pos = np.zeros(3, dtype=np.float32)
-        self.camera_focal = np.zeros(3, dtype=np.float32)
-        self.camera_yaw = 0.0
-        self.camera_roll = 0.0
-        self.camera_pitch = 0.0
-        self.camera_azimuth = 0.0
-        self.camera_elevation = 0.0
         self.kmc_disp = ASDdata.kmc_flag
         self.cluster_disp = ASDdata.cluster_flag
         self.glob_color = ASDdata.colors
@@ -167,12 +172,7 @@ class ASDMomActors:
         # Also making sure that if the sample is 2D one has no problem with bounds
         # this is mostly useful if splatters are used
         (
-            self.xmin,
-            self.xmax,
-            self.ymin,
-            self.ymax,
-            self.zmin,
-            self.zmax,
+            self.xmin, self.xmax, self.ymin, self.ymax, self.zmin, self.zmax,
         ) = self.src.GetBounds()
         if self.xmin == self.xmax:
             self.xmin = 0.0
@@ -190,12 +190,15 @@ class ASDMomActors:
         self.dist_x = np.absolute(self.xmax - self.xmin)
         self.dist_y = np.absolute(self.ymax - self.ymin)
         self.dist_z = np.absolute(self.zmax - self.zmin)
-        self.camera_pos[0] = self.xmid
-        self.camera_pos[1] = self.ymid
-        self.camera_pos[2] = self.height
-        self.camera_focal[0] = self.xmid
-        self.camera_focal[1] = self.ymid
-        self.camera_focal[2] = self.zmid
+        print("AddMomActors:", self.camera_initialized)
+        if not self.camera_initialized:
+            self.camera_pos[0] = self.xmid
+            self.camera_pos[1] = self.ymid
+            self.camera_pos[2] = self.height
+            self.camera_focal[0] = self.xmid
+            self.camera_focal[1] = self.ymid
+            self.camera_focal[2] = self.zmid
+            # self.camera_initialized = True
         # -----------------------------------------------------------------------
         # Data structures for the spins
         # -----------------------------------------------------------------------
@@ -217,8 +220,7 @@ class ASDMomActors:
         # that one has a manageable number of data points over which to do the construction
         # surface reconstruction and splatter techniques also can be used to generate something
         # akin to the kind of surfaces we want. The issue is that they transform the data to a
-        # regular mesh by default. And thus it is a problem for most kind of
-        # systems
+        # regular mesh by default. And thus it is a problem for most kind of systems
         if ASDdata.flag2D:
             # Passing the data to generate a triangulation of the data
             self.MagDensMethod = vtk.vtkDelaunay2D()
@@ -234,8 +236,7 @@ class ASDMomActors:
             # Creating the mapper for the smooth surfaces
             self.MagDensMap = vtk.vtkDataSetMapper()
             self.MagDensMap.SetScalarRange(scalar_range)
-            self.MagDensMap.SetInputConnection(
-                self.MagDensMethod.GetOutputPort())
+            self.MagDensMap.SetInputConnection(self.MagDensMethod.GetOutputPort())
             self.MagDensMap.SetLookupTable(self.lut)
             self.MagDensMap.SetColorModeToMapScalars()
             self.MagDensMap.Update()
@@ -260,8 +261,7 @@ class ASDMomActors:
             # rendering, increasing the radius smoothens out the volume but performance
             # decreases rapidly
             # -------------------------------------------------------------------
-            dist = np.asarray(self.src.GetPoint(0)) - \
-                np.asarray(self.src.GetPoint(1))
+            dist = np.asarray(self.src.GetPoint(0)) - np.asarray(self.src.GetPoint(1))
             norm = np.sqrt(dist.dot(dist))
             if norm < 10:
                 rad_fac = 0.040
@@ -348,8 +348,7 @@ class ASDMomActors:
 
             self.MagDensMap = vtk.vtkSmartVolumeMapper()
             # ASDMomActors.MagDensMap = vtk.vtkUnstructuredGridVolumeRayCastMapper()
-            self.MagDensMap.SetInputConnection(
-                self.MagDensMethod.GetOutputPort())
+            self.MagDensMap.SetInputConnection(self.MagDensMethod.GetOutputPort())
             # ASDMomActors.MagDensMap.Update()
 
             # Volume Actor
@@ -395,8 +394,7 @@ class ASDMomActors:
         self.spinarrow.SetShaftResolution(self.spin_resolution)
 
         self.spinarrowtriangles = vtk.vtkTriangleFilter()
-        self.spinarrowtriangles.SetInputConnection(
-            self.spinarrow.GetOutputPort())
+        self.spinarrowtriangles.SetInputConnection(self.spinarrow.GetOutputPort())
 
         # Calculate normals for shading
         self.spinarrownormals = vtk.vtkPolyDataNormals()
@@ -405,22 +403,19 @@ class ASDMomActors:
         )
 
         self.spinarrowtcoords = vtk.vtkTextureMapToCylinder()
-        self.spinarrowtcoords.SetInputConnection(
-            self.spinarrownormals.GetOutputPort())
+        self.spinarrowtcoords.SetInputConnection(self.spinarrownormals.GetOutputPort())
         self.spinarrowtcoords.PreventSeamOn()
 
         self.spinarrowtangents = vtk.vtkPolyDataTangents()
-        self.spinarrowtangents.SetInputConnection(
-            self.spinarrowtcoords.GetOutputPort())
+        self.spinarrowtangents.SetInputConnection(self.spinarrowtcoords.GetOutputPort())
 
         # Create the mapper for the spins
         self.SpinMapper = vtk.vtkGlyph3DMapper()
-        self.SpinMapper.SetSourceConnection(
-            self.spinarrowtangents.GetOutputPort())
+        self.SpinMapper.SetSourceConnection(self.spinarrowtangents.GetOutputPort())
 
         self.SpinMapper.SetInputData(self.src_spins)
         self.SpinMapper.SetScalarRange(scalar_range_spins)
-        self.SpinMapper.SetScaleFactor(0.50)
+        self.SpinMapper.SetScaleFactor(self.spin_size)
         self.SpinMapper.SetScaleModeToNoDataScaling()
         self.SpinMapper.SetLookupTable(self.lut)
         self.SpinMapper.SetColorModeToMapScalars()
@@ -432,10 +427,10 @@ class ASDMomActors:
         self.Spins.SetMapper(self.SpinMapper)
         # ASDMomActors.Spins.GetProperty().SetInterpolationToPBR()
         self.Spins.GetProperty().SetInterpolationToGouraud()
-        self.Spins.GetProperty().SetSpecular(0.4)
-        self.Spins.GetProperty().SetSpecularPower(80)
-        self.Spins.GetProperty().SetAmbient(0.6)
-        self.Spins.GetProperty().SetDiffuse(0.4)
+        self.Spins.GetProperty().SetSpecular(self.specular)
+        self.Spins.GetProperty().SetSpecularPower(self.specular_power)
+        self.Spins.GetProperty().SetAmbient(self.ambient)
+        self.Spins.GetProperty().SetDiffuse(self.diffuse)
         self.Spins.GetProperty().SetEdgeTint(0.0, 0.0, 0.0)
         if window.SpinsBox.isChecked():
             self.Spins.VisibilityOn()
@@ -444,12 +439,15 @@ class ASDMomActors:
             self.Spins.VisibilityOff()
             self.show_spins = False
 
+        # Update to previous glyph if present
+        if self.spin_glyph != "Arrow":
+            self.ChangeSpinGlyph(self.spin_glyph)
         # -----------------------------------------------------------------------
         # Setting information for the atoms
         # -----------------------------------------------------------------------
         # Create vectors
         self.AtomSphere = vtk.vtkTexturedSphereSource()
-        self.AtomSphere.SetRadius(0.10)
+        self.AtomSphere.SetRadius(self.atom_size)
         self.AtomSphere.SetThetaResolution(self.atom_resolution)
         self.AtomSphere.SetPhiResolution(self.atom_resolution)
 
@@ -530,19 +528,27 @@ class ASDMomActors:
         if ASDdata.kmc_flag:
             ren.AddActor(self.KMC_part_actor)
         # Defining the camera directions
-        ren.GetActiveCamera().Azimuth(self.camera_azimuth)
-        ren.GetActiveCamera().Elevation(self.camera_elevation)
-        ren.GetActiveCamera().Yaw(self.camera_yaw)
-        ren.GetActiveCamera().Roll(self.camera_roll)
-        ren.GetActiveCamera().Pitch(self.camera_pitch)
-        ren.GetActiveCamera().SetFocalPoint(self.camera_focal)
-        ren.GetActiveCamera().SetPosition(self.camera_pos)
-        ren.GetActiveCamera().SetViewUp(0, 1, 0)
+        # ren.GetActiveCamera().Azimuth(self.camera_azimuth)
+        # ren.GetActiveCamera().Elevation(self.camera_elevation)
+        # ren.GetActiveCamera().Yaw(self.camera_yaw)
+        # ren.GetActiveCamera().Roll(self.camera_roll)
+        # ren.GetActiveCamera().Pitch(self.camera_pitch)
+        # ren.GetActiveCamera().SetFocalPoint(self.camera_focal)
+        # ren.GetActiveCamera().SetPosition(self.camera_pos)
+        # ren.GetActiveCamera().SetViewUp(self.camera_up)
+        print("Camera reset", self.camera_initialized)
+        if self.camera_initialized:
+            window.ASDCamera.reset_camera(window.ren, window.renWin)
+        else:
+            window.ASDCamera.reset_camera(window.ren, window.renWin, self)
+            self.camera_initialized = True
+        #
+        self.active = True
         # -----------------------------------------------------------------------
         # Start the renderer
         # -----------------------------------------------------------------------
         iren.Start()
-        renWin.Render()
+        # renWin.Render()
         print(" Done")
         return
 
@@ -615,13 +621,13 @@ class ASDMomActors:
         # -----------------------------------------------------------------------
         # Update the general actors
         # -----------------------------------------------------------------------
-        window.ProgressBar.setValue(
-            int((window.current_time - 1) * 100 /
-                (ASDdata.number_time_steps - 1))
-        )
-        window.ProgressLabel.setText(f"   {int(window.ProgressBar.value())}%")
-        time_label = f"{float(window.TimeStepLineEdit.text()) * ASDdata.time_sep[window.current_time-1] * 1e9: 4.2f} ns"
-        ASDGenActors.time_label.SetInput(time_label)
+        if ASDdata.number_time_steps > 1:
+            window.ProgressBar.setValue(
+                int((window.current_time - 1) * 100 / (ASDdata.number_time_steps - 1))
+            )
+            window.ProgressLabel.setText(f"   {int(window.ProgressBar.value())}%")
+            time_label = f"{float(window.TimeStepLineEdit.text()) * ASDdata.time_sep[window.current_time-1] * 1e9: 4.2f} ns"
+            ASDGenActors.time_label.SetInput(time_label)
         # -----------------------------------------------------------------------
         # Render the window
         # -----------------------------------------------------------------------
@@ -720,8 +726,7 @@ class ASDMomActors:
 
             self.spincubetmap.PreventSeamOff()
 
-            self.SpinMapper.SetSourceConnection(
-                self.spincubetmap.GetOutputPort())
+            self.SpinMapper.SetSourceConnection(self.spincubetmap.GetOutputPort())
             self.SpinMapper.ClampingOn()
             self.SpinMapper.OrientOn()
             self.spin_glyph = "Bars"
@@ -751,8 +756,7 @@ class ASDMomActors:
             # tritan.SetInputConnection(tritri.GetOutputPort())
             # self.SpinMapper.SetSourceConnection(tritan.GetOutputPort())
 
-            self.SpinMapper.SetSourceConnection(
-                self.spinsphere.GetOutputPort())
+            self.SpinMapper.SetSourceConnection(self.spinsphere.GetOutputPort())
             self.SpinMapper.ClampingOn()
             self.SpinMapper.OrientOn()
             # self.SpinMapper.OrientOff()
@@ -781,8 +785,7 @@ class ASDMomActors:
 
             # Calculate normals for shading
             self.spinarrownormals = vtk.vtkPolyDataNormals()
-            self.spinarrownormals.SetInputConnection(
-                self.spinarrow.GetOutputPort())
+            self.spinarrownormals.SetInputConnection(self.spinarrow.GetOutputPort())
 
             # Calculate TCoords for texturing
             self.spinarrownormalstmap = vtk.vtkTextureMapToCylinder()
@@ -827,8 +830,7 @@ class ASDMomActors:
 
             # Calculate normals for shading
             self.spinconenormals = vtk.vtkPolyDataNormals()
-            self.spinconenormals.SetInputConnection(
-                self.spincones.GetOutputPort())
+            self.spinconenormals.SetInputConnection(self.spincones.GetOutputPort())
 
             # Calculate TCoords for texturing
             self.spinconeormalstmap = vtk.vtkTextureMapToCylinder()
@@ -837,8 +839,7 @@ class ASDMomActors:
             )
             self.spinconeormalstmap.PreventSeamOn()
 
-            self.SpinMapper.SetSourceConnection(
-                self.spinconeormalstmap.GetOutputPort())
+            self.SpinMapper.SetSourceConnection(self.spinconeormalstmap.GetOutputPort())
             self.SpinMapper.OrientOn()
             self.SpinMapper.Update()
             self.spin_glyph = "Cones"

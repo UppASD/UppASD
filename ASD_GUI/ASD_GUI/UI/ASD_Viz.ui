@@ -2511,10 +2511,10 @@
                                                       <item>
                                                          <widget class="QSlider" name="GlyphQualitySlider">
                                                             <property name="sliderPosition">
-                                                               <number>12</number>
+                                                               <number>16</number>
                                                             </property>
                                                                      <property name="minimum">
-                                                                        <number>4</number>
+                                                                        <number>8</number>
                                                                      </property>
                                                                      <property name="maximum">
                                                                         <number>64</number>
@@ -2523,7 +2523,7 @@
                                                                         <number>8</number>
                                                                      </property>
                                                                      <property name="value">
-                                                                        <number>12</number>
+                                                                        <number>16</number>
                                                                      </property>
                                                             <property name="orientation">
                                                                <enum>Qt::Horizontal</enum>
@@ -2740,10 +2740,10 @@
                                                       <number>8</number>
                                                    </property>
                                                    <property name="value">
-                                                      <number>16</number>
+                                                      <number>12</number>
                                                    </property>
                                                    <property name="sliderPosition">
-                                                      <number>16</number>
+                                                      <number>12</number>
                                                    </property>
                                                    <property name="orientation">
                                                       <enum>Qt::Horizontal</enum>

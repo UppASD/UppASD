@@ -35,7 +35,8 @@ Author:
 """
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
-import json
+import yaml
+
 from vtk import vtkPNGWriter, vtkPOVExporter, vtkWindowToImageFilter
 
 
@@ -46,6 +47,7 @@ class CameraManager:
 
     def __init__(self, camera):
         self.camera = camera
+        self.settings = {}
 
     def get_camera_settings(self):
         """
@@ -61,7 +63,7 @@ class CameraManager:
                 - 'is_parallel': A boolean indicating whether the camera is in
                     parallel projection mode.
         """
-        settings = {
+        self.settings = {
             "position": self.camera.GetPosition(),
             "focal_point": self.camera.GetFocalPoint(),
             "view_up": self.camera.GetViewUp(),
@@ -69,7 +71,7 @@ class CameraManager:
             "parallel_scale": self.camera.GetParallelScale(),
             "is_parallel": self.camera.GetParallelProjection(),
         }
-        return settings
+        return self.settings
 
     def set_camera_settings(self, settings):
         """
@@ -92,31 +94,31 @@ class CameraManager:
         self.camera.SetParallelScale(settings["parallel_scale"])
         self.camera.SetParallelProjection(settings["is_parallel"])
 
-    def save_camera_settings(self, filename="camera_settings.json"):
+    def save_camera_settings(self, filename="camera_settings.yaml"):
         """
-        Save the current camera settings to a JSON file.
+        Save the current camera settings to a YAML file.
 
         Args:
             filename (str, optional): The name of the file to save the settings to.
-            Defaults to 'camera_settings.json'.
+            Defaults to 'camera_settings.yaml'.
         """
-        settings = self.get_camera_settings()
+        self.get_camera_settings()
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=4)
+            yaml.dump(self.settings, f, default_flow_style=False)
         print(f"Camera settings saved to {filename}.")
 
-    def load_camera_settings(self, filename="camera_settings.json"):
+    def load_camera_settings(self, filename="camera_settings.yaml"):
         """
-        Load camera settings from a JSON file and apply them.
+        Load camera settings from a YAML file and apply them.
 
         Args:
             filename (str, optional): The name of the file to load the settings from.
-            Defaults to 'camera_settings.json'.
+            Defaults to 'camera_settings.yaml'.
         """
         try:
             with open(filename, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-            self.set_camera_settings(settings)
+                self.settings = yaml.safe_load(f)
+            self.set_camera_settings(self.settings)
             print(f"Camera settings loaded from {filename}.")
         except FileNotFoundError:
             print(f"File {filename} not found. Unable to load settings.")
@@ -125,7 +127,7 @@ class CameraManager:
     # @brief Function to reset the camera to the initial positions
     # @author Jonathan Chico
     ##########################################################################
-    def reset_camera(self, ren, renWin, current_Actors):
+    def reset_camera(self, ren, renWin, current_Actors=None):
         """Function to reset the camera to the initial position.
 
         Args:
@@ -137,19 +139,25 @@ class CameraManager:
         ----------
         Jonathan Chico
         """
-        # Defining the camera rdirections
-        ren.GetActiveCamera().SetFocalPoint(
-            current_Actors.xmid, current_Actors.ymid, current_Actors.zmid
-        )
-        ren.GetActiveCamera().SetPosition(
-            current_Actors.xmid, current_Actors.ymid, current_Actors.height
-        )
-        ren.GetActiveCamera().Azimuth(0)
-        ren.GetActiveCamera().Elevation(0)
-        ren.GetActiveCamera().Yaw(0)
-        ren.GetActiveCamera().Roll(0)
-        ren.GetActiveCamera().Pitch(0)
-        ren.GetActiveCamera().SetViewUp(0, 1, 0)
+        # Defining the camera directions
+        if current_Actors is None:
+            ren.GetActiveCamera().SetFocalPoint(self.settings["focal_point"])
+            ren.GetActiveCamera().SetPosition(self.settings["position"])
+            ren.GetActiveCamera().SetViewUp(self.settings["view_up"])
+        else:
+            ren.GetActiveCamera().SetFocalPoint(
+                current_Actors.xmid, current_Actors.ymid, current_Actors.zmid
+            )
+            ren.GetActiveCamera().SetPosition(
+                current_Actors.xmid, current_Actors.ymid, current_Actors.height
+            )
+            ren.GetActiveCamera().SetViewUp(0, 1, 0)
+            # ren.GetActiveCamera().Azimuth(0)
+            # ren.GetActiveCamera().Elevation(0)
+            # ren.GetActiveCamera().Yaw(0)
+            # ren.GetActiveCamera().Roll(0)
+            # ren.GetActiveCamera().Pitch(0)
+
         renWin.Render()
         return
 
@@ -185,6 +193,7 @@ class CameraManager:
         ren.GetActiveCamera().Pitch(float(Window.CamPitchLineEdit.text()))
         ren.GetActiveCamera().Roll(float(Window.CamRollLineEdit.text()))
         ren.GetActiveCamera().Yaw(float(Window.CamYawLineEdit.text()))
+
         renWin.Render()
         return
 
@@ -216,6 +225,7 @@ class CameraManager:
         else:
             ren.GetActiveCamera().ParallelProjectionOff()
             renWin.Render()
+
         return
 
     ##########################################################################
@@ -242,6 +252,7 @@ class CameraManager:
                 str(MainWindow.ParallelScaleSlider.value())
             )
             renWin.Render()
+
         return
 
     ##########################################################################
@@ -301,34 +312,13 @@ class CameraManager:
         # Controlling what is up in the camera
         # -----------------------------------------------------------------------
         if window.sender() == window.SetXView:
-            self.set_Camera_viewUp(
-                ren=window.ren,
-                renWin=window.renWin,
-                rdir=(
-                    1,
-                    0,
-                    0))
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(1, 0, 0))
         if window.sender() == window.SetYView:
-            self.set_Camera_viewUp(
-                ren=window.ren,
-                renWin=window.renWin,
-                rdir=(
-                    0,
-                    1,
-                    0))
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 1, 0))
         if window.sender() == window.SetZView:
-            self.set_Camera_viewUp(
-                ren=window.ren,
-                renWin=window.renWin,
-                rdir=(
-                    0,
-                    0,
-                    1))
+            self.set_Camera_viewUp(ren=window.ren, renWin=window.renWin, rdir=(0, 0, 1))
         if window.sender() == window.SetCamButton:
-            self.Update_Camera(
-                Window=window,
-                ren=window.ren,
-                renWin=window.renWin)
+            self.Update_Camera(Window=window, ren=window.ren, renWin=window.renWin)
         # -----------------------------------------------------------------------
         # Controlling the parallel scale
         # -----------------------------------------------------------------------
@@ -369,7 +359,7 @@ class CameraManager:
             self.load_camera_settings()
             # camera_settings = self.ASDCamera.get_camera_settings()
             window.ASDVizOpt.update_dock_info(
-                current_Actors=window.MomActors, window=window
+                current_actors=window.MomActors, window=window
             )
 
         return
