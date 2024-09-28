@@ -18,6 +18,10 @@ import numpy as np
 
 
 class ASDNeighActors:
+    
+    def __init__(self):
+        self.active = False
+    
     ##########################################################################
     # @brief This defines the actors for the visualization of neighbours from the struct file
     # @details This defines the actors for the visualization of neighbours from the struct file.

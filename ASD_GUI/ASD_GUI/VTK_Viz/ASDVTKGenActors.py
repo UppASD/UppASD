@@ -14,6 +14,9 @@ class ASDGenActors:
     """Class that defines general actors which can be used in the different visualization types.
     It includes axes to indicate the orientation, scalar bar to indicate the range of the variables
     and cluster gaussian splatters to indicate the presence of clusters."""
+    def __init__(self):
+        self.active = False
+    
 
     ##########################################################################
     # Tries to eliminate the general actors
@@ -24,7 +27,7 @@ class ASDGenActors:
         """
         del self.scalar_bar
         del self.scalar_bar_widget
-        print("Scalar bar actor Off")
+        # print("Scalar bar actor Off")
         del self.scalarBarRep
         del self.axes
         del self.OrientMarker

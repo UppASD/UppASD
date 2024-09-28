@@ -12,6 +12,7 @@ Jonathan Chico
 """
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
+import io
 import glob
 import os.path as path
 from enum import Enum
@@ -219,6 +220,8 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDColor = ASDVTKColor.ASDVTKColor()
         self.UISettings = ASDUISettings.ASDUISettings()
         self.settings_file = "ASDUIConfig.yaml"
+        self.runtime_settings = None
+        self.initialized = False
         # -----------------------------------------------------------------------
         # Set better font size
         # -----------------------------------------------------------------------
@@ -873,7 +876,6 @@ class UppASDVizMainWindow(QMainWindow):
 
         Utilizes ASDUIActorHelper to add actors to the current UI context.
         """
-        print("Adding actors")
         ASDUIActorHelper.AddActors(self)
 
     ##########################################################################

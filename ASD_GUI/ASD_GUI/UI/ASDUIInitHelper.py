@@ -118,25 +118,27 @@ def InitUI(window):
     """
     Initializes the user interface components and sets their initial states.
     """
-    window.EneMainBox.setEnabled(False)
-    window.CamMainBox.setEnabled(False)
-    window.MagMainGroup.setEnabled(False)
-    window.NeighMainBox.setEnabled(False)
-    window.SceneOptMainBox.setEnabled(False)
-    window.SpinGlyphSelectBox.setEnabled(True)
-    window.ClippBox.setEnabled(False)
-    window.ClippBox.setChecked(False)
-    window.ClusBox.setVisible(False)
-    window.KMCCheck.setVisible(False)
-    window.SceneOptMainBox.setEnabled(True)
-    window.CamMainBox.setEnabled(True)
-    window.actionSave_pov.setEnabled(True)
-    window.actionSave_png.setEnabled(True)
-    window.ClippBox.setEnabled(True)
-    window.actionDisplayMagDens.setEnabled(False)
-    window.actionX_ProjMagDens.setEnabled(False)
-    window.actionY_ProjMagDens.setEnabled(False)
-    window.actionZ_ProjMagDens.setEnabled(False)
+    #if True:
+    if not window.initialized:
+        window.EneMainBox.setEnabled(False)
+        window.CamMainBox.setEnabled(False)
+        window.MagMainGroup.setEnabled(False)
+        window.NeighMainBox.setEnabled(False)
+        window.SceneOptMainBox.setEnabled(False)
+        window.SpinGlyphSelectBox.setEnabled(True)
+        window.ClippBox.setEnabled(False)
+        window.ClippBox.setChecked(False)
+        window.ClusBox.setVisible(False)
+        window.KMCCheck.setVisible(False)
+        window.SceneOptMainBox.setEnabled(True)
+        window.CamMainBox.setEnabled(True)
+        window.actionSave_pov.setEnabled(True)
+        window.actionSave_png.setEnabled(True)
+        window.ClippBox.setEnabled(True)
+        window.actionDisplayMagDens.setEnabled(False)
+        window.actionX_ProjMagDens.setEnabled(False)
+        window.actionY_ProjMagDens.setEnabled(False)
+        window.actionZ_ProjMagDens.setEnabled(False)
     window.file_names[0] = window.ASDdata.posfiles
     window.file_names[1] = window.ASDdata.magnetization
     window.file_names[2] = window.ASDdata.kmcfiles
@@ -145,4 +147,5 @@ def InitUI(window):
     window.file_names[5] = window.ASDdata.dmdatafiles
     window.ProgressBar.setValue(0)
     window.ProgressLabel.setText(f"   {int(window.ProgressBar.value())}%")
+    window.initialized = True
     return

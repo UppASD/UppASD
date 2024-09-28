@@ -52,7 +52,7 @@ class ASDVTKColor:
         self.NUM_LUT_COLORS = 256
         self.NUM_RGB_COLORS = 1
         self.num_colors = self.NUM_LUT_COLORS
-        self.mapnum = 1
+        self.mapnum = 0
         self.rgb = [0.0, 0.0, 0.0]
         self.rgb_background = [255.0, 255.0, 255.0]
         self.lut_scale = "Linear"

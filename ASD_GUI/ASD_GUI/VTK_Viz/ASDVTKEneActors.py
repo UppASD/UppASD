@@ -35,6 +35,9 @@ class ASDEneActors:
     # choosing on the fly between different tesellation methods.
     # @author Jonathan Chico
     ##########################################################################
+    def __init__(self):
+        self.active = False
+    
     def Add_EneActors(self, ren, renWin, iren, ASDdata):
         """
         Add energy actors to the VTK renderer.

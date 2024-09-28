@@ -133,11 +133,11 @@ class ASDUISettings:
 
         # Gather all settings into the settings dictionary
         self.settings = {
-            "MomActors": mom_settings,
-            "ASDVTKTexture": tex_settings,
-            "ASDVizOptions": viz_settings,
-            "ASDColors": color_settings,
             "ASDCamera": cam_settings,
+            "ASDColors": color_settings,
+            "ASDVizOptions": viz_settings,
+            "ASDVTKTexture": tex_settings,
+            "MomActors": mom_settings,
         }
 
     def write_to_json(self, file_path):
@@ -157,8 +157,16 @@ class ASDUISettings:
         Args:
             file_path (str): The path to the YAML file to write.
         """
-        with open(file_path, "w", encoding="utf-8") as yaml_file:
-            yaml.dump(self.settings, yaml_file, default_flow_style=False)
+        print("Writing settings to file", type(file_path))
+        if isinstance(file_path, (str, bytes, os.PathLike)):
+            with open(file_path, "w", encoding="utf-8") as yaml_file:
+                yaml.dump(self.settings, yaml_file, default_flow_style=False, sort_keys=False)
+        else:
+            print("Settings saved to memory")
+            yaml.dump(self.settings, file_path, sort_keys=False)
+            file_path.seek(0)
+            self.settings = yaml.safe_load(file_path)
+            #print("Settings loaded from file")
 
     def read_from_json(self, file_path):
         """
@@ -180,11 +188,19 @@ class ASDUISettings:
         Args:
             file_path (str): Path to the YAML file.
         """
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as yaml_file:
-                self.settings = yaml.safe_load(yaml_file)
+        print("Loading settings: ", type(file_path))
+        if isinstance(file_path, (str, bytes, os.PathLike)):
+            if os.path.exists(file_path):
+                with open(file_path, "r", encoding="utf-8") as yaml_file:
+                    self.settings = yaml.safe_load(yaml_file)
+            else:
+                raise FileNotFoundError(f"No such file: '{file_path}'")
         else:
-            raise FileNotFoundError(f"No such file: '{file_path}'")
+            file_path.seek(0)
+            self.settings = yaml.safe_load(file_path)
+            print("Settings loaded from memory")
+            print(self.settings)
+
 
     def restore_from_settings(self, window):
         """
@@ -342,7 +358,7 @@ class ASDUISettings:
         #     window.MomActors.toggle_directions(mom_settings["vector_directions"])
 
         if "spin_size" in mom_settings:
-            window.SpinSize.setValue(int(mom_settings["spin_size"]))
+            window.SpinSize.setValue(int(mom_settings["spin_size"] / 0.5 * 10.0))
 
         if "spin_shade" in mom_settings:
             if mom_settings["spin_shade"] == "Flat":

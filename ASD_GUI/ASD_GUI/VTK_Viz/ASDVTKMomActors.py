@@ -31,7 +31,7 @@ class ASDMomActors:
         self.show_density = False
         self.projection_type = "spins"
         self.projection_vector = 2
-        self.spin_size = 20
+        self.spin_size = 0.5
         self.spin_shade = "Gouraud"
         self.ambient = 0.6
         self.specular = 0.4
@@ -43,6 +43,7 @@ class ASDMomActors:
         self.pbr_metallic = 0.5
         self.atom_size = 0.1
         self.atom_opacity = 1.0
+        self.active = False
 
     def gather_settings(self):
         """
@@ -942,7 +943,7 @@ class ASDMomActors:
         Adjusts the scale factor of the SpinMapper based on the provided value.
         """
         self.SpinMapper.SetScaleFactor(0.50 * value / 10)
-        self.spin_size = value
+        self.spin_size = 0.5 * value / 10
         return
 
     ##########################################################################
