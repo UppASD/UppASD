@@ -144,6 +144,8 @@ contains
    subroutine setup_type_and_numb(Natom_full,NA,N1,N2,N3,atype,anumb,atype_inp,     &
       anumb_inp,block_size)
       !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
       implicit none
 
       integer, intent(in) :: NA  !< Number of atoms in one cell
@@ -162,12 +164,12 @@ contains
       integer :: i0, i1, i2, i3, ii1, ii2, ii3
       !
       A1=0
-      do iI3=0, N3-1, block_size
-         do iI2=0, N2-1, block_size
-            do iI1=0, N1-1, block_size
-               do I3=ii3,min(ii3+block_size-1,N3-1)
-                  do I2=ii2,min(ii2+block_size-1,N2-1)
-                     do I1=ii1,min(ii1+block_size-1,N1-1)
+      do iI3=0, N3-1, block_size_z
+         do iI2=0, N2-1, block_size_y
+            do iI1=0, N1-1, block_size_x
+               do I3=ii3,min(ii3+block_size_z-1,N3-1)
+                  do I2=ii2,min(ii2+block_size_y-1,N2-1)
+                     do I1=ii1,min(ii1+block_size_x-1,N1-1)
                         do I0=1, NA
                            A1=A1+1
                            atype(A1)=atype_inp(I0)
@@ -336,6 +338,8 @@ contains
       do_prnstruct,do_prn_poscar,simid,do_ralloy,Natom_full,acellnumb,achtype,      &
       atype_ch,asite_ch,achem_ch,block_size)
       !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
       implicit none
       !
       integer, intent(in) :: NA  !< Number of atoms in one cell
@@ -433,12 +437,12 @@ contains
       allocate(coord(3,Natom),stat=i_stat)
       call memocc(i_stat,product(shape(coord))*kind(coord),'coord','setup_globcoord')
       i=0
-      do II3=0, N3-1,block_size
-         do II2=0, N2-1,block_size
-            do II1=0, N1-1,block_size
-               do I3=II3, min(II3+block_size-1,N3-1)
-                  do I2=II2,min(II2+block_size-1,N2-1)
-                     do I1=II1, min(II1+block_size-1,N1-1)
+      do II3=0, N3-1,block_size_z
+         do II2=0, N2-1,block_size_y
+            do II1=0, N1-1,block_size_x
+               do I3=II3, min(II3+block_size_z-1,N3-1)
+                  do I2=II2,min(II2+block_size_y-1,N2-1)
+                     do I1=II1, min(II1+block_size_x-1,N1-1)
                         do I0=1, NA
                            i=i+1
                            if (do_ralloy==0) then

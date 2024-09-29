@@ -58,7 +58,7 @@ contains
       use FixedMom,           only : do_fixed_mom
       use stiffness
       use prn_fields
-      use macrocells,         only : prn_dip_subset,dip_file
+      !use macrocells,         only : prn_dip_subset,dip_file
       use temperature,        only : grad, tempfile, do_3tm
       use Polarization
       use prn_topology
@@ -191,8 +191,15 @@ contains
                read(ifile,*,iostat=i_err) do_ralloy
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_macro_cells')
+               read(ifile,*,iostat=i_err) do_macro_cells
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('block_size')
                read(ifile,*,iostat=i_err) block_size
+               block_size_x = block_size
+               block_size_y = block_size
+               block_size_z = block_size
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('block_size_x')
