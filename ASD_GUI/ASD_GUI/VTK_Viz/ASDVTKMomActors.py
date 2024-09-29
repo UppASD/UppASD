@@ -8,7 +8,7 @@ Author
 ----------
 Jonathan Chico
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import vtk
 import numpy as np
@@ -31,12 +31,14 @@ class ASDMomActors:
         self.show_density = False
         self.projection_type = "spins"
         self.projection_vector = 2
+        self.autorange_color = True
         self.spin_size = 0.5
         self.spin_shade = "Gouraud"
         self.ambient = 0.6
         self.specular = 0.4
         self.specular_power = 80
         self.diffuse = 0.4
+        self.opacity = 1.0
         self.pbr_emission = 1.0
         self.pbr_occlusion = 1.0
         self.pbr_roughness = 0.5
@@ -84,6 +86,7 @@ class ASDMomActors:
         settings["specular"] = self.specular
         settings["specular_power"] = self.specular_power
         settings["diffuse"] = self.diffuse
+        settings["opacity"] = self.opacity
         settings["pbr_emission"] = self.pbr_emission
         settings["pbr_occlusion"] = self.pbr_occlusion
         settings["pbr_roughness"] = self.pbr_roughness
@@ -162,7 +165,7 @@ class ASDMomActors:
         # Passing the data from the full system to the PolyData
         self.src = vtk.vtkPolyData()
         self.src.SetPoints(ASDdata.coord)
-        self.src.GetPointData().SetScalars(ASDdata.colors[2])
+        self.src.GetPointData().SetScalars(ASDdata.colors[self.projection_vector])
         self.src.GetPointData().SetVectors(ASDdata.moments)
         scalar_range = self.src.GetScalarRange()
         # -----------------------------------------------------------------------
@@ -190,7 +193,6 @@ class ASDMomActors:
         self.dist_x = np.absolute(self.xmax - self.xmin)
         self.dist_y = np.absolute(self.ymax - self.ymin)
         self.dist_z = np.absolute(self.zmax - self.zmin)
-        print("AddMomActors:", self.camera_initialized)
         if not self.camera_initialized:
             self.camera_pos[0] = self.xmid
             self.camera_pos[1] = self.ymid
@@ -205,7 +207,7 @@ class ASDMomActors:
         # Passing the data from the full system to the PolyData
         self.src_spins = vtk.vtkPolyData()
         self.src_spins.SetPoints(ASDdata.coord)
-        self.src_spins.GetPointData().SetScalars(ASDdata.colors[2])
+        self.src_spins.GetPointData().SetScalars(ASDdata.colors[self.projection_vector])
         self.src_spins.GetPointData().SetVectors(ASDdata.moments)
         scalar_range_spins = self.src_spins.GetScalarRange()
         # -----------------------------------------------------------------------
@@ -414,12 +416,16 @@ class ASDMomActors:
         self.SpinMapper.SetSourceConnection(self.spinarrowtangents.GetOutputPort())
 
         self.SpinMapper.SetInputData(self.src_spins)
-        self.SpinMapper.SetScalarRange(scalar_range_spins)
         self.SpinMapper.SetScaleFactor(self.spin_size)
         self.SpinMapper.SetScaleModeToNoDataScaling()
         self.SpinMapper.SetLookupTable(self.lut)
         self.SpinMapper.SetColorModeToMapScalars()
+        if self.autorange_color:
+            self.SpinMapper.SetScalarRange(scalar_range_spins)
+        else:
+            self.SpinMapper.SetScalarRange(-1.0, 1.0)
         self.SpinMapper.Update()
+        # Set the scalar bar range
 
         # Define the vector actor for the spins
         self.Spins = vtk.vtkActor()
@@ -431,6 +437,7 @@ class ASDMomActors:
         self.Spins.GetProperty().SetSpecularPower(self.specular_power)
         self.Spins.GetProperty().SetAmbient(self.ambient)
         self.Spins.GetProperty().SetDiffuse(self.diffuse)
+        self.Spins.GetProperty().SetOpacity(self.opacity)
         self.Spins.GetProperty().SetEdgeTint(0.0, 0.0, 0.0)
         if window.SpinsBox.isChecked():
             self.Spins.VisibilityOn()
@@ -536,7 +543,6 @@ class ASDMomActors:
         # ren.GetActiveCamera().SetFocalPoint(self.camera_focal)
         # ren.GetActiveCamera().SetPosition(self.camera_pos)
         # ren.GetActiveCamera().SetViewUp(self.camera_up)
-        print("Camera reset", self.camera_initialized)
         if self.camera_initialized:
             window.ASDCamera.reset_camera(window.ren, window.renWin)
         else:
@@ -549,7 +555,7 @@ class ASDMomActors:
         # -----------------------------------------------------------------------
         iren.Start()
         # renWin.Render()
-        print(" Done")
+        # print(" Done")
         return
 
     ##########################################################################
@@ -1006,6 +1012,20 @@ class ASDMomActors:
             self.Spins.GetProperty().SetDiffuse(float(value * 0.01))
 
         self.diffuse = value * 0.01
+        renWin.Render()
+        return
+
+    ##########################################################################
+    # Set the opacity of the spin glyphs
+    ##########################################################################
+    def RenOpacityUpdate(self, value, renWin):
+        """
+        Updates the diffuse property of MomActors.Spins and renders the window.
+        """
+        if hasattr(self, "Spins"):
+            self.Spins.GetProperty().SetOpacity(float(value * 0.01))
+
+        self.opacity = value * 0.01
         renWin.Render()
         return
 

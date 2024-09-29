@@ -10,7 +10,7 @@
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll,
 # and Azimuth
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import vtk
 import numpy as np
@@ -60,8 +60,7 @@ class InteractiveASD:
             # except ImportError:
             #     print("Launch: UppASD module not installed.")
             #     return
-        else:
-            self.asd.init_simulation()
+        self.asd.init_simulation()
         print("InteractiveASD launched!", self.asd.natom, self.asd.mensemble)
 
         self.Datatest = vtk.vtkPolyData()

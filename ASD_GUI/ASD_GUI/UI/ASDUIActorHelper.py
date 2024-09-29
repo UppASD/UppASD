@@ -69,7 +69,6 @@ def AddActors(window, viz_type=None):
     if window.runtime_settings is not None:
         window.UISettings.gather_dicts(window)
         window.UISettings.write_to_yaml(window.runtime_settings)
-        # window.UISettings.write_to_yaml("test.yaml")
     # -----------------------------------------------------------------------
     # This takes care of setting up the options for the visualization of the
     # magnetic moments obtained from the restart file
@@ -156,13 +155,10 @@ def AddActors(window, viz_type=None):
             # Re-initialize previous setup (or save current)
             # ---------------------------------------------------------------
             if window.runtime_settings is None:
-                print("No settings file found, regenerating the settings")
                 window.UISettings.gather_dicts(window)
                 window.runtime_settings = io.StringIO()
                 window.UISettings.write_to_yaml(window.runtime_settings)
             else:
-                # window.UISettings.read_from_yaml('test.yaml')
-                print("Settings file found, reading the settings")
                 window.UISettings.read_from_yaml(window.runtime_settings)
                 window.UISettings.restore_from_settings(window)
                 window.renWin.Render()

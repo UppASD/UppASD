@@ -4,7 +4,7 @@ ASDUISettings module
 This module provides the ASDUISettings class, which manages and stores settings
 for the ASD GUI application.
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import json
 import os
@@ -71,12 +71,14 @@ class ASDUISettings:
             "show_density": window.MomActors.show_density,
             "projection_type": window.MomActors.projection_type,
             "projection_vector": window.MomActors.projection_vector,
+            "autorange_color": window.MomActors.autorange_color,
             "spin_size": window.MomActors.spin_size,
             "spin_shade": window.MomActors.spin_shade,
             "ambient": window.MomActors.ambient,
             "specular": window.MomActors.specular,
             "specular_power": window.MomActors.specular_power,
             "diffuse": window.MomActors.diffuse,
+            "opacity": window.MomActors.opacity,
             "pbr_emission": window.MomActors.pbr_emission,
             "pbr_occlusion": window.MomActors.pbr_occlusion,
             "pbr_roughness": window.MomActors.pbr_roughness,
@@ -157,12 +159,12 @@ class ASDUISettings:
         Args:
             file_path (str): The path to the YAML file to write.
         """
-        print("Writing settings to file", type(file_path))
         if isinstance(file_path, (str, bytes, os.PathLike)):
             with open(file_path, "w", encoding="utf-8") as yaml_file:
-                yaml.dump(self.settings, yaml_file, default_flow_style=False, sort_keys=False)
+                yaml.dump(
+                    self.settings, yaml_file, default_flow_style=False, sort_keys=False
+                )
         else:
-            print("Settings saved to memory")
             yaml.dump(self.settings, file_path, sort_keys=False)
             file_path.seek(0)
             self.settings = yaml.safe_load(file_path)
@@ -187,7 +189,6 @@ class ASDUISettings:
         Args:
             file_path (str): Path to the YAML file.
         """
-        print("Loading settings: ", type(file_path))
         if isinstance(file_path, (str, bytes, os.PathLike)):
             if os.path.exists(file_path):
                 with open(file_path, "r", encoding="utf-8") as yaml_file:
@@ -238,11 +239,15 @@ class ASDUISettings:
                 rgb=color_settings["rgb_background"], ren=window.ren
             )
             window.RGBRedBackgroundSlider.blockSignals(True)
-            window.RGBRedBackgroundSlider.setValue(int(color_settings["rgb_background"][0]))
+            window.RGBRedBackgroundSlider.setValue(
+                int(color_settings["rgb_background"][0])
+            )
             window.RGBGreenBackgroundSlider.setValue(
                 int(color_settings["rgb_background"][1])
             )
-            window.RGBBlueBackgroundSlider.setValue(int(color_settings["rgb_background"][2]))
+            window.RGBBlueBackgroundSlider.setValue(
+                int(color_settings["rgb_background"][2])
+            )
             window.RGBRedBackgroundSlider.blockSignals(False)
 
         # Restore ASDVTKTexture settings
@@ -313,6 +318,10 @@ class ASDUISettings:
             elif mom_settings["projection_vector"] == 2:
                 window.SpinZ.setChecked(True)
 
+        if "autorange_color" in mom_settings:
+            window.MomActors.autorange_color = mom_settings["autorange_color"]
+            window.SpinColorScale.setChecked(mom_settings["autorange_color"])
+
         if "spin_resolution" in mom_settings:
             window.MomActors.spin_resolution = mom_settings["spin_resolution"]
             window.GlyphQualitySlider.setValue(int(mom_settings["spin_resolution"]))
@@ -371,6 +380,9 @@ class ASDUISettings:
 
         if "diffuse" in mom_settings:
             window.RenDiffuseSlider.setValue(int(mom_settings["diffuse"] / 0.01))
+
+        if "opacity" in mom_settings:
+            window.GlyphOpacitySlider.setValue(int(mom_settings["opacity"] / 0.01))
 
         if "specular" in mom_settings:
             window.RenSpecularSlider.setValue(int(mom_settings["specular"] / 0.01))

@@ -9,7 +9,7 @@ Author
 ----------
 Jonathan Chico
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import QProgressBar, QLabel, QStyle, QToolButton
@@ -346,6 +346,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.ScalarBarCheck.toggled.connect(window.toggle_ScalarBar)
     window.ScalarBarCheck.toggled.connect(window.UpdateRenderer)
+    window.SpinColorScale.toggled.connect(window.set_ScalarBarRange)
+    window.SpinColorScale.toggled.connect(window.UpdateRenderer)
     window.AxesCheck.toggled.connect(window.toggle_Axes)
     window.AxesCheck.toggled.connect(window.UpdateRenderer)
     window.ClippBox.toggled.connect(window.clipperHandler)
@@ -386,6 +388,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ETextureCheck.toggled.connect(window.ETexture_control)
     #
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
+    window.GlyphOpacitySlider.valueChanged.connect(window.RenOpacity_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
     window.RenSpecularPowerSlider.valueChanged.connect(

@@ -2537,6 +2537,25 @@
                                                    </layout>
                                                 </widget>
                                              </item>
+                                             <item>
+                                                <widget class="QCheckBox" name="SpinColorScale">
+                                                   <property name="toolTip">
+                                                      <string>Autoscale color rangee</string>
+                                                   </property>
+                                                   <property name="statusTip">
+                                                      <string>Autoscale color rangee</string>
+                                                   </property>
+                                                   <property name="whatsThis">
+                                                      <string>Autoscale color rangee</string>
+                                                   </property>
+                                                   <property name="text">
+                                                      <string>Autoscale color range</string>
+                                                   </property>
+                                                   <property name="checked">
+                                                      <bool>true</bool>
+                                                   </property>
+                                                </widget>
+                                             </item>
                                           </layout>
                                        </widget>
                                     </item>
@@ -4718,7 +4737,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>60</number>
@@ -4733,7 +4752,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -4778,7 +4797,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>40</number>
@@ -4793,7 +4812,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -4838,7 +4857,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>40</number>
@@ -4853,7 +4872,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -4898,7 +4917,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>80</number>
@@ -4913,7 +4932,49 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+
+                                                      <item>
+                                                         <widget class="QLabel" name="GlyphOpacitySliderLabel">
+                                                            <property name="frameShape">
+                                                               <enum>QFrame::NoFrame</enum>
+                                                            </property>
+                                                            <property name="text">
+                                                               <string>Glyph Opacity</string>
+                                                            </property>
+                                                            <property name="alignment">
+                                                               <set>Qt::AlignCenter</set>
+                                                            </property>
+                                                         </widget>
+                                                      </item>
+                                                      <item>
+                                                         <widget class="QSlider" name="GlyphOpacitySlider">
+                                                            <property name="sliderPosition">
+                                                               <number>100</number>
+                                                            </property>
+                                                                     <property name="minimum">
+                                                                        <number>0</number>
+                                                                     </property>
+                                                                     <property name="maximum">
+                                                                        <number>100</number>
+                                                                     </property>
+                                                                     <property name="pageStep">
+                                                                        <number>10</number>
+                                                                     </property>
+                                                                     <property name="value">
+                                                                        <number>100</number>
+                                                                     </property>
+                                                            <property name="orientation">
+                                                               <enum>Qt::Horizontal</enum>
+                                                            </property>
+                                                            <property name="tickPosition">
+                                                               <enum>QSlider::TicksBelow</enum>
+                                                            </property>
+                                                            <property name="tickInterval">
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -4981,7 +5042,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>50</number>
@@ -4996,7 +5057,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -5041,7 +5102,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>50</number>
@@ -5056,7 +5117,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -5101,7 +5162,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>50</number>
@@ -5116,7 +5177,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -5161,7 +5222,7 @@
                                                                <number>100</number>
                                                             </property>
                                                             <property name="pageStep">
-                                                               <number>20</number>
+                                                               <number>10</number>
                                                             </property>
                                                             <property name="value">
                                                                <number>50</number>
@@ -5176,7 +5237,7 @@
                                                                <enum>QSlider::TicksBelow</enum>
                                                             </property>
                                                             <property name="tickInterval">
-                                                               <number>5</number>
+                                                               <number>10</number>
                                                             </property>
                                                          </widget>
                                                       </item>
@@ -5860,8 +5921,8 @@
                                                    <property name="singleStep">
                                                       <number>1</number>
                                                    </property>
-                                                   <property name="pageStep">
-                                                      <number>1</number>
+                                                   <property name="tickInterval">
+                                                      <number>10</number>
                                                    </property>
                                                    <property name="value">
                                                       <number>10</number>

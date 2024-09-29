@@ -10,10 +10,10 @@ Author
 ----------
 Jonathan Chico
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import glob
-import os.path as path
+from os import path
 from enum import Enum
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
@@ -25,8 +25,8 @@ from vtk import vtkInteractorStyleTrackballCamera, vtkOpenGLRenderer
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
-import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
-import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
+from ASD_GUI.Input_Creator import ASDInputGen
+from ASD_GUI.UI import ASDInteractiveTab
 from ASD_GUI.PLOT import ASDPlots2D, ASDPlotsReading
 from ASD_GUI.UI import (
     ASDInputWindows,
@@ -55,22 +55,6 @@ except ImportError:
     ASDsimulator = None
     print("Warning: uppasd module not found, interactive functions disabled")
 
-
-class Backend(Enum):
-    """
-    Enum representing different backends for the ASD GUI.
-
-    Attributes:
-        UppASD_VTK (int): Backend using VTK.
-        UppASD_MAT (int): Backend using MATLAB.
-        UppASD_INP (int): Backend using INP.
-        UppASD_INT (int): Backend using INT.
-    """
-
-    UppASD_VTK = 1
-    UppASD_MAT = 2
-    UppASD_INP = 3
-    UppASD_INT = 4
 
 
 ##########################################################################
@@ -142,6 +126,22 @@ class UppASDVizMainWindow(QMainWindow):
         backend (Backend): Backend for visualization.
         InteractiveVt
     """
+    class Backend(Enum):
+        """
+        Enum representing different backends for the ASD GUI.
+
+        Attributes:
+            UppASD_VTK (int): Backend using VTK.
+            UppASD_MAT (int): Backend using MATLAB.
+            UppASD_INP (int): Backend using INP.
+            UppASD_INT (int): Backend using INT.
+        """
+
+        UppASD_VTK = 1
+        UppASD_MAT = 2
+        UppASD_INP = 3
+        UppASD_INT = 4
+
 
     ##########################################################################
     # @brief Class constructor for the main window
@@ -150,7 +150,7 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ##########################################################################
     def __init__(self, args):
-        super(UppASDVizMainWindow, self).__init__()
+        super().__init__()
         self.args = args
         # -----------------------------------------------------------------------
         # Define the array containing the file names necessary for visualization
@@ -273,17 +273,17 @@ class UppASDVizMainWindow(QMainWindow):
         self.Plotting_Figure.add_subplot(111)
         self.Plotting_Figure.patch.set_alpha(0.0)
 
-        self.Plotting_ax = self.Plotting_Figure.axes[0]
+        self.Plotting_ax = self.Plotting_Figure.get_axes()[0]
         self.Plot2DLayout.addWidget(self.Plotting_canvas)
         self.Plotting_Figure3D = Figure(figsize=(9, 7))
         self.Plotting_Figure3D.set_tight_layout(True)
         self.Plotting_canvas3D = FigureCanvas(self.Plotting_Figure3D)
         self.Plotting_Figure3D.add_subplot(111, projection="3d")
         self.Plotting_Figure3D.patch.set_alpha(0.0)
-        self.Plotting_ax3D = self.Plotting_Figure3D.axes[0]
+        self.Plotting_ax3D = self.Plotting_Figure3D.get_axes()[0]
         self.Plot3DLayout.addWidget(self.Plotting_canvas3D)
 
-        self.backend = Backend.UppASD_VTK
+        self.backend = self.Backend.UppASD_VTK
 
         # Interactive object
         self.InteractiveVtk = IntASD.InteractiveASD(
@@ -334,24 +334,24 @@ class UppASDVizMainWindow(QMainWindow):
         """
         if self.ModeSelector.currentIndex() == 0:
             print("VTK")
-            self.backend = Backend.UppASD_VTK
+            self.backend = self.Backend.UppASD_VTK
             if not self.VTKWidgetPresent:
                 self.VTKWidget_Layout.addWidget(self.vtkWidget)
                 self.VTKWidgetPresent = True
         elif self.ModeSelector.currentIndex() == 1:
             print("Plot")
-            self.backend = Backend.UppASD_MAT
+            self.backend = self.Backend.UppASD_MAT
             self.vtkWidget.setVisible(False)
         elif self.ModeSelector.currentIndex() == 2:
             print("Inp")
-            self.backend = Backend.UppASD_INP
+            self.backend = self.Backend.UppASD_INP
             self.vtkWidget.setVisible(False)
         elif self.ModeSelector.currentIndex() == 3:
             if self.ASDsim is None:
                 print("Interactive features disabled")
                 self.ModeSelector.setCurrentIndex(self.ModeSelector.oldIndex)
                 return
-            self.backend = Backend.UppASD_INT
+            self.backend = self.Backend.UppASD_INT
             if not self.IntWidgetPresent:
                 self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
                 # self.InteractiveWidget_Layout.addWidget(self.vtkWidget)
@@ -374,7 +374,7 @@ class UppASDVizMainWindow(QMainWindow):
         """
         Resets the UI elements based on the selected backend.
         """
-        if self.backend == Backend.UppASD_VTK:
+        if self.backend == self.Backend.UppASD_VTK:
             self.OptionDock.setVisible(True)
             self.OptionDock.setEnabled(True)
             self.MatPlotOptions.setVisible(False)
@@ -385,7 +385,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.IntVtkWidget.setVisible(False)
             self.InteractiveDockWidget.setVisible(False)
             self.InteractiveDockWidget.setEnabled(False)
-        elif self.backend == Backend.UppASD_MAT:
+        elif self.backend == self.Backend.UppASD_MAT:
             self.OptionDock.setVisible(False)
             self.OptionDock.setEnabled(False)
             self.MatPlotOptions.setVisible(True)
@@ -396,7 +396,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.IntVtkWidget.setVisible(False)
             self.InteractiveDockWidget.setVisible(False)
             self.InteractiveDockWidget.setEnabled(False)
-        elif self.backend == Backend.UppASD_INP:
+        elif self.backend == self.Backend.UppASD_INP:
             self.OptionDock.setVisible(False)
             self.OptionDock.setEnabled(False)
             self.MatPlotOptions.setVisible(False)
@@ -406,7 +406,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.IntVtkWidget.setVisible(False)
             self.InteractiveDockWidget.setVisible(False)
             self.InteractiveDockWidget.setEnabled(False)
-        elif self.backend == Backend.UppASD_INT:
+        elif self.backend == self.Backend.UppASD_INT:
             self.OptionDock.setVisible(False)
             self.OptionDock.setEnabled(False)
             self.MatPlotOptions.setVisible(False)
@@ -953,6 +953,21 @@ class UppASDVizMainWindow(QMainWindow):
         self.ASDVizOpt.toggle_ScalarBar(self, check)
 
     ##########################################################################
+    # Toggle option for the scalar bar
+    ##########################################################################
+    def set_ScalarBarRange(self, check):
+        """
+        Toggles the visibility of the scalar bar widget based on the check parameter.
+        """
+
+        if check:
+            data_range = self.MomActors.src_spins.GetPointData().GetScalars().GetRange()
+            self.MomActors.SpinMapper.SetScalarRange(data_range)
+        else:
+            self.MomActors.SpinMapper.SetScalarRange(-1.0, 1.0)
+        self.MomActors.autorange_color = check
+
+    ##########################################################################
     # @brief Enable rgb-values for single color
     # @author Anders Bergman
     ##########################################################################
@@ -1127,6 +1142,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.MomActors.set_projection(atype="spins", axis=1)
         if self.sender() == self.SpinZ and self.SpinZ.isChecked():
             self.MomActors.set_projection(atype="spins", axis=2)
+        self.set_ScalarBarRange(self.SpinColorScale.isChecked())
         self.renWin.Render()
         return
 
@@ -1335,8 +1351,7 @@ class UppASDVizMainWindow(QMainWindow):
         the `ASDGenActors.UpdateClipper` method with the selected actors and other
         relevant parameters.
         """
-        if self.viz_type == "M":
-            current_Actors = self.MomActors
+        current_Actors = self.MomActors
         if self.viz_type == "N":
             current_Actors = self.NeighActors
         if self.viz_type == "E":
@@ -1639,6 +1654,15 @@ class UppASDVizMainWindow(QMainWindow):
         Updates the rendering window with the given diffuse value.
         """
         self.MomActors.RenDiffuseUpdate(value=value, renWin=self.renWin)
+
+    ##########################################################################
+    # Function that calls for toggling diffuse scattering
+    ##########################################################################
+    def RenOpacity_control(self, value):
+        """
+        Updates the rendering window with the given diffuse value.
+        """
+        self.MomActors.RenOpacityUpdate(value=value, renWin=self.renWin)
 
     ##########################################################################
     # Function that calls for toggling PBR Emission value

@@ -1,3 +1,8 @@
+"""
+ASDGenActors is a wrapper class to add VTK actors for visualizing auxiliary data. It contains
+the necessary data to add, modify, and manage the actors, as well as helper functions to change
+them.
+"""
 ##########################################################################
 # CLASS: ASDGenActors
 # @author Jonathan Chico (15/05/2018)
@@ -6,7 +11,7 @@
 # It contains the needed data to add the actors, modify them, as well as some helper
 # functions to change them.
 ##########################################################################
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 import vtk
 
 
@@ -16,6 +21,9 @@ class ASDGenActors:
     and cluster gaussian splatters to indicate the presence of clusters."""
 
     def __init__(self):
+        """
+        Initializes the ASDVTKGenActors instance with default settings.
+        """
         self.active = False
 
     ##########################################################################
@@ -128,28 +136,41 @@ class ASDGenActors:
         # Create the scalar bar actor
         self.scalar_bar = vtk.vtkScalarBarActor()
         self.scalar_bar.SetLookupTable(lut)
+        self.scalar_bar.SetTextPosition(0)
+        # self.scalar_bar.SetLabelFormat("%-#6.1E")
+        self.scalar_bar.SetLabelFormat("%-#4.2f")
+        self.scalar_bar.SetBarRatio(0.4)
+        # if current_Actors == window.MomActors:
+        #     self.scalar_bar.SetTitle(r"Magnetization")
+        #     self.scalar_bar.GetTitleTextProperty().ShadowOff()
+        #     self.scalar_bar.GetTitleTextProperty().BoldOff()
+        #     self.scalar_bar.GetTitleTextProperty().ItalicOff()
+        #     self.scalar_bar.GetTitleTextProperty().SetFontSize(24)
+        #     self.scalar_bar.GetTitleTextProperty().SetColor(0.0, 0.0, 0.0)
+
         self.scalar_bar.GetLabelTextProperty().SetColor(0.0, 0.0, 0.0)
         self.scalar_bar.SetNumberOfLabels(5)
         self.scalar_bar.GetLabelTextProperty().ShadowOff()
         self.scalar_bar.GetLabelTextProperty().BoldOn()
         self.scalar_bar.GetLabelTextProperty().ItalicOff()
         self.scalar_bar.GetLabelTextProperty().SetFontSize(8)
-        self.scalar_bar.SetLabelFormat("%-#6.1E")
-        self.scalar_bar.SetBarRatio(0.5)
+        self.scalar_bar.SetTextPad(5)
+
         self.scalar_bar.DrawBackgroundOn()
+        self.scalar_bar.GetBackgroundProperty().SetOpacity(0.65)
         self.scalar_bar.DrawTickLabelsOn()
         # Create the scalar bar widget
         self.scalar_bar_widget = vtk.vtkScalarBarWidget()
         self.scalar_bar_widget.SetScalarBarActor(self.scalar_bar)
-        print("Scalar bar actor set")
+        # print("Scalar bar actor set")
         # Representation to actually control where the scalar bar is
         self.scalarBarRep = self.scalar_bar_widget.GetRepresentation()
         self.scalarBarRep.SetOrientation(0)  # 0 = Horizontal, 1 = Vertical
-        self.scalarBarRep.GetPositionCoordinate().SetValue(0.30, 0.05)
-        self.scalarBarRep.GetPosition2Coordinate().SetValue(0.50, 0.05)
+        self.scalarBarRep.GetPositionCoordinate().SetValue(0.27, 0.05)
+        self.scalarBarRep.GetPosition2Coordinate().SetValue(0.53, 0.06)
         self.scalar_bar_widget.SetInteractor(iren)
         self.scalar_bar_widget.On()
-        print("Scalar bar actor On")
+        # print("Scalar bar actor On")
         #######################################################################
         # Setting the information for the axes widget
         #######################################################################
@@ -209,6 +230,9 @@ class ASDGenActors:
     # Setting up data for adding the impurity cluster
     ##########################################################################
     def Add_ClusterActors(self, ASDdata, iren, renWin, ren):
+        """
+        Adds cluster and impurity actors to the renderer and starts the interaction.
+        """
         #######################################################################
         # Data structures for the impurity cluster
         #######################################################################

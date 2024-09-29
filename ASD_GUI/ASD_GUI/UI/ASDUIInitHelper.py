@@ -13,7 +13,7 @@ This module initializes and sets up the user interface for the ASD GUI applicati
     Args:
         window (QMainWindow): The main window of the application.
 """
-# pylint: disable=invalid-name, no-name-in-module, no-member
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 import os
 from enum import Enum
 
@@ -29,23 +29,6 @@ from ASD_GUI.UI.ASDMenuToolbar import (
     Plot_Menu_and_Toolbar_Setup,
     VTK_Menu_and_Toolbar_Setup,
 )
-
-
-class Backend(Enum):
-    """
-    Enum representing different backends for the ASD GUI.
-
-    Attributes:
-        UppASD_VTK (int): Backend using VTK.
-        UppASD_MAT (int): Backend using MATLAB.
-        UppASD_INP (int): Backend using INP.
-        UppASD_INT (int): Backend using INT.
-    """
-
-    UppASD_VTK = 1
-    UppASD_MAT = 2
-    UppASD_INP = 3
-    UppASD_INT = 4
 
 
 ##########################################################################
