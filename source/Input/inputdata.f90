@@ -337,6 +337,7 @@ contains
       ham_inp%jij_scale         = 1.0_dblprec
       ham_inp%ea_model          = .false.
       ham_inp%ea_sigma          = 1.0_dblprec
+      ham_inp%ea_algo           = 'S'
 
       !Anisotropy data
       ham_inp%kfile             = 'kfile'
@@ -347,6 +348,9 @@ contains
       ham_inp%dmfile            = 'dmfile'
       ham_inp%do_dm             = 0
       ham_inp%dm_scale          = 1.0_dblprec
+      ham_inp%rdm_model         = .false.
+      ham_inp%rdm_sigma         = 1.0_dblprec
+      ham_inp%rdm_algo          = 'S'
 
       !Symmetric anisotropic data
       ham_inp%safile            = 'safile'
