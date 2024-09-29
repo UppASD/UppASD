@@ -880,7 +880,7 @@ contains
                   end do
 
                end do
-               print *,'---------------------------'
+               !print *,'---------------------------'
 
                ! Check that each of the 1, 2 or 3 neighbours have been found
                if(nelem == 1) hit = elemhit(1)

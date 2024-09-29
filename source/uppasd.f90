@@ -752,6 +752,8 @@ contains
       call read_parameters_qminimizer(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
+      rewind(ifileno)
+      call read_parameters_tempexp(ifileno)
       close(ifileno)
       
        
@@ -995,7 +997,7 @@ contains
       endif
 
       ! See if it is necesary to read the temperature file
-      if(grad.eq.'Y') call read_temperature_legacy()
+      !if(grad.eq.'Y') call read_temperature_legacy()
       !if(grad.eq.'Y'.or.grad.eq.'F') call read_temperature()
 
       ! Allocating the temperature arrays

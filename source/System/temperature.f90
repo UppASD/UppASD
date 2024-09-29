@@ -71,6 +71,16 @@ module temperature
    integer, dimension(:), allocatable :: temp_nn
    real(dblprec), dimension(:,:,:), allocatable :: temp_neigh_dist
 
+   ! Time-dependent temperature
+   ! Main idea:  T = T_start * e^-(t/tau) + T_end ( 1 - e^-(t/tau))
+   real(dblprec) :: tempexp_start              !< Initial temperature for cooling/heating
+   real(dblprec) :: tempexp_end                !< Final temperature for cooling/heating
+   real(dblprec) :: tempexp_tau                !< Exponential time constant (unit s)
+   integer :: tempexp_step                     !< Step size between printing temperature to file
+   character(len=1) :: do_tempexp              !< Set exponential temperature rate
+
+
+
    ! legacy variables
    ! temperature gradient
    character(len=20), dimension(6) :: bounds !< array for the boundary conditions of the temperature profile
@@ -87,11 +97,12 @@ module temperature
 
    private
 
+   public :: do_tempexp
    public :: temp_array, iptemp_array, spintemperature, do_3tm
    public :: grad, tempfile,temp_low_x,temp_high_x, temp_high_y, temp_low_y
    public :: allocate_temp, setup_temp, read_temperature, deallocate_temp, set_temperature_defaults
-   public :: read_temperature_legacy, lparray
-   public :: f_spintemp
+   public :: read_temperature_legacy, lparray, read_parameters_tempexp
+   public :: f_spintemp, f_tempexp
 
 contains
 
@@ -203,6 +214,39 @@ contains
          spintemp=(mub*spintemp)/(2*k_bolt)
 
    end function f_spintemp
+
+   !-----------------------------------------------------------------------------
+   ! FUNCTION: f_tempexp
+   !> @brief Rescaling of temperature for exponential cooling/heating
+   !> @comment Currently with printing functionalities
+   !> @author Anders Bergman 
+   !-----------------------------------------------------------------------------
+   function f_tempexp(delta_t, mstep, simid) result(exptemp)
+
+      implicit none
+
+      real(dblprec), intent(in) :: delta_t  !< Time step
+      integer, intent(in) :: mstep     !< Simulation step
+      character(len=8), intent(in) :: simid !< simulation name
+
+      real(dblprec) :: exptemp
+      real(dblprec) :: d_exp
+      character(len=30) :: filn
+
+      d_exp = exp(-(mstep-1)*delta_t/tempexp_tau)
+
+      exptemp = tempexp_start * d_exp + (1.0_dblprec - d_exp) * tempexp_end
+
+      if (mod(mstep, tempexp_step)==0 .or. mstep==1) then
+         write (filn,'(''temperature_exp.'',a,''.out'')') trim(simid)
+         open(ofileno,file=filn, position='append')
+         write (ofileno,102) mstep, mstep*delta_t, exptemp
+         close(ofileno)
+      end if
+
+      102 format(1x,i8, g20.10, f12.6)
+
+   end function f_tempexp
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: allocate_temp
@@ -495,6 +539,7 @@ contains
          keyword=trim(keyword)
 
          select case(keyword)
+         !!! Temperature gradients
          case('shells_nums')
             read(ifileno,*,iostat=i_err) no_shells_num
             if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
@@ -677,6 +722,85 @@ contains
 
    end subroutine read_temperature
 
+   !---------------------------------------------------------------------------
+   ! SUBROUTINE: read_parameters_tempexp
+   !> @brief
+   !> Read input parameters for exponential cooling/heating
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------
+   subroutine read_parameters_tempexp(ifile)
+
+      use FileParser
+      use ErrorHandling
+
+      implicit none
+
+      ! ... Formal Arguments ...
+      integer, intent(in) :: ifile   !< File to read from
+      !
+      ! ... Local Variables ...
+      character(len=50) :: keyword, cache
+      integer :: rd_len, i_err, i_errb
+      logical :: comment
+
+      do
+         10      continue
+         ! Read file character for character until first whitespace
+         keyword=""
+         call bytereader(keyword,rd_len,ifile,i_errb)
+
+         ! converting Capital letters
+         call caps2small(keyword)
+
+         ! check for comment markers (currently % and #)
+         comment=(scan(trim(keyword),'%')==1).or.(scan(trim(keyword),'#')==1).or.&
+            (scan(trim(keyword),'*')==1).or.(scan(trim(keyword),'=')==1.or.&
+            (scan(trim(keyword),'!')==1))
+
+         if (comment) then
+            read(ifile,*)
+         else
+            ! Parse keyword
+            keyword=trim(keyword)
+            select case(keyword)
+               ! This is the flags for the ElkGeometry module
+               !!! Exponential temperature behaviour
+            case('do_tempexp')
+               read(ifileno,*,iostat=i_err) do_tempexp
+               if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
+            case('tempexp_start')
+               read(ifileno,*,iostat=i_err) tempexp_start
+               if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
+            case('tempexp_end')
+               read(ifileno,*,iostat=i_err) tempexp_end
+               if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
+            case('tempexp_step')
+               read(ifileno,*,iostat=i_err) tempexp_end
+               if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
+            case('tempexp_tau')
+               read(ifileno,*,iostat=i_err) tempexp_tau
+               if(i_err/=0) write(*,*) 'error: reading ',trim(keyword),' data',i_err
+
+
+
+            end select
+         end if
+
+      ! End of file
+      if (i_errb==20) goto 20
+      ! End of row
+      if (i_errb==10) goto 10
+   end do
+
+   20   continue
+
+   rewind(ifile)
+   return
+end subroutine read_parameters_tempexp
+
+
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: read_temperature_legacy
    !> @brief Routine to read the needed info for the legacy version of the temperature
@@ -764,6 +888,12 @@ contains
       !
       implicit none
       !
+      !exponential cooling/heating
+      do_tempexp    = 'N'
+      tempexp_start = 0.0_dblprec
+      tempexp_end   = 0.0_dblprec
+      tempexp_tau   = 1.0e-9_dblprec
+      tempexp_step  = 100
       !temperature gradient
       tempfile         = 'tempfile'
       grad             = 'N'
