@@ -1007,9 +1007,9 @@ contains
       if (ipnphase.ge.1) then
          do i=1, ipnphase
             if(grad=='Y') then
-               !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-               !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
-               !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
+               ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+               !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
+               !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
                call Lparray(ipTemp_array(:,i),Natom,coord,iptemp(i),simid,.false.)
             else if(grad=='F') then
                call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,     &
@@ -1022,9 +1022,9 @@ contains
          enddo
       endif
       if(grad=='Y') then
-         !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-         !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
-         !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
+         ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+         !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
+         !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
          call Lparray(Temp_array,Natom,coord,Temp,simid,.true.)
       else if(grad=='F') then
          call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,ACELLNUMB, &

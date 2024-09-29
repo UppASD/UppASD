@@ -520,6 +520,7 @@ contains
       ! set tolerance for neighbour shells
       tol=1.0d-5
 
+      print *,'Reading temperature file', tempfile
       open(ifileno,file=trim(tempfile))
       do
          10 continue
@@ -956,6 +957,16 @@ end subroutine read_parameters_tempexp
       n=1
 
       !print '(4f10.4)',temp_low_y,temp_high_y,temp_low_x,temp_high_x
+      ! print '(a)', 'Calculating temperature array'
+      ! print '(a)', '--------------------------'
+      ! print '(a)', 'Temperature boundaries'
+      ! print '(a)', '--------------------------'
+      ! print *, 'x_min = ', temp_low_x
+      ! print *, 'x_max = ', temp_high_x
+      ! print *, 'y_min = ', temp_low_y
+      ! print *, 'y_max = ', temp_high_y
+      ! print *, 'boundary conditions', bounds
+      ! print '(a)', '--------------------------'
       do i=1, natom
          ! fill up the array with the results of the chosen function given by the boundary conditions
          tarray(i) = lpfunction(temp_low_y,temp_high_y,temp_low_x,temp_high_x,coord,natom,i,n,grad,bounds,temp)
@@ -1219,6 +1230,7 @@ end subroutine read_parameters_tempexp
       character(len=20), dimension(6), intent(in) :: bounds ! array that states the boundary conditions of the sample
 
       ! if there is no gradient the function is just a constant
+      dimn = 0
       if(grad.eq.'n') then
          lpfunction = temp
          ! if there is a gradient the value of the function will be given by the values stored at the bounds array
