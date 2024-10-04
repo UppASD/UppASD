@@ -57,7 +57,30 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(avrgm2cum_proj(NT),stat=i_stat)
    allocate(avrgm4cum_proj(NT),stat=i_stat)
 
+
+
 ## Autocorrelation
+#### source/Correlation/autocorrelation.f90
+
+
+   ! Definition of autocorrelation arrays
+   integer, dimension(:), allocatable :: spinwaitt
+   real(dblprec), dimension(:,:,:), allocatable :: spinwait !< Data for autocorrelation analysis
+   real(dblprec), dimension(:,:,:), allocatable   :: autocorr_buff        !< Buffer for average magnetizations
+   real(dblprec), dimension(:), allocatable       :: indxb_ac       !< Step counter forautocorrelation
+   real(dblprec), dimension(3,Mensemble) ::  m
+   real(dblprec), dimension(:), allocatable :: autocorr
+   real(dblprec), dimension(:), allocatable :: autocorr ! Note, in another subroutine
+
+   ! Allocation of autocorrelation arrays
+   allocate(spinwait(3,Natom,nspinwait),stat=i_stat)
+   allocate(autocorr_buff(nspinwait,ac_buff,Mensemble),stat=i_stat)
+   allocate(indxb_ac(ac_buff),stat=i_stat)
+   allocate(autocorr(nspinwait),stat=i_stat)
+   allocate(autocorr(nspinwait),stat=i_stat) ! Note, in another subroutine
+   allocate(spinwaitt(nspinwait),stat=i_stat)
+
+
 
 ## Energy
 
