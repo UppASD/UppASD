@@ -181,7 +181,7 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 ## Topology
-####
+#### source/Measurement/topology.f90
 
    ! Definition of topology arrays
    integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
@@ -192,6 +192,7 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 ## Energy
+#### source/Hamiltonian/energy.f90
 
    ! Definition of energy arrays
    real(dblprec), dimension(:), allocatable :: ene_xc
@@ -232,6 +233,33 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 ## Magnetic field
+#### source/Fields/prn_fields.f90
+
+   ! Definition of magnetic field arrays
+   real(dblprec), dimension(:), allocatable :: indxb_beff         !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_binteff      !< Step counter for internal field
+   real(dblprec), dimension(:), allocatable :: indxb_torques      !< Step counter for resulting torques
+   real(dblprec), dimension(:), allocatable :: indxb_larm         !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_therm        !< Step counter for stochastic field
+   real(dblprec), dimension(:,:,:,:), allocatable :: beffb        !< Buffer the site dependent total field
+   real(dblprec), dimension(:,:,:,:), allocatable :: binteffb     !< Buffer the site resulting torques
+   real(dblprec), dimension(:,:,:,:), allocatable :: torquesb     !< Buffer the site dependent internal field
+   real(dblprec), dimension(:,:,:), allocatable :: larmb          !< Buffer the site dependent larmor frequencies
+   real(dblprec), dimension(:,:,:,:), allocatable :: therm_fieldb !< Buffer the site dependent stochastic field
+   real(dblprec), dimension(:), allocatable :: larm_dos       !< Histogram array for Larmor frequencies
+
+   ! Allocation of magnetic field arrays
+   allocate(therm_fieldb(3,Natom,thermfield_buff,Mensemble),stat=i_stat)
+   allocate(indxb_therm(thermfield_buff),stat=i_stat)
+   allocate(beffb(3,Natom,beff_buff,Mensemble),stat=i_stat)
+   allocate(indxb_beff(beff_buff),stat=i_stat)
+   allocate(binteffb(6,Natom,binteff_buff,Mensemble),stat=i_stat)
+   allocate(indxb_binteff(binteff_buff),stat=i_stat)
+   allocate(torquesb(6,Natom,torques_buff,Mensemble),stat=i_stat)
+   allocate(indxb_torques(torques_buff),stat=i_stat)
+   allocate(larmb(Natom,larm_buff,Mensemble),stat=i_stat)
+   allocate(indxb_larm(larm_buff),stat=i_stat)
+   allocate(larm_dos(0:larm_dos_size))
 
 
 
