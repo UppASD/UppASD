@@ -62,7 +62,6 @@ A listing of variables used for measurement of physical observables in UppASD.
 ## Autocorrelation
 #### source/Correlation/autocorrelation.f90
 
-
    ! Definition of autocorrelation arrays
    integer, dimension(:), allocatable :: spinwaitt
    real(dblprec), dimension(:,:,:), allocatable :: spinwait !< Data for autocorrelation analysis
@@ -82,12 +81,88 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 
+## Polarization
+#### source/Measurement/polarization.f90
+
+   ! Definition of polarization arrays
+   real(dblprec), dimension(:,:,:), allocatable :: eij            !< Normalized neighbour distances
+   real(dblprec), dimension(:,:,:), allocatable :: local_pol      !< Data for local polarization vector
+   real(dblprec), dimension(:,:,:), allocatable :: s_cross_s      !< Data for local polarization vector
+   integer, dimension(:), allocatable :: pollistsize              !< Size of neighbour list for polarization calculations
+   real(dblprec), dimension(:), allocatable :: indxb_pol          !< Step counter for polarization vector
+   real(dblprec), dimension(:,:,:), allocatable :: spol_buff      !< Buffer data for polarization vector
+
+   ! Allocation of polarization arrays
+   allocate(eij(3,max_no_neigh,Natom),stat=i_stat)
+   allocate(local_pol(3,Natom,Mensemble),stat=i_stat)
+   allocate(s_cross_s(3,Natom,Mensemble),stat=i_stat)
+   allocate(pollistsize(Natom),stat=i_stat)
+   allocate(spol_buff(3,pol_buff,Mensemble),stat=i_stat)
+   allocate(indxb_pol(pol_buff),stat=i_stat)
+
+
+
+## Currents
+#### source/Measurement/prn_currents.f90
+
+   ! Definition of current arrays
+   real(dblprec), dimension(:), allocatable        :: indxb_currents   !< Step counter for the currents
+   real(dblprec), dimension(:,:,:), allocatable    :: psi_amp_b        !< Buffer for the heat current
+   real(dblprec), dimension(:,:,:), allocatable    :: psi_phase_b      !< Buffer for the magnon current
+   real(dblprec), dimension(:,:,:), allocatable    :: heat_current_b   !< Buffer for the heat current
+   real(dblprec), dimension(:,:,:), allocatable    :: heat_current2_b  !< Buffer for the heat current
+   real(dblprec), dimension(:,:,:), allocatable    :: magnon_current_b !< Buffer for the magnon current
+   complex(dblprec), dimension(:,:,:), allocatable :: psi_b
+   complex(dblprec), dimension(:,:), allocatable   :: psi_curr           !< Psi variable for the current time step
+   complex(dblprec), dimension(:,:), allocatable   :: psi_prev           !< Psi variable for the previous time step
+   complex(dblprec), dimension(:,:), allocatable   :: psi_dot            !< Derivative of the psi variable
+   complex(dblprec), dimension(:,:), allocatable   :: psi_dot2           !< Derivative of the psi variable
+   complex(dblprec), dimension(:,:,:), allocatable :: psi_time
+   real(dblprec), dimension(:,:), allocatable      :: heat_current       !< Heat current per site
+   real(dblprec), dimension(:,:), allocatable      :: heat_current2      !< Heat current per site
+   real(dblprec), dimension(:,:), allocatable      :: magnon_current     !< Magnon current per time
+   real(dblprec), dimension(:,:), allocatable      :: ave_heat_current   !< Average heat current per site
+   real(dblprec), dimension(:,:), allocatable      :: ave_magnon_current !< Average magnon current per time
+   real(dblprec), dimension(:,:), allocatable      :: psi_amp            !< Amplitude of the complex number
+   real(dblprec), dimension(:,:), allocatable      :: psi_phase          !< Phase of the complex number
+
+   ! Allocation of current arrays
+   allocate(heat_current(3,Natom),stat=i_stat)
+   allocate(heat_current2(3,Natom),stat=i_stat)
+   allocate(magnon_current(3,Natom),stat=i_stat)
+   allocate(ave_heat_current(3,Natom),stat=i_stat)
+   allocate(ave_magnon_current(3,Natom),stat=i_stat)
+   allocate(psi_curr(Natom,Mensemble),stat=i_stat)
+   allocate(psi_prev(Natom,Mensemble),stat=i_stat)
+   allocate(psi_dot(Natom,Mensemble),stat=i_stat)
+   allocate(psi_dot2(Natom,Mensemble),stat=i_stat)
+   allocate(psi_time(3,Natom,Mensemble),stat=i_stat)
+   allocate(psi_amp(Natom,Mensemble),stat=i_stat)
+   allocate(psi_phase(Natom,Mensemble),stat=i_stat)
+   allocate(psi_b(Natom,Mensemble,current_buff),stat=i_stat)
+   allocate(heat_current_b(3,Natom,current_buff),stat=i_stat)
+   allocate(psi_amp_b(Natom,Mensemble,current_buff),stat=i_stat)
+   allocate(psi_phase_b(Natom,Mensemble,current_buff),stat=i_stat)
+   allocate(heat_current2_b(3,Natom,current_buff),stat=i_stat)
+   allocate(magnon_current_b(3,Natom,current_buff),stat=i_stat)
+   allocate(indxb_currents(current_buff),stat=i_stat)
+
+
+
 ## Energy
 
-## Polarization
+
 
 ## Magnetic field
 
+
+
 ## Ionic displacement
 
+
+
 ## Ionic velocity
+
+
+
+## Ionic forces
