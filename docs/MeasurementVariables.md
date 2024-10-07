@@ -193,6 +193,42 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Energy
 
+   ! Definition of energy arrays
+   real(dblprec), dimension(:), allocatable :: ene_xc
+   real(dblprec), dimension(:), allocatable :: ene_dm
+   real(dblprec), dimension(:), allocatable :: ene_sa
+   real(dblprec), dimension(:), allocatable :: ene_bq
+   real(dblprec), dimension(:), allocatable :: ene_ring
+   real(dblprec), dimension(:), allocatable :: ene_pd
+   real(dblprec), dimension(:), allocatable :: ene_chir
+   real(dblprec), dimension(:), allocatable :: ene_dip
+   real(dblprec), dimension(:), allocatable :: ene_ani
+   real(dblprec), dimension(:), allocatable :: ene_lsf
+   real(dblprec), dimension(:), allocatable :: ene_ext
+   real(dblprec), dimension(:), allocatable :: ene_pair
+   real(dblprec), dimension(:), allocatable :: ene_bqdm
+   real(dblprec), dimension(:), allocatable :: energy
+   real(dblprec), dimension(:,:,:), allocatable :: bfield_dip
+   real(dblprec), dimension(:,:,:), allocatable :: site_energy
+
+   ! Allocation of energy arrays
+   allocate(site_energy(11,Natom,Mensemble),stat=i_stat)
+   allocate(bfield_dip(3,Natom,Mensemble),stat=i_stat)
+   allocate(ene%energy(Mensemble),stat=i_stat)
+   allocate(ene%ene_xc(Mensemble),stat=i_stat)
+   allocate(ene%ene_dm(Mensemble),stat=i_stat)
+   allocate(ene%ene_sa(Mensemble),stat=i_stat)
+   allocate(ene%ene_bq(Mensemble),stat=i_stat)
+   allocate(ene%ene_ring(Mensemble),stat=i_stat)
+   allocate(ene%ene_pd(Mensemble),stat=i_stat)
+   allocate(ene%ene_chir(Mensemble),stat=i_stat)
+   allocate(ene%ene_ani(Mensemble),stat=i_stat)
+   allocate(ene%ene_bqdm(Mensemble),stat=i_stat)
+   allocate(ene%ene_ext(Mensemble),stat=i_stat)
+   allocate(ene%ene_dip(Mensemble),stat=i_stat)
+   allocate(ene%ene_lsf(Mensemble),stat=i_stat)
+   allocate(ene%ene_pair(Mensemble),stat=i_stat)
+
 
 
 ## Magnetic field
