@@ -59,6 +59,37 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 
+## Trajectories
+#### source/Measurements/prn_trajectories.f90
+
+   ! Definition of trajectories arrays
+   integer, dimension(:), allocatable :: traj_step !< Interval for sampling individual trajectories
+   integer, dimension(:), allocatable :: traj_buff !< Buffer size for individual trajectories
+   integer, dimension(:), allocatable :: traj_atom !< List of atoms to sample trajectories for
+   integer, dimension(:), allocatable :: bcount_traj   !< Counter of buffer for trajectories
+   real(dblprec), dimension(:), allocatable :: indxb            !< Step counter for magnetic moments
+   real(dblprec), dimension(:), allocatable :: scount_traj      !< Counter of sampling for trajectories
+   real(dblprec), dimension(:,:), allocatable :: indxb_traj     !< Step counter for individual trajectories
+   real(dblprec), dimension(:,:,:), allocatable :: mmomb        !< Buffer for all moment magnitudes
+   real(dblprec), dimension(:,:,:), allocatable :: mmomb_traj   !< Buffer for selected moment magnitudes
+   real(dblprec), dimension(:,:,:,:), allocatable :: emomb      !< Buffer for all individual trajectories
+   real(dblprec), dimension(:,:,:,:), allocatable :: emomb_traj !< Buffer for selected individual trajectories
+
+   ! Allocation of trajectories arrays
+   allocate(scount_traj(ntraj),stat=i_stat)
+   allocate(bcount_traj(ntraj),stat=i_stat)
+   allocate(emomb_traj(3,maxval(traj_buff),ntraj,Mensemble),stat=i_stat)
+   allocate(mmomb_traj(maxval(traj_buff),ntraj,Mensemble),stat=i_stat)
+   allocate(indxb_traj(maxval(traj_buff),ntraj),stat=i_stat)
+   allocate(mmomb(Natom,tottraj_buff,Mensemble),stat=i_stat)
+   allocate(emomb(3,Natom,tottraj_buff,Mensemble),stat=i_stat)
+   allocate(indxb(tottraj_buff),stat=i_stat)
+   allocate(traj_atom(ntraj),stat=i_stat)
+   allocate(traj_step(ntraj),stat=i_stat)
+   allocate(traj_buff(ntraj),stat=i_stat)
+
+
+
 ## Autocorrelation
 #### source/Correlation/autocorrelation.f90
 
@@ -146,6 +177,17 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(heat_current2_b(3,Natom,current_buff),stat=i_stat)
    allocate(magnon_current_b(3,Natom,current_buff),stat=i_stat)
    allocate(indxb_currents(current_buff),stat=i_stat)
+
+
+
+## Topology
+####
+
+   ! Definition of topology arrays
+   integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
+
+   ! Allocation of topology arrays
+   allocate(simp(3,nsimp))
 
 
 
