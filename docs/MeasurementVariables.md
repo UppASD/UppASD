@@ -296,12 +296,51 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 ## Ionic averages
+#### source/Lattice/prn_latticeaverages.f90
 
    ! Definition of ionic averages
-   integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
+   real(dblprec), dimension(:,:), allocatable :: dcoord !< Coordinates of atoms
+   real(dblprec), dimension(:), allocatable       :: indxb_uavrg       !< Step counter for average displacement
+   real(dblprec), dimension(:,:,:), allocatable   :: uavrg_buff        !< Buffer for average displacements
+   real(dblprec), dimension(:,:,:), allocatable   :: uavrg2_buff_proj  !< Buffer for squared projected displacements
+   real(dblprec), dimension(:,:,:,:), allocatable :: uavrg_buff_proj   !< Buffer for projected displacements
+   real(dblprec), dimension(:,:,:,:), allocatable :: uavrg_buff_projch !< Buffer for chemical projected displacements
+   real(dblprec), dimension(:,:,:), allocatable   :: vavrg_buff        !< Buffer for average velocities
+   real(dblprec), dimension(:,:,:), allocatable   :: vavrg2_buff_proj  !< Buffer for squared projected velocities
+   real(dblprec), dimension(:,:,:,:), allocatable :: vavrg_buff_proj   !< Buffer for projected velocities
+   real(dblprec), dimension(:,:,:,:), allocatable :: vavrg_buff_projch !< Buffer for chemical projected velocities
+   real(dblprec), dimension(:,:,:), allocatable   :: pavrg_buff        !< Buffer for average ionic momentum
+   real(dblprec), dimension(:,:,:), allocatable   :: langavrg_buff     !< Buffer for average ionic angular momentum
+   real(dblprec), dimension(:,:), allocatable     :: ldpotenrg_buff    !< Buffer for average ionic potential energy
+   real(dblprec), dimension(:,:), allocatable     :: sdpotenrg_buff    !< Buffer for average magnetic energy
+   real(dblprec), dimension(:,:), allocatable     :: sldpotenrg_buff   !< Buffer for average spin-lattice potential energy
+   real(dblprec), dimension(:,:), allocatable     :: totpotenrg_buff   !< Buffer for average total potential energy
+   real(dblprec), dimension(:,:), allocatable     :: kinenrg_buff      !< Buffer for average ionic kinetic energy
+   real(dblprec), dimension(:,:), allocatable     :: totenrg_buff      !< Buffer for average ionic total energy
+   real(dblprec), dimension(:,:), allocatable     :: heatcap_buff      !< Buffer for ionic heat capacity
+   real(dblprec), dimension(:,:), allocatable     :: iontemp_buff      !< Buffer for ionic temperature
 
    ! Allocation of ionic average arrays
-   allocate(simp(3,nsimp))
+   allocate(uavrg_buff(4,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(uavrg_buff_proj(3,NA,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(uavrg2_buff_proj(NA,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(vavrg_buff(4,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(vavrg_buff_proj(3,NA,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(vavrg2_buff_proj(NA,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(pavrg_buff(4,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(langavrg_buff(4,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(dcoord(3,Natom),stat=i_stat)
+   allocate(ldpotenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(sdpotenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(sldpotenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(totpotenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(kinenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(totenrg_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(heatcap_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(iontemp_buff(lavrg_buff,Mensemble),stat=i_stat)
+   allocate(indxb_uavrg(lavrg_buff),stat=i_stat)
+   allocate(uavrg_buff_projch(4,Nchmax,lavrg_buff,Mensemble),stat=i_stat)
+   allocate(vavrg_buff_projch(4,Nchmax,lavrg_buff,Mensemble),stat=i_stat)
 
 
 
