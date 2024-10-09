@@ -263,12 +263,52 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 
-## Ionic displacement
+## Ionic displacement and velocity
+#### source/Lattice/prn_latticetrajectories.f90
+
+   ! Definition of ionic displacement and velocity arrays
+   integer, dimension(:), allocatable :: ltraj_step !< Interval for sampling individual displacement trajectories
+   integer, dimension(:), allocatable :: ltraj_buff !< Buffer size for individual displacement trajectories
+   integer, dimension(:), allocatable :: ltraj_atom !< List of atoms to sample displacement trajectories for
+   integer, dimension(:), allocatable :: bcount_traj   !< Counter of buffer of displacements
+   real(dblprec), dimension(:), allocatable :: scount_traj      !< Counter of sampling of displacements
+   real(dblprec), dimension(:), allocatable :: indxb            !< Step counter for displacements
+   real(dblprec), dimension(:,:), allocatable :: indxb_traj     !< Step counter for individual displacements
+   real(dblprec), dimension(:,:,:,:), allocatable :: uvecb      !< Buffer for all individual displacements
+   real(dblprec), dimension(:,:,:,:), allocatable :: uvecb_traj !< Buffer for selected individual displacements
+   real(dblprec), dimension(:,:,:,:), allocatable :: vvecb      !< Buffer for all individual velocities
+   real(dblprec), dimension(:,:,:,:), allocatable :: vvecb_traj !< Buffer for selected individual velocities
+   real(dblprec), dimension(:,:,:,:), allocatable :: llatb      !< Buffer for all individual angular momenta
+   real(dblprec), dimension(:,:,:,:), allocatable :: llatb_traj !< Buffer for selected individual angular momenta
+
+   ! Allocation of displacement arrays
+   allocate(scount_traj(lntraj),stat=i_stat)
+   allocate(bcount_traj(lntraj),stat=i_stat)
+   allocate(uvecb_traj(3,maxval(ltraj_buff),lntraj,Mensemble),stat=i_stat)
+   allocate(vvecb_traj(3,maxval(ltraj_buff),lntraj,Mensemble),stat=i_stat)
+   allocate(llatb_traj(3,maxval(ltraj_buff),lntraj,Mensemble),stat=i_stat)
+   allocate(indxb_traj(maxval(ltraj_buff),lntraj),stat=i_stat)
+   allocate(uvecb(3,Natom,ltottraj_buff,Mensemble),stat=i_stat)
+   allocate(vvecb(3,Natom,ltottraj_buff,Mensemble),stat=i_stat)
+   allocate(llatb(3,Natom,ltottraj_buff,Mensemble),stat=i_stat)
+   allocate(indxb(ltottraj_buff),stat=i_stat)
 
 
 
-## Ionic velocity
+## Ionic averages
+
+   ! Definition of ionic averages
+   integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
+
+   ! Allocation of ionic average arrays
+   allocate(simp(3,nsimp))
 
 
 
 ## Ionic forces
+
+   ! Definition of ionic force arrays
+   integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
+
+   ! Allocation of forces arrays
+   allocate(simp(3,nsimp))
