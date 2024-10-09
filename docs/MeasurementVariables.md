@@ -344,10 +344,21 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 
-## Ionic forces
+## Ionic force field
 
-   ! Definition of ionic force arrays
+   ! Definition of ionic force field arrays
+   real(dblprec), dimension(:), allocatable :: indxb_eeff          !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_einteff       !< Step counter for internal field
+   real(dblprec), dimension(:), allocatable :: indxb_etherm        !< Step counter for stochastic field
+   real(dblprec), dimension(:,:,:,:), allocatable :: eeffb         !< Buffer the site dependent total field
+   real(dblprec), dimension(:,:,:,:), allocatable :: einteffb      !< Buffer the site dependent internal field
+   real(dblprec), dimension(:,:,:,:), allocatable :: etherm_fieldb !< Buffer the site dependent stochastic field
    integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
 
-   ! Allocation of forces arrays
-   allocate(simp(3,nsimp))
+   ! Allocation of ionic force field arrays
+   real(dblprec), dimension(:), allocatable :: indxb_eeff          !< Step counter for total field
+   real(dblprec), dimension(:), allocatable :: indxb_einteff       !< Step counter for internal field
+   real(dblprec), dimension(:), allocatable :: indxb_etherm        !< Step counter for stochastic field
+   real(dblprec), dimension(:,:,:,:), allocatable :: eeffb         !< Buffer the site dependent total field
+   real(dblprec), dimension(:,:,:,:), allocatable :: einteffb      !< Buffer the site dependent internal field
+   real(dblprec), dimension(:,:,:,:), allocatable :: etherm_fieldb !< Buffer the site dependent stochastic field
