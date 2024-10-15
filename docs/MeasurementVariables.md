@@ -62,6 +62,12 @@ A listing of variables used for measurement of physical observables in UppASD.
 ## Trajectories
 #### source/Measurements/prn_trajectories.f90
 
+   ! Input parameters
+   integer :: ntraj         !< Number of trajectories to sample
+   integer :: tottraj_step  !< Interval for sampling magnetic moments
+   integer :: tottraj_buff  !< Buffer size for magnetic moments
+   character(len=1) :: do_tottraj !< Measure magnetic moments
+
    ! Definition of trajectories arrays
    integer, dimension(:), allocatable :: traj_step !< Interval for sampling individual trajectories
    integer, dimension(:), allocatable :: traj_buff !< Buffer size for individual trajectories
@@ -92,6 +98,16 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Autocorrelation
 #### source/Correlation/autocorrelation.f90
+
+   !From input
+   integer :: nspinwait
+   integer, dimension(:), allocatable :: spinwaitt
+   character(len=35) :: twfile                  !< File name for autocorrelation waiting times
+   character(len=1) :: do_autocorr              !< Perform autocorrelation (Y/N)
+
+   ! Printing definitions
+   integer :: ac_step !< Interval for sampling average magnetization
+   integer :: ac_buff !< Buffer size for average magnetization
 
    ! Definition of autocorrelation arrays
    integer, dimension(:), allocatable :: spinwaitt
@@ -135,6 +151,12 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Currents
 #### source/Measurement/prn_currents.f90
+
+   ! Input parameters
+   integer          :: quant_axis            !< Quantization axis for calculating psi
+   integer          :: current_step          !< Interval for sampling currents
+   integer          :: current_buff          !< Buffer size for currents
+   character(len=1) :: do_currents           !< Measure magnon and heat currents
 
    ! Definition of current arrays
    real(dblprec), dimension(:), allocatable        :: indxb_currents   !< Step counter for the currents
@@ -183,6 +205,15 @@ A listing of variables used for measurement of physical observables in UppASD.
 ## Topology
 #### source/Measurement/topology.f90
 
+   ! Parameters for the printing
+   integer :: skyno_step !< Interval for sampling the skyrmion number
+   integer :: skyno_buff !< Buffer size for the sampling of the skyrmion number
+   character(len=1) :: skyno      !< Perform skyrmion number measurement
+   character(len=1) :: do_proj_skyno !< Perform type dependent skyrmion number measurement
+   character(len=1) :: do_skyno_den  !< Perform site dependent skyrmion number measurement
+   character(len=1) :: do_skyno_cmass  !< Perform center-of-mass skyrmion number measurement
+   integer :: nsimp !< Number of simplices
+
    ! Definition of topology arrays
    integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
 
@@ -193,6 +224,40 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Energy
 #### source/Hamiltonian/energy.f90
+
+   ! Input variables
+   integer, intent(in) :: NA           !< Number of atoms in one cell
+   integer, intent(in) :: N1           !< Number of cell repetitions in x direction
+   integer, intent(in) :: N2           !< Number of cell repetitions in y direction
+   integer, intent(in) :: N3           !< Number of cell repetitions in z direction
+   integer, intent(in) :: nHam         !< Number of atoms in Hamiltonian
+   integer, intent(in) :: mstep        !< Current simulation step
+   integer, intent(in) :: Natom        !< Number of atoms in system
+   integer, intent(in) :: Nchmax       !< Number of chemical type
+   integer, intent(in) :: conf_num     !< number of configurations for LSF
+   integer, intent(in) :: Mensemble    !< Number of ensembles
+   integer, intent(in) :: stop_atom    !< Atom to end loop for
+   integer, intent(in) :: Num_macro    !< Number of macrocells in the system
+   integer, intent(in) :: start_atom   !< Atom to start loop for
+   integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
+   real(dblprec), intent(in) :: Temp         !< Temperature
+   real(dblprec), intent(in) :: delta_t      !< Current time step
+   character(len=1), intent(in) :: do_lsf    !< Including LSF energy
+   character(len=1), intent(in) :: lsf_field          !< LSF field contribution (Local/Total)
+   character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
+   character(len=1), intent(in) :: real_time_measure  !< Display measurements in real time
+   character(len=8), intent(in) :: simid              !< Name of simulation
+   integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
+   integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+   real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
+   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
+   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+   real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
+   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
+   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
+
+   ! .. Output Variables
+   real(dblprec), intent(out) :: totene !< Total energy
 
    ! Definition of energy arrays
    real(dblprec), dimension(:), allocatable :: ene_xc
@@ -235,6 +300,32 @@ A listing of variables used for measurement of physical observables in UppASD.
 ## Magnetic field
 #### source/Fields/prn_fields.f90
 
+   ! Input parameters to be read
+   integer :: beff_step               !< Interval between consecutive prints of the total effective field
+   integer :: beff_buff               !< Buffer size for the total field
+   integer :: binteff_step            !< Interval between consecutive prints of the internal effective field
+   integer :: binteff_buff            !< Buffer size for the internal field
+   integer :: thermfield_step         !< Interval between thermal field trajectories
+   integer :: thermfield_buff         !< Buffer size for the stochastic field
+   integer :: torques_step            !< Interval between consecutive prints of the resulting torques
+   integer :: torques_buff            !< Buffer size for the resulting torques
+   integer :: larm_step               !< Interval between consecutive prints of the larmor frequencies
+   integer :: larm_buff               !< Buffer size for the larmor frequencies
+   integer :: larm_dos_size           !< Number of windows for larmor dos histogram
+   character(len=1) :: do_prn_beff    !< Flag governing file output of total effective fields (Y/N)
+   character(len=1) :: do_prn_binteff !< Flag governing file output of internal effective fields (Y/N)
+   character(len=1) :: do_prn_torques !< Flag governing file output of resulting torques (Y/N)
+   character(len=1) :: do_thermfield  !< Thermal fields trajectory
+   character(len=1) :: do_larmor_loc  !< Calculate local precession frequencies from local field (Y/N)
+   character(len=1) :: do_larmor_dos  !< Calculate average precession frequencies from local field (Y/N)
+
+   ! Local variables for buffering and indexing of fields
+   integer :: bcount_beff    !< Counter of buffer for total field
+   integer :: bcount_binteff !< Counter of buffer for internal field
+   integer :: bcount_torques !< Counter of buffer for toruqes
+   integer :: bcount_therm   !< Counter of buffer for stochastic field
+   integer :: bcount_larm    !< Counter of buffer for Larmor frequencies
+
    ! Definition of magnetic field arrays
    real(dblprec), dimension(:), allocatable :: indxb_beff         !< Step counter for total field
    real(dblprec), dimension(:), allocatable :: indxb_binteff      !< Step counter for internal field
@@ -265,6 +356,12 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Ionic displacement and velocity
 #### source/Lattice/prn_latticetrajectories.f90
+
+   ! Input parameters
+   integer :: lntraj         !< Number of displacement trajectories to sample
+   integer :: ltottraj_step  !< Interval for sampling displacement trajectories
+   integer :: ltottraj_buff  !< Buffer size for displacement trajectories
+   character(len=1) :: do_ltottraj !< Measure displacements
 
    ! Definition of ionic displacement and velocity arrays
    integer, dimension(:), allocatable :: ltraj_step !< Interval for sampling individual displacement trajectories
@@ -297,6 +394,14 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 ## Ionic averages
 #### source/Lattice/prn_latticeaverages.f90
+
+   ! Printing definitions
+   integer :: lavrg_step !< Interval for sampling average displacements
+   integer :: lavrg_buff !< Buffer size for average displacements
+   character(len=1) :: do_lavrg           !< Measure average displacments (Y/N)
+   character(len=1) :: do_proj_lavrg      !< Measure projected displacements (Y/A/N)
+   character(len=1) :: do_projch_lavrg    !< Measure chemically projected displacements (Y/N)
+   character(len=1) :: do_lenergy         !< Measure susceptibility, and specific heat(Y/N)
 
    ! Definition of ionic averages
    real(dblprec), dimension(:,:), allocatable :: dcoord !< Coordinates of atoms
@@ -345,6 +450,18 @@ A listing of variables used for measurement of physical observables in UppASD.
 
 
 ## Ionic force field
+#### source/Lattice/prn_latticefields.f90
+
+   ! Input parameters to be read
+   integer :: eeff_step               !< Interval between consecutive prints of the total effective field
+   integer :: eeff_buff               !< Buffer size for the total field
+   integer :: einteff_step               !< Interval between consecutive prints of the internal effective field
+   integer :: einteff_buff               !< Buffer size for the internal field
+   integer :: ethermfield_step         !< Interval between thermal field trajectories
+   integer :: ethermfield_buff         !< Buffer size for the stochastic field
+   character(len=1) :: do_prn_eeff    !< Flag governing file output of total effective fields (Y/N)
+   character(len=1) :: do_prn_einteff    !< Flag governing file output of internal effective fields (Y/N)
+   character(len=1) :: do_ethermfield  !< Thermal fields trajectory
 
    ! Definition of ionic force field arrays
    real(dblprec), dimension(:), allocatable :: indxb_eeff          !< Step counter for total field
