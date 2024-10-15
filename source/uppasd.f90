@@ -1256,19 +1256,21 @@ contains
 
       if (stt/='N'.or.do_she/='N'.or.do_sot/='N') then
 
+         ! Call to allocate the needed stt data
+         call allocate_stt_data(Natom,Mensemble,flag=1)
+         if (stt/='N' .or. do_she/='N') then
+            ! Call the printing of the current density in proper units
+            call set_curr_density(NA,Natom,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec, &
+               ammom_inp)
+         endif
+
+         ! Read the current density from file
          call read_jvecfile(Natom)
 
          if (stt=='A'.or.(stt/='A'.and.skyno=='Y')) then
             call setup_stencil_mesh(Natom,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,            &
                ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
          end if
-         ! Call to allocate the needed stt data
-         call allocate_stt_data(Natom,Mensemble,flag=1)
-         if (stt/='N' .or. do_she/='N') then
-            ! Call the printing of the current density in proper units
-            call print_curr_density(NA,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec, &
-               ammom_inp)
-         endif
 
          if (do_sot/='N') call read_sot_pol_site(Natom)
 

@@ -136,9 +136,9 @@ contains
          temp_nn, temp_neigh_dist, temp_nm, temp_nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
 
       ! the full list of neighbours for the solution of the laplace of poisson equation
-      allocate(temp_nlist(temp_max_no_neigh,Natom))
+      allocate(temp_nlist(temp_max_no_neigh,Natom), stat = i_stat)
       call memocc(i_stat,product(shape(temp_nlist))*kind(temp_nlist),'temp_nlist','setup_temp_grid')
-      allocate(temp_nlistsize(Natom))
+      allocate(temp_nlistsize(Natom), stat = i_stat)
       call memocc(i_stat,product(shape(temp_nlistsize))*kind(temp_nlistsize),'temp_nlistsize','setup_temp_grid')
 
       do I3=0, N3-1
@@ -198,7 +198,6 @@ contains
             enddo
          enddo
       enddo
-
       ! allocation of arrays that deal with the borders of the system
       if (count_I1_max.ne.0) then
          allocate(borders_I1_max(count_I1_max))
@@ -730,7 +729,6 @@ contains
       integer :: i,k,ios
       logical :: exists
 
-      print *,loadtemp
       inquire(file=loadtemp,exist=exists)
       if (exists) then
          open(ifileno, iostat=ios,file=loadtemp,status="old")

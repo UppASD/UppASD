@@ -43,6 +43,9 @@ module SpinTorques
    real(dblprec) :: thick_ferro  !< Thickness of ferromagnetic layer (t_f/alat)
    real(dblprec) :: sot_damping
    real(dblprec), dimension(3) :: jvec !< Spin current vector
+   real(dblprec), dimension(3) :: jdens !< Current density (A/m^2)
+   real(dblprec) :: stt_dens_conv !< Conversion factor between jvec and jdens
+   real(dblprec) :: b_rt_fac      !< Prefactor for Slonczewski STT
    real(dblprec), dimension(3) :: sot_pol_vec
    real(dblprec), dimension(:,:), allocatable :: sitenatomjvec !< Site dependent spin current vector
    real(dblprec), dimension(:,:), allocatable :: sitenatom_stt_pol
@@ -106,7 +109,7 @@ contains
          !call mom_cross_mfixed(Natom, Mensemble,emom)
          ! external_field=external_field+btorque
       else if(stt=='F') then
-         ! Fixed layer
+         ! Fixed layer (Older Slonczewski implementation)
          call mom_cross_mfixed(Natom, Mensemble,emom)
          ! external_field=external_field+btorque
       end if
@@ -195,6 +198,7 @@ contains
    subroutine slonczewski_field(Natom, Mensemble,emom)
       use math_functions, only : f_cross_product
       use damping, only : lambda1_array
+      use MomentData, only : mmom
       !B = BSTT (p−α m×p)+BSTT (m×p+α p)
 
       implicit none
@@ -203,7 +207,7 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emom  !< Current magnetic moment vector
 
-      real(dblprec) :: stt_asym, stt_prefac, stt_dot
+      real(dblprec) :: stt_asym, stt_pfac, stt_dot
       integer :: iatom, k
 
       stt_asym = spin_pol**2
@@ -211,15 +215,20 @@ contains
       do k=1, Mensemble
          do iatom=1, Natom
             stt_dot = dot_product(emom(:,iatom,k), sitenatom_stt_pol(:,iatom))
-            stt_prefac = sitenatom_stt_jcur(iatom)*spin_pol/(1.0_dblprec+stt_asym*stt_dot)
+            ! Prefactor involves density, physical constants, and area/length
+            ! Here we need to divide with local moment
+            stt_pfac = b_rt_fac*sitenatom_stt_jcur(iatom)*spin_pol/(1.0_dblprec+stt_asym*stt_dot)/mmom(iatom,k)
+            ! print *, 'STT denominator:', 1.0_dblprec+stt_asym*stt_dot
+            ! print *, 'STT prefactor:', stt_pfac
             ! First add precessional contribution (B^S_P * (p - alpha m x p ))
-            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_prefac * adibeta * ( &
+            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_pfac * adibeta * ( &
                sitenatom_stt_pol(:,iatom) &
                - lambda1_array(iatom) * f_cross_product(emom(:,iatom,k),sitenatom_stt_pol(:,iatom)))
-            ! Then add dampin contribution (B^S_R * (m x p + alpha p))
-            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_prefac * ( &
+            ! Then add damping contribution (B^S_R * (m x p + alpha p))
+            btorque(:,iatom,k) = btorque(:,iatom,k) + stt_pfac * ( &
                f_cross_product(emom(:,iatom,k),sitenatom_stt_pol(:,iatom)) + &
                lambda1_array(iatom) * sitenatom_stt_pol(:,iatom) )
+            ! print *, 'STT torque:', norm2(btorque(:,iatom,k))
 
          end do
       end do
@@ -436,6 +445,10 @@ contains
                read(ifile,*,iostat=i_err) jvec
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('jdens')
+               read(ifile,*,iostat=i_err) jdens
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('jsite')
                read(ifile,*,iostat=i_err) jsite
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -526,6 +539,8 @@ contains
       sot_damping   = 0.0_dblprec
       sot_site_pol  = "N"
       sot_site_file = 'site_pol'
+      jvec          = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
+      jdens         = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
 
    end subroutine init_stt
 
@@ -596,7 +611,7 @@ contains
 
       do i=1, Natom
          pnorm = norm2(sitenatomjvec(:,i))
-         sitenatom_stt_jcur(i) = pnorm
+         sitenatom_stt_jcur(i) = pnorm * stt_dens_conv
          sitenatom_stt_pol(:,i) = sitenatomjvec(:,i) / (pnorm + 1.0e-15_dblprec)
       end do
    end subroutine read_jvecfile
@@ -667,14 +682,16 @@ contains
    !> @author
    !> Jonathan Chico
    !---------------------------------------------------------------------------
-   subroutine print_curr_density(NA,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec,ammom_inp)
-
+   subroutine set_curr_density(NA,Natom,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec,ammom_inp)
+      use InputData, only : N3
       use Constants
+      use math_functions, only : f_cross_product
 
       implicit none
 
       ! .. Input variables
       integer, intent(in) :: NA  !< Number of atoms in one cell
+      integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
       integer, intent(in) :: conf_num !< Number of LSF configurations
       real(dblprec), intent(inout) :: alat !< Lattice parameter
@@ -682,13 +699,13 @@ contains
       real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
       real(dblprec), dimension(3), intent(in) :: C2 !< Second lattice vector
       real(dblprec), dimension(3), intent(in) :: C3 !< Third lattice vector
-      real(dblprec), dimension(3), intent(in) :: jvec !< Input spin polarized current
+      real(dblprec), dimension(3), intent(inout) :: jvec !< Input spin polarized current
       real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp !< Magnetic moment directions from input (for alloys)
 
       ! .. Local variables
       real(dblprec) :: cell_vol  !< Volume of the unit cell
       real(dblprec) :: total_mom !< Total magnetization of the unit cell
-      real(dblprec), dimension(3) :: curr_den !< Current density in A/m^2
+      real(dblprec) :: xy_area   !< Area current passes through
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Calculation of the current density in the sample
@@ -710,17 +727,37 @@ contains
       total_mom=sum(ammom_inp(:,1,1))
 
       ! If the spin polarization is not set set it to one
-      if (spin_pol.eq.0) then
+      if (spin_pol.eq.0.0_dblprec) then
          spin_pol=1
          write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100% : ',spin_pol
       endif
-      ! Calculate the current density
-      curr_den(1:3)=ev*total_mom*gama*alat*jvec(1:3)/(cell_vol*spin_pol)
+      ! Calculate the current density from jvec or uses jdens from input
+      ! j_dens = stt_dens_fac * jvec
+      stt_dens_conv = ev*total_mom*gama*alat/(cell_vol*spin_pol)
+
+      ! For now, assume current is in C3-direction i.e. area is C1 x C2
+      xy_area = alat**2 * norm2(f_cross_product(C1,C2)) 
+      ! Calculate Meo prefactor assuming current acts on full depth of system  (NA * N3)
+      ! We do not divide by the local moment yet
+      b_rt_fac = hbar * spin_pol / 2.0_dblprec / ev * xy_area / (NA * N3) / mub
+      ! b_rt_fac = hbar / 2.0_dblprec / ev * xy_area /  mub
+      print *, 'Current density conversion factor: ', stt_dens_conv, 'A/m^2'
+      print *, 'Spin polarization: ', spin_pol
+      print *, 'Area current passes through: ', xy_area, 'm^2'
+      print *, 'Meo prefactor: ', b_rt_fac
+      if (norm2(jdens).ne.0.0_dblprec) then
+         if (norm2(jvec).ne.0.0_dblprec) then
+            write(*,'(a)') 'WARNING: Both jvec and jdens are set, using jdens'
+         end if
+         jvec = jdens / stt_dens_conv
+      else
+         jdens = jvec * stt_dens_conv
+      end if
       write(*,'(a)',advance='no') 'Current density vector: '
-      write(*,'(2x,G14.6,2x,G14.6,2x,G14.6,1x,a)') curr_den(1),curr_den(2),curr_den(3),'A/m^2'
+      write(*,'(2x,G14.6,2x,G14.6,2x,G14.6,1x,a)') jdens(1), jdens(2), jdens(3),'A/m^2'
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! End of calculation of the current density in the sample
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   end subroutine print_curr_density
+   end subroutine set_curr_density
 
 end module SpinTorques

@@ -313,7 +313,7 @@ contains
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
          thermal_field
-      use prn_fields, only : do_prn_beff
+      use prn_fields, only : do_prn_beff, print_fields
       use macrocells
       use DemagField
       use MomentData
@@ -725,6 +725,10 @@ contains
             if(mod(mstep,spintemp_step)==0) then
                call spintemperature(Natom,Mensemble,mstep,1,simid,emomM,beff,1)
             end if
+         endif
+         if (do_prn_beff=='Y') then
+            call print_fields(mstep, sstep, Natom, Mensemble, simid, real_time_measure, delta_t, &
+            beff, thermal_field, beff1, beff3, emom)
          endif
 
          mstep = mstep + 1

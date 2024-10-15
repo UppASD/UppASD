@@ -716,7 +716,7 @@ contains
 
       ! Write header to output files for first iteration
       if(abs(indxb_beff (1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)') "# Iter.     Site     Replica      B_x             B_y             B_z             B"
+         write (ofileno,'(a)') "#   Iter.      Site    Replica            B_x             B_y             B_z             B"
       end if
 
       do k=1, bcount_beff
