@@ -46,7 +46,9 @@ module SpinTorques
    real(dblprec), dimension(3) :: jdens !< Current density (A/m^2)
    real(dblprec) :: stt_dens_conv !< Conversion factor between jvec and jdens
    real(dblprec) :: b_rt_fac      !< Prefactor for Slonczewski STT
-   real(dblprec), dimension(3) :: sot_pol_vec
+   real(dblprec) :: sot_rt_fac      !< Prefactor for Spin Hall Torque (revamped SHE-torque)
+   real(dblprec), dimension(3) :: she_sigma_vec !< Polarization vector for SHE
+   real(dblprec), dimension(3) :: sot_pol_vec  !< Polarization vector for SOT
    real(dblprec), dimension(:,:), allocatable :: sitenatomjvec !< Site dependent spin current vector
    real(dblprec), dimension(:,:), allocatable :: sitenatom_stt_pol
    real(dblprec), dimension(:), allocatable :: sitenatom_stt_jcur
@@ -218,8 +220,6 @@ contains
             ! Prefactor involves density, physical constants, and area/length
             ! Here we need to divide with local moment
             stt_pfac = b_rt_fac*sitenatom_stt_jcur(iatom)*spin_pol/(1.0_dblprec+stt_asym*stt_dot)/mmom(iatom,k)
-            ! print *, 'STT denominator:', 1.0_dblprec+stt_asym*stt_dot
-            ! print *, 'STT prefactor:', stt_pfac
             ! First add precessional contribution (B^S_P * (p - alpha m x p ))
             btorque(:,iatom,k) = btorque(:,iatom,k) + stt_pfac * adibeta * ( &
                sitenatom_stt_pol(:,iatom) &
@@ -243,6 +243,7 @@ contains
    !> Jonathan Chico
    !-----------------------------------------------------------------------------
    subroutine SHE_torque(Natom,Mensemble,lambda1_array,emom,mmom)
+      use math_functions, only : f_cross_product
 
       implicit none
 
@@ -259,14 +260,30 @@ contains
 
       she_btorque=0.0_dblprec
       ! Factor for the strenght of the spin hall torque
-      she_fact=she_angle/(spin_pol*thick_ferro)
+      if (thick_ferro == 0.0_dblprec) then
+         write(*,*) 'ERROR: Thickness of ferromagnetic layer (thick_ferro) must be non-zero.'
+         stop
+      endif
+      ! Previous factor:
+      ! she_fact=she_angle/(spin_pol*thick_ferro)
+      ! New factor according to Meo 2022 below (see also set_curr_density)
 
+      she_btorque = 0.0_dblprec
       !$omp parallel do default(shared) private(iatom,k)
       do k=1, Mensemble
          do iatom=1, Natom
-            she_btorque(1,iatom,k) =-she_fact*sitenatomjvec(1,iatom)*emom(3,iatom,k)-lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(2,iatom)
-            she_btorque(2,iatom,k) =-she_fact*sitenatomjvec(2,iatom)*emom(3,iatom,k)+lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(1,iatom)
-            she_btorque(3,iatom,k) = she_fact*sitenatomjvec(2,iatom)*emom(2,iatom,k)+she_fact*sitenatomjvec(1,iatom)*emom(1,iatom,k)
+            she_fact = sot_rt_fac / mmom(iatom,k)
+            she_btorque(:,iatom,k) = she_btorque(:,iatom,k) + she_fact * adibeta * ( &
+               she_sigma_vec - lambda1_array(iatom) * f_cross_product(emom(:,iatom,k),she_sigma_vec) &
+               )
+            ! Then add damping contribution (B^S_R * (m x p + alpha p))
+            she_btorque(:,iatom,k) = she_btorque(:,iatom,k) + she_fact * ( &
+               f_cross_product(emom(:,iatom,k),she_sigma_vec) + &
+               lambda1_array(iatom) * she_sigma_vec )
+            ! she_btorque(1,iatom,k) =-she_fact*sitenatomjvec(1,iatom)*emom(3,iatom,k)-lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(2,iatom)
+            ! she_btorque(2,iatom,k) =-she_fact*sitenatomjvec(2,iatom)*emom(3,iatom,k)+lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(1,iatom)
+            ! she_btorque(3,iatom,k) = she_fact*sitenatomjvec(2,iatom)*emom(2,iatom,k)+she_fact*sitenatomjvec(1,iatom)*emom(1,iatom,k)
+            print '(g12.4, 3g12.4)', she_fact, she_btorque(:,iatom,k)
          enddo
       enddo
       !$omp end parallel do
@@ -740,6 +757,10 @@ contains
       ! Calculate Meo prefactor assuming current acts on full depth of system  (NA * N3)
       ! We do not divide by the local moment yet
       b_rt_fac = hbar * spin_pol / 2.0_dblprec / ev * xy_area / (NA * N3) / mub
+      sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * alat**3 / thick_ferro / mub * norm2(jdens)
+      she_sigma_vec = jdens / norm2(jdens)
+      print *, "SHE sigma:", she_sigma_vec
+      print *, "SHE strength:", sot_rt_fac
       ! b_rt_fac = hbar / 2.0_dblprec / ev * xy_area /  mub
       print *, 'Current density conversion factor: ', stt_dens_conv, 'A/m^2'
       print *, 'Spin polarization: ', spin_pol

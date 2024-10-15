@@ -62,6 +62,7 @@ contains
    subroutine print_fields(mstep, sstep, Natom, Mensemble, simid, real_time_measure, delta_t, &
          beff, thermal_field, beff1, beff3, emom)
 
+      use SpinTorques, only : do_she
       implicit none
 
       integer, intent(in) :: mstep                      !< Current simulation step
@@ -178,8 +179,13 @@ contains
 
          if (mod(sstep-1,spin_torques_step)==0) then
             ! Write step to buffer
-            call buffer_spin_torques(Natom, Mensemble, mstep-1,&
+            if (do_she=='Y') then
+               call buffer_she_torques(Natom, Mensemble, mstep-1,&
                bcount_spin_torques, delta_t, real_time_measure, emom)
+            else
+               call buffer_spin_torques(Natom, Mensemble, mstep-1,&
+                  bcount_spin_torques, delta_t, real_time_measure, emom)
+            end if
             if (bcount_spin_torques==spin_torques_buff) then
                ! write buffer to file
                call prn_spin_torques(Natom, Mensemble, simid,real_time_measure)
@@ -567,6 +573,46 @@ contains
       endif
 
    end subroutine buffer_spin_torques
+
+   !> Buffer site spin transfer torques
+   subroutine buffer_she_torques(Natom, Mensemble, mstep,&
+         bcount_spin_torques,delta_t,real_time_measure,emom)
+      !
+      use spintorques, only : she_btorque
+      use math_functions, only : f_cross_product
+
+      implicit none
+
+      integer, intent(in) :: mstep !< Current simulation step
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: bcount_spin_torques   !< Counter of buffer for total effective field
+      real(dblprec), intent(in) :: delta_t !< Current measurement time
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+      real(dblprec), dimension(:,:,:), intent(in)    :: emom   !< Current unit moment vector
+
+      !.. Local scalar variables
+      integer :: i,k
+      real(dblprec), dimension(3) :: prec_torque,damp_torque, tmp_fld
+
+      ! Print precessional and damping torques from the spin transfer field
+      do k=1, Mensemble
+         do i=1, Natom
+            tmp_fld=she_btorque(1:3,i,k)
+            prec_torque = f_cross_product(emom(:,i,k), tmp_fld)
+            damp_torque = f_cross_product(emom(:,i,k), prec_torque)
+            spin_torquesb(1:3,i,bcount_spin_torques,k)=prec_torque
+            spin_torquesb(4:6,i,bcount_spin_torques,k)=damp_torque
+         end do
+      end do
+
+      if (real_time_measure=='Y') then
+         indxb_spin_torques(bcount_spin_torques)=mstep*delta_t
+      else
+         indxb_spin_torques(bcount_spin_torques)=mstep
+      endif
+
+   end subroutine buffer_she_torques
 
    !> Buffer site resulting torques
    subroutine buffer_torques(Natom, Mensemble, mstep,beff,thermal_field,&

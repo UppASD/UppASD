@@ -1,0 +1,54 @@
+simid     HeisWire                              System name
+ncell     1         1         1                 System size (in terms of unit cells)
+BC        P         P         P                 Boundary conditions (0=vacuum,P=periodic)
+cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile    ./posfile                             Position file
+exchange   ./jfile                               Exchange file
+momfile    ./momfile                             Moment file
+anisotropy ./kfile
+do_prnstruct 1                                  Print lattice structure (0=no, 1=yes)
+
+Mensemble 1                                     Number of samples in ensemble averaging
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+# restartfile ./start.dw1
+
+ip_mode   N                                     Initial phase parameters
+#ip_nphase 1
+#20000 1.0e-3 1e-16 4.0
+
+mode      S                                     S=SD, M=MC
+temp      0.0e-3                                Measurement phase parameters
+damping   0.0100                                --
+Nstep     100000                                --
+timestep  1.000e-15                             --
+
+do_avrg   Y                                     Measure averages
+avrg_step 100 
+
+do_tottraj Y                                    Measure moments
+tottraj_step       100
+tottraj_buff       10                           time step, buffer size
+
+plotenergy 1
+do_cumu Y
+
+# Fixed
+stt S
+jdens 0.0 0.0 5e11 
+adibeta 0.0
+spin_pol 0.6 
+
+do_prn_beff Y
+beff_step 100
+do_prn_torques Y
+torques_step 100
+do_prn_spin_torques Y
+spin_torques_step 100
+
+
+real_time_measure Y
+
