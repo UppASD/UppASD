@@ -273,6 +273,7 @@ contains
       do k=1, Mensemble
          do iatom=1, Natom
             she_fact = sot_rt_fac / mmom(iatom,k)
+            ! Precession part (B^S_P * (p - alpha m x p ))
             she_btorque(:,iatom,k) = she_btorque(:,iatom,k) + she_fact * adibeta * ( &
                she_sigma_vec - lambda1_array(iatom) * f_cross_product(emom(:,iatom,k),she_sigma_vec) &
                )
@@ -283,7 +284,8 @@ contains
             ! she_btorque(1,iatom,k) =-she_fact*sitenatomjvec(1,iatom)*emom(3,iatom,k)-lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(2,iatom)
             ! she_btorque(2,iatom,k) =-she_fact*sitenatomjvec(2,iatom)*emom(3,iatom,k)+lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(1,iatom)
             ! she_btorque(3,iatom,k) = she_fact*sitenatomjvec(2,iatom)*emom(2,iatom,k)+she_fact*sitenatomjvec(1,iatom)*emom(1,iatom,k)
-            print '(g12.4, 3g12.4)', she_fact, she_btorque(:,iatom,k)
+            ! print '(g12.4, 3g12.4)', she_fact, she_btorque(:,iatom,k)
+            ! print '(g12.4, 3g12.4)', she_fact, she_sigma_vec
          enddo
       enddo
       !$omp end parallel do
@@ -757,7 +759,8 @@ contains
       ! Calculate Meo prefactor assuming current acts on full depth of system  (NA * N3)
       ! We do not divide by the local moment yet
       b_rt_fac = hbar * spin_pol / 2.0_dblprec / ev * xy_area / (NA * N3) / mub
-      sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * alat**3 / thick_ferro / mub * norm2(jdens)
+      sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * xy_area / (NA * N3) / mub * norm2(jdens)
+      ! sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * alat**3 / thick_ferro / mub * norm2(jdens)
       she_sigma_vec = jdens / norm2(jdens)
       print *, "SHE sigma:", she_sigma_vec
       print *, "SHE strength:", sot_rt_fac
