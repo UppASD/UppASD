@@ -1,9 +1,12 @@
 # Measurement variables
-A listing of variables used for measurement of physical observables in UppASD.
+
+A listing of variables used for measurement of physical observables in UppASD. Strikethrough (double ~) indicate lowest priority variables.
 
 ## Magnetization and cumulants
-#### source/Measurement/prn_averages.f90
 
+### source/Measurement/prn_averages.f90
+
+```fortran
    ! Printing definitions
    integer :: cumu_step !< Interval for sampling Binder cumulant
    integer :: cumu_buff !< Buffer size for Binder cumulant
@@ -14,7 +17,7 @@ A listing of variables used for measurement of physical observables in UppASD.
    character(len=1) :: do_cuda_avrg             !< Measure average magnetization (Y/N) with CUDA
    character(len=1) :: do_cuda_cumu             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N) with CUDA
    character(len=1) :: do_proj_avrg             !< Measure projected averages (Y/A/N)
-   character(len=1) :: do_projch_avrg           !< Measure chemically projected averages (Y/N)
+   ~~character(len=1) :: do_projch_avrg           !< Measure chemically projected averages (Y/N)~~
    character(len=1) :: do_cumu_proj             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
 
    ! Local calculations for printing
@@ -28,8 +31,8 @@ A listing of variables used for measurement of physical observables in UppASD.
    real(dblprec) :: avrglcum  !< Cumulated average of l
    real(dblprec) :: avrgmcum  !< Cumulated average of m
    real(dblprec) :: avrgecum  !< Cumulated average of E
-   real(dblprec) :: avrgetcum !< Cumulated average of E_xc
-   real(dblprec) :: avrgelcum !< Cumulated average of E_LSF
+   ~~real(dblprec) :: avrgetcum !< Cumulated average of E_xc~~
+   ~~real(dblprec) :: avrgelcum !< Cumulated average of E_LSF~~
    real(dblprec) :: avrgm4cum !< Cumulated average of m^4
    real(dblprec) :: avrgm2cum !< Cumulated average of m^2
    real(dblprec) :: avrgl4cum !< Cumulated average of l^4
@@ -52,16 +55,17 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(mavg_buff_proj(3,NA,avrg_buff,Mensemble),stat=i_stat)
    allocate(mavg2_buff_proj(NA,avrg_buff,Mensemble),stat=i_stat)
    allocate(indxb_avrg(avrg_buff),stat=i_stat)
-   allocate(mavg_buff_projch(4,Nchmax,avrg_buff,Mensemble),stat=i_stat)
+   ~~allocate(mavg_buff_projch(4,Nchmax,avrg_buff,Mensemble),stat=i_stat)~~
    allocate(avrgmcum_proj(NT),stat=i_stat)
    allocate(avrgm2cum_proj(NT),stat=i_stat)
    allocate(avrgm4cum_proj(NT),stat=i_stat)
-
-
+```
 
 ## Trajectories
-#### source/Measurements/prn_trajectories.f90
 
+### source/Measurements/prn_trajectories.f90
+
+```fortran
    ! Input parameters
    integer :: ntraj         !< Number of trajectories to sample
    integer :: tottraj_step  !< Interval for sampling magnetic moments
@@ -93,12 +97,13 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(traj_atom(ntraj),stat=i_stat)
    allocate(traj_step(ntraj),stat=i_stat)
    allocate(traj_buff(ntraj),stat=i_stat)
-
-
+```
 
 ## Autocorrelation
-#### source/Correlation/autocorrelation.f90
 
+### source/Correlation/autocorrelation.f90
+
+```fortran
    !From input
    integer :: nspinwait
    integer, dimension(:), allocatable :: spinwaitt
@@ -125,12 +130,13 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(autocorr(nspinwait),stat=i_stat)
    allocate(autocorr(nspinwait),stat=i_stat) ! Note, in another subroutine
    allocate(spinwaitt(nspinwait),stat=i_stat)
-
-
+```
 
 ## Polarization
-#### source/Measurement/polarization.f90
 
+### source/Measurement/polarization.f90
+
+```fortran
    ! Definition of polarization arrays
    real(dblprec), dimension(:,:,:), allocatable :: eij            !< Normalized neighbour distances
    real(dblprec), dimension(:,:,:), allocatable :: local_pol      !< Data for local polarization vector
@@ -146,65 +152,67 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(pollistsize(Natom),stat=i_stat)
    allocate(spol_buff(3,pol_buff,Mensemble),stat=i_stat)
    allocate(indxb_pol(pol_buff),stat=i_stat)
-
-
+```
 
 ## Currents
-#### source/Measurement/prn_currents.f90
 
+### source/Measurement/prn_currents.f90
+
+```fortran
    ! Input parameters
-   integer          :: quant_axis            !< Quantization axis for calculating psi
-   integer          :: current_step          !< Interval for sampling currents
-   integer          :: current_buff          !< Buffer size for currents
-   character(len=1) :: do_currents           !< Measure magnon and heat currents
+   ~~integer          :: quant_axis            !< Quantization axis for calculating psi~~
+   ~~integer          :: current_step          !< Interval for sampling currents~~
+   ~~integer          :: current_buff          !< Buffer size for currents~~
+   ~~character(len=1) :: do_currents           !< Measure magnon and heat currents~~
 
    ! Definition of current arrays
-   real(dblprec), dimension(:), allocatable        :: indxb_currents   !< Step counter for the currents
-   real(dblprec), dimension(:,:,:), allocatable    :: psi_amp_b        !< Buffer for the heat current
-   real(dblprec), dimension(:,:,:), allocatable    :: psi_phase_b      !< Buffer for the magnon current
-   real(dblprec), dimension(:,:,:), allocatable    :: heat_current_b   !< Buffer for the heat current
-   real(dblprec), dimension(:,:,:), allocatable    :: heat_current2_b  !< Buffer for the heat current
-   real(dblprec), dimension(:,:,:), allocatable    :: magnon_current_b !< Buffer for the magnon current
-   complex(dblprec), dimension(:,:,:), allocatable :: psi_b
-   complex(dblprec), dimension(:,:), allocatable   :: psi_curr           !< Psi variable for the current time step
-   complex(dblprec), dimension(:,:), allocatable   :: psi_prev           !< Psi variable for the previous time step
-   complex(dblprec), dimension(:,:), allocatable   :: psi_dot            !< Derivative of the psi variable
-   complex(dblprec), dimension(:,:), allocatable   :: psi_dot2           !< Derivative of the psi variable
-   complex(dblprec), dimension(:,:,:), allocatable :: psi_time
-   real(dblprec), dimension(:,:), allocatable      :: heat_current       !< Heat current per site
-   real(dblprec), dimension(:,:), allocatable      :: heat_current2      !< Heat current per site
-   real(dblprec), dimension(:,:), allocatable      :: magnon_current     !< Magnon current per time
-   real(dblprec), dimension(:,:), allocatable      :: ave_heat_current   !< Average heat current per site
-   real(dblprec), dimension(:,:), allocatable      :: ave_magnon_current !< Average magnon current per time
-   real(dblprec), dimension(:,:), allocatable      :: psi_amp            !< Amplitude of the complex number
-   real(dblprec), dimension(:,:), allocatable      :: psi_phase          !< Phase of the complex number
+   ~~real(dblprec), dimension(:), allocatable        :: indxb_currents   !< Step counter for the currents~~
+   ~~real(dblprec), dimension(:,:,:), allocatable    :: psi_amp_b        !< Buffer for the heat current~~
+   ~~real(dblprec), dimension(:,:,:), allocatable    :: psi_phase_b      !< Buffer for the magnon current~~
+   ~~real(dblprec), dimension(:,:,:), allocatable    :: heat_current_b   !< Buffer for the heat current~~
+   ~~real(dblprec), dimension(:,:,:), allocatable    :: heat_current2_b  !< Buffer for the heat current~~
+   ~~real(dblprec), dimension(:,:,:), allocatable    :: magnon_current_b !< Buffer for the magnon current~~
+   ~~complex(dblprec), dimension(:,:,:), allocatable :: psi_b~~
+   ~~complex(dblprec), dimension(:,:), allocatable   :: psi_curr           !< Psi variable for the current time step~~
+   ~~complex(dblprec), dimension(:,:), allocatable   :: psi_prev           !< Psi variable for the previous time step~~
+   ~~complex(dblprec), dimension(:,:), allocatable   :: psi_dot            !< Derivative of the psi variable~~
+   ~~complex(dblprec), dimension(:,:), allocatable   :: psi_dot2           !< Derivative of the psi variable~~
+   ~~complex(dblprec), dimension(:,:,:), allocatable :: psi_time~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: heat_current       !< Heat current per site~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: heat_current2      !< Heat current per site~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: magnon_current     !< Magnon current per time~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: ave_heat_current   !< Average heat current per site~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: ave_magnon_current !< Average magnon current per time~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: psi_amp            !< Amplitude of the complex number~~
+   ~~real(dblprec), dimension(:,:), allocatable      :: psi_phase          !< Phase of the complex number~~
 
    ! Allocation of current arrays
-   allocate(heat_current(3,Natom),stat=i_stat)
-   allocate(heat_current2(3,Natom),stat=i_stat)
-   allocate(magnon_current(3,Natom),stat=i_stat)
-   allocate(ave_heat_current(3,Natom),stat=i_stat)
-   allocate(ave_magnon_current(3,Natom),stat=i_stat)
-   allocate(psi_curr(Natom,Mensemble),stat=i_stat)
-   allocate(psi_prev(Natom,Mensemble),stat=i_stat)
-   allocate(psi_dot(Natom,Mensemble),stat=i_stat)
-   allocate(psi_dot2(Natom,Mensemble),stat=i_stat)
-   allocate(psi_time(3,Natom,Mensemble),stat=i_stat)
-   allocate(psi_amp(Natom,Mensemble),stat=i_stat)
-   allocate(psi_phase(Natom,Mensemble),stat=i_stat)
-   allocate(psi_b(Natom,Mensemble,current_buff),stat=i_stat)
-   allocate(heat_current_b(3,Natom,current_buff),stat=i_stat)
-   allocate(psi_amp_b(Natom,Mensemble,current_buff),stat=i_stat)
-   allocate(psi_phase_b(Natom,Mensemble,current_buff),stat=i_stat)
-   allocate(heat_current2_b(3,Natom,current_buff),stat=i_stat)
-   allocate(magnon_current_b(3,Natom,current_buff),stat=i_stat)
-   allocate(indxb_currents(current_buff),stat=i_stat)
-
-
+   ~~allocate(heat_current(3,Natom),stat=i_stat)~~
+   ~~allocate(heat_current2(3,Natom),stat=i_stat)~~
+   ~~allocate(magnon_current(3,Natom),stat=i_stat)~~
+   ~~allocate(ave_heat_current(3,Natom),stat=i_stat)~~
+   ~~allocate(ave_magnon_current(3,Natom),stat=i_stat)~~
+   ~~allocate(psi_curr(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_prev(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_dot(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_dot2(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_time(3,Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_amp(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_phase(Natom,Mensemble),stat=i_stat)~~
+   ~~allocate(psi_b(Natom,Mensemble,current_buff),stat=i_stat)~~
+   ~~allocate(heat_current_b(3,Natom,current_buff),stat=i_stat)~~
+   ~~allocate(psi_amp_b(Natom,Mensemble,current_buff),stat=i_stat)~~
+   ~~allocate(psi_phase_b(Natom,Mensemble,current_buff),stat=i_stat)~~
+   ~~allocate(heat_current2_b(3,Natom,current_buff),stat=i_stat)~~
+   ~~allocate(magnon_current_b(3,Natom,current_buff),stat=i_stat)~~
+   ~~allocate(indxb_currents(current_buff),stat=i_stat)~~
+```
 
 ## Topology
-#### source/Measurement/topology.f90
 
+### source/Measurement/topology.f90
+
+```fortran
    ! Parameters for the printing
    integer :: skyno_step !< Interval for sampling the skyrmion number
    integer :: skyno_buff !< Buffer size for the sampling of the skyrmion number
@@ -219,12 +227,13 @@ A listing of variables used for measurement of physical observables in UppASD.
 
    ! Allocation of topology arrays
    allocate(simp(3,nsimp))
-
-
+```
 
 ## Energy
-#### source/Hamiltonian/energy.f90
 
+### source/Hamiltonian/energy.f90
+
+```fortran
    ! Input variables
    integer, intent(in) :: NA           !< Number of atoms in one cell
    integer, intent(in) :: N1           !< Number of cell repetitions in x direction
@@ -242,9 +251,9 @@ A listing of variables used for measurement of physical observables in UppASD.
    integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
    real(dblprec), intent(in) :: Temp         !< Temperature
    real(dblprec), intent(in) :: delta_t      !< Current time step
-   character(len=1), intent(in) :: do_lsf    !< Including LSF energy
-   character(len=1), intent(in) :: lsf_field          !< LSF field contribution (Local/Total)
-   character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
+   ~~character(len=1), intent(in) :: do_lsf    !< Including LSF energy~~
+   ~~character(len=1), intent(in) :: lsf_field          !< LSF field contribution (Local/Total)~~
+   ~~character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not~~
    character(len=1), intent(in) :: real_time_measure  !< Display measurements in real time
    character(len=8), intent(in) :: simid              !< Name of simulation
    integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
@@ -269,7 +278,7 @@ A listing of variables used for measurement of physical observables in UppASD.
    real(dblprec), dimension(:), allocatable :: ene_chir
    real(dblprec), dimension(:), allocatable :: ene_dip
    real(dblprec), dimension(:), allocatable :: ene_ani
-   real(dblprec), dimension(:), allocatable :: ene_lsf
+   ~~real(dblprec), dimension(:), allocatable :: ene_lsf~~
    real(dblprec), dimension(:), allocatable :: ene_ext
    real(dblprec), dimension(:), allocatable :: ene_pair
    real(dblprec), dimension(:), allocatable :: ene_bqdm
@@ -294,12 +303,13 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(ene%ene_dip(Mensemble),stat=i_stat)
    allocate(ene%ene_lsf(Mensemble),stat=i_stat)
    allocate(ene%ene_pair(Mensemble),stat=i_stat)
-
-
+```
 
 ## Magnetic field
-#### source/Fields/prn_fields.f90
 
+### source/Fields/prn_fields.f90
+
+```fortran
    ! Input parameters to be read
    integer :: beff_step               !< Interval between consecutive prints of the total effective field
    integer :: beff_buff               !< Buffer size for the total field
@@ -309,15 +319,15 @@ A listing of variables used for measurement of physical observables in UppASD.
    integer :: thermfield_buff         !< Buffer size for the stochastic field
    integer :: torques_step            !< Interval between consecutive prints of the resulting torques
    integer :: torques_buff            !< Buffer size for the resulting torques
-   integer :: larm_step               !< Interval between consecutive prints of the larmor frequencies
-   integer :: larm_buff               !< Buffer size for the larmor frequencies
-   integer :: larm_dos_size           !< Number of windows for larmor dos histogram
+   ~~integer :: larm_step               !< Interval between consecutive prints of the larmor frequencies~~
+   ~~integer :: larm_buff               !< Buffer size for the larmor frequencies~~
+   ~~integer :: larm_dos_size           !< Number of windows for larmor dos histogram~~
    character(len=1) :: do_prn_beff    !< Flag governing file output of total effective fields (Y/N)
    character(len=1) :: do_prn_binteff !< Flag governing file output of internal effective fields (Y/N)
    character(len=1) :: do_prn_torques !< Flag governing file output of resulting torques (Y/N)
    character(len=1) :: do_thermfield  !< Thermal fields trajectory
-   character(len=1) :: do_larmor_loc  !< Calculate local precession frequencies from local field (Y/N)
-   character(len=1) :: do_larmor_dos  !< Calculate average precession frequencies from local field (Y/N)
+   ~~character(len=1) :: do_larmor_loc  !< Calculate local precession frequencies from local field (Y/N)~~
+   ~~character(len=1) :: do_larmor_dos  !< Calculate average precession frequencies from local field (Y/N)~~
 
    ! Local variables for buffering and indexing of fields
    integer :: bcount_beff    !< Counter of buffer for total field
@@ -330,14 +340,14 @@ A listing of variables used for measurement of physical observables in UppASD.
    real(dblprec), dimension(:), allocatable :: indxb_beff         !< Step counter for total field
    real(dblprec), dimension(:), allocatable :: indxb_binteff      !< Step counter for internal field
    real(dblprec), dimension(:), allocatable :: indxb_torques      !< Step counter for resulting torques
-   real(dblprec), dimension(:), allocatable :: indxb_larm         !< Step counter for total field
+   ~~real(dblprec), dimension(:), allocatable :: indxb_larm         !< Step counter for total field~~
    real(dblprec), dimension(:), allocatable :: indxb_therm        !< Step counter for stochastic field
    real(dblprec), dimension(:,:,:,:), allocatable :: beffb        !< Buffer the site dependent total field
    real(dblprec), dimension(:,:,:,:), allocatable :: binteffb     !< Buffer the site resulting torques
    real(dblprec), dimension(:,:,:,:), allocatable :: torquesb     !< Buffer the site dependent internal field
-   real(dblprec), dimension(:,:,:), allocatable :: larmb          !< Buffer the site dependent larmor frequencies
+   ~~real(dblprec), dimension(:,:,:), allocatable :: larmb          !< Buffer the site dependent larmor frequencies~~
    real(dblprec), dimension(:,:,:,:), allocatable :: therm_fieldb !< Buffer the site dependent stochastic field
-   real(dblprec), dimension(:), allocatable :: larm_dos       !< Histogram array for Larmor frequencies
+   ~~real(dblprec), dimension(:), allocatable :: larm_dos       !< Histogram array for Larmor frequencies~~
 
    ! Allocation of magnetic field arrays
    allocate(therm_fieldb(3,Natom,thermfield_buff,Mensemble),stat=i_stat)
@@ -348,15 +358,16 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(indxb_binteff(binteff_buff),stat=i_stat)
    allocate(torquesb(6,Natom,torques_buff,Mensemble),stat=i_stat)
    allocate(indxb_torques(torques_buff),stat=i_stat)
-   allocate(larmb(Natom,larm_buff,Mensemble),stat=i_stat)
-   allocate(indxb_larm(larm_buff),stat=i_stat)
-   allocate(larm_dos(0:larm_dos_size))
-
-
+   ~~allocate(larmb(Natom,larm_buff,Mensemble),stat=i_stat)~~
+   ~~allocate(indxb_larm(larm_buff),stat=i_stat)~~
+   ~~allocate(larm_dos(0:larm_dos_size))~~
+```
 
 ## Ionic displacement and velocity
-#### source/Lattice/prn_latticetrajectories.f90
 
+### source/Lattice/prn_latticetrajectories.f90
+
+```fortran
    ! Input parameters
    integer :: lntraj         !< Number of displacement trajectories to sample
    integer :: ltottraj_step  !< Interval for sampling displacement trajectories
@@ -389,12 +400,13 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(vvecb(3,Natom,ltottraj_buff,Mensemble),stat=i_stat)
    allocate(llatb(3,Natom,ltottraj_buff,Mensemble),stat=i_stat)
    allocate(indxb(ltottraj_buff),stat=i_stat)
-
-
+```
 
 ## Ionic averages
-#### source/Lattice/prn_latticeaverages.f90
 
+### source/Lattice/prn_latticeaverages.f90
+
+```fortran
    ! Printing definitions
    integer :: lavrg_step !< Interval for sampling average displacements
    integer :: lavrg_buff !< Buffer size for average displacements
@@ -446,12 +458,13 @@ A listing of variables used for measurement of physical observables in UppASD.
    allocate(indxb_uavrg(lavrg_buff),stat=i_stat)
    allocate(uavrg_buff_projch(4,Nchmax,lavrg_buff,Mensemble),stat=i_stat)
    allocate(vavrg_buff_projch(4,Nchmax,lavrg_buff,Mensemble),stat=i_stat)
-
-
+```
 
 ## Ionic force field
-#### source/Lattice/prn_latticefields.f90
 
+### source/Lattice/prn_latticefields.f90
+
+```fortran
    ! Input parameters to be read
    integer :: eeff_step               !< Interval between consecutive prints of the total effective field
    integer :: eeff_buff               !< Buffer size for the total field
@@ -479,3 +492,4 @@ A listing of variables used for measurement of physical observables in UppASD.
    real(dblprec), dimension(:,:,:,:), allocatable :: eeffb         !< Buffer the site dependent total field
    real(dblprec), dimension(:,:,:,:), allocatable :: einteffb      !< Buffer the site dependent internal field
    real(dblprec), dimension(:,:,:,:), allocatable :: etherm_fieldb !< Buffer the site dependent stochastic field
+```
