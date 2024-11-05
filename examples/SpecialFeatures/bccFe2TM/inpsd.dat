@@ -1,6 +1,6 @@
-# Test case based on
+# Two-temperature model (2TM) test case based on
 # SLDexamples/bccFe3TM
-simid     bccFe3TM
+simid     bccFe2TM
 ncell     20        20        20                System size            
 BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
 cell      -1.0000000000000003    1.0000000000000003    1.0000000000000003         
@@ -15,13 +15,13 @@ momfile   ./momfileFe
 exchange  ./jfileDIr6dir.cut
 Initmag   3
 
-
+# Spin dynamics initial phase
 ipSDEalgh   1
 ip_mode    S
 ip_nphase  1
 5000 300.0 1.0e-15 0.5
 
-
+# Spin dynamics measurement phase
 SDEalgh   1
 mode      S
 Nstep     10000
@@ -39,7 +39,7 @@ do_cumu Y
 
 # 3TM data below
 do_3tm Y
-P_pulse     100           #Power/heat of the pulse  (J/m^2) (Area measure -> divided by fixed thicknes in code)
+P_pulse     100           #Power/heat of the pulse  (J/m^2) (Area measure -> divided by fixed thickness in code)
 t0_pulse    1.0e-12       #Center of the pulse  (s)
 sigma_pulse 0.02e-12      #Width of the pulse (s)
 G_cool      5.0e18        #Cooling rate (only on electron bath) (J/s)
