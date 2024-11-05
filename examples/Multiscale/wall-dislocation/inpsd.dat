@@ -1,0 +1,30 @@
+simid    DomainWl
+
+!! Multiscale !!
+multiscale    multiscale.conf  
+
+initmag       3  
+
+!! Thermalization !!
+ip_mode    MS
+ip_nphase  3
+10000   0.00001   1.000e-13   0.4
+20000   0.00001   1.000e-15   0.25
+50000   0.00001   1.000e-15   0.1
+
+!! Simulation !!
+mode       MS                           
+SDEalgh    1              
+hfield     0.0   0.0   -0.25     Static H field
+temp       0.0001
+damping    0.1
+nstep      2000000         
+timestep   1.000e-15      
+
+do_tottraj   Y
+tottraj_step 400
+tottraj_buff 10
+
+do_prnstruct   1
+prn_multiscale 1
+do_anisotropy  1

@@ -43,7 +43,7 @@ contains
       do_ll_phonopy, Natom_phonopy, atomindex_phonopy, ll_inptens_phonopy )
 
       use NeighbourMap, only : setup_nm, setup_nm_nelem
-      use LatticeInputData, only : allocate_latthamiltonianinput
+      use LatticeInputData, only : allocate_latthamiltonianinput, ll_scale
       use LatticeHamiltonianData, only : allocate_llhamiltoniandata, allocate_lllhamiltoniandata, &
          allocate_llllhamiltoniandata, allocate_mlhamiltoniandata, allocate_mmlhamiltoniandata, allocate_mmllhamiltoniandata, &
          mml_tens_diag, lmm_tens_diag
@@ -201,7 +201,8 @@ contains
          ! Makes use of point symmetry operations for the coupling tensor
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for LL interaction'
          call setup_nm_nelem(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, atype, Bas, &
-            nn_ll_tot, max_no_llshells, max_no_equiv, sym, &
+            nn_ll_tot, max_no_llshells, max_no_equiv, 0, &
+            !nn_ll_tot, max_no_llshells, max_no_equiv, sym, &
             ll_nn, ll_redcoord, nme, nmdim, 1, &
             do_ralloy, Natom_full, acellnumb, atype_ch, &
             !Nchmax, 9, .true., 2, 1, 1, ll_inptens, ll_symtens, ll_symind)
@@ -226,6 +227,9 @@ contains
             do_ralloy, Natom_full, Nchmax, atype_ch, asite_ch, achem_ch, ammom_inp, &
             0, 0)
          write(*,'(a)') ' done'
+
+         ! Rescale LL couplings if needed
+         if(ll_scale.ne.1.0_dblprec) ll_tens = ll_scale * ll_tens
 
          ! Print LL interactions
          if(do_prnstruct==1.or.do_prnstruct==4) then
@@ -271,6 +275,9 @@ contains
                ll_tens(1:3,1:3,j,i) = ll_inptens_phonopy(1:3,1:3,ja,ia) * fc_unitconv_phonopy
             end do
          end do
+
+         ! Rescale LL couplings if needed
+         if(ll_scale.ne.1.0_dblprec) ll_tens = ll_scale * ll_tens
 
          ! Print LL phonopy interactions
          if(do_prnstruct==1.or.do_prnstruct==4) then

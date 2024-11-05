@@ -32,7 +32,7 @@ damping 0.5
 Nstep   3000 
 
 do_avrg   Y                                     Measure averages
-avrg_step 100
+avrg_step 50
 
 do_cumu Y
 cumu_step 50

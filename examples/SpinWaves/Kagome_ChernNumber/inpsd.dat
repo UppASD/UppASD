@@ -1,0 +1,53 @@
+simid      kagomeCH
+ncell      100   100      1
+BC         P        P          0                 
+cell       2.00000  0.0000000  0.00
+           1.00000  1.7320508  0.00
+           0.00000  0.0000000  1.00
+Sym        0                                    
+
+posfile    ./posfile
+momfile    ./momfile
+exchange   ./jfile
+dm         ./dmfile 
+
+do_prnstruct 1
+maptype      1
+Initmag      3                (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode      H
+ip_mcanneal  4
+100000       300
+100000       100
+100000       10
+200000       0.001
+
+mode         S                S=SD, M=MC
+temp         0.001
+Nstep        200000
+damping      0.001
+timestep     1e-16
+
+do_avrg       Y               Measure averages
+avrg_step     10000
+
+do_tottraj    N               Measure moments
+tottraj_step  10000
+
+plotenergy    1         
+
+do_diamag Y
+do_chern Y
+kgrid   66 66 1
+
+do_sc_local_axis B
+sc_local_axis_mix 0.1
+sc_window_fun 3
+sc_average E
+
+do_sc Q
+sc_step 4
+sc_nstep 1034
+
+qpoints D
+qfile     ./qfile
