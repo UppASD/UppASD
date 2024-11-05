@@ -438,7 +438,8 @@ contains
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
       end if
 
-      ! Initialize 3TM functionality if enabled 
+      ! Initialize 3TM functionality if enabled
+      ! Note that the 3TM functionality is here used for 2TM modelling
       if(do_3tm=='Y'.or.do_3tm=='E') then
 !        call allocate_3tm(Natom,0,1)
          call init_3tm_cv(1)
