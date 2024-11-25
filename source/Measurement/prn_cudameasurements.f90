@@ -59,12 +59,9 @@ contains
 
     ! Write header to output files for first iteration
     if(abs(indxb_obs(1))==0.0e0_dblprec) then
-       ! Averages
        if (real_time_measure=='Y') then
-          !write(ofileno,10002)"Time[s]","<M>_x","<M>_y","<M>_z","<M>","M_{stdv}"
           write(ofileno,10002) "Time[s]", obs_label
        else
-          !write(ofileno,10002)"#Iter","<M>_x","<M>_y","<M>_z","<M>","M_{stdv}"
           write(ofileno,10002) "#Iter", obs_label
        endif
     end if
@@ -83,12 +80,80 @@ contains
     close(ofileno)
     return
 
-    write (*,*) "Error writing the averages file"
+    write (*,*) "Error writing the observable file"
 
 10001 format (i8,12es16.8)
 10002 format (a8,12a16)
 
   end subroutine print_observable
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Wrapper for printing trajectories sampled in CUDA
+   !
+   !> @author Johan Hellsvik
+   !---------------------------------------------------------------------------------
+  subroutine print_trajectory(simid, Mensemble, Natom, traj_name, traj_step, traj_buff, &
+       traj_dim, indxb_obs, traj_buffer, traj_label, real_time_measure, delta_t, mstep)
+
+    implicit none
+
+    ! Printing definitions
+    character(len=8), intent(in) :: simid !< Simulation name
+    integer, intent(in) :: Mensemble !< Number of ensembles
+    integer, intent(in) :: Natom !< Number of atoms in the system
+    character(len=16), intent(in) :: traj_name !< Observable name
+    integer, intent(in) :: traj_step !< Interval for sampling the observable
+    integer, intent(in) :: traj_buff !< Buffer size for storing the observable
+    integer, intent(in) :: traj_dim !< Number of columns for the observable
+    real(dblprec), dimension(:), allocatable      :: indxb_obs   !< Step counter for the buffer of the observable
+    real(dblprec), dimension(:,:,:), allocatable  :: traj_buffer  !< Buffer for the observable
+    character(len=16), dimension(:), allocatable  :: traj_label   !< Labels for the components of the observable
+    character(len=1), intent(in) :: real_time_measure !< Measurement performed in real time
+    real(dblprec), intent(in) :: delta_t !< Current time step
+    integer, intent(in) :: mstep !< Current simulation step
+
+    ! Local scalars
+    character(len=30) :: filn
+    integer :: bcount_obs !< Counter of buffer for observables
+    integer :: mcount !< Loop index for ensembles
+    integer :: icount !< Loop index for atoms
+
+    write (filn,'(a,a,''.out'')') traj_name, trim(simid)
+    open(ofileno, file=filn, position="append")
+
+    ! Write header to output files for first iteration
+    if(abs(indxb_obs(1))==0.0e0_dblprec) then
+       if (real_time_measure=='Y') then
+          write(ofileno,10002) "Time[s]", traj_label
+       else
+          write(ofileno,10002) "#Iter", traj_label
+       endif
+    end if
+
+    ! Write the contents of the buffer
+    do bcount_obs=1, traj_buff
+       if (real_time_measure=='Y') then
+          indxb_obs(bcount_obs)=mstep*delta_t
+       else
+          indxb_obs(bcount_obs)=mstep
+       endif
+       do mcount=1, Mensemble
+          do icount=1, Natom
+             write(ofileno,10001) indxb_obs, traj_buffer(2:traj_dim,bcount_obs,mcount)
+          end do
+       end do
+    end do
+
+    close(ofileno)
+    return
+
+    write (*,*) "Error writing the trajectories file"
+
+10001 format (i8,12es16.8)
+10002 format (a8,12a16)
+
+  end subroutine print_trajectory
 
   ! SUBROUTINE: cudameasurements_allocations
   !> Allocation of the necessary arrays for the printing of observables sampled within CUDA code
