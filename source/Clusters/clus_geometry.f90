@@ -80,7 +80,7 @@ contains
       call setup_type_and_numb_clus(Natom_full_clus,NA_clus,N1_clus,N2_clus,N3_clus,&
          atype_clus,anumb_clus,atype_inp_clus,anumb_inp_clus,block_size)
       ! Setup the chemical information of the generalized cluster
-      if (do_ralloy==1) then
+      if (do_ralloy==1.or.do_ralloy==2) then
          call allocate_chemicaldata_clus(Natom_clus,1)
          call setup_chemicaldata_clus(NA_clus,N1_clus,N2_clus,N3_clus,        &
             do_ralloy,Nchmax_clus,Natom_full_clus,Nch_clus,chconc_clus,achtype_clus,&
@@ -367,7 +367,7 @@ contains
       write (*,'(a)') ' done'
 
       write (*,'(2x,a)',advance='no') 'Set up chemical information of alloy'
-      if(do_ralloy==1) then
+      if(do_ralloy==1.or.do_ralloy==2) then
          call setup_chemicaldata(Natom,NA,N1,N2,N3,atype,tseed,do_ralloy,Natom_full,&
             Nchmax,Nch,achtype,acellnumb,acellnumbrev,chconc,atype_ch,asite_ch,     &
             achem_ch)
@@ -516,7 +516,7 @@ contains
       integer, dimension(:), allocatable :: atoms2, atoms2T
       real(dblprec), dimension(:), allocatable :: rn
 
-      if (do_ralloy==1) then
+      if (do_ralloy==1.or.do_ralloy==2) then
 
          ! Same seed as for Monte-Carlo
          Ncell = N1_clus*N2_clus*N3_clus

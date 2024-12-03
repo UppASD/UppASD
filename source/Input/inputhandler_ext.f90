@@ -2164,7 +2164,7 @@ contains
     tol=1.0d-5
     
     !Proceed only in case if system is not random alloy
-    if(do_ralloy==1) then
+    if(do_ralloy>0) then
        write (*,*) 'Ring exchange is not supported for random alloys'
        stop
     else

@@ -760,7 +760,7 @@ contains
       endif
 
       if(ham_inp%do_ring==1) then
-         !		if(do_ralloy==1) then
+         !		if(do_ralloy==1.or.do_ralloy==2) then
          !			write (*,*) 'Four-spin ring exchange is not supported for random alloys'
          !			stop
          !			else  
@@ -1479,7 +1479,7 @@ contains
       deallocate(etemp)
 
 ! Random alloy chemical supermatrix
-      if (do_ralloy==1) then
+      if (do_ralloy==1.or.do_ralloy==2) then
 
 ! Calculate actual concentration of the impurities in the supercell
          xconc=0.0_dblprec

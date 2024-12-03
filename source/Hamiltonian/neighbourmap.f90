@@ -254,7 +254,7 @@ contains
                         do i0=1, NA
                            itype=atype(i0)
                            iat=i0+ix*NA+iy*N1*NA+iz*N2*N1*NA
-                           if (do_ralloy==1) then
+                           if (do_ralloy==1.or.do_ralloy==2) then
                               iat = acellnumb(iat)
                               if (iat /= 0) then
                                  itype = atype_ch(iat)
@@ -263,7 +263,7 @@ contains
                            if (iat/=0) then
                               ! Shell
                               do ishell=1,NN(itype)
-                                 if (do_ralloy==1) then
+                                 if (do_ralloy==1.or.do_ralloy==2) then
                                     nmdim(ishell,iat)=nmdimt(ishell,atype_ch(iat))
                                  else
                                     nmdim(ishell,iat)=nmdimt(ishell,atype(iat))
@@ -304,7 +304,7 @@ contains
                                     ! See if atom exists, then add entry to neighbour map
                                     if(jx>=0.and.jx<N1.and.jy>=0.and.jy<N2.and.jz>=0.and.jz<N3) then
                                        jat=j0+jx*NA+jy*N1*NA+jz*N2*N1*NA
-                                       if (do_ralloy==1) jat = acellnumb(jat)
+                                       if (do_ralloy==1.or.do_ralloy==2) jat = acellnumb(jat)
                                        nm(iat,ishell,inei)=jat
                                     end if
                                     !
@@ -935,7 +935,7 @@ contains
                do i0=1, NA
                   itype=atype(i0)
                   iat=i0+ix*NA+iy*N1*NA+iz*N2*N1*NA
-                  if (do_ralloy==1) then
+                  if (do_ralloy==1.or.do_ralloy==2) then
                      iat = acellnumb(iat)
                      if (iat /= 0) then
                         itype = atype_ch(iat)
@@ -946,7 +946,7 @@ contains
 
                      ! Shell
                      do ishell=1,NN(itype)
-                        if (do_ralloy==1) then
+                        if (do_ralloy==1.or.do_ralloy==2) then
                            nmdim(ishell,iat)=nmdimt(ishell,atype_ch(iat))
                         else
                            nmdim(ishell,iat)=nmdimt(ishell,atype(iat))
@@ -997,7 +997,7 @@ contains
                               ! See if atom exists, then add entry to neighbour map
                               if(jx>=0.and.jx<N1.and.jy>=0.and.jy<N2.and.jz>=0.and.jz<N3) then
                                  jat=j0+jx*NA+jy*N1*NA+jz*N2*N1*NA
-                                 if (do_ralloy==1) jat = acellnumb(jat)
+                                 if (do_ralloy==1.or.do_ralloy==2) jat = acellnumb(jat)
                                  nm(iat,ishell,inei,ielem)=jat
                                  !nm(iat,ishell,counter,ielem)=jat
                                  elemhit(ielem) = .true.

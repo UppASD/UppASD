@@ -250,7 +250,7 @@ module InputData
    ! Random alloy data (chemical data)
    !---------------------------------------------------------------------------------
    integer :: Nchmax     !< Max number of chemical components on each site in cell
-   integer :: do_ralloy  !< Random alloy simulation (0/1)
+   integer :: do_ralloy  !< Random alloy simulation (0/1/2) 1 -> Bulk, 2 -> Planes along Z
    integer, dimension(:), allocatable :: Nch            !< Number of chemical components on each site in cell
    integer, dimension(:,:), allocatable :: achtype_ch   !< Chemical type of atoms from input
    real(dblprec), dimension(:,:), allocatable :: chconc !< Chemical concentration on sites

@@ -180,7 +180,7 @@ contains
                   fixed_mom_flag(iatom)=0
                endif
             enddo
-         else if (do_ralloy.eq.1) then
+    else if ((do_ralloy==1.or.do_ralloy==2)) then
             do iatom=1, Natom
                if (inp_fixed_mom_flag(anumb(iatom),achtype(iatom),1).eq.1) then
                   ired=ired+1
