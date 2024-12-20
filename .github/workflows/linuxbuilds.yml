@@ -15,6 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install needed apt packages
+        run: sudo apt-get -y install libblas-dev libblas64-dev libopenblas-dev libopenblas64-dev  liblapack-dev liblapack64-dev
+
       - name: Build binaries
         run: |
              cmake -S . -B build 
