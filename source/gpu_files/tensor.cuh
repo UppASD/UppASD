@@ -15,7 +15,8 @@
 
 
 #define TENSOR_STATIC_ASSERT_DIMENSION() \
-   static_assert(sizeof...(Ints) == dim, "index dimension must be equal to the dimension of the array")
+   static_assert(sizeof...(Ints) == dim, \
+                 "index dimension must be equal to the dimension of the array")
 
 
 template <typename T, index_t dim>
@@ -213,7 +214,80 @@ public:
    }
 
 
+   void resize(const Extents<dim>& ext_new, bool preserve) {
+      if(preserve) {
+         Extents<dim> ext_old = this->extents();
+         Tensor<T, dim> old;
+         this->swap(old);
+         this->AllocateHost(ext_new);
+
+         if constexpr(dim == 1) {
+            this->copy_min_dim1(old);
+         } else if constexpr(dim == 2) {
+            this->copy_min_dim2(old);
+         } else if constexpr(dim == 3) {
+            this->copy_min_dim3(old);
+         } else if constexpr(dim == 4) {
+            this->copy_min_dim4(old);
+         } else if constexpr(dim == 5) {
+            this->copy_min_dim5(old);
+         } else if constexpr(dim == 6) {
+            this->copy_min_dim6(old);
+         }
+
+      } else {
+         this->FreeHost();
+         this->AllocateHost(ext_new);
+      }
+   }
+
+
 private:
+   void copy_min_dim1(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         (*this)(i) = A(i);
+   }
+
+   void copy_min_dim2(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         for(index_t j = 0; j < std::min(this->extent(1), A.extent(1)); ++j)
+            (*this)(i, j) = A(i, j);
+   }
+
+   void copy_min_dim3(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         for(index_t j = 0; j < std::min(this->extent(1), A.extent(1)); ++j)
+            for(index_t k = 0; k < std::min(this->extent(2), A.extent(2)); ++k)
+               (*this)(i, j, k) = A(i, j, k);
+   }
+
+   void copy_min_dim4(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         for(index_t j = 0; j < std::min(this->extent(1), A.extent(1)); ++j)
+            for(index_t k = 0; k < std::min(this->extent(2), A.extent(2)); ++k)
+               for(index_t u = 0; u < std::min(this->extent(3), A.extent(3)); ++u)
+                  (*this)(i, j, k, u) = A(i, j, k, u);
+   }
+
+   void copy_min_dim5(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         for(index_t j = 0; j < std::min(this->extent(1), A.extent(1)); ++j)
+            for(index_t k = 0; k < std::min(this->extent(2), A.extent(2)); ++k)
+               for(index_t u = 0; u < std::min(this->extent(3), A.extent(3)); ++u)
+                  for(index_t w = 0; w < std::min(this->extent(4), A.extent(4)); ++w)
+                     (*this)(i, j, k, u, w) = A(i, j, k, u, w);
+   }
+
+   void copy_min_dim6(const Tensor<T, dim>& A) {
+      for(index_t i = 0; i < std::min(this->extent(0), A.extent(0)); ++i)
+         for(index_t j = 0; j < std::min(this->extent(1), A.extent(1)); ++j)
+            for(index_t k = 0; k < std::min(this->extent(2), A.extent(2)); ++k)
+               for(index_t u = 0; u < std::min(this->extent(3), A.extent(3)); ++u)
+                  for(index_t w = 0; w < std::min(this->extent(4), A.extent(4)); ++w)
+                     for(index_t z = 0; z < std::min(this->extent(5), A.extent(5)); ++z)
+                        (*this)(i, j, k, u, w, z) = A(i, j, k, u, w, z);
+   }
+
    T* data_{};
 };
 
@@ -322,7 +396,8 @@ public:
    CudaTensor& operator=(const CudaTensor&) = default;
 
 
-   // for example if t is Tensor and ct is CudaTensor, can be used as follows: ct.Allocate(t.extents());
+   // for example if t is Tensor and ct is CudaTensor, can be used as follows:
+   // ct.Allocate(t.extents());
    __host__ void Allocate(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
       ASSERT_CUDA(cudaMalloc(&data_, size() * sizeof(T)));
@@ -398,13 +473,15 @@ public:
 
    __host__ void copy_async(const Tensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
+      ASSERT_CUDA(cudaMemcpyAsync(
+          data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
    }
 
 
    __host__ void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
+      ASSERT_CUDA(cudaMemcpyAsync(
+          data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
    }
 
 
@@ -436,5 +513,6 @@ void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA(cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
+   ASSERT_CUDA(
+       cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }
