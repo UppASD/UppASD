@@ -295,7 +295,7 @@ private:
 template <typename T, index_t dim>
 void Tensor<T, dim>::transpose() {
    // statically assert since partial template specialization is not allowed
-   static_assert(dim == 2);
+   static_assert(dim == 2, "");
 
    std::unique_ptr<T[]> TR(new T[size()]);
    for(index_t i = 0; i < extent(0); ++i) {
