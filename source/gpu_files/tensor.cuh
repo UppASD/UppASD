@@ -214,7 +214,7 @@ public:
    }
 
 
-   void resize(const Extents<dim>& ext_new, bool preserve) {
+   void resize(const Extents<dim>& ext_new, bool preserve = true) {
       if(preserve) {
          Extents<dim> ext_old = this->extents();
          Tensor<T, dim> old;
