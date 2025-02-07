@@ -12,12 +12,14 @@ unsigned int* FortranData::Natom;
 unsigned int* FortranData::nHam;
 unsigned int* FortranData::Mensemble;
 unsigned int* FortranData::max_no_neigh;
+unsigned int* FortranData::ipnphase;
 
 real* FortranData::delta_t;
 real* FortranData::gamma;
 real* FortranData::k_bolt;
 real* FortranData::mub;
 real* FortranData::damping;
+real* FortranData::Temp;
 
 real* FortranData::binderc;
 real* FortranData::mavg;
@@ -47,6 +49,8 @@ real* FortranData::external_field;
 real* FortranData::mmom;
 real* FortranData::btorque;
 real* FortranData::temperature;
+real* FortranData::ipTemp;
+unsigned int* FortranData::ipnstep;
 real* FortranData::mmom0;
 real* FortranData::mmom2;
 real* FortranData::mmomi;
@@ -66,7 +70,7 @@ void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsig
                                       unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                       real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
                                       unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                      unsigned int* p20, unsigned int* p21) {
+                                      unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipnphase) {
    stt = p1;
    SDEalgh = p2;
 
@@ -93,13 +97,15 @@ void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsig
    max_no_dmneigh = p18;
    do_jtensor = p19;
    do_aniso = p20;
+   Temp = p_Temp;
+   ipnphase = p_ipnphase;
 }
 
 void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
                                     real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
                                     real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
                                     unsigned int* p18, real* p19, real* p20, real* p21, unsigned int* p22,
-                                    real* p23, unsigned int* p24) {
+                                    real* p23, unsigned int* p24, real * p_ipTemp, unsigned int * p_ipnstep) {
    ncoup = p1;
    nlist = p2;
    nlistsize = p3;
@@ -124,6 +130,8 @@ void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3
    taniso = p22;
    sb = p23;
    aHam = p24;
+   ipTemp = p_ipTemp;
+   ipnstep = p_ipnstep;
 }
 
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
@@ -137,16 +145,16 @@ extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, u
                                           unsigned int* p5, unsigned int* p6, unsigned int* p7, real* p8,
                                           real* p9, real* p10, real* p11, real* p12, real* p13, real* p14,
                                           int* p15, char* p16, unsigned int* p17, unsigned int* p18,
-                                          unsigned int* p19, unsigned int* p20, unsigned int* p21) {
+                                          unsigned int* p19, unsigned int* p20, unsigned int* p21, real* p_Temp, unsigned int* p_ipnphase) {
    FortranData::setConstantPointers(
-       p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21);
+       p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p_Temp, p_ipnphase);
 }
 
 extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
                                          real* p6, real* p7, real* p8, real* p9, real* p10, real* p11,
                                          real* p12, real* p13, real* p14, real* p15, real* p16,
                                          unsigned int* p17, unsigned int* p18, real* p19, real* p20,
-                                         real* p21, unsigned int* p22, real* p23, unsigned int* p24) {
+                                         real* p21, unsigned int* p22, real* p23, unsigned int* p24, real* p_ipTemp, unsigned int* p_ipnstep) {
    FortranData::setMatrixPointers(p1,
                                   p2,
                                   p3,
@@ -170,7 +178,9 @@ extern "C" void fortrandata_setmatrices_(real* p1, unsigned int* p2, unsigned in
                                   p21,
                                   p22,
                                   p23,
-                                  p24);
+                                  p24,
+                                  p_ipTemp,
+                                  p_ipnstep);
 }
 
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {

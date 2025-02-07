@@ -37,8 +37,10 @@ void CudaSimulation::initiateConstants() {
     SimParam.M = *FortranData::Mensemble;
     SimParam.mnn = *FortranData::max_no_neigh;
     SimParam.mnndm = *FortranData::max_no_dmneigh;
-
-    // Constants
+    SimParam.ipnphase = *FortranData::ipnphase;
+    if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
+   // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
+    // Constants 
     SimParam.stt = *FortranData::stt;
     SimParam.rstep = *FortranData::rstep;
     SimParam.nstep = *FortranData::nstep;
@@ -47,6 +49,7 @@ void CudaSimulation::initiateConstants() {
     SimParam.gamma = *FortranData::gamma;
     SimParam.k_bolt = *FortranData::k_bolt;
     SimParam.mub = *FortranData::mub;
+    SimParam.Temp = *FortranData::Temp;
     SimParam.damping = *FortranData::damping;
     SimParam.mompar = *FortranData::mompar;
     SimParam.initexc = *FortranData::initexc;
@@ -79,6 +82,7 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     std::size_t M = SimParam.M;
     std::size_t mnn = SimParam.mnn;
     std::size_t mnndm = SimParam.mnndm;
+    std::size_t ipnphase = SimParam.ipnphase;
 
     // Constants initiated?
     if(N == 0 || M == 0 || NH == 0) {
@@ -115,6 +119,9 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.mmomi.set(FortranData::mmomi, N, M);
     cpuLattice.btorque.set(FortranData::btorque, 3, N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
+    cpuLattice.ipTemp.set(FortranData::ipTemp, ipnphase);
+    cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
+    if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
 
    /* if (Flags.do_mphase_now != 0){
         if (Flags.do_avrg !=0){
@@ -136,6 +143,7 @@ bool CudaSimulation::initiateMatrices() {
     std::size_t M = SimParam.M;
     std::size_t mnn = SimParam.mnn;
     std::size_t mnndm = SimParam.mnndm;
+    std::size_t ipnphase = SimParam.ipnphase;
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
@@ -181,6 +189,7 @@ bool CudaSimulation::initiateMatrices() {
     gpuHamiltonian.extfield.Allocate(3, N, M);
     gpuLattice.beff.Allocate(3, N, M);
     gpuLattice.b2eff.Allocate(3, N, M);
+    gpuLattice.eneff.Allocate(3, N, M);
     gpuLattice.emomM.Allocate(3, N, M);
     gpuLattice.emom.Allocate(3, N, M);
     gpuLattice.emom2.Allocate(3, N, M);
@@ -188,6 +197,9 @@ bool CudaSimulation::initiateMatrices() {
     gpuLattice.mmom0.Allocate(N, M);
     gpuLattice.mmom2.Allocate(N, M);
     gpuLattice.mmomi.Allocate(N, M);
+    //gpuLattice.ipTemp.Allocate(ipnphase);
+
+    gpuLattice.eneff.zeros();
    
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(3, N, M);} 
@@ -235,7 +247,8 @@ bool CudaSimulation::gpuHasNoData(){
                     (gpuHamiltonian.sb.empty() && (FortranData::sb != nullptr)) ||     
                     gpuHamiltonian.extfield.empty() || 
                     gpuLattice.beff.empty() || 
-                    gpuLattice.b2eff.empty() || 
+                    gpuLattice.b2eff.empty() ||
+                    gpuLattice.eneff.empty() || 
                     gpuLattice.emomM.empty() || 
                     gpuLattice.emom.empty() || 
                     gpuLattice.emom2.empty() || 
@@ -243,6 +256,7 @@ bool CudaSimulation::gpuHasNoData(){
                     gpuLattice.mmom0.empty() || 
                     gpuLattice.mmom2.empty() || 
                     gpuLattice.mmomi.empty() ||
+                   // gpuLattice.ipTemp.empty()||
                     (gpuLattice.btorque.empty()&& (FortranData::btorque != nullptr)));
     //TODO: add measurables
     return check;
@@ -273,6 +287,7 @@ void CudaSimulation::release() {
    gpuHamiltonian.extfield.Free();  
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
+    gpuLattice.eneff.Free();   
     gpuLattice.emomM.Free();  
     gpuLattice.emom.Free();  
     gpuLattice.emom2.Free();   
@@ -280,6 +295,7 @@ void CudaSimulation::release() {
     gpuLattice.mmom0.Free();  
     gpuLattice.mmom2.Free();  
     gpuLattice.mmomi.Free();
+   // gpuLattice.ipTemp.Free();
      if(FortranData::btorque) {gpuLattice.btorque.Free();  }
 
     
@@ -327,6 +343,7 @@ void CudaSimulation::copyFromFortran() {
     gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);  
     gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);  
     gpuLattice.mmomi.copy_sync(cpuLattice.mmomi);  
+    gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
     if(FortranData::btorque) {gpuLattice.btorque.copy_sync(cpuLattice.btorque); } 
    // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
@@ -334,6 +351,7 @@ void CudaSimulation::copyFromFortran() {
 }
 void CudaSimulation::copyToFortran() {
    if(isInitiated) {
+   // printf("COPIED\n");
     cpuLattice.beff.copy_sync(gpuLattice.beff);  
     cpuLattice.b2eff.copy_sync(gpuLattice.b2eff);   
     cpuLattice.emomM.copy_sync(gpuLattice.emomM);  
@@ -355,6 +373,7 @@ printf("current type %i\n", whichsim);
         CudaSDSimulation CudaSD;
         if(whichphase == 0) {
             CudaSD.SDiphase(*this);
+            copyToFortran();
         }
         else if(whichphase == 1) {
             CudaSD.SDmphase(*this);
@@ -362,15 +381,16 @@ printf("current type %i\n", whichsim);
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
      else if(whichsim == 1){
-       // CudaMCSimulation CudaMC;
+        CudaMCSimulation CudaMC;
         if(whichphase == 0) {
-            //CudaMC.MCiphase(*this);
+            CudaMC.MCiphase(*this);
+            copyToFortran();
         }
         else if(whichphase == 1) {
-            //CudaMC.MCmphase(*this);
+            CudaMC.MCmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
-    else {printf("Wrong simulation type! 0 - SD, 1 - not implemented yet MC; current type %i\n", whichsim);}
+    else {printf("Wrong simulation type! 0 - SD, 1 - MC; current type %i\n", whichsim);}
     //release();
 }

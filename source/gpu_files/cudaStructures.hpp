@@ -27,12 +27,14 @@ struct SimulationParameters {
    std::size_t M;
    std::size_t mnn;
    std::size_t mnndm;
+   unsigned int ipnphase;
 
    real delta_t;
    real gamma;
    real k_bolt;
    real mub;
    real damping;
+   real Temp;
 
    std::size_t avrg_step;  
    std::size_t avrg_buff;
@@ -79,6 +81,9 @@ struct hostLattice {
    Tensor<real, 2>  mmomi;
    Tensor<real, 3> btorque;
    Tensor<real, 1> temperature;
+   Tensor<real, 1> ipTemp;
+   Tensor<unsigned int, 1> ipnstep;
+
 };
 
 struct hostMeasurables {    
@@ -108,6 +113,7 @@ struct cudaHamiltonian {
 struct cudaLattice {
    CudaTensor<real, 3> beff;
    CudaTensor<real, 3> b2eff;
+   CudaTensor<real, 3> eneff;
    CudaTensor<real, 3> emomM;
    CudaTensor<real, 3> emom;
    CudaTensor<real, 3>  emom2;
@@ -117,6 +123,7 @@ struct cudaLattice {
    CudaTensor<real, 2>  mmomi;
    CudaTensor<real, 3> btorque;
    CudaTensor<real, 1> temperature;
+   CudaTensor<real, 1> ipTemp;
 } ;
 
 struct cudaMeasurables {    
