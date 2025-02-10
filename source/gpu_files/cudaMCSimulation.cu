@@ -26,12 +26,12 @@ CudaSimulation::CudaMCSimulation::~CudaMCSimulation() {
 }
 
 void CudaSimulation::CudaMCSimulation::printMdStatus(std::size_t mstep, CudaSimulation& cudaSim) {
-   if(cudaSim.SimParam.nstep > 20) {
-      if(mstep % ((cudaSim.SimParam.rstep + cudaSim.SimParam.nstep) / 20) == 0) {
+   if(cudaSim.SimParam.mcnstep > 20) {
+      if(mstep % ((cudaSim.SimParam.rstep + cudaSim.SimParam.mcnstep) / 20) == 0) {
          cudaSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
          fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
          std::printf("CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
-                     mstep * 100 / (cudaSim.SimParam.rstep + cudaSim.SimParam.nstep),
+                     mstep * 100 / (cudaSim.SimParam.rstep + cudaSim.SimParam.mcnstep),
                      *cudaSim.SimParam.mavg,
                      *cudaSim.SimParam.binderc);
       }
@@ -202,10 +202,12 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
 
    size_t nstep = cudaSim.SimParam.nstep;
    size_t rstep = cudaSim.SimParam.rstep;
+   size_t mcnstep = cudaSim.SimParam.mcnstep;
 
    // Time step loop
-   for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+   for(std::size_t mstep = rstep + 1; mstep <= rstep + mcnstep; mstep++) {
       // Measure
+      //printf("STEP = %i\n", mstep);
       measurement.measure(mstep);
       stopwatch.add("measurement");
 

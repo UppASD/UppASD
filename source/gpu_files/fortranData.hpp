@@ -48,6 +48,7 @@ public:
    static unsigned int* Mensemble;
    static unsigned int* max_no_neigh;
    static unsigned int* ipnphase;
+   static unsigned int* mcnstep;
 
    static real* delta_t;
    static real* gamma;
@@ -112,7 +113,7 @@ public:
                                    unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                    real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
                                    unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                   unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipnphase);
+                                   unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipnphase, unsigned int* p_mcnstep);
 
    static void setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5, real* p6,
                                  real* p7, real* p8, real* p9, real* p10, real* p11, real* p12, real* p13,

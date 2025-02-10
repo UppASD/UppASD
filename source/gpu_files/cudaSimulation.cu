@@ -39,6 +39,7 @@ void CudaSimulation::initiateConstants() {
     SimParam.mnndm = *FortranData::max_no_dmneigh;
     SimParam.ipnphase = *FortranData::ipnphase;
     if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
+    SimParam.mcnstep = *FortranData::mcnstep;
    // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
     // Constants 
     SimParam.stt = *FortranData::stt;

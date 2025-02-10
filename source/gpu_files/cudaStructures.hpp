@@ -28,6 +28,7 @@ struct SimulationParameters {
    std::size_t mnn;
    std::size_t mnndm;
    unsigned int ipnphase;
+   unsigned int mcnstep;
 
    real delta_t;
    real gamma;
