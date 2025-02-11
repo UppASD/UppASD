@@ -124,7 +124,7 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.btorque.set(FortranData::btorque, 3, N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
     cpuLattice.ipTemp.set(FortranData::ipTemp, ipmcnphase);
-    cpuLattice.ipnstep.set(FortranData::ipmcnstep, ipmcnphase);
+    cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
     cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
   //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
