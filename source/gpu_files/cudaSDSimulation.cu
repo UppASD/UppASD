@@ -93,16 +93,26 @@ void CudaSimulation::CudaSDSimulation::SDiphase(CudaSimulation& cudaSim) {
    int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
    int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = cudaSim.cpuHamiltonian.j_tensor.extent(3);
+   int N = cudaSim.SimParam.N;
    std::printf("_______________________________________________\n");
+   Tensor<real, 1> ipTemp;
+   ipTemp.AllocateHost(N);
 
+   for(unsigned int k = 0; k < N; k++){
+      ipTemp(k) = cudaSim.cpuLattice.ipTemp_array(k, 1);
+   }
    // Initiate constants for integrator
-   integrator.initiateConstants(cudaSim.SimParam, cudaSim.cpuLattice);
+   integrator.initiateConstants(cudaSim.SimParam, ipTemp);
    // Timing
    stopwatch.add("initiate");
-   size_t nstep = cudaSim.SimParam.nstep;
-   size_t rstep = cudaSim.SimParam.rstep;
+
+   unsigned int steps;
+   int ipnphase = cudaSim.SimParam.ipnphase; 
+   for(unsigned int it = 0; it < ipnphase; it++){
+   steps = cudaSim.cpuLattice.ipnstep(it);
+
    // Time step loop
-   for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+   for(std::size_t mstep = 1; mstep <= steps; mstep++) {
       // Print simulation status for each 5% of the simulation length
       // printMdStatus(mstep); -- Do we need it in initial phase?
 
@@ -134,10 +144,17 @@ void CudaSimulation::CudaSDSimulation::SDiphase(CudaSimulation& cudaSim) {
          std::exit(EXIT_FAILURE);
       }
 
+      for(unsigned int k = 0; k < N; k++){
+      ipTemp(k) = cudaSim.cpuLattice.ipTemp_array(k, it + 1);
+      integrator.resetConstants(ipTemp);
+   }
+
+   }
    }  // End loop over simulation steps
    // Synchronize with device
    cudaDeviceSynchronize();
    stopwatch.add("final synchronize");
+   ipTemp.FreeHost();
 }
 
 // Spin Dynamics measurement phase
@@ -199,7 +216,7 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    std::printf("_______________________________________________\n");
 
    // Initiate constants for integrator
-   integrator.initiateConstants(cudaSim.SimParam, cudaSim.cpuLattice);
+   integrator.initiateConstants(cudaSim.SimParam, cudaSim.cpuLattice.temperature);
 
 
    // Timing

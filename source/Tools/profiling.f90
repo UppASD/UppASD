@@ -179,7 +179,7 @@ contains
          'LattCorr     ' , &
          'SpinCorr     ' , &
          'Dipolar Int. '/)
-
+         return ! An ugly return to resolve Mariia's issue temporarily
       !$omp parallel
       !$omp master
       nprocs=omp_get_num_threads()

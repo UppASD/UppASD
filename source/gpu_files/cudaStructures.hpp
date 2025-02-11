@@ -28,6 +28,7 @@ struct SimulationParameters {
    std::size_t mnn;
    std::size_t mnndm;
    unsigned int ipnphase;
+   unsigned int ipmcnphase;
    unsigned int mcnstep;
 
    real delta_t;
@@ -83,7 +84,9 @@ struct hostLattice {
    Tensor<real, 3> btorque;
    Tensor<real, 1> temperature;
    Tensor<real, 1> ipTemp;
+   Tensor<real, 2> ipTemp_array;
    Tensor<unsigned int, 1> ipnstep;
+   Tensor<unsigned int, 1> ipmcnstep;
 
 };
 
@@ -125,6 +128,7 @@ struct cudaLattice {
    CudaTensor<real, 3> btorque;
    CudaTensor<real, 1> temperature;
    CudaTensor<real, 1> ipTemp;
+   CudaTensor<real, 1> ipTemp_array;
 } ;
 
 struct cudaMeasurables {    

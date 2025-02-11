@@ -37,8 +37,10 @@ void CudaSimulation::initiateConstants() {
     SimParam.M = *FortranData::Mensemble;
     SimParam.mnn = *FortranData::max_no_neigh;
     SimParam.mnndm = *FortranData::max_no_dmneigh;
+    SimParam.ipmcnphase = *FortranData::ipmcnphase;
     SimParam.ipnphase = *FortranData::ipnphase;
     if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
+    if(SimParam.ipmcnphase == 0) SimParam.ipmcnphase = 1;
     SimParam.mcnstep = *FortranData::mcnstep;
    // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
     // Constants 
@@ -84,6 +86,7 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     std::size_t mnn = SimParam.mnn;
     std::size_t mnndm = SimParam.mnndm;
     std::size_t ipnphase = SimParam.ipnphase;
+    std::size_t ipmcnphase = SimParam.ipmcnphase;
 
     // Constants initiated?
     if(N == 0 || M == 0 || NH == 0) {
@@ -120,9 +123,11 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.mmomi.set(FortranData::mmomi, N, M);
     cpuLattice.btorque.set(FortranData::btorque, 3, N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
-    cpuLattice.ipTemp.set(FortranData::ipTemp, ipnphase);
+    cpuLattice.ipTemp.set(FortranData::ipTemp, ipmcnphase);
+    cpuLattice.ipnstep.set(FortranData::ipmcnstep, ipmcnphase);
+    cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
-    if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
+  //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
 
    /* if (Flags.do_mphase_now != 0){
         if (Flags.do_avrg !=0){
@@ -145,6 +150,7 @@ bool CudaSimulation::initiateMatrices() {
     std::size_t mnn = SimParam.mnn;
     std::size_t mnndm = SimParam.mnndm;
     std::size_t ipnphase = SimParam.ipnphase;
+    std::size_t ipmcnphase = SimParam.ipmcnphase;
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
@@ -198,7 +204,7 @@ bool CudaSimulation::initiateMatrices() {
     gpuLattice.mmom0.Allocate(N, M);
     gpuLattice.mmom2.Allocate(N, M);
     gpuLattice.mmomi.Allocate(N, M);
-    //gpuLattice.ipTemp.Allocate(ipnphase);
+    //gpuLattice.ipTemp_array.Allocate(N);
 
     gpuLattice.eneff.zeros();
    

@@ -100,20 +100,20 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
    int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = cudaSim.cpuHamiltonian.j_tensor.extent(3);
-   int ipnphase = cudaSim.SimParam.ipnphase;
+   int ipmcnphase = cudaSim.SimParam.ipmcnphase;
    real beta; 
    unsigned int mcs;
    // Timing
    stopwatch.add("initiate");
-   printf("\n\\ninphase = %i\n\n", ipnphase);
+   printf("\n\\ninphase = %i\n\n", ipmcnphase);
 
-for(unsigned int it = 0; it < ipnphase; it++){
-   mcs = cudaSim.cpuLattice.ipnstep(it);
+for(unsigned int it = 0; it < ipmcnphase; it++){
+   mcs = cudaSim.cpuLattice.ipmcnstep(it);
    beta = 1/(cudaSim.cpuLattice.ipTemp(it) * cudaSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
    hamCalc.heisge(cudaSim.gpuLattice);
    stopwatch.add("hamiltonian");
-      
+   //printf("mcs = %i\n", mcs);   
    // Time step loop
    for(std::size_t mstep = 0; mstep <= mcs; mstep++) {
       printMdStatus_iphase(mstep, cudaSim, mcs);
@@ -200,12 +200,10 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    // Timing
    stopwatch.add("initiate");
 
-   size_t nstep = cudaSim.SimParam.nstep;
-   size_t rstep = cudaSim.SimParam.rstep;
    size_t mcnstep = cudaSim.SimParam.mcnstep;
 
    // Time step loop
-   for(std::size_t mstep = rstep + 1; mstep <= rstep + mcnstep; mstep++) {
+   for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
       measurement.measure(mstep);
@@ -233,11 +231,11 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(rstep + nstep + 1);  // TODO
+   measurement.measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(rstep + nstep + 1);  // TODO
+   measurement.flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device

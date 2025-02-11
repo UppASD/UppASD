@@ -57,7 +57,8 @@ public:
    bool initiate(const SimulationParameters SimParam);
 
    // Set up constants
-   bool initiateConstants(const SimulationParameters SimParam, const hostLattice& cpuLattice);
+   bool initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature);
+   void resetConstants(const Tensor<real, 1> temperature);
 
    // Releaser
    void release();
