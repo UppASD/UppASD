@@ -27,7 +27,7 @@ module Chelper
 
    use Correlation
    use Correlation_core
-   use AutoCorrelation,  only : autocorr_sample, do_autocorr
+   use AutoCorrelation,  only : autocorr_sample, do_autocorr, spinwait, autocorr_buff, indxb_ac
    use ChemicalData, only : achtype
    use MetaTypes
    use Omegas
@@ -172,7 +172,7 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_cumu, plotenergy, do_autocorr, &
-           do_measurements)
+           do_cuda_measurements)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
@@ -196,7 +196,7 @@ contains
            eavrg_step, eavrg_buff, &
            eavg_buff, eavg2_buff, &
 
-           spinwait, autocorr_buff, &
+           spinwait, autocorr_buff, indxb_ac &
            )
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
