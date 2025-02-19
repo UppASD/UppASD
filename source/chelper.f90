@@ -189,7 +189,9 @@ contains
 
       call FortranData_setMeasurables(
            avrg_step, avrg_buff, &
-           mavg_buff, mavg2_buff, mavg4_buff,&
+           mavg_buff, mavg2_buff, mavg4_buff, &
+           mavg_buff, mavg2_buff, mavg4_buff, &
+           mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
 
            eavrg_step, eavrg_buff, &
            eavg_buff, eavg2_buff, &
