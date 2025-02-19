@@ -251,7 +251,7 @@ contains
    subroutine RunLLGCUDA()
       implicit none
 
-      call sd_mphaseCUDA()
+      call sd_mphaseCUDA(1, 1)
    end subroutine RunLLGCUDA
 
    subroutine RunLD()

@@ -1044,7 +1044,7 @@ contains
    !> @date 2014/08/22 : Thomas Nystrand
    !> - Moved to separate routine
    !---------------------------------------------------------------------------------
-   subroutine sd_mphaseCUDA()
+   subroutine sd_mphaseCUDA(whichsim, whichphase)
 #ifdef CUDA
       use Chelper
 #else
@@ -1055,11 +1055,9 @@ contains
       use InputData, only : gpu_mode
 
       ! Common stuff
-      Integer :: whichsim, whichphase
-    
-    ! Set the values of whichsim and whichphase as needed
-      whichsim = 0;
-      whichphase = 1;
+      integer, intent(in) :: whichsim !< Type of simulation, 0 - SD, 1 -MC
+      integer, intent(in) :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
       call FortranData_Initiate(stt,btorque)

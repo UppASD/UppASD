@@ -13,8 +13,11 @@ cudaHamiltonianCalculations.hpp
 cudaSimulation.cu
 cudaSimulation.hpp
 cudaSDSimulation.cu
+cudaMCSimulation.cu
 cudaMeasurement.cu
 cudaMeasurement.hpp
+cudaMetropolis.cuh
+cudaMetropolis.cu
 cudaMomentUpdater.cu
 cudaMomentUpdater.hpp
 cudaParallelizationHelper.cu

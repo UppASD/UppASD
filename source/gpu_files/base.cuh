@@ -15,20 +15,23 @@
 using index_t = long int;
 
 
-#define ASSERT_CUDA(cudaCall)                                                                           \
-   {                                                                                                    \
-      cudaError_t error = cudaCall;                                                                     \
-      if(error != cudaSuccess) {                                                                        \
-         std::fprintf(                                                                                  \
-             stderr, "Error on line %i, file %s: %s\n", __LINE__, __FILE__, cudaGetErrorString(error)); \
-         std::exit(EXIT_FAILURE);                                                                       \
-      }                                                                                                 \
+#define ASSERT_CUDA(cudaCall)                            \
+   {                                                     \
+      cudaError_t error = cudaCall;                      \
+      if(error != cudaSuccess) {                         \
+         std::fprintf(stderr,                            \
+                      "Error on line %i, file %s: %s\n", \
+                      __LINE__,                          \
+                      __FILE__,                          \
+                      cudaGetErrorString(error));        \
+         std::exit(EXIT_FAILURE);                        \
+      }                                                  \
    }
 
 
 template <index_t dim>
 struct Extents {
-   static_assert(dim > 0);
+   static_assert(dim > 0, "");
 
 private:
    index_t x[dim]{};
@@ -40,7 +43,7 @@ public:
 
    template <typename... Ints>
    __host__ __device__ Extents(Ints... ext) : x{ext...} {
-      static_assert(static_cast<index_t>(sizeof...(ext)) == dim);
+      static_assert(static_cast<index_t>(sizeof...(ext)) == dim, "");
    }
 
    __host__ __device__ index_t& operator[](index_t d) {
@@ -153,7 +156,8 @@ public:
    }
 
 
-   __host__ __device__ index_t index_of(index_t i, index_t j, index_t k, index_t l, index_t m) const {
+   __host__ __device__ index_t index_of(index_t i, index_t j, index_t k, index_t l,
+                                        index_t m) const {
       assert(valid_index(m, 4));
       return index_of(i, j, k, l) + m * ext_[0] * ext_[1] * ext_[2] * ext_[3];
    }

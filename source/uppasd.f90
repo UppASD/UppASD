@@ -171,7 +171,7 @@ contains
    subroutine run_initial_phase()
       use InputData, only : ipmode, iphfield
       use QMinimizer
-
+      use InputData
       implicit none
 
       call timing(0,'Initial       ','ON')
@@ -179,7 +179,11 @@ contains
 
       if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
          ! Monte Carlo initial phase
-         call mc_iphase()
+         if (gpu_mode==0) then !FORTRAN
+            call mc_iphase()
+         else ! C++ or CUDA
+            call sd_mphaseCUDA(1, 0)
+         endif
       
       elseif (ipmode=='MS') then
         call ms_iphase()
@@ -192,7 +196,11 @@ contains
          call ErrorHandling_missing('Spin-lattice Monte Carlo')
       elseif (ipmode=='S') then
          ! Spin dynamics initial phase
-         call sd_iphase()
+         if (gpu_mode==0) then !FORTRAN
+            call sd_iphase()
+         else ! C++ or CUDA
+            call sd_mphaseCUDA(0, 0)
+         endif
       elseif (ipmode=='P') then
          write (*,'(1x,a)') "Calls ld_iphase"
          call ld_iphase() ! Lattice Dynamics initial phase
@@ -284,8 +292,12 @@ contains
       call timing(0,'SpinCorr      ','OF')
 
       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
-         call mc_mphase() ! Monte Carlo measurement phase
-         
+         if (gpu_mode==0) then
+            call mc_mphase() ! Monte Carlo measurement phase
+         else ! C++ or CUDA
+            call sd_mphaseCUDA(1, 1)
+         endif
+
       elseif (mode=='MS') then
          call ms_mphase()
 
@@ -298,7 +310,7 @@ contains
          if (gpu_mode==0) then !FORTRAN
             call sd_mphase() ! Spin Dynamics measurement phase
          else ! C++ or CUDA
-            call sd_mphaseCUDA()
+            call sd_mphaseCUDA(0, 1)
          endif
 
       elseif (mode=='E') then
