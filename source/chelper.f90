@@ -15,7 +15,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array, iptemp_array
    use Spinicedata,      only : vert_ice_coord
@@ -167,22 +167,17 @@ contains
    !> Calls functions in fortrandata.cpp
    subroutine FortranData_Initiate(stt,btorque)
       implicit none
-      character(len=1), intent(in) :: STT       !< Treat spin transfer torque? (Y/N)
+      character(len=1), intent(in) :: STT !< Treat spin transfer torque? (Y/N)
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
-           do_cuda_avrg, do_cuda_cumu, do_cuda_en, do_cuda_autocorr)
+           do_avrg, do_cumu, plotenergy, do_autocorr, &
+           do_measurements)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, &
          ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
-
-      !call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
-      !   beff,b2eff,emomM,emom,emom2,            &
-      !   external_field,mmom,btorque,Temp_array,mmom0,   &
-      !   mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, &
-      !   ham%eaniso, ham%taniso, ham%sb, ham%aHam, ipTemp, ipmcnstep, ipTemp_array, ipnstep)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
