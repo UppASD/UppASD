@@ -156,7 +156,7 @@ bool CudaDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    return true;
 }
 
-bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const hostLattice& cpuLattice) {
+bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature) {
    // Set parameters
    gamma = SimParam.gamma;
    k_bolt = SimParam.k_bolt;
@@ -165,11 +165,17 @@ bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimPara
    dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
 
    // Initiate thermfield constants
-   if(!thermfield.initiateConstants(cpuLattice.temperature, timestep, gamma, k_bolt, mub, damping)) {
+   if(!thermfield.initiateConstants(temperature, timestep, gamma, k_bolt, mub, damping)) {
       return false; //TODO
    }
 
    return true;
+}
+
+
+void CudaDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature) {
+   // Set parameters
+   thermfield.resetConstants(temperature, timestep, gamma, k_bolt, mub, damping); 
 }
 
 // Releaser

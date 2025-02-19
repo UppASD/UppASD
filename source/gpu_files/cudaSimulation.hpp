@@ -34,6 +34,19 @@ public:
 
    // class CudaMCSimulation;  // runs mc simulation
 
+class CudaMCSimulation {
+private:
+   bool isInitiatedSD;
+   void printMdStatus(std::size_t mstep, CudaSimulation& cudaSim);
+   void printMdStatus_iphase(std::size_t mstep, CudaSimulation& cudaSim, int step);
+
+public:
+   CudaMCSimulation();
+   ~CudaMCSimulation();
+
+   void MCmphase(CudaSimulation& cudaSim);
+   void MCiphase(CudaSimulation& cudaSim);
+};
 
     bool isInitiated;
     bool isFreed;

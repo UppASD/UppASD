@@ -44,6 +44,8 @@ public:
                  unsigned long long seed = 0);
    bool initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);
+   void resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma, real k_bolt,
+                          real mub, real damping);
 
    // Initiated?
    inline bool initiated() {

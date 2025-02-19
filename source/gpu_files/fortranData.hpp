@@ -47,12 +47,16 @@ public:
    static unsigned int* nHam;
    static unsigned int* Mensemble;
    static unsigned int* max_no_neigh;
+   static unsigned int* ipmcnphase;
+   static unsigned int* mcnstep;
+   static unsigned int* ipnphase;
 
    static real* delta_t;
    static real* gamma;
    static real* k_bolt;
    static real* mub;
    static real* damping;
+   static real * Temp;
 
    static real* binderc;
    static real* mavg;
@@ -94,6 +98,10 @@ public:
    static real* mmom;
    static real* btorque;
    static real* temperature;
+   static real* ipTemp;
+   static unsigned int* ipmcnstep;
+   static real* ipTemp_array;
+   static unsigned int* ipnstep;
    static real* mmom0;
    static real* mmom2;
    static real* mmomi;
@@ -108,12 +116,13 @@ public:
                                    unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                    real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
                                    unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                   unsigned int* p20, unsigned int* p21);
+                                   unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* ipnphase);
 
    static void setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5, real* p6,
                                  real* p7, real* p8, real* p9, real* p10, real* p11, real* p12, real* p13,
                                  real* p14, real* p15, real* p16, unsigned int* p17, unsigned int* p18,
-                                 real* p19, real* p20, real* p21, unsigned int* p22, real* p23, unsigned int* p24);
+                                 real* p19, real* p20, real* p21, unsigned int* p22, real* p23, unsigned int* p24, 
+                                 real* p_ipTemp, unsigned int * p_ipmcnstep, real* ipTemp_array, unsigned int* ipnstep);
 
    static void setInputDataPointers(int* p1, int* p2, int* p3);
 };

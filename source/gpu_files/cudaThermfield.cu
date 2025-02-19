@@ -120,6 +120,16 @@ bool CudaThermfield::initiateConstants(const Tensor<real, 1>& temperature, real 
    return true;
 }
 
+void CudaThermfield::resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
+                                       real k_bolt, real mub, real damping) {
+   // Set up sigmaFactor
+   sigmaFactor.copy_sync(temperature);
+   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
+   // sF = sqrt(dp*sF) ( = sqrt(dp*temp))
+   parallel.cudaSiteCall(SetupSigmaFactor(sigmaFactor, dp));
+   stopwatch.add("initiate constants");
+}
+
 void CudaThermfield::randomize(const CudaTensor<real, 2>& mmom) {
    // Initiated?
    if(!initiated()) {
