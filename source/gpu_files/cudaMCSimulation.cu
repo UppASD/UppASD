@@ -119,12 +119,12 @@ for(unsigned int it = 0; it < ipmcnphase; it++){
       printMdStatus_iphase(mstep, cudaSim, mcs);
       //printMdStatus(mstep, cudaSim);
          // Perform Metropolis sweep
-         cudaMC.MCrun(cudaSim.gpuLattice, beta);
+         cudaMC.MCrun(cudaSim.gpuLattice, beta, hamCalc);
          stopwatch.add("montecarlo");
 
          // Apply Hamiltonian to obtain effective field
-         hamCalc.heisge(cudaSim.gpuLattice);
-         stopwatch.add("hamiltonian");
+         //hamCalc.heisge(cudaSim.gpuLattice);
+         //stopwatch.add("hamiltonian");
 
          // Check for error
          cudaError_t e = cudaGetLastError();
@@ -213,11 +213,11 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
       printMdStatus(mstep, cudaSim);
 
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(cudaSim.gpuLattice);
-      stopwatch.add("hamiltonian");
+      //hamCalc.heisge(cudaSim.gpuLattice);
+      //stopwatch.add("hamiltonian");
 
        // Perform Metropolis sweep
-      cudaMC.MCrun(cudaSim.gpuLattice, beta);
+      cudaMC.MCrun(cudaSim.gpuLattice, beta, hamCalc);
       stopwatch.add("montecarlo");
 
       // Check for error
