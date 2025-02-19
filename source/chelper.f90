@@ -10,7 +10,7 @@ module Chelper
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
-   use AutoCorrelation,  only : nspinwait, spinwait
+   use AutoCorrelation,  only : nspinwait, spinwait, autocorr_buff
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
@@ -27,10 +27,12 @@ module Chelper
 
    use Correlation
    use Correlation_core
-   use AutoCorrelation,       only : autocorr_sample, do_autocorr
+   use AutoCorrelation,  only : autocorr_sample, do_autocorr
    use ChemicalData, only : achtype
    use MetaTypes
    use Omegas
+
+   use prn_cudameasurements,   only :  print_observable, print_trajectory
 
    implicit none
 
@@ -168,23 +170,51 @@ contains
       character(len=1), intent(in) :: STT       !< Treat spin transfer torque? (Y/N)
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
 
-      call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
-         ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
+      call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
+           do_cuda_avrg, do_cuda_cumu, do_cuda_en, do_cuda_autocorr)
 
-      !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
-      !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
-      !   external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
-      !   mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+      call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
+         ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, &
+         ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
 
+      !call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
+      !   beff,b2eff,emomM,emom,emom2,            &
+      !   external_field,mmom,btorque,Temp_array,mmom0,   &
+      !   mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, &
+      !   ham%eaniso, ham%taniso, ham%sb, ham%aHam, ipTemp, ipmcnstep, ipTemp_array, ipnstep)
 
-      call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
-         beff,b2eff,emomM,emom,emom2,            &
-         external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb, ham%aHam, ipTemp, ipmcnstep, ipTemp_array, ipnstep)
+      call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
+         ham%dm_vect,ham%dmlist,ham%dmlistsize, &
+         ham%kaniso, ham%eaniso, ham%taniso, ham%sb, &
+         ham%j_tens, ham%aHam, &
+         external_field, btorque,Temp_array)
+
+      call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi)
+
+      call FortranData_setMeasurables(
+           avrg_step, avrg_buff, &
+           mavg_buff, mavg2_buff, mavg4_buff,&
+
+           eavrg_step, eavrg_buff, &
+           eavg_buff, eavg2_buff, &
+
+           spinwait, autocorr_buff, &
+           )
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
    end subroutine FortranData_Initiate
+
+       ! Print measurables calculated in CUDA
+   subroutine fortran_print_measurables(obs_step, obs_buff, obs_label, obs_dim, obs_buffer, mstep)
+      implicit none
+      real(dblprec), dimension(obs_dim, Natom, Mensemble), intent(in) :: obs_buffer
+      integer, intent(in) :: obs_step, obs_buff
+      char, intent(in) :: obs_label
+
+      call print_observable(simid, Mensemble, obs_step, obs_buff, &
+      obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
+   end subroutine fortran_print_measurables
 
 end module Chelper
