@@ -556,7 +556,7 @@ contains
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR BIQUADRATIC
             !------------------------------------------------------------------------
-            
+
             !------------------------------------------------------------------------
             ! START OF VARIABLES FOR FOUR-SPIN RING EXCHANGE
             !------------------------------------------------------------------------
@@ -1344,6 +1344,11 @@ contains
 
             case('gpu_rng_seed')
                read(ifile,*,iostat=i_err) gpu_rng_seed
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_mc_bf')
+               read(ifile,*,iostat=i_err) gpu_mc_bf
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR GPU
@@ -1605,7 +1610,7 @@ contains
             case('mompar')
                read(ifile,*,iostat=i_err) mompar
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-             
+
             case('multiscale')
               read(ifile,*,iostat=i_err) multiscale_file_name
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
