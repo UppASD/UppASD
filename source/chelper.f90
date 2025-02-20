@@ -17,7 +17,8 @@ module Chelper
 
    use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, evrg_step, evrg_buff
-   use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
+   use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff, tottraj_step, &
+        traj_step, traj_buff, traj_atom, mmomb, mmomb_traj, emomb_emomb_traj
    use Temperature,      only : temp_array, iptemp_array
    use Spinicedata,      only : vert_ice_coord
    use Fielddata,        only : thermal_field, beff, beff1, beff3,  b2eff, external_field
@@ -172,7 +173,7 @@ contains
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
-           do_avrg, do_cumu, plotenergy, do_autocorr, &
+           do_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj &
            do_cuda_measurements)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
@@ -197,7 +198,10 @@ contains
            eavrg_step, eavrg_buff, &
            eavg_buff, eavg2_buff, &
 
-           spinwait, autocorr_buff, indxb_ac &
+           spinwait, autocorr_buff, indxb_ac, &
+
+           tottraj_step, tottraj_buff, traj_step, traj_buff, traj_atom, &
+           mmomb, mmomb_traj, emomb, emomb_traj &
            )
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
