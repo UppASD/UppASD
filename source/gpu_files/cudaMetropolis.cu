@@ -270,6 +270,7 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
 
     used_sites.FreeHost();
     // return subIdx_cpu;
+}
 
 void CudaMetropolis::count_spins() {
     unsigned int countL = subIdx_cpu.extent(1);
