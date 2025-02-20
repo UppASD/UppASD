@@ -167,8 +167,6 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
         fillneighbours_in_play(neigbours_in_play.data(), nlist, i);
         //for (int lll = 0; lll < neigbours_in_play.size(); lll++) printf("%i ", neigbours_in_play[lll]);
        // printf("\n\n");
-
-
         if (used_sites[i] != 1) {
             flag2 = 1;
             used_sites[i] = 1;
@@ -213,7 +211,6 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
                 spins_in_subL++;
                 col++;
                 //printf("i = %i, k = %i, used = %i, spins_in_subL = %i\n", i, k, used_num, spins_in_subL);
-
                 if (used_num == N) break;
 
             }
@@ -230,7 +227,6 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
         //neigbours_in_play.zeros();
         
     }
-
     printf("number of sublattices = %i, max spins = %i\n", num_subL, max_spins);
     //for (int i = 0; i < num_subL; i++) {
     //    for (int k = 0; k < N; k++) {
@@ -274,7 +270,7 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
 
     used_sites.FreeHost();
     // return subIdx_cpu;
-}
+
 void CudaMetropolis::count_spins() {
     unsigned int countL = subIdx_cpu.extent(1);
     unsigned int max_spins = subIdx_cpu.extent(0);
@@ -372,8 +368,6 @@ void CudaMetropolis::MCrun(cudaLattice& gpuLattice, real beta, CudaHamiltonianCa
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
         MCSweep << <blocks, threads >> > (d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, i, max_spins, k_bolt, mub);
         hamCalc.heisge(gpuLattice);
-
-    
     }
 }
 
