@@ -173,7 +173,7 @@ contains
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
-           do_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj &
+           do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj &
            do_cuda_measurements)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
@@ -194,6 +194,9 @@ contains
            mavg_buff, mavg2_buff, mavg4_buff, &
            mavg_buff, mavg2_buff, mavg4_buff, &
            mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
+
+           cumu_step, cumu_buff, &
+           binderc, avrgmcum, avrgm2cum, avrgm4cum, &
 
            eavrg_step, eavrg_buff, &
            eavg_buff, eavg2_buff, &
