@@ -16,6 +16,7 @@ module Chelper
    use HamiltonianData,  only : ham
 
    use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
+   use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, evrg_step, evrg_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array, iptemp_array
    use Spinicedata,      only : vert_ice_coord

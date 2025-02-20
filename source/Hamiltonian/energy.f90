@@ -25,13 +25,18 @@ module Energy
 
    implicit none
 
+   ! Printing definitions
+   integer :: evrg_step !< Interval for sampling average energy
+   integer :: evrg_buff !< Buffer size for average energy
+   character(len=1) :: do_avrg !< Measure average magnetization (Y/N)
+
    type ene_t
    ! Separated energy contributions
    real(dblprec), dimension(:), allocatable :: ene_xc
    real(dblprec), dimension(:), allocatable :: ene_dm
    real(dblprec), dimension(:), allocatable :: ene_sa
    real(dblprec), dimension(:), allocatable :: ene_bq
-   real(dblprec), dimension(:), allocatable :: ene_ring   
+   real(dblprec), dimension(:), allocatable :: ene_ring
    real(dblprec), dimension(:), allocatable :: ene_pd
    real(dblprec), dimension(:), allocatable :: ene_chir
    real(dblprec), dimension(:), allocatable :: ene_dip
@@ -42,9 +47,14 @@ module Energy
    real(dblprec), dimension(:), allocatable :: ene_bqdm
    ! Total energy
    real(dblprec), dimension(:), allocatable :: energy
+
    end type ene_t
 
    type(ene_t) :: ene
+
+   real(dblprec), dimension(:,:,:), allocatable :: eavg_buff  !< Buffer for average energy
+   real(dblprec), dimension(:,:,:), allocatable :: eavg2_buff !< Buffer for squared average energy
+   real(dblprec), dimension(:,:,:), allocatable :: eavg4_buff !< Buffer for quartic average energy
 
    public
 
@@ -122,7 +132,7 @@ contains
       real(dblprec) :: energy_m, energy_s, ene_ani_m, ene_ani_s, ene_xc_m, ene_xc_s,ene_lsf_m,ene_lsf_s
       real(dblprec) :: ene_dm_m, ene_dm_s, ene_pd_m, ene_pd_s, ene_bqdm_m, ene_bqdm_s, ene_chir_s, ene_sa_m, ene_sa_s
       real(dblprec) :: ene_bq_m, ene_bq_s, ene_ring_s, ene_ring_m, ene_dip_m, ene_dip_s, ene_pair_m,ene_pair_s, ene_chir_m
-   
+
       !.. Local arrays
       character(len=30) :: filn
       real(dblprec), dimension(3) :: beff_xc,beff_dm,beff_pair,beff_pd,beff_bqdm,beff_mdip, beff_chir, beff_sa
@@ -205,7 +215,7 @@ contains
                beff_sa     = 0.0_dblprec
                beff_pd     = 0.0_dblprec
                beff_bq     = 0.0_dblprec
-               beff_ring   = 0.0_dblprec              
+               beff_ring   = 0.0_dblprec
                beff_ext    = 0.0_dblprec
                beff_dip    = 0.0_dblprec
                beff_ani    = 0.0_dblprec
@@ -331,7 +341,7 @@ contains
             ene%ene_sa(kk)=esa
             ene%ene_pd(kk)=epd
             ene%ene_bq(kk)=ebq
-            ene%ene_ring(kk)=ering            
+            ene%ene_ring(kk)=ering
             ene%ene_chir(kk)=echir
             ene%ene_ext(kk)=eext
             ene%ene_ani(kk)=eani
@@ -373,8 +383,8 @@ contains
             ene%ene_ring(:)+ene%ene_ext(:)+ene%ene_ani(:)+ene%ene_dip(:)+           &
             ene%ene_bqdm(:)+ene%ene_lsf(:)+ene%ene_chir(:)+ene%ene_sa(:)
       else
-         ene%energy(:)=ene%ene_pair(:)+ene%ene_pd(:)+ene%ene_bq(:)+ene%ene_ring(:)+ & 
-         ene%ene_ext(:)+ene%ene_ani(:)+ene%ene_dip(:)+ene%ene_bqdm(:)+              & 
+         ene%energy(:)=ene%ene_pair(:)+ene%ene_pd(:)+ene%ene_bq(:)+ene%ene_ring(:)+ &
+         ene%ene_ext(:)+ene%ene_ani(:)+ene%ene_dip(:)+ene%ene_bqdm(:)+              &
          ene%ene_lsf(:)+ene%ene_chir(:)
       endif
 
@@ -389,7 +399,7 @@ contains
       call calculate_mean_and_deviation(ene%energy,Mensemble,energy_m,energy_s,fcinv)
       call calculate_mean_and_deviation(ene%ene_pd,Mensemble,ene_pd_m,ene_pd_s,fcinv)
       call calculate_mean_and_deviation(ene%ene_bq,Mensemble,ene_bq_m,ene_bq_s,fcinv)
-      call calculate_mean_and_deviation(ene%ene_ring,Mensemble,ene_ring_m,ene_ring_s,fcinv)      
+      call calculate_mean_and_deviation(ene%ene_ring,Mensemble,ene_ring_m,ene_ring_s,fcinv)
       call calculate_mean_and_deviation(ene%ene_ani,Mensemble,ene_ani_m,ene_ani_s,fcinv)
       call calculate_mean_and_deviation(ene%ene_dip,Mensemble,ene_dip_m,ene_dip_s,fcinv)
       call calculate_mean_and_deviation(ene%ene_ext,Mensemble,ene_ext_m,ene_ext_s,fcinv)
@@ -658,6 +668,17 @@ contains
          allocate(ene%ene_pair(Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(ene%ene_pair))*kind(ene%ene_pair),'ene%ene_pair','allocate_energies')
          ene%ene_pair=0.0_dblprec
+
+         allocate(eavg_buff(3,avrg_buff,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(eavg_buff))*kind(eavg_buff),'eavg_buff','allocate_energies')
+         eavg_buff=0.0_dblprec
+         allocate(eavg2_buff(3,avrg_buff,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(eavg2_buff))*kind(eavg2_buff),'eavg2_buff','allocate_energies')
+         eavg2_buff=0.0_dblprec
+         allocate(eavg4_buff(3,avrg_buff,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(eavg4_buff))*kind(eavg4_buff),'eavg4_buff','allocate_energies')
+         eavg4_buff=0.0_dblprec
+
       else
          i_all=-product(shape(ene%energy))*kind(ene%energy)
          deallocate(ene%energy,stat=i_stat)
@@ -703,6 +724,16 @@ contains
          i_all=-product(shape(ene%ene_pair))*kind(ene%ene_pair)
          deallocate(ene%ene_pair,stat=i_stat)
          call memocc(i_stat,i_all,'ene%ene_pair','allocate_energies')
+
+         i_all=-product(shape(eavg_buff))*kind(eavg_buff)
+         deallocate(eavg_buff,stat=i_stat)
+         call memocc(i_stat,i_all,'eavg_buff','allocate_energies')
+         i_all=-product(shape(eavg2_buff))*kind(eavg2_buff)
+         deallocate(eavg2_buff,stat=i_stat)
+         call memocc(i_stat,i_all,'eavg2_buff','allocate_energies')
+         i_all=-product(shape(eavg4_buff))*kind(eavg4_buff)
+         deallocate(eavg4_buff,stat=i_stat)
+         call memocc(i_stat,i_all,'eavg4_buff','allocate_energies')
 
       endif
 
