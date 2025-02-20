@@ -1,4 +1,5 @@
 #pragma once
+#include "cudaHamiltonianCalculations.hpp"
 
 #include <curand.h>
 #include <curand_kernel.h>
@@ -70,7 +71,7 @@ public:
     void release();
 
     // Algorithm
-    void MCrun(cudaLattice& gpuLattice, real beta);
+    void MCrun(cudaLattice& gpuLattice, real beta, CudaHamiltonianCalculations& hamCalc);
     void mom_update(cudaLattice& gpuLattice);
 
 };
