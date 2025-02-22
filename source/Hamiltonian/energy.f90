@@ -26,8 +26,8 @@ module Energy
    implicit none
 
    ! Printing definitions
-   integer :: evrg_step !< Interval for sampling average energy
-   integer :: evrg_buff !< Buffer size for average energy
+   integer :: eavrg_step !< Interval for sampling average energy
+   integer :: eavrg_buff !< Buffer size for average energy
    character(len=1) :: do_avrg !< Measure average magnetization (Y/N)
 
    type ene_t
