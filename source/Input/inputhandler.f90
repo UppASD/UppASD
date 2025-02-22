@@ -1350,6 +1350,10 @@ contains
                read(ifile,*,iostat=i_err) gpu_mc_bf
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_cuda_measurements')
+               read(ifile,*,iostat=i_err) do_cuda_measurements
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR GPU
             !------------------------------------------------------------------------

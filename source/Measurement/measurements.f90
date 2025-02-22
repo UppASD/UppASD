@@ -16,7 +16,7 @@ module Measurements
    private
 
    !public subroutines
-   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg
+   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg!, do_cuda_measurements
 
 contains
 

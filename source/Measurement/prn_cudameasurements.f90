@@ -22,6 +22,7 @@ module prn_cudameasurements
    private
 
    ! Public variables
+   public print_observable, print_trajectory
 
 contains
 
