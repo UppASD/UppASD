@@ -19,8 +19,6 @@ module prn_averages
    integer :: avrg_buff !< Buffer size for average magnetization
    character(len=1) :: do_avrg                  !< Measure average magnetization (Y/N)
    character(len=1) :: do_cumu                  !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
-   character(len=1) :: do_cuda_avrg             !< Measure average magnetization (Y/N) with CUDA
-   character(len=1) :: do_cuda_cumu             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N) with CUDA
    character(len=1) :: do_proj_avrg             !< Measure projected averages (Y/A/N)
    character(len=1) :: do_projch_avrg           !< Measure chemically projected averages (Y/N)
    character(len=1) :: do_cumu_proj             !< Measure Binder cumulant, susceptibility, and specific heat(Y/N)
@@ -28,7 +26,7 @@ module prn_averages
    ! Local calculations for printing
    integer :: Navrgcum        !< Counter for number of cumulated averages
    real(dblprec) :: cumuw     !< Weight for current sample to cumulant
-   real(dblprec) :: cumutotw  !< Sum of all cumulant weights 
+   real(dblprec) :: cumutotw  !< Sum of all cumulant weights
    integer :: Navrgcum_proj   !< Counter for number of cumulated projected averages
    real(dblprec) :: mavg      !< Average magnetic moment
    real(dblprec) :: totene    !< Total energy
@@ -46,8 +44,11 @@ module prn_averages
 
    real(dblprec), dimension(:), allocatable       :: indxb_avrg       !< Step counter for average magnetization
    real(dblprec), dimension(:,:,:), allocatable   :: mavg_buff        !< Buffer for average magnetizations
-   real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff_proj  !< Buffer for squared projected averages
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff       !< Buffer for squared average magnetizations
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg4_buff       !< Buffer for quartic average magnetizations
    real(dblprec), dimension(:,:,:,:), allocatable :: mavg_buff_proj   !< Buffer for projected averages
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff_proj  !< Buffer for squared projected averages
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg4_buff_proj  !< Buffer for quartic projected averages
    real(dblprec), dimension(:,:,:,:), allocatable :: mavg_buff_projch !< Buffer for chemical projected averages
 
    real(dblprec), dimension(:), allocatable :: avrgm4cum_proj !< Cumulated average of projected m^4
@@ -62,7 +63,9 @@ module prn_averages
    ! Private variables
    public :: print_averages, flush_averages, averages_allocations, avrg_init, calc_and_print_cumulant
    public :: read_parameters_averages,zero_cumulant_counters
-   public :: do_avrg, mavg, binderc,  avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
+   public :: do_avrg, do_proj_avrg, mavg, binderc, avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff
+   public :: mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj
+   public :: avrgmcum, avrgm2cum, avrgm4cum
    public :: Navrgcum
 
 contains
@@ -321,12 +324,21 @@ contains
             allocate(mavg_buff(3,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_buff))*kind(mavg_buff),'mavg_buff','averages_allocations')
             mavg_buff=0.0_dblprec
+            allocate(mavg2_buff(3,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg2_buff))*kind(mavg2_buff),'mavg2_buff','averages_allocations')
+            mavg2_buff=0.0_dblprec
+            allocate(mavg4_buff(3,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg4_buff))*kind(mavg4_buff),'mavg4_buff','averages_allocations')
+            mavg4_buff=0.0_dblprec
             allocate(mavg_buff_proj(3,NA,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_buff_proj))*kind(mavg_buff_proj),'mavg_buff_proj','averages_allocations')
             mavg_buff_proj=0.0_dblprec
             allocate(mavg2_buff_proj(NA,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg2_buff_proj))*kind(mavg2_buff_proj),'mavg2_buff_proj','allocate_measurements')
             mavg2_buff_proj=0.0_dblprec
+            allocate(mavg4_buff_proj(NA,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg4_buff_proj))*kind(mavg4_buff_proj),'mavg4_buff_proj','allocate_measurements')
+            mavg4_buff_proj=0.0_dblprec
          endif
          ! Index array should be allocated fpr all kind of possible measurements
          if (do_avrg=='Y'.or.do_proj_avrg=='Y' .or. do_proj_avrg=='A'.or.do_projch_avrg=='Y') then
@@ -346,12 +358,21 @@ contains
             i_all=-product(shape(mavg_buff))*kind(mavg_buff)
             deallocate(mavg_buff,stat=i_stat)
             call memocc(i_stat,i_all,'mavg_buff','averages_allocations')
+            i_all=-product(shape(mavg2_buff))*kind(mavg2_buff)
+            deallocate(mavg2_buff,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg2_buff','averages_allocations')
+            i_all=-product(shape(mavg4_buff))*kind(mavg4_buff)
+            deallocate(mavg4_buff,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg4_buff','averages_allocations')
             i_all=-product(shape(mavg_buff_proj))*kind(mavg_buff_proj)
             deallocate(mavg_buff_proj,stat=i_stat)
             call memocc(i_stat,i_all,'mavg_buff_proj','averages_allocations')
             i_all=-product(shape(mavg2_buff_proj))*kind(mavg2_buff_proj)
             deallocate(mavg2_buff_proj,stat=i_stat)
             call memocc(i_stat,i_all,'mavg2_buff_proj','allocate_measurements')
+            i_all=-product(shape(mavg4_buff_proj))*kind(mavg4_buff_proj)
+            deallocate(mavg4_buff_proj,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg4_buff_proj','allocate_measurements')
          endif
          ! Index array should be allocated for all kind of possible measurements
          if (do_avrg=='Y'.or.do_proj_avrg=='Y' .or. do_proj_avrg=='A'.or.do_projch_avrg=='Y') then
@@ -372,7 +393,7 @@ contains
 
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: allocate_projcumulants
-   !> Allocation of the necessary arrays for the projected cummulants 
+   !> Allocation of the necessary arrays for the projected cummulants
    !---------------------------------------------------------------------------------
    subroutine allocate_projcumulants(nt,flag)
 
@@ -548,7 +569,7 @@ contains
             avg_mom(1,ich,k) = avg_mom(1,ich,k) + emomM(1,i,k)
             avg_mom(2,ich,k) = avg_mom(2,ich,k) + emomM(2,i,k)
             avg_mom(3,ich,k) = avg_mom(3,ich,k) + emomM(3,i,k)
-            avg_mom(4,ich,k) = avg_mom(4,ich,k) + norm2(emomM(:,i,k)) 
+            avg_mom(4,ich,k) = avg_mom(4,ich,k) + norm2(emomM(:,i,k))
          end do
          conc=(1.0_dblprec*counter/Natom)
          !.. Save in buffer
@@ -1408,14 +1429,6 @@ contains
 
             case('cumu_buff')
                read(ifile,*,iostat=i_err) cumu_buff
-               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-            case('do_cuda_avrg')
-               read(ifile,*,iostat=i_err) do_cuda_avrg
-               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
-
-            case('do_cuda_cumu')
-               read(ifile,*,iostat=i_err) do_cuda_cumu
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !!! case('do_autocorr')

@@ -10,13 +10,18 @@ module Chelper
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
-   use AutoCorrelation,  only : nspinwait, spinwait
+   use AutoCorrelation,  only : nspinwait, spinwait, autocorr_buff
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
-   use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, do_proj_avrg, mavg, binderc, &
+        avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff, &
+        mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
+        avrgmcum, avrgm2cum, avrgm4cum
+   use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff
+   use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff, tottraj_step, &
+        traj_step, traj_buff, traj_atom, mmomb, mmomb_traj, emomb, emomb_traj
    use Temperature,      only : temp_array, iptemp_array
    use Spinicedata,      only : vert_ice_coord
    use Fielddata,        only : thermal_field, beff, beff1, beff3,  b2eff, external_field
@@ -27,10 +32,12 @@ module Chelper
 
    use Correlation
    use Correlation_core
-   use AutoCorrelation,       only : autocorr_sample, do_autocorr
+   use AutoCorrelation,  only : autocorr_sample, do_autocorr, spinwait, autocorr_buff, indxb_ac
    use ChemicalData, only : achtype
    use MetaTypes
    use Omegas
+
+   use prn_cudameasurements,   only :  print_observable, print_trajectory
 
    implicit none
 
@@ -137,7 +144,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
+           traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_measurements)
    end subroutine fortran_do_measurements
 
 
@@ -165,26 +172,70 @@ contains
    !> Calls functions in fortrandata.cpp
    subroutine FortranData_Initiate(stt,btorque)
       implicit none
-      character(len=1), intent(in) :: STT       !< Treat spin transfer torque? (Y/N)
+      character(len=1), intent(in) :: STT !< Treat spin transfer torque? (Y/N)
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
 
-      call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
-         ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
+      call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
+           do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
+           do_cuda_measurements)
 
-      !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
-      !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
-      !   external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
-      !   mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+      call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
+         ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, &
+         ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
 
+      call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
+         ham%dm_vect,ham%dmlist,ham%dmlistsize, &
+         ham%kaniso, ham%eaniso, ham%taniso, ham%sb, &
+         ham%j_tens, ham%aHam, &
+         external_field, btorque,Temp_array)
 
-      call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
-         beff,b2eff,emomM,emom,emom2,            &
-         external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb, ham%aHam, ipTemp, ipmcnstep, ipTemp_array, ipnstep)
+      call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi)
+
+      call FortranData_setMeasurables( &
+           avrg_step, avrg_buff, &
+           mavg_buff, mavg2_buff, mavg4_buff, &
+           mavg_buff, mavg2_buff, mavg4_buff, &
+           mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
+           cumu_step, cumu_buff, &
+           binderc, avrgmcum, avrgm2cum, avrgm4cum, &
+           eavrg_step, eavrg_buff, &
+           eavg_buff, eavg2_buff, &
+           spinwait, autocorr_buff, indxb_ac, &
+!           tottraj_step, tottraj_buff, traj_step, traj_buff, traj_atom, &
+           mmomb, mmomb_traj, emomb, emomb_traj &
+           )
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
    end subroutine FortranData_Initiate
 
+       ! Print measurables calculated in CUDA
+   subroutine fortran_print_measurables(obs_step, obs_buff, indxb_obs, obs_name, &
+        obs_label, obs_dim, obs_buffer, mstep)
+      implicit none
+      integer, intent(in) :: obs_step, obs_buff, obs_dim
+      real(dblprec), dimension(:), allocatable, intent(in) :: indxb_obs
+      real(dblprec), dimension(:,:,:), allocatable, intent(in) :: obs_buffer
+      character(len=16), intent(in) :: obs_name !< Observable name
+      character(len=16), dimension(:), allocatable, intent(in) :: obs_label
+      integer, intent(in) :: mstep !< Current simulation step
+      call print_observable(simid, Mensemble, obs_name, obs_step, obs_buff, &
+      obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
+   end subroutine fortran_print_measurables
+
 end module Chelper
+
+
+!   subroutine fortran_print_measurables(obs_step, obs_buff, indxb_obs, obs_name, &
+!        obs_label, obs_dim, obs_buffer, mstep)
+!      implicit none
+!      integer, intent(in) :: obs_step, obs_buff, obs_dim
+!      real(dblprec), dimension(obs_buff), intent(in) :: indxb_obs
+!      real(dblprec), dimension(obs_dim, Natom, Mensemble), intent(in) :: obs_buffer
+!      character(len=16), intent(in) :: obs_name !< Observable name
+!      character(len=16), dimension(obs_dim) :: obs_label
+!      integer, intent(in) :: mstep !< Current simulation step
+!      call print_observable(simid, Mensemble, obs_name, obs_step, obs_buff, &
+!      obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
+!   end subroutine fortran_print_measurables

@@ -37,6 +37,7 @@ module prn_trajectories
    public :: print_trajectories, flush_trajectories, allocate_trajectories, traj_init
    public :: read_parameters_trajectories
    public :: do_tottraj, tottraj_step, tottraj_buff, ntraj, traj_atom, traj_step, traj_buff
+   public :: mmomb, mmomb_traj, emomb, emomb_traj
 
 contains
 

@@ -73,7 +73,7 @@ module InputData
    character(len=30) :: pre_jfile                        !< File name for exchange couplings
    character(len=30), dimension(:), allocatable :: jfile    !< File name for exchange couplings
    character(len=30), dimension(:), allocatable :: jfileD   !< File name for exchange couplings (DLM)
-   
+
    !---------------------------------------------------------------------------------
    ! Parameters for energy minimization calculations
    !---------------------------------------------------------------------------------
@@ -269,6 +269,8 @@ module InputData
    integer :: gpu_mode     !< What GPU mode to use (0 = FORTRAN, 1 = CUDA, 2 = C/C++)
    integer :: gpu_rng      !< What CURAND RNG to use (0 = DEFAULT, 1 = XORWOW, 2 = MRG32K3A, 3 = MTGP32)
    integer :: gpu_rng_seed !< Seed for RNG. If 0, the current time will be used.
+   character(len=1) :: gpu_mc_bf   !< Use brute force CUDA Monte Carlo
+   character(len=1) :: do_cuda_measurements   !< Do measurements in CUDA (Y/N)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -364,7 +366,7 @@ contains
       !Biquadratic exchange data
       ham_inp%bqfile            = 'bqfile'
       ham_inp%do_bq             = 0
-      
+
       !Four-spin ring exchange data
       ham_inp%ringfile          = 'ringfile'
       ham_inp%do_ring           = 0
@@ -522,6 +524,7 @@ contains
       gpu_mode          = 0
       gpu_rng           = 0
       gpu_rng_seed      = 0
+      gpu_mc_bf         = 'N'
 
       ! I/O OVF
       prn_ovf           = 'N'
@@ -742,7 +745,7 @@ contains
          ham_inp%bq_nn=0
          allocate(ham_inp%ring_nn(NT),stat=i_stat)
          call memocc(i_stat,product(shape(ham_inp%ring_nn))*kind(ham_inp%ring_nn),'ring_nn','allocate_hamiltonianinput')
-         ham_inp%ring_nn=0         
+         ham_inp%ring_nn=0
          allocate(ham_inp%anisotropytype(NA,Nchmax),stat=i_stat)
          call memocc(i_stat,product(shape(ham_inp%anisotropytype))*kind(ham_inp%anisotropytype),'anisotropytype','allocate_hamiltonianinput')
          ham_inp%anisotropytype=0
@@ -790,7 +793,7 @@ contains
          call memocc(i_stat,i_all,'bq_nn','allocate_hamiltonianinput')
          i_all=-product(shape(ham_inp%ring_nn))*kind(ham_inp%ring_nn)
          deallocate(ham_inp%ring_nn,stat=i_stat)
-         call memocc(i_stat,i_all,'ring_nn','allocate_hamiltonianinput')         
+         call memocc(i_stat,i_all,'ring_nn','allocate_hamiltonianinput')
          i_all=-product(shape(ham_inp%NN))*kind(ham_inp%NN)
          deallocate(ham_inp%NN,stat=i_stat)
          call memocc(i_stat,i_all,'NN','allocate_hamiltonianinput')
