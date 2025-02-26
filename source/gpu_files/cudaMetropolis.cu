@@ -167,6 +167,8 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
         fillneighbours_in_play(neigbours_in_play.data(), nlist, i);
         //for (int lll = 0; lll < neigbours_in_play.size(); lll++) printf("%i ", neigbours_in_play[lll]);
        // printf("\n\n");
+
+
         if (used_sites[i] != 1) {
             flag2 = 1;
             used_sites[i] = 1;
@@ -211,6 +213,7 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
                 spins_in_subL++;
                 col++;
                 //printf("i = %i, k = %i, used = %i, spins_in_subL = %i\n", i, k, used_num, spins_in_subL);
+
                 if (used_num == N) break;
 
             }
@@ -227,6 +230,7 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
         //neigbours_in_play.zeros();
         
     }
+
     printf("number of sublattices = %i, max spins = %i\n", num_subL, max_spins);
     //for (int i = 0; i < num_subL; i++) {
     //    for (int k = 0; k < N; k++) {
@@ -296,7 +300,7 @@ void CudaMetropolis::rnd_init() {
     unsigned long long seed = (unsigned long long)rand();
     InitGenerator << <taskMax, 1 >> > (d_state.data(), seed, taskMax);
 };
-bool CudaMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
+unsigned int CudaMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
 
     // Assert that we're not already initialized
     release();
@@ -328,6 +332,7 @@ bool CudaMetropolis::initiate(const SimulationParameters SimParam, const hostHam
     count_spins();
     rnd_init();
     subL_spnum_gpu.copy_sync(subL_spnum_cpu);
+    threads = { thread_num, 1, 1 };
 
    if(subL_spnum_gpu.empty()) {
       isallocated = false;
@@ -341,9 +346,10 @@ bool CudaMetropolis::initiate(const SimulationParameters SimParam, const hostHam
     //    }
     //    printf("\n");
     //}
-    return true;
+    return num_subL;
 
 }
+
 void CudaMetropolis::release() {
     if (isallocated && !isfreed) {
         subIdx_gpu.Free();
@@ -359,17 +365,18 @@ void CudaMetropolis::release() {
 
 }
 
-void CudaMetropolis::MCrun(cudaLattice& gpuLattice, real beta, CudaHamiltonianCalculations& hamCalc) {
-    threads = { thread_num, 1, 1 };
+void CudaMetropolis::MCrun(cudaLattice& gpuLattice, real beta, unsigned int sub) {
 
-    for (unsigned int i = 0; i < num_subL; i++) {
+    
         
-        blocks = { static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M), static_cast <unsigned int>(1) };
-        task_num = subL_spnum_cpu(i);
+        blocks = { static_cast <unsigned int>(block_subL_cpu(sub)),  static_cast <unsigned int>(M), static_cast <unsigned int>(1) };
+        task_num = subL_spnum_cpu(sub);
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
-        MCSweep << <blocks, threads >> > (d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, i, max_spins, k_bolt, mub);
-        hamCalc.heisge(gpuLattice);
-    }
+        MCSweep << <blocks, threads >> > (d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
+        //hamCalc.heisge(gpuLattice);
+
+    
+    
 }
 
 void CudaMetropolis::mom_update(cudaLattice& gpuLattice){

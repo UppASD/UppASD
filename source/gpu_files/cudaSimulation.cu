@@ -374,7 +374,7 @@ void CudaSimulation::copyToFortran() {
 }
 
 
-void CudaSimulation::cudaRunSimulation(const int whichsim, const int whichphase){
+void CudaSimulation::cudaRunSimulation(const int whichsim, const int whichphase, const char bf){
 printf("current type %i\n", whichsim);
     if(whichsim == 0){
         CudaSDSimulation CudaSD;
@@ -389,12 +389,15 @@ printf("current type %i\n", whichsim);
     }
      else if(whichsim == 1){
         CudaMCSimulation CudaMC;
+
         if(whichphase == 0) {
-            CudaMC.MCiphase(*this);
+            if(bf == 'Y') CudaMC.MCiphase_bf(*this);
+            else CudaMC.MCiphase(*this);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            CudaMC.MCmphase(*this);
+            if(bf == 'Y') CudaMC.MCmphase_bf(*this);
+            else CudaMC.MCmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
