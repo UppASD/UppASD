@@ -88,10 +88,11 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    // Hamiltonian calculations
    CudaHamiltonianCalculations hamCalc;
    unsigned int num_subL = 0;
+   //printf("HERE - 0\n");
 
    // Initiate MC and Hamiltonian
    num_subL = cudaMC.initiate(cudaSim.SimParam, cudaSim.cpuHamiltonian, cudaSim.cpuLattice);
-
+   //printf("HERE - 1\n");
    if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {
       std::fprintf(stderr, "CudaMCSimulation: Hamiltonian failed to initiate!\n");
       return;
@@ -106,6 +107,7 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    // Timing
    stopwatch.add("initiate");
    printf("\n\\ninphase = %i\n\n", ipmcnphase);
+   //printf("HERE - 2\n");
 
    for(unsigned int it = 0; it < ipmcnphase; it++){
    mcs = cudaSim.cpuLattice.ipmcnstep(it);
@@ -113,6 +115,7 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    // Apply Hamiltonian to obtain effective field
    hamCalc.heisge(cudaSim.gpuLattice);
    stopwatch.add("hamiltonian");
+   //printf("HERE - 3\n");
 
    //printf("mcs = %i\n", mcs);   
    // Time step loop
@@ -123,6 +126,8 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
          for(std::size_t sub = 0; sub < num_subL; sub++){
             cudaMC.MCrun(cudaSim.gpuLattice, beta, sub);
             stopwatch.add("montecarlo");
+   //printf("HERE - 4\n");
+
              // Apply Hamiltonian to obtain effective field
             hamCalc.heisge(cudaSim.gpuLattice);
             stopwatch.add("hamiltonian");
@@ -142,7 +147,11 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    // Synchronize with device
    //cudaDeviceSynchronize();
    //printf("HERE - 3\n");
+   //printf("HERE - 5\n");
+
    cudaMC.mom_update(cudaSim.gpuLattice);
+   //printf("HERE - 6\n");
+
    cudaDeviceSynchronize();   
    }
 
@@ -259,7 +268,7 @@ void CudaSimulation::CudaMCSimulation::MCiphase_bf(CudaSimulation& cudaSim) {
    // Unbuffered printf
    std::setbuf(stdout, nullptr);
    std::setbuf(stderr, nullptr);
-   std::printf("CudaMCSimulation: MC initial phase starting\n");
+   std::printf("CudaMCSimulation: MC BF initial phase starting\n");
 
    // Initiated?
    if(!cudaSim.isInitiated) {
@@ -353,7 +362,7 @@ void CudaSimulation::CudaMCSimulation::MCmphase_bf(CudaSimulation& cudaSim) {
    // Unbuffered printf
    std::setbuf(stdout, nullptr);
    std::setbuf(stderr, nullptr);
-   std::printf("CudaMCSimulation: MC measurement phase starting\n");
+   std::printf("CudaMCSimulation: MC BF measurement phase starting\n");
 
    // Initiated?
    if(!cudaSim.isInitiated) {
