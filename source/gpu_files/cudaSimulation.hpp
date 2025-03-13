@@ -46,6 +46,8 @@ public:
 
    void MCmphase(CudaSimulation& cudaSim);
    void MCiphase(CudaSimulation& cudaSim);
+   void MCiphase_bf(CudaSimulation& cudaSim);
+   void MCmphase_bf(CudaSimulation& cudaSim);
 };
 
     bool isInitiated;
@@ -65,7 +67,7 @@ public:
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
 
-    void cudaRunSimulation(int whichsim, int whichphase);
+    void cudaRunSimulation(const int whichsim, const int whichphase, const char bf);
 
 };
 

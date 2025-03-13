@@ -9,6 +9,7 @@ module prn_cudameasurements
 
    use Parameters
    use ErrorHandling
+   use Profiling
 
    implicit none
 

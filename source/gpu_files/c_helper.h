@@ -39,9 +39,9 @@ extern void FORTNAME(chelper, fortran_measure_moment)(const real* emomM, const r
 extern void FORTNAME(chelper, fortran_calc_simulation_status_variables)(real* mavg);
 
 // Short name wrappers
-inline void print_measurables(std::size_t obs_step, std::size_t obs_buff,
+inline void fortran_print_measurables(std::size_t obs_step, std::size_t obs_buff,
                               char obs_label,  const std::size_t obs_dim, real* obs_buffer, std::size_t mstep) {
-   FORTNAME(chelper, print_measurables)(&obs_step, &obs_buff, &obs_label, &obs_dim, obs_buffer, &mstep);
+   FORTNAME(chelper, fortran_print_measurables)(&obs_step, &obs_buff, &obs_label, &obs_dim, obs_buffer, &mstep);
 }
 
 

@@ -18,6 +18,8 @@ cudaMeasurement.cu
 cudaMeasurement.hpp
 cudaMetropolis.cuh
 cudaMetropolis.cu
+cudaMetropolis_bruteforce.cuh
+cudaMetropolis_bruteforce.cu
 cudaMomentUpdater.cu
 cudaMomentUpdater.hpp
 cudaParallelizationHelper.cu

@@ -8,15 +8,30 @@ module nocuda
 
 
 contains
+   subroutine fortrandata_setflags()
+      implicit none
+      return
+   end subroutine fortrandata_setflags
+
    subroutine fortrandata_setconstants()
       implicit none
       return
    end subroutine fortrandata_setconstants
 
-   subroutine fortrandata_setmatrices()
+   subroutine fortrandata_sethamiltonian()
       implicit none
       return
-   end subroutine fortrandata_setmatrices
+   end subroutine fortrandata_sethamiltonian
+
+   subroutine fortrandata_setlattice()
+      implicit none
+      return
+   end subroutine fortrandata_setlattice
+
+   subroutine fortrandata_setmeasurables()
+      implicit none
+      return
+   end subroutine fortrandata_setmeasurables
 
    subroutine fortrandata_setinputdata()
       implicit none

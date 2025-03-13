@@ -47,8 +47,8 @@ void cudasim_initiatematrices_() {
    cudaSim.initiateMatrices();
 }
 
-void cudasim_cudarunsimulation_(int *whichsim, int *whichphase){
-   cudaSim.cudaRunSimulation(*whichsim, *whichphase);
+void cudasim_cudarunsimulation_(int *whichsim, int *whichphase, char* bf){
+   cudaSim.cudaRunSimulation(*whichsim, *whichphase, *bf);
 };
 
 void cudasim_release_(){

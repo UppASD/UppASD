@@ -53,8 +53,8 @@ private:
     void split_lattice(const Tensor<unsigned int, 2> nlist);
     unsigned int increaseneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, unsigned int mnn_cur, int i);
     void refillneigbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i);
-    void count_spins();
     void rnd_init();
+    void count_spins();
 
 public:
 
@@ -65,13 +65,13 @@ public:
     ~CudaMetropolis();
 
     // Initiator
-    bool initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice);
-
+    unsigned initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice);
+   
     // Releaser
     void release();
 
     // Algorithm
-    void MCrun(cudaLattice& gpuLattice, real beta, CudaHamiltonianCalculations& hamCalc);
+    void MCrun(cudaLattice& gpuLattice, real beta, unsigned int sub);
     void mom_update(cudaLattice& gpuLattice);
 
 };

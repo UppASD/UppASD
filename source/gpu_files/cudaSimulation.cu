@@ -76,6 +76,8 @@ void CudaSimulation::initiateConstants() {
     break;
     }
     SimParam.randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
+   //printf("HERE - 1\n");
+
     
 }
 
@@ -127,6 +129,8 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
     cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
+  // printf("HERE - 2\n");
+
   //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
 
    /* if (Flags.do_mphase_now != 0){
@@ -207,6 +211,8 @@ bool CudaSimulation::initiateMatrices() {
     //gpuLattice.ipTemp_array.Allocate(N);
 
     gpuLattice.eneff.zeros();
+
+
    
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(3, N, M);} 
@@ -315,6 +321,8 @@ void CudaSimulation::release() {
 
 void CudaSimulation::copyFromFortran() {
    if(isInitiated) {
+   //printf("HERE - 5\n");
+
     gpuHamiltonian.aHam.copy_sync(cpuHamiltonian.aHam);     
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.copy_sync(cpuHamiltonian.j_tensor);            
@@ -340,18 +348,24 @@ void CudaSimulation::copyFromFortran() {
         gpuHamiltonian.eaniso.copy_sync(cpuHamiltonian.eaniso);     
         gpuHamiltonian.taniso.copy_sync(cpuHamiltonian.taniso);  
         gpuHamiltonian.sb.copy_sync(cpuHamiltonian.sb);  }     
-    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield);  
+    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield); 
+   // printf("HERE - 6\n");
     gpuLattice.beff.copy_sync(cpuLattice.beff);  
     gpuLattice.b2eff.copy_sync(cpuLattice.b2eff);   
-    gpuLattice.emomM.copy_sync(cpuLattice.emomM);  
+    gpuLattice.emomM.copy_sync(cpuLattice.emomM);
+    //printf("HERE - 7\n");  
     gpuLattice.emom.copy_sync(cpuLattice.emom);  
     gpuLattice.emom2.copy_sync(cpuLattice.emom2);   
-    gpuLattice.mmom.copy_sync(cpuLattice.mmom);  
+    gpuLattice.mmom.copy_sync(cpuLattice.mmom);    
+    //printf("HERE - 8\n");  
     gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);  
     gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);  
     gpuLattice.mmomi.copy_sync(cpuLattice.mmomi);  
-    gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
+    //printf("HERE - 9\n");
+   // gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
+   // printf("HERE - 10\n");
     if(FortranData::btorque) {gpuLattice.btorque.copy_sync(cpuLattice.btorque); } 
+
    // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
@@ -374,7 +388,7 @@ void CudaSimulation::copyToFortran() {
 }
 
 
-void CudaSimulation::cudaRunSimulation(const int whichsim, const int whichphase){
+void CudaSimulation::cudaRunSimulation(const int whichsim, const int whichphase, const char bf){
 printf("current type %i\n", whichsim);
     if(whichsim == 0){
         CudaSDSimulation CudaSD;
@@ -389,12 +403,15 @@ printf("current type %i\n", whichsim);
     }
      else if(whichsim == 1){
         CudaMCSimulation CudaMC;
+
         if(whichphase == 0) {
-            CudaMC.MCiphase(*this);
+            if(bf == 'Y') CudaMC.MCiphase_bf(*this);
+            else CudaMC.MCiphase(*this);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            CudaMC.MCmphase(*this);
+            if(bf == 'Y') CudaMC.MCmphase_bf(*this);
+            else CudaMC.MCmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
