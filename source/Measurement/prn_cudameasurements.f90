@@ -9,6 +9,7 @@ module prn_cudameasurements
 
    use Parameters
    use ErrorHandling
+   use Profiling
 
    implicit none
 
@@ -22,6 +23,7 @@ module prn_cudameasurements
    private
 
    ! Public variables
+   public print_observable, print_trajectory
 
 contains
 
