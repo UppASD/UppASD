@@ -23,8 +23,8 @@ do
     sed -i "s/NX/$nx/g" inpsd.dat
     sed -i "s/NY/$nx/g" inpsd.dat
     sed -i "s/NZ/$nx/g" inpsd.dat
-    sed -i "s/MODE/S/g" inpsd.dat
-    sed -i "s/nsteps/mcnsteps/g" inpsd.dat
+    sed -i "s/MODE/M/g" inpsd.dat
+    sed -i "s/nstep/mcnstep/g" inpsd.dat
     sed -i "s/GPU/1/g" inpsd.dat
     ../../../bin/sd.f95.cuda > out.log
     cd ..

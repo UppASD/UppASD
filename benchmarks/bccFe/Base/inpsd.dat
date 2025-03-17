@@ -13,7 +13,7 @@ exchange   ./jfile
 anisotropy ./kfile
 
 SDEalgh   5                                     SDE solver: 1=midpoint, 2=heun, 3=heun3, 4=Heun_proper, 5=Depondt
-Initmag   3                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+Initmag   1                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
 
 mode      MODE
 Temp      100.00          K                     Temperature of the system
