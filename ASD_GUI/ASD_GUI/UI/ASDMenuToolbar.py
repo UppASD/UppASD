@@ -9,17 +9,19 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
+
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import QProgressBar, QLabel, QStyle, QToolButton
 from PyQt6.QtCore import QSignalBlocker
 
 
-################################################################################
-## @brief Function defining the toolbar and actions for the VTK backend.
+##########################################################################
+# @brief Function defining the toolbar and actions for the VTK backend.
 # @details This contains several buttons handling the different visualization
 # modes available in the VTK API.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def VTK_Menu_and_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the VTK backend.
     This contains several buttons and actions handling the different types of visualization
@@ -50,9 +52,12 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.actionTake_Snapshot = QToolButton()
     window.actionTake_Snapshot.setText("Snapshot")
-    window.actionTake_Snapshot.setToolTip("Take a snapshot of the current image")
-    window.actionTake_Snapshot.setWhatsThis("Take a snapshot of the current image")
-    window.actionTake_Snapshot.setStatusTip("Take a snapshot of the current image")
+    window.actionTake_Snapshot.setToolTip(
+        "Take a snapshot of the current image")
+    window.actionTake_Snapshot.setWhatsThis(
+        "Take a snapshot of the current image")
+    window.actionTake_Snapshot.setStatusTip(
+        "Take a snapshot of the current image")
     # ---------------------------------------------------------------------------
     # Play button to visualize the restartfile
     # ---------------------------------------------------------------------------
@@ -80,15 +85,19 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.actionEnergy = QToolButton()
     window.actionEnergy.setText("Energy")
-    window.actionEnergy.setToolTip("Visualize the site dependent energy from UppASD")
-    window.actionEnergy.setWhatsThis("Visualize the site dependent energy from UppASD")
-    window.actionEnergy.setStatusTip("Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setToolTip(
+        "Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setWhatsThis(
+        "Visualize the site dependent energy from UppASD")
+    window.actionEnergy.setStatusTip(
+        "Visualize the site dependent energy from UppASD")
     # ---------------------------------------------------------------------------
     # Play button to visualize the exchange neighbours
     # ---------------------------------------------------------------------------
     window.actionNeighbours = QToolButton()
     window.actionNeighbours.setText("Neighbours")
-    window.actionNeighbours.setToolTip("Visualize the exchange interaction neighbours")
+    window.actionNeighbours.setToolTip(
+        "Visualize the exchange interaction neighbours")
     window.actionNeighbours.setWhatsThis(
         "Visualize the exchange interaction neighbours"
     )
@@ -101,8 +110,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.actionDM_Neigh = QToolButton()
     window.actionDM_Neigh.setText("DM Neighbours")
     window.actionDM_Neigh.setToolTip("Visualize the DM interaction neighbours")
-    window.actionDM_Neigh.setWhatsThis("Visualize the DM interaction neighbours")
-    window.actionDM_Neigh.setStatusTip("Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setWhatsThis(
+        "Visualize the DM interaction neighbours")
+    window.actionDM_Neigh.setStatusTip(
+        "Visualize the DM interaction neighbours")
     # ---------------------------------------------------------------------------
     # Play button to start the rendering of the scene
     # ---------------------------------------------------------------------------
@@ -114,8 +125,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
         window.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
     )
     window.PlayButton.setToolTip("Start/Pause the visualization of animations")
-    window.PlayButton.setWhatsThis("Start/Pause the visualization of animations")
-    window.PlayButton.setStatusTip("Start/Pause the visualization of animations")
+    window.PlayButton.setWhatsThis(
+        "Start/Pause the visualization of animations")
+    window.PlayButton.setStatusTip(
+        "Start/Pause the visualization of animations")
     window.PlayButton.clicked.connect(window.Playback_control)
     # ---------------------------------------------------------------------------
     # Play button to stop the rendering of the scene
@@ -163,7 +176,23 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ProgressBar.setWhatsThis("Progress bar of the simulation")
     window.ProgressBar.setStatusTip("Progress bar of the simulation")
     window.ProgressLabel = QLabel()
-    window.ProgressLabel.setText(" {:}% ".format(int(window.ProgressBar.value())))
+    window.ProgressLabel.setText(f" {int(window.ProgressBar.value())}% ")
+    # ---------------------------------------------------------------------------
+    # button to save the parameters of the visualization
+    # ---------------------------------------------------------------------------
+    window.actionSaveConfig = QToolButton()
+    window.actionSaveConfig.setText("Save config")
+    window.actionSaveConfig.setToolTip("Save the current configuration")
+    window.actionSaveConfig.setWhatsThis("Save the current configuration")
+    window.actionSaveConfig.setStatusTip("Save the current configuration")
+    # ---------------------------------------------------------------------------
+    # button to save the parameters of the visualization
+    # ---------------------------------------------------------------------------
+    window.actionLoadConfig = QToolButton()
+    window.actionLoadConfig.setText("Load config")
+    window.actionLoadConfig.setToolTip("Load a previous configuration")
+    window.actionLoadConfig.setWhatsThis("Load a previous configuration")
+    window.actionLoadConfig.setStatusTip("Load a previous configuration")
     # ---------------------------------------------------------------------------
     # Adding the extra buttons to the toolbar
     # ---------------------------------------------------------------------------
@@ -185,6 +214,10 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.VTKToolBar.addSeparator()
     window.VTKToolBar.addWidget(window.ProgressBar)
     window.VTKToolBar.addWidget(window.ProgressLabel)
+    window.VTKToolBar.addSeparator()
+    window.VTKToolBar.addWidget(window.actionSaveConfig)
+    window.VTKToolBar.addWidget(window.actionLoadConfig)
+    window.VTKToolBar.addSeparator()
     # ---------------------------------------------------------------------------
     # Adding the actions for the Menu
     # ---------------------------------------------------------------------------
@@ -213,8 +246,8 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.RGBBlueColorSlider.valueChanged.connect(window.set_singlecolor)
     window.RGBBlueColorSlider.valueChanged.connect(window.UpdateRenderer)
     window.BWSinglecolorCheck.clicked.connect(window.toggle_bwSinglecolor)
-    window.LinearScale.toggled.connect(window.set_lut)
-    window.LogScale.toggled.connect(window.set_lut)
+    window.LinearScale.toggled.connect(window.set_lut_scale)
+    window.LogScale.toggled.connect(window.set_lut_scale)
     # ---------------------------------------------------------------------------
     # Adding the actions to the background
     # ---------------------------------------------------------------------------
@@ -228,34 +261,35 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the moment options
     # ---------------------------------------------------------------------------
-    window.ContourCheck.toggled.connect(window.ASDVizOpt.toggle_contours)
-    window.SpinCheck.toggled.connect(window.ASDVizOpt.toggle_directions)
-    window.ClusBox.toggled.connect(window.ASDVizOpt.toggle_cluster)
+    window.ContourCheck.toggled.connect(window.MomActors.toggle_contours)
+    window.SpinCheck.toggled.connect(window.MomActors.toggle_directions)
+    window.ClusBox.toggled.connect(window.toggle_cluster)
     window.ClusBox.toggled.connect(window.UpdateRenderer)
-    window.KMCCheck.toggled.connect(window.ASDVizOpt.toggle_KMC)
+    window.KMCCheck.toggled.connect(window.toggle_KMC)
     window.KMCCheck.toggled.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the magnetization density
     # ---------------------------------------------------------------------------
-    window.DensBox.toggled.connect(window.ASDVizOpt.toggle_density)
+    window.DensBox.toggled.connect(window.MomActors.toggle_density)
     window.DensX.toggled.connect(window.set_projection)
     window.DensY.toggled.connect(window.set_projection)
     window.DensZ.toggled.connect(window.set_projection)
     window.SpinX.toggled.connect(window.set_projection)
     window.SpinY.toggled.connect(window.set_projection)
     window.SpinZ.toggled.connect(window.set_projection)
-    window.actionDisplayMagDens.toggled.connect(window.ASDVizOpt.toggle_density)
+    window.actionDisplayMagDens.toggled.connect(
+        window.MomActors.toggle_density)
     # ---------------------------------------------------------------------------
     # Adding the actions to the atomic spins
     # ---------------------------------------------------------------------------
-    window.SpinsBox.toggled.connect(window.ASDVizOpt.toggle_spins)
+    window.SpinsBox.toggled.connect(window.MomActors.toggle_spins)
     window.SpinsBox.toggled.connect(window.UpdateRenderer)
     window.SpinArrowButton.toggled.connect(window.ChangeGlyphs)
     window.SpinCubeButton.toggled.connect(window.ChangeGlyphs)
     window.SpinBarButton.toggled.connect(window.ChangeGlyphs)
     window.SpinSphereButton.toggled.connect(window.ChangeGlyphs)
     window.SpinConeButton.toggled.connect(window.ChangeGlyphs)
-    window.SpinSize.valueChanged.connect(window.ASDVizOpt.ChangeSpinsSize)
+    window.SpinSize.valueChanged.connect(window.MomActors.ChangeSpinsSize)
     window.SpinSize.valueChanged.connect(window.UpdateRenderer)
     window.SpinCenterCheck.toggled.connect(window.ChangeGlyphs)
     # ---------------------------------------------------------------------------
@@ -268,24 +302,26 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the actions to the atoms
     # ---------------------------------------------------------------------------
-    window.AtomsBox.toggled.connect(window.ASDVizOpt.toggle_atoms)
+    window.AtomsBox.toggled.connect(window.MomActors.toggle_atoms)
     window.AtomsBox.toggled.connect(window.UpdateRenderer)
-    window.AtomSize.valueChanged.connect(window.ASDVizOpt.ChangeAtomsSize)
+    window.AtomSize.valueChanged.connect(window.MomActors.ChangeAtomsSize)
     window.AtomSize.valueChanged.connect(window.UpdateRenderer)
-    window.AtomOpaq.valueChanged.connect(window.ASDVizOpt.ChangeAtomsOpaq)
+    window.AtomOpaq.valueChanged.connect(window.MomActors.ChangeAtomsOpaq)
     window.AtomOpaq.valueChanged.connect(window.UpdateRenderer)
-    window.AtomQuali.valueChanged.connect(window.ASDVizOpt.ChangeAtomsQuali)
+    window.AtomQuali.valueChanged.connect(window.MomActors.ChangeAtomsQuali)
     window.AtomQuali.valueChanged.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the neighbours
     # ---------------------------------------------------------------------------
-    window.NeighAtomCheck.toggled.connect(window.ASDVizOpt.toggle_NAtoms)
+    window.NeighAtomCheck.toggled.connect(window.toggle_NAtoms)
     window.NeighAtomCheck.toggled.connect(window.UpdateRenderer)
-    window.NeighNeighsCheck.toggled.connect(window.ASDVizOpt.toggle_Neigh)
+    window.NeighNeighsCheck.toggled.connect(window.toggle_Neigh)
     window.NeighNeighsCheck.toggled.connect(window.UpdateRenderer)
-    window.NeighOpacitySlider.valueChanged.connect(window.ASDVizOpt.NeighOpacityUpdate)
+    window.NeighOpacitySlider.valueChanged.connect(
+        window.ASDVizOpt.NeighOpacityUpdate)
     window.NeighOpacitySlider.valueChanged.connect(window.UpdateRenderer)
-    window.AtomOpacitySlider.valueChanged.connect(window.ASDVizOpt.AtomOpacityUpdate)
+    window.AtomOpacitySlider.valueChanged.connect(
+        window.ASDVizOpt.AtomOpacityUpdate)
     window.AtomOpacitySlider.valueChanged.connect(window.UpdateRenderer)
     window.NeighSelectLineEdit.editingFinished.connect(window.NeighbourControl)
     window.NeighSelectSlider.valueChanged.connect(window.NeighbourControl)
@@ -294,19 +330,25 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     window.SetCamButton.clicked.connect(window.camera_handler)
     window.CamResetButton.clicked.connect(window.camera_handler)
+    window.CamSaveButton.clicked.connect(window.camera_handler)
+    window.CamLoadButton.clicked.connect(window.camera_handler)
     window.SetXView.clicked.connect(window.camera_handler)
     window.SetYView.clicked.connect(window.camera_handler)
     window.SetZView.clicked.connect(window.camera_handler)
     window.actionTake_Snapshot.clicked.connect(window.Snapshot)
+    window.actionSaveConfig.clicked.connect(window.SaveSettings)
+    window.actionLoadConfig.clicked.connect(window.LoadSettings)
     window.ParallelProjectBox.toggled.connect(window.camera_handler)
     window.ParallelScaleSlider.valueChanged.connect(window.camera_handler)
     window.ParallelScaleLineEdit.editingFinished.connect(window.camera_handler)
     # ---------------------------------------------------------------------------
     # Adding the actions to the general actors
     # ---------------------------------------------------------------------------
-    window.ScalarBarCheck.toggled.connect(window.ASDVizOpt.toggle_ScalarBar)
+    window.ScalarBarCheck.toggled.connect(window.toggle_ScalarBar)
     window.ScalarBarCheck.toggled.connect(window.UpdateRenderer)
-    window.AxesCheck.toggled.connect(window.ASDVizOpt.toggle_Axes)
+    window.SpinColorScale.toggled.connect(window.set_ScalarBarRange)
+    window.SpinColorScale.toggled.connect(window.UpdateRenderer)
+    window.AxesCheck.toggled.connect(window.toggle_Axes)
     window.AxesCheck.toggled.connect(window.UpdateRenderer)
     window.ClippBox.toggled.connect(window.clipperHandler)
     window.ClippPlaneXCheck.toggled.connect(window.clipperHandler)
@@ -346,9 +388,11 @@ def VTK_Menu_and_Toolbar_Setup(window):
     window.ETextureCheck.toggled.connect(window.ETexture_control)
     #
     window.RenDiffuseSlider.valueChanged.connect(window.RenDiffuse_control)
+    window.GlyphOpacitySlider.valueChanged.connect(window.RenOpacity_control)
     window.RenAmbientSlider.valueChanged.connect(window.RenAmbient_control)
     window.RenSpecularSlider.valueChanged.connect(window.RenSpecular_control)
-    window.RenSpecularPowerSlider.valueChanged.connect(window.RenSpecularPower_control)
+    window.RenSpecularPowerSlider.valueChanged.connect(
+        window.RenSpecularPower_control)
     window.PBREmissionSlider.valueChanged.connect(window.PBREmission_control)
     window.PBROcclusionSlider.valueChanged.connect(window.PBROcclusion_control)
     window.PBRRoughnessSlider.valueChanged.connect(window.PBRRoughness_control)
@@ -356,7 +400,7 @@ def VTK_Menu_and_Toolbar_Setup(window):
     # ---------------------------------------------------------------------------
     # Adding the action to display the time step labels
     # ---------------------------------------------------------------------------
-    window.TimeStepBox.toggled.connect(window.ASDVizOpt.toggle_time_label)
+    window.TimeStepBox.toggled.connect(window.toggle_time_label)
     window.TimeStepBox.toggled.connect(window.UpdateRenderer)
     # ---------------------------------------------------------------------------
     # Adding the actions to the energy contributions
@@ -391,12 +435,12 @@ def VTK_Menu_and_Toolbar_Setup(window):
     return
 
 
-################################################################################
-## @brief Function defining the toolbar and actions for the matplotlib backend.
+##########################################################################
+# @brief Function defining the toolbar and actions for the matplotlib backend.
 # @details This contains several buttons handling the different types of plots
 # that can be performed in the matplotlib API
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def Plot_Menu_and_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the Matplotlib backend.
     This contains several buttons and actions handling the different types of plots
@@ -529,10 +573,10 @@ def Plot_Menu_and_Toolbar_Setup(window):
     return
 
 
-################################################################################
-## @brief Toolbar and UI connections for the Input generator functions.
+##########################################################################
+# @brief Toolbar and UI connections for the Input generator functions.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 def Input_Toolbar_Setup(window):
     """Functions defining the toolbar and actions associated to it for the Input generator backend.
     This contains several buttons and actions handling the different functions for the

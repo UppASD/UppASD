@@ -12,22 +12,58 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 import glob
 import yaml
 import numpy as np
 import pandas as pd
 from PyQt6 import QtWidgets
+from ASD_GUI.UI import ASDInputWindows
 
 
 class ReadPlotData:
-    ############################################################################
+    """
+    Class for reading and managing plot data files for ASD simulations.
+
+    Attributes:
+        sc_step (int): Sampling step for S(q, w) calculations.
+        timestep (float): Time step in nanoseconds.
+        h_mev (float): Planck constant in meV.
+        amsfile (list): List of AMS file names.
+        sqwfile (list): List of S(q, w) file names.
+        yamlfile (list): List of YAML file names.
+        averages (list): List of averages file names.
+        totenergy (list): List of total energy file names.
+        trajectory (list): List of trajectory file names.
+        not_read_sqw (bool): Flag indicating if S(q, w) file is not read.
+        not_read_ams (bool): Flag indicating if AMS file is not read.
+        not_read_yaml (bool): Flag indicating if YAML file is not read.
+        not_read_averages (bool): Flag indicating if averages file is not read.
+        not_read_totenergy (bool): Flag indicating if total energy file is not read.
+        not_read_trajectory (bool): Flag indicating if trajectory file is not read.
+        ams_file_present (bool): Flag indicating if AMS file is present.
+        sqw_file_present (bool): Flag indicating if S(q, w) file is present.
+        ave_file_present (bool): Flag indicating if averages file is present.
+        ene_file_present (bool): Flag indicating if total energy file is present.
+        yaml_file_present (bool): Flag indicating if YAML file is present.
+        trajectory_file_present (bool): Flag indicating if trajectory file is present.
+        qfile (list): List of q-file names.
+        q_labels (list): List of q-file labels.
+        q_idx (list): List of q-file indices.
+    """
+    ##########################################################################
     # @brief Class constructor
     # @details Class constructor for the reading of the plotting data. Contains
     # the definitions of several containers for the file names and variables which
     # are used during plotting.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def __init__(self):
+        """
+        Initializes the ReadPlotData class with default values for attributes
+        related to plot data reading.
+        """
         ReadPlotData.sc_step = 1
         ReadPlotData.timestep = 1
         ReadPlotData.h_mev = 4.135667662e-12
@@ -56,11 +92,15 @@ class ReadPlotData:
         ReadPlotData.q_idx = []
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to get the file names for the different types of plots
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def getFileName(self, window):
+        """
+        Opens a file dialog to select a file and updates the corresponding attribute
+        in ReadPlotData based on the sender.
+        """
 
         dlg = QtWidgets.QFileDialog()
         dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
@@ -86,7 +126,7 @@ class ReadPlotData:
                 ReadPlotData.not_read_totenergy = True
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper to read the plotting data
     # @details This wrapper allows one to read the following files:
     #
@@ -96,9 +136,12 @@ class ReadPlotData:
     #   - Dynamical structure factor file \f$\mathbf{S}(\mathbf{q},\omega)\f$
     #   - Adiabatic magnon spectra file.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def PlotReadingWrapper(self, file_names, window):
-        from ASD_GUI.UI import ASDInputWindows
+        """
+        Handles reading and plotting data from various files based on
+        user input and file availability.
+        """
 
         ReadPlotData.yamlfile = file_names[0]
         ReadPlotData.amsfile = file_names[1]
@@ -125,7 +168,8 @@ class ReadPlotData:
             if len(ReadPlotData.yamlfile) > 0:
                 ReadPlotData.yamlfile = ReadPlotData.yamlfile[0]
                 ReadPlotData.UppASDYamlInfo = ReadPlotData.yamlfile
-                # If the yaml file is found one must read it and find its data first
+                # If the yaml file is found one must read it and find its data
+                # first
                 if ReadPlotData.not_read_yaml:
                     print("File " + ReadPlotData.yamlfile + " found and read")
                     self.Yaml_Read_Wrapper(ReadPlotData.UppASDYamlInfo, window)
@@ -386,12 +430,16 @@ class ReadPlotData:
                             ReadPlotData.trajectory_file_present = True
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper to read all the file names and data as defined by the yaml file
     # @details This finds the file names and parameters needed for the plotting
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def Yaml_Read_Wrapper(self, filename, window):
+        """
+        Reads YAML file and updates ReadPlotData attributes and GUI elements
+        based on simulation data.
+        """
 
         with open(filename, "r", encoding="utf-8") as stream:
             try:
@@ -413,9 +461,9 @@ class ReadPlotData:
                 self.read_qfile(ReadPlotData.qfile)
             )
 
-        #############################################################################
+        #######################################################################
         # Read the averages
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["averages"]:
             ReadPlotData.averages = "averages." + ReadPlotData.sim["simid"] + ".out"
             (ReadPlotData.mag_data, ReadPlotData.mitr_data, ReadPlotData.mag_labels) = (
@@ -427,9 +475,9 @@ class ReadPlotData:
                 ReadPlotData.mag_axes = ["# Iterations", r"Magnetization [$\mu_B$]"]
             ReadPlotData.not_read_averages = False
             ReadPlotData.ave_file_present = True
-        #############################################################################
+        #######################################################################
         # Read the energy
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["totenergy"]:
             ReadPlotData.totenergy = "totenergy." + ReadPlotData.sim["simid"] + ".out"
             (ReadPlotData.ene_data, ReadPlotData.eitr_data, ReadPlotData.ene_labels) = (
@@ -441,9 +489,9 @@ class ReadPlotData:
                 ReadPlotData.ene_axes = ["# Iterations", r"Energy/spin [mRy]"]
             ReadPlotData.not_read_totenergy = False
             ReadPlotData.ene_file_present = True
-        #############################################################################
+        #######################################################################
         # Read the trajectories
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["trajectories"]:
             ReadPlotData.trajectory = glob.glob(
                 "trajectory." + ReadPlotData.sim["simid"] + "*.out"
@@ -456,14 +504,14 @@ class ReadPlotData:
             ) = self.read_trajectories(ReadPlotData.trajectory)
             ReadPlotData.not_read_trajectory = False
             ReadPlotData.trajectory_file_present = True
-        #############################################################################
+        #######################################################################
         # Read the momentfile
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["moments"]:
             ReadPlotData.moments = "moments." + ReadPlotData.sim["simid"] + ".out"
-        #############################################################################
+        #######################################################################
         # Read the Sqw
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["sqw"]:
             ReadPlotData.hf_scale = ReadPlotData.h_mev / (
                 ReadPlotData.timestep
@@ -477,9 +525,9 @@ class ReadPlotData:
             )
             ReadPlotData.not_read_sqw = False
             ReadPlotData.sqw_file_present = True
-        #############################################################################
+        #######################################################################
         # Read the AMS (defaulting to nc-ams)
-        #############################################################################
+        #######################################################################
         if ReadPlotData.sim["measurables"]["nc-ams"]:
             ReadPlotData.amsfile = "ncams-q." + ReadPlotData.sim["simid"] + ".out"
             (mq_ams_data_x, mq_ams_data_y, mq_ams_ax_label, mq_ams_label) = (
@@ -530,13 +578,16 @@ class ReadPlotData:
             ReadPlotData.ams_file_present = True
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Read the data for the \f$\mathbf{S}(\mathbf{q},\omega)\f$ and postprocess it for plotting
     # @details Reads the data and it post-process it to ensure that the spin-spin
     # correlation function can be properly ploted.
     # @author Anders Bergman and Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def read_sqw(self, filename):
+        """
+        Reads SQW data from a file and returns the data, labels, and axis limits for plotting.
+        """
 
         sqwa = np.genfromtxt(filename)
         qd = int(sqwa[sqwa.shape[0] - 1, 0])
@@ -552,7 +603,7 @@ class ReadPlotData:
         # Raw copy the un-postprocessed data for later processing
         # -----------------------------------------------------------------------
         for ii in range(5, len(sqwa[0])):
-            sqw = np.transpose((np.reshape(sqwa[:, ii], (qd, ed))[:, 0:int(ed)]))
+            sqw = np.transpose((np.reshape(sqwa[:, ii], (qd, ed))[:, 0: int(ed)]))
             sqw_data.append(sqw)
         sqw_labels = [
             r"$S_x(q,\omega)$ [meV]",
@@ -562,13 +613,16 @@ class ReadPlotData:
         ]
         return sqw_data, sqw_labels, ax_limits
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to read the AMS file
     # @details It sets up the data such that one can plot the different branches
     # of the AMS.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def read_ams(self, filename):
+        """
+        Reads AMS data from a file and returns x, y data, axis labels, and data labels.
+        """
 
         data = pd.read_csv(
             filename, header=None, delim_whitespace=True, skiprows=0
@@ -586,13 +640,17 @@ class ReadPlotData:
         ams_ax_label = [r"q", r"Energy [meV]"]
         return ams_data_x, ams_data_y, ams_ax_label, ams_label
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper to read the trajectory files
     # @details Postprocess the data to create an array of arrays to ensure that
     # one can plot several trajectories at the same time
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def read_trajectories(self, filename):
+        """
+        Reads trajectory data from a list of filenames and returns labels and
+        x, y, z coordinates.
+        """
 
         traj_label = []
         traj_data_x = []
@@ -602,18 +660,24 @@ class ReadPlotData:
             ind = curr_filename.find(".")
             ind = ind + 10  # To correct for the simid
             ind_2 = curr_filename[ind:].find(".")
-            ntraj = curr_filename[ind:ind + ind_2]
-            data = pd.read_csv(curr_filename, header=None, delim_whitespace=True, usecols=[2, 3, 4]).values
+            ntraj = curr_filename[ind: ind + ind_2]
+            data = pd.read_csv(
+                curr_filename, header=None, delim_whitespace=True, usecols=[2, 3, 4]
+            ).values
             traj_label.append("Atom=" + ntraj)
             traj_data_x.append(data[:, 0])
             traj_data_y.append(data[:, 1])
             traj_data_z.append(data[:, 2])
         return traj_label, traj_data_x, traj_data_y, traj_data_z
 
-    #################################################################################
+    ##########################################################################
     # General function to read-in data for 2D plots that have headers, e.g. averages, energies
-    #################################################################################
+    ##########################################################################
     def read_gen_plot_data(self, filename):
+        """
+        Reads and processes plot data from a file, returning time data,
+        iteration data, and data labels.
+        """
 
         data_df = pd.read_csv(filename, header=0, delim_whitespace=True, escapechar="#")
         data = data_df.values
@@ -627,10 +691,14 @@ class ReadPlotData:
             data_labels.append(str("$" + data_df.columns[ii] + "$"))
         return t_data, itr_data, data_labels
 
-    #################################################################################
+    ##########################################################################
     # Read qpoints file to get axis labels
-    #################################################################################
+    ##########################################################################
     def read_qfile(self, filename):
+        """
+        Reads q-points and optional symmetry points from a file,
+        returning q-points, labels, and indices.
+        """
 
         qpts = np.genfromtxt(filename, skip_header=1, usecols=(0, 1, 2))
         axlab = []
@@ -647,6 +715,6 @@ class ReadPlotData:
                 axlab.append(rs[3])
                 axidx.append(idx + 1)
 
-        axlab = [r"$\Gamma$" if x[0] == "G" else "{}".format(x) for x in axlab]
+        axlab = ["$\\Gamma$" if x[0] == "G" else x for x in axlab]
 
         return qpts, axlab, axidx

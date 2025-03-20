@@ -11,7 +11,7 @@ Author
 ----------
 Jonathan Chico
 """
-
+# pylint: disable=invalid-name, no-name-in-module, no-member
 import os
 
 import numpy as np
@@ -52,6 +52,7 @@ class InitPhaseWindow(QDialog):
         self.InitPhaseDelButton.clicked.connect(self.table_control)
         self.InitPhaseDoneButton.clicked.connect(self.window_close)
         self.InitPhaseCancelButton.clicked.connect(self.window_close)
+        self.init_phase_data = []  # Initialize the attribute here
         return
 
     def table_control(self):
@@ -60,7 +61,7 @@ class InitPhaseWindow(QDialog):
         defining the initial phase.
         The user can on runtime add or delete rows until a
         minimum of one row remains. New rows are created with dummy text in them.
-        TODO: Must add validators to the cells so that only the appropriate 
+        TODO: Must add validators to the cells so that only the appropriate
             data types can be fed in into the cells.
         Author
         ----------
@@ -127,9 +128,13 @@ class InitPhaseWindow(QDialog):
                     tmp = []
                     for col in range(0, self.MCannealTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.MCannealTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.MCannealTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.MCannealTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.MCannealTable.item(
+                                        row, col).text()))
                     self.init_phase_data.append(tmp)
             if self.IpNphaseTable.isEnabled():
                 self.init_phase_data.append(self.IpNphaseTable.rowCount())
@@ -137,29 +142,38 @@ class InitPhaseWindow(QDialog):
                     tmp = []
                     for col in range(0, self.IpNphaseTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.IpNphaseTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.IpNphaseTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.IpNphaseTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.IpNphaseTable.item(
+                                        row, col).text()))
                     self.init_phase_data.append(tmp)
             if self.IpVPOBox.isEnabled():
                 for row in range(0, self.VPOTable.rowCount()):
                     tmp = []
                     for col in range(0, self.VPOTable.columnCount()):
                         if col < 1:
-                            tmp.append(int(self.VPOTable.item(row, col).text()))
+                            tmp.append(
+                                int(self.VPOTable.item(row, col).text()))
                         else:
-                            tmp.append(float(self.VPOTable.item(row, col).text()))
+                            tmp.append(
+                                float(
+                                    self.VPOTable.item(
+                                        row,
+                                        col).text()))
                     self.init_phase_data.append(tmp)
             self.close()
         return
 
 
-################################################################################
+##########################################################################
 # @brief Class responsible for the creation of error windows.
 # @details Class responsible for the creation of error windows, this window contains
 # a placeholder message that can be modified to display the precise error message
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 class ErrorWindow(QDialog):
     """Class responsible for the creation of error windows, this window contains
     a placeholder message that can be modified to display the precise error message.
@@ -178,13 +192,13 @@ class ErrorWindow(QDialog):
         return
 
 
-################################################################################
+##########################################################################
 # @brief Class responsible for the creation of information windows.
 # @details Class responsible for the creation of information windows, this
 # window contains a placeholder message that can be modified to display
 # a more precise information message (not error)
 # @author Jonathan Chico, Anders Bergman
-################################################################################
+##########################################################################
 class InfoWindow(QDialog):
     """Class responsible for the creation of information windows, this
     window contains a placeholder message that can be modified to display
@@ -204,13 +218,13 @@ class InfoWindow(QDialog):
         return
 
 
-################################################################################
-## @brief Class containing the definitions necessary for the creation of the window
+##########################################################################
+# @brief Class containing the definitions necessary for the creation of the window
 # responsible for the restartfile creation. As well as the definition of the
 # actions associated with that window.
 #
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 class RestartWindow(QDialog):
     """Class containing the definitions necessary for the creation of the window
     responsible for the restartfile creation. As well as the definition of the
@@ -257,24 +271,43 @@ class RestartWindow(QDialog):
         # Setting validators
         # ----------------------------------------------------------------------------
         self.InpSkyrOrder.setValidator(QIntValidator())
+        self.InpDWPosN1Validator = QIntValidator()
+        self.InpDWPosN2Validator = QIntValidator()
+        self.InpDWPosN3Validator = QIntValidator()
         # ----------------------------------------------------------------------------
         # Initializing counters
         # ----------------------------------------------------------------------------
         self.curr_image = 0
+        self.Bas = None
+        self.mom = None
+        self.cell = None
+        self.ncell = None
+        self.Mensemble = None
+        self.block_size = None
+        self.coord = None
+        self.mom_mag = None
+        self.Natom = None
+
         return
 
     def UpdateRestartUI(self):
+        """
+        Updates the UI elements related to the restart options based on the state of
+        the InpRestSingleEnsButton.
+
+        Author: Jonathan Chico
+        """
         if self.InpRestSingleEnsButton.isChecked():
             self.InpRestAppendButton.setEnabled(True)
         else:
             self.InpRestAppendButton.setEnabled(False)
         return
 
-    ############################################################################
-    ## @brief Function that ensures that only one type of restartfile can be selected
+    ##########################################################################
+    # @brief Function that ensures that only one type of restartfile can be selected
     # at a given time in the restartfile window.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def restart_selector(self):
         """Function that ensures that only one type of restartfile can be selected
         at a given time in the restartfile window.
@@ -311,14 +344,14 @@ class RestartWindow(QDialog):
                 QSignalBlocker(self.InpDwTypeBox)
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Function to prepare for the generation of the restartfile from the
     # GUI.
     # @details It mainly consists in preparing data such as the magnitude of the
     # moments calling the creation of the coordinates and setting up the sliders for the
     # restarfile creator.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def restart_pre_generation(self, inp_data):
         """Function to prepare for the generation of the restartfile from the
         GUI. It mainly consists in preparing data such as the magnitude of the
@@ -350,7 +383,8 @@ class RestartWindow(QDialog):
         self.ncell = np.asarray(inp_data.UppASDKeywords["geometry"]["ncell"])
         # Set the number of images
         self.Mensemble = inp_data.UppASDKeywords["Mag"]["Mensemble"]
-        # Set the size of the blocks for memory locality and/or macrospin approach
+        # Set the size of the blocks for memory locality and/or macrospin
+        # approach
         self.block_size = inp_data.UppASDKeywords["Hamiltonian"]["block_size"]
         # Calculate the atomic coordinates
         (self.coord, self.mom_mag) = create_coord(
@@ -375,23 +409,25 @@ class RestartWindow(QDialog):
         self.InpDWPosN3Validator.setRange(1, self.ncell[2])
         self.InpDWPosN3.setValidator(self.InpDWPosN3Validator)
         # Write the coordinate file
-        coord_name, _ = QFileDialog.getSaveFileName(self, "Save Coordinate File")
+        coord_name, _ = QFileDialog.getSaveFileName(
+            self, "Save Coordinate File")
         coord_fmt = "{: 6d}  {: 4.8f}  {: 4.8f}  {: 4.8f}\n"
-        coord_file = open(coord_name, "w")
+        coord_file = open(coord_name, "w", encoding="utf-8")
         for iat in range(0, self.Natom):
             coord_file.write(
                 coord_fmt.format(
-                    iat + 1, self.coord[iat, 0], self.coord[iat, 1], self.coord[iat, 2]
+                    iat + 1, self.coord[iat,
+                                        0], self.coord[iat, 1], self.coord[iat, 2]
                 )
             )
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Wrapper to write the different types of configurations via the restartfile
     # GUI.
     # @details It calls the necessary functions to ensure that a restarfile can
     # be appropriately written.
-    ############################################################################
+    ##########################################################################
     def write_restartfile(self, inp_data):
         """Wrapper to write the different types of configurations via the restartfile
         GUI. It calls the necessary functions to ensure that a restarfile can
@@ -439,7 +475,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                     DWInfo["center"] = cent
                 if self.DWPlane_y.isChecked():
                     DWInfo["plane"] = 1
@@ -448,7 +485,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                     DWInfo["center"] = cent
                 if self.DWPlane_z.isChecked():
                     DWInfo["plane"] = 2
@@ -457,7 +495,8 @@ class RestartWindow(QDialog):
                         max(self.Bas[:, DWInfo["plane"]])
                         + min(self.Bas[:, DWInfo["plane"]])
                     ) * 0.5
-                    cent = Num * self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
+                    cent = Num * \
+                        self.cell[DWInfo["plane"], DWInfo["plane"]] + mid
                 # ---------------------------------------------------------------
                 # Setting the magnetization easy axis
                 # ---------------------------------------------------------------
@@ -503,7 +542,8 @@ class RestartWindow(QDialog):
             # -------------------------------------------------------------------
             # Create the domain wall
             # -------------------------------------------------------------------
-            mag = write_domain_wall(self.Natom, self.Mensemble, self.coord, DWInfo)
+            mag = write_domain_wall(
+                self.Natom, self.Mensemble, self.coord, DWInfo)
         # -----------------------------------------------------------------------
         # Write a restartfile with an isolated skyrmion
         # -----------------------------------------------------------------------
@@ -578,14 +618,19 @@ class RestartWindow(QDialog):
             # -------------------------------------------------------------------
             # Create the skyrmion
             # -------------------------------------------------------------------
-            mag = write_skyrmion(self.Natom, self.Mensemble, self.coord, SkxInfo)
+            mag = write_skyrmion(
+                self.Natom,
+                self.Mensemble,
+                self.coord,
+                SkxInfo)
         if self.HLOptBox.isChecked():
             HLInfo = dict()
             # -------------------------------------------------------------------
             # Read the cone angle
             # -------------------------------------------------------------------
             if len(self.InpHLConeAngle.text()) > 0:
-                HLInfo["cone_angle"] = float(self.InpHLConeAngle.text()) * np.pi / 180.0
+                HLInfo["cone_angle"] = float(
+                    self.InpHLConeAngle.text()) * np.pi / 180.0
             else:
                 HLInfo["cone_angle"] = 90.0
             if HLInfo["cone_angle"] == 0:
@@ -650,7 +695,8 @@ class RestartWindow(QDialog):
         # Set the restart file name
         # -----------------------------------------------------------------------
         if self.curr_image == 0:
-            restart_name, _ = QFileDialog.getSaveFileName(self, "Save Restart File")
+            restart_name, _ = QFileDialog.getSaveFileName(
+                self, "Save Restart File")
             # -----------------------------------------------------------------------
             # Save the restarfile name to the input
             # -----------------------------------------------------------------------
@@ -663,20 +709,28 @@ class RestartWindow(QDialog):
             # If it is the first image generate a new file and write the header
             # ------------------------------------------------------------------------
             if self.curr_image == 0:
-                restart = open(RestartWindow.restartfile_name, "w")
-                restart.write(f"#" * 55 + "\n")
-                restart.write(f"# File type: R\n")
-                restart.write(f"# Simulation type: Init\n")
+                restart = open(
+                    RestartWindow.restartfile_name,
+                    "w",
+                    encoding="utf-8")
+                restart.write("#" * 55 + "\n")
+                restart.write("# File type: R\n")
+                restart.write("# Simulation type: Init\n")
                 restart.write(f"# Number of atoms: {self.Natom:8d}\n")
                 restart.write(f"# Number of ensembles: {self.Mensemble:8d}\n")
                 restart.write("#" * 55 + "\n")
-                restart.write(f"{'#iter':>8s}{'ens':>8s}{'iatom':>8s}\
-                    {'|Mom|':>16s}{'M_x':>16s}{'M_y':>16s}{'M_z':>16s}\n")
+                restart.write(
+                    f"{'#iter':>8s}{'ens':>8s}{'iatom':>8s}\
+                    {'|Mom|':>16s}{'M_x':>16s}{'M_y':>16s}{'M_z':>16s}\n"
+                )
             # ------------------------------------------------------------------------
             # If the image is larger than 1 and one writes each image repone the file to append
             # ------------------------------------------------------------------------
             elif self.curr_image > 0 and self.InpRestSingleEnsButton.isChecked():
-                restart = open(RestartWindow.restartfile_name, "a")
+                restart = open(
+                    RestartWindow.restartfile_name,
+                    "a",
+                    encoding="utf-8")
             # ------------------------------------------------------------------------
             # Write to the restartfile
             # ------------------------------------------------------------------------
@@ -724,10 +778,10 @@ class RestartWindow(QDialog):
             print("No restartfile name given")
         return
 
-    ############################################################################
+    ##########################################################################
     # @brief Update the sliders and the line edits for the domain wall position
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def update_sliders_DW(self):
         """Update the sliders and the line edits for the domain wall position
 
@@ -750,11 +804,11 @@ class RestartWindow(QDialog):
         return
 
 
-################################################################################
+##########################################################################
 # @brief Class containing the defintions and actions needed for the display of the
 # window handling the creation of the posfile inside the GUI.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 class PosfileWindow(QDialog):
     """Class containing the defintions and actions needed for the display of the
     window handling the creation of the posfile inside the GUI.
@@ -779,15 +833,15 @@ class PosfileWindow(QDialog):
         PosfileWindow.posfile_name = "./posfile.dat"
         return
 
-    ############################################################################
-    ## @brief Function to control the addition and removal of rows in the table
+    ##########################################################################
+    # @brief Function to control the addition and removal of rows in the table
     # defining the \c posfile.
     # @details The user can on runtime add or delete rows until a
     # minimum of one row remains. New rows are created with dummy text in them.
     # @todo Must add validators to the cells so that only the appropriate data types
     # can be fed in into the cells.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def table_control(self):
         """Function to control the addition and removal of rows in the table
         defining the posfile.
@@ -805,9 +859,9 @@ class PosfileWindow(QDialog):
             rowPosition = self.InPosTable.rowCount()
             self.InPosTable.insertRow(rowPosition)
             text = [rowPosition + 1, rowPosition + 1, 0.0, 0.0, 0.0]
-            for ii in range(0, len(text)):
+            for ii, value in enumerate(text):
                 item = QTableWidgetItem()
-                item.setText(str(text[ii]))
+                item.setText(str(value))
                 self.InPosTable.setItem(rowPosition, ii, item)
         if self.sender() == self.InPosAddRowRand:
             rowPosition = self.InPosTableRand.rowCount()
@@ -855,15 +909,15 @@ class PosfileWindow(QDialog):
                     item = QTableWidgetItem(str(element))
                     Table.setItem(row, column, item)
 
-    ############################################################################
-    ## @brief Function handling the what the Cancel and Done buttons do in the \c posfile
+    ##########################################################################
+    # @brief Function handling the what the Cancel and Done buttons do in the \c posfile
     # window.
     # @details The Cancel button removes all the rows except for the first one and closes
     # the window.
     # The Done button reads the data in the cells and writes a \c posfile dubbed
     # posfile.dat in \c UppASD format.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def window_close(self):
         """Function handling the what the Cancel and Done buttons do in the posfile
         window.
@@ -884,23 +938,35 @@ class PosfileWindow(QDialog):
                 self.InPosTable.setItem(0, column, item)
             self.close()
         if self.sender() == self.InpPosDone:
-            posfile_name = open(PosfileWindow.posfile_name, "w")
+            posfile_name = open(
+                PosfileWindow.posfile_name,
+                "w",
+                encoding="utf-8")
             if self.InPosBoxRand.isEnabled():
                 for row in range(0, self.InPosTableRand.rowCount()):
                     for col in range(0, self.InPosTableRand.columnCount()):
                         if col < 3:
-                            entry = int(self.InPosTableRand.item(row, col).text())
+                            entry = int(
+                                self.InPosTableRand.item(
+                                    row, col).text())
                         else:
-                            entry = float(self.InPosTableRand.item(row, col).text())
+                            entry = float(
+                                self.InPosTableRand.item(
+                                    row, col).text())
                         posfile_name.write(f"{entry}  ")
                     posfile_name.write(f"{entry}  ")
             if self.InPosBox.isEnabled():
                 for row in range(0, self.InPosTable.rowCount()):
                     for col in range(0, self.InPosTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InPosTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InPosTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InPosTable.item(row, col).text())
+                            entry = float(
+                                self.InPosTable.item(
+                                    row, col).text())
                         posfile_name.write(f"{entry}  ")
                     posfile_name.write("\n")
             self.close()
@@ -908,11 +974,11 @@ class PosfileWindow(QDialog):
         return
 
 
-################################################################################
-## @brief Class containing the defintions and actions needed for the display of the
+##########################################################################
+# @brief Class containing the defintions and actions needed for the display of the
 # window handling the creation of the momfile inside the GUI.
 # @author Jonathan Chico
-################################################################################
+##########################################################################
 class MomfileWindow(QDialog):
     """Class containing the defintions and actions needed for the display of the
     window handling the creation of the momfile inside the GUI.
@@ -935,15 +1001,15 @@ class MomfileWindow(QDialog):
         MomfileWindow.momfile_name = "./momfile.dat"
         return
 
-    ############################################################################
-    ## @brief Function to control the addition and removal of rows in the table
+    ##########################################################################
+    # @brief Function to control the addition and removal of rows in the table
     # defining the \c momfile.
     # @details The user can on runtime add or delete rows until a minimum of one row remains.
     # New rows are created with dummy text in them.
     # @todo Must add validators to the cells so that only the appropriate data types
     # can be fed in into the cells.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def table_control(self):
         """Function to control the addition and removal of rows in the table
         defining the momfile.
@@ -988,15 +1054,15 @@ class MomfileWindow(QDialog):
                     item = QTableWidgetItem(str(element))
                     Table.setItem(row, column, item)
 
-    ############################################################################
-    ## @brief Function handling the what the Cancel and Done buttons do in the \c momfile
+    ##########################################################################
+    # @brief Function handling the what the Cancel and Done buttons do in the \c momfile
     # window.
     # @details The Cancel button removes all the rows except for the first one and closes
     # the window.
     # The Done button reads the data in the cells and writes a momfile dubbed
     # momfile.dat in \c UppASD format.
     # @author Jonathan Chico
-    ############################################################################
+    ##########################################################################
     def window_close(self):
         """Function handling the what the Cancel and Done buttons do in the momfile
         window.
@@ -1017,11 +1083,17 @@ class MomfileWindow(QDialog):
                 self.InMomTable.setItem(0, column, item)
             self.close()
         if self.sender() == self.InpMomDone:
-            momfile_name = open(MomfileWindow.momfile_name, "w")
+            momfile_name = open(
+                MomfileWindow.momfile_name,
+                "w",
+                encoding="utf-8")
             for row in range(0, self.InMomTable.rowCount()):
                 for col in range(0, self.InMomTable.columnCount()):
                     if col < 2:
-                        entry = int(float(self.InMomTable.item(row, col).text()))
+                        entry = int(
+                            float(
+                                self.InMomTable.item(
+                                    row, col).text()))
                     else:
                         entry = float(self.InMomTable.item(row, col).text())
                     momfile_name.write(f"{entry}  ")
@@ -1080,7 +1152,8 @@ class JfileWindow(QDialog):
         """If a jfile have already been selected, input it into the creator."""
 
         if len(mainwindow.ASDInputGen.jfile) > 0:
-            jfile = np.genfromtxt(mainwindow.ASDInputGen.jfile.split("/")[-1], ndmin=2)
+            jfile = np.genfromtxt(
+                mainwindow.ASDInputGen.jfile.split("/")[-1], ndmin=2)
             jfile = [list(line) for line in jfile]
             self.jfile_gotten = True
 
@@ -1120,7 +1193,7 @@ class JfileWindow(QDialog):
         Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
         Cell = (np.float64(Basis), Positions, numbers)
 
-        for i_site, site in enumerate(Positions):
+        for i_site, _ in enumerate(Positions):
             NeighbourVectors, NeighbourTypes, _ = get_full_nnlist(
                 Cell, i_site, CutoffRadius, in_cell_only=False
             )
@@ -1198,10 +1271,15 @@ class JfileWindow(QDialog):
                 else:
                     for col in range(0, self.InJfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InJfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InJfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InJfileTable.item(row, col).text())
-                        jfile_name.write("{entry}  ".format(**locals()))
+                            entry = float(
+                                self.InJfileTable.item(
+                                    row, col).text())
+                        jfile_name.write(f"{entry}  ")
                     jfile_name.write("\n")
                 self.close()
         self.jfile_gotten = True
@@ -1306,7 +1384,7 @@ class DMfileWindow(QDialog):
         Positions, numbers = read_posfile(ASDInputgen.ASDInputGen.posfile)
         Cell = (np.float64(Basis), Positions, numbers)
 
-        for i_site, site in enumerate(Positions):
+        for i_site, _ in enumerate(Positions):
             NeighbourVectors, NeighbourTypes, _ = get_full_nnlist(
                 Cell, i_site, CutoffRadius, in_cell_only=False
             )
@@ -1340,7 +1418,8 @@ class DMfileWindow(QDialog):
 
         for key in VectorDict:
             for vector in VectorDict[key]:
-                Row = [key[0], key[-1], vector[0], vector[1], vector[2], 0, 0, 0]
+                Row = [key[0], key[-1], vector[0],
+                       vector[1], vector[2], 0, 0, 0]
                 row = Table.rowCount()
                 Table.insertRow(row)
                 for column, value in enumerate(Row):
@@ -1360,7 +1439,8 @@ class DMfileWindow(QDialog):
 
         if self.sender() == self.InpDMfileCancel:
             self.InDMfileTable.setRowCount(1)
-            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+            for column, value in enumerate(
+                    [1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
                 item = QTableWidgetItem(str(value))
                 self.InDMfileTable.setItem(0, column, item)
             self.InDMfileNNCutoff.setValue(0)
@@ -1378,9 +1458,14 @@ class DMfileWindow(QDialog):
                 else:
                     for col in range(0, self.InDMfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InDMfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InDMfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InDMfileTable.item(row, col).text())
+                            entry = float(
+                                self.InDMfileTable.item(
+                                    row, col).text())
                         DMfile_name.write(f"{entry}  ")
                     DMfile_name.write("\n")
                 self.close()
@@ -1446,7 +1531,8 @@ class KfileWindow(QDialog):
         """If a jfile have already been selected, input it into the creator."""
 
         if len(mainwindow.ASDInputGen.kfile) > 0:
-            kfile = np.genfromtxt(mainwindow.ASDInputGen.kfile.split("/")[-1], ndmin=2)
+            kfile = np.genfromtxt(
+                mainwindow.ASDInputGen.kfile.split("/")[-1], ndmin=2)
             self.Kfile_gotten = True
 
             Table = self.InKfileTable
@@ -1470,7 +1556,8 @@ class KfileWindow(QDialog):
 
         if self.sender() == self.InpKfileCancel:
             self.InKfileTable.setRowCount(1)
-            for column, value in enumerate([1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
+            for column, value in enumerate(
+                    [1, 1, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]):
                 item = QTableWidgetItem(str(value))
                 self.InKfileTable.setItem(0, column, item)
             self.InKfileNNCutoff.setValue(0)
@@ -1488,9 +1575,14 @@ class KfileWindow(QDialog):
                 else:
                     for col in range(0, self.InKfileTable.columnCount()):
                         if col < 2:
-                            entry = int(float(self.InKfileTable.item(row, col).text()))
+                            entry = int(
+                                float(
+                                    self.InKfileTable.item(
+                                        row, col).text()))
                         else:
-                            entry = float(self.InKfileTable.item(row, col).text())
+                            entry = float(
+                                self.InKfileTable.item(
+                                    row, col).text())
                         Kfile_name.write(f"{entry}  ")
                     Kfile_name.write("\n")
                 self.close()

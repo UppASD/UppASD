@@ -47,7 +47,7 @@ before-build ='python -m pip install --upgrade numpy>1.19 ninja'
 #before-build ='pip install --upgrade setuptools wheel numpy>1.19 f90wrap'
 #repair-wheel-command = ""
 #
-skip = ["*-musllinux*", "pp*","cp36-*", "cp37-*", "*-win32"]
+skip = ["*-musllinux*", "pp*","cp36-*", "cp37-*", "*-win32", "cp38-manylinux_i686" ]
 #skip = ["*-musllinux*", "pp*","cp36-*", "cp37-*", "*-macosx_x86_64", "*-win32"]
 #skip = ["*-musllinux.*", "pp*-macosx-*","cp36-*","pp37-*", "cp37-*", "*-macosx_x86_64", "*-win32"]]
 #

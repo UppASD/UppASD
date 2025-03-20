@@ -16,6 +16,7 @@ The `UppASD` software package is a simulation suite to study magnetization dynam
 - [Magnon spectra][7] simulations
 - [Micromagnetic exchange and DMI stiffness][6] calculations
 - [Current][9], [field][8], and [temperature-driven][5] dynamics
+- [Linear spin wave theory][7] calculations
 
 ***Features:***
 - [LLG][12], Metropolis, and Heat-bath algorithms
@@ -23,8 +24,11 @@ The `UppASD` software package is a simulation suite to study magnetization dynam
 	-	bilinear and [biquadratic Heisenberg][10] exchange
 	-	[Dzyaloshinskii-Moriya][15] exchange 
 	-	magnetocrystalline anisotropies.
+- [Spin-lattice simulations][16]
+- [Multiscale][18] functionalities
 - Support for [arbitrary crystal structures][14] and [random alloys][13]
 - [Spin-transfer][9] and spin-orbit torques
+- [Temperature models][17] for ultrafast demagnetization simulations
 - [Temperature gradients][4]
 - [Quantum statistics][3]
 
@@ -102,7 +106,7 @@ This install the GUI as an **editable** Python module that is started by issuing
 (C) 2008-2024 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
-[2]:http://www.physics.uu.se/research/materials-theory/ongoing-research/uppasd/
+[2]:https://www.uu.se/en/department/physics-and-astronomy/research/materials-theory/code-development#svid12_21e11cd618fa418474b38bcd
 [3]:https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.2.013802
 [4]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.90.014434
 [5]:https://www.nature.com/articles/ncomms12430
@@ -116,5 +120,8 @@ This install the GUI as an **editable** Python module that is started by issuing
 [13]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.94.214410
 [14]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.094411
 [15]:https://www.nature.com/articles/ncomms5815
+[16]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.99.104302
+[17]:https://journals.aps.org/prb/abstract/10.1103/PhysRevB.106.174407
+[18]:https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.2.013092
 [logo]:https://github.com/UppASD/UppASD/blob/master/docs/uppasd_rot.png
 [Release]:https://github.com/UppASD/UppASD/releases

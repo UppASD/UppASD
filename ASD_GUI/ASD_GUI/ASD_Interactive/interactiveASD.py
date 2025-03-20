@@ -1,3 +1,4 @@
+"""
 #!/usr/bin/env python3
 # Script for creating a snapshot from SD-data
 # Written by Anders Bergman, after template from Anders Hast
@@ -6,7 +7,10 @@
 # Coloring of magnetic moments is determined by their z-components
 # to change this, modify the value m as read in ReadTimeData.py
 #
-# Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
+# Camera positioning can be changed using GetActiveCamera.Elevation, Roll,
+# and Azimuth
+"""
+# pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import vtk
 import numpy as np
@@ -56,8 +60,7 @@ class InteractiveASD:
             # except ImportError:
             #     print("Launch: UppASD module not installed.")
             #     return
-        else:
-            self.asd.init_simulation()
+        self.asd.init_simulation()
         print("InteractiveASD launched!", self.asd.natom, self.asd.mensemble)
 
         self.Datatest = vtk.vtkPolyData()
@@ -79,7 +82,7 @@ class InteractiveASD:
         self.lut.Build()
 
         # Size of system
-        Nmax = 1000000
+        # Nmax = 1000000
 
         # Open files
         # momfiles = glob.glob("restart.????????.out")
@@ -93,7 +96,7 @@ class InteractiveASD:
         atomPoints.SetData(atomData)
         nrAtoms = self.asd.natom
         # atomData, nrAtoms = self.readAtoms(atomsFile)
-        print("Coordinates read: ", nrAtoms )
+        print("Coordinates read: ", nrAtoms)
         print("Coordinates: ", self.asd.coords)
         print("Number of atoms: ", nrAtoms)
         self.Datatest.SetPoints(atomPoints)
@@ -226,7 +229,7 @@ class InteractiveASD:
         # create a text actor for Temperature
         self.temptxt = vtk.vtkTextActor()
         # temp = f"{0.0:4.3f}"
-        temp='{:4.3f}'.format(self.asd.inputdata.get_temp())
+        temp = f"{self.asd.inputdata.get_temp():4.3f}"
         self.temptxt.SetInput("T = " + temp + " K")
         temptxtprop = self.temptxt.GetTextProperty()
         temptxtprop.SetFontFamilyToArial()
@@ -238,7 +241,9 @@ class InteractiveASD:
         # create a text actor for Field
         self.fieldtxt = vtk.vtkTextActor()
         Bfield = self.asd.inputdata.get_hfield()
-        self.fieldtxt.SetInput(f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T")
+        self.fieldtxt.SetInput(
+            f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T"
+        )
         # self.fieldtxt.SetInput(f"B = ({0:4.1f}, {1:4.1f}, {2:4.1f} ) T")
         fieldtxtprop = self.fieldtxt.GetTextProperty()
         fieldtxtprop.SetFontFamilyToArial()
@@ -295,11 +300,11 @@ class InteractiveASD:
         self.iren.Start()
 
         # For the interactive control. Set up a check for aborting rendering.
-        def CheckAbort(obj, event):
-            # obj will be the object generating the event.  In this case it
-            # is renWin.
-            if obj.GetEventPending() != 0:
-                obj.SetAbortRender(1)
+        # def CheckAbort(obj, event):
+        #     # obj will be the object generating the event.  In this case it
+        #     # is renWin.
+        #     if obj.GetEventPending() != 0:
+        #         obj.SetAbortRender(1)
 
     def S_Step(self):
         """Do a simulation using S-mode."""
@@ -343,7 +348,7 @@ class InteractiveASD:
         """Do a simulation using Heat-bath MC"""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="H", temperature=self.asd.inputdata.temp+1.0e-6)
+        self.asd.relax(mode="H", temperature=self.asd.inputdata.temp + 1.0e-6)
         currmom = self.asd.moments[:, :, 0].T
         currcol = self.asd.moments[2, :, 0].T
         vecz = numpy_support.numpy_to_vtk(currmom)
@@ -370,29 +375,32 @@ class InteractiveASD:
         self.renWin.Render()
 
     def read_moments(self):
-
+        """
+        Opens a file dialog to read magnetic moments from a selected file and
+        updates the visualization.
+        """
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
         dlg.setDirectory(".")
         if dlg.exec():
             mag_file = dlg.selectedFiles()[0]
-            print('Reading moments from:', mag_file)
+            print("Reading moments from:", mag_file)
             try:
                 moments = np.loadtxt(mag_file)[:, 4:]
-                print('Moments read:', moments.shape)
+                print("Moments read:", moments.shape)
                 self.asd.put_moments(moments.T)
                 self.currmom = moments
                 self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=False)
-                self.currcol = moments[:,2]
+                self.currcol = moments[:, 2]
                 self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=False)
                 self.Datatest.GetPointData().SetVectors(self.vecz)
                 self.Datatest.GetPointData().SetScalars(self.colz)
                 self.renWin.Render()
-                print('Moments read and updated')
+                print("Moments read and updated")
             except FileNotFoundError:
-                print('Error reading file')
+                print("Error reading file")
         else:
-            print('No file selected')
+            print("No file selected")
         return
 
     def UpdateTemperature(self):
@@ -414,6 +422,9 @@ class InteractiveASD:
         self.renWin.Render()
 
     def close_window(self):
+        """
+        Closes the interactive window if it exists.
+        """
         if not hasattr(self, "asd"):
             return
         render_window = self.iren.GetRenderWindow()
@@ -422,7 +433,10 @@ class InteractiveASD:
 
     # Read Location of Atoms
     def readAtoms(self, file):
-        print('readAtoms called')
+        """
+        Reads atomic coordinates from a file and returns them as vtkPoints.
+        """
+        print("readAtoms called")
         points = vtk.vtkPoints()
         nrAtoms = 0
         # Read ahead
@@ -443,8 +457,11 @@ class InteractiveASD:
 
     # Read vectors
     # We must know the time step and the number of atoms per time
-    def readVectorsData(file, time, nrAtoms):
-        print('readVectorsData called')
+    def readVectorsData(self, file, time, nrAtoms):
+        """
+        Reads vector data from a file and returns vectors and colors arrays.
+        """
+        print("readVectorsData called")
         # Create a Double array which represents the vectors
         vectors = vtk.vtkFloatArray()
         colors = vtk.vtkFloatArray()
@@ -476,10 +493,14 @@ class InteractiveASD:
         print("Vectors read: ", i)
         return vectors, colors
 
-        # A function that takes a renderwindow and saves its contents to a .png file
+        # A function that takes a renderwindow and saves its contents to a .png
+        # file
 
     def Screenshot(self):
-        self.number_of_screenshots
+        """
+        Captures a screenshot of the current render window and saves it as a PNG file.
+        """
+        # self.number_of_screenshots
         win2im = vtk.vtkWindowToImageFilter()
         win2im.ReadFrontBufferOff()
         win2im.SetInput(self.renWin)
@@ -494,4 +515,7 @@ class InteractiveASD:
         return
 
     def UpdateTextPlacement(self):
+        """
+        Update the placement of text elements.
+        """
         pass

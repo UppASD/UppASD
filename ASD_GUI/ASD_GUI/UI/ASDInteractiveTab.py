@@ -2,11 +2,12 @@
 This file contains the code for the InteractiveTab in the GUI.
 The InteractiveTab provides options for interactive simulation and visualization.
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 from PyQt6.QtWidgets import (
     QWidget,
     QDockWidget,
     QHBoxLayout,
-    QWidget,
     QToolBox,
     QGroupBox,
     QVBoxLayout,
@@ -16,7 +17,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QGridLayout,
     QDoubleSpinBox,
-    QCheckBox
+    QCheckBox,
 )
 from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtCore import Qt
@@ -24,16 +25,41 @@ import numpy as np
 
 
 class QTextEditLogger:
+    """QTextEditLogger class to log messages to a QTextEdit widget."""
+
     def __init__(self, text_edit):
+        """
+        Initializes the ASDInteractiveTab with a text editor.
+
+        Args:
+            text_edit: The text editor to be used in the interactive tab.
+
+        Author:
+            Erik Karpelin
+        """
         self.text_edit = text_edit
 
     def write(self, message):
+        """
+        Appends a message to the text edit widget and ensures the cursor is visible.
+
+        Args:
+            message (str): The message to append to the text edit widget.
+
+        Author:
+            Erik Karpelin
+        """
         self.text_edit.append(message)
         self.text_edit.ensureCursorVisible()  # Optional: Scroll to the end
 
     def flush(self):
+        """
+        Flush method for compatibility with the `sys.stdout` interface.
+
+        Author: Erik Karpelin
+        """
         pass  # Needed for compatibility with the `sys.stdout` interface
- 
+
 
 def InteractiveDock(window):
     """
@@ -51,9 +77,9 @@ def InteractiveDock(window):
     window.IntContents.setLayout(Docklayout)
     window.IntToolBox = QToolBox()
 
-    ############################################################################
+    ##########################################################################
     # General Inputs
-    ############################################################################
+    ##########################################################################
     window.IntGeneralBox = QGroupBox()
     GeneralLayout = QVBoxLayout()
     window.TemperatureMagBox = QGroupBox()
@@ -126,7 +152,7 @@ def InteractiveDock(window):
     window.IntScreenshotBox = QGroupBox()
     window.IntScreenshot = QPushButton()
     window.IntScreenshot.setText("Screenshot")
-    
+
     # Screenshot checkbox
     window.IntScreenshotBox = QGroupBox()
     ScreenshotLayout = QHBoxLayout()
@@ -135,9 +161,9 @@ def InteractiveDock(window):
     ScreenshotLayout.addWidget(window.IntScreenshotTic)
     window.IntScreenshotBox.setLayout(ScreenshotLayout)
 
-    ############################################################################
+    ##########################################################################
     # Spin Dynamics inputs
-    ############################################################################
+    ##########################################################################
     window.IntSDBox = QGroupBox()
     SDLayout = QVBoxLayout()
     SliderBox = QGroupBox()
@@ -186,9 +212,9 @@ def InteractiveDock(window):
     window.IntSDBox.setLayout(SDLayout)
     # window.IntToolBox.addItem(window.IntSDBox, 'Spin Dynamics')
 
-    ############################################################################
+    ##########################################################################
     # MonteCarlo inputs
-    ############################################################################
+    ##########################################################################
     window.IntMCBox = QGroupBox()
     MCLayout = QVBoxLayout()
     MCSliderBox = QGroupBox()
@@ -252,9 +278,9 @@ def InteractiveDock(window):
     window.IntGeneralBox.setLayout(GeneralLayout)
     window.IntToolBox.addItem(window.IntGeneralBox, "")
 
-    ############################################################################
+    ##########################################################################
     # Add everything to the Dock
-    ############################################################################
+    ##########################################################################
     window.IntDock.setEnabled(True)
     window.IntDock.setVisible(True)
     window.IntDock.setMinimumSize(350, 606)
@@ -280,7 +306,7 @@ def InitializeInteractor(window):
     if window.InteractiveVtk.asd is None:
         print("ASD object not found")
         return
-    
+
     window.InteractiveVtk.Launch()
 
     CurrentSDStep = str(window.InteractiveVtk.asd.inputdata.get_nstep())
