@@ -1,10 +1,10 @@
 name: Build wheels on Windows, using old build algo
 
 on:
-  push:
   release:
-  #pull_request:
-  #workflow_dispatch:
+  # push:
+  # pull_request:
+  # workflow_dispatch:
 
 jobs:
 
@@ -14,11 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.8'  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.9'  }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.10' }
-          - { icon: '🟦', sys: mingw64, arch: x86_64, python-version: '3.11' }
+          - { icon: '🐢', sys: mingw64, arch: x86_64, python-version: '3.8'  }
+          - { icon: '🐍', sys: mingw64, arch: x86_64, python-version: '3.9'  }
+          - { icon: '🐉', sys: mingw64, arch: x86_64, python-version: '3.10' }
+          - { icon: '🦖', sys: mingw64, arch: x86_64, python-version: '3.11' }
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
+    continue-on-error: true
     defaults:
       run:
         #shell: bash
@@ -26,7 +27,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -47,7 +48,7 @@ jobs:
           ninja:p
 
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{matrix.python-version}}
           
@@ -67,25 +68,38 @@ jobs:
         echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
         paste github_header $GITHUB_PATH > $GITHUB_PATH
           
-    - name: '🚧 Build TOOL cmake'
+    - name: '🚧 Build wheel'
       run: |
         parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
         export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
         source ~/my_env/Scripts/activate
-        cmake -S . -B build_test -G Ninja -DBUILD_PYTHON=ON -DCMAKE_BUILD_TYPE=Release -DPython3_ROOT_DIR=$parsedPyPath -DPython3_FIND_STRATEGY=LOCATION 
-        cmake --build build_test --config Release --parallel --verbose
-        ls lib
-        objdump -x lib/_*pyd | grep -i DLL
-        
-    - name: '🚧 Build TOOL wheel'
-      run: |
-        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
-        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
-        source ~/my_env/Scripts/activate
-        python setup.py bdist_wheel
+        python -m build .
+        #python setup.py bdist_wheel
         #python -m pip wheel . -v
-        
-    - uses: actions/upload-artifact@v3
+
+    - name: '🧪 Test wheel'
+      run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        source ~/my_env/Scripts/activate
+        python -m pip install dist/uppasd*.whl
+        python -c "import uppasd.pyasd as pyasd ; pyasd.printlogo()"
+
+    - uses: actions/upload-artifact@v4
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
        path: ./dist/uppasd*.whl
+
+  upload:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: uppasd*
+          merge-multiple: true
+      - run: ls -l ./dist
+

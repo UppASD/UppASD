@@ -45,8 +45,7 @@ from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 # containing the wrapper class defining the data needed to setup the GUI.
 # @author Jonathan Chico
 ################################################################################
-if __name__ == '__main__':
-
+def main():
     # Open the Application Window
     app = QApplication(sys.argv)
     window = UppASDVizMainWindow()
@@ -54,3 +53,6 @@ if __name__ == '__main__':
     window.iren.Initialize() # Need this line to actually show the render inside Qt
     # Return
     sys.exit(app.exec())
+
+if __name__ == '__main__':
+    main()

@@ -1,4 +1,4 @@
-! Module pyasd defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/pyasd.f90
+! Module pyasd defined in file pyasd.f90
 
 subroutine f90wrap_runuppasd
     use pyasd, only: runuppasd
@@ -184,5 +184,5 @@ subroutine f90wrap_totalenergy(ret_energy)
     ret_energy = totalenergy()
 end subroutine f90wrap_totalenergy
 
-! End of module pyasd defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/pyasd.f90
+! End of module pyasd defined in file pyasd.f90
 

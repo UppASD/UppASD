@@ -313,6 +313,7 @@ contains
       use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
          external_field,field1,field2,time_external_field,allocation_field_time,    &
          thermal_field
+      use prn_fields, only : do_prn_beff
       use macrocells
       use DemagField
       use MomentData
@@ -368,7 +369,7 @@ contains
          mwf_mov_gauss,mwf_gauss_spatial,mov_circle,mwf_mov_circle,mov_square,      &
          mwf_mov_square)
 
-      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5)
+      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5.or.demag=='Y')
 
       ! Calculate demagnetization field
       if(demag=='Y') then
@@ -398,6 +399,33 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
+      ! Calculate spin transfer torque contributions to the local field
+      if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
+         call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
+      end if
+
+      ! Calculate the effective field before the simulation starts, if fields are to be printed
+      if (do_prn_beff=='Y') then
+         ! Apply Hamiltonian to obtain effective field
+         if(do_sparse=='Y') then
+            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
+               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
+            else
+               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
+            end if
+            beff1=beff
+            beff2=external_field+time_external_field
+            beff=beff1+beff2
+         else
+
+            call effective_field(Natom,Mensemble,1,Natom,emomM,   &
+               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
+               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
+               constellations, constellationsNeighType, totenergy,        &
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         end if
+      end if
+
       ! Adaptive Time Stepping Region
       if(adaptive_time_flag) then
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
@@ -454,6 +482,11 @@ contains
             ! Calculate Microwave fields (time dependent fields)
             call calculate_mwf_fields(Natom,mstep,rstep+nstep-1,delta_t,coord,0)
 
+            ! Calculate demagnitization field
+            if(demag=='Y') then
+               call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+            endif
+
             ! Calculate the total time dependent fields
             call calc_external_time_fields(Natom, Mensemble, time_external_field,   &
                do_bpulse, demag, mwf, mwf_gauss_spatial, do_gauss, mwf_gauss,       &
@@ -463,6 +496,7 @@ contains
                mwf_mov_gauss_spatial,mov_circle,mwf_mov_circle,mov_circle_spatial,  &
                mwf_mov_circle_spatial,mov_square,mwf_mov_square,mov_square_spatial, &
                mwf_mov_square_spatial)
+
          else
             time_external_field=0.0_dblprec
          endif
@@ -547,7 +581,7 @@ contains
          call timing(0,'Hamiltonian   ','ON')
 
          ! Calculate spin transfer torque contributions to the local field
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
          end if
 
@@ -649,7 +683,7 @@ contains
          call timing(0,'Evolution     ','ON')
 
          ! Re-Calculate spin transfer torque
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom2,mmom)
          end if
 
@@ -1094,8 +1128,12 @@ contains
       ! Adaptive time stepping
       integer :: ipstep, ia, ik
       real(dblprec) :: temprescale,temprescalegrad, dummy, denergy
+      real(dblprec) :: org_temp
       real(dblprec) :: mavg
 
+      org_temp = temp
+      temp = sd_temp
+      temp_array = sd_temp
       ! Copy inmoments to working array
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1106,6 +1144,10 @@ contains
          end do
       end do
 
+      ! Calculate demagnitization field
+      if(demag=='Y') then
+         call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+      endif
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
@@ -1118,10 +1160,10 @@ contains
             call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
-      ! Calculate external fields
-      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
-         do_bpulse,sitefld,sitenatomfld)
 
+      ! Calculate external fields
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,&
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Main initial loop
       !--------------------------------------!
@@ -1212,6 +1254,7 @@ contains
 
       enddo
 
+      ! emom2 = 0.0_dblprec
       ! Copy working moments to outdata
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1220,6 +1263,10 @@ contains
             emomM_io(:,ia,ik)=emomM(:,ia,ik)
          end do
       end do
+
+      ! Rescale temperature back to original
+      temp_array = org_temp
+      temp = org_temp
 
    end subroutine sd_minimal
 

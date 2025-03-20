@@ -105,7 +105,7 @@ contains
       real(dblprec), dimension(3,Natom,nim), intent(in)           :: external_field !< External magnetic field
       integer, dimension(:), intent(in) :: maxNoConstl !< Number of existing entries in for each ensemble in the constellation matrix
       integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom's neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom´s neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
       real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup !< Couplings for saved constellations
       real(dblprec), dimension(:,:,:), intent(in) :: constellations !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. In/out variables
@@ -205,8 +205,8 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the initial point
          beff(:,:,1)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1), &
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),   &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:), &
+            external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),   &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,      &
             constellations,constellationsNeighType,denergy,Num_macro,       &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
@@ -227,8 +227,8 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the final point
          beff(:,:,nim)=0.0_dblprec
-         call effective_field(Natom,1,1,Natom,emomM(:,:,nim),mmom(:,nim),     &
-            external_field(:,:,nim),tef(:,:,nim),beff(:,:,nim),beff1(:,:,nim),beff2(:,:,nim), &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,nim:),mmom(:,nim:),     &
+            external_field(:,:,nim:),tef(:,:,nim:),beff(:,:,nim:),beff1(:,:,nim:),beff2(:,:,nim:), &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,denergy,Num_macro,     &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
@@ -249,8 +249,8 @@ contains
 
          call timing(0,'Hamiltonian   ','ON')
          ! Calculate effective fields at the saddle point
-         call effective_field(Natom,1,1,Natom,emomM(:,:,1),mmom(:,1),&
-            external_field(:,:,1),tef(:,:,1),beff(:,:,1),beff1(:,:,1),beff2(:,:,1),  &
+         call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:),&
+            external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),  &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,     &
             constellations,constellationsNeighType,denergy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)

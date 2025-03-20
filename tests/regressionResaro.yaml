@@ -1,0 +1,252 @@
+caselist:
+  - workingdir: "./Regression"
+    run: "./runtest.sh"
+    name: "Testing measurement routines vs. rev. Resaro"
+    comparisons:
+      - outfile:    ams.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3','#_4' ]
+        testlist:
+          - select:
+             "#_1":  3
+            extract:  [ '#_2' ,'#_3','#_4' ]
+            expected:  [86.990203426047, 351.711424764348, 1.4]
+            #expected:  [17.4682352738, 217.60849816, 1.4]
+            type: "ams"
+
+      - outfile:    averages.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
+        testlist:
+          - select:
+              "#_1":  11000
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
+            expected:  [0.145574347, 0.252312246, 1.87753739, 1.9, 0.0]
+            type: "averages"
+
+      - outfile:    blsdos.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4','#_5' ]
+        testlist:
+          - select:
+              "#_1":  405.29543
+            extract:  [ '#_2' ,'#_3','#_4','#_5' ]
+            expected:  [7.536464, 17.521909, 0.094010349, 19.074182]
+            type: "blsdos"
+
+      - outfile:    bls.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
+        testlist:
+          - select:
+              "#_1":  49
+              "#_2": 128
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
+            expected:  [128.0, 603185790000000.0, 0.048586961, 0.10353074, 0.0013578015, 0.11437286]
+            type: "bls"
+
+      - outfile:    cbls.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
+        testlist:
+          - select:
+              "#_1":  49
+              "#_2": 128
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11' ]
+            expected:  [128.0, 603185790000000.0, 0.048586961, 0.10353074, 0.0013578015, 0.0, 0.0, 0.0, 0.1143648, 0.0]
+            type: "cbls"
+
+      - outfile:    coord.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
+        testlist:
+          - select:
+              "#_1":  128
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
+            expected:  [ 3.500000, 3.500000, 3.510000, 2, 2 ]
+            type: "coord"
+
+      - outfile:    crestart.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
+        testlist:
+          - select:
+              "#_1":  11001
+              "#_2":    128
+            extract:  [  '#_3','#_4','#_5','#_6' ]
+            expected:  [  0.0, 0.0, 0.0, 0.0 ]
+            type: "crestart"
+
+      - outfile:    csqw_proj.1.2.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
+        testlist:
+          - select:
+              "#_1":  3
+              "#_5":  50
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11' ]
+            #expected:  [ 0.000000, 0.000000,-0.490000,     100,   7.12794259E-03,-1.09476469E+00, 1.18613082E-03, 1.18678374E+00, 3.78265628E-04, 5.97452387E-01]
+            expected:  [0.0, 0.0, -0.49, 50.0, 6.03411502e-07, -1.56474651, 5.97535405e-06, -1.57235501]
+            type: "csqw_proj.1.2"
+
+      - outfile:    csqw.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10','#_11' ]
+        testlist:
+          - select:
+              "#_1":  3
+              "#_5":  45
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_10','#_11']
+            expected: [0.0, 0.0, -0.49, 45.0, 7.98316714e-07, -5.4205604e-18]
+            type: "csqw"
+
+      - outfile:    cumulants.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
+        testlist:
+          - select:
+              "#_1":  211
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
+            #expected:  [ 1.89994018E+00, 3.60977299E+00, 1.30304653E+01, 6.66666556E-01, 2.38668048e-28, 0.0, -2.89862298, -2.89856987]
+            expected: [1.89999979, 3.6099992, 13.0320942, 0.666666666, 3.77522802e-31, 0.0, -6.10001753, -6.09996425] 
+            type: "cumulants"
+
+      #- outfile:    evams.megaTest.out
+      #  filehandler: csv_like
+      #  headers:  [ '#_1', '#_2','#_3' ]
+      #  testlist:
+      #    - select:
+      #        "#_1":  217.608572
+      #      extract:  [ '#_2' ,'#_3' ]
+      #      expected:  [ 1.000000, -0.000219 ]
+      #      type: "evams"
+
+      - outfile:    jqams.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3','#_4' ]
+        testlist:
+          - select:
+              "#_1":  3
+            extract:  [ '#_2' ,'#_3','#_4' ]
+            expected:  [13.879935750064, -16.60644389731, 1.4]
+            type: "jqams"
+
+      - outfile:    moment.megaTest.out
+        skiprows: 7
+        filehandler: csv_like
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6',"#_7" ]
+        testlist:
+          - select:
+              "#_1":  11000
+              "#_3":  128
+            extract:  [ '#_3' ,'#_5','#_6','#_7']
+            expected:  [128.0, 0.0766180766, 0.132795919, 0.988177572]
+            type: "moment"
+
+      - outfile:    polarization.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5','#_6' ]
+        testlist:
+          - select:
+              "#_1":  11000
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6' ]
+            expected: [1.12238786e-08, 2.84325775e-09, -1.9988738e-08, 2.3099983e-08, 2.38228063e-32]
+            type: "polarization"
+
+      - outfile:    projavgs.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
+        testlist:
+          - select:
+              "#_1":  11000
+              "#_2":      2
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
+            comparison_func: almost
+            expected:  [ 2, 2.50000000E+00, 0.00000000E+00, 1.91531371E-01, 3.31974475E-01, 2.47044706E+00 ]
+            type: "projavgs"
+
+      - outfile:    projcumulants.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6','#_7' ]
+        testlist:
+          - select:
+              "#_1":  211
+              "#_2":    2
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7' ]
+            expected:  [ 2, 2.50000000E+00, 6.25000000E+00, 3.90625000E+01, 6.66666667E-01, -7.08541485E-37 ]
+            type: "projcumulants"
+
+      - outfile:    sqw.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
+        testlist:
+          - select:
+              "#_1":  3
+              "#_5":  46
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
+            expected: [0.0, 0.0, -0.49, 46.0, 6.03110619e-10, 4.32657651e-09, 7.98249627e-07, 7.9826158e-07]
+            #expected: [0.0, 0.0, -0.49, 46.0, 0.00136496294, 0.00400632808, 0.000258431333, 0.00412298885]
+            type: "sqw"
+
+#     - outfile:    projsqw.1.megaTest.out
+      - outfile:    sqw_proj.1.1.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8','#_9' ]
+        testlist:
+          - select:
+              "#_1":  3
+              "#_5":  50
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9' ]
+            expected:  [0.0, 0.0, -0.49, 50.0, 6.39482962e-07, 5.87098213e-06, 0.000433969175, 0.000434009357]
+            #expected:  [ 0.000000, 0.000000,-0.490000  ,   100 ,  7.12794259E-03, 1.18613082E-03,  3.78265628E-04, 7.10489651E-03]
+            type: "sqw_proj.1.1"
+
+      - outfile:    swdos.megaTest.out
+        filehandler: csv_like
+        skiprows: 1
+        headers:  [ '#_1', '#_2', '#_3', '#_4','#_5' ]
+        testlist:
+          - select:
+              "#_1":  405.29543
+            extract:  [ '#_2' ,'#_3','#_4','#_5' ]
+            expected:  [0.0, 5.7036623e-06, 3.8558977e-07, 3.2793755e-06]
+            type: "swdos"
+
+      - outfile:    torques.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11']
+        testlist:
+          - select:
+              "#_1":  11000
+              "#_2":  128
+            extract:  [ '#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11']
+            expected:   [-0.048638, -0.049279, 0.010393, 0.070015, 0.0, 0.0, 0.0, 0.0]
+            type: "torques"
+
+      - outfile:    totenergy.megaTest.out
+        filehandler: csv_like
+        skiprows: 0
+        headers:  [ '#_1', '#_2', '#_3', '#_4', '#_5', '#_6', '#_7', '#_8', '#_9', '#_10', '#_11']
+        testlist:
+          - select:
+              "#_1":  10900
+            extract:  [ '#_2' ,'#_3','#_4','#_5','#_6','#_7','#_8','#_9','#_10','#_11']
+            expected:  [-6.10005366, -6.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -5.36620122e-05, 0.0]
+            type: "totenergy"

@@ -19,7 +19,7 @@ module Sparse
    !
    !integer, dimension(:,:), allocatable :: max_cut_list
    !
-   integer :: maxSdim, totSdim
+   integer :: maxSdim, totSdim, i_stat
    integer :: Hblocksize = 3
    !
 #ifdef __INTEL_MKL__
@@ -231,6 +231,9 @@ contains
       integer :: i, j, k, m, n
       character, dimension(6) :: matdescra
 
+      real(dblprec) :: mone = 1.0_dblprec
+      real(dblprec) :: zero = 0.0_dblprec
+
       !
       ! zero based
       matdescra=(/'G','U','N','C','0','0'/)
@@ -275,8 +278,12 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble),intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff !< Total effective field from application of Hamiltonian
       !
+      !
       integer :: i, j, k, idx
       character, dimension(6) :: matdescra
+
+      real(dblprec) :: mone = 1.0_dblprec
+      real(dblprec) :: zero = 0.0_dblprec
 
       !
       ! zero based

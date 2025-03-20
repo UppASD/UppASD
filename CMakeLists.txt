@@ -16,11 +16,7 @@
 #CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
-
-PROJECT(uppasd
-   LANGUAGES Fortran)
-# Set the project version
-SET(VERSION 5.1.0)
+PROJECT(uppasd LANGUAGES Fortran)
 ##############################################################################################
 unset(CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES)
 ##############################################################################################
@@ -55,10 +51,12 @@ message(STATUS "Final module path  : ${CMAKE_MODULE_PATH}")
 # Create lib directory if missing
 ##############################################################################################
 set(LIB ${CMAKE_SOURCE_DIR}/lib)
-message(STATUS "The lib is ${LIB}")
+#message(STATUS "The lib is ${LIB}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB})
 message(STATUS "The lib is ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+set(LEGACY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
+message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 ##############################################################################################
 
 
@@ -98,7 +96,7 @@ ENDIF(FCNAME STREQUAL "pgf90")
 ##############################################################################################
 # Define the executable name
 ##############################################################################################
-set(ASD_binary sd)
+set(ASD_binary uppasd)
 #if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #   string(APPEND CMAKE_Fortran_COMPILER ".exe")
 #   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
@@ -107,12 +105,13 @@ set(ASD_binary sd)
 string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv|ifx current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
+set(ASD_legacy_binary sd)
 if(current_compiler)
-   string(APPEND ASD_binary ".${current_compiler}")
+   string(APPEND ASD_legacy_binary ".${current_compiler}")
 endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
-   string(APPEND ASD_binary ".cuda")
+   string(APPEND ASD_legacy_binary ".cuda")
 endif()
 SET(UppASD_EXE ${ASD_binary})
 message(STATUS "ASD_binary ${ASD_binary}.")
@@ -152,11 +151,13 @@ add_dependencies(${UppASD_EXE} ${UppASD_LIB})
 ##############################################################################################
 # MKL / FFTW actions
 ##############################################################################################
+#if (USE_MKL)
 set(MKL_LINK static)
 set(MKL_INTERFACE lp64)
 set(MKL_THREADING sequential)
 find_package(MKL CONFIG)
 message(STATUS "MKL_IMPORTED_TARGETS:   ${MKL_IMPORTED_TARGETS}") 
+#endif ()
 
 set(FFTW_USE_STATIC_LIBS ON)
 if (USE_FFTW)
@@ -208,11 +209,16 @@ OPTION(USE_OVF "Use OVF format" OFF)
 OPTION(BUILD_MANUAL "Build manual"  OFF)
 OPTION(BUILD_DOXYGEN "Build doxygen"  OFF)
 OPTION(BUILD_PYTHON "Build Python interface"  OFF)
+
+##############################################################################################
+# Enable and define tests
+##############################################################################################
+include(CTest)
 CMAKE_DEPENDENT_OPTION(RUN_ASD_TESTS "Run asd-tests"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
-#OPTION(RUN_ASD_TESTS "Run asd-tests"  OFF)
+CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUDA" OFF)
 ##############################################################################################
 
 ##############################################################################################
@@ -350,9 +356,12 @@ ENDIF()
 
 
 ##############################################################################################
-# Extract git-stamp
+# Extract git-stamp for versioning
 ##############################################################################################
 INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
+message(STATUS "Git version info : ${gitversion}.")
+# Set the project version
+SET(VERSION ${gitversion})
 ##############################################################################################
 
 ##############################################################################################
@@ -361,18 +370,26 @@ INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
 if (USE_CUDA) 
 
    ENABLE_LANGUAGE(C CUDA CXX)
-   find_package(CUDAToolkit)
+   if (CMAKE_VERSION VERSION_LESS "3.17.0")
+	   find_package(CUDA)
+   else ()
+   	find_package(CUDAToolkit)
+   endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
    add_compile_definitions(CUDA)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
+   if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
+   endif()
 
    # Set preprocessing flags indicating compiler
-   string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   #string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
+   set(PP_CUDA_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
+   message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
 
    # Find CUDA arch on local machine
    include(FindCUDA/select_compute_arch)
@@ -406,9 +423,11 @@ ENDIF(USE_OVF)
 # MKL edits in case of GNU compiler
 ##############################################################################################
 if(USE_MKL)
-   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
       target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    endif()
+   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+
 endif()
 ##############################################################################################
 
@@ -436,8 +455,9 @@ elseif(USE_FFTW)
    add_compile_definitions(USE_FFTW)
    message(STATUS "FFT-> ${USE_FFTW} ")
    #include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
-   include_directories(${FFTW_INCLUDE_DIRS})
-   message(STATUS "FFTW: -I${FFTW_INCLUDE_DIRS} ${FFTW_LIB}")
+   include_directories(${FFTW_INCLUDE_DIR})
+   include_directories(${FFTW_INCLUDES})
+   message(STATUS "FFTW: -I${FFTW_INCLUDES}  -L${FFTW_LIBRARIES} ${FFTW_LIB}")
 endif()
 ##############################################################################################
 
@@ -493,7 +513,8 @@ if(BUILD_PYTHON)
       # Common variables
       set(f2py_module_name "uppasd")
       set(f2py_module_c "_${f2py_module_name}module.c")
-      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers2.f90")
+      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers.f")
+      set(f2py_wrapper_f90 "_${f2py_module_name}-f2pywrappers2.f90")
       set(f2py_wrapper_o "_${f2py_module_name}-f2pywrappers2.o")
       set(UppASD_F90w f90_wraps)
       set(F90wrap_kind
@@ -553,6 +574,7 @@ if(BUILD_PYTHON)
 
       add_custom_command(
          OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}" "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f90}"  
          COMMAND ${Python3_EXECUTABLE}  -m "numpy.f2py"  ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
          #COMMAND f2py   ${F2PY_sources} -m _${f2py_module_name}  --lower --quiet
          COMMENT "Generating Python modules"
@@ -568,13 +590,13 @@ if(BUILD_PYTHON)
       #message(STATUS "=============>  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}")
 
       # Not used by default (invoke only if new header files need to be generated)
-      #add_custom_command( 
-      #   OUTPUT "${F2PY_sources}"
-      #   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-      #   COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
-      #   COMMENT "Writing F90wrappers for F2PY"
-      #   DEPENDS ${F90wrap_sources}
-      #   )
+      # add_custom_command( 
+      #    OUTPUT "${F2PY_sources}"
+      #    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      #    COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
+      #    COMMENT "Writing F90wrappers for F2PY"
+      #    DEPENDS ${F90wrap_sources}
+      #    )
 
       ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
       set(CMAKE_C_FLAGS "-std=c99")
@@ -582,7 +604,8 @@ if(BUILD_PYTHON)
          "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
          #"${F2PY_sources}"
          "${F2PY_INCLUDE_DIR}/fortranobject.c" # From NumPy
-         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f90}"
          )
 
       add_dependencies(_${CMAKE_PROJECT_NAME} ${UppASD_F90w})
@@ -647,7 +670,19 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # First fix for msys/mingw having semi-shared .dll.a libraries
 ##############################################################################################
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+# message(STATUS "***********************************************")
+# message(STATUS "--> MSYS ENVIROnMENT BEFORE PURGE:")
+# message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+# message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+# message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+# message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+# message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+# message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+# message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+# message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+
+# message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}")
+# message(STATUS "-> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #if ( $ENV{MSYSTEM})
    message(STATUS " Performing MSYS library pruning.")
@@ -667,9 +702,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
       unset(UppASD_links)
       foreach ( elem ${LAPACK_LIBRARIES})
          string(REPLACE ".dll.a" ".a" filtered_elem ${elem})
-         set(UppASD_links "${filtered_elem}")
+	      list(APPEND UppASD_links "${filtered_elem}")
+	      #set(UppASD_links "${filtered_elem}")
+	      #message(STATUS " PRUNING LAPACK: ", ${filtered_elem})
+	      #message(STATUS " PRUNING LAPACK::: ", ${UppASD_links})
       endforeach()
       unset(LAPACK_LIBRARIES)
+      #message(STATUS " LAPACK PRUNED: ", ${filtered_elem})
       set(LAPACK_LIBRARIES ${UppASD_links})
       # FFTW
       unset(UppASD_links)
@@ -692,26 +731,50 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
    endif ()
 endif ()
 
-message(STATUS " MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+# message(STATUS "--> MSYS ENVIROnMENT $ENV{MSYSTEM} ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIB_NAMES}, ${OpenMP_Fortran_LIBRARIES}.")
+# message(STATUS "***********************************************")
+# message(STATUS "--> MSYS ENVIROnMENT AFTER PURGE:")
+# message(STATUS "     BLAS_LIBRARIES: ${BLAS_LIBRARIES}")
+# message(STATUS "     LAPAC_LIBRARIES: ${LAPACK_LIBRARIES}")
+# message(STATUS "     OpenMP_Fortran_FLAGS: ${OpenMP_Fortran_FLAGS}")
+# message(STATUS "     OpenMP_Fortran_LIB_NAMES: ${OpenMP_Fortran_LIB_NAMES}")
+# message(STATUS "     OpenMP_Fortran_LIBRARIES: ${OpenMP_Fortran_LIBRARIES}")
+# message(STATUS "     CMAKE_THREAD_LIBS_INIT: ${CMAKE_THREAD_LIBS_INIT}")
+# message(STATUS "     FFTW_LIBRARIES: ${FFTW_LIBRARIES}")
+# message(STATUS "     FFTW_LIB: ${FFTW_LIB}")
+# message(STATUS "***********************************************")
+
+# Detect the platform and configure linker flags and libraries
+unset(UppASD_links)
+#if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # On Linux, use static linking and include libquadmath
+    set(UppASD_links "-static")
+#elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+#    # On macOS, avoid static linking
+#    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
+endif()
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
-      -static
-      -fopenmp
-      -lgomp
-      -lgfortran
-      -lquadmath
+   # -static
+   # -fopenmp
+   # -lgomp
+   # -lgfortran
+   # -lquadmath
+         ${UppASD_links}
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-         #${OpenMP_Fortran_LIB_NAMES}
+	 # ${OpenMP_Fortran_LIB_NAMES}
+         ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
-      if(MKL_FOUND)
+      if(MKL_FOUND AND USE_MKL)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
-      endif(MKL_FOUND)
+      endif(MKL_FOUND AND USE_MKL)
       if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
          TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
       endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
@@ -724,7 +787,7 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})
 # Tell where to install this executable
 ##############################################################################################
 IF(WIN32)
-   SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
+   SET(CMAKE_INSTALL_PREFIX "C:/Program Files")
 ELSE()
    SET(CMAKE_INSTALL_PREFIX /usr/local)
 ENDIF(WIN32)
@@ -733,7 +796,7 @@ ENDIF(WIN32)
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
@@ -741,20 +804,32 @@ else()
    INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+
 ##############################################################################################
 
 ##############################################################################################
 # Copy static library to ./lib
 ##############################################################################################
-#add_custom_command(
-#   TARGET ${UppASD_LIB} POST_BUILD
-#   COMMAND ${CMAKE_COMMAND} -E copy
-#   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-#   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-#   #COMMAND ${CMAKE_COMMAND} -E copy
-#   #${CMAKE_BINARY_DIR}/_uppasd*.so
-#   #${CMAKE_SOURCE_DIR}/python/uppasd/
-#   )
+add_custom_command(
+   TARGET ${UppASD_LIB} POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy
+   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
+   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+   )
+
+#################################################################################################
+#### Copy binary to ./bin/sd.<compiler> for legacy purposes
+#### currently disabled..
+#################################################################################################
+add_custom_command(
+   TARGET ${UppASD_EXE} POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy
+   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
+   # ${LEGACY_OUTPUT_DIRECTORY}/sd
+   )
 
 
 ###############################################################################################
@@ -767,11 +842,10 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-include(CTest)
 set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
-   add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionHisingen.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
    add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
@@ -782,6 +856,67 @@ endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
    add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_GNEB_TESTS)
+if (RUN_CUDA_TESTS)
+add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+endif (RUN_CUDA_TESTS)
+set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
 message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
+
+
+##############################################################################################
+## ADD Cpack
+##############################################################################################
+# Include CPack
+
+# Set package properties
+set(CPACK_PACKAGE_NAME "uppasd")
+set(CPACK_PACKAGE_VERSION "${gitversion}")
+message(STATUS "CPACK_PACKAGE_VERSION: ${CPACK_PACKAGE_VERSION}")
+set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
+set(CPACK_PACKAGE_VENDOR "The UppASD group")
+set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_SOURCE_DIR}/cpack/WELCOME.txt")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/README.txt")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "UppASD is a package for atomistic spin dynamics and Monte Carlo simulations.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/UppASD/UppASD")
+#set(CPACK_GENERATOR "STGZ;DEB;RPM")
+# DEB specifics
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set (CPACK_DEBIAN_PACKAGE_RELEASE ${GIT_HASH})
+set (CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
+set (CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set (CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
+set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_NAME} - ${CMAKE_PROJECT_DESCRIPTION}")
+set (CPACK_DEBIAN_PACKAGE_DEBUG ON)
+
+if(WIN32)
+   include(InstallRequiredSystemLibraries)
+
+    # Include NSIS for creating Windows installers
+    # set(CPACK_GENERATOR "NSIS64")
+
+    # Include the custom NSIS script
+    # set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
+
+    # Additional NSIS settings if needed
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "Call AddToPath")
+
+    # WIX installer
+    # set(CPACK_WIX_UPGRADE_GUID "E25F58C1-EC45-422A-9700-7254DB19547B")
+    # WIX installer
+    set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+    set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+    set(CPACK_WIX_UI_DIALOG "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+    set(CPACK_WIX_UPGRADE_GUID "02cf4cf7-fa5b-43de-a8ff-b39098d35db3")
+    set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+    # set(CPACK_WIX_EXTRA_SOURCES "${CMAKE_SOURCE_DIR}/PathEnvironment.wxs")
+   set(CPACK_WIX_VERSION "4")
+   endif()
+
+include(CPack)

@@ -131,19 +131,19 @@ class ASDInputGen():
     ############################################################################
 
     def update_file_name(self, window):
-        if window.sender() == window.Posfile_Window.InpPosDone:
-            ASDInputGen.posfile = window.Posfile_Window.posfile_name
+        if window.sender() == window.PosfileWindow.InpPosDone:
+            ASDInputGen.posfile = window.PosfileWindow.posfile_name
             self.posfile_gotten = True
-        if window.sender() == window.Momfile_Window.InpMomDone:
-            ASDInputGen.momfile = window.Momfile_Window.momfile_name
+        if window.sender() == window.MomfileWindow.InpMomDone:
+            ASDInputGen.momfile = window.MomfileWindow.momfile_name
             self.momfile_gotten = True
-        if window.sender() == window.Restart_Window.InpRestartDone:
-            ASDInputGen.restartfile = window.Restart_Window.restartfile_name
-        if window.sender() == window.Jfile_Window.InpJfileDone:
-            ASDInputGen.jfile = window.Jfile_Window.jfile_name
+        if window.sender() == window.RestartWindow.InpRestartDone:
+            ASDInputGen.restartfile = window.RestartWindow.restartfile_name
+        if window.sender() == window.JfileWindow.InpJfileDone:
+            ASDInputGen.jfile = window.JfileWindow.jfile_name
             window.InpXCCheck.setChecked(True)
-        if window.sender() == window.DMfile_Window.InpDMfileDone:
-            ASDInputGen.dmfile = window.DMfile_Window.DMfile_name
+        if window.sender() == window.DMfileWindow.InpDMfileDone:
+            ASDInputGen.dmfile = window.DMfileWindow.DMfile_name
             window.InpDMCheck.setChecked(True)
         return
     ############################################################################
@@ -1191,6 +1191,24 @@ class ASDInputGen():
         #    if len(ASDInputGen.UppASDKeywords[name])==0:
         #        del ASDInputGen.UppASDKeywords[name]
         return
+    def GetPosMomFiles(self):
+        """
+        Retrieves the names of the position and momentum files from the 'inpsd.dat' file.
+
+        Returns:
+            Tuple[str, str]: A tuple containing the names of the position and momentum files.
+        """
+        with open('inpsd.dat', 'r', encoding='utf-8') as infile:
+            for line in infile:
+                if line.startswith('posfile'):
+                    entries = line.split()
+                    if len(entries) >= 2:
+                        posfile = entries[1]
+                if line.startswith('momfile'):
+                    entries = line.split()
+                    if len(entries) >= 2:
+                        momfile = entries[1]
+        return posfile, momfile
     ############################################################################
     # @brief Function to write a standard inpsd.dat and a inpsd.yaml file
     # @author Jonathan Chico

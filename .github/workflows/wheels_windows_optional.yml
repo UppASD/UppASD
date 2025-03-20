@@ -1,9 +1,9 @@
-name: Build wheels on Windows, optional approach
+name: Build wheels on Windows, optional cibuildwheel approach
 
 on:
-  #push:
-  release
-  #pull_request:
+  release:
+  # push:
+  # pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -13,6 +13,7 @@ jobs:
   build_wheels:
     name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
     defaults:
       run:
         shell: msys2 {0}
@@ -40,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install mingw-w64 on Windows
         if: ${{ runner.os == 'Windows' }}
@@ -62,7 +63,7 @@ jobs:
             ninja:p
 
       - name: Build and test wheels
-        uses: pypa/cibuildwheel@v2.14.0
+        uses: pypa/cibuildwheel@v2.18.1
         with:
           msystem: MINGW64
         env:
@@ -71,25 +72,25 @@ jobs:
             PATH="$PATH;C:\\\\msys64\\mingw64\\bin" CC=gcc CXX=g++ FC=gfortran CMAKE_PREFIX_PATH="C:\msys64\mingw64" 
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: wheelhouse/*.whl
 
-  build_sdist:
-    name: Build source distribution
-    runs-on: ubuntu-latest
+  # build_sdist:
+  #   name: Build source distribution
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
+  #     - name: Setup Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.10'
 
-      - name: Store artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          path: dist/*.tar.gz
+  #     - name: Store artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         path: dist/*.tar.gz
 

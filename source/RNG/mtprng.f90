@@ -81,7 +81,7 @@ module mtprng
    !-----------------------------------------------------------------------
    !
    !  For more information on this software package, please visit
-   !  Scott's web site, Coyote Gulch Productions, at:
+   !  Scott´s web site, Coyote Gulch Productions, at:
    !
    !      http://www.coyotegulch.com
    !  

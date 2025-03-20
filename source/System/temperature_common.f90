@@ -2285,7 +2285,7 @@ contains
       ! m and n are the logical dimensions of a, and will be equal for square matrices.
       ! mp and np are the physical dimensions of a. b(1:m) is the input right-hand side.
       ! x(1:n) is the output solution vector. no input quantities are destroyed, so the routine may be called
-      ! sequentially with differen b's.
+      ! sequentially with differen b´s.
 
       implicit none
 

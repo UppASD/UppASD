@@ -1,6 +1,7 @@
-name: Build wheels on windows
+name: Build wheels on windows using cibuildwheel
 
-on: [release] #[push, pull_request]
+on: [release]
+#on: [release , push, pull_request]
 
 jobs:
   build_wheels:
@@ -29,14 +30,16 @@ jobs:
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-lapack
             mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
             git 
-            cmake
-            ninja
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Used to host cibuildwheel
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
       - name: Install cibuildwheel
         run: |
@@ -47,7 +50,8 @@ jobs:
       - name: Build wheels
         run: |
           which gfortran
-          python -m cibuildwheel --output-dir wheelhouse
+          pipx run cibuildwheel --output-dir wheelhouse
+        # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
@@ -62,6 +66,6 @@ jobs:
           #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl

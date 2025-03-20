@@ -76,7 +76,7 @@ contains
       integer, intent(in) :: do_prnstruct                                !< Print Hamiltonian information (0/1)
       character, intent(in) :: do_sortcoup                               !< Sort the entries of ncoup arrays (Y/N)
       integer, intent(in) :: sym                                         !< Symmetry of system (0-3)
-      character(len=1) :: do_n3           !< Newton's third law correction of force constant coefficient elements ('Y'/'N')
+      character(len=1) :: do_n3           !< Newton´s third law correction of force constant coefficient elements ('Y'/'N')
 
       integer, intent(in) :: do_ll                                       !< Add harmonic (LL) term to the lattice Hamiltonian (0/1)
       integer, dimension(:), intent(in) :: ll_nn                         !< Number of neighbour shells for LL
@@ -449,7 +449,7 @@ contains
          !      mml_tens=nint(1.0e3*mml_tens)/1.0e3
          ! Calculates the correct force constant coefficient element 
          ! \Psi_{ii} = -\sum_{j\neq i} Psi_{ij}
-         ! as required by Newton's third law.
+         ! as required by Newton´s third law.
          ! SLDTODO Applicable for higher order couplings?
          if(do_n3 == 'Z') then
             !write(*,*) 'Start do_N3'
@@ -609,7 +609,7 @@ contains
       integer, dimension(48,max_no_shells,na) :: nm_cell_symind  !< Indices for elements of the symmetry degenerate coupling tensor
       !real(dblprec), dimension(hdim, NT, max_no_shells, Nchmax, NT), intent(in) :: xc !< Coupling constants
       character :: do_sortcoup !< Sort the entries of ncoup arrays (Y/N)
-      character(len=1) :: do_n3           !< Newton's third law correction of force constant coefficient elements ('Y'/'N')
+      character(len=1) :: do_n3           !< Newton´s third law correction of force constant coefficient elements ('Y'/'N')
 
       integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
       integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
@@ -741,7 +741,7 @@ contains
 
       ! Calculates the correct force constant coefficient element 
       ! \Psi_{ii} = -\sum_{j\neq i} Psi_{ij}
-      ! as required by Newton's third law.
+      ! as required by Newton´s third law.
       ! SLDTODO Applicable for higher order couplings?
       if(do_n3 == 'Y') then
          !write(*,*) 'Start do_N3'

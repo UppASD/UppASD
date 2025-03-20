@@ -11,17 +11,71 @@ Author
 Jonathan Chico
 """
 
-import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
+import glob
+import os
+import os.path as path
 from enum import Enum
-from PyQt6 import QtWidgets
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMainWindow
+import sys
+
+from matplotlib.backends.backend_qtagg import FigureCanvas
+from matplotlib.figure import Figure
+from PyQt6 import uic
+from PyQt6.QtCore import QSignalBlocker
+from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtWidgets import QCheckBox, QFileDialog, QMainWindow, QToolBar, QVBoxLayout
+from PyQt6.QtWidgets import QLabel
+from vtk import vtkInteractorStyleTrackballCamera, vtkOpenGLRenderer
+
+# from matplotlib.backends.backend_qt5agg import FigureCanvas
+from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from vtkmodules.vtkCommonColor import vtkColorSeries, vtkNamedColors
+
+import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
+import ASD_GUI.Input_Creator.ASDInputGen as ASDInputGen
+import ASD_GUI.UI.ASDInteractiveTab as ASDInteractive
+import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
+from ASD_GUI.PLOT import ASDPlots2D, ASDPlotsReading
+from ASD_GUI.UI import ASDInputWindows
+from ASD_GUI.UI.ASDMenuToolbar import (
+    Input_Toolbar_Setup,
+    InteractiveDock_Setup,
+    Plot_Menu_and_Toolbar_Setup,
+    UpdateUI,
+    VTK_Menu_and_Toolbar_Setup,
+)
+from ASD_GUI.VTK_Viz import (
+    ASDVTKEneActors,
+    ASDVTKGenActors,
+    ASDVTKMomActors,
+    ASDVTKNeighActors,
+    ASDVTKReading,
+    ASDVTKVizOptions,
+)
+
+try:
+    import uppasd.simulator as ASDsimulator
+except ImportError:
+    ASDsimulator = None
+    print("Warning: uppasd module not found, interactive functions disabled")
+
 
 class Backend(Enum):
+    """
+    Enum representing different backends for the ASD GUI.
+
+    Attributes:
+        UppASD_VTK (int): Backend using VTK.
+        UppASD_MAT (int): Backend using MATLAB.
+        UppASD_INP (int): Backend using INP.
+        UppASD_INT (int): Backend using INT.
+    """
+
     UppASD_VTK = 1
     UppASD_MAT = 2
     UppASD_INP = 3
     UppASD_INT = 4
+
+
 ################################################################################
 # @brief Class that defines the main window where all the widgets and rendering take place.
 # @details It controls the actions which take place in the GUI. It defined the main window
@@ -41,26 +95,12 @@ class UppASDVizMainWindow(QMainWindow):
     # @author Jonathan Chico
     ############################################################################
     def __init__(self):
-        from ASD_GUI.PLOT import ASDPlots2D
-        from ASD_GUI.UI import ASDInputWindows
-        from ASD_GUI.VTK_Viz import ASDVTKReading
-        from ASD_GUI.PLOT import ASDPlotsReading
-        from ASD_GUI.VTK_Viz import ASDVTKGenActors
-        from ASD_GUI.VTK_Viz import ASDVTKVizOptions
-        import ASD_GUI.UI.ASDInteractiveTab as ASDInteractiveTab
-        import ASD_GUI.ASD_Interactive.interactiveASD as IntASD
-        from matplotlib.figure import Figure
-        from mpl_toolkits.mplot3d import Axes3D
-        from vtk import vtkOpenGLRenderer, vtkInteractorStyleTrackballCamera
-        from matplotlib.backends.backend_qtagg import FigureCanvas
-        # from matplotlib.backends.backend_qt5agg import FigureCanvas
-        from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
         super(UppASDVizMainWindow, self).__init__()
         # -----------------------------------------------------------------------
         # Define the array containing the file names necessary for visualization
         # -----------------------------------------------------------------------
-        self.file_names = [None]*6
-        self.plotfile_names = [None]*7
+        self.file_names = [None] * 6
+        self.plotfile_names = [None] * 7
         self.current_time = 0
         self.number_of_screenshots = 0
         self.VTKWidgetPresent = False
@@ -84,19 +124,33 @@ class UppASDVizMainWindow(QMainWindow):
         # data and the visualization
         # -----------------------------------------------------------------------
         self.ASDdata = ASDVTKReading.ASDReading()
+        self.ASDsim = None
+        try:
+            if ASDsimulator is not None:
+                self.ASDsim = ASDsimulator.Simulator()
+            else:
+                raise ImportError("ASDsimulator is None")
+        except (ImportError, AttributeError):
+            print("ASDsimulator module not found or is None. Interactive functions disabled")
+        # self.ASDsim = None
+        # try:
+        #     self.ASDsim = ASDsimulator.Simulator()
+        # except NameError:
+        #     print("Warning: uppasd module not found, interactive functions disabled")
+
         self.ASDVizOpt = ASDVTKVizOptions.ASDVizOptions()
         self.ASDGenActors = ASDVTKGenActors.ASDGenActors()
         self.ASDPlotData = ASDPlotsReading.ReadPlotData()
         self.ASDPlots2D = ASDPlots2D.Abstract2DPlot()
         self.ASDCorrelationPlots = ASDPlots2D.Correlation_Plots()
         self.ASDInputGen = ASDInputGen.ASDInputGen()
-        self.Restart_Window = ASDInputWindows.Restart_Window()
-        self.Posfile_Window = ASDInputWindows.Posfile_Window()
-        self.Momfile_Window = ASDInputWindows.Momfile_Window()
-        self.InitPhase_Window = ASDInputWindows.InitPhase_Window()
-        self.Jfile_Window = ASDInputWindows.Jfile_Window()
-        self.DMfile_Window = ASDInputWindows.DMfile_Window()
-        self.Kfile_Window = ASDInputWindows.Kfile_Window()
+        self.RestartWindow = ASDInputWindows.RestartWindow()
+        self.PosfileWindow = ASDInputWindows.PosfileWindow()
+        self.MomfileWindow = ASDInputWindows.MomfileWindow()
+        self.InitPhaseWindow = ASDInputWindows.InitPhaseWindow()
+        self.JfileWindow = ASDInputWindows.JfileWindow()
+        self.DMfileWindow = ASDInputWindows.DMfileWindow()
+        self.KfileWindow = ASDInputWindows.KfileWindow()
         self.InteractiveDockWidget = ASDInteractiveTab.InteractiveDock(self)
         # -----------------------------------------------------------------------
         # Set better font size
@@ -151,15 +205,20 @@ class UppASDVizMainWindow(QMainWindow):
         self.Plotting_Figure3D = Figure(figsize=(9, 7))
         self.Plotting_Figure3D.set_tight_layout(True)
         self.Plotting_canvas3D = FigureCanvas(self.Plotting_Figure3D)
-        self.Plotting_Figure3D.add_subplot(111, projection='3d')
+        self.Plotting_Figure3D.add_subplot(111, projection="3d")
         self.Plotting_Figure3D.patch.set_alpha(0.0)
         self.Plotting_ax3D = self.Plotting_Figure3D.axes[0]
         self.Plot3DLayout.addWidget(self.Plotting_canvas3D)
 
+        self.backend = Backend.UppASD_VTK
+
         # Interactive object
-        self.InteractiveVtk = IntASD.InteractiveASD(self.Intren, self.IntrenWin, self.Intiren)
+        self.InteractiveVtk = IntASD.InteractiveASD(
+            self.Intren, self.IntrenWin, self.Intiren, self.ASDsim
+        )
 
         return
+
     ############################################################################
     # @brief Wrapper for the writing of the input file
     # @details This function first create the dictionary of key words, this is then
@@ -186,11 +245,6 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def SetupUI(self):
-        import os
-        from PyQt6 import uic
-        from PyQt6.QtGui import QIntValidator, QDoubleValidator
-        from PyQt6.QtWidgets import QToolBar, QVBoxLayout
-        from ASD_GUI.UI.ASDMenuToolbar import VTK_Menu_and_Toolbar_Setup, Plot_Menu_and_Toolbar_Setup, Input_Toolbar_Setup, InteractiveDock_Setup
         self.VTKToolBar = QToolBar()
         self.MatPlotToolbar = QToolBar()
         self.InputToolbar = QToolBar()
@@ -198,7 +252,7 @@ class UppASDVizMainWindow(QMainWindow):
         # Set up UI from Designer file
         # -----------------------------------------------------------------------
         path = os.path.dirname(os.path.abspath(__file__))
-        uic.loadUi(os.path.join(path, 'ASD_Viz.ui'), self)
+        uic.loadUi(os.path.join(path, "ASD_Viz.ui"), self)
         self.chooseBackend()
         self.ModeSelector.currentChanged.connect(self.chooseBackend)
         Plot_Menu_and_Toolbar_Setup(self)
@@ -221,57 +275,71 @@ class UppASDVizMainWindow(QMainWindow):
         self.AMSDisplayOpts.setLayout(self.AMSDisplayLayout)
         self.ResetUI()
         self.ASDInputGen.ASDSetDefaults()
-        self.Posfile_Window.InpPosDone.clicked.connect(self.update_names)
-        self.Momfile_Window.InpMomDone.clicked.connect(self.update_names)
-        self.Jfile_Window.InpJfileDone.clicked.connect(self.update_names)
-        self.DMfile_Window.InpDMfileDone.clicked.connect(self.update_names)
-        self.Jfile_Window.InJfileGenVectors.clicked.connect(lambda: 
-                                        self.Jfile_Window.GenerateVectorsFromCell(self))
-        self.DMfile_Window.InDMfileGenVectors.clicked.connect(lambda: 
-                                        self.DMfile_Window.GenerateVectorsFromCell(self))
-        self.Restart_Window.InpRestAppendButton.clicked.connect(
-            self.create_restart)
-        self.Restart_Window.InpRestartDone.clicked.connect(self.create_restart)
-        self.Restart_Window.InpRestartDone.clicked.connect(self.update_names)
-        self.InitPhase_Window.InitPhaseDoneButton.clicked.connect(
-            self.getInitPhase)
+        self.PosfileWindow.InpPosDone.clicked.connect(self.update_names)
+        self.MomfileWindow.InpMomDone.clicked.connect(self.update_names)
+        self.JfileWindow.InpJfileDone.clicked.connect(self.update_names)
+        self.DMfileWindow.InpDMfileDone.clicked.connect(self.update_names)
+        self.JfileWindow.InJfileGenVectors.clicked.connect(
+            lambda: self.JfileWindow.GenerateVectorsFromCell(self)
+        )
+        self.DMfileWindow.InDMfileGenVectors.clicked.connect(
+            lambda: self.DMfileWindow.GenerateVectorsFromCell(self)
+        )
+        self.RestartWindow.InpRestAppendButton.clicked.connect(self.create_restart)
+        self.RestartWindow.InpRestartDone.clicked.connect(self.create_restart)
+        self.RestartWindow.InpRestartDone.clicked.connect(self.update_names)
+        self.InitPhaseWindow.InitPhaseDoneButton.clicked.connect(self.getInitPhase)
         return
+
     ############################################################################
     # @brief Wrapper to create the restartfile
     # @author Jonathan Chico
     ############################################################################
 
     def create_restart(self):
-        self.Restart_Window.write_restartfile(self.ASDInputGen)
+        self.RestartWindow.write_restartfile(self.ASDInputGen)
         return
+
     ############################################################################
     # Choose which kind of backend one will use to display VTK based visualizations,
     # matplotlib based visualizations
     ############################################################################
 
     def chooseBackend(self):
-        import ASD_GUI.UI.ASDInteractiveTab as ASDInteractive
         if self.ModeSelector.currentIndex() == 0:
+            print("VTK")
             self.backend = Backend.UppASD_VTK
             if not self.VTKWidgetPresent:
                 self.VTKWidget_Layout.addWidget(self.vtkWidget)
                 self.VTKWidgetPresent = True
         elif self.ModeSelector.currentIndex() == 1:
+            print("Plot")
             self.backend = Backend.UppASD_MAT
             self.vtkWidget.setVisible(False)
         elif self.ModeSelector.currentIndex() == 2:
+            print("Inp")
             self.backend = Backend.UppASD_INP
             self.vtkWidget.setVisible(False)
         elif self.ModeSelector.currentIndex() == 3:
+            if self.ASDsim is None:
+                print("Interactive features disabled")
+                self.ModeSelector.setCurrentIndex(self.ModeSelector.oldIndex)
+                return
             self.backend = Backend.UppASD_INT
             if not self.IntWidgetPresent:
                 self.InteractiveWidget_Layout.addWidget(self.IntVtkWidget)
+                # self.InteractiveWidget_Layout.addWidget(self.vtkWidget)
                 self.IntWidgetPresent = True
+
+            # Rest of the code
             if self.CheckForInteractorFiles() and not self.IntLaunched:
-                ASDInteractive.InitializeInteractor(self, self.InteractiveVtk)
+                ASDInteractive.InitializeInteractor(self)
                 self.IntLaunched = True
+                
+        self.ModeSelector.oldIndex = self.ModeSelector.currentIndex()
         self.ResetUI()
         return
+
     ############################################################################
     # Reset the UI to change between the VTK based visualization and the matplotlib
     # based visualization
@@ -322,6 +390,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.InteractiveDockWidget.setEnabled(True)
             self.IntrenWin.Render()
         return
+
     ############################################################################
     # Initialization of some of the UI properties
     ############################################################################
@@ -353,9 +422,9 @@ class UppASDVizMainWindow(QMainWindow):
         self.file_names[4] = self.ASDdata.enefiles
         self.file_names[5] = self.ASDdata.dmdatafiles
         self.ProgressBar.setValue(0)
-        self.ProgressLabel.setText(
-            '   {:}%'.format(int(self.ProgressBar.value())))
+        self.ProgressLabel.setText(f"   {int(self.ProgressBar.value())}%")
         return
+
     ############################################################################
     # Initialization of some of the UI properties for 2D plots
     ############################################################################
@@ -374,6 +443,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.EneOpts.setEnabled(False)
         self.AMSDisplayOpts.setVisible(False)
         return
+
     ############################################################################
     # Finding the file name for the VTK plots
     ############################################################################
@@ -381,6 +451,7 @@ class UppASDVizMainWindow(QMainWindow):
     def getFile(self):
         self.ASDdata.getFileName(window=self)
         return
+
     ############################################################################
     # Finding the file name for the matplotlib plots
     ############################################################################
@@ -388,6 +459,7 @@ class UppASDVizMainWindow(QMainWindow):
     def getPlotFile(self):
         self.ASDPlotData.getFileName(window=self)
         return
+
     ############################################################################
     # Finding the file name for the input file generation
     ############################################################################
@@ -395,13 +467,15 @@ class UppASDVizMainWindow(QMainWindow):
     def getInpFile(self):
         self.ASDInputGen.getFileName(window=self)
         return
+
     ############################################################################
     ############################################################################
 
     def getInitPhase(self):
-        if self.sender() == self.InitPhase_Window.InitPhaseDoneButton:
-            self.init_phase_data = self.InitPhase_Window.init_phase_data
+        if self.sender() == self.InitPhaseWindow.InitPhaseDoneButton:
+            self.init_phase_data = self.InitPhaseWindow.init_phase_data
         return
+
     ############################################################################
     # @brief Open auxiliary windows for the inputfile creation GUI
     ############################################################################
@@ -424,71 +498,73 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.InpInitMag4CreateButton:
             self.check_for_restart()
         if self.sender() == self.InpPosButtonCreate:
-            self.Posfile_Window.posfile_gotten = False
+            self.PosfileWindow.posfile_gotten = False
             # if self.InpCheckRandAlloy.isChecked():
-            #     self.Posfile_Window.InPosBox.setEnabled(False)
-            #     self.Posfile_Window.InPosBox.setVisible(False)
-            #     self.Posfile_Window.InPosBoxRand.setEnabled(True)
-            #     self.Posfile_Window.InPosBoxRand.setVisible(True)
-            self.Posfile_Window.CheckForFile(self)
-            self.Posfile_Window.InPosBox.setEnabled(True)
-            self.Posfile_Window.InPosBox.setVisible(True)
-            self.Posfile_Window.InPosBoxRand.setEnabled(False)
-            self.Posfile_Window.InPosBoxRand.setVisible(False)
-            self.Posfile_Window.show()
+            #     self.PosfileWindow.InPosBox.setEnabled(False)
+            #     self.PosfileWindow.InPosBox.setVisible(False)
+            #     self.PosfileWindow.InPosBoxRand.setEnabled(True)
+            #     self.PosfileWindow.InPosBoxRand.setVisible(True)
+            self.PosfileWindow.CheckForFile(self)
+            self.PosfileWindow.InPosBox.setEnabled(True)
+            self.PosfileWindow.InPosBox.setVisible(True)
+            self.PosfileWindow.InPosBoxRand.setEnabled(False)
+            self.PosfileWindow.InPosBoxRand.setVisible(False)
+            self.PosfileWindow.show()
         if self.sender() == self.InpMomButtonCreate:
-            self.Momfile_Window.momfile_gotten = False
-            self.Momfile_Window.CheckForFile(self)
-            self.Momfile_Window.show()
+            self.MomfileWindow.momfile_gotten = False
+            self.MomfileWindow.CheckForFile(self)
+            self.MomfileWindow.show()
         if self.sender() == self.InpJfileButtonCreate:
-            self.Jfile_Window.jfile_gotten = False
-            self.Jfile_Window.CheckForFile(self)
-            self.Jfile_Window.show()
+            self.JfileWindow.jfile_gotten = False
+            self.JfileWindow.CheckForFile(self)
+            self.JfileWindow.show()
         if self.sender() == self.InpDMButtonCreate:
-            self.DMfile_Window.DMfile_gotten = False
-            self.DMfile_Window.CheckForFile(self)
-            self.DMfile_Window.show()
+            self.DMfileWindow.DMfile_gotten = False
+            self.DMfileWindow.CheckForFile(self)
+            self.DMfileWindow.show()
         if self.sender() == self.InpKfileButtonCreate:
-            self.Kfile_Window.Kfile_gotten = False
-            self.Kfile_Window.CheckForFile(self)
-            self.Kfile_Window.show()
+            self.KfileWindow.Kfile_gotten = False
+            self.KfileWindow.CheckForFile(self)
+            self.KfileWindow.show()
         if self.sender() == self.InpSetPhases:
             if self.InpInitLLG.isChecked():
-                self.InitPhase_Window.IpNphaseBox.setEnabled(True)
-                self.InitPhase_Window.IpNphaseBox.setVisible(True)
-                self.InitPhase_Window.MCannealBox.setEnabled(False)
-                self.InitPhase_Window.MCannealBox.setVisible(False)
-                self.InitPhase_Window.IpVPOBox.setVisible(False)
-                self.InitPhase_Window.IpVPOBox.setEnabled(False)
-                self.InitPhase_Window.InitPhaseAddButton.setEnabled(True)
-                self.InitPhase_Window.InitPhaseDelButton.setEnabled(True)
+                self.InitPhaseWindow.IpNphaseBox.setEnabled(True)
+                self.InitPhaseWindow.IpNphaseBox.setVisible(True)
+                self.InitPhaseWindow.MCannealBox.setEnabled(False)
+                self.InitPhaseWindow.MCannealBox.setVisible(False)
+                self.InitPhaseWindow.IpVPOBox.setVisible(False)
+                self.InitPhaseWindow.IpVPOBox.setEnabled(False)
+                self.InitPhaseWindow.InitPhaseAddButton.setEnabled(True)
+                self.InitPhaseWindow.InitPhaseDelButton.setEnabled(True)
             if self.InpInitMcMet.isChecked() or self.InpInitMcHeat.isChecked():
-                self.InitPhase_Window.IpNphaseBox.setEnabled(False)
-                self.InitPhase_Window.IpNphaseBox.setVisible(False)
-                self.InitPhase_Window.MCannealBox.setEnabled(True)
-                self.InitPhase_Window.MCannealBox.setVisible(True)
-                self.InitPhase_Window.IpVPOBox.setVisible(False)
-                self.InitPhase_Window.IpVPOBox.setEnabled(False)
-                self.InitPhase_Window.InitPhaseAddButton.setEnabled(True)
-                self.InitPhase_Window.InitPhaseDelButton.setEnabled(True)
+                self.InitPhaseWindow.IpNphaseBox.setEnabled(False)
+                self.InitPhaseWindow.IpNphaseBox.setVisible(False)
+                self.InitPhaseWindow.MCannealBox.setEnabled(True)
+                self.InitPhaseWindow.MCannealBox.setVisible(True)
+                self.InitPhaseWindow.IpVPOBox.setVisible(False)
+                self.InitPhaseWindow.IpVPOBox.setEnabled(False)
+                self.InitPhaseWindow.InitPhaseAddButton.setEnabled(True)
+                self.InitPhaseWindow.InitPhaseDelButton.setEnabled(True)
             if self.InpInitVPO.isChecked():
-                self.InitPhase_Window.IpNphaseBox.setEnabled(False)
-                self.InitPhase_Window.IpNphaseBox.setVisible(False)
-                self.InitPhase_Window.MCannealBox.setEnabled(False)
-                self.InitPhase_Window.MCannealBox.setVisible(False)
-                self.InitPhase_Window.IpVPOBox.setVisible(True)
-                self.InitPhase_Window.IpVPOBox.setEnabled(True)
-                self.InitPhase_Window.InitPhaseAddButton.setEnabled(False)
-                self.InitPhase_Window.InitPhaseDelButton.setEnabled(False)
+                self.InitPhaseWindow.IpNphaseBox.setEnabled(False)
+                self.InitPhaseWindow.IpNphaseBox.setVisible(False)
+                self.InitPhaseWindow.MCannealBox.setEnabled(False)
+                self.InitPhaseWindow.MCannealBox.setVisible(False)
+                self.InitPhaseWindow.IpVPOBox.setVisible(True)
+                self.InitPhaseWindow.IpVPOBox.setEnabled(True)
+                self.InitPhaseWindow.InitPhaseAddButton.setEnabled(False)
+                self.InitPhaseWindow.InitPhaseDelButton.setEnabled(False)
 
-            self.InitPhase_Window.show()
+            self.InitPhaseWindow.show()
         return
+
     ############################################################################
     ############################################################################
 
     def update_names(self):
         self.ASDInputGen.update_file_name(window=self)
         return
+
     ############################################################################
     # @brief Function to determine if the restartfile can be created.
     # @details This function will test if the lattice vectors have been defined,
@@ -498,8 +574,6 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def check_for_restart(self):
-        import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
-
         everything_okay = True
         self.ASDInputGen.ASDInputGatherer(self)
         if not len(self.InpLineEditC1_x.text()) > 0:
@@ -522,38 +596,45 @@ class UppASDVizMainWindow(QMainWindow):
             everything_okay = False
         # -----------------------------------------------------------------------
         if everything_okay:
-            if (self.Momfile_Window.momfile_gotten or self.ASDInputGen.momfile_gotten) and\
-                    (self.Posfile_Window.posfile_gotten or self.ASDInputGen.posfile_gotten):
-                self.Restart_Window.restart_pre_generation(self.ASDInputGen)
-                self.Restart_Window.show()
+            if (
+                self.MomfileWindow.momfile_gotten or self.ASDInputGen.momfile_gotten
+            ) and (
+                self.PosfileWindow.posfile_gotten or self.ASDInputGen.posfile_gotten
+            ):
+                self.RestartWindow.restart_pre_generation(self.ASDInputGen)
+                self.RestartWindow.show()
             else:
-                self.Create_Restart_Error_Window = ASDInputWindows.Error_Window()
+                self.Create_Restart_Error_Window = ASDInputWindows.ErrorWindow()
                 self.Create_Restart_Error_Window.FunMsg.setText(
-                    "I'm sorry, Dave. I'm afraid I can't do that.")
+                    "I'm sorry, Dave. I'm afraid I can't do that."
+                )
                 self.Create_Restart_Error_Window.ErrorMsg.setText(
-                    "Error: A posfile and a momfile must be first be defined")
+                    "Error: A posfile and a momfile must be first be defined"
+                )
                 self.Create_Restart_Error_Window.show()
-                print('Error: A posfile and a momfile must be first be defined')
+                print("Error: A posfile and a momfile must be first be defined")
         else:
-            self.Create_Restart_Error_Window = ASDInputWindows.Error_Window()
+            self.Create_Restart_Error_Window = ASDInputWindows.ErrorWindow()
             self.Create_Restart_Error_Window.FunMsg.setText(
-                "I'm sorry, Dave. I'm afraid I can't do that.")
+                "I'm sorry, Dave. I'm afraid I can't do that."
+            )
             self.Create_Restart_Error_Window.ErrorMsg.setText(
-                "Error: The unit cell vectors need to be defined")
+                "Error: The unit cell vectors need to be defined"
+            )
             self.Create_Restart_Error_Window.show()
-            print('Error: The unit cell vectors need to be defined')
+            print("Error: The unit cell vectors need to be defined")
         return
+
     ############################################################################
     # Function to select the appropriate data to plot
     ############################################################################
 
     def PlottingSelector(self):
-        from PyQt6.QtCore import QSignalBlocker
         # -----------------------------------------------------------------------
         # Plot the spin-spin correlation function
         # -----------------------------------------------------------------------
         if self.sender() == self.actionS_q_w:
-            self.plotting_mode = 'correlation'
+            self.plotting_mode = "correlation"
             self.MatToolBox.setCurrentIndex(0)
             self.PlotStacked.setCurrentIndex(0)
             if not self.ASDPlotData.not_read_ams:
@@ -566,21 +647,21 @@ class UppASDVizMainWindow(QMainWindow):
         # Plot the averages
         # -----------------------------------------------------------------------
         if self.sender() == self.actionAverages:
-            self.plotting_mode = 'averages'
+            self.plotting_mode = "averages"
             self.MatToolBox.setCurrentIndex(2)
             self.PlotStacked.setCurrentIndex(0)
         # -----------------------------------------------------------------------
         # Plot the energies
         # -----------------------------------------------------------------------
         if self.sender() == self.actionTotEnergy:
-            self.plotting_mode = 'energy'
+            self.plotting_mode = "energy"
             self.MatToolBox.setCurrentIndex(3)
             self.PlotStacked.setCurrentIndex(0)
             # -------------------------------------------------------------------
             # Check if the 2D axis exists if it does not create it
             # -------------------------------------------------------------------
         if self.sender() == self.actionTrajectory:
-            self.plotting_mode = 'trajectory'
+            self.plotting_mode = "trajectory"
             self.MatToolBox.setCurrentIndex(1)
             self.PlotStacked.setCurrentIndex(1)
         self.Plotting_Figure.canvas.draw()
@@ -593,6 +674,7 @@ class UppASDVizMainWindow(QMainWindow):
         self.InitPlotUI()
         self.set_ams_checkboxes()
         return
+
     ############################################################################
     # @brief Function for the creation of checkboxes for the ams display
     # @details This should allow for the dynamical creation of checkboxes for each
@@ -602,8 +684,6 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def set_ams_checkboxes(self):
-        from PyQt6.QtWidgets import QCheckBox
-
         self.AMSCheckboxes = dict()
         for ii in reversed(range(self.AMSDisplayLayout.count())):
             self.AMSDisplayLayout.itemAt(ii).widget().setParent(None)
@@ -612,15 +692,16 @@ class UppASDVizMainWindow(QMainWindow):
             # Create checkboxes for the AMS branches
             # -------------------------------------------------------------------
             for ii in range(0, len(self.ASDPlotData.ams_data_y)):
-                name = 'ams_branch_{}'.format(ii)
+                name = f"ams_branch_{ii}"
                 checkbox = QCheckBox()
                 checkbox.setObjectName(name)
-                checkbox.setText('Display Branch {: 4d}'.format(ii+1))
+                checkbox.setText(f"Display Branch {ii + 1: 4d}")
                 checkbox.setChecked(True)
                 checkbox.toggled.connect(self.AMS_PrunePlot)
                 self.AMSDisplayLayout.addWidget(checkbox)
                 self.AMSCheckboxes[name] = checkbox
         return
+
     ############################################################################
     # Select the projection of the S(q,w)
     ############################################################################
@@ -636,6 +717,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.SQW_proj_indx = 3
         self.PlottingWrapper()
         return
+
     ############################################################################
     # Select the colormap over which the S(q,w) will be plotted
     ############################################################################
@@ -649,6 +731,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.plot2D_cmap_indx = 2
         self.PlottingWrapper()
         return
+
     ############################################################################
     # Plotting the directions of the magnetization
     ############################################################################
@@ -664,20 +747,23 @@ class UppASDVizMainWindow(QMainWindow):
         if self.Plot_M_tot.isChecked():
             self.MagDirIndx.append(3)
         self.PlottingWrapper()
+
     ############################################################################
     # Changing the marker size of the lines
     ############################################################################
 
     def PlotLineChanger(self, value):
-        self.ASDPlots2D.linewidth = value/2.0
+        self.ASDPlots2D.linewidth = value / 2.0
         self.PlottingWrapper()
+
     ############################################################################
     # Changing the marker size of the lines
     ############################################################################
 
     def PlotMarkerChanger(self, value):
-        self.ASDPlots2D.markersize = value/2.0
+        self.ASDPlots2D.markersize = value / 2.0
         self.PlottingWrapper()
+
     ############################################################################
     # Changing the marker size of the lines
     ############################################################################
@@ -685,6 +771,7 @@ class UppASDVizMainWindow(QMainWindow):
     def PlotXGridToggle(self):
         self.ASDPlots2D.xgrid = not self.ASDPlots2D.xgrid
         self.PlottingWrapper()
+
     ############################################################################
     # Changing the marker size of the lines
     ############################################################################
@@ -692,6 +779,7 @@ class UppASDVizMainWindow(QMainWindow):
     def PlotYGridToggle(self):
         self.ASDPlots2D.ygrid = not self.ASDPlots2D.ygrid
         self.PlottingWrapper()
+
     ############################################################################
     #  Toggling SQW grid lines on/off
     ############################################################################
@@ -699,6 +787,7 @@ class UppASDVizMainWindow(QMainWindow):
     def PlotSQWGridToggle(self):
         self.ASDCorrelationPlots.grid = not self.ASDCorrelationPlots.grid
         self.PlottingWrapper()
+
     ############################################################################
     #  Toggling SQW grid lines on/off
     ############################################################################
@@ -706,15 +795,16 @@ class UppASDVizMainWindow(QMainWindow):
     def PlotAMSGridToggle(self):
         self.ASDPlots2D.amsgrid = not self.ASDPlots2D.amsgrid
         self.PlottingWrapper()
+
     ############################################################################
     # Changing the width of S(q,w) plots
     ############################################################################
 
     def SqwWidthChanger(self, value):
-        self.ASDCorrelationPlots.sigma_w = self.ASDCorrelationPlots.w_min*value
-        self.ABCorrWidthTX.setText(
-            f'{self.ASDCorrelationPlots.w_min*value:.3f}')
+        self.ASDCorrelationPlots.sigma_w = self.ASDCorrelationPlots.w_min * value
+        self.ABCorrWidthTX.setText(f"{self.ASDCorrelationPlots.w_min*value:.3f}")
         self.PlottingWrapper()
+
     ############################################################################
     # Plotting the components of the energy
     ############################################################################
@@ -745,18 +835,18 @@ class UppASDVizMainWindow(QMainWindow):
             self.EneIndx.append(10)
         self.PlottingWrapper()
         return
+
     ############################################################################
     ############################################################################
 
     def ToggleInitPhase(self):
-        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
 
     def ToggleHessians(self):
-        from ASD_GUI.UI.ASDMenuToolbar import UpdateUI
         UpdateUI(self)
         return
+
     ############################################################################
     # @brief Function to selective plot the ams branches
     # @details Function to selectively plot the ams branches. It functions by
@@ -770,13 +860,14 @@ class UppASDVizMainWindow(QMainWindow):
         self.ams_data_x = []
         self.ams_label = []
         for ii in range(len(self.AMSCheckboxes)):
-            name = 'ams_branch_{}'.format(ii)
+            name = f"ams_branch_{ii}"
             if self.AMSCheckboxes[name].isChecked():
                 self.ams_data_x.append(self.ASDPlotData.ams_data_x[ii])
                 self.ams_data_y.append(self.ASDPlotData.ams_data_y[ii])
                 self.ams_label.append(self.ASDPlotData.ams_label[ii])
         self.PlottingWrapper()
         return
+
     ############################################################################
     # @brief Wrapper function that takes care of plotting the selected plot
     # @details Wrapper function that takes care of plotting the selected plot, it allows
@@ -790,7 +881,7 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def PlottingWrapper(self):
-        """ Wrapper function that takes care of plotting the selected plot, it allows
+        """Wrapper function that takes care of plotting the selected plot, it allows
         the user to choose between the following different types of plots:
             * Spin-Spin correlation functions:
                 - S(q,w)
@@ -802,13 +893,15 @@ class UppASDVizMainWindow(QMainWindow):
         ----------
         Jonathan Chico
         """
-        from ASD_GUI.PLOT import ASDPlots2D
-        from ASD_GUI.UI import ASDInputWindows
+
         # -----------------------------------------------------------------------
         # Plotting the spin-spin correlation function
         # -----------------------------------------------------------------------
-        if self.sender() == self.AMSDispCheckBox or self.sender() == self.SqwDispCheckBox:
-            self.plotting_mode = 'correlation'
+        if (
+            self.sender() == self.AMSDispCheckBox
+            or self.sender() == self.SqwDispCheckBox
+        ):
+            self.plotting_mode = "correlation"
             if self.ASDPlotData.not_read_sqw or self.ASDPlotData.not_read_ams:
                 self.ASDPlotData.PlotReadingWrapper(self.plotfile_names, self)
                 if self.AMSDispCheckBox.isChecked():
@@ -817,7 +910,7 @@ class UppASDVizMainWindow(QMainWindow):
                     self.ams_label = self.ASDPlotData.ams_label
                     self.set_ams_checkboxes()
 
-        if self.plotting_mode == 'correlation':
+        if self.plotting_mode == "correlation":
             # -------------------------------------------------------------------
             # Perform the actual plotting
             # -------------------------------------------------------------------
@@ -827,38 +920,61 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Plotting the S(q,w)
             # -------------------------------------------------------------------
-            if self.SqwDispCheckBox.isChecked() and not self.AMSDispCheckBox.isChecked():
+            if (
+                self.SqwDispCheckBox.isChecked()
+                and not self.AMSDispCheckBox.isChecked()
+            ):
                 if self.ASDPlotData.sqw_file_present:
-                    self.ASDCorrelationPlots.Sqw_Plot(self.Plotting_ax, self.ASDPlotData.sqw_data,
-                                                      self.SQW_proj_indx, self.ASDPlotData.sqw_labels, self.plot2D_cmap_indx,
-                                                      self.ASDPlotData.ax_limits, self.ASDPlotData.q_labels, self.ASDPlotData.q_idx)
+                    self.ASDCorrelationPlots.Sqw_Plot(
+                        self.Plotting_ax,
+                        self.ASDPlotData.sqw_data,
+                        self.SQW_proj_indx,
+                        self.ASDPlotData.sqw_labels,
+                        self.plot2D_cmap_indx,
+                        self.ASDPlotData.ax_limits,
+                        self.ASDPlotData.q_labels,
+                        self.ASDPlotData.q_idx,
+                    )
                     self.AMSDisplayOpts.setVisible(False)
                     self.AMSDisplayOpts.setEnabled(False)
                 else:
-                    self.sqw_Error_Window = ASDInputWindows.Error_Window()
+                    self.sqw_Error_Window = ASDInputWindows.ErrorWindow()
                     self.sqw_Error_Window.FunMsg.setText(
-                        "I'm sorry, Dave. I'm afraid I can't do that.")
+                        "I'm sorry, Dave. I'm afraid I can't do that."
+                    )
                     self.sqw_Error_Window.ErrorMsg.setText(
-                        "Error: No 'sqw.*.out' file.")
+                        "Error: No 'sqw.*.out' file."
+                    )
                     self.sqw_Error_Window.show()
                     self.SqwDispCheckBox.setChecked(False)
                     print("No 'sqw.*.out' file.")
             # -------------------------------------------------------------------
             # Plotting the AMS
             # -------------------------------------------------------------------
-            elif self.AMSDispCheckBox.isChecked() and not self.SqwDispCheckBox.isChecked():
+            elif (
+                self.AMSDispCheckBox.isChecked()
+                and not self.SqwDispCheckBox.isChecked()
+            ):
                 if self.ASDPlotData.ams_file_present:
-                    self.ASDPlots2D.LinePlot(self.Plotting_ax, self.ams_data_x,
-                                             self.ams_data_y, self.ams_label, self.ASDPlotData.ams_ax_label,
-                                             tick_labels=self.ASDPlotData.q_labels, tick_idx=self.ASDPlotData.q_idx)
+                    self.ASDPlots2D.LinePlot(
+                        self.Plotting_ax,
+                        self.ams_data_x,
+                        self.ams_data_y,
+                        self.ams_label,
+                        self.ASDPlotData.ams_ax_label,
+                        tick_labels=self.ASDPlotData.q_labels,
+                        tick_idx=self.ASDPlotData.q_idx,
+                    )
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:
-                    self.ams_Error_Window = ASDInputWindows.Error_Window()
+                    self.ams_Error_Window = ASDInputWindows.ErrorWindow()
                     self.ams_Error_Window.FunMsg.setText(
-                        "I'm sorry, Dave. I'm afraid I can't do that.")
+                        "I'm sorry, Dave. I'm afraid I can't do that."
+                    )
                     self.ams_Error_Window.ErrorMsg.setText(
-                        "Error: No 'ams.*.out' file.")
+                        "Error: No 'ams.*.out' file."
+                    )
                     self.ams_Error_Window.show()
                     self.AMSDispCheckBox.setChecked(False)
                     print("No 'ams.*.out' file.")
@@ -866,19 +982,33 @@ class UppASDVizMainWindow(QMainWindow):
             # Plotting the S(q,w) and the AMS
             # -------------------------------------------------------------------
             if self.SqwDispCheckBox.isChecked() and self.AMSDispCheckBox.isChecked():
-                if self.ASDPlotData.sqw_file_present and self.ASDPlotData.ams_file_present:
-                    self.ASDCorrelationPlots.AMS_Sqw_Plot(self.Plotting_ax, self.ASDPlotData.sqw_data,
-                                                          self.SQW_proj_indx, self.ASDPlotData.sqw_labels, self.ams_data_x,
-                                                          self.ams_data_y, self.ASDPlotData.hf_scale, self.plot2D_cmap_indx,
-                                                          self.ASDPlotData.ax_limits, self.ASDPlotData.q_labels, self.ASDPlotData.q_idx)
+                if (
+                    self.ASDPlotData.sqw_file_present
+                    and self.ASDPlotData.ams_file_present
+                ):
+                    self.ASDCorrelationPlots.AMS_Sqw_Plot(
+                        self.Plotting_ax,
+                        self.ASDPlotData.sqw_data,
+                        self.SQW_proj_indx,
+                        self.ASDPlotData.sqw_labels,
+                        self.ams_data_x,
+                        self.ams_data_y,
+                        self.ASDPlotData.hf_scale,
+                        self.plot2D_cmap_indx,
+                        self.ASDPlotData.ax_limits,
+                        self.ASDPlotData.q_labels,
+                        self.ASDPlotData.q_idx,
+                    )
                     self.AMSDisplayOpts.setVisible(True)
                     self.AMSDisplayOpts.setEnabled(True)
                 else:
-                    self.ams_sqw_Error_Window = ASDInputWindows.Error_Window()
+                    self.ams_sqw_Error_Window = ASDInputWindows.ErrorWindow()
                     self.ams_sqw_Error_Window.FunMsg.setText(
-                        "I'm sorry, Dave. I'm afraid I can't do that.")
+                        "I'm sorry, Dave. I'm afraid I can't do that."
+                    )
                     self.ams_sqw_Error_Window.ErrorMsg.setText(
-                        "Error: No 'ams.*.out' or 'sqw.*.out' file.")
+                        "Error: No 'ams.*.out' or 'sqw.*.out' file."
+                    )
                     self.ams_sqw_Error_Window.show()
                     print("No 'ams.*.out' or 'sqw.*.out' file.")
                     self.SqwProjBox.setEnabled(False)
@@ -888,98 +1018,114 @@ class UppASDVizMainWindow(QMainWindow):
         # -----------------------------------------------------------------------
         # Plotting the average magnetization
         # -----------------------------------------------------------------------
-        if self.plotting_mode == 'averages':
+        if self.plotting_mode == "averages":
             self.AveOpts.setEnabled(True)
             if self.ASDPlotData.ave_file_present:
                 curr_data_x = []
                 curr_data_y = []
                 curr_labels = []
-                for ii in range(len(self.MagDirIndx)):
-                    curr_data_x.append(
-                        self.ASDPlotData.mitr_data[self.MagDirIndx[ii]])
-                    curr_data_y.append(
-                        self.ASDPlotData.mag_data[self.MagDirIndx[ii]])
-                    curr_labels.append(
-                        self.ASDPlotData.mag_labels[self.MagDirIndx[ii]])
+                for ii, _ in enumerate(self.MagDirIndx):
+                    curr_data_x.append(self.ASDPlotData.mitr_data[self.MagDirIndx[ii]])
+                    curr_data_y.append(self.ASDPlotData.mag_data[self.MagDirIndx[ii]])
+                    curr_labels.append(self.ASDPlotData.mag_labels[self.MagDirIndx[ii]])
                 if len(self.MagDirIndx) > 0:
-                    self.ASDPlots2D.LinePlot(self.Plotting_ax, curr_data_x, curr_data_y,
-                                             curr_labels, self.ASDPlotData.mag_axes)
+                    self.ASDPlots2D.LinePlot(
+                        self.Plotting_ax,
+                        curr_data_x,
+                        curr_data_y,
+                        curr_labels,
+                        self.ASDPlotData.mag_axes,
+                    )
                 else:
-                    print('Select at least one direction to plot')
+                    print("Select at least one direction to plot")
             else:
-                self.ave_Error_Window = ASDInputWindows.Error_Window()
+                self.ave_Error_Window = ASDInputWindows.ErrorWindow()
                 self.ave_Error_Window.FunMsg.setText(
-                    "I'm sorry, Dave. I'm afraid I can't do that.")
+                    "I'm sorry, Dave. I'm afraid I can't do that."
+                )
                 self.ave_Error_Window.ErrorMsg.setText(
-                    "Error: No 'averages.*.out' file.")
+                    "Error: No 'averages.*.out' file."
+                )
                 self.ave_Error_Window.show()
                 print("No 'averages.*.out' file.")
         # -----------------------------------------------------------------------
         # Plotting the total energy
         # -----------------------------------------------------------------------
-        if self.plotting_mode == 'energy':
+        if self.plotting_mode == "energy":
             self.EneOpts.setEnabled(True)
             if self.ASDPlotData.ene_file_present:
                 curr_data_x = []
                 curr_data_y = []
                 curr_labels = []
-                for ii in range(len(self.EneIndx)):
-                    curr_data_x.append(
-                        self.ASDPlotData.eitr_data[self.EneIndx[ii]])
-                    curr_data_y.append(
-                        self.ASDPlotData.ene_data[self.EneIndx[ii]])
-                    curr_labels.append(
-                        self.ASDPlotData.ene_labels[self.EneIndx[ii]])
+                for ii, index in enumerate(self.EneIndx):
+                    curr_data_x.append(self.ASDPlotData.eitr_data[index])
+                    curr_data_y.append(self.ASDPlotData.ene_data[index])
+                    curr_labels.append(self.ASDPlotData.ene_labels[index])
                 if len(self.EneIndx) > 0:
-                    self.ASDPlots2D.LinePlot(self.Plotting_ax, curr_data_x, curr_data_y,
-                                             curr_labels, self.ASDPlotData.ene_axes)
+                    self.ASDPlots2D.LinePlot(
+                        self.Plotting_ax,
+                        curr_data_x,
+                        curr_data_y,
+                        curr_labels,
+                        self.ASDPlotData.ene_axes,
+                    )
                 else:
-                    print('Select at least one energy component to plot')
+                    print("Select at least one energy component to plot")
             else:
-                self.ene_Error_Window = ASDInputWindows.Error_Window()
+                self.ene_Error_Window = ASDInputWindows.ErrorWindow()
                 self.ene_Error_Window.FunMsg.setText(
-                    "I'm sorry, Dave. I'm afraid I can't do that.")
+                    "I'm sorry, Dave. I'm afraid I can't do that."
+                )
                 self.ene_Error_Window.ErrorMsg.setText(
-                    "Error: No 'totenergy.*.out' file.")
+                    "Error: No 'totenergy.*.out' file."
+                )
                 self.ene_Error_Window.show()
                 print("No 'totenergy.*.out' file.")
         # -----------------------------------------------------------------------
         # Plotting the single magnetic moment trajectories
         # -----------------------------------------------------------------------
-        if self.plotting_mode == 'trajectory':
+        if self.plotting_mode == "trajectory":
             if self.ASDPlotData.trajectory_file_present:
-                self.ASDPlots2D.TrajPlot(self.Plotting_ax3D, self.ASDPlotData.traj_data_x,
-                                         self.ASDPlotData.traj_data_y, self.ASDPlotData.traj_data_z, self.ASDPlotData.traj_label)
+                self.ASDPlots2D.TrajPlot(
+                    self.Plotting_ax3D,
+                    self.ASDPlotData.traj_data_x,
+                    self.ASDPlotData.traj_data_y,
+                    self.ASDPlotData.traj_data_z,
+                    self.ASDPlotData.traj_label,
+                )
             else:
-                self.traj_Error_Window = ASDInputWindows.Error_Window()
+                self.traj_Error_Window = ASDInputWindows.ErrorWindow()
                 self.traj_Error_Window.FunMsg.setText(
-                    "I'm sorry, Dave. I'm afraid I can't do that.")
+                    "I'm sorry, Dave. I'm afraid I can't do that."
+                )
                 self.traj_Error_Window.ErrorMsg.setText(
-                    "Error: No 'trajectory.*.out' file.")
+                    "Error: No 'trajectory.*.out' file."
+                )
                 self.traj_Error_Window.show()
                 print("No 'trajectory.*.out' file.")
         self.Plotting_Figure.canvas.draw()
         self.Plotting_Figure.canvas.flush_events()
         return
+
     ############################################################################
     # @brief Function to save the current figure to file
     # @author Jonathan Chico
     ############################################################################
 
     def SaveFig(self):
-        from PyQt6.QtWidgets import QFileDialog
-        fig_name, _ = QFileDialog.getSaveFileName(self, 'Save File')
+        fig_name, _ = QFileDialog.getSaveFileName(self, "Save File")
         if len(self.InpFigDPI.text()) > 0:
             dpi = int(self.InpFigDPI.text())
         else:
             dpi = 800
-        if self.plotting_mode != 'trajectory':
+        if self.plotting_mode != "trajectory":
             fig_plot = self.Plotting_canvas
             fig_plot.print_figure(fig_name, dpi=dpi)
         else:
             fig_plot = self.Plotting_canvas3D
             fig_plot.print_figure(fig_name, dpi=dpi)
         return
+
     ############################################################################
     # @brief Wrapper function that takes care of adding the necessary actors and the
     # options for the different types of visualizations
@@ -1007,10 +1153,6 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
 
         """
-        from PyQt6.QtWidgets import QLabel
-        from ASD_GUI.VTK_Viz import ASDVTKEneActors
-        from ASD_GUI.VTK_Viz import ASDVTKMomActors
-        from ASD_GUI.VTK_Viz import ASDVTKNeighActors
         try:
             self.ASDGenActors.scalar_bar_widget
         except:
@@ -1029,7 +1171,7 @@ class UppASDVizMainWindow(QMainWindow):
             # Call the Moments class
             # -------------------------------------------------------------------
             self.MomActors = ASDVTKMomActors.ASDMomActors()
-            self.viz_type = 'M'
+            self.viz_type = "M"
             self.mode = 1
             self.current_time = 0
             self.MagMainGroup.setEnabled(True)
@@ -1046,13 +1188,23 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Add the data structures with regards to reading the data
             # -------------------------------------------------------------------
-            self.ASDdata.ReadingWrapper(mode=self.mode, viz_type=self.viz_type,
-                                        file_names=self.file_names, window=self)
+            self.ASDdata.ReadingWrapper(
+                mode=self.mode,
+                viz_type=self.viz_type,
+                file_names=self.file_names,
+                window=self,
+            )
             if not self.ASDdata.error_trap:
-                self.MomActors.Add_MomActors(ren=self.ren, renWin=self.renWin,
-                                             iren=self.iren, ASDdata=self.ASDdata, window=self)
+                self.MomActors.Add_MomActors(
+                    ren=self.ren,
+                    renWin=self.renWin,
+                    iren=self.iren,
+                    ASDdata=self.ASDdata,
+                    window=self,
+                )
                 self.ASDVizOpt.update_dock_info(
-                    current_Actors=self.MomActors, Window=self)
+                    current_Actors=self.MomActors, Window=self
+                )
                 # ---------------------------------------------------------------
                 # Setup several global variables
                 # ---------------------------------------------------------------
@@ -1060,25 +1212,35 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
-                self.ASDGenActors.Add_GenActors(iren=self.iren, renWin=self.renWin,
-                                                method=self.MomActors.MagDensMethod, lut=self.ASDVizOpt.lut,
-                                                ren=self.ren, window=self, current_Actors=self.MomActors,
-                                                flag2D=self.ASDdata.flag2D)
+                self.ASDGenActors.Add_GenActors(
+                    iren=self.iren,
+                    renWin=self.renWin,
+                    method=self.MomActors.MagDensMethod,
+                    lut=self.ASDVizOpt.lut,
+                    ren=self.ren,
+                    window=self,
+                    current_Actors=self.MomActors,
+                    flag2D=self.ASDdata.flag2D,
+                )
                 # ---------------------------------------------------------------
                 # Update the UI
                 # ---------------------------------------------------------------
                 if self.ASDdata.cluster_flag:
                     self.ClusBox.setVisible(True)
                     self.ClusBox.setChecked(True)
-                    self.ASDGenActors.Add_ClusterActors(ASDdata=self.ASDdata, iren=self.iren,
-                                                        renWin=self.renWin, ren=self.ren)
+                    self.ASDGenActors.Add_ClusterActors(
+                        ASDdata=self.ASDdata,
+                        iren=self.iren,
+                        renWin=self.renWin,
+                        ren=self.ren,
+                    )
                 if self.ASDdata.kmc_flag:
                     self.KMCCheck.setVisible(True)
                 # ---------------------------------------------------------------
                 # Print the visualization message
                 # ---------------------------------------------------------------
-                print('Visualization of magnetic moments mode chosen')
-                self.current_time = self.current_time+1
+                print("Visualization of magnetic moments mode chosen")
+                self.current_time = self.current_time + 1
         # -----------------------------------------------------------------------
         # This takes care of setting up the options for the Neighbour visualization
         # -----------------------------------------------------------------------
@@ -1088,7 +1250,7 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             self.NeighActors = ASDVTKNeighActors.ASDNeighActors()
             self.mode = 1
-            self.viz_type = 'N'
+            self.viz_type = "N"
             self.NeighMainBox.setEnabled(True)
             self.VizToolBox.setCurrentIndex(2)
             self.PlayButton.setEnabled(False)
@@ -1098,11 +1260,20 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Add the data structures with regards to reading the data
             # -------------------------------------------------------------------
-            self.ASDdata.ReadingWrapper(mode=self.mode, viz_type=self.viz_type,
-                                        file_names=self.file_names, window=self)
+            self.ASDdata.ReadingWrapper(
+                mode=self.mode,
+                viz_type=self.viz_type,
+                file_names=self.file_names,
+                window=self,
+            )
             if not self.ASDdata.error_trap:
-                self.NeighActors.Add_NeighActors(ren=self.ren, renWin=self.renWin,
-                                                 iren=self.iren, ASDdata=self.ASDdata, mode=self.mode)
+                self.NeighActors.Add_NeighActors(
+                    ren=self.ren,
+                    renWin=self.renWin,
+                    iren=self.iren,
+                    ASDdata=self.ASDdata,
+                    mode=self.mode,
+                )
                 # ---------------------------------------------------------------
                 # Set several global variables
                 # ---------------------------------------------------------------
@@ -1110,50 +1281,62 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
-                self.ASDGenActors.Add_GenActors(iren=self.iren, renWin=self.renWin,
-                                                method=self.NeighActors.NeighGlyph3D, lut=self.ASDVizOpt.lut,
-                                                ren=self.ren, window=self, current_Actors=self.NeighActors, flag2D=True)
+                self.ASDGenActors.Add_GenActors(
+                    iren=self.iren,
+                    renWin=self.renWin,
+                    method=self.NeighActors.NeighGlyph3D,
+                    lut=self.ASDVizOpt.lut,
+                    ren=self.ren,
+                    window=self,
+                    current_Actors=self.NeighActors,
+                    flag2D=True,
+                )
                 # ---------------------------------------------------------------
                 # Update the labels for the neighbour mode
                 # ---------------------------------------------------------------
                 self.NeighSelectSlider.setMaximum(self.NeighActors.SLMax)
                 self.NeighSelectSlider.setMinimum(1)
                 self.NeighNumberLabel.setText(
-                    'Number of neighbours = {: 4d}'.format(self.NeighActors.NumNeigh))
+                    f"Number of neighbours = {self.NeighActors.NumNeigh: 4d}"
+                )
                 self.NeighValidator.setRange(1, self.ASDdata.nrAtoms)
                 self.NeighSelectLineEdit.setValidator(self.NeighValidator)
                 self.ASDVizOpt.update_dock_info(
-                    current_Actors=self.NeighActors, Window=self)
+                    current_Actors=self.NeighActors, Window=self
+                )
                 # ---------------------------------------------------------------
                 # Update the UI
                 # ---------------------------------------------------------------
                 self.NeighTypesLabels = dict()
                 for ii in range(0, self.ASDdata.num_types_total):
-                    name = 'label_neigh_{}'.format(ii)
+                    name = f"label_neigh_{ii}"
                     label = QLabel()
                     label.setObjectName(name)
-                    label.setText(
-                        'Num. Neighbours Type {: 4d} = {: 4d}'.format(ii+1, 0))
+                    label.setText(f"Num. Neighbours Type {ii + 1: 4d} = {0: 4d}")
                     self.NeighInfoLayout.addWidget(label)
                     self.NeighTypesLabels[name] = label
                 for ii in range(0, self.ASDdata.num_types):
-                    name = 'label_neigh_{}'.format(
-                        int(self.ASDdata.types[ii]-1))
-                    self.NeighTypesLabels[name].setText('Num. Neighbours Type {: 4d} = {: 4d}'.format(
-                        ii+1, self.ASDdata.types_counters[ii]))
+                    name = f"label_neigh_{int(self.ASDdata.types[ii] - 1)}"
+                    self.NeighTypesLabels[name].setText(
+                        f"Num. Neighbours Type {ii + 1: 4d} = {self.ASDdata.types_counters[ii]: 4d}"
+                    )
                 # ---------------------------------------------------------------
                 # Visualize the embedded cluster into the system
                 # ---------------------------------------------------------------
                 if self.ASDdata.cluster_flag:
                     self.ClusBox.setVisible(True)
                     self.ClusBox.setChecked(True)
-                    self.ASDGenActors.Add_ClusterActors(ASDdata=self.ASDdata, iren=self.iren,
-                                                        renWin=self.renWin, ren=self.ren)
+                    self.ASDGenActors.Add_ClusterActors(
+                        ASDdata=self.ASDdata,
+                        iren=self.iren,
+                        renWin=self.renWin,
+                        ren=self.ren,
+                    )
                 # ---------------------------------------------------------------
                 # Print the visualization message
                 # ---------------------------------------------------------------
-                print('Visualization of the neighbour map mode chosen')
-                print('Viewing the struct file')
+                print("Visualization of the neighbour map mode chosen")
+                print("Viewing the struct file")
         # -----------------------------------------------------------------------
         # This takes care of setting up the options for the DM Neighbour visualization
         # -----------------------------------------------------------------------
@@ -1163,7 +1346,7 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             self.NeighActors = ASDVTKNeighActors.ASDNeighActors()
             self.mode = 2
-            self.viz_type = 'N'
+            self.viz_type = "N"
             self.NeighMainBox.setEnabled(True)
             self.VizToolBox.setCurrentIndex(2)
             self.PlayButton.setEnabled(False)
@@ -1173,11 +1356,20 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Add the data structures with regards to reading the data
             # -------------------------------------------------------------------
-            self.ASDdata.ReadingWrapper(mode=self.mode, viz_type=self.viz_type,
-                                        file_names=self.file_names, window=self)
+            self.ASDdata.ReadingWrapper(
+                mode=self.mode,
+                viz_type=self.viz_type,
+                file_names=self.file_names,
+                window=self,
+            )
             if not self.ASDdata.error_trap:
-                self.NeighActors.Add_NeighActors(ren=self.ren, renWin=self.renWin,
-                                                 iren=self.iren, ASDdata=self.ASDdata, mode=self.mode)
+                self.NeighActors.Add_NeighActors(
+                    ren=self.ren,
+                    renWin=self.renWin,
+                    iren=self.iren,
+                    ASDdata=self.ASDdata,
+                    mode=self.mode,
+                )
                 # ---------------------------------------------------------------
                 # Set several global variables
                 # ---------------------------------------------------------------
@@ -1185,54 +1377,66 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
-                self.ASDGenActors.Add_GenActors(iren=self.iren, renWin=self.renWin,
-                                                method=self.NeighActors.NeighGlyph3D, lut=self.ASDVizOpt.lut,
-                                                ren=self.ren, window=self, current_Actors=self.NeighActors, flag2D=True)
+                self.ASDGenActors.Add_GenActors(
+                    iren=self.iren,
+                    renWin=self.renWin,
+                    method=self.NeighActors.NeighGlyph3D,
+                    lut=self.ASDVizOpt.lut,
+                    ren=self.ren,
+                    window=self,
+                    current_Actors=self.NeighActors,
+                    flag2D=True,
+                )
                 # ---------------------------------------------------------------
                 # Update the labels for the neighbour mode
                 # ---------------------------------------------------------------
                 self.NeighSelectSlider.setMaximum(self.NeighActors.SLMax)
                 self.NeighSelectSlider.setMinimum(1)
                 self.NeighNumberLabel.setText(
-                    'Number of neighbours = {: 4d}'.format(self.NeighActors.NumNeigh))
+                    f"Number of neighbours = {self.NeighActors.NumNeigh: 4d}"
+                )
                 self.ASDVizOpt.update_dock_info(
-                    current_Actors=self.NeighActors, Window=self)
+                    current_Actors=self.NeighActors, Window=self
+                )
                 # ---------------------------------------------------------------
                 # Update the UI
                 # ---------------------------------------------------------------
                 self.NeighTypesLabels = dict()
                 for ii in range(0, self.ASDdata.num_types_total):
-                    name = 'label_neigh_{}'.format(ii)
+                    name = f"label_neigh_{ii}"
                     label = QLabel()
                     label.setObjectName(name)
-                    label.setText(
-                        'Num. Neighbours Type {: 4d} = {: 4d}'.format(ii+1, 0))
+                    label.setText(f"Num. Neighbours Type {ii + 1: 4d} = {0: 4d}")
                     self.NeighInfoLayout.addWidget(label)
                     self.NeighTypesLabels[name] = label
                 for ii in range(0, self.ASDdata.num_types):
-                    name = 'label_neigh_{}'.format(
-                        int(self.ASDdata.types[ii]-1))
-                    self.NeighTypesLabels[name].setText('Num. Neighbours Type {: 4d} = {: 4d}'.format(
-                        ii+1, self.ASDdata.types_counters[ii]))
+                    name = f"label_neigh_{int(self.ASDdata.types[ii] - 1)}"
+                    self.NeighTypesLabels[name].setText(
+                        f"Num. Neighbours Type {ii + 1: 4d} = {self.ASDdata.types_counters[ii]: 4d}"
+                    )
                     # -----------------------------------------------------------
                     # Visualize the embedded cluster into the system
                     # -----------------------------------------------------------
                 if self.ASDdata.cluster_flag:
                     self.ClusBox.setVisible(True)
                     self.ClusBox.setChecked(True)
-                    self.ASDGenActors.Add_ClusterActors(ASDdata=self.ASDdata, iren=self.iren,
-                                                        renWin=self.renWin, ren=self.ren)
+                    self.ASDGenActors.Add_ClusterActors(
+                        ASDdata=self.ASDdata,
+                        iren=self.iren,
+                        renWin=self.renWin,
+                        ren=self.ren,
+                    )
                 # ---------------------------------------------------------------
                 # Print the visualization message
                 # ---------------------------------------------------------------
-                print('Visualization of the neighbour map mode chosen')
-                print('Viewing the struct file')
+                print("Visualization of the neighbour map mode chosen")
+                print("Viewing the struct file")
         # -----------------------------------------------------------------------
         # This takes care of setting up the options for the Energy visualization
         # -----------------------------------------------------------------------
         if self.sender() == self.actionEnergy:
             self.EneActors = ASDVTKEneActors.ASDEneActors()
-            self.viz_type = 'E'
+            self.viz_type = "E"
             self.mode = 1
             self.current_time = 0
             self.VizToolBox.setCurrentIndex(1)
@@ -1244,13 +1448,22 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             # Add the data structures with regards to reading the data
             # -------------------------------------------------------------------
-            self.ASDdata.ReadingWrapper(mode=self.mode, viz_type=self.viz_type,
-                                        file_names=self.file_names, window=self)
+            self.ASDdata.ReadingWrapper(
+                mode=self.mode,
+                viz_type=self.viz_type,
+                file_names=self.file_names,
+                window=self,
+            )
             if not self.ASDdata.error_trap:
-                self.EneActors.Add_EneActors(ren=self.ren, renWin=self.renWin,
-                                             iren=self.iren, ASDdata=self.ASDdata)
+                self.EneActors.Add_EneActors(
+                    ren=self.ren,
+                    renWin=self.renWin,
+                    iren=self.iren,
+                    ASDdata=self.ASDdata,
+                )
                 self.ASDVizOpt.update_dock_info(
-                    current_Actors=self.EneActors, Window=self)
+                    current_Actors=self.EneActors, Window=self
+                )
                 # ---------------------------------------------------------------
                 # Setup several global variables
                 # ---------------------------------------------------------------
@@ -1258,24 +1471,35 @@ class UppASDVizMainWindow(QMainWindow):
                 # ---------------------------------------------------------------
                 # Add the general widgets such as the scalar bar and the axes
                 # ---------------------------------------------------------------
-                self.ASDGenActors.Add_GenActors(iren=self.iren, renWin=self.renWin,
-                                                method=self.EneActors.EneDensMethod, lut=self.ASDVizOpt.lut,
-                                                ren=self.ren, window=self, current_Actors=self.EneActors,
-                                                flag2D=self.ASDdata.flag2D)
+                self.ASDGenActors.Add_GenActors(
+                    iren=self.iren,
+                    renWin=self.renWin,
+                    method=self.EneActors.EneDensMethod,
+                    lut=self.ASDVizOpt.lut,
+                    ren=self.ren,
+                    window=self,
+                    current_Actors=self.EneActors,
+                    flag2D=self.ASDdata.flag2D,
+                )
                 # ---------------------------------------------------------------
                 # Update the UI
                 # ---------------------------------------------------------------
                 if self.ASDdata.cluster_flag:
                     self.ClusBox.setVisible(True)
                     self.ClusBox.setChecked(True)
-                    self.ASDGenActors.Add_ClusterActors(ASDdata=self.ASDdata, iren=self.iren,
-                                                        renWin=self.renWin, ren=self.ren)
+                    self.ASDGenActors.Add_ClusterActors(
+                        ASDdata=self.ASDdata,
+                        iren=self.iren,
+                        renWin=self.renWin,
+                        ren=self.ren,
+                    )
                 # ---------------------------------------------------------------
                 # Print the visualization message
                 # ---------------------------------------------------------------
-                print('Visualization of the energy mode chosen')
-                print('Viewing the localenergy file')
+                print("Visualization of the energy mode chosen")
+                print("Viewing the localenergy file")
         return
+
     ############################################################################
     # @brief Enable rgb-values for single color
     # @author Anders Bergman
@@ -1292,18 +1516,20 @@ class UppASDVizMainWindow(QMainWindow):
             self.RGBBlueColorSlider.setEnabled(False)
 
         return
+
     ############################################################################
     # @brief Toggle grayscale background on/off
     # @author Anders Bergman
     ############################################################################
 
     def toggle_bwSinglecolor(self, check):
-
         self.bwSinglecolor = check
-        rgb = [self.RGBRedColorSlider.value(),
-               self.RGBGreenColorSlider.value(),
-               self.RGBBlueColorSlider.value()]
-        bw = int(sum(rgb)/3)
+        rgb = [
+            self.RGBRedColorSlider.value(),
+            self.RGBGreenColorSlider.value(),
+            self.RGBBlueColorSlider.value(),
+        ]
+        bw = int(sum(rgb) / 3)
 
         if check:
             self.RGBRedColorSlider.setValue(bw)
@@ -1311,22 +1537,21 @@ class UppASDVizMainWindow(QMainWindow):
             self.RGBRedColorSlider.setValue(bw)
 
         return
+
     ############################################################################
     # @brief Toggle depth of field focus
     # @author Anders Bergman
     ############################################################################
 
     def toggle_focus(self, check):
-        self.ASDVizOpt.toggle_Focus(
-            check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_Focus(check=check, ren=self.ren, renWin=self.renWin)
 
     ############################################################################
     # @brief Toggle focal disk
     # @author Anders Bergman
     ############################################################################
     def FocalDisk_control(self, value):
-        self.ASDVizOpt.setFocalDisk(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.setFocalDisk(value=value, ren=self.ren, renWin=self.renWin)
 
     ############################################################################
     # @brief Toggle depth of field focus
@@ -1342,12 +1567,13 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def toggle_bwBackground(self, check):
-
         self.bwBackground = check
-        rgb = [self.RGBRedBackgroundSlider.value(),
-               self.RGBGreenBackgroundSlider.value(),
-               self.RGBBlueBackgroundSlider.value()]
-        bw = int(sum(rgb)/3)
+        rgb = [
+            self.RGBRedBackgroundSlider.value(),
+            self.RGBGreenBackgroundSlider.value(),
+            self.RGBBlueBackgroundSlider.value(),
+        ]
+        bw = int(sum(rgb) / 3)
 
         if check:
             self.RGBRedBackgroundSlider.setValue(bw)
@@ -1355,46 +1581,55 @@ class UppASDVizMainWindow(QMainWindow):
             self.RGBRedBackgroundSlider.setValue(bw)
 
         return
+
     ############################################################################
     # @brief Update rgb-values for single color coloring
     # @author Anders Bergman
     ############################################################################
 
     def set_singlecolor(self, value):
-
         if self.bwSinglecolor:
             self.RGBRedColorSlider.setValue(value)
             self.RGBGreenColorSlider.setValue(value)
             self.RGBBlueColorSlider.setValue(value)
 
-        rgb = [self.RGBRedColorSlider.value(),
-               self.RGBGreenColorSlider.value(),
-               self.RGBBlueColorSlider.value()]
+        rgb = [
+            self.RGBRedColorSlider.value(),
+            self.RGBGreenColorSlider.value(),
+            self.RGBBlueColorSlider.value(),
+        ]
 
-        self.ASDVizOpt.set_RGBcolor(window=self, rgb=rgb,
-                                    flag2D=self.ASDdata.flag2D, viz_type=self.viz_type, renWin=self.renWin)
+        self.ASDVizOpt.set_RGBcolor(
+            window=self,
+            rgb=rgb,
+            flag2D=self.ASDdata.flag2D,
+            viz_type=self.viz_type,
+            renWin=self.renWin,
+        )
 
         return
+
     ############################################################################
     # @brief Update rgb-values for the background
     # @author Anders Bergman
     ############################################################################
 
     def set_background(self, value):
-
         if self.bwBackground:
             self.RGBRedBackgroundSlider.setValue(value)
             self.RGBGreenBackgroundSlider.setValue(value)
             self.RGBBlueBackgroundSlider.setValue(value)
 
-        rgb = [self.RGBRedBackgroundSlider.value(),
-               self.RGBGreenBackgroundSlider.value(),
-               self.RGBBlueBackgroundSlider.value()]
+        rgb = [
+            self.RGBRedBackgroundSlider.value(),
+            self.RGBGreenBackgroundSlider.value(),
+            self.RGBBlueBackgroundSlider.value(),
+        ]
 
-        self.ASDVizOpt.set_RGBbackground(
-            rgb=rgb, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.set_RGBbackground(rgb=rgb, ren=self.ren, renWin=self.renWin)
 
         return
+
     ############################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
@@ -1403,13 +1638,16 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def set_lut_db(self, mapnum):
-        from vtkmodules.vtkCommonColor import vtkColorSeries, vtkNamedColors
-
         colorSeries = vtkColorSeries()
 
         if mapnum <= 3:
-            self.ASDVizOpt.set_colormap_db(window=self, mapnum=mapnum,
-                                           flag2D=self.ASDdata.flag2D, viz_type=self.viz_type, renWin=self.renWin)
+            self.ASDVizOpt.set_colormap_db(
+                window=self,
+                mapnum=mapnum,
+                flag2D=self.ASDdata.flag2D,
+                viz_type=self.viz_type,
+                renWin=self.renWin,
+            )
         elif mapnum == 4:  # Spectrum
             colorSeries.SetColorScheme(vtkColorSeries.SPECTRUM)
         elif mapnum == 5:  # Warm
@@ -1423,34 +1661,29 @@ class UppASDVizMainWindow(QMainWindow):
         elif mapnum == 9:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.CITRUS)
         elif mapnum == 10:  # BREWER_DIVERGING_PURPLE_ORANGE_11
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_PURPLE_ORANGE_11)
         elif mapnum == 11:  # Citrus
             colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11)
+                vtkColorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_11
+            )
         elif mapnum == 12:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9)
         elif mapnum == 13:  # Citrus
             colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9)
+                vtkColorSeries.BREWER_SEQUENTIAL_YELLOW_ORANGE_BROWN_9
+            )
         elif mapnum == 14:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9)
         elif mapnum == 15:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_DIVERGING_SPECTRAL_11)
         elif mapnum == 16:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_ACCENT)
         elif mapnum == 17:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_DARK2)
         elif mapnum == 18:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL1)
         elif mapnum == 19:  # Citrus
-            colorSeries.SetColorScheme(
-                vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
+            colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_PASTEL2)
         elif mapnum == 20:  # Citrus
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET1)
         elif mapnum == 21:  # Citrus
@@ -1459,12 +1692,12 @@ class UppASDVizMainWindow(QMainWindow):
             colorSeries.SetColorScheme(vtkColorSeries.BREWER_QUALITATIVE_SET3)
 
         if mapnum > 3:
-            colorSeries.BuildLookupTable(
-                self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
+            colorSeries.BuildLookupTable(self.ASDVizOpt.lut, vtkColorSeries.ORDINAL)
         self.ASDVizOpt.lut.Build()
 
         self.renWin.Render()
         return
+
     ############################################################################
     # @brief Set the lookup table for the actors
     # @details Set the lookup table for the actors, it also allows for the change
@@ -1480,6 +1713,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.sender() == self.LogScale and self.LogScale.isChecked():
             self.ASDVizOpt.lut.SetScaleToLog10()
         return
+
     ############################################################################
     # @brief Set the projection of the vectors
     # @details Set the projection of the vectors and the magnetization continuum
@@ -1498,108 +1732,100 @@ class UppASDVizMainWindow(QMainWindow):
         Jonathan Chico
         """
         if self.sender() == self.DensX and self.DensX.isChecked():
-            self.ASDVizOpt.set_projection(type='density', axis=0)
+            self.ASDVizOpt.set_projection(type="density", axis=0)
         if self.sender() == self.DensY and self.DensY.isChecked():
-            self.ASDVizOpt.set_projection(type='density', axis=1)
+            self.ASDVizOpt.set_projection(type="density", axis=1)
         if self.sender() == self.DensZ and self.DensZ.isChecked():
-            self.ASDVizOpt.set_projection(type='density', axis=2)
+            self.ASDVizOpt.set_projection(type="density", axis=2)
         if self.sender() == self.SpinX and self.SpinX.isChecked():
-            self.ASDVizOpt.set_projection(type='spins', axis=0)
+            self.ASDVizOpt.set_projection(type="spins", axis=0)
         if self.sender() == self.SpinY and self.SpinY.isChecked():
-            self.ASDVizOpt.set_projection(type='spins', axis=1)
+            self.ASDVizOpt.set_projection(type="spins", axis=1)
         if self.sender() == self.SpinZ and self.SpinZ.isChecked():
-            self.ASDVizOpt.set_projection(type='spins', axis=2)
+            self.ASDVizOpt.set_projection(type="spins", axis=2)
         self.renWin.Render()
         return
+
     ############################################################################
     # Display the different energy contributions
     ############################################################################
 
     def set_energy_proj(self):
         if self.sender() == self.TotEneButton and self.TotEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[0])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[0])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.ExcEneButton and self.ExcEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[1])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[1])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.DMEneButton and self.DMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[2])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[2])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.AniEneButton and self.AniEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[3])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[3])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.BqEneButton and self.BqEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[4])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[4])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.BqDMEneButton and self.BqDMEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[5])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[5])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.PdEneButton and self.PdEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[6])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[6])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.BextEneButton and self.BextEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[7])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[7])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.DipEneButton and self.DipEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[8])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[8])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         if self.sender() == self.ChirEneButton and self.ChirEneButton.isChecked():
-            self.EneActors.src.GetPointData().SetScalars(
-                self.ASDdata.energies[9])
-            self.EneActors.EneMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+            self.EneActors.src.GetPointData().SetScalars(self.ASDdata.energies[9])
+            self.EneActors.EneMapper.SetScalarRange(self.EneActors.src.GetScalarRange())
             # self.EneActors.EneDensMap.SetScalarRange(self.EneActors.src.GetScalarRange())
             self.ASDGenActors.clipperMapper.SetScalarRange(
-                self.EneActors.src.GetScalarRange())
+                self.EneActors.src.GetScalarRange()
+            )
         self.EneActors.EneDensMap.Modified()
         self.EneActors.EneMapper.Update()
         self.renWin.Render()
         return
+
     ############################################################################
     # Function to change the type of glyphs that display the individual magnetic
     # moments
@@ -1615,39 +1841,33 @@ class UppASDVizMainWindow(QMainWindow):
         """
         if self.sender() == self.SpinBarButton:
             if self.SpinBarButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='Bars')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Bars")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCubeButton:
             if self.SpinCubeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='Cubes')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Cubes")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinSphereButton:
             if self.SpinSphereButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='Spheres')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Spheres")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinArrowButton:
             if self.SpinArrowButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='Arrows')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Arrows")
                 self.SpinCenterCheck.setChecked(False)
                 self.SpinCenterCheck.setEnabled(True)
         if self.sender() == self.SpinConeButton:
             if self.SpinConeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='Cones')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="Cones")
                 self.SpinCenterCheck.setEnabled(False)
         if self.sender() == self.SpinCenterCheck:
             if self.SpinCenterCheck.isChecked():
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='CenterOn')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="CenterOn")
             else:
-                self.ASDVizOpt.ChangeSpinGlyph(
-                    renWin=self.renWin, keyword='CenterOff')
+                self.ASDVizOpt.ChangeSpinGlyph(renWin=self.renWin, keyword="CenterOff")
         self.renWin.Render()
         return
+
     ############################################################################
     # Function to change the shading of the glyphs that display the individual
     # magnetic moments
@@ -1663,34 +1883,37 @@ class UppASDVizMainWindow(QMainWindow):
         """
         if self.sender() == self.FlatShadeButton:
             if self.FlatShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(
-                    renWin=self.renWin, keyword='Flat')
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Flat")
 
         if self.sender() == self.GouraudShadeButton:
             if self.GouraudShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(
-                    renWin=self.renWin, keyword='Gouraud')
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Gouraud")
 
         if self.sender() == self.PBRShadeButton:
             if self.PBRShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(
-                    renWin=self.renWin, keyword='PBR')
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="PBR")
 
         if self.sender() == self.PhongShadeButton:
             if self.PhongShadeButton.isChecked():
-                self.ASDVizOpt.ChangeSpinShade(
-                    renWin=self.renWin, keyword='Phong')
+                self.ASDVizOpt.ChangeSpinShade(renWin=self.renWin, keyword="Phong")
 
         self.renWin.Render()
         return
+
     ############################################################################
     # Update the neighbours
     ############################################################################
 
     def NeighbourControl(self):
-        self.NeighActors.UpdateNeighbour(window=self, ASDdata=self.ASDdata,
-                                         ASDGenActors=self.ASDGenActors, renWin=self.renWin, mode=self.mode)
+        self.NeighActors.UpdateNeighbour(
+            window=self,
+            ASDdata=self.ASDdata,
+            ASDGenActors=self.ASDGenActors,
+            renWin=self.renWin,
+            mode=self.mode,
+        )
         return
+
     ############################################################################
     # Wrapper function to handle the camera functions
     ############################################################################
@@ -1700,125 +1923,169 @@ class UppASDVizMainWindow(QMainWindow):
         # Reset the camera to the original position
         # -----------------------------------------------------------------------
         if self.sender() == self.CamResetButton:
-            if self.viz_type == 'M':
-                self.ASDVizOpt.reset_camera(ren=self.ren, renWin=self.renWin,
-                                            current_Actors=self.MomActors)
-            elif self.viz_type == 'N':
-                self.ASDVizOpt.reset_camera(ren=self.ren, renWin=self.renWin,
-                                            current_Actors=self.NeighActors)
-            elif self.viz_type == 'E':
-                self.ASDVizOpt.reset_camera(ren=self.ren, renWin=self.renWin,
-                                            current_Actors=self.EneActors)
+            if self.viz_type == "M":
+                self.ASDVizOpt.reset_camera(
+                    ren=self.ren, renWin=self.renWin, current_Actors=self.MomActors
+                )
+            elif self.viz_type == "N":
+                self.ASDVizOpt.reset_camera(
+                    ren=self.ren, renWin=self.renWin, current_Actors=self.NeighActors
+                )
+            elif self.viz_type == "E":
+                self.ASDVizOpt.reset_camera(
+                    ren=self.ren, renWin=self.renWin, current_Actors=self.EneActors
+                )
         # -----------------------------------------------------------------------
         # Controlling what is up in the camera
         # -----------------------------------------------------------------------
         if self.sender() == self.SetXView:
             self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(1, 0, 0))
+                ren=self.ren, renWin=self.renWin, dir=(1, 0, 0)
+            )
         if self.sender() == self.SetYView:
             self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(0, 1, 0))
+                ren=self.ren, renWin=self.renWin, dir=(0, 1, 0)
+            )
         if self.sender() == self.SetZView:
             self.ASDVizOpt.set_Camera_viewUp(
-                ren=self.ren, renWin=self.renWin, dir=(0, 0, 1))
+                ren=self.ren, renWin=self.renWin, dir=(0, 0, 1)
+            )
         if self.sender() == self.SetCamButton:
-            self.ASDVizOpt.Update_Camera(
-                Window=self, ren=self.ren, renWin=self.renWin)
+            self.ASDVizOpt.Update_Camera(Window=self, ren=self.ren, renWin=self.renWin)
         # -----------------------------------------------------------------------
         # Controlling the parallel scale
         # -----------------------------------------------------------------------
         if self.sender() == self.ParallelScaleLineEdit:
             line = True
             slider = False
-            self.ASDVizOpt.ChangeParallelProj(ren=self.ren, renWin=self.renWin,
-                                              line=line, slider=slider, MainWindow=self)
+            self.ASDVizOpt.ChangeParallelProj(
+                ren=self.ren,
+                renWin=self.renWin,
+                line=line,
+                slider=slider,
+                MainWindow=self,
+            )
         if self.sender() == self.ParallelScaleSlider:
             line = False
             slider = True
-            self.ASDVizOpt.ChangeParallelProj(ren=self.ren, renWin=self.renWin,
-                                              line=line, slider=slider, MainWindow=self)
+            self.ASDVizOpt.ChangeParallelProj(
+                ren=self.ren,
+                renWin=self.renWin,
+                line=line,
+                slider=slider,
+                MainWindow=self,
+            )
         if self.sender() == self.ParallelProjectBox:
-            self.ASDVizOpt.toggle_projections(renWin=self.renWin, window=self,
-                                              ren=self.ren, checked=self.ParallelProjectBox.isChecked())
+            self.ASDVizOpt.toggle_projections(
+                renWin=self.renWin,
+                window=self,
+                ren=self.ren,
+                checked=self.ParallelProjectBox.isChecked(),
+            )
         return
+
     ############################################################################
     # Wrapper to handle the clipper actions
     ############################################################################
 
     def clipperHandler(self):
-        if self.viz_type == 'M':
+        if self.viz_type == "M":
             current_Actors = self.MomActors
-        if self.viz_type == 'N':
+        if self.viz_type == "N":
             current_Actors = self.NeighActors
-        if self.viz_type == 'E':
+        if self.viz_type == "E":
             current_Actors = self.EneActors
-        self.ASDGenActors.UpdateClipper(window=self, current_Actors=current_Actors,
-                                        ASDVizOpt=self.ASDVizOpt, renWin=self.renWin, viz_type=self.viz_type)
+        self.ASDGenActors.UpdateClipper(
+            window=self,
+            current_Actors=current_Actors,
+            ASDVizOpt=self.ASDVizOpt,
+            renWin=self.renWin,
+            viz_type=self.viz_type,
+        )
         return
+
     ############################################################################
     # Function that calls the taking of a Snapshot of the current rendering window
     ############################################################################
 
     def Snapshot(self):
-        self.ASDVizOpt.Screenshot(renWin=self.renWin, number_of_screenshots=self.number_of_screenshots,
-                                  png_mode=self.actionSave_png.isChecked(), pov_mode=self.actionSave_pov.isChecked())
-        self.number_of_screenshots = self.number_of_screenshots+1
+        self.ASDVizOpt.Screenshot(
+            renWin=self.renWin,
+            number_of_screenshots=self.number_of_screenshots,
+            png_mode=self.actionSave_png.isChecked(),
+            pov_mode=self.actionSave_pov.isChecked(),
+        )
+        self.number_of_screenshots = self.number_of_screenshots + 1
         return
+
     ############################################################################
     # Function that calls for updating the glyph resolutions
     ############################################################################
 
     def Quality_control(self, value):
         self.ASDVizOpt.GlyphQualityUpdate(
-            value=value, viz_type=self.viz_type, mode=self.mode, renWin=self.renWin)
+            value=value, viz_type=self.viz_type, mode=self.mode, renWin=self.renWin
+        )
+
     ############################################################################
     # Function that calls for toggling FXAA
     ############################################################################
 
     def FXAA_control(self, check):
-        self.ASDVizOpt.toggle_FXAA(
-            check=check, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.toggle_FXAA(check=check, ren=self.ren, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling surface texture
     ############################################################################
 
     def Texture_control(self, check):
-        self.ASDVizOpt.toggle_Texture(check=check, ren=self.ren, renWin=self.renWin,
-                                      texfile=self.texturefile)
+        self.ASDVizOpt.toggle_Texture(
+            check=check, ren=self.ren, renWin=self.renWin, texfile=self.texturefile
+        )
+
     ############################################################################
     # Function that calls for toggling ORM texture
     ############################################################################
 
     def ORMTexture_control(self, check):
-        self.ASDVizOpt.toggle_ORMTexture(check=check, ren=self.ren, renWin=self.renWin,
-                                         texfile=self.ORMtexturefile)
+        self.ASDVizOpt.toggle_ORMTexture(
+            check=check, ren=self.ren, renWin=self.renWin, texfile=self.ORMtexturefile
+        )
+
     ############################################################################
     # Function that calls for toggling ORM texture
     ############################################################################
 
     def NTexture_control(self, check):
-        self.ASDVizOpt.toggle_NTexture(check=check, ren=self.ren, renWin=self.renWin,
-                                       texfile=self.Ntexturefile)
+        self.ASDVizOpt.toggle_NTexture(
+            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Ntexturefile
+        )
+
     ############################################################################
     # Function that calls for toggling ORM texture
     ############################################################################
 
     def ETexture_control(self, check):
-        self.ASDVizOpt.toggle_ETexture(check=check, ren=self.ren, renWin=self.renWin,
-                                       texfile=self.Etexturefile)
+        self.ASDVizOpt.toggle_ETexture(
+            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Etexturefile
+        )
+
     ############################################################################
     # Function that calls for toggling ORM texture
     ############################################################################
 
     def ATexture_control(self, check):
-        self.ASDVizOpt.toggle_ATexture(check=check, ren=self.ren, renWin=self.renWin,
-                                       texfile=self.Atexturefile)
+        self.ASDVizOpt.toggle_ATexture(
+            check=check, ren=self.ren, renWin=self.renWin, texfile=self.Atexturefile
+        )
+
     ############################################################################
     # Function that calls for toggling SSAO
     ############################################################################
 
     def SSAO_control(self, check):
         self.ASDVizOpt.toggle_SSAO(check=check, ren=self.ren)
+
     ############################################################################
     # Function that calls for toggling shadows
     ############################################################################
@@ -1829,17 +2096,21 @@ class UppASDVizMainWindow(QMainWindow):
     # Function that calls for toggling HDRI
     ############################################################################
     def HDRI_control(self, check):
-        self.ASDVizOpt.toggle_HDRI(check=check, ren=self.ren, renWin=self.renWin,
-                                   hdrifile=self.hdrifile)
+        self.ASDVizOpt.toggle_HDRI(
+            check=check, ren=self.ren, renWin=self.renWin, hdrifile=self.hdrifile
+        )
         return
+
     ############################################################################
     # Function that calls for toggling skybox
     ############################################################################
 
     def SkyBox_control(self, check):
-        self.ASDVizOpt.toggle_SkyBox(check=check, ren=self.ren, renWin=self.renWin,
-                                     skyboxfile=self.hdrifile)
+        self.ASDVizOpt.toggle_SkyBox(
+            check=check, ren=self.ren, renWin=self.renWin, skyboxfile=self.hdrifile
+        )
         return
+
     ############################################################################
     # Finding the file name for the HDR file
     ############################################################################
@@ -1851,6 +2122,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.HDRICheck.setEnabled(True)
             self.SkyBoxCheck.setEnabled(True)
         return
+
     ############################################################################
     # Finding the file name for the texture image
     ############################################################################
@@ -1861,6 +2133,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.texturefile_gotten:
             self.TextureCheck.setEnabled(True)
         return
+
     ############################################################################
     # Finding the file name for the ORM texture image
     ############################################################################
@@ -1871,6 +2144,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.ORMtexturefile_gotten:
             self.ORMTextureCheck.setEnabled(True)
         return
+
     ############################################################################
     # Finding the file name for the normal texture image
     ############################################################################
@@ -1881,6 +2155,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.Ntexturefile_gotten:
             self.NTextureCheck.setEnabled(True)
         return
+
     ############################################################################
     # Finding the file name for the anisotropy texture image
     ############################################################################
@@ -1891,6 +2166,7 @@ class UppASDVizMainWindow(QMainWindow):
         if self.Atexturefile_gotten:
             self.ATextureCheck.setEnabled(True)
         return
+
     ############################################################################
     # Finding the file name for the emissive texture image
     ############################################################################
@@ -1901,50 +2177,56 @@ class UppASDVizMainWindow(QMainWindow):
         if self.Etexturefile_gotten:
             self.ETextureCheck.setEnabled(True)
         return
+
     ############################################################################
     # Function that calls for toggling specular scattering
     ############################################################################
 
     def RenSpecular_control(self, value):
         self.ASDVizOpt.RenSpecularUpdate(value=value, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling specular scattering
     ############################################################################
 
     def RenSpecularPower_control(self, value):
         self.ASDVizOpt.RenSpecularPowerUpdate(value=value, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling ambient scattering
     ############################################################################
 
     def RenAmbient_control(self, value):
         self.ASDVizOpt.RenAmbientUpdate(value=value, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling diffuse scattering
     ############################################################################
 
     def RenDiffuse_control(self, value):
         self.ASDVizOpt.RenDiffuseUpdate(value=value, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling PBR Emission value
     ############################################################################
 
     def PBREmission_control(self, value):
-        self.ASDVizOpt.PBREmissionUpdate(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.PBREmissionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling PBR Occlusion value
     ############################################################################
 
     def PBROcclusion_control(self, value):
-        self.ASDVizOpt.PBROcclusionUpdate(
-            value=value, ren=self.ren, renWin=self.renWin)
+        self.ASDVizOpt.PBROcclusionUpdate(value=value, ren=self.ren, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling PBR Roughness value
     ############################################################################
 
     def PBRRoughness_control(self, value):
         self.ASDVizOpt.PBRRoughnessUpdate(value=value, renWin=self.renWin)
+
     ############################################################################
     # Function that calls for toggling PBR Roughness value
     ############################################################################
@@ -1967,7 +2249,7 @@ class UppASDVizMainWindow(QMainWindow):
         # -----------------------------------------------------------------------
         if self.sender() == self.PlayButton:
             if self.PlayButton.isChecked():
-                self.iren.AddObserver('TimerEvent', self.Playback)
+                self.iren.AddObserver("TimerEvent", self.Playback)
                 self.timerId = self.iren.CreateRepeatingTimer(100)
                 self.iren.SetStillUpdateRate(25.0)
                 self.iren.SetDesiredUpdateRate(25.0)
@@ -1991,10 +2273,11 @@ class UppASDVizMainWindow(QMainWindow):
         # Advance the current image
         # -----------------------------------------------------------------------
         if self.sender() == self.nextButton:
-            if self.current_time < self.ASDdata.number_time_steps-1:
+            if self.current_time < self.ASDdata.number_time_steps - 1:
                 self.current_time += 1
                 self.UpdateImage()
         return
+
     ############################################################################
     # @brief Function to control the playback of the animation, whilst taking a snapshot
     # and updating the necessary data structures.
@@ -2006,39 +2289,48 @@ class UppASDVizMainWindow(QMainWindow):
     ############################################################################
 
     def Playback(self, event, obj):
-        if self.viz_type == 'M':
+        if self.viz_type == "M":
+            print("UpdateImage:", self.__class__.__name__)
             # -------------------------------------------------------------------
             # If the current time is the final time of the measurement destroy the
             # timer
             # -------------------------------------------------------------------
-            if self.current_time == self.ASDdata.number_time_steps-1:
+            if self.current_time == self.ASDdata.number_time_steps - 1:
                 self.iren.DestroyTimer(self.timerId)
             # -------------------------------------------------------------------
             # Update the moments
             # -------------------------------------------------------------------
-            self.MomActors.UpdateMoments(window=self, ASDdata=self.ASDdata,
-                                         ASDGenActors=self.ASDGenActors, renWin=self.renWin)
+            self.MomActors.UpdateMoments(
+                window=self,
+                ASDdata=self.ASDdata,
+                ASDGenActors=self.ASDGenActors,
+                renWin=self.renWin,
+            )
             # -------------------------------------------------------------------
             # Take a snapshot
             # -------------------------------------------------------------------
-            #self.renWin.Render()
+            # self.renWin.Render()
             self.Snapshot()
             # -------------------------------------------------------------------
             # increase the current timer
             # -------------------------------------------------------------------
             self.current_time += 1
-        elif self.viz_type == 'E':
+        elif self.viz_type == "E":
             # -------------------------------------------------------------------
             # If the current time is the final time of the measurement destroy the
             # timer
             # -------------------------------------------------------------------
-            if self.current_time == self.ASDdata.number_time_steps-1:
+            if self.current_time == self.ASDdata.number_time_steps - 1:
                 self.iren.DestroyTimer(self.timerId)
             # -------------------------------------------------------------------
             # Update the energy
             # -------------------------------------------------------------------
-            self.EneActors.UpdateEnergy(window=self, ASDdata=self.ASDdata,
-                                        ASDGenActors=self.ASDGenActors, renWin=self.renWin)
+            self.EneActors.UpdateEnergy(
+                window=self,
+                ASDdata=self.ASDdata,
+                ASDGenActors=self.ASDGenActors,
+                renWin=self.renWin,
+            )
             # -------------------------------------------------------------------
             # Take a snapshot
             # -------------------------------------------------------------------
@@ -2048,25 +2340,36 @@ class UppASDVizMainWindow(QMainWindow):
             # -------------------------------------------------------------------
             self.current_time += 1
         return
+
     ############################################################################
     # Individual update of the image, either by increasing the timer count
     # by one or by minus one
     ############################################################################
 
     def UpdateImage(self):
-        if self.viz_type == 'M':
+        if self.viz_type == "M":
+            print("UpdateImage:", self.__class__.__name__)
             # -------------------------------------------------------------------
             # Update the moments
             # -------------------------------------------------------------------
-            self.MomActors.UpdateMoments(window=self, ASDdata=self.ASDdata,
-                                         ASDGenActors=self.ASDGenActors, renWin=self.renWin)
-        elif self.viz_type == 'E':
+            self.MomActors.UpdateMoments(
+                window=self,
+                ASDdata=self.ASDdata,
+                ASDGenActors=self.ASDGenActors,
+                renWin=self.renWin,
+            )
+        elif self.viz_type == "E":
             # -------------------------------------------------------------------
             # Update the energy
             # -------------------------------------------------------------------
-            self.EneActors.UpdateEnergy(window=self, ASDdata=self.ASDdata,
-                                        ASDGenActors=self.ASDGenActors, renWin=self.renWin)
+            self.EneActors.UpdateEnergy(
+                window=self,
+                ASDdata=self.ASDdata,
+                ASDGenActors=self.ASDGenActors,
+                renWin=self.renWin,
+            )
         return
+
     ############################################################################
     # Select the energy actor
     ############################################################################
@@ -2081,6 +2384,7 @@ class UppASDVizMainWindow(QMainWindow):
             self.EneActors.EneActor.VisibilityOn()
             self.renWin.Render()
         return
+
     ############################################################################
     # Update the UI
     ############################################################################
@@ -2096,37 +2400,43 @@ class UppASDVizMainWindow(QMainWindow):
 
     ############################################################################
     # Interactive Simulations and Dock
-    ############################################################################    
+    ############################################################################
 
     def SetSDSliderValue(self, NSimulations):
-        self.IntSDSliderVal.setText(f'Simulations: {10*NSimulations}')
+        self.IntSDSliderVal.setText(f"Simulations: {10*NSimulations}")
 
     def SetMCSliderValue(self, NSimulations):
-        self.IntMCSliderVal.setText(f'Simulations: {10*NSimulations}')      
-    
+        self.IntMCSliderVal.setText(f"Simulations: {10*NSimulations}")
+
     def IntButtons(self):
         """
-        Run a number of simulations depending slider inputs from the user using 
+        Run a number of simulations depending slider inputs from the user using
         one of two simulation modes.
         """
-        import ASD_GUI.UI.ASDInteractiveTab as IntTab
-        #import uppasd as asd
+
         if self.sender() == self.IntSStepButton:
-            IntTab.UpdateIntInputs(self)
-            for _ in range(10*self.IntSDSlider.value()):
+            ASDInteractiveTab.UpdateIntInputs(self)
+            for _ in range(1 * self.IntSDSlider.value()):
                 self.InteractiveVtk.S_Step()
-        if self.sender() == self.IntMCSimButton:
-            IntTab.UpdateIntInputs(self)
-            for __ in range(10*self.IntMCSlider.value()):
+        if self.sender() == self.IntMCMSimButton:
+            ASDInteractiveTab.UpdateIntInputs(self)
+            for __ in range(1 * self.IntMCSlider.value()):
                 self.InteractiveVtk.M_step()
+        if self.sender() == self.IntMCHSimButton:
+            ASDInteractiveTab.UpdateIntInputs(self)
+            for __ in range(1 * self.IntMCSlider.value()):
+                self.InteractiveVtk.H_step()
         if self.sender() == self.IntResetButton:
+            print("Reset button pressed")
             self.InteractiveVtk.Reset()
+        if self.sender() == self.IntMomentButton:
+            print('Moment button pressed')
+            self.InteractiveVtk.read_moments()
 
     def UpdateInteractiveVtk(self):
-        """Update text in the interactive window. """
-        import ASD_GUI.UI.ASDInteractiveTab as IntTab
+        """Update text in the interactive window."""
 
-        IntTab.UpdateIntInputs(self)
+        ASDInteractiveTab.UpdateIntInputs(self)
 
         self.InteractiveVtk.UpdateTemperature()
         self.InteractiveVtk.UpdateBfield()
@@ -2134,93 +2444,125 @@ class UppASDVizMainWindow(QMainWindow):
     def InteractiveScreenshot(self):
         self.InteractiveVtk.Screenshot()
 
+    def InteractiveScreenshotTic(self, tic):
+        if tic:
+            print("Taking screenshots")
+            self.InteractiveVtk.film = True
+        else:
+            print("Not taking screenshots")
+            self.InteractiveVtk.film = False
+
     def CheckForInteractorFiles(self):
         """
-        Check if we have any input/output files and determines if 
+        Check if we have any input/output files and determines if
         the interactive window is ready to launch. Shows error window
-        with missing files if check fails. 
+        with missing files if check fails.
 
         Returns:
                 Check   :   Bool
         """
 
-        import os.path as path
-        #import uppasd as asd
-        import glob
-        import ASD_GUI.UI.ASDInputWindows as ASDInputWindows
-
-        restartfile, coordfile = 'dummystring', 'dummystring'
+        restartfile, coordfile = "dummystring", "dummystring"
         Check = False
 
-        if len(glob.glob("restart.????????.out")) > 0:
-            restartfile = glob.glob("restart.????????.out")[0]    
-        if len(glob.glob("coord.????????.out")) > 0:
-            coordfile = glob.glob("coord.????????.out")[0]
-        if len(self.ASDInputGen.posfile) == 0 and path.exists('posfile'):
-            self.ASDInputGen.posfile = glob.glob('posfile')[0]
-        if len(self.ASDInputGen.momfile) == 0 and path.exists('momfile'):
-            self.ASDInputGen.momfile = glob.glob('momfile')[0]
+        # if len(glob.glob("restart.????????.out")) > 0:
+        #     restartfile = glob.glob("restart.????????.out")[0]
+        # if len(glob.glob("coord.????????.out")) > 0:
+        #     coordfile = glob.glob("coord.????????.out")[0]
+        if len(self.ASDInputGen.posfile) == 0 and path.exists("inpsd.dat"):
+            posfile, momfile = self.ASDInputGen.GetPosMomFiles()
+            self.ASDInputGen.posfile = glob.glob(posfile)[0]
+            print('posfile:', self.ASDInputGen.posfile)
+        if len(self.ASDInputGen.momfile) == 0 and path.exists("momfile"):
+            self.ASDInputGen.momfile = glob.glob(momfile)[0]
+            print('momfile:', self.ASDInputGen.momfile)
+
+        InputChecklist = [
+            path.exists("inpsd.dat"),
+            path.exists(self.ASDInputGen.posfile),
+            path.exists(self.ASDInputGen.momfile),
+        ]
+        # OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
+
+        # if all(x for x in InputChecklist) and any(not x for x in OutputChecklist):
+        #    print("Input found, but no output. Running uppasd...")
+        #    # print("These are the modules:", sys.modules.keys())
+        #    if self.ASDsim == None:
+        #        try:
+        #            self.ASDsim= ASDsimulator.Simulator()
+        #            self.ASDsim.init_simulation()
+        #            print("ASDsimulation initialized in CheckForInteractorFiles.")
+        #        except ImportError:
+        #            print("Launch: UppASD module not installed.")
+        #            return
+        #    else:
+        #        print("ASDsimulation already initialized. Running uppasd from CheckForInteractorFiles")
+        #        self.ASDsim.run_uppasd()
+        #        # Reset the simulator
+        #        del self.ASDsim
+        #        self.ASDsim = ASDsimulator.Simulator()
+        #        self.ASDsim.init_simulation()
+        #        # self.ASDsim.init_simulation()
+        #        # self.ASDsim.run_simulation()
+        #        
+        #    Check = True
             
-        InputChecklist = [path.exists('inpsd.dat'), path.exists(self.ASDInputGen.posfile),
-                           path.exists(self.ASDInputGen.momfile)]
-        OutputChecklist = [path.exists(restartfile), path.exists(coordfile)]
-
-        if  all(x == True for x in InputChecklist) and any(x == False for x in OutputChecklist):
-            print('Input found, but no output. Running uppasd...')
-            try:
-                import uppasd as asd
-                asd.pyasd.runuppasd()
-            except:
-                pass
+        if all(x for x in InputChecklist):
             Check = True
 
-        if  all(x == True for x in OutputChecklist) and all(x == True for x in InputChecklist):
-            Check = True
+        # if all(x is True for x in OutputChecklist) and all(
+        #     x is True for x in InputChecklist
+        # ):
+        #     Check = True
 
-        # Error message 
-        Files = ['inpsd.dat', 'posfile', 'momfile']
-        MissingFiles = ', '.join([file for index, file in enumerate(Files) if not InputChecklist[index]])
+        # Error message
+        Files = ["inpsd.dat", "posfile", "momfile"]
+        MissingFiles = ", ".join(
+            [file for index, file in enumerate(Files) if not InputChecklist[index]]
+        )
 
         if not Check:
-            self.InteractiveErrorWindow = ASDInputWindows.Error_Window()
-            self.InteractiveErrorWindow.FunMsg.setText('Task failed successfully!')
-            self.InteractiveErrorWindow.ErrorMsg.setText(f'Could not launch interactive simulation. Missing input files: {MissingFiles}')
+            self.InteractiveErrorWindow = ASDInputWindows.ErrorWindow()
+            self.InteractiveErrorWindow.FunMsg.setText("Task failed successfully!")
+            self.InteractiveErrorWindow.ErrorMsg.setText(
+                f"Could not launch interactive simulation. Missing input files: {MissingFiles}"
+            )
             self.InteractiveErrorWindow.show()
         return Check
-    
+
     ###########################################################################
 
     def RunSimulation(self):
         """
         Run simulation using the uppasd module. Checks if a inpsd.dat file
-        is present in current directory and asks for overwrite. 
+        is present in current directory and asks for overwrite.
 
         Author: Erik Karpelin
         """
 
-        #import uppasd as asd 
-        import os.path as path
+        # import uppasd as asd
 
-        if not path.isfile('inpsd.dat'):
-            print('inpsd.dat not found, creating from asd_gui')
+        if not path.isfile("inpsd.dat"):
+            print("inpsd.dat not found, creating from asd_gui")
             self.WriteInputFile()
-        try:
-            import uppasd as asd 
-            asd.pyasd.runuppasd()
-        except:
-            pass
+
+        if self.ASDsim is not None:
+            print("Running simulation from RunSimulation")
+            self.ASDsim.init_simulation()
+            self.ASDsim.run_simulation()
+
         return
 
     def SetStructureTemplate(self, structure):
         """Relay function to handle the structure templates."""
         self.ASDInputGen.SetStructureTemplate(self, structure)
         return
-    
+
     def ResetInputs(self):
         """Relay function to handle the reset button."""
         self.ASDInputGen.ResetInputs(self)
         return
-    
+
     def MagnonQuickSetup(self):
         """Relay function for magnon quick setup"""
         self.ASDInputGen.MagnonQuickSetup(self)

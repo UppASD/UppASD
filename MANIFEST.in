@@ -1,6 +1,7 @@
-#include uppasd/_uppasd* ../CMakeLists.txt
-#recursive-include source 
 recursive-include ./source *.f90 *.cu *.cpp *.hpp *.h kind.map *.txt
 recursive-include ./cmake *
+recursive-include ./cpack *
 include ./CMakeLists.txt
-recursive-incude ./scripts uppasd*
+#include uppasd/_uppasd* ../CMakeLists.txt
+#recursive-include source 
+#recursive-include ./scripts uppasd*
