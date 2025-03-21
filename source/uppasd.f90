@@ -264,13 +264,21 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
-      
+      use Qvectors,        only : q,nq
+      use Chern_number
+
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq,0)
          call timing(0,'SpinCorr      ','OF')
+      end if
+
+      if(do_chern=='Y') then
+         call timing(0,'ChernNumber      ','ON')
+         call calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
+         call timing(0,'ChernNumber      ','OF')
       end if
 
       write (*,'(1x,a)') "Enter measurement phase:"
@@ -606,6 +614,7 @@ contains
       use prn_latticetrajectories
       use WangLandau
       use Diamag
+      use Chern_number
       use ElkGeometry
       use Qminimizer
       use Correlation_core
@@ -736,11 +745,15 @@ contains
       rewind(ifileno)
       call read_parameters_diamag(ifileno)
       rewind(ifileno)
+      call read_parameters_chern_number(ifileno)
+      rewind(ifileno)
       call read_parameters_elkgeometry(ifileno)
       rewind(ifileno)
       call read_parameters_qminimizer(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
+      rewind(ifileno)
+      call read_parameters_tempexp(ifileno)
       close(ifileno)
       
        
@@ -984,7 +997,7 @@ contains
       endif
 
       ! See if it is necesary to read the temperature file
-      if(grad.eq.'Y') call read_temperature_legacy()
+      !if(grad.eq.'Y') call read_temperature_legacy()
       !if(grad.eq.'Y'.or.grad.eq.'F') call read_temperature()
 
       ! Allocating the temperature arrays
@@ -994,9 +1007,9 @@ contains
       if (ipnphase.ge.1) then
          do i=1, ipnphase
             if(grad=='Y') then
-               !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-               !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
-               !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
+               ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+               !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
+               !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
                call Lparray(ipTemp_array(:,i),Natom,coord,iptemp(i),simid,.false.)
             else if(grad=='F') then
                call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,     &
@@ -1009,9 +1022,9 @@ contains
          enddo
       endif
       if(grad=='Y') then
-         !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-         !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
-         !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
+         ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+         !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
+         !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
          call Lparray(Temp_array,Natom,coord,Temp,simid,.true.)
       else if(grad=='F') then
          call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,ACELLNUMB, &

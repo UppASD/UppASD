@@ -1318,6 +1318,7 @@ contains
 
       !.. Executable statements
 
+      kinenergy = 0.0_dblprec
       !.. Sum over atoms
       do k=1,Mensemble
          do i=1, Natom

@@ -556,7 +556,7 @@ if got_sqw_tens:
         sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
         plt_idx=plt_idx+1
         ax=plt.subplot(plt_idx)
-        stitle='$S^{'+xyz[ix]+xyz[iy]+'}(q,\omega)}$'
+        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
         ax.set_title(stitle)
 
         sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
@@ -597,7 +597,7 @@ if got_sqw_tens:
             sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
             plt_idx=plt_idx+1
             ax=plt.subplot(plt_idx)
-            stitle='$S^{'+xyz[ix]+xyz[iy]+'}(q,\omega)}$'
+            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
             ax.set_title(stitle)
 
             sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
@@ -637,7 +637,7 @@ if got_lswt_sqw_tens:
         sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
         plt_idx=plt_idx+1
         ax=plt.subplot(plt_idx)
-        stitle='$S^{'+xyz[ix]+xyz[iy]+'}_{LSWT}$'
+        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
         ax.set_title(stitle)
 
         sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
@@ -676,7 +676,7 @@ if got_lswt_sqw_tens:
             sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
             plt_idx=plt_idx+1
             ax=plt.subplot(plt_idx)
-            stitle='$S^{'+xyz[ix]+xyz[iy]+'}_{LSWT}$'
+            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
             ax.set_title(stitle)
 
             sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
