@@ -1,0 +1,105 @@
+name: Build wheels on Windows, using old build algo
+
+on:
+  release:
+  # push:
+  # pull_request:
+  # workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { icon: '🐢', sys: mingw64, arch: x86_64, python-version: '3.8'  }
+          - { icon: '🐍', sys: mingw64, arch: x86_64, python-version: '3.9'  }
+          - { icon: '🐉', sys: mingw64, arch: x86_64, python-version: '3.10' }
+          - { icon: '🦖', sys: mingw64, arch: x86_64, python-version: '3.11' }
+    name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }} ${{ matrix.python-version }}  
+    continue-on-error: true
+    defaults:
+      run:
+        #shell: bash
+        shell: msys2 {0}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: '${{ matrix.icon }} Setup MSYS2 gcc'
+      if: ${{ matrix.sys != 'clang64' }}
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ${{matrix.sys}}
+        release: false
+        path-type: full
+        pacboy: >-
+          toolchain:p
+          gcc-fortran:p
+          openblas:p
+          lapack:p
+          fftw:p
+          cmake:p
+          ninja:p
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{matrix.python-version}}
+          
+    - name: Setup Python further
+      run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        $parsedPyPath/python -m pip install virtualenv numpy build setuptools wheel
+        $parsedPyPath/python -m venv ~/my_env
+        source ~/my_env/Scripts/activate
+        python -m pip install numpy build setuptools wheel
+        
+    - name: '🚧 Add MSYS tools to path'
+      run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" 
+        echo "$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin" > github_header
+        paste github_header $GITHUB_PATH > $GITHUB_PATH
+          
+    - name: '🚧 Build wheel'
+      run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        source ~/my_env/Scripts/activate
+        python -m build .
+        #python setup.py bdist_wheel
+        #python -m pip wheel . -v
+
+    - name: '🧪 Test wheel'
+      run: |
+        parsedPyPath=$(echo "$Python3_ROOT_DIR" | sed -E 's/^C:/\/c/; s/\\/\//g')
+        export PATH=$parsedPyPath:/c/msys64/${{matrix.sys}}/bin:/c/msys64/usr/bin:$PATH
+        source ~/my_env/Scripts/activate
+        python -m pip install dist/uppasd*.whl
+        python -c "import uppasd.pyasd as pyasd ; pyasd.printlogo()"
+
+    - uses: actions/upload-artifact@v4
+      with:
+       name: uppasd.${{matrix.sys}}.${{matrix.arch}}.${{matrix.python-version}}
+       path: ./dist/uppasd*.whl
+
+  upload:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          pattern: uppasd*
+          merge-multiple: true
+      - run: ls -l ./dist
+

@@ -466,8 +466,8 @@ contains
                                        atype_ch(iatom),asite_ch(iatom),achem_ch(iatom)
                                  end if
                                  if(do_prn_poscar==1) then
-                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy &
-                                         currently not supported.'
+                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy'// &
+                                         '  currently not supported.'
                                  end if
                               end if
                            end if

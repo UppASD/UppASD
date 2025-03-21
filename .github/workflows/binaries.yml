@@ -1,0 +1,182 @@
+name: Build and test binaries
+
+#on: [release]
+on: [release, push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build binaries on ${{ matrix.os }} ${{ matrix.icon}}
+    strategy:
+      matrix:
+        include:
+          - { icon: '🐧' , os: ubuntu-latest,  shell: bash, arch: x86_64 }
+          - { icon: '💻' , os: windows-latest, shell: msys2, arch: x86_64 }
+          - { icon: '🍎' , os: macos-14,       shell: bash, arch: arm64 }
+          - { icon: '🍏' , os: macos-13,       shell: bash, arch: x86_64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+    continue-on-error: true
+
+    steps:
+      - name: Provide fftw, ninja on macOS ${{ matrix.icon}}
+        if: runner.os == 'macOS'
+        run: |
+          # fftw3 
+          brew install fftw ninja meson
+          fftw-wisdom -V
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+
+      - name: Provide ninja on Linux ${{ matrix.icon}}
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev
+
+      - name: Provide gfortran on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-blas
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-lapack
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            git 
+
+      - uses: actions/checkout@v4
+
+      - name: Fetch tags for versioning
+        run: git fetch --prune --unshallow --tags
+
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build binaries ${{ matrix.icon}}
+        run: |
+             cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake --build build --parallel 
+             mkdir ./dist
+             ls -l ./bin
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+      - name: Install python packages for testing
+        run: |
+            python -m ensurepip 
+            python -m pip install pyyaml
+
+      - name: Test binaries ${{ matrix.icon}}
+        if: runner.os != 'Windows'
+        run: |
+             cd build
+             ctest --verbose --output-on-failure
+             cd ..
+
+      - name: Build self-extracting package ${{ matrix.icon}}
+        run: |
+             cd build
+             cpack -G STGZ
+             ls -l
+             cd ..
+
+      - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
+        if: runner.os == 'Linux'
+        run: |
+             cd build
+             cpack -G DEB
+             cpack -G RPM
+             ls -l
+             cd ..
+
+      # - name: Build NSIS installation package on Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #        cd build
+      #        cat CPackConfig.cmake
+      #        cpack -G NSIS64
+      #        ls -l
+      #        cd ..
+
+      - name: Build WIX installation package on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        run: |
+             cd build
+             cat CPackConfig.cmake
+             cpack -G WIX
+             ls -l
+             cd ..
+
+      #- name: Build binaries
+      #  run: |
+      #       FC=gfortran-13 CC=gcc-13 cmake -S . -B build 
+      #       cmake --build build --parallel
+      #       mkdir ./dist
+      #       echo "uname -a:"
+      #       uname -a
+      #       echo "runner.name:"
+      #       echo ${{runner.name}}
+      #       cp ./bin/sd.* ./dist/uppasd.${{matrix.os}}.${{matrix.arch}}
+      #       echo "Binary:" uppasd.${{matrix.os}}.${{matrix.arch}}
+
+      - name: Upload self-extracting package
+        uses: actions/upload-artifact@v4
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}
+          path: ./build/uppasd*.sh
+
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
+          path: ./build/uppasd*.deb
+
+      - name: Upload .rpm package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
+          path: ./build/uppasd*.rpm
+
+      # - name: Upload Windows NSIS installer
+      #   uses: actions/upload-artifact@v4
+      #   if: runner.os == 'Windows'
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
+      #     path: ./build/uppasd*.exe
+
+      - name: Upload Windows WIX installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+          path: ./build/UppASD*.msi
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: uppasd.${{runner.os}}.${{matrix.arch}}
+          path: ./dist/uppasd*
+
+      # - name: Upload NSIS log
+      #   if: runner.os == 'Windows'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: nsis_log.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/_CPack_Packages/win64/NSIS64/NSISOutput.log
+
+      - name: Upload test logs
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest_log.${{runner.os}}.${{matrix.arch}}
+          path: ./build/Testing/Temporary/LastTest.log

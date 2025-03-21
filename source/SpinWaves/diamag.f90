@@ -187,7 +187,7 @@ contains
                B_k(ia,ja) =B_k(ia,ja) +0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq+3*nq),uj)
                C_k(ia,ia) =C_k(ia,ia) +1.0_dblprec*mmom(ja,1)*sJs(vi,Jtens_q(:,:,ia,ja,0),vj)
 
-               ! Also mount S' for later correlation function use 
+               ! Also mount S´ for later correlation function use 
                do alfa=1,3
                   do beta=1,3
                      ! Y(alfa,beta,k)
@@ -208,7 +208,7 @@ contains
             end do
          end do
 
-         ! Hamiltonian h = [A(k)-C B(k) ; B'(k) A(-k)+C ]
+         ! Hamiltonian h = [A(k)-C B(k) ; B´(k) A(-k)+C ]
          h_k=0.0_dblprec
          do ia=1,NA
             do ja=1,NA
@@ -423,7 +423,7 @@ contains
          g_mat(ia+NA,ia+NA)=(-1.0_dblprec,0.0_dblprec)
       end do
       !
-      ! Cholesky decomposition of h to K'*K
+      ! Cholesky decomposition of h to K´*K
       !!! print *,'h'
       !!! print '(8f12.6)',h_in
       !!! print *,'Re h'
@@ -490,7 +490,7 @@ contains
       !       eig_vec(ja,ia)=eig_vec(ia,ja)
       !    end do
       ! end do
-      ! Eigenvaluesolver for HgH'
+      ! Eigenvaluesolver for HgH´
       KgK_mat=eig_vec
       call zheev('V','U', hdim, eig_vec, hdim, eig_val, cwork, lwork, rwork, info)
       deallocate(cwork)
@@ -538,7 +538,7 @@ contains
 
       do alfa=1,3
          do beta=1,3
-            ! Calculate T' * [Y Z ; V W ] * T
+            ! Calculate T´ * [Y Z ; V W ] * T
             call zgemm('N','N',hdim,hdim,hdim,cone,S_prime(:,:,alfa,beta,iq),hdim,T_mat,hdim,czero,dum_mat,hdim)
             call zgemm('C','N',hdim,hdim,hdim,cone,T_mat,hdim,dum_mat,hdim,czero,S_prime(:,:,alfa,beta,iq),hdim)
          end do
@@ -844,7 +844,7 @@ contains
       mom_hat=mom/mnorm
       !mnorm=1.0_dblprec
       !mom_hat=z_hat
-      ! Follow Toth-Lake recipe for R'
+      ! Follow Toth-Lake recipe for R´
       R_prime(3,:)=mom_hat
       !if(abs(mom_hat(3))==1.0_dblprec) then  !if m=00+-1 then R_2=0+-10
       if(abs(mom_hat(3)-1.0_dblprec)<0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)

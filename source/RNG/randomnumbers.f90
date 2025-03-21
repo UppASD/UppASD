@@ -79,11 +79,15 @@ contains
       integer :: i_stat,i_all
 
       if (flag>0) then
-         allocate(ranv(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(ranv))*kind(ranv),'ranv','allocate_randomwork')
+         if (.not.allocated(ranv)) then
+            allocate(ranv(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(ranv))*kind(ranv),'ranv','allocate_randomwork')
+         end if
          if(do_ld == 'Y') then
-            allocate(lattranv(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(lattranv))*kind(lattranv),'lattranv','allocate_randomwork')
+            if (.not.allocated(lattranv)) then
+               allocate(lattranv(3,Natom,Mensemble),stat=i_stat)
+               call memocc(i_stat,product(shape(lattranv))*kind(lattranv),'lattranv','allocate_randomwork')
+            end if
          end if
       else
          i_all=-product(shape(ranv))*kind(ranv)

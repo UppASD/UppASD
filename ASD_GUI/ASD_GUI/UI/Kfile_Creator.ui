@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>InpKfileCreate</class>
+ <widget class="QDialog" name="InpKfileCreate">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>885</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Kfile Creation</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_3">
+   <item row="0" column="0">
+    <widget class="QScrollArea" name="InpKfileScrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>860</width>
+        <height>500</height>
+       </rect>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="3" column="0" colspan="2">
+        <widget class="QGroupBox" name="InKfileButtonBox">
+         <property name="title">
+          <string/>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <widget class="QPushButton" name="InpKfileDone">
+            <property name="text">
+             <string>Done!</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="InpKfileCancel">
+            <property name="text">
+             <string>Cancel</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="InKfileBox">
+         <property name="title">
+          <string/>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0" colspan="2">
+           <widget class="QTableWidget" name="InKfileTable">
+            <property name="lineWidth">
+             <number>2</number>
+            </property>
+            <property name="midLineWidth">
+             <number>1</number>
+            </property>
+            <property name="rowCount">
+             <number>1</number>
+            </property>
+            <row/>
+            <column>
+             <property name="text">
+              <string>Site i</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Site j</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>X Dir.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Y Dir.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Z Dir.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>K x</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>K y</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>K z</string>
+             </property>
+            </column>
+            <item row="0" column="0">
+             <property name="text">
+              <string>1</string>
+             </property>
+            </item>
+            <item row="0" column="1">
+             <property name="text">
+              <string>1</string>
+             </property>
+            </item>
+            <item row="0" column="2">
+             <property name="text">
+              <string>1.0</string>
+             </property>
+            </item>
+            <item row="0" column="3">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+            <item row="0" column="4">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+            <item row="0" column="5">
+             <property name="text">
+              <string>1.0</string>
+             </property>
+            </item>
+            <item row="0" column="6">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+            <item row="0" column="7">
+             <property name="text">
+              <string>0.0</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QPushButton" name="InKfileAddRow">
+            <property name="text">
+             <string>Add Row</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="InKfileDelRow">
+            <property name="text">
+             <string>Delete Row</string>
+            </property>
+           </widget>
+          </item>
+          <!-- <item row="2" column="1">
+           <widget class="QPushButton" name="InKfileGenVectors">
+            <property name="text">
+             <string>Generate neighbor vectors</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="InKfileCutoffLabel">
+            <property name="text">
+             <string>Cutoff for neighbor search</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QSpinBox" name="InKfileNNCutoff">
+            <property name="toolTip">
+             <string>Set cutoff of nearest neighbor search</string>
+            </property>
+            <property name="statusTip">
+             <string>Set cutoff of nearest neighbor search</string>
+            </property>
+            <property name="whatsThis">
+             <string>Set cutoff of nearest neighbor search</string>
+            </property>
+            <property name="maximum">
+                <number>5</number>
+            </property>
+           </widget>
+          </item> -->
+         </layout>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>29</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
