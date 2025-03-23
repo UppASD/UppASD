@@ -1,6 +1,6 @@
 name: Build and test binaries
 
-#on: [release]
+#on:  [release]
 on: [release, push, pull_request]
 
 jobs:
