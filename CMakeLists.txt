@@ -750,9 +750,10 @@ unset(UppASD_links)
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # On Linux, use static linking and include libquadmath
     set(UppASD_links "-static")
-#elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 #    # On macOS, avoid static linking
 #    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
+    set(UppASD_links "-static-libgfortran -static-libgcc")
 endif()
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
