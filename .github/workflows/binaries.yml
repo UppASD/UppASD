@@ -24,7 +24,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           # fftw3 
-          brew install fftw ninja meson
+          brew install fftw meson
           fftw-wisdom -V
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
@@ -61,7 +61,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build binaries ${{ matrix.icon}}
+      - name: Build binaries ${{ matrix.icon}} on macOS
+        if: runner.os == 'macOS'
+        run: |
+             FC=gfortran-14 cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake --build build --parallel 
+             mkdir ./dist
+             ls -l ./bin
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+      - name: Build binaries ${{ matrix.icon}} 
         run: |
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --parallel 
@@ -70,6 +79,7 @@ jobs:
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
 
       - name: Install python packages for testing
+        if: runner.os != 'Windows'
         run: |
             python -m ensurepip 
             python -m pip install pyyaml
@@ -81,10 +91,10 @@ jobs:
              ctest --verbose --output-on-failure
              cd ..
 
-      - name: Build self-extracting package ${{ matrix.icon}}
+      - name: Build zip file archive ${{ matrix.icon}}
         run: |
              cd build
-             cpack -G STGZ
+             cpack -G ZIP
              ls -l
              cd ..
 
@@ -97,6 +107,14 @@ jobs:
              ls -l
              cd ..
 
+      - name: Build DragNDrop package on Mac OS ${{ matrix.icon}}
+        if: runner.os == 'macOS'
+        run: |
+             cd build
+             cpack -G DragNDrop
+             ls -l
+             cd ..
+
       # - name: Build NSIS installation package on Windows ${{ matrix.icon}}
       #   if: runner.os == 'Windows'
       #   run: |
@@ -106,14 +124,14 @@ jobs:
       #        ls -l
       #        cd ..
 
-      - name: Build WIX installation package on Windows ${{ matrix.icon}}
-        if: runner.os == 'Windows'
-        run: |
-             cd build
-             cat CPackConfig.cmake
-             cpack -G WIX
-             ls -l
-             cd ..
+      # - name: Build WIX installation package on Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #        cd build
+      #        cat CPackConfig.cmake
+      #        cpack -G WIX
+      #        ls -l
+      #        cd ..
 
       #- name: Build binaries
       #  run: |
@@ -127,25 +145,25 @@ jobs:
       #       cp ./bin/sd.* ./dist/uppasd.${{matrix.os}}.${{matrix.arch}}
       #       echo "Binary:" uppasd.${{matrix.os}}.${{matrix.arch}}
 
-      - name: Upload self-extracting package
-        uses: actions/upload-artifact@v4
-        with:
-          name: UppASD.${{runner.os}}.${{matrix.arch}}
-          path: ./build/uppasd*.sh
+      # - name: Upload self-extracting package
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/UppASD*.sh
 
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
-          path: ./build/uppasd*.deb
+          path: ./build/UppASD*.deb
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
-          path: ./build/uppasd*.rpm
+          path: ./build/UppASD*.rpm
 
       # - name: Upload Windows NSIS installer
       #   uses: actions/upload-artifact@v4
@@ -154,12 +172,12 @@ jobs:
       #     name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
       #     path: ./build/uppasd*.exe
 
-      - name: Upload Windows WIX installer
-        uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
-          path: ./build/UppASD*.msi
+      # - name: Upload Windows WIX installer
+      #   uses: actions/upload-artifact@v4
+      #   if: runner.os == 'Windows'
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+      #     path: ./build/UppASD*.msi
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4

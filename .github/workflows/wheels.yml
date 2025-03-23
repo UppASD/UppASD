@@ -48,6 +48,7 @@ jobs:
             mingw-w64-x86_64-fftw
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-python-virtualenv
             git 
 
       - uses: actions/checkout@v4
@@ -56,24 +57,26 @@ jobs:
         run: git fetch --prune --unshallow --tags
 
       # Used to host cibuildwheel
-      - uses: actions/setup-python@v5
-        if: runner.os == 'Windows'
-        with:
-          python-version: '3.10'
+      # - uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.10'
 
-      - name: Install patched cibuildwheel for Windows ${{ matrix.icon}}
-        if: runner.os == 'Windows'
-        #run: python -m pip install cibuildwheel==2.10.1
-        run: |
-            python -m ensurepip 
-            python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
-        #   python -m pip install ninja numpy scipy
+      # - name: Install patched cibuildwheel for Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   #run: python -m pip install cibuildwheel==2.10.1
+      #   run: |
+      #       python -m venv my_env
+      #       . my_env/Scripts/activate
+      #       python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
 
       - name: Build wheels on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
+        # uses: pypa/cibuildwheel@v2.23.1
         run: |
           which gfortran
           pipx run cibuildwheel --output-dir wheelhouse
+        # which gfortran
+        # . my_env/Scripts/activate
         # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
@@ -89,7 +92,7 @@ jobs:
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
    
       - name: Build wheels on Linux and macOS ${{ matrix.icon}}
-        uses: pypa/cibuildwheel@v2.18.1
+        uses: pypa/cibuildwheel@v2.23.1
         if: runner.os != 'Windows'
         with:
           output-dir: wheelhouse
@@ -98,10 +101,10 @@ jobs:
           #CIBW_ENVIRONMENT_WINDOWS: >
           #  CMAKE_PREFIX_PATH="C:\\\\msys64\\mingw64" CC=gcc CXX=g++ FC=gfortran 
           #  CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
-          CIBW_ENVIRONMENT_MACOS: CC=gcc-12 CXX=g++-12 FC=gfortran-12
+          CIBW_ENVIRONMENT_MACOS: CC=gcc-14 CXX=g++-14 FC=gfortran-14
           # CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
-          FC: gfortran-12
-          CC: gcc-12
+          FC: gfortran-14
+          CC: gcc-14
           # CIBW_BUILD_VERBOSITY: 3
 
       - uses: actions/upload-artifact@v4
