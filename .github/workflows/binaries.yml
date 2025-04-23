@@ -24,7 +24,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           # fftw3 
-          brew install fftw ninja meson
+          brew install fftw meson
           fftw-wisdom -V
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
@@ -61,7 +61,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build binaries ${{ matrix.icon}}
+      - name: Build binaries ${{ matrix.icon}} on macOS
+        if: runner.os == 'macOS'
+        run: |
+             FC=gfortran-14 cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake --build build --parallel 
+             mkdir ./dist
+             ls -l ./bin
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+      - name: Build binaries ${{ matrix.icon}} 
         run: |
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --parallel 
@@ -70,6 +79,7 @@ jobs:
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
 
       - name: Install python packages for testing
+        if: runner.os != 'Windows'
         run: |
             python -m ensurepip 
             python -m pip install pyyaml
@@ -81,10 +91,10 @@ jobs:
              ctest --verbose --output-on-failure
              cd ..
 
-      - name: Build self-extracting package ${{ matrix.icon}}
+      - name: Build zip file archive ${{ matrix.icon}}
         run: |
              cd build
-             cpack -G STGZ
+             cpack -G ZIP
              ls -l
              cd ..
 
@@ -94,6 +104,14 @@ jobs:
              cd build
              cpack -G DEB
              cpack -G RPM
+             ls -l
+             cd ..
+
+      - name: Build DragNDrop package on Mac OS ${{ matrix.icon}}
+        if: runner.os == 'macOS'
+        run: |
+             cd build
+             cpack -G DragNDrop
              ls -l
              cd ..
 
@@ -138,14 +156,14 @@ jobs:
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
-          path: ./build/uppasd*.deb
+          path: ./build/UppASD*.deb
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
-          path: ./build/uppasd*.rpm
+          path: ./build/UppASD*.rpm
 
       # - name: Upload Windows NSIS installer
       #   uses: actions/upload-artifact@v4
@@ -166,6 +184,12 @@ jobs:
         with:
           name: uppasd.${{runner.os}}.${{matrix.arch}}
           path: ./dist/uppasd*
+
+      - name: Upload zip archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.zip
+          path: ./build/UppASD*.zip
 
       # - name: Upload NSIS log
       #   if: runner.os == 'Windows'

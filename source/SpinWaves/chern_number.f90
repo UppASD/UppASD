@@ -8,7 +8,8 @@
 !> GNU Public License
 !------------------------------------------------------------------------------------
 module Chern_number
-   use, intrinsic :: ieee_arithmetic,  only : ieee_is_nan
+   use ieee_arithmetic,  only : ieee_is_nan
+   ! use, intrinsic :: ieee_arithmetic,  only : ieee_is_nan
    use InputData,  only : Temp
    use Parameters
    use Constants
