@@ -69,14 +69,17 @@ jobs:
              mkdir ./dist
              ls -l ./bin
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             ls -l ./dist 
 
-      - name: Build binaries ${{ matrix.icon}} 
+      - name: Build binaries ${{ matrix.icon}} on Windows and Linux
+        if: runner.os != 'macOS'
         run: |
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --parallel 
              mkdir ./dist
              ls -l ./bin
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             ls -l ./dist 
 
       - name: Install python packages for testing
         if: runner.os != 'Windows'
@@ -95,6 +98,10 @@ jobs:
         run: |
              cd build
              cpack -G ZIP
+             for file in *.zip; do
+               echo "File: $file"
+               cp $file ${file/.zip/}.${{matrix.arch}}.zip
+             done 
              ls -l
              cd ..
 
@@ -172,12 +179,12 @@ jobs:
       #     name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
       #     path: ./build/uppasd*.exe
 
-      - name: Upload Windows WIX installer
-        uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
-          path: ./build/UppASD*.msi
+      # - name: Upload Windows WIX installer
+      #   uses: actions/upload-artifact@v4
+      #   if: runner.os == 'Windows'
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+      #     path: ./build/UppASD*.msi
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
@@ -189,7 +196,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: uppasd.${{runner.os}}.${{matrix.arch}}.zip
-          path: ./build/UppASD*.zip
+          path: ./build/uppasd*.zip
 
       # - name: Upload NSIS log
       #   if: runner.os == 'Windows'
