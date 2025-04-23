@@ -21,6 +21,7 @@ dependencies = [
     "PyYAML",
     "setuptools",
     "vtk>=9.0.0",
+    "f90nml",
     "spglib"
 ]
 

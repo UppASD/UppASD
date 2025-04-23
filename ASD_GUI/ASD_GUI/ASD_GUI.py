@@ -38,8 +38,10 @@ Jonathan Chico
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
 import sys
+import locale
 import argparse
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QLocale
 from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 
 
@@ -69,6 +71,15 @@ def main():
     """
     Initialize and run the UppASDVizMainWindow application.
     """
+    # Try to enforce en_US locale for number parsing/formatting
+    try:
+        locale.setlocale(locale.LC_NUMERIC, 'en_US.UTF-8')
+        QLocale.setDefault(QLocale("en_US"))
+        # QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+    except locale.Error:
+        print("Could not set en_US locale, using fallback.")
+        locale.setlocale(locale.LC_NUMERIC, 'C')
+
     # Parse command-line arguments
     args = parse_args()
 
