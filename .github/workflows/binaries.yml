@@ -131,14 +131,14 @@ jobs:
       #        ls -l
       #        cd ..
 
-      - name: Build WIX installation package on Windows ${{ matrix.icon}}
-        if: runner.os == 'Windows'
-        run: |
-             cd build
-             cat CPackConfig.cmake
-             cpack -G WIX
-             ls -l
-             cd ..
+      # - name: Build WIX installation package on Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #        cd build
+      #        cat CPackConfig.cmake
+      #        cpack -G WIX
+      #        ls -l
+      #        cd ..
 
       #- name: Build binaries
       #  run: |
