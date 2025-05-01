@@ -921,6 +921,8 @@ contains
       !
       use Constants
       use prn_topology
+      use Topology, only : chi_cavg, kappa_cavg, n_chi_cavg, kappa_csum
+      use Polarization, only : do_chiral
 
       !.. Implicit declarations
       implicit none
@@ -1074,6 +1076,15 @@ contains
             else
                write(ofileno,'(a)') '    "skyrmion_num"    :  null ,'
                write(ofileno,'(a)') '    "skyrmion_std"    :  null ,'
+            end if
+            if (do_chiral == 'Y') then
+               write(ofileno,'(a,f16.8,a)') '    "scalar_chirality"    : ', chi_cavg,' ,'
+               kappa_cavg = kappa_csum / n_chi_cavg
+               ! print *, 'kappa_csum', kappa_csum
+               ! print *, 'n_chi_cavg', n_chi_cavg
+               ! print *, 'kappa_cavg', kappa_cavg
+               write(ofileno,'(a,a,f16.8,a,f16.8,a,f16.8,a)') '    "vector_chirality"    : ', '[ ', &
+                  kappa_cavg(1), ', ', kappa_cavg(2), ', ', kappa_cavg(3), '],'
             end if
             write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
             write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv

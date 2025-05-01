@@ -25,8 +25,15 @@ module Topology
    integer :: nsimp !< Number of simplices
    integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
 
-   real(dblprec) :: chi_avg !< Average scalar chirality
+   real(dblprec) :: chi_avg !< Average scalar chirality (instantaneous)
+   real(dblprec) :: chi_cavg  = 0.0_dblprec !< Average scalar chirality (cumulative)
+   real(dblprec), dimension(3) :: kappa_cavg = 0.0_dblprec !< Average scalar chirality (cumulative)
+   real(dblprec), dimension(3) :: kappa_csum = 0.0_dblprec !< Cumulative sum of the vector chirality
+   integer :: n_chi_cavg = 0 !< Number of times the average scalar chirality has been calculated
 
+   integer, dimension(:,:), allocatable :: triangle_list !< List of triangles for each layer
+   integer :: n_triangles !< Number of triangles in the triangulation
+   integer :: n_layers !< Number of layers in the triangulation
    public
 
 contains
@@ -381,6 +388,146 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       !
    end subroutine delaunay_tri_tri
 
+   subroutine triangulate_layers(nAtoms, coords)
+      implicit none
+      integer, intent(in) :: nAtoms         ! Total number of atoms
+      real(dblprec), dimension(3, nAtoms), intent(in) :: coords  ! Atom coordinates (x,y,z)
+
+      integer :: i, j, k, nLayers, totalTri, idx, count, out_idx
+      real(dblprec), allocatable, dimension(:) :: zvals, uniqueZ
+      integer, allocatable, dimension(:) :: layerIdx
+      real(dblprec), allocatable, dimension(:) :: angles
+      integer :: tempIdx
+      real(dblprec) :: tempAngle
+      real(dblprec), allocatable :: tmp(:)
+
+      real(dblprec) :: cx, cy
+      real(dblprec) :: tol
+      tol = 1.0e-8_dblprec
+
+      !---------------------------------------------------------------------
+      ! Determine unique z values (layers)
+      allocate(zvals(nAtoms))
+      do i = 1, nAtoms
+          zvals(i) = coords(3,i)
+      end do
+
+      allocate(uniqueZ(nAtoms))
+      nLayers = 0
+      do i = 1, nAtoms
+          if (nLayers == 0) then
+               nLayers = 1
+               uniqueZ(1) = zvals(i)
+          else
+               do j = 1, nLayers
+                   if (abs(zvals(i)-uniqueZ(j)) < tol) exit
+               end do
+               if (j > nLayers) then
+                   nLayers = nLayers + 1
+                   uniqueZ(nLayers) = zvals(i)
+               end if
+          end if
+      end do
+      if (nLayers < size(uniqueZ)) then
+         allocate(tmp(nLayers))
+         tmp = uniqueZ(1:nLayers)
+         deallocate(uniqueZ)
+         allocate(uniqueZ(nLayers))
+         uniqueZ = tmp
+         deallocate(tmp)
+      end if
+      !---------------------------------------------------------------------
+      ! First pass: count total number of triangles (for convex, non‐degenerate layers)
+      totalTri = 0
+      do k = 1, nLayers
+          count = 0
+          do i = 1, nAtoms
+               if (abs(coords(3,i)-uniqueZ(k)) < tol) count = count + 1
+          end do
+          if (count >= 3) totalTri = totalTri + (count - 2)
+      end do
+
+      if (totalTri <= 0) then
+          allocate(triangle_list(3, 0))
+          return
+      end if
+
+      allocate(triangle_list(3, totalTri))
+      out_idx = 0
+
+      !---------------------------------------------------------------------
+      ! Process each layer separately: triangulate using a fan method.
+      ! For each layer, sort the points in order around the centroid.
+      do k = 1, nLayers
+          ! Get indices for atoms in the current layer
+          count = 0
+          allocate(layerIdx(nAtoms))
+          do i = 1, nAtoms
+               if (abs(coords(3,i)-uniqueZ(k)) < tol) then
+                   count = count + 1
+                   layerIdx(count) = i
+               end if
+          end do
+
+          if (count < 3) then
+               deallocate(layerIdx)
+               cycle
+          end if
+
+          ! Compute centroid in the xy-plane
+          cx = 0.0_dblprec
+          cy = 0.0_dblprec
+          do i = 1, count
+               cx = cx + coords(1, layerIdx(i))
+               cy = cy + coords(2, layerIdx(i))
+          end do
+          cx = cx / real(count, dblprec)
+          cy = cy / real(count, dblprec)
+
+          ! Allocate temporary array to hold angle of each point relative to centroid
+          allocate(angles(count))
+          do i = 1, count
+               angles(i) = atan2(coords(2, layerIdx(i)) - cy, coords(1, layerIdx(i)) - cx)
+          end do
+
+          ! Simple insertion sort of layerIdx and angles based on the angle values
+          do i = 2, count
+               tempAngle = angles(i)
+               tempIdx = layerIdx(i)
+               j = i - 1
+               do while (j >= 1 .and. angles(j) > tempAngle)
+                   angles(j+1) = angles(j)
+                   layerIdx(j+1) = layerIdx(j)
+                   j = j - 1
+               end do
+               angles(j+1) = tempAngle
+               layerIdx(j+1) = tempIdx
+          end do
+
+          ! Fan triangulation: use first point as anchor
+          do i = 2, count-1
+               out_idx = out_idx + 1
+               triangle_list(1, out_idx) = layerIdx(1)
+               triangle_list(2, out_idx) = layerIdx(i)
+               triangle_list(3, out_idx) = layerIdx(i+1)
+          end do
+
+          deallocate(angles, layerIdx)
+      end do
+
+      ! Pretty print the triangle list
+      ! if (allocated(triangle_list)) then
+      !    print *, "Triangle list: Total number of triangles =", size(triangle_list, dim=2)
+      !    do i = 1, size(triangle_list, dim=2)
+      !       write(*,'(A,I5,A,3(I5))') "Triangle ", i, ": ", triangle_list(1,i), triangle_list(2,i), triangle_list(3,i)
+      !    end do
+      ! else
+      !    print *, "Triangle list is not allocated."
+      ! end if
+
+      n_triangles = totalTri
+      n_layers = nLayers
+   end subroutine triangulate_layers
    !---------------------------------------------------------------------------------
    !> @brief
    !> Calculates the scalar chirality using triangulation
@@ -400,23 +547,34 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       real(dblprec) :: chi_tot                   ! optional scalar version
       real(dblprec), dimension(3) :: m1,m2,m3
       real(dblprec), dimension(3) :: c12,c23,c31
-      integer :: k,isimp
+      integer :: k,i_triangle
 
       kappa_tot = 0.0_dblprec
       chi_tot   = 0.0_dblprec
 
-      !$omp parallel do default(shared) private(isimp,k,m1,m2,m3,c12,c23,c31)  &
+      ! print *,'-------------------------------'
+      ! print '(3f10.4)', emom(:,:,1)
+      ! print *,'============================='
+      !$omp parallel do default(shared) private(i_triangle,k,m1,m2,m3,c12,c23,c31)  &
       !$omp& reduction(+:kappa_tot,chi_tot)
-      do isimp = 1, nsimp
+      do i_triangle = 1, n_triangles
+         ! print *, 'Triangle', i_triangle, ':'
+         ! print *, "Corners = ", triangle_list(:,i_triangle)
          do k = 1, Mensemble
-            m1 = emom(:,simp(1,isimp),k)
-            m2 = emom(:,simp(2,isimp),k)
-            m3 = emom(:,simp(3,isimp),k)
+            m1 = emom(:,triangle_list(1,i_triangle),k)
+            m2 = emom(:,triangle_list(2,i_triangle),k)
+            m3 = emom(:,triangle_list(3,i_triangle),k)
+            ! print *, 'm1 = ', m1
+            ! print *, 'm2 = ', m2
+            ! print *, 'm3 = ', m3
 
             ! pairwise cross-products
             c12 = f_cross_product(m1,m2)   ! c12 = m1 × m2
             c23 = f_cross_product(m2,m3)
             c31 = f_cross_product(m3,m1)
+            !   print *, 'c12 = ', c12
+            !   print *, 'c23 = ', c23
+            !   print *, 'c31 = ', c31
 
             ! accumulate vector chirality for this triangle
             kappa_tot = kappa_tot + c12 + c23 + c31
@@ -427,9 +585,13 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       end do
       !$omp end parallel do
 
-      kappa_avg = kappa_tot / real(nsimp*Mensemble, dblprec)
+      ! print *, 'kappa_tot = ', kappa_tot
+      kappa_avg = kappa_tot / real(n_triangles*Mensemble, dblprec)
+      ! print *, 'kappa_avg = ', kappa_avg
+      ! print *, 'kappa_avg = ', kappa_avg
       ! Chi avg stored in module data
-      chi_avg = chi_tot / real(nsimp*Mensemble, dblprec)
+      chi_avg = chi_tot / real(n_triangles*Mensemble, dblprec)
+      ! print *, 'chi_avg = ', chi_avg
    end function chirality_tri
 
    !!! function knb_pol_tri (Natom, Mensemble, emom)  result (P_avg)

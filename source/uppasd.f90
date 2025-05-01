@@ -1285,6 +1285,10 @@ contains
          write(*,'(1x, a)') "Triangulating mesh"
          call delaunay_tri_tri(n1,n2,n3, NA)
       end if
+      if (do_chiral=='Y') then
+         write(*,'(1x, a)') "Setup chiral mesh"
+        call triangulate_layers(nAtom, coord)
+      end if
 
       if (mode=='W') then
          call create_wolff_neigh_list(Natom,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,          &
