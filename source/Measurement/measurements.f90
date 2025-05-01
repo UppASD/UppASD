@@ -191,7 +191,8 @@ contains
       call print_topology(NT,NA,N1,N2,sstep,mstep,Natom,Mensemble,delta_t,             &
          real_time_measure,emomM,emom,simid,atype)
       ! Print the polarization measurement
-      call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emomM,&
+      !call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emomM,&
+      call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emom,&
          delta_t,simid,real_time_measure)
 
       ! Print information about the induced moments
@@ -205,7 +206,7 @@ contains
    !  SUBROUTINE: calc_mavrg
    !> @brief
    !> Calculate current average magnetization
-   !> @todo Merge this routing with other buffer mavrg and prnavrg?
+   !> @todo Merge this routine with other buffer mavrg and prnavrg?
    !> @note this function is called by chelper from the C++ code
    !-----------------------------------------------------------------------------
    subroutine calc_mavrg(Natom, Mensemble, emomM, mavrg)

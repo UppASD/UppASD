@@ -25,6 +25,8 @@ module Topology
    integer :: nsimp !< Number of simplices
    integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
 
+   real(dblprec) :: chi_avg !< Average scalar chirality
+
    public
 
 contains
@@ -378,5 +380,120 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
             end function wrap_idx
       !
    end subroutine delaunay_tri_tri
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> Calculates the scalar chirality using triangulation
+   !
+   !> @author
+   !> Anders Bergman
+   !---------------------------------------------------------------------------------
+   function chirality_tri(Natom,Mensemble,emom) result(kappa_avg)
+      use constants
+      use math_functions
+      implicit none
+      integer, intent(in) :: Natom, Mensemble
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
+
+      real(dblprec), dimension(3) :: kappa_tot   ! global vector chirality
+      real(dblprec), dimension(3) :: kappa_avg   ! average vector chirality
+      real(dblprec) :: chi_tot                   ! optional scalar version
+      real(dblprec), dimension(3) :: m1,m2,m3
+      real(dblprec), dimension(3) :: c12,c23,c31
+      integer :: k,isimp
+
+      kappa_tot = 0.0_dblprec
+      chi_tot   = 0.0_dblprec
+
+      !$omp parallel do default(shared) private(isimp,k,m1,m2,m3,c12,c23,c31)  &
+      !$omp& reduction(+:kappa_tot,chi_tot)
+      do isimp = 1, nsimp
+         do k = 1, Mensemble
+            m1 = emom(:,simp(1,isimp),k)
+            m2 = emom(:,simp(2,isimp),k)
+            m3 = emom(:,simp(3,isimp),k)
+
+            ! pairwise cross-products
+            c12 = f_cross_product(m1,m2)   ! c12 = m1 × m2
+            c23 = f_cross_product(m2,m3)
+            c31 = f_cross_product(m3,m1)
+
+            ! accumulate vector chirality for this triangle
+            kappa_tot = kappa_tot + c12 + c23 + c31
+
+            ! optional: scalar chirality
+            chi_tot = chi_tot + dot_product(m1,c23)   ! m1·(m2×m3)
+         end do
+      end do
+      !$omp end parallel do
+
+      kappa_avg = kappa_tot / real(nsimp*Mensemble, dblprec)
+      ! Chi avg stored in module data
+      chi_avg = chi_tot / real(nsimp*Mensemble, dblprec)
+   end function chirality_tri
+
+   !!! function knb_pol_tri (Natom, Mensemble, emom)  result (P_avg)
+   !!!    !----------------------------------------------------------------------
+   !!!    !   Triangle-based Katsura–Nagaosa–Balatsky polarisation
+   !!!    !   Each triangle is taken once with a fixed orientation.
+   !!!    !   The three bond contributions are summed inside that triangle.
+   !!!    !   Because every bond is shared by two triangles, we divide by 2
+   !!!    !   at the end to eliminate the double counting.
+   !!!    !----------------------------------------------------------------------
+   !!!    use constants                                    ! includes dblprec, pi, C_KNB
+   !!!    use math_functions                               ! cross_product()
+   !!!    implicit none
+
+   !!!    integer,  intent(in) :: Natom, Mensemble
+   !!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
+
+   !!!    ! -- return value
+   !!!    real(dblprec), dimension(3) :: P_avg            ! averaged over all triangles & ensembles
+
+   !!!    ! -- local variables
+   !!!    real(dblprec), dimension(3) :: P_tot            ! running total
+   !!!    real(dblprec), dimension(3) :: m1, m2, m3
+   !!!    real(dblprec), dimension(3) :: sxs, sxt, sxu    ! cross-products for each bond
+   !!!    integer :: isimp, k
+   !!!    integer :: i1,i2,i3                             ! vertex indices for the triangle
+
+
+   !!!    ! Initialisation
+   !!!    P_tot = 0.0_dblprec
+
+   !!! !$omp parallel do default(shared) private(isimp,k,m1,m2,m3,sxs,sxt,sxu,i1,i2,i3) reduction(+:P_tot)
+   !!!    do isimp = 1, nsimp
+   !!!       i1 = simp(1,isimp)
+   !!!       i2 = simp(2,isimp)
+   !!!       i3 = simp(3,isimp)
+
+   !!!       do k = 1, Mensemble
+   !!!          ! -------- get the three spins on this triangle
+   !!!          m1 = emom(:, i1, k)
+   !!!          m2 = emom(:, i2, k)
+   !!!          m3 = emom(:, i3, k)
+
+   !!!          ! -------- e_12 × (S1×S2)
+   !!!          call cross_product (m1, m2, sxs)                 ! S1×S2
+   !!!          call cross_product (evec(:,i1,i2), sxs, sxs)     ! e_12 × ...
+
+   !!!          ! -------- e_23 × (S2×S3)
+   !!!          call cross_product (m2, m3, sxt)
+   !!!          call cross_product (evec(:,i2,i3), sxt, sxt)
+
+   !!!          ! -------- e_31 × (S3×S1)
+   !!!          call cross_product (m3, m1, sxu)
+   !!!          call cross_product (evec(:,i3,i1), sxu, sxu)
+
+   !!!          ! -------- add to global sum
+   !!!          P_tot = P_tot + sxs + sxt + sxu
+   !!!       end do
+   !!!    end do
+   !!! !$omp end parallel do
+
+   !!!    ! -- normalise:  divide by 2 for double counting, by nsimp*Mens for ensemble,
+   !!!    P_avg =P_tot / real(2*nsimp*Mensemble, dblprec)
+
+   !!! end function knb_pol_tri
 
 end module Topology

@@ -4,7 +4,7 @@
 !
 !> @author
 !> Anders Bergman
-!> Jonathan Chico ---> Reorganized in different modules, added site and type dependance
+!> Jonathan Chico ---> Reorganized in different modules, added site and type dependence
 !> @copyright
 !> GNU Public License
 !------------------------------------------------------------------------------------

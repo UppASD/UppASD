@@ -1281,7 +1281,7 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='T') then
+      if (skyno=='T'.or.do_chiral=='Y') then
          write(*,'(1x, a)') "Triangulating mesh"
          call delaunay_tri_tri(n1,n2,n3, NA)
       end if

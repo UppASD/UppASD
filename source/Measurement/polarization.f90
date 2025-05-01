@@ -168,6 +168,7 @@ contains
    !---------------------------------------------------------------------------------
    subroutine print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,   &
          emomM,delta_t,simid,real_time_measure)
+      use Topology, only : chi_avg, chirality_tri
 
       implicit none
 
@@ -183,6 +184,8 @@ contains
       integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM   !< Current magnetic moment vector
 
+      !.. Local variables
+      real(dblprec), dimension(3) :: kappa
       ! Polarization
       if (do_pol=='Y') then
          if ( mod(sstep-1,pol_step)==0) then
@@ -217,6 +220,11 @@ contains
             endif
 
          endif
+      else if (do_chiral=='Y') then
+         kappa = chirality_tri(Natom,Mensemble,emomM)
+         ! print *, 'Kappa:', kappa(1), kappa(2), kappa(3)
+         ! print *, 'Chi_avg:', chi_avg
+
       end if
 
    end subroutine print_pol
