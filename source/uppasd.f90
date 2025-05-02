@@ -1285,9 +1285,15 @@ contains
          write(*,'(1x, a)') "Triangulating mesh"
          call delaunay_tri_tri(n1,n2,n3, NA)
       end if
+
       if (do_chiral=='Y') then
          write(*,'(1x, a)') "Setup chiral mesh"
         call triangulate_layers(nAtom, coord)
+      end if
+
+      if (do_oam=='Y') then
+         write(*,'(1x, a)') "Setup OAM mesh"
+         call calculate_oam(Natom,Mensemble,emom, 1, 0)
       end if
 
       if (mode=='W') then
