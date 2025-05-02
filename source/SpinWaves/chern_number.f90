@@ -50,6 +50,7 @@ contains
 
    subroutine calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
       ! Calculate the Chern number of the bands in the 1st BZ.
+    use Topology, only : do_oam
       !
       implicit none
       !
@@ -84,9 +85,13 @@ contains
       integer, dimension(:), allocatable              :: indx                           !< index along x
       integer, dimension(:), allocatable              :: indy                           !< index along y
       integer, dimension(:), allocatable              :: indz                           !< index along z
-      !
+      ! OAM
+      real(dblprec), dimension(:,:), allocatable   ::  Lz_k !< Angular momentum in k-space
+      real(dblprec), dimension(:), allocatable     ::  Lz_band !< Angular momentum in band space
+      real(dblprec)                                   :: dkx,dky                     !< kx and ky spacing
+
       real(dblprec)                                   :: therm_conduc              !< Thermal conductivity
-      integer                                         :: iq,i,j,k,l,m,i_stat,nqred,icount,jcount,kcount,counter,kx,ky,kz
+      integer                                         :: iq,i,j,k,l,m,i_stat,nqred,icount,jcount,kcount,counter,kx,ky,kz, nmx
       !
       print '(1x,a)', 'Calculating Chern numbers'
       !Defining variables kx,ky,kz
@@ -162,6 +167,12 @@ contains
       call memocc(i_stat,product(shape(c2_func))*kind(c2_func),'c2_func','calculate_chern_number')
       allocate(therm_conduc_band(2*NA),stat=i_stat)
       call memocc(i_stat,product(shape(therm_conduc_band))*kind(therm_conduc_band),'therm_conduc_band','calculate_chern_number')
+      ! AOM
+      allocate(Lz_k(NA,3*nqred),stat=i_stat)
+      call memocc(i_stat,product(shape(Lz_k))*kind(Lz_k),'Lz_k','calculate_chern_number')
+      allocate(Lz_band(NA),stat=i_stat)
+      call memocc(i_stat,product(shape(Lz_band))*kind(Lz_band),'Lz_band','calculate_chern_number')
+
       !Calculate the grid in the reciprocal space
       call setup_grid(Nx,Ny,Nz,C1,C2,C3,dimen,q_vchern)
       !Calculate eigenvectors and eigenvalues
@@ -404,6 +415,19 @@ contains
 
       Berry_cuv=log(u1norm*u2norm*u3norm*u1invnorm*u2invnorm*u3invnorm)
 
+      if (do_oam == 'Y') then
+        ! OAM calculation a la Fishman
+        dkx = 2.0_dblprec * pi / Nx  ! kx spacing
+        dky = 2.0_dblprec * pi / Ny  ! ky spacing
+        Lz_k   = aimag( Berry_cuv ) * dkx * dky
+        Lz_band = sum( Lz_k, dim=2 )                           ! (nBands)
+        
+        print *, 'Angular orbital moment per band:'
+        do m = 1, NA
+           write(*,'(i4,2x,es12.5)') m, Lz_band(m)
+        end do
+      end if
+
       Ch_numq=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,1:j),dim=2))
       Ch_numqplus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+1:j+k),dim=2))
       Ch_numqminus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+k+1:j+k+l),dim=2))
@@ -413,12 +437,13 @@ contains
        rho=1/(exp(nc_eval_qchern/(k_bolt_ev*Temp))-1)
       ! Definition of the c2 function
        do i=1,2*NA
-         do j=1,3*dimen
-           c2_func(i,j)=(1+rho(i,j))*(log((1+rho(i,j))/rho(i,j)))**2-(log(rho(i,j)))**2-2*dli2(-rho(i,j))
+         do m=1,3*dimen
+           c2_func(i,j)=(1+rho(i,m))*(log((1+rho(i,m))/rho(i,m)))**2-(log(rho(i,m)))**2-2*dli2(-rho(i,m))
          end do
        end do
        ! Sum in k
-       therm_conduc_band=sum(c2_func(1:NA,1:j)*aimag(Berry_cuv(1:NA,1:j)**2),dim=2)
+       nmx = min(nqred, dimen)
+       therm_conduc_band=sum(c2_func(1:NA,1:3*nmx)*aimag(Berry_cuv(1:NA,1:3*nmx)**2),dim=2)
        ! Sum in band index
        therm_conduc=-(k_bolt**2)*Temp/((2*pi)**2*hbar)*sum(therm_conduc_band(1:NA),dim=1)
        !Avoid precision error at very low temperatures
@@ -445,6 +470,7 @@ contains
       bphase_file = 'bphase.'//trim(simid)//'.out'
       open(ofileno,file=bphase_file)
             write(ofileno,1002) "Band #          qx          qy          qz",(i, i=1,NA)
+
         do m=1,j
             write(ofileno,1004)   ((q_vchern(i,m)), i=1,3), (( aimag(Berry_cuv(i,m))),i=1,NA)
             if ( mod(m,Nx-1) .eq. 0) then
@@ -531,6 +557,11 @@ contains
       call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','calculate_chern_number')
       deallocate(nc_evec_qchern,stat=i_stat)
       call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','calculate_chern_number')
+      ! OAM
+      deallocate(Lz_k,stat=i_stat)
+      call memocc(i_stat,product(shape(Lz_k))*kind(Lz_k),'Lz_k','calculate_chern_number')
+      deallocate(Lz_band,stat=i_stat)
+      call memocc(i_stat,product(shape(Lz_band))*kind(Lz_band),'Lz_band','calculate_chern_number')
       !
       print '(1x,a)', 'Chern calculation done.'
    !
