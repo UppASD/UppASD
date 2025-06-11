@@ -1,20 +1,26 @@
 #pragma once
 
+#include "gpu_wrappers.h"
+#include "gpuParallelizationHelper.hpp"
+#if defined (HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
 #include <cuda_runtime.h>
-#include "cudaParallelizationHelper.hpp"
+#endif
 #include "real_type.h"
-#include "tensor.cuh"
+#include "tensor.hpp"
+using ParallelizationHelper = GpuParallelizationHelper;
 
 // Class wrapper
-class CudaCommon {
+class GpuCommon {
 public:
    // AddTo parallelization helper
-   class AddTo : public CudaParallelizationHelper::Element {
+   class AddTo : public ParallelizationHelper::Element {
       real* a;
       const real* b;
 
    public:
-      AddTo(CudaTensor<real, 3>& A, const CudaTensor<real, 3>& B) {
+      AddTo(GpuTensor<real, 3>& A, const GpuTensor<real, 3>& B) {
          a = A.data();
          b = B.data();
       }
@@ -25,7 +31,7 @@ public:
    };
 
    // Add parallelization helper
-   class Add : public CudaParallelizationHelper::Element {
+   class Add : public ParallelizationHelper::Element {
       real* a;
 
    public:
@@ -33,7 +39,7 @@ public:
       const real* c;
 
    public:
-      Add(CudaTensor<real, 3>& A, const CudaTensor<real, 3>& B, const CudaTensor<real, 3>& C) {
+      Add(GpuTensor<real, 3>& A, const GpuTensor<real, 3>& B, const GpuTensor<real, 3>& C) {
          a = A.data();
          b = B.data();
          c = C.data();
@@ -45,12 +51,12 @@ public:
    };
 
    // Avg parallelization helper
-   class Avg : public CudaParallelizationHelper::Element {
+   class Avg : public ParallelizationHelper::Element {
       real* a;
       const real* b;
 
    public:
-      Avg(CudaTensor<real, 3>& A, const CudaTensor<real, 3>& B) {
+      Avg(GpuTensor<real, 3>& A, const GpuTensor<real, 3>& B) {
          a = A.data();
          b = B.data();
       }
@@ -61,13 +67,13 @@ public:
    };
 
    // ScalarMult parallelization helper
-   class ScalarMult : public CudaParallelizationHelper::Element {
+   class ScalarMult : public ParallelizationHelper::Element {
       real* a;
       const real* b;
       const real* c;
 
    public:
-      ScalarMult(CudaTensor<real, 3>& A, const CudaTensor<real, 3>& B, const CudaTensor<real, 2>& C) {
+      ScalarMult(GpuTensor<real, 3>& A, const GpuTensor<real, 3>& B, const GpuTensor<real, 2>& C) {
          a = A.data();
          b = B.data();
          c = C.data();
@@ -79,12 +85,12 @@ public:
    };
 
    // Inv parallelization helper
-   class Inv : public CudaParallelizationHelper::Atom {
+   class Inv : public ParallelizationHelper::Atom {
       real* a;
       const real* b;
 
    public:
-      Inv(CudaTensor<real, 2>& A, const CudaTensor<real, 2>& B) {
+      Inv(GpuTensor<real, 2>& A, const GpuTensor<real, 2>& B) {
          a = A.data();
          b = B.data();
       }

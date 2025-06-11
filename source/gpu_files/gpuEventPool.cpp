@@ -3,32 +3,36 @@
  *  Niklas Fejes 2013
  */
 
-#include <cuda.h>
-
 #include "c_headers.hpp"
 #include <vector>
 
-#include "cudaEventPool.hpp"
+#include "gpuEventPool.hpp"
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda.h>
+#endif
 
 #ifdef NVPROF
 #include <nvToolsExtCuda.h>
 #endif
 
 // Event class methods
-CudaEventPool::Event::Event() {
-   cudaEventCreate(&_event);
+GpuEventPool::Event::Event() {
+   GPU_EVENT_CREATE(&_event);
    active = true;
 }
 
-cudaEvent_t CudaEventPool::Event::event() {
+GPU_EVENT_T GpuEventPool::Event::event() {
    return _event;
 }
 
-void CudaEventPool::Event::deactivate() {
+void GpuEventPool::Event::deactivate() {
    active = false;
 }
 
-void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void *e) {
+void GpuEventPool::Event::deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e) {
 #ifdef NVPROF
    nvtxRangePush("deactivate_callback");
 #endif
@@ -38,12 +42,12 @@ void CudaEventPool::Event::deactivate_callback(cudaStream_t, cudaError_t, void *
 #endif
 }
 
-void CudaEventPool::Event::addDeactivateCallback(cudaStream_t stream) {
-   cudaStreamAddCallback(stream, deactivate_callback, this, 0);
+void GpuEventPool::Event::addDeactivateCallback(GPU_STREAM_T stream) {
+   GPU_STREAM_ADD_CALLBACK(stream, deactivate_callback, this, 0);
 }
 
 // Pool class methods
-CudaEventPool::Event &CudaEventPool::get() {
+GpuEventPool::Event &GpuEventPool::get() {
    std::vector<Event *>::iterator it;
    for(it = stack.begin(); it != stack.end(); it++) {
       Event &e = (**it);
@@ -58,7 +62,7 @@ CudaEventPool::Event &CudaEventPool::get() {
 }
 
 // Destroy all events in pool when done
-CudaEventPool::~CudaEventPool() {
+GpuEventPool::~GpuEventPool() {
    //	std::printf("Event stack size: %ld\n", stack.size());
    std::vector<Event *>::iterator it;
    for(it = stack.begin(); it != stack.end(); it++) {

@@ -7,10 +7,23 @@
  *
  */
 
-#include <cuda_runtime.h>
-
 #include "c_headers.hpp"
 #include "real_type.h"
+
+#if defined(HIP_V)
+  #include <hip/hip_runtime.h>
+  #define GRIDHELPER_DEVICE_PROP hipDeviceProp_t
+  #define GRIDHELPER_GET_DEVICE hipGetDevice
+  #define GRIDHELPER_GET_PROP hipGetDeviceProperties
+  #define GRIDHELPER_DIM3 hipDim3
+#elif defined(CUDA_V)
+ #include "device_launch_parameters.h"
+  #include <cuda_runtime.h>
+  #define GRIDHELPER_DEVICE_PROP cudaDeviceProp
+  #define GRIDHELPER_GET_DEVICE cudaGetDevice
+  #define GRIDHELPER_GET_PROP cudaGetDeviceProperties
+  #define GRIDHELPER_DIM3 dim3
+#endif
 
 template <unsigned int threads, bool big>
 class GridHelper {
@@ -22,9 +35,9 @@ public:
 
    GridHelper() {
       int device;
-      struct cudaDeviceProp prop;
-      cudaGetDevice(&device);
-      cudaGetDeviceProperties(&prop, device);
+      GRIDHELPER_DEVICE_PROP prop;
+      GRIDHELPER_GET_DEVICE(&device);
+      GRIDHELPER_GET_PROP(&prop, device);
       maxGridSize1 = prop.maxGridSize[0];
    }
 

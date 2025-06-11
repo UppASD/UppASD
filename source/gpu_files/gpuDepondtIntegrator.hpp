@@ -1,17 +1,26 @@
 #pragma once
 
-#include <curand.h>
-
 #include "c_headers.hpp"
-#include "cudaParallelizationHelper.hpp"
-#include "cudaThermfield.hpp"
-#include "tensor.cuh"
+
+#include "tensor.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
-#include "cudaStructures.hpp"
+#include "gpuStructures.hpp"
+#include "gpuParallelizationHelper.hpp"
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hiprand/hiprand.h>
+#include "hipThermfield.hpp"
+using GpuThermfield = HipThermfield;
+#elif defined(CUDA_V)
+#include <curand.h>
+#include "cudaThermfield.hpp"
+using GpuThermfield = CudaThermfield;
+#endif
+using ParallelizationHelper = GpuParallelizationHelper;
 
-class CudaDepondtIntegrator {
+class GpuDepondtIntegrator {
 private:
    // System parameters
    real gamma;
@@ -25,22 +34,22 @@ private:
    real timestep;
 
    // Class local matrices
-   CudaTensor<real, 3> mrod;
-   CudaTensor<real, 3> blocal;
-   CudaTensor<real, 3> bdup;
+   GpuTensor<real, 3> mrod;
+   GpuTensor<real, 3> blocal;
+   GpuTensor<real, 3> bdup;
 
    // Thermfield
-   CudaThermfield thermfield;
+   GpuThermfield thermfield;
 
    // Timer
    StopwatchDeviceSync stopwatch;
 
    // Parallelization helper
-   CudaParallelizationHelper& parallel;
+   ParallelizationHelper& parallel;
 
    // Algorithm
-   void rotate(const CudaTensor<real, 3>& emom, real delta_t);
-   void buildbeff(const CudaTensor<real, 3>& emom, const CudaTensor<real, 3>& btorque);
+   void rotate(const GpuTensor<real, 3>& emom, real delta_t);
+   void buildbeff(const GpuTensor<real, 3>& emom, const GpuTensor<real, 3>& btorque);
 
 public:
    // Parallelization helpers
@@ -48,10 +57,10 @@ public:
    class BuildEffectiveField;
 
    // Constructor
-   CudaDepondtIntegrator();
+   GpuDepondtIntegrator();
 
    // Destructor
-   ~CudaDepondtIntegrator();
+   ~GpuDepondtIntegrator();
 
    // Initiator
    bool initiate(const SimulationParameters SimParam);
@@ -64,8 +73,8 @@ public:
    void release();
 
    // Algorithm
-   void evolveFirst(cudaLattice& gpuLattice);
+   void evolveFirst(deviceLattice& gpuLattice);
 
-   void evolveSecond(cudaLattice& gpuLattice);
+   void evolveSecond(deviceLattice& gpuLattice);
 };
 

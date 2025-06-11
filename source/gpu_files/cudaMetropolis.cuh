@@ -1,14 +1,14 @@
 #pragma once
-#include "cudaHamiltonianCalculations.hpp"
+#include "gpuHamiltonianCalculations.hpp"
 
 #include <curand.h>
 #include <curand_kernel.h>
 #include "c_headers.hpp"
-#include "tensor.cuh"
+#include "tensor.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
-#include "cudaStructures.hpp"
+#include "gpuStructures.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <cooperative_groups.h>
@@ -37,11 +37,11 @@ private:
 
 
     // Class local matrices
-    CudaTensor<unsigned int, 2> subIdx_gpu;
+    GpuTensor<unsigned int, 2> subIdx_gpu;
     Tensor<unsigned int, 1> subL_spnum_cpu;
-    CudaTensor<unsigned int, 1> subL_spnum_gpu;
+    GpuTensor<unsigned int, 1> subL_spnum_gpu;
     Tensor<unsigned int, 1> block_subL_cpu;
-    CudaTensor<curandState, 2> d_state;
+    GpuTensor<curandState, 2> d_state;
     Tensor<unsigned int, 2> subIdx_cpu;
 
 
@@ -53,8 +53,8 @@ private:
     void split_lattice(const Tensor<unsigned int, 2> nlist);
     unsigned int increaseneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, unsigned int mnn_cur, int i);
     void refillneigbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i);
-    void count_spins();
     void rnd_init();
+    void count_spins();
 
 public:
 
@@ -65,14 +65,14 @@ public:
     ~CudaMetropolis();
 
     // Initiator
-    bool initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice);
-
+    unsigned initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice);
+   
     // Releaser
     void release();
 
     // Algorithm
-    void MCrun(cudaLattice& gpuLattice, real beta, CudaHamiltonianCalculations& hamCalc);
-    void mom_update(cudaLattice& gpuLattice);
+    void MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub);
+    void mom_update(deviceLattice& gpuLattice);
 
 };
 

@@ -1,16 +1,21 @@
-#include <cuda.h>
 #include <pthread.h>
 
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "cudaMeasurement.hpp"
-#include "cudaParallelizationHelper.hpp"
+#include "gpuMeasurement.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-#include "tensor.cuh"
+#include "tensor.hpp"
+#include "gpuParallelizationHelper.hpp"
+#if defined(HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda.h>
+#endif
+using ParallelizationHelper = GpuParallelizationHelper;
 
 #ifdef NVPROF
 #include <nvToolsExtCuda.h>
@@ -19,8 +24,8 @@
 #include "measurementQueue.hpp"
 
 // Constructor
-CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2,
-                                 const CudaTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
+GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
+                                 const GpuTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
                                  Tensor<real, 2>& p6, bool p7, bool p8)
     : emomM(p1),
       emom(p2),
@@ -31,7 +36,7 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor
       fastCopy(p7),
       alwaysCopy(p8),
       stopwatch(GlobalStopwatchPool::get("Cuda measurement")),
-      parallel(CudaParallelizationHelper::def) {
+      parallel( ParallelizationHelperInstance) {
 #ifdef NVPROF
    nvtxNameOsThread(pthread_self(), "MAIN_THREAD");
 #endif
@@ -59,7 +64,7 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& p1, const CudaTensor
 }
 
 // Destructor
-CudaMeasurement::~CudaMeasurement() {
+GpuMeasurement::~GpuMeasurement() {
    if(fastCopy) {
       tmp_emomM.Free();
       tmp_emom.Free();
@@ -72,7 +77,7 @@ CudaMeasurement::~CudaMeasurement() {
 }
 
 // Callback
-void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void* data) {
+void GpuMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 #ifdef NVPROF
    nvtxRangePush("queue_callback");
 #endif
@@ -85,22 +90,22 @@ void CudaMeasurement::queue_callback(cudaStream_t, cudaError_t, void* data) {
 }
 
 // Callback method
-void CudaMeasurement::queueMeasurement(std::size_t mstep) {
+void GpuMeasurement::queueMeasurement(std::size_t mstep) {
    measurementQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), mmom.size());
 }
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
-void CudaMeasurement::copyQueueFast(std::size_t mstep) {
+void GpuMeasurement::copyQueueFast(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
    // Streams
-   cudaStream_t workStream = parallel.getWorkStream();
-   cudaStream_t copyStream = parallel.getCopyStream();
+   GPU_STREAM_T workStream = parallel.getWorkStream();
+   GPU_STREAM_T copyStream = parallel.getCopyStream();
 
    // Create new events
-   CudaEventPool::Event& workDone = eventPool.get();
-   CudaEventPool::Event& copyDone = eventPool.get();
+   GpuEventPool::Event& workDone = eventPool.get();
+   GpuEventPool::Event& copyDone = eventPool.get();
 
    // The copying must wait for the work stream to finish
    cudaEventRecord(workDone.event(), workStream);
@@ -110,7 +115,7 @@ void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    tmp_emomM.copy_async(emomM, copyStream);
    tmp_emom.copy_async(emom, copyStream);
    tmp_mmom.copy_async(mmom, copyStream);
-   cudaEventRecord(copyDone.event(), copyStream);
+   GPU_EVENT_RECORD(copyDone.event(), copyStream);
    stopwatch.add("fast - D2D");
 
    // Then write to host in copy stream (asynchronously with work stream)
@@ -120,16 +125,16 @@ void CudaMeasurement::copyQueueFast(std::size_t mstep) {
    pinned_mmom.copy_async(tmp_mmom, copyStream);
 
    // Make the work stream wait out the copying
-   cudaStreamWaitEvent(workStream, copyDone.event(), 0);
+   GPU_STREAM_WAIT_EVENT(workStream, copyDone.event(), 0);
    copyDone.addDeactivateCallback(workStream);
    workDone.addDeactivateCallback(workStream);
 
    // Push to measure queue when done
-   cudaStreamAddCallback(workStream, queue_callback, new queue_callback_data(this, mstep), 0);
+   GPU_STREAM_ADD_CALLBACK(workStream, queue_callback, new queue_callback_data(this, mstep), 0);
 }
 
 // Slow copying (D -> H)
-void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
+void GpuMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -149,7 +154,7 @@ void CudaMeasurement::copyQueueSlow(std::size_t mstep) {
    measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
 }
 
-void CudaMeasurement::measure(std::size_t mstep) {
+void GpuMeasurement::measure(std::size_t mstep) {
    // Copy required?
    bool copy = (alwaysCopy || fortran_do_measurements(mstep));
 
@@ -166,12 +171,12 @@ void CudaMeasurement::measure(std::size_t mstep) {
    }
 }
 
-void CudaMeasurement::flushMeasurements(std::size_t mstep) {
+void GpuMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
    // Wait out possible queue callbacks
-   cudaStreamSynchronize(parallel.getWorkStream());
+   GPU_STREAM_SYNC(parallel.getWorkStream());
 
    // Flush internal queue
    measurementQueue.finish();

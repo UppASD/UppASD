@@ -1,20 +1,20 @@
 #pragma once
 
-#include <cuda_runtime.h>
-#include <curand.h>
+#include <hip/hip_runtime.h>
+#include <hiprand/hiprand.h>
 #include "gpuParallelizationHelper.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 
-// CUDA thermfield class
+// HIP thermfield class
 // Optimized for simulations with constant temperatures and timestep.
 
-class CudaThermfield {
+class HipThermfield {
 private:
    // Generator
-   curandGenerator_t gen;
+   hiprandGenerator_t gen;
 
    // Initiation flags
    bool dataInitiated;
@@ -28,7 +28,7 @@ private:
    StopwatchDeviceSync stopwatch;
 
    // Parallelization helper
-  GpuParallelizationHelper& parallel;
+   GpuParallelizationHelper& parallel;
 
 public:
    // Parallelization helpers
@@ -36,11 +36,11 @@ public:
    class SetupField;
 
    // Constructor / destructor
-   CudaThermfield();
-   ~CudaThermfield();
+   HipThermfield();
+   ~HipThermfield();
 
    // Initiate
-   bool initiate(std::size_t N, std::size_t M, curandRngType_t rngType = CURAND_RNG_PSEUDO_DEFAULT,
+   bool initiate(std::size_t N, std::size_t M, hiprandRngType_t rngType = HIPRAND_RNG_PSEUDO_DEFAULT,
                  unsigned long long seed = 0);
    bool initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma, real k_bolt,
                           real mub, real damping);

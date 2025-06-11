@@ -102,6 +102,8 @@ endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
    string(APPEND ASD_binary ".cuda")
+elseif(USE_HIP)
+   string(APPEND ASD_binary ".hip")
 endif()
 SET(UppASD_EXE ${ASD_binary})
 message(STATUS "ASD_binary ${ASD_binary}.")
@@ -154,6 +156,10 @@ endif (FFTW_FOUND)
 include(CMakeDependentOption)
 OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
+OPTION(USE_HIP "Compile with HIP support" OFF)
+if(USE_CUDA AND USE_HIP)
+  message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
+endif()
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -167,6 +173,7 @@ else()
    CMAKE_DEPENDENT_OPTION(USE_FFTW "Use FFTW for FFT" OFF "FFTW_FOUND" OFF)
 endif()
 CMAKE_DEPENDENT_OPTION(BUILD_CUDA_DOCS "Build LaTeX notes of the CUDA implementation" OFF "BUILD_MANUAL" OFF) 
+####### for hip here???
 CMAKE_DEPENDENT_OPTION(BUILD_GNEB_DOCS "Build LaTeX notes of the GNEB implementation" OFF "BUILD_MANUAL" OFF) 
 OPTION(USE_OVF "Use OVF format" OFF)
 OPTION(BUILD_MANUAL "Build manual"  OFF)
@@ -182,6 +189,7 @@ CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUDA" OFF)
+#######hip here????
 ##############################################################################################
 
 ##############################################################################################
@@ -216,6 +224,7 @@ if(BUILD_MANUAL)
    endif()
    if(BUILD_CUDA_DOCS)
       add_subdirectory(docs/CUDA)
+      #######hip here????
    endif()
 endif()
 ##############################################################################################
@@ -326,7 +335,8 @@ if (USE_CUDA)
    endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
-   add_compile_definitions(CUDA)
+   set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp PROPERTIES LANGUAGE CUDA)
+   add_compile_definitions(CUDA_V)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
    if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
@@ -348,10 +358,40 @@ if (USE_CUDA)
    string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
    SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
    SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+elseif(USE_HIP)
+   find_package(HIP REQUIRED)
+   add_compile_definitions(HIP_V)
+#find_package(HIP REQUIRED)
+
+   ENABLE_LANGUAGE(C CXX HIP)
+   add_compile_definitions(HIP)
+#set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.4/bin/hipcc")
+#message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
+   target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
+   add_subdirectory(${SRC}/gpu_files)
+
+   # HIP include and compile flags
+   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -DDEBUG")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
+
+   set(PP_HIP_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
+   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
+   message(STATUS "HIP PPFLAG: __${PP_HIP_COMPILER_FLAG}__")
+
+#link_directories("/opt/rocm-6.3.4/lib")
+
+#target_link_libraries(${UppASD_LIB}
+#    ${hiprand_LIBRARIES}
+#    ${HIP_LIBRARIES}
+#    ${CUDAToolkit_LIBRARIES}
+#)
+
+   #????? SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "gfx90a")
 
 else ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Tools/nocuda.f90)
-endif (USE_CUDA)
+endif ()
 ##############################################################################################
 
 
@@ -473,6 +513,7 @@ if(BUILD_PYTHON)
          )
 
       # Bild library list for f2py
+      ########hip here??
       foreach ( elem ${OpenMP_Fortran_LIBRARIES} ${OVF_LIB} ${FFTW_LIB} ${CUDA_curand_LIBRARY})
          message(STATUS "Element ${elem}")
          string(SUBSTRING ${elem} 0 2 head)
@@ -560,6 +601,7 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # Add the needed libraries and special compiler flags
 ##############################################################################################
+########hip here?????
 TARGET_LINK_LIBRARIES(${UppASD_LIB}
    -lgfortran
    ${BLAS_LIBRARIES}
@@ -569,6 +611,8 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB}
    ${FFTW_LIB}  
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
+   #    ${hiprand_LIBRARIES}
+#    ${HIP_LIBRARIES}
    )
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE}
@@ -581,6 +625,8 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE}
    ${FFTW_LIB}  
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
+   #    ${hiprand_LIBRARIES}
+#    ${HIP_LIBRARIES}
    )
 
 
@@ -647,6 +693,7 @@ endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
 add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_GNEB_TESTS)
+#######hip here????
 if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)

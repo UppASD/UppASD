@@ -11,7 +11,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "base.cuh"
+#include "base.hpp"
+#include "gpu_wrappers.h"
 
 
 #define TENSOR_STATIC_ASSERT_DIMENSION() \
@@ -24,7 +25,7 @@ class Tensor;
 
 
 template <typename T, index_t dim>
-class CudaTensor;
+class GpuTensor;
 
 
 template <typename T>
@@ -34,10 +35,10 @@ template <typename T>
 using Matrix = Tensor<T, 2>;
 
 template <typename T>
-using CudaVector = CudaTensor<T, 1>;
+using GpuVector = GpuTensor<T, 1>;
 
 template <typename T>
-using CudaMatrix = CudaTensor<T, 2>;
+using GpuMatrix = GpuTensor<T, 2>;
 
 
 template <typename TensorType1, typename TensorType2>
@@ -84,7 +85,7 @@ public:
 
    void AllocateHost(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
-      ASSERT_CUDA(cudaMallocHost(&data_, size() * sizeof(T)));
+      ASSERT_GPU(GPU_MALLOC_HOST(&data_, size() * sizeof(T)));
    }
 
 
@@ -96,7 +97,7 @@ public:
 
    void FreeHost() {
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
-      ASSERT_CUDA(cudaFreeHost(data_));
+      ASSERT_GPU(GPU_FREE_HOST(data_));
    }
 
 
@@ -157,15 +158,15 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    void copy_sync(const Tensor& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToHost));
+      ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_HOST_TO_HOST));
    }
 
 
-   void copy_sync(const CudaTensor<T, dim>& A);
+   void copy_sync(const GpuTensor<T, dim>& A);
 
 
    // Tensor::copy_async(Tensor) is not supported since it is not an asynchronous operation
-   void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0);
+   void copy_async(const GpuTensor<T, dim>& A, GPU_STREAM_T stream = 0);
 
 
    void swap(Tensor<T, dim>& A) noexcept {
@@ -374,7 +375,7 @@ std::ostream& operator<<(std::ostream& os, const Tensor<T, 4>& A) {
 
 
 template <typename T, index_t dim>
-class CudaTensor : private IndexBase<T, dim> {
+class GpuTensor : private IndexBase<T, dim> {
 public:
    using size_type = index_t;
    using value_type = T;
@@ -387,20 +388,20 @@ public:
 
 
    // can only be created on the host!
-   __host__ CudaTensor() : IndexBase<T, dim>{}, data_{} {
+   __host__ GpuTensor() : IndexBase<T, dim>{}, data_{} {
    }
 
 
    // shallow copy of data
-   CudaTensor(const CudaTensor&) = default;
-   CudaTensor& operator=(const CudaTensor&) = default;
+   GpuTensor(const GpuTensor&) = default;
+   GpuTensor& operator=(const GpuTensor&) = default;
 
 
-   // for example if t is Tensor and ct is CudaTensor, can be used as follows:
+   // for example if t is Tensor and ct is GpuTensor, can be used as follows:
    // ct.Allocate(t.extents());
    __host__ void Allocate(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
-      ASSERT_CUDA(cudaMalloc(&data_, size() * sizeof(T)));
+      ASSERT_GPU(GPU_MALLOC(&data_, size() * sizeof(T)));
    }
 
 
@@ -412,7 +413,7 @@ public:
 
    __host__ void Free() {
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
-      ASSERT_CUDA(cudaFree(data_));
+      ASSERT_GPU(GPU_FREE(data_));
    }
 
 
@@ -461,31 +462,31 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    __host__ void copy_sync(const Tensor<T, dim>& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
+      ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_HOST_TO_DEVICE));
    }
 
 
-   __host__ void copy_sync(const CudaTensor<T, dim>& A) {
+   __host__ void copy_sync(const GpuTensor<T, dim>& A) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice));
+      ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_DEVICE));
    }
 
 
-   __host__ void copy_async(const Tensor<T, dim>& A, cudaStream_t stream = 0) {
+   __host__ void copy_async(const Tensor<T, dim>& A, GPU_STREAM_T stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpyAsync(
-          data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
+      ASSERT_GPU(GPU_MEMCPY_ASYNC(
+          data(), A.data(), size() * sizeof(T), GPU_MEMCPY_HOST_TO_DEVICE, stream));
    }
 
 
-   __host__ void copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream = 0) {
+   __host__ void copy_async(const GpuTensor<T, dim>& A, GPU_STREAM_T stream = 0) {
       assert(same_extents(*this, A));
-      ASSERT_CUDA(cudaMemcpyAsync(
-          data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
+      ASSERT_GPU(GPU_MEMCPY_ASYNC(
+          data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_DEVICE, stream));
    }
 
 
-   __host__ void swap(CudaTensor<T, dim>& A) noexcept {
+   __host__ void swap(GpuTensor<T, dim>& A) noexcept {
       std::swap(data_, A.data_);
       auto tmp_ext = this->extents();
       this->SetExtents(A.extents());
@@ -494,7 +495,7 @@ public:
 
 
    void zeros() {
-      ASSERT_CUDA(cudaMemset(data(), T{}, size() * sizeof(T)));
+      ASSERT_GPU(GPU_MEMSET(data(), T{}, size() * sizeof(T)));
    }
 
 
@@ -504,15 +505,15 @@ private:
 
 
 template <typename T, index_t dim>
-void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
+void Tensor<T, dim>::copy_sync(const GpuTensor<T, dim>& A) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
+   ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_HOST));
 }
 
 
 template <typename T, index_t dim>
-void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream) {
+void Tensor<T, dim>::copy_async(const GpuTensor<T, dim>& A, GPU_STREAM_T stream) {
    assert(same_extents(*this, A));
-   ASSERT_CUDA(
-       cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
+   ASSERT_GPU(
+      GPU_MEMCPY_ASYNC(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_HOST, stream));
 }

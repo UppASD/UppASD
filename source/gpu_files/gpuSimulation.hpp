@@ -2,11 +2,11 @@
 
 #include <curand.h>
 #include "c_headers.hpp"
-#include "tensor.cuh"
-#include "cudaStructures.hpp"
+#include "tensor.hpp"
+#include "gpuStructures.hpp"
 #include "real_type.h"
 
-class CudaSimulation {
+class GpuSimulation {
 private:
     Flag Flags; //those are constants
     SimulationParameters SimParam; //those are constants
@@ -15,39 +15,41 @@ private:
     hostMeasurables cpuMeasurebles;//those are host matrices
     hostHamiltonian cpuHamiltonian;//those are host matrices
 
-    cudaLattice gpuLattice; //those are device matrices
-    cudaMeasurables gpuMeasurebles;//those are device matrices
-    cudaHamiltonian gpuHamiltonian;//those are device matrices
+    deviceLattice gpuLattice; //those are device matrices
+    deviceMeasurables gpuMeasurebles;//those are device matrices
+    deviceHamiltonian gpuHamiltonian;//those are device matrices
 
-class CudaSDSimulation {
+class GpuSDSimulation {
 private:
    bool isInitiatedSD;
-   void printMdStatus(std::size_t mstep, CudaSimulation& cudaSim);
+   void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
 
 public:
-   CudaSDSimulation();
-   ~CudaSDSimulation();
+   GpuSDSimulation();
+   ~GpuSDSimulation();
 
-   void SDmphase(CudaSimulation& cudaSim);
-   void SDiphase(CudaSimulation& cudaSim);
+   void SDmphase(GpuSimulation& gpuSim);
+   void SDiphase(GpuSimulation& gpuSim);
 };
 
    // class CudaMCSimulation;  // runs mc simulation
 
-class CudaMCSimulation {
+/*class CudaMCSimulation {
 private:
    bool isInitiatedSD;
-   void printMdStatus(std::size_t mstep, CudaSimulation& cudaSim);
-   void printMdStatus_iphase(std::size_t mstep, CudaSimulation& cudaSim, int step);
+   void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
+   void printMdStatus_iphase(std::size_t mstep, GpuSimulation& gpuSim, int step);
 
 public:
    CudaMCSimulation();
    ~CudaMCSimulation();
 
-   void MCmphase(CudaSimulation& cudaSim);
-   void MCiphase(CudaSimulation& cudaSim);
+   void MCmphase(GpuSimulation& gpuSim);
+   void MCiphase(GpuSimulation& gpuSim);
+   void MCiphase_bf(GpuSimulation& gpuSim);
+   void MCmphase_bf(GpuSimulation& gpuSim);
 };
-
+*/
     bool isInitiated;
     bool isFreed;
     //void printConstants();
@@ -56,8 +58,8 @@ public:
     bool gpuHasNoData();
 
 public:
-    CudaSimulation();
-    ~CudaSimulation();
+    GpuSimulation();
+    ~GpuSimulation();
 
     void initiateConstants();  // initiates cpuFlags and cpuParameters
     bool initiateMatrices();   // allocates and initiates gpu matrices from cpu matrices using copyFromFortran, first calling initiate_fortran_cpu_matrices();
@@ -65,7 +67,7 @@ public:
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
 
-    void cudaRunSimulation(int whichsim, int whichphase);
+    void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 
 };
 

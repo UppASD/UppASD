@@ -1,10 +1,16 @@
 #pragma once
 
-#include <curand.h>
-
 #include "c_headers.hpp"
-#include "tensor.cuh"
+#include "tensor.hpp"
 #include "real_type.h"
+
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hiprand/hiprand.h>
+#elif defined(CUDA_V)
+#include <curand.h>
+#endif
+
 
 struct Flag {    
    bool do_dm;
@@ -46,7 +52,12 @@ struct SimulationParameters {
    int mompar;
    char initexc;
     // Thermfield parameters
+#if defined(HIP_V)
+   hiprandRngType_t rngType;
+#elif defined(CUDA_V) 
    curandRngType_t rngType;
+#endif
+
    unsigned long long randomSeed;
 
    const real* binderc;
@@ -98,44 +109,44 @@ struct hostMeasurables {
    Tensor<real, 1> binderc; 
 };
    
-struct cudaHamiltonian {
-   CudaTensor<unsigned int, 1>     aHam;                             //reduced Hamiltonian
-   CudaTensor<real, 2>             ncoup;            //Jij
-   CudaTensor<unsigned int, 2>     nlist;
-   CudaTensor<unsigned int, 1>     nlistsize;
-   CudaTensor<real, 3>             dmvect;     //DMI
-   CudaTensor<unsigned int, 2>     dmlist;
-   CudaTensor<unsigned int, 1>     dmlistsize;
-   CudaTensor<real, 4>             j_tensor;
-   CudaTensor<real, 2>             kaniso;
-   CudaTensor<real, 2>             eaniso;
-   CudaTensor<unsigned int, 1>     taniso;
-   CudaTensor<real, 1>             sb;
-   CudaTensor<real, 3>             extfield;
+struct deviceHamiltonian {
+   GpuTensor<unsigned int, 1>     aHam;                             //reduced Hamiltonian
+   GpuTensor<real, 2>             ncoup;            //Jij
+   GpuTensor<unsigned int, 2>     nlist;
+   GpuTensor<unsigned int, 1>     nlistsize;
+   GpuTensor<real, 3>             dmvect;     //DMI
+   GpuTensor<unsigned int, 2>     dmlist;
+   GpuTensor<unsigned int, 1>     dmlistsize;
+   GpuTensor<real, 4>             j_tensor;
+   GpuTensor<real, 2>             kaniso;
+   GpuTensor<real, 2>             eaniso;
+   GpuTensor<unsigned int, 1>     taniso;
+   GpuTensor<real, 1>             sb;
+   GpuTensor<real, 3>             extfield;
 }; 
    
-struct cudaLattice {
-   CudaTensor<real, 3> beff;
-   CudaTensor<real, 3> b2eff;
-   CudaTensor<real, 3> eneff;
-   CudaTensor<real, 3> emomM;
-   CudaTensor<real, 3> emom;
-   CudaTensor<real, 3>  emom2;
-   CudaTensor<real, 2>  mmom;
-   CudaTensor<real, 2>  mmom0;
-   CudaTensor<real, 2>  mmom2;
-   CudaTensor<real, 2>  mmomi;
-   CudaTensor<real, 3> btorque;
-   CudaTensor<real, 1> temperature;
-   CudaTensor<real, 1> ipTemp;
-   CudaTensor<real, 1> ipTemp_array;
-} ;
+struct deviceLattice {
+   GpuTensor<real, 3> beff;
+   GpuTensor<real, 3> b2eff;
+   GpuTensor<real, 3> eneff;
+   GpuTensor<real, 3> emomM;
+   GpuTensor<real, 3> emom;
+   GpuTensor<real, 3>  emom2;
+   GpuTensor<real, 2>  mmom;
+   GpuTensor<real, 2>  mmom0;
+   GpuTensor<real, 2>  mmom2;
+   GpuTensor<real, 2>  mmomi;
+   GpuTensor<real, 3> btorque;
+   GpuTensor<real, 1> temperature;
+   GpuTensor<real, 1> ipTemp;
+   GpuTensor<real, 1> ipTemp_array;
+};
 
-struct cudaMeasurables {    
-   CudaTensor<real, 1> mavg_buff;
-   CudaTensor<real, 1> eavg_buff;
-   CudaTensor<real, 1> mcumu_buff;
-   CudaTensor<real, 1> ecumu_buff;
-   CudaTensor<real, 1> binderc;
+struct deviceMeasurables {    
+   GpuTensor<real, 1> mavg_buff;
+   GpuTensor<real, 1> eavg_buff;
+   GpuTensor<real, 1> mcumu_buff;
+   GpuTensor<real, 1> ecumu_buff;
+   GpuTensor<real, 1> binderc;
 };
    

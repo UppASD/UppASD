@@ -1045,18 +1045,20 @@ contains
    !> - Moved to separate routine
    !---------------------------------------------------------------------------------
    subroutine sd_mphaseCUDA(whichsim, whichphase)
-#ifdef CUDA
+#if defined (CUDA_V) || defined (HIP_V)
       use Chelper
+
 #else
       use NoCuda
 #endif
       use Damping
       use SpinTorques, only : btorque, stt
-      use InputData, only : gpu_mode
+      use InputData, only : gpu_mode, gpu_mc_bf
 
       ! Common stuff
       integer, intent(in) :: whichsim !< Type of simulation, 0 - SD, 1 -MC
       integer, intent(in) :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
@@ -1071,7 +1073,7 @@ contains
          call cudaSim_initiateConstants()
          call cudaSim_initiateMatrices()
              print *, "Value of whichsim before call:", whichsim
-         call cudaSim_cudaRunSimulation(whichsim, whichphase);
+         call cudaSim_cudaRunSimulation(whichsim, whichphase, gpu_mc_bf);
          call cudaSim_release();
 
       !else if (gpu_mode==2) then     !C/C++

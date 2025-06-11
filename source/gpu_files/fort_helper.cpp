@@ -2,15 +2,15 @@
 // Helper functions that calls the C++ routines //
 //////////////////////////////////////////////////
 
-#include "cudaSimulation.hpp"
-#include "mdSimulation.hpp"
+#include "gpuSimulation.hpp"
+//#include "mdSimulation.hpp"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // C++
-static MdSimulation cMdSim;
+/*static MdSimulation cMdSim;
 
 void cmdsim_initiateconstants_() {
    cMdSim.initiateConstants();
@@ -35,24 +35,24 @@ void cmdsim_readmatrices_() {
 void cmdsim_writematrices_() {
    cMdSim.copyToFortran();
 }
-
+*/
 // Cuda
-static CudaSimulation cudaSim;
+static GpuSimulation gpuSim;
 
 void cudasim_initiateconstants_() {
-   cudaSim.initiateConstants();
+   gpuSim.initiateConstants();
 }
 
 void cudasim_initiatematrices_() {
-   cudaSim.initiateMatrices();
+   gpuSim.initiateMatrices();
 }
 
-void cudasim_cudarunsimulation_(int *whichsim, int *whichphase){
-   cudaSim.cudaRunSimulation(*whichsim, *whichphase);
+void cudasim_cudarunsimulation_(int *whichsim, int *whichphase, char* bf){
+   gpuSim.gpuRunSimulation(*whichsim, *whichphase, *bf);
 };
 
 void cudasim_release_(){
-   cudaSim.release();
+   gpuSim.release();
 };
 
 

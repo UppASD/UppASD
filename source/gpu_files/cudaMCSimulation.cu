@@ -4,79 +4,80 @@
 
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "cudaGPUErrchk.hpp"
-#include "cudaHamiltonianCalculations.hpp"
+//#include "cudaGPUErrchk.hpp"
+#include "gpuHamiltonianCalculations.hpp"
 #include "cudaMetropolis.cuh"
-#include "cudaMeasurement.hpp"
+#include "cudaMetropolis_bruteforce.cuh"
+#include "gpuMeasurement.hpp"
 #include "cudaParallelizationHelper.hpp"
-#include "cudaSimulation.hpp"
-#include "cudaStructures.hpp"
+#include "gpuSimulation.hpp"
+#include "gpuStructures.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-#include "tensor.cuh"
+#include "tensor.hpp"
 
-CudaSimulation::CudaMCSimulation::CudaMCSimulation() {
+GpuSimulation::CudaMCSimulation::CudaMCSimulation() {
    // isInitiatedSD = false;
 }
 
-CudaSimulation::CudaMCSimulation::~CudaMCSimulation() {
+GpuSimulation::CudaMCSimulation::~CudaMCSimulation() {
 }
 
-void CudaSimulation::CudaMCSimulation::printMdStatus(std::size_t mstep, CudaSimulation& cudaSim) {
-   if(cudaSim.SimParam.mcnstep > 20) {
-      if(mstep % ((cudaSim.SimParam.rstep + cudaSim.SimParam.mcnstep) / 20) == 0) {
-         cudaSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
-         fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
+void GpuSimulation::CudaMCSimulation::printMdStatus(std::size_t mstep, GpuSimulation& gpuSim) {
+   if(gpuSim.SimParam.mcnstep > 20) {
+      if(mstep % ((gpuSim.SimParam.rstep + gpuSim.SimParam.mcnstep) / 20) == 0) {
+         gpuSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
+         fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
          std::printf("CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
-                     mstep * 100 / (cudaSim.SimParam.rstep + cudaSim.SimParam.mcnstep),
-                     *cudaSim.SimParam.mavg,
-                     *cudaSim.SimParam.binderc);
+                     mstep * 100 / (gpuSim.SimParam.rstep + gpuSim.SimParam.mcnstep),
+                     *gpuSim.SimParam.mavg,
+                     *gpuSim.SimParam.binderc);
       }
    } else {
-      cudaSim.copyToFortran();
-      fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
-      std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *cudaSim.SimParam.mavg);
+      gpuSim.copyToFortran();
+      fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
+      std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *gpuSim.SimParam.mavg);
    }
 }
 
-void CudaSimulation::CudaMCSimulation::printMdStatus_iphase(std::size_t mstep, CudaSimulation& cudaSim, int step) {
+void GpuSimulation::CudaMCSimulation::printMdStatus_iphase(std::size_t mstep, GpuSimulation& gpuSim, int step) {
    if(step > 20) {
       if(mstep % ((step) / 20) == 0) {
-         //cudaMC.mom_update(cudaSim.gpuLattice);
+         //cudaMC.mom_update(gpuSim.gpuLattice);
 
-         cudaSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
-         fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
+         gpuSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
+         fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
          std::printf("CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
                      mstep * 100 / (step),
-                     *cudaSim.SimParam.mavg,
-                     *cudaSim.SimParam.binderc);
+                     *gpuSim.SimParam.mavg,
+                     *gpuSim.SimParam.binderc);
       }
    } else {
-      //cudaMC.mom_update(CudaSim.gpuLattice);
-      cudaSim.copyToFortran();
-      fortran_calc_simulation_status_variables(cudaSim.SimParam.mavg);
-      std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *cudaSim.SimParam.mavg);
+      //cudaMC.mom_update(GpuSim.gpuLattice);
+      gpuSim.copyToFortran();
+      fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
+      std::printf("CUDA: Iteration %ld Mbar %13.6f\n", mstep, *gpuSim.SimParam.mavg);
    }
 }
 
-// Spin Dynamics measurement phase
-void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
+// Monte Carlo initial phase (strict)
+void GpuSimulation::CudaMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    // Unbuffered printf
    std::setbuf(stdout, nullptr);
    std::setbuf(stderr, nullptr);
    std::printf("CudaMCSimulation: MC initial phase starting\n");
 
    // Initiated?
-   if(!cudaSim.isInitiated) {
-      std::fprintf(stderr, "CudaSimulation: not initiated!\n");
+   if(!gpuSim.isInitiated) {
+      std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
 
    // Initiate default parallelization helper
-   CudaParallelizationHelper::def.initiate(cudaSim.SimParam.N, cudaSim.SimParam.M, cudaSim.SimParam.NH);
+    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
 
    // Timer
    StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
@@ -85,46 +86,52 @@ void CudaSimulation::CudaMCSimulation::MCiphase(CudaSimulation& cudaSim) {
    CudaMetropolis cudaMC;
 
    // Hamiltonian calculations
-   CudaHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc;
+   unsigned int num_subL = 0;
+   //printf("HERE - 0\n");
 
    // Initiate MC and Hamiltonian
-   if(!cudaMC.initiate(cudaSim.SimParam, cudaSim.cpuHamiltonian, cudaSim.cpuLattice)) {
-      std::fprintf(stderr, "CudaMCSimulation: MC failed to initiate!\n");
-      return;
-   }
-  if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {
+   num_subL = cudaMC.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
+   //printf("HERE - 1\n");
+   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
       std::fprintf(stderr, "CudaMCSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
 
-   int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
-   int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
-   int NH = cudaSim.cpuHamiltonian.j_tensor.extent(3);
-   int ipmcnphase = cudaSim.SimParam.ipmcnphase;
+   int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
+   int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int ipmcnphase = gpuSim.SimParam.ipmcnphase;
    real beta; 
    unsigned int mcs;
    // Timing
    stopwatch.add("initiate");
    printf("\n\\ninphase = %i\n\n", ipmcnphase);
+   //printf("HERE - 2\n");
 
-for(unsigned int it = 0; it < ipmcnphase; it++){
-   mcs = cudaSim.cpuLattice.ipmcnstep(it);
-   beta = 1/(cudaSim.cpuLattice.ipTemp(it) * cudaSim.SimParam.k_bolt);
+   for(unsigned int it = 0; it < ipmcnphase; it++){
+   mcs = gpuSim.cpuLattice.ipmcnstep(it);
+   beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(cudaSim.gpuLattice);
+   hamCalc.heisge(gpuSim.gpuLattice);
    stopwatch.add("hamiltonian");
+   //printf("HERE - 3\n");
+
    //printf("mcs = %i\n", mcs);   
    // Time step loop
    for(std::size_t mstep = 0; mstep <= mcs; mstep++) {
-      printMdStatus_iphase(mstep, cudaSim, mcs);
-      //printMdStatus(mstep, cudaSim);
+      printMdStatus_iphase(mstep, gpuSim, mcs);
+      //printMdStatus(mstep, gpuSim);
          // Perform Metropolis sweep
-         cudaMC.MCrun(cudaSim.gpuLattice, beta, hamCalc);
-         stopwatch.add("montecarlo");
+         for(std::size_t sub = 0; sub < num_subL; sub++){
+            cudaMC.MCrun(gpuSim.gpuLattice, beta, sub);
+            stopwatch.add("montecarlo");
+   //printf("HERE - 4\n");
 
-         // Apply Hamiltonian to obtain effective field
-         //hamCalc.heisge(cudaSim.gpuLattice);
-         //stopwatch.add("hamiltonian");
+             // Apply Hamiltonian to obtain effective field
+            hamCalc.heisge(gpuSim.gpuLattice);
+            stopwatch.add("hamiltonian");
+         }
 
          // Check for error
          cudaError_t e = cudaGetLastError();
@@ -135,13 +142,18 @@ for(unsigned int it = 0; it < ipmcnphase; it++){
          }
         // printf("mcs = %i\n", mstep);
 
-   }  // End loop over simulation steps
+   }  
+   // End loop over simulation steps
    // Synchronize with device
    //cudaDeviceSynchronize();
    //printf("HERE - 3\n");
-   cudaMC.mom_update(cudaSim.gpuLattice);
+   //printf("HERE - 5\n");
+
+   cudaMC.mom_update(gpuSim.gpuLattice);
+   //printf("HERE - 6\n");
+
    cudaDeviceSynchronize();   
-}
+   }
 
 
 
@@ -149,20 +161,20 @@ for(unsigned int it = 0; it < ipmcnphase; it++){
    stopwatch.add("final synchronize");
 }
 
-// Spin Dynamics measurement phase
-void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
+// Monte Carlo measurement phase (strict)
+void GpuSimulation::CudaMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    // Unbuffered printf
    std::setbuf(stdout, nullptr);
    std::setbuf(stderr, nullptr);
    std::printf("CudaMCSimulation: MC measurement phase starting\n");
 
    // Initiated?
-   if(!cudaSim.isInitiated) {
-      std::fprintf(stderr, "CudaSimulation: not initiated!\n");
+   if(!gpuSim.isInitiated) {
+      std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
    // Initiate default parallelization helper
-   CudaParallelizationHelper::def.initiate(cudaSim.SimParam.N, cudaSim.SimParam.M, cudaSim.SimParam.NH);
+    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
    // Timer
    StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
 
@@ -170,37 +182,37 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    CudaMetropolis cudaMC;
 
    // Hamiltonian calculations
-   CudaHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc;
+   unsigned int num_subL = 0;
 
  
    // Initiate MC and Hamiltonian
-   if(!cudaMC.initiate(cudaSim.SimParam, cudaSim.cpuHamiltonian, cudaSim.cpuLattice)) {
-      std::fprintf(stderr, "CudaMCSimulation: MC failed to initiate!\n");
+   num_subL = cudaMC.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
+
+   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
+      std::fprintf(stderr, "CudaMCSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
-   if(!hamCalc.initiate(cudaSim.Flags, cudaSim.SimParam, cudaSim.gpuHamiltonian)) {  // TODO
-      std::fprintf(stderr, "CudaSDSimulation: Hamiltonian failed to initiate!\n");
-      return;
-   }
+
  // Measurement
-   CudaMeasurement measurement(cudaSim.gpuLattice.emomM,
-                               cudaSim.gpuLattice.emom,
-                               cudaSim.gpuLattice.mmom,
-                               cudaSim.cpuLattice.emomM,
-                               cudaSim.cpuLattice.emom,
-                               cudaSim.cpuLattice.mmom);
+   GpuMeasurement measurement(gpuSim.gpuLattice.emomM,
+                               gpuSim.gpuLattice.emom,
+                               gpuSim.gpuLattice.mmom,
+                               gpuSim.cpuLattice.emomM,
+                               gpuSim.cpuLattice.emom,
+                               gpuSim.cpuLattice.mmom);
  
-   int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
-   int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
-   int NH = cudaSim.cpuHamiltonian.j_tensor.extent(3);
-    real beta = 1 / (cudaSim.SimParam.Temp * cudaSim.SimParam.k_bolt);
+   int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
+   int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   real beta = 1 / (gpuSim.SimParam.Temp * gpuSim.SimParam.k_bolt);
 
 
 
    // Timing
    stopwatch.add("initiate");
 
-   size_t mcnstep = cudaSim.SimParam.mcnstep;
+   size_t mcnstep = gpuSim.SimParam.mcnstep;
 
    // Time step loop
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
@@ -210,15 +222,22 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
-      printMdStatus(mstep, cudaSim);
+      printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-      //hamCalc.heisge(cudaSim.gpuLattice);
+      //hamCalc.heisge(gpuSim.gpuLattice);
       //stopwatch.add("hamiltonian");
+      for(unsigned int sub; sub < num_subL; sub++){
+         // Perform Metropolis sweep
+         cudaMC.MCrun(gpuSim.gpuLattice, beta, sub);
+         stopwatch.add("montecarlo");
+         hamCalc.heisge(gpuSim.gpuLattice);
+         stopwatch.add("hamiltonian");
 
-       // Perform Metropolis sweep
-      cudaMC.MCrun(cudaSim.gpuLattice, beta, hamCalc);
-      stopwatch.add("montecarlo");
+
+      }
+
+
 
       // Check for error
       cudaError_t e = cudaGetLastError();
@@ -244,4 +263,201 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    stopwatch.add("final synchronize");
 }
 
+// Monte Carlo initial phase (brute force)
+void GpuSimulation::CudaMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
+   // Unbuffered printf
+   std::setbuf(stdout, nullptr);
+   std::setbuf(stderr, nullptr);
+   std::printf("CudaMCSimulation: MC BF initial phase starting\n");
 
+   // Initiated?
+   if(!gpuSim.isInitiated) {
+      std::fprintf(stderr, "GpuSimulation: not initiated!\n");
+      return;
+   }
+
+   // Initiate default parallelization helper
+    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
+
+   // Timer
+   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
+
+    // Metropolis
+   CudaMetropolis_bruteforce cudaMC_bf;
+
+   // Hamiltonian calculations
+   GpuHamiltonianCalculations hamCalc;
+   
+
+   // Initiate MC and Hamiltonian
+   //num_subL = cudaMC_bf.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
+
+   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
+      std::fprintf(stderr, "CudaMCSimulation: Hamiltonian failed to initiate!\n");
+      return;
+   }
+
+   if(!cudaMC_bf.initiate(gpuSim.SimParam)) {
+      std::fprintf(stderr, "CudaMCSimulation_bf: Hamiltonian failed to initiate!\n");
+      return;
+   }
+
+   int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
+   int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int ipmcnphase = gpuSim.SimParam.ipmcnphase;
+   real beta; 
+   unsigned int mcs;
+   // Timing
+   stopwatch.add("initiate");
+   printf("\n\\ninphase = %i\n\n", ipmcnphase);
+
+   for(unsigned int it = 0; it < ipmcnphase; it++){
+   mcs = gpuSim.cpuLattice.ipmcnstep(it);
+   beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
+   // Apply Hamiltonian to obtain effective field
+   hamCalc.heisge(gpuSim.gpuLattice);
+   stopwatch.add("hamiltonian");
+
+   //printf("mcs = %i\n", mcs);   
+   // Time step loop
+   for(std::size_t mstep = 0; mstep <= mcs; mstep++) {
+      printMdStatus_iphase(mstep, gpuSim, mcs);
+      //printMdStatus(mstep, gpuSim);
+         // Perform Metropolis sweep
+
+            cudaMC_bf.MCrun(gpuSim.gpuLattice, beta);
+            stopwatch.add("montecarlo");
+             // Apply Hamiltonian to obtain effective field
+            hamCalc.heisge(gpuSim.gpuLattice);
+            stopwatch.add("hamiltonian");
+         
+
+         // Check for error
+         cudaError_t e = cudaGetLastError();
+         if(e != cudaSuccess) {
+            std::printf("Uncaught CUDA error %d: %s\n", e, cudaGetErrorString(e));
+            cudaDeviceReset();
+            std::exit(EXIT_FAILURE);
+         }
+        // printf("mcs = %i\n", mstep);
+
+   }  
+   // End loop over simulation steps
+   // Synchronize with device
+   //cudaDeviceSynchronize();
+   //printf("HERE - 3\n");
+   cudaMC_bf.mom_update(gpuSim.gpuLattice);
+   cudaDeviceSynchronize();   
+   }
+
+
+
+   //cudaMC.release();
+   stopwatch.add("final synchronize");
+}
+
+// Monte Carlo measurement phase (brute force)
+void GpuSimulation::CudaMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
+   // Unbuffered printf
+   std::setbuf(stdout, nullptr);
+   std::setbuf(stderr, nullptr);
+   std::printf("CudaMCSimulation: MC BF measurement phase starting\n");
+
+   // Initiated?
+   if(!gpuSim.isInitiated) {
+      std::fprintf(stderr, "GpuSimulation: not initiated!\n");
+      return;
+   }
+   // Initiate default parallelization helper
+   ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
+   // Timer
+   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
+
+    // MC
+   CudaMetropolis_bruteforce cudaMC_bf;
+
+   // Hamiltonian calculations
+   GpuHamiltonianCalculations hamCalc;
+   unsigned int num_subL = 0;
+
+ 
+   // Initiate MC and Hamiltonian
+   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
+      std::fprintf(stderr, "CudaMCSimulation: Hamiltonian failed to initiate!\n");
+      return;
+   }
+
+   if(!cudaMC_bf.initiate(gpuSim.SimParam)) {
+      std::fprintf(stderr, "CudaMCSimulation_bf: Hamiltonian failed to initiate!\n");
+      return;
+   }
+
+ // Measurement
+   GpuMeasurement measurement(gpuSim.gpuLattice.emomM,
+                               gpuSim.gpuLattice.emom,
+                               gpuSim.gpuLattice.mmom,
+                               gpuSim.cpuLattice.emomM,
+                               gpuSim.cpuLattice.emom,
+                               gpuSim.cpuLattice.mmom);
+ 
+   int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
+   int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
+   real beta = 1 / (gpuSim.SimParam.Temp * gpuSim.SimParam.k_bolt);
+
+
+
+   // Timing
+   stopwatch.add("initiate");
+
+   size_t mcnstep = gpuSim.SimParam.mcnstep;
+
+   // Time step loop
+   for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
+      // Measure
+      //printf("STEP = %i\n", mstep);
+      measurement.measure(mstep);
+      stopwatch.add("measurement");
+
+      // Print simulation status for each 5% of the simulation length
+      printMdStatus(mstep, gpuSim);
+
+      // Apply Hamiltonian to obtain effective field
+      //hamCalc.heisge(gpuSim.gpuLattice);
+      //stopwatch.add("hamiltonian");
+
+         // Perform Metropolis sweep
+         cudaMC_bf.MCrun(gpuSim.gpuLattice, beta);
+         stopwatch.add("montecarlo");
+         hamCalc.heisge(gpuSim.gpuLattice);
+         stopwatch.add("hamiltonian");
+
+
+      
+
+
+
+      // Check for error
+      cudaError_t e = cudaGetLastError();
+      if(e != cudaSuccess) {
+         std::printf("Uncaught CUDA error %d: %s\n", e, cudaGetErrorString(e));
+         cudaDeviceReset();
+         std::exit(EXIT_FAILURE);
+      }
+
+   }  // End loop over simulation steps
+
+   // Final measure
+   measurement.measure(mcnstep + 1);  // TODO
+   stopwatch.add("measurement");
+
+   // Print remaining measurements
+   measurement.flushMeasurements(mcnstep + 1);  // TODO
+   stopwatch.add("flush measurement");
+
+   // Synchronize with device
+   cudaDeviceSynchronize();
+   //cudaMC.release();
+   stopwatch.add("final synchronize");
+}

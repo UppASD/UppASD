@@ -1,9 +1,9 @@
-#include <cuda.h>
-#include <curand.h>
+#include <hip/hip_runtime.h>
+#include <hiprand/hiprand.h>
 
 #include "c_headers.hpp"
 #include "gpuParallelizationHelper.hpp"
-#include "cudaThermfield.hpp"
+#include "hipThermfield.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -15,7 +15,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // The neighbour list setup helper
-class CudaThermfield::SetupSigmaFactor : public GpuParallelizationHelper::Site {
+class HipThermfield::SetupSigmaFactor : public GpuParallelizationHelper::Site {
 private:
    real* sigma_factor;
    real dp;
@@ -31,7 +31,7 @@ public:
    }
 };
 
-class CudaThermfield::SetupField : public GpuParallelizationHelper::AtomSite {
+class HipThermfield::SetupField : public GpuParallelizationHelper::AtomSite {
 private:
    real* field;
    const real* sigma_factor;
@@ -56,23 +56,23 @@ public:
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
-CudaThermfield::CudaThermfield()
-    : stopwatch(GlobalStopwatchPool::get("Cuda thermfield")),
+HipThermfield::HipThermfield()
+    : stopwatch(GlobalStopwatchPool::get("Hip thermfield")),
       parallel(ParallelizationHelperInstance) {
    constantsInitiated = false;
    dataInitiated = false;
 }
 
-CudaThermfield::~CudaThermfield() {
+HipThermfield::~HipThermfield() {
    if(dataInitiated) {
-      curandDestroyGenerator(gen);
+      hiprandDestroyGenerator(gen);
    }
 }
 
-bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
+bool HipThermfield::initiate(std::size_t N, std::size_t M, hiprandRngType_t rngType,
                               unsigned long long seed) {
    if(dataInitiated) {
-      std::fprintf(stderr, "Warning: attempt to initiate already initiated CudaThermfield\n");
+      std::fprintf(stderr, "Warning: attempt to initiate already initiated HipThermfield\n");
       return true;
    }
 
@@ -80,12 +80,12 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
    field.Allocate(3, N, M);
    sigmaFactor.Allocate(N);
    if(!field.empty() && !sigmaFactor.empty()) {
-      if(curandCreateGenerator(&gen, rngType) == CURAND_STATUS_SUCCESS) {
+      if(hiprandCreateGenerator(&gen, rngType) == HIPRAND_STATUS_SUCCESS) {
          if(seed == 0ULL) {
             seed = time(nullptr);
          }
-         curandSetPseudoRandomGeneratorSeed(gen, seed);
-         curandSetStream(gen, parallel.getWorkStream());
+         hiprandSetPseudoRandomGeneratorSeed(gen, seed);
+         hiprandSetStream(gen, parallel.getWorkStream());
          dataInitiated = true;
       } else {
          field.Free();
@@ -96,7 +96,7 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
    return dataInitiated;
 }
 
-bool CudaThermfield::initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
+bool HipThermfield::initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
                                        real k_bolt, real mub, real damping) {
    // Timing
    stopwatch.skip();
@@ -120,7 +120,7 @@ bool CudaThermfield::initiateConstants(const Tensor<real, 1>& temperature, real 
    return true;
 }
 
-void CudaThermfield::resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
+void HipThermfield::resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
                                        real k_bolt, real mub, real damping) {
    // Set up sigmaFactor
    sigmaFactor.copy_sync(temperature);
@@ -130,7 +130,7 @@ void CudaThermfield::resetConstants(const Tensor<real, 1>& temperature, real tim
    stopwatch.add("initiate constants");
 }
 
-void CudaThermfield::randomize(const GpuTensor<real, 2>& mmom) {
+void  HipThermfield::randomize(const GpuTensor<real, 2>& mmom) {
    // Initiated?
    if(!initiated()) {
       return;
@@ -141,9 +141,9 @@ void CudaThermfield::randomize(const GpuTensor<real, 2>& mmom) {
 
 // Generate random vector
 #ifdef SINGLE_PREC
-   curandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0);
+   hiprandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0);
 #else
-   curandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0);
+   hiprandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0);
 #endif
    stopwatch.add("RNG");
 

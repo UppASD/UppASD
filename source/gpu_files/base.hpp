@@ -4,8 +4,12 @@
 #pragma once
 
 
-#include <cuda_runtime.h>
-
+#if defined(HIP_V)
+  #include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+  #include <cuda_runtime.h>
+#endif
+#include "gpu_wrappers.h"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -14,20 +18,18 @@
 
 using index_t = long int;
 
-
-#define ASSERT_CUDA(cudaCall)                            \
-   {                                                     \
-      cudaError_t error = cudaCall;                      \
-      if(error != cudaSuccess) {                         \
-         std::fprintf(stderr,                            \
-                      "Error on line %i, file %s: %s\n", \
-                      __LINE__,                          \
-                      __FILE__,                          \
-                      cudaGetErrorString(error));        \
-         std::exit(EXIT_FAILURE);                        \
-      }                                                  \
+#define ASSERT_GPU(gpuCall)                                  \
+   {                                                         \
+      GPU_ERROR_T error = gpuCall;                           \
+      if (error != GPU_SUCCESS) {                            \
+         std::fprintf(stderr,                                \
+                      "Error on line %i, file %s: %s\n",     \
+                      __LINE__,                              \
+                      __FILE__,                              \
+                      GPU_GET_ERROR_STRING(error));          \
+         std::exit(EXIT_FAILURE);                            \
+      }                                                      \
    }
-
 
 template <index_t dim>
 struct Extents {

@@ -1,26 +1,33 @@
 
-#include <curand.h>
+
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "cudaGPUErrchk.hpp"
+//#include "cudaGPUErrchk.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-#include "cudaStructures.hpp"
-#include "cudaSimulation.hpp"
-#include "tensor.cuh"
-//#include "cudaSDSimulation.hpp"
-CudaSimulation::CudaSimulation() {
+#include "gpuStructures.hpp"
+#include "gpuSimulation.hpp"
+#include "tensor.hpp"
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hiprand/hiprand.h>
+#elif defined(CUDA_V)
+#include <curand.h>
+#endif
+
+//#include "gpuSDSimulation.hpp"
+GpuSimulation::GpuSimulation() {
     isInitiated = false;
 }
 
-CudaSimulation::~CudaSimulation() {
+GpuSimulation::~GpuSimulation() {
     if(isInitiated && !isFreed) {release();}
 }
 
-void CudaSimulation::initiateConstants() {
+void GpuSimulation::initiateConstants() {
     SimParam.SDEalgh = *FortranData::SDEalgh;
     if(!(SimParam.SDEalgh == 1 || SimParam.SDEalgh == 4 || SimParam.SDEalgh == 5 || SimParam.SDEalgh == 11)) {
         std::fprintf(stderr, "Invalid SDEalgh!\n");
@@ -65,6 +72,7 @@ void CudaSimulation::initiateConstants() {
     //SimParam.cumu_step = *FortranData::cumu_step; 
     //SimParam.cumu_buff = *FortranData::cumu_buff; 
 
+ #if defined(CUDA_V)   
     switch(*FortranData::gpu_rng) {
     case 0: SimParam.rngType = CURAND_RNG_PSEUDO_DEFAULT; break;
     case 1: SimParam.rngType = CURAND_RNG_PSEUDO_XORWOW; break;
@@ -75,11 +83,28 @@ void CudaSimulation::initiateConstants() {
     std::exit(EXIT_FAILURE);
     break;
     }
+ #elif defined(HIP_V)
+switch(*FortranData::gpu_rng) {
+    case 0: SimParam.rngType = HIPRAND_RNG_PSEUDO_DEFAULT; break;
+    case 1: SimParam.rngType = HIPRAND_RNG_PSEUDO_XORWOW; break;
+    case 2: SimParam.rngType = HIPRAND_RNG_PSEUDO_MRG32K3A; break;
+    case 3: SimParam.rngType = HIPRAND_RNG_PSEUDO_MTGP32; break;
+    default:
+    std::fprintf(stderr, "Unknown gpu_rng %d\n", *FortranData::gpu_rng);
+    std::exit(EXIT_FAILURE);
+    break;
+    }
+#else
+    #error "Either USE_CUDA or USE_HIP must be defined"
+#endif
+
     SimParam.randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
+   //printf("HERE - 1\n");
+
     
 }
 
-void CudaSimulation::initiate_fortran_cpu_matrices() {
+void GpuSimulation::initiate_fortran_cpu_matrices() {
     std::size_t N = SimParam.N;
     std::size_t NH = SimParam.NH;
     std::size_t M = SimParam.M;
@@ -127,6 +152,8 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
     cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
+  // printf("HERE - 2\n");
+
   //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
 
    /* if (Flags.do_mphase_now != 0){
@@ -142,7 +169,7 @@ void CudaSimulation::initiate_fortran_cpu_matrices() {
 
 }
 
-bool CudaSimulation::initiateMatrices() {
+bool GpuSimulation::initiateMatrices() {
    // Dimensions
     std::size_t N = SimParam.N;
     std::size_t NH = SimParam.NH;
@@ -154,7 +181,7 @@ bool CudaSimulation::initiateMatrices() {
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
-      std::printf("CudaMdSimulation: constants not initiated!\n");
+      std::printf("GpuSimulation: constants not initiated!\n");
       std::exit(EXIT_FAILURE);
    }
 
@@ -163,14 +190,14 @@ bool CudaSimulation::initiateMatrices() {
 
    // Initiated?
    if(isInitiated) {
-      std::printf("CudaSimulation: attempted to initiate already initiated CudaSimulation!\n");
+      std::printf("GpuSimulation: attempted to initiate already initiated GpuSimulation!\n");
       std::exit(EXIT_FAILURE);
    }
 
    // Allocate
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
-        std::printf("\n CUDA: jTensor has been initialized \n");
+        std::printf("\n GPU: jTensor has been initialized \n");
         gpuHamiltonian.j_tensor.Allocate(3, 3, mnn, NH);        
          gpuHamiltonian.nlist.Allocate(mnn, N);
          gpuHamiltonian.nlistsize.Allocate(NH);}
@@ -207,6 +234,8 @@ bool CudaSimulation::initiateMatrices() {
     //gpuLattice.ipTemp_array.Allocate(N);
 
     gpuLattice.eneff.zeros();
+
+
    
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(3, N, M);} 
@@ -226,8 +255,8 @@ bool CudaSimulation::initiateMatrices() {
     if(gpuHasNoData()){
       release();
       // Check for error
-      const char* err = cudaGetErrorString(cudaGetLastError());
-      std::fprintf(stderr, "CUDA: Failed to allocate memory: %s\n", err);
+      const char* err = GPU_GET_ERROR_STRING(GPU_GET_LAST_ERROR());
+      std::fprintf(stderr, "Gpu: Failed to allocate memory: %s\n", err);
       return false;
    }
 
@@ -239,7 +268,7 @@ bool CudaSimulation::initiateMatrices() {
    return true;
 }
 
-bool CudaSimulation::gpuHasNoData(){
+bool GpuSimulation::gpuHasNoData(){
     bool check = (  gpuHamiltonian.aHam.empty() ||                             
                     (gpuHamiltonian.ncoup.empty() && (FortranData::j_tensor == nullptr))||            
                     gpuHamiltonian.nlist.empty() || 
@@ -269,7 +298,7 @@ bool CudaSimulation::gpuHasNoData(){
     return check;
 }
 
-void CudaSimulation::release() {
+void GpuSimulation::release() {
     if(isInitiated && !isFreed)
     isInitiated = false;
     isFreed = true;
@@ -313,8 +342,10 @@ void CudaSimulation::release() {
 
 }
 
-void CudaSimulation::copyFromFortran() {
+void GpuSimulation::copyFromFortran() {
    if(isInitiated) {
+   //printf("HERE - 5\n");
+
     gpuHamiltonian.aHam.copy_sync(cpuHamiltonian.aHam);     
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.copy_sync(cpuHamiltonian.j_tensor);            
@@ -340,23 +371,29 @@ void CudaSimulation::copyFromFortran() {
         gpuHamiltonian.eaniso.copy_sync(cpuHamiltonian.eaniso);     
         gpuHamiltonian.taniso.copy_sync(cpuHamiltonian.taniso);  
         gpuHamiltonian.sb.copy_sync(cpuHamiltonian.sb);  }     
-    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield);  
+    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield); 
+   // printf("HERE - 6\n");
     gpuLattice.beff.copy_sync(cpuLattice.beff);  
     gpuLattice.b2eff.copy_sync(cpuLattice.b2eff);   
-    gpuLattice.emomM.copy_sync(cpuLattice.emomM);  
+    gpuLattice.emomM.copy_sync(cpuLattice.emomM);
+    //printf("HERE - 7\n");  
     gpuLattice.emom.copy_sync(cpuLattice.emom);  
     gpuLattice.emom2.copy_sync(cpuLattice.emom2);   
-    gpuLattice.mmom.copy_sync(cpuLattice.mmom);  
+    gpuLattice.mmom.copy_sync(cpuLattice.mmom);    
+    //printf("HERE - 8\n");  
     gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);  
     gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);  
     gpuLattice.mmomi.copy_sync(cpuLattice.mmomi);  
-    gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
+    //printf("HERE - 9\n");
+   // gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
+   // printf("HERE - 10\n");
     if(FortranData::btorque) {gpuLattice.btorque.copy_sync(cpuLattice.btorque); } 
+
    // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
 }
-void CudaSimulation::copyToFortran() {
+void GpuSimulation::copyToFortran() {
    if(isInitiated) {
    // printf("COPIED\n");
     cpuLattice.beff.copy_sync(gpuLattice.beff);  
@@ -374,29 +411,32 @@ void CudaSimulation::copyToFortran() {
 }
 
 
-void CudaSimulation::cudaRunSimulation(const int whichsim, const int whichphase){
+void GpuSimulation::gpuRunSimulation(const int whichsim, const int whichphase, const char bf){
 printf("current type %i\n", whichsim);
     if(whichsim == 0){
-        CudaSDSimulation CudaSD;
+        GpuSDSimulation GpuSD;
         if(whichphase == 0) {
-            CudaSD.SDiphase(*this);
+            GpuSD.SDiphase(*this);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            CudaSD.SDmphase(*this);
+            GpuSD.SDmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
-     else if(whichsim == 1){
-        CudaMCSimulation CudaMC;
+    else if(whichsim == 1){
+      /*   CudaMCSimulation CudaMC;//TODO
+
         if(whichphase == 0) {
-            CudaMC.MCiphase(*this);
+            if(bf == 'Y') CudaMC.MCiphase_bf(*this);
+            else CudaMC.MCiphase(*this);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            CudaMC.MCmphase(*this);
+            if(bf == 'Y') CudaMC.MCmphase_bf(*this);
+            else CudaMC.MCmphase(*this);
         }
-        else {printf("Wrong phase! 0 - initial, 1 - measurement");}
+        else {printf("Wrong phase! 0 - initial, 1 - measurement");}*/
     }
     else {printf("Wrong simulation type! 0 - SD, 1 - MC; current type %i\n", whichsim);}
     //release();

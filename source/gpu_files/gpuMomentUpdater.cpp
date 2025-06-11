@@ -1,30 +1,37 @@
 // Routines for updating magnetic moment after time evolution
 
-#include <cuda.h>
-
 #include "c_headers.hpp"
-#include "cudaCommon.hpp"
-#include "tensor.cuh"
-#include "cudaMomentUpdater.hpp"
-#include "cudaParallelizationHelper.hpp"
+#include "gpuCommon.hpp"
+#include "tensor.hpp"
+#include "gpuMomentUpdater.hpp"
+
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-#include "cudaStructures.hpp"
+#include "gpuStructures.hpp"
+#include "gpuParallelizationHelper.hpp"
+#include "gpu_wrappers.h"
+#if defined (HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda.h>
+#endif
+
+using ParallelizationHelper = GpuParallelizationHelper;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
-class CudaMomentUpdater::Mompar1 : public CudaParallelizationHelper::Atom {
+class GpuMomentUpdater::Mompar1 : public ParallelizationHelper::Atom {
 private:
    real* mmom2;
    const real* mmom0;
    const real* emom2;
 
 public:
-   Mompar1(CudaTensor<real, 2>& p1, const CudaTensor<real, 2>& p2, const CudaTensor<real, 3>& p3) {
+   Mompar1(GpuTensor<real, 2>& p1, const GpuTensor<real, 2>& p2, const GpuTensor<real, 3>& p3) {
       mmom2 = p1.data();
       mmom0 = p2.data();
       emom2 = p3.data();
@@ -35,14 +42,14 @@ public:
    }
 };
 
-class CudaMomentUpdater::Mompar2 : public CudaParallelizationHelper::Atom {
+class GpuMomentUpdater::Mompar2 : public ParallelizationHelper::Atom {
 private:
    real* mmom2;
    const real* mmom0;
    const real* emom2;
 
 public:
-   Mompar2(CudaTensor<real, 2>& p1, const CudaTensor<real, 2>& p2, const CudaTensor<real, 3>& p3) {
+   Mompar2(GpuTensor<real, 2>& p1, const GpuTensor<real, 2>& p2, const GpuTensor<real, 3>& p3) {
       mmom2 = p1.data();
       mmom0 = p2.data();
       emom2 = p3.data();
@@ -56,7 +63,7 @@ public:
 
 // mmomi = 1.0 / mmom
 // mmomM = emom*  mmom
-class CudaMomentUpdater::Copy1 : public CudaParallelizationHelper::Atom {
+class GpuMomentUpdater::Copy1 : public ParallelizationHelper::Atom {
 private:
    real* mmomi;
    real* emomM;
@@ -64,7 +71,7 @@ private:
    const real* emom;
 
 public:
-   Copy1(CudaTensor<real, 2>& p1, CudaTensor<real, 3>& p2, const CudaTensor<real, 2>& p3, const CudaTensor<real, 3>& p4) {
+   Copy1(GpuTensor<real, 2>& p1, GpuTensor<real, 3>& p2, const GpuTensor<real, 2>& p3, const GpuTensor<real, 3>& p4) {
       mmomi = p1.data();
       emomM = p2.data();
       mmom = p3.data();
@@ -85,7 +92,7 @@ public:
 
 // mmomi = (mmom < 0.000001) ? 1 : (1.0 / mmom)
 // mmomM = emom*  mmom
-class CudaMomentUpdater::Copy2 : public CudaParallelizationHelper::Atom {
+class GpuMomentUpdater::Copy2 : public ParallelizationHelper::Atom {
 private:
    real* mmomi;
    real* emomM;
@@ -93,7 +100,7 @@ private:
    const real* emom;
 
 public:
-   Copy2(CudaTensor<real, 2>& p1, CudaTensor<real, 3>& p2, const CudaTensor<real, 2>& p3, const CudaTensor<real, 3>& p4) {
+   Copy2(GpuTensor<real, 2>& p1, GpuTensor<real, 3>& p2, const GpuTensor<real, 2>& p3, const GpuTensor<real, 3>& p4) {
       mmomi = p1.data();
       emomM = p2.data();
       mmom = p3.data();
@@ -117,7 +124,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Constructor
-CudaMomentUpdater::CudaMomentUpdater(cudaLattice& gpuLattice, int p8, char p9)
+GpuMomentUpdater::GpuMomentUpdater(deviceLattice& gpuLattice, int p8, char p9)
     : mmom(gpuLattice.mmom),
       mmom0(gpuLattice.mmom0),
       mmom2(gpuLattice.mmom2),
@@ -128,7 +135,7 @@ CudaMomentUpdater::CudaMomentUpdater(cudaLattice& gpuLattice, int p8, char p9)
       mompar(p8),
       initexc(p9),
       stopwatch(GlobalStopwatchPool::get("Cuda moment")),
-      parallel(CudaParallelizationHelper::def) {
+      parallel(ParallelizationHelperInstance) {
 
    // Exit if mompar is not supported
    if(mompar == 3) {
@@ -138,7 +145,7 @@ CudaMomentUpdater::CudaMomentUpdater(cudaLattice& gpuLattice, int p8, char p9)
 }
 
 // Wrapper routine for updating the magnetic moments
-void CudaMomentUpdater::update() {
+void GpuMomentUpdater::update() {
    // Timing
    stopwatch.skip();
    // Calculate
@@ -147,10 +154,10 @@ void CudaMomentUpdater::update() {
          mmom2.swap(mmom);
          break;
       case 1:  // mmom2 = abs(emom_z)
-         parallel.cudaAtomCall(Mompar1(mmom2, mmom0, emom2));
+         parallel.gpuAtomCall(Mompar1(mmom2, mmom0, emom2));
          break;
       case 2:  // mmom2 = abs(emom_z^2)
-         parallel.cudaAtomCall(Mompar2(mmom2, mmom0, emom2));
+         parallel.gpuAtomCall(Mompar2(mmom2, mmom0, emom2));
          break;
    }
    stopwatch.add("calculate");
@@ -162,9 +169,9 @@ void CudaMomentUpdater::update() {
 
    // Invert
    if(initexc != 'I') {
-      parallel.cudaAtomCall(Copy1(mmomi, emomM, mmom, emom));
+      parallel.gpuAtomCall(Copy1(mmomi, emomM, mmom, emom));
    } else {
-      parallel.cudaAtomCall(Copy2(mmomi, emomM, mmom, emom));
+      parallel.gpuAtomCall(Copy2(mmomi, emomM, mmom, emom));
    }
    stopwatch.add("copy - B");
 }

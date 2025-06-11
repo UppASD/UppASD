@@ -67,9 +67,15 @@ public:
    static unsigned int* do_dm;
    static unsigned int* max_no_dmneigh;
 
-   static unsigned int*
-       do_jtensor;  // Information on weather the exchange coupling tensor should be used or not
+
+   static unsigned int*do_jtensor;  // Information on weather the exchange coupling tensor should be used or not
    static unsigned int* do_aniso;  // Information on weather the anisotropy should be used or not
+
+
+   static unsigned int* do_cuda_measurements;
+   static unsigned int* do_avrg;
+   static unsigned int* do_cumu;
+   static unsigned int*do_autocorr;
 
    // Matrices / vectors
    static unsigned int * aHam;
@@ -111,18 +117,69 @@ public:
    static int* gpu_rng;
    static int* gpu_rng_seed;
 
+   static real* mavg_buff;
+   static real* mavg2_buff;
+   static real* mavg4_buff;
+   static real* eavg_buff;
+   static real* eavg2_buff;
+
+
+   static unsigned int* avrg_step;
+   static unsigned int* avrg_buff;
+   static unsigned int* cumu_step;
+   static unsigned int* cumu_buff;
+   static unsigned int* eavrg_step;
+   static unsigned int* eavrg_buff;
+
+
    // Initiators
-   static void setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
+    static void setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
+                                unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
+                                unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
+                                unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements);
+
+    static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
+                                    unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
+                                    real* p_delta_t, real* p_gamma, real* p_k_bolt, real* p_mub, real* p_mplambda1,
+                                    real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
+                                    unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
+                                    unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
+                                    unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff);
+
+    static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
+                                       real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
+                                       real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
+                                       real* p_j_tensor, unsigned int* p_aHam, 
+                                       real* p_external_field, real* p_btorque, real* p_Temp_array, 
+                                       real * p_ipTemp, unsigned int * p_ipmcnstep,
+                                       real * p_ipTemp_array, unsigned int* p_ipnstep);
+
+    static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
+                                   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi);
+
+    static void setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
+                                       real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 
+                                       real* p_binderc, real* p_avrgmcum, real* p_avrgm2cum, real* p_avrgm4cum, 
+                                       real* p_eavg_buff, real* p_eavg2_buff, 
+                                       real* p_spinwait, real* p_autocorr_buff, real* p_indxb_ac, 
+                                       real* p_traj_step, real* p_traj_buff, real* p_traj_atom,
+                                       real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj);
+   
+   
+   
+    /*static void setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
                                    unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                    real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
                                    unsigned int* p17, unsigned int* p18, unsigned int* p19,
                                    unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* ipnphase);
+    */
 
-   static void setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5, real* p6,
+    /*static void setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5, real* p6,
                                  real* p7, real* p8, real* p9, real* p10, real* p11, real* p12, real* p13,
                                  real* p14, real* p15, real* p16, unsigned int* p17, unsigned int* p18,
                                  real* p19, real* p20, real* p21, unsigned int* p22, real* p23, unsigned int* p24, 
                                  real* p_ipTemp, unsigned int * p_ipmcnstep, real* ipTemp_array, unsigned int* ipnstep);
+    */
 
    static void setInputDataPointers(int* p1, int* p2, int* p3);
 };

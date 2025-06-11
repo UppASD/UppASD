@@ -1,22 +1,34 @@
-#include <cuda.h>
-#include <curand.h>
-
 #include "c_headers.hpp"
-#include "cudaCommon.hpp"
-#include "cudaDepondtIntegrator.hpp"
-#include "tensor.cuh"
+#include "gpuCommon.hpp"
+#include "gpuDepondtIntegrator.hpp"
+#include "tensor.hpp"
 #include "printDebug.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
-#include "cudaStructures.hpp"
+#include "gpuStructures.hpp"
+#include "gpuParallelizationHelper.hpp"
 
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hip/hip_runtime.h>
+ #include <hiprand/hiprand.h>
+ #include "hipThermfield.hpp"
+using GpuThermfield = HipThermfield;
+#elif defined(CUDA_V)
+#include <cuda.h>
+#include <curand.h>
+#include "cudaThermfield.hpp"
+using GpuThermfield = CudaThermfield;
+#endif
+
+using ParallelizationHelper = GpuParallelizationHelper;
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
-class CudaDepondtIntegrator::BuildEffectiveField : public CudaParallelizationHelper::Atom {
+class GpuDepondtIntegrator::BuildEffectiveField : public ParallelizationHelper::Atom {
 private:
    real* bdup;
    const real* blocal;
@@ -24,7 +36,7 @@ private:
    real damping;
 
 public:
-   BuildEffectiveField(CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2, const CudaTensor<real, 3>& p3, real p4) {
+   BuildEffectiveField(GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2, const GpuTensor<real, 3>& p3, real p4) {
       bdup = p1.data();
       blocal = p2.data();
       emom = p3.data();
@@ -42,7 +54,7 @@ public:
    }
 };
 
-class CudaDepondtIntegrator::Rotate : public CudaParallelizationHelper::Atom {
+class GpuDepondtIntegrator::Rotate : public ParallelizationHelper::Atom {
 private:
    real* mrod;
    const real* emom;
@@ -52,7 +64,7 @@ private:
    real damping;
 
 public:
-   Rotate(CudaTensor<real, 3>& p1, const CudaTensor<real, 3>& p2, const CudaTensor<real, 3>& p3, real p4, real p5, real p6) {
+   Rotate(GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2, const GpuTensor<real, 3>& p3, real p4, real p5, real p6) {
       mrod = p1.data();
       emom = p2.data();
       bdup = p3.data();
@@ -116,19 +128,19 @@ public:
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
-// Constructor
-CudaDepondtIntegrator::CudaDepondtIntegrator()
+// ConstructoruDepondtIntegrator
+GpuDepondtIntegrator::GpuDepondtIntegrator()
     : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator")),
-      parallel(CudaParallelizationHelper::def) {
+      parallel(ParallelizationHelperInstance) {
 }
 
 // Destructor
-CudaDepondtIntegrator::~CudaDepondtIntegrator() {
+GpuDepondtIntegrator::~GpuDepondtIntegrator() {
    release();
 }
 
 // Initiator
-bool CudaDepondtIntegrator::initiate(const SimulationParameters SimParam) {
+bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    // Assert that we're not already initialized
    release();
 
@@ -148,7 +160,7 @@ bool CudaDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    bdup.Allocate(3, SimParam.N, SimParam.M);
 
    // All initialized?
-   if(cudaDeviceSynchronize() != cudaSuccess) {
+   if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();
       return false;
    }
@@ -156,7 +168,7 @@ bool CudaDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    return true;
 }
 
-bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature) {
+bool GpuDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature) {
    // Set parameters
    gamma = SimParam.gamma;
    k_bolt = SimParam.k_bolt;
@@ -173,13 +185,13 @@ bool CudaDepondtIntegrator::initiateConstants(const SimulationParameters SimPara
 }
 
 
-void CudaDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature) {
+void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature) {
    // Set parameters
    thermfield.resetConstants(temperature, timestep, gamma, k_bolt, mub, damping); 
 }
 
 // Releaser
-void CudaDepondtIntegrator::release() {
+void GpuDepondtIntegrator::release() {
    mrod.Free();
    blocal.Free();
    bdup.Free();
@@ -188,7 +200,7 @@ void CudaDepondtIntegrator::release() {
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
 // Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
-void CudaDepondtIntegrator::evolveFirst(cudaLattice& gpuLattice) {
+void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    // Timing
    stopwatch.skip();
 
@@ -198,11 +210,11 @@ void CudaDepondtIntegrator::evolveFirst(cudaLattice& gpuLattice) {
    thermfield.randomize(gpuLattice.mmom);
    stopwatch.add("thermfield");
 
-   CudaCommon::Add cm(blocal, gpuLattice.beff, thermfield.getField());
+   GpuCommon::Add cm(blocal, gpuLattice.beff, thermfield.getField());
 
    //_dpr;
    // Construct local field
-   parallel.cudaElementCall(CudaCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
+   parallel.gpuElementCall(GpuCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
    stopwatch.add("localfield");
 
    //_dpr;
@@ -216,7 +228,7 @@ void CudaDepondtIntegrator::evolveFirst(cudaLattice& gpuLattice) {
    stopwatch.add("rotate");
 
    // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
-   parallel.cudaElementCall(CudaCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
+   parallel.gpuElementCall(GpuCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
    gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed
    gpuLattice.emom.swap(mrod);   // Previous mrod will not be needed
    gpuLattice.b2eff.swap(bdup);  // Previous bdup will not be needed
@@ -225,12 +237,12 @@ void CudaDepondtIntegrator::evolveFirst(cudaLattice& gpuLattice) {
 
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
-void CudaDepondtIntegrator::evolveSecond(cudaLattice& gpuLattice) {
+void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
    // Timing
    stopwatch.skip();
 
    // Construct local field
-   parallel.cudaElementCall(CudaCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
+   parallel.gpuElementCall(GpuCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
    stopwatch.add("localfield");
 
    // Construct effective field (including damping term)
@@ -238,7 +250,7 @@ void CudaDepondtIntegrator::evolveSecond(cudaLattice& gpuLattice) {
    stopwatch.add("buildbeff");
 
    // Corrected field
-   parallel.cudaElementCall(CudaCommon::Avg(bdup, gpuLattice.b2eff));
+   parallel.gpuElementCall(GpuCommon::Avg(bdup, gpuLattice.b2eff));
    gpuLattice.emom.swap(gpuLattice.emom2);  // Vaild as emom2 wont be used after its coming swap
    stopwatch.add("corrfield");
 
@@ -251,18 +263,18 @@ void CudaDepondtIntegrator::evolveSecond(cudaLattice& gpuLattice) {
    stopwatch.add("copy");
 }
 
-void CudaDepondtIntegrator::rotate(const CudaTensor<real, 3>& emom, real delta_t) {
-   parallel.cudaAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
+void GpuDepondtIntegrator::rotate(const GpuTensor<real, 3>& emom, real delta_t) {
+   parallel.gpuAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
 
 // Constructs the effective field (including damping term)
-void CudaDepondtIntegrator::buildbeff(const CudaTensor<real, 3>& emom,
-                                      const CudaTensor<real, 3>& btorque) {
-   parallel.cudaAtomCall(BuildEffectiveField(bdup, blocal, emom, damping));
+void GpuDepondtIntegrator::buildbeff(const GpuTensor<real, 3>& emom,
+                                      const GpuTensor<real, 3>& btorque) {
+   parallel.gpuAtomCall(BuildEffectiveField(bdup, blocal, emom, damping));
 
    // TODO untested
    if(stt != 'N') {
-      parallel.cudaElementCall(CudaCommon::AddTo(bdup, btorque));
+      parallel.gpuElementCall(GpuCommon::AddTo(bdup, btorque));
    }
 }
 

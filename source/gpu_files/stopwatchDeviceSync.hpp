@@ -8,6 +8,12 @@
 #include "c_headers.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda_runtime.h>
+#endif
 
 class StopwatchDeviceSync {
 #if defined(DUMMY_STOPWATCH) || defined(ASYNC_STOPWATCH)
@@ -15,7 +21,7 @@ class StopwatchDeviceSync {
    }
 #else
    inline void sync() {
-      cudaDeviceSynchronize();
+      GPU_DEVICE_SYNCHRONIZE();
    }
 #endif
 public:

@@ -1,10 +1,17 @@
-#include <cuda_runtime.h>
 
 #include "c_headers.hpp"
-#include "cudaHamiltonianCalculations.hpp"
-#include "tensor.cuh"
+#include "gpuHamiltonianCalculations.hpp"
+#include "tensor.hpp"
 #include "real_type.h"
-#include "cudaStructures.hpp"
+#include "gpuStructures.hpp"
+#include "gpu_wrappers.h"
+#include "gpuParallelizationHelper.hpp"
+#if defined (HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda_runtime.h>
+#endif
+using ParallelizationHelper = GpuParallelizationHelper;
 // Possible improvements
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +24,7 @@
 // For Heisenberg
 // Class sets everything between neighbours and maxneighbours
 // to zero since hamiltonian implementation always runs to max neighbours
-class CudaHamiltonianCalculations::SetupNeighbourList : public CudaParallelizationHelper::Site {
+class GpuHamiltonianCalculations::SetupNeighbourList : public ParallelizationHelper::Site {
 private:
    real* coup;
    unsigned int* pos;
@@ -63,7 +70,7 @@ public:
 // The neighbour list setup helper
 //
 // For Tensorial Exchange
-class CudaHamiltonianCalculations::SetupNeighbourListExchangeTensor : public CudaParallelizationHelper::Site {
+class GpuHamiltonianCalculations::SetupNeighbourListExchangeTensor : public ParallelizationHelper::Site {
 private:
    real* tensor;
    unsigned int* pos;
@@ -117,7 +124,7 @@ public:
 };
 
 // unnecessary for anisotropy probably
-class CudaHamiltonianCalculations::SetupAnisotropy : public CudaParallelizationHelper::Site {
+class GpuHamiltonianCalculations::SetupAnisotropy : public ParallelizationHelper::Site {
 private:
    real* kaniso;
    real* eaniso;
@@ -138,7 +145,7 @@ public:
 // For DM interaction
 // Class sets everything between neighbours and maxneighbours
 // to zero since hamiltonian implementation always runs to max neighbours
-class CudaHamiltonianCalculations::SetupNeighbourListDM : public CudaParallelizationHelper::Site {
+class GpuHamiltonianCalculations::SetupNeighbourListDM : public ParallelizationHelper::Site {
 private:
    real* coup;
    unsigned int* pos;
@@ -187,7 +194,7 @@ public:
 // Calculating the magnetic field from various effects
 // such as the heisenberg field and DM interactions
 // Added DM effect 2014/09/23
-class CudaHamiltonianCalculations::HeisgeJij : public CudaParallelizationHelper::AtomSiteEnsemble {
+class GpuHamiltonianCalculations::HeisgeJij : public ParallelizationHelper::AtomSiteEnsemble {
 private:
    real* beff;
    real* eneff;
@@ -202,7 +209,7 @@ private:
    const unsigned int* aham;
 
 public:
-   HeisgeJij(CudaTensor<real, 3>& p_beff, CudaTensor<real, 3>& p_eneff, const CudaTensor<real, 3>& p_emomM, const CudaTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
+   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
              const HamRed& redHam) {
       beff = p_beff.data();
       eneff = p_eneff.data();
@@ -270,7 +277,7 @@ public:
    }
 };
 
-class CudaHamiltonianCalculations::HeisJijTensor : public CudaParallelizationHelper::AtomSiteEnsemble {
+class GpuHamiltonianCalculations::HeisJijTensor : public ParallelizationHelper::AtomSiteEnsemble {
 private:
    real* beff;
    real* eneff;
@@ -283,7 +290,7 @@ private:
    const unsigned int* aham;
 
 public:
-   HeisJijTensor(CudaTensor<real, 3>& p_beff, CudaTensor<real, 3>& p_eneff, const CudaTensor<real, 3>& p_emomM, const CudaTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
+   HeisJijTensor(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
                  const HamRed& redHam) {
       beff = p_beff.data();
       eneff = p_eneff.data();
@@ -351,7 +358,7 @@ public:
    }
 };
 
-class CudaHamiltonianCalculations::HeisgeJijAniso : public CudaParallelizationHelper::AtomSiteEnsemble {
+class GpuHamiltonianCalculations::HeisgeJijAniso : public ParallelizationHelper::AtomSiteEnsemble {
 private:
    real* beff;
    real* eneff;
@@ -362,7 +369,7 @@ private:
    const real* sb;
 
 public:
-   HeisgeJijAniso(CudaTensor<real, 3>& p_beff, CudaTensor<real, 3>& p_eneff, const CudaTensor<real, 3>&  p_emomM, const Anisotropy& aniso) {
+   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>&  p_emomM, const Anisotropy& aniso) {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -453,8 +460,8 @@ public:
    }
 };
 
-class CudaHamiltonianCalculations::HeisgeJijElement
-    : public CudaParallelizationHelper::ElementAxisSiteEnsemble {
+class GpuHamiltonianCalculations::HeisgeJijElement
+    : public ParallelizationHelper::ElementAxisSiteEnsemble {
 private:
    real* beff;
    real* eneff;
@@ -467,7 +474,7 @@ private:
    const unsigned int* aham;
 
 public:
-   HeisgeJijElement(CudaTensor<real, 3>& p_beff,CudaTensor<real, 3>& p_eneff, const CudaTensor<real, 3>& p_emomM, const CudaTensor<real, 3>& p_ext_f, const Exchange& ex, const HamRed& redHam) {
+   HeisgeJijElement(GpuTensor<real, 3>& p_beff,GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const HamRed& redHam) {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -509,11 +516,11 @@ public:
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
-CudaHamiltonianCalculations::CudaHamiltonianCalculations() : parallel(CudaParallelizationHelper::def) {
+GpuHamiltonianCalculations::GpuHamiltonianCalculations() : parallel(ParallelizationHelperInstance) {
    initiated = false;
 }
 
-bool CudaHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, cudaHamiltonian& gpuHamiltonian) {
+bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
    N = SimParam.N;   // Number of atoms
    NH = SimParam.NH;    // Number of reduced atoms
    mnn = SimParam.mnn;
@@ -536,7 +543,7 @@ bool CudaHamiltonianCalculations::initiate(const Flag Flags, const SimulationPar
       aniso.eaniso = gpuHamiltonian.eaniso;
       aniso.taniso = gpuHamiltonian.taniso;
       aniso.sb = gpuHamiltonian.sb;
-      CudaHamiltonianCalculations::do_aniso = Flags.do_aniso;  
+      GpuHamiltonianCalculations::do_aniso = Flags.do_aniso;  
 
       if(aniso.kaniso.empty() || aniso.eaniso.empty() || aniso.taniso.empty()|| aniso.sb.empty()) {
          initiated = false;
@@ -546,7 +553,7 @@ bool CudaHamiltonianCalculations::initiate(const Flag Flags, const SimulationPar
 
    //------- Tensorial Exchange -------//
    if(Flags.do_jtensor == 1) {
-      CudaHamiltonianCalculations::do_j_tensor = true;
+      GpuHamiltonianCalculations::do_j_tensor = true;
       tenEx.mnn = mnn;
       tenEx.neighbourCount = gpuHamiltonian.nlistsize;
       tenEx.neighbourPos = gpuHamiltonian.nlist;
@@ -565,7 +572,7 @@ bool CudaHamiltonianCalculations::initiate(const Flag Flags, const SimulationPar
       //	std::printf("\n");
       // }
 
-      parallel.cudaSiteCall(SetupNeighbourListExchangeTensor(tenEx, redHam));
+      parallel.gpuSiteCall(SetupNeighbourListExchangeTensor(tenEx, redHam));
 
       // Did we get the memory?
       if(tenEx.tensor.empty() || tenEx.neighbourCount.empty() || tenEx.neighbourPos.empty()) {
@@ -592,7 +599,7 @@ else{
    }
 
    // List setup kernel call
-   parallel.cudaSiteCall(SetupNeighbourList(ex, redHam));
+   parallel.gpuSiteCall(SetupNeighbourList(ex, redHam));
 
    //------- DM Interaction -------//
    dm.mnn = 0;
@@ -611,7 +618,7 @@ else{
 
          return false;
       }
-      parallel.cudaSiteCall(SetupNeighbourListDM(dm, redHam));
+      parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
    }
 
    // Flag
@@ -620,18 +627,18 @@ else{
 }
 }
 
-void CudaHamiltonianCalculations::heisge(cudaLattice& gpuLattice) {
+void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice) {
    // Kernel call
 
    if(do_j_tensor == 1) {
-      parallel.cudaAtomSiteEnsembleCall(HeisJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, tenEx, redHam));
+      parallel.gpuAtomSiteEnsembleCall(HeisJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, tenEx, redHam));
 
    } else {
-      parallel.cudaAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, ex, dm, redHam));
+      parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, ex, dm, redHam));
    }
 
    if(do_aniso != 0) {
-      parallel.cudaAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, aniso));
+      parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, aniso));
    }
 
    return;
