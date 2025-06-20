@@ -105,17 +105,17 @@ switch(*FortranData::gpu_rng) {
 }
 
 void GpuSimulation::initiate_fortran_cpu_matrices() {
-    std::size_t N = SimParam.N;
-    std::size_t NH = SimParam.NH;
-    std::size_t M = SimParam.M;
-    std::size_t mnn = SimParam.mnn;
-    std::size_t mnndm = SimParam.mnndm;
-    std::size_t ipnphase = SimParam.ipnphase;
-    std::size_t ipmcnphase = SimParam.ipmcnphase;
+    long int N = static_cast <long int>( SimParam.N);
+    long int  NH = static_cast <long int>( SimParam.NH);
+    long int  M = static_cast <long int>( SimParam.M);
+   long int mnn = static_cast <long int>( SimParam.mnn);
+    long int  mnndm = static_cast <long int>( SimParam.mnndm);
+   long int ipnphase = static_cast <long int>( SimParam.ipnphase);
+    long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
 
     // Constants initiated?
     if(N == 0 || M == 0 || NH == 0) {
-        std::printf("MdSimulation: constants not initiated!\n");
+        std::printf("GPUSimulation: constants not initiated!\n");
         std::exit(EXIT_FAILURE);
     }
 
@@ -124,29 +124,29 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuHamiltonian.nlist.set(FortranData::nlist, mnn, N);
     cpuHamiltonian.nlistsize.set(FortranData::nlistsize, NH);
     if(Flags.do_dm != 0) {
-        cpuHamiltonian.dmvect.set(FortranData::dmvect, 3, mnndm, NH);    
+        cpuHamiltonian.dmvect.set(FortranData::dmvect,  static_cast <long int>(3), mnndm, NH);    
         cpuHamiltonian.dmlist.set(FortranData::dmlist, mnndm, N);
         cpuHamiltonian.dmlistsize.set(FortranData::dmlistsize, NH);
         }
     if(Flags.do_jtensor != 0) {
-        cpuHamiltonian.j_tensor.set(FortranData::j_tensor, 3, 3, mnn, NH);}
+        cpuHamiltonian.j_tensor.set(FortranData::j_tensor,  static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);}
     if(Flags.do_aniso != 0) {
-        cpuHamiltonian.kaniso.set(FortranData::kaniso, 2, N);;
-        cpuHamiltonian.eaniso.set(FortranData::eaniso, 3, N);;
+        cpuHamiltonian.kaniso.set(FortranData::kaniso,  static_cast <long int>(2), N);;
+        cpuHamiltonian.eaniso.set(FortranData::eaniso,  static_cast <long int>(3), N);;
         cpuHamiltonian.taniso.set(FortranData::taniso, N);;
         cpuHamiltonian.sb.set(FortranData::sb, N);
     }
-    cpuHamiltonian.extfield.set(FortranData::external_field, 3, N, M);
-    cpuLattice.beff.set(FortranData::beff, 3, N, M);
-    cpuLattice.b2eff.set(FortranData::b2eff, 3, N, M);
-    cpuLattice.emomM.set(FortranData::emomM, 3, N, M);
-    cpuLattice.emom.set(FortranData::emom, 3, N, M);
-    cpuLattice.emom2.set(FortranData::emom2, 3, N, M);
+    cpuHamiltonian.extfield.set(FortranData::external_field,  static_cast <long int>(3), N, M);
+    cpuLattice.beff.set(FortranData::beff,  static_cast <long int>(3), N, M);
+    cpuLattice.b2eff.set(FortranData::b2eff,  static_cast <long int>(3), N, M);
+    cpuLattice.emomM.set(FortranData::emomM,  static_cast <long int>(3), N, M);
+    cpuLattice.emom.set(FortranData::emom,  static_cast <long int>(3), N, M);
+    cpuLattice.emom2.set(FortranData::emom2,  static_cast <long int>(3), N, M);
     cpuLattice.mmom.set(FortranData::mmom, N, M);
     cpuLattice.mmom0.set(FortranData::mmom0, N, M);
     cpuLattice.mmom2.set(FortranData::mmom2, N, M);
     cpuLattice.mmomi.set(FortranData::mmomi, N, M);
-    cpuLattice.btorque.set(FortranData::btorque, 3, N, M);
+    cpuLattice.btorque.set(FortranData::btorque,  static_cast <long int>(3), N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
     cpuLattice.ipTemp.set(FortranData::ipTemp, ipmcnphase);
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
@@ -171,13 +171,13 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
 
 bool GpuSimulation::initiateMatrices() {
    // Dimensions
-    std::size_t N = SimParam.N;
-    std::size_t NH = SimParam.NH;
-    std::size_t M = SimParam.M;
-    std::size_t mnn = SimParam.mnn;
-    std::size_t mnndm = SimParam.mnndm;
-    std::size_t ipnphase = SimParam.ipnphase;
-    std::size_t ipmcnphase = SimParam.ipmcnphase;
+    long int N = static_cast <long int>( SimParam.N);
+    long int NH = static_cast <long int>(SimParam.NH);
+    long int M = static_cast <long int>( SimParam.M);
+    long int mnn = static_cast <long int>( SimParam.mnn);
+    long int mnndm = static_cast <long int>( SimParam.mnndm);
+    long int ipnphase = static_cast <long int>( SimParam.ipnphase);
+    long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
@@ -198,7 +198,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
         std::printf("\n GPU: jTensor has been initialized \n");
-        gpuHamiltonian.j_tensor.Allocate(3, 3, mnn, NH);        
+        gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
          gpuHamiltonian.nlist.Allocate(mnn, N);
          gpuHamiltonian.nlistsize.Allocate(NH);}
     else {
@@ -207,7 +207,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuHamiltonian.nlist.Allocate(N, mnn);
     gpuHamiltonian.nlistsize.Allocate(NH);
     if(Flags.do_dm != 0) {
-        gpuHamiltonian.dmvect.Allocate(3, mnndm, NH);     
+        gpuHamiltonian.dmvect.Allocate( static_cast <long int>(3), mnndm, NH);     
         gpuHamiltonian.dmlist.Allocate(mnndm, N);
         gpuHamiltonian.dmlistsize.Allocate(NH);
         }
@@ -215,18 +215,18 @@ bool GpuSimulation::initiateMatrices() {
 
 
     if(Flags.do_aniso != 0) {
-        gpuHamiltonian.kaniso.Allocate(2, N);;
-        gpuHamiltonian.eaniso.Allocate(3, N);;
+        gpuHamiltonian.kaniso.Allocate( static_cast <long int>(2), N);;
+        gpuHamiltonian.eaniso.Allocate( static_cast <long int>(3), N);;
         gpuHamiltonian.taniso.Allocate(N);;
         gpuHamiltonian.sb.Allocate(N);
     }
-    gpuHamiltonian.extfield.Allocate(3, N, M);
-    gpuLattice.beff.Allocate(3, N, M);
-    gpuLattice.b2eff.Allocate(3, N, M);
-    gpuLattice.eneff.Allocate(3, N, M);
-    gpuLattice.emomM.Allocate(3, N, M);
-    gpuLattice.emom.Allocate(3, N, M);
-    gpuLattice.emom2.Allocate(3, N, M);
+    gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.b2eff.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.eneff.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.emomM.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.emom.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.emom2.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.mmom.Allocate(N, M);
     gpuLattice.mmom0.Allocate(N, M);
     gpuLattice.mmom2.Allocate(N, M);
@@ -238,7 +238,7 @@ bool GpuSimulation::initiateMatrices() {
 
    
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
-    if(FortranData::btorque) {gpuLattice.btorque.Allocate(3, N, M);} 
+    if(FortranData::btorque) {gpuLattice.btorque.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
         if (Flags.do_avrg !=0){

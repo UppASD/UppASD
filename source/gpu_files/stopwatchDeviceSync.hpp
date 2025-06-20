@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <cuda_runtime.h>
-
 #include "c_headers.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"

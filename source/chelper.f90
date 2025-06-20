@@ -46,7 +46,7 @@ module Chelper
 
    public :: fortran_do_measurements,fortran_measure,fortran_measure_moment,        &
       fortran_moment_update,fortran_flush_measurements,FortranData_Initiate,        &
-      fortran_calc_simulation_status_variables
+      fortran_calc_simulation_status_variables, fortran_print_measurables
 
 contains
 
@@ -181,28 +181,26 @@ contains
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, &
-         ham_inp%do_anisotropy, nHam, Temp, ipmcnphase, mcnstep, ipnphase)
+         initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
+         avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
+         tottraj_step, tottraj_buff)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
          ham%kaniso, ham%eaniso, ham%taniso, ham%sb, &
          ham%j_tens, ham%aHam, &
-         external_field, btorque,Temp_array)
+         external_field, btorque,Temp_array, &
+         ipTemp, ipmcnstep, ipTemp_array, ipnstep)
 
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi)
 
       call FortranData_setMeasurables( &
-           avrg_step, avrg_buff, &
-           mavg_buff, mavg2_buff, mavg4_buff, &
            mavg_buff, mavg2_buff, mavg4_buff, &
            mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
-           cumu_step, cumu_buff, &
            binderc, avrgmcum, avrgm2cum, avrgm4cum, &
-           eavrg_step, eavrg_buff, &
            eavg_buff, eavg2_buff, &
            spinwait, autocorr_buff, indxb_ac, &
-!           tottraj_step, tottraj_buff, traj_step, traj_buff, traj_atom, &
+           traj_step, traj_buff, traj_atom, &
            mmomb, mmomb_traj, emomb, emomb_traj &
            )
 

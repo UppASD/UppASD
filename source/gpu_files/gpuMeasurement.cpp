@@ -35,7 +35,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<rea
       fortran_mmom(p6),
       fastCopy(p7),
       alwaysCopy(p8),
-      stopwatch(GlobalStopwatchPool::get("Cuda measurement")),
+      stopwatch(GlobalStopwatchPool::get("GPU measurement")),
       parallel( ParallelizationHelperInstance) {
 #ifdef NVPROF
    nvtxNameOsThread(pthread_self(), "MAIN_THREAD");
@@ -108,8 +108,8 @@ void GpuMeasurement::copyQueueFast(std::size_t mstep) {
    GpuEventPool::Event& copyDone = eventPool.get();
 
    // The copying must wait for the work stream to finish
-   cudaEventRecord(workDone.event(), workStream);
-   cudaStreamWaitEvent(copyStream, workDone.event(), 0);
+   GPU_EVENT_RECORD(workDone.event(), workStream);
+   GPU_STREAM_WAIT_EVENT(copyStream, workDone.event(), 0);
 
    // Async copy in copy stream (device -> temp. device)
    tmp_emomM.copy_async(emomM, copyStream);

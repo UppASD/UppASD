@@ -6,7 +6,7 @@
 !> GNU Public License
 !-------------------------------------------------------------------------------------
 module prn_cudameasurements
-
+   use Profiling
    use Parameters
    use ErrorHandling
 

@@ -361,12 +361,11 @@ if (USE_CUDA)
 elseif(USE_HIP)
    find_package(HIP REQUIRED)
    add_compile_definitions(HIP_V)
-#find_package(HIP REQUIRED)
 
-   ENABLE_LANGUAGE(C CXX HIP)
-   add_compile_definitions(HIP)
-#set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.4/bin/hipcc")
-#message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
+   ENABLE_LANGUAGE(C CXX)
+   set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
+   #set(CMAKE_HIP_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
+message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
 
@@ -378,16 +377,16 @@ elseif(USE_HIP)
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
    message(STATUS "HIP PPFLAG: __${PP_HIP_COMPILER_FLAG}__")
-
+find_library(HIPRAND_LIBRARY hiprand PATHS /opt/rocm/lib /opt/rocm/lib64)
 #link_directories("/opt/rocm-6.3.4/lib")
 
-#target_link_libraries(${UppASD_LIB}
-#    ${hiprand_LIBRARIES}
-#    ${HIP_LIBRARIES}
-#    ${CUDAToolkit_LIBRARIES}
-#)
+if(HIPRAND_LIBRARY)
+  target_link_libraries(${UppASD_LIB} ${HIPRAND_LIBRARY})
+else()
+  message(FATAL_ERROR "hiprand library not found")
+endif()
 
-   #????? SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "gfx90a")
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "gfx90a")
 
 else ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Tools/nocuda.f90)

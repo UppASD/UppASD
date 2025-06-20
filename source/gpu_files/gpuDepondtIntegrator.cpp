@@ -155,9 +155,9 @@ bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    }
 
    // Allocate device matrices
-   mrod.Allocate(3, SimParam.N, SimParam.M);
-   blocal.Allocate(3, SimParam.N, SimParam.M);
-   bdup.Allocate(3, SimParam.N, SimParam.M);
+   mrod.Allocate(static_cast <long int>(3),static_cast <long int>( SimParam.N), static_cast <long int>(SimParam.M));
+   blocal.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
+   bdup.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
 
    // All initialized?
    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {

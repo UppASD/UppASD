@@ -1,6 +1,10 @@
 #pragma once
 
+#if defined (CUDA_V)
 #include <curand.h>
+#elif defined (HIP_V)
+ #include <hiprand/hiprand.h>
+#endif
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "gpuStructures.hpp"
