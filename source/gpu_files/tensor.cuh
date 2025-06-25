@@ -494,7 +494,7 @@ public:
 
 
    void zeros() {
-      ASSERT_CUDA(cudaMemset(data(), T{}, size() * sizeof(T)));
+      ASSERT_CUDA(cudaMemset(data(), 0, size() * sizeof(T)));
    }
 
 
