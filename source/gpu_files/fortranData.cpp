@@ -34,10 +34,11 @@ unsigned int* FortranData::do_jtensor;
 unsigned int* FortranData::do_aniso;
 unsigned int* FortranData::max_no_dmneigh;
 
-unsigned int*FortranData::do_cuda_measurements;
-unsigned int*FortranData::do_avrg;
-unsigned int*FortranData::do_cumu;
-unsigned int*FortranData::do_autocorr;
+char* FortranData::do_cuda_measurements;
+char* FortranData::do_avrg;
+char* FortranData::do_cumu;
+char* FortranData::do_autocorr;
+unsigned int* FortranData::plotenergy;
 
 // Matrices
 unsigned int * FortranData::aHam;
@@ -89,10 +90,10 @@ unsigned int* FortranData::cumu_buff;
 unsigned int* FortranData::eavrg_step;
 unsigned int* FortranData::eavrg_buff;
 
-void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-                                  unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-                                  unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-                                  unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements){
+void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy,
+                                  char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+                                  unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+                                  unsigned int* p_ntraj, char* p_do_cuda_measurements){
 
 
    do_dm = p_do_dm;
@@ -102,6 +103,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    do_avrg = p_do_avrg;
    do_cumu = p_do_cumu;
    do_autocorr = p_do_autocorr;
+   plotenergy = p_plotenergy;
 }
 
 void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -298,9 +300,9 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
 
 // Fortran helpers
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-   unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-   unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-   unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements) {
+   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+   unsigned int* p_ntraj, char* p_do_cuda_measurements) {
 FortranData::setFlagPointers(
    p_do_dm, p_do_jtensor, p_do_anisotropy, p_do_avrg, p_do_proj_avrg, p_do_cumu,  p_plotenergy, 
    p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements);

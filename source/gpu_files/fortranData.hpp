@@ -72,10 +72,11 @@ public:
    static unsigned int* do_aniso;  // Information on weather the anisotropy should be used or not
 
 
-   static unsigned int* do_cuda_measurements;
-   static unsigned int* do_avrg;
-   static unsigned int* do_cumu;
-   static unsigned int*do_autocorr;
+   static char* do_cuda_measurements;           // Do measurements in CUDA (Y/N)
+   static char* do_avrg;                        // Measure average magnetization (Y/N)
+   static char* do_cumu;                        // Measure Binder cumulant, susceptibility, and specific heat(Y/N)
+   static char* do_autocorr;                    // Perform autocorrelation (Y/N)
+   static unsigned int* plotenergy;             // Calculate and plot energy (0/1)
 
    // Matrices / vectors
    static unsigned int * aHam;
@@ -134,9 +135,9 @@ public:
 
    // Initiators
     static void setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-                                unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-                                unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-                                unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements);
+                                char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+                                unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+                                unsigned int* p_ntraj, char* p_do_cuda_measurements);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
                                     unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
