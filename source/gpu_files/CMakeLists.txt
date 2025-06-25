@@ -14,8 +14,6 @@ cudaSimulation.cu
 cudaSimulation.hpp
 cudaSDSimulation.cu
 cudaMCSimulation.cu
-cudaMeasurement.cu
-cudaMeasurement.hpp
 cudaMetropolis.cuh
 cudaMetropolis.cu
 cudaMetropolis_bruteforce.cuh
@@ -39,8 +37,6 @@ hostMatrix.hpp
 matrix.hpp
 mdSimulation.cpp
 mdSimulation.hpp
-measurementQueue.cpp
-measurementQueue.hpp
 momentUpdater.cpp
 momentUpdater.hpp
 printDebug.hpp
@@ -57,3 +53,9 @@ thermfield.hpp
 tensor.cuh
 )
 
+target_include_directories(${UppASD_LIB}
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_subdirectory(measurement)

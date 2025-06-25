@@ -8,7 +8,6 @@
 #include "cudaHamiltonianCalculations.hpp"
 #include "cudaMetropolis.cuh"
 #include "cudaMetropolis_bruteforce.cuh"
-#include "cudaMeasurement.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "cudaSimulation.hpp"
 #include "cudaStructures.hpp"
@@ -18,6 +17,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 #include "tensor.cuh"
+#include "measurementFactory.cuh"
 
 CudaSimulation::CudaMCSimulation::CudaMCSimulation() {
    // isInitiatedSD = false;
@@ -194,13 +194,8 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
       return;
    }
 
- // Measurement
-   CudaMeasurement measurement(cudaSim.gpuLattice.emomM,
-                               cudaSim.gpuLattice.emom,
-                               cudaSim.gpuLattice.mmom,
-                               cudaSim.cpuLattice.emomM,
-                               cudaSim.cpuLattice.emom,
-                               cudaSim.cpuLattice.mmom);
+   // Measurement
+   const auto measurement = MeasurementFactory::create(cudaSim.gpuLattice, cudaSim.cpuLattice);
  
    int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
    int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
@@ -218,7 +213,7 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -250,11 +245,11 @@ void CudaSimulation::CudaMCSimulation::MCmphase(CudaSimulation& cudaSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(mcnstep + 1);  // TODO
+   measurement->measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(mcnstep + 1);  // TODO
+   measurement->flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device
@@ -394,12 +389,7 @@ void CudaSimulation::CudaMCSimulation::MCmphase_bf(CudaSimulation& cudaSim) {
    }
 
  // Measurement
-   CudaMeasurement measurement(cudaSim.gpuLattice.emomM,
-                               cudaSim.gpuLattice.emom,
-                               cudaSim.gpuLattice.mmom,
-                               cudaSim.cpuLattice.emomM,
-                               cudaSim.cpuLattice.emom,
-                               cudaSim.cpuLattice.mmom);
+   const auto measurement = MeasurementFactory::create(cudaSim.gpuLattice, cudaSim.cpuLattice);
  
    int mnn = cudaSim.cpuHamiltonian.j_tensor.extent(2);
    int l = cudaSim.cpuHamiltonian.j_tensor.extent(3);
@@ -417,7 +407,7 @@ void CudaSimulation::CudaMCSimulation::MCmphase_bf(CudaSimulation& cudaSim) {
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -449,11 +439,11 @@ void CudaSimulation::CudaMCSimulation::MCmphase_bf(CudaSimulation& cudaSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(mcnstep + 1);  // TODO
+   measurement->measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(mcnstep + 1);  // TODO
+   measurement->flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device

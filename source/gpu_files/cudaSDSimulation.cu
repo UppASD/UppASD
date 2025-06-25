@@ -6,7 +6,6 @@
 #include "cudaDepondtIntegrator.hpp"
 #include "cudaGPUErrchk.hpp"
 #include "cudaHamiltonianCalculations.hpp"
-#include "cudaMeasurement.hpp"
 #include "cudaMomentUpdater.hpp"
 #include "cudaParallelizationHelper.hpp"
 #include "cudaSimulation.hpp"
@@ -17,6 +16,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 #include "tensor.cuh"
+#include "measurementFactory.cuh"
 
 CudaSimulation::CudaSDSimulation::CudaSDSimulation() {
    // isInitiatedSD = false;
@@ -184,12 +184,7 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    // Moment updater
    CudaMomentUpdater momUpdater(cudaSim.gpuLattice, cudaSim.SimParam.mompar, cudaSim.SimParam.initexc);
    // Measurement
-   CudaMeasurement measurement(cudaSim.gpuLattice.emomM,
-                               cudaSim.gpuLattice.emom,
-                               cudaSim.gpuLattice.mmom,
-                               cudaSim.cpuLattice.emomM,
-                               cudaSim.cpuLattice.emom,
-                               cudaSim.cpuLattice.mmom);
+   const auto measurement = MeasurementFactory::create(cudaSim.gpuLattice, cudaSim.cpuLattice);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(cudaSim.SimParam)) {  // TODO
@@ -228,7 +223,7 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -264,11 +259,11 @@ void CudaSimulation::CudaSDSimulation::SDmphase(CudaSimulation& cudaSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(rstep + nstep + 1);  // TODO
+   measurement->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(rstep + nstep + 1);  // TODO
+   measurement->flushMeasurements(rstep + nstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device
