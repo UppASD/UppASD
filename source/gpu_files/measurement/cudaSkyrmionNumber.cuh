@@ -27,10 +27,10 @@ private:
     const uint skyno_step;
     const uint buffer_size;
     CudaTensor<real, 3> dxyz_vec;
-    CudaTensor<uint, 2> dxyz_atom;
-    CudaTensor<uint, 1> dxyz_list;
+    CudaTensor<int, 2> dxyz_atom;
+    CudaTensor<int, 1> dxyz_list;
 
-    CudaTensor<real, 4> grad_mom; // 3 x 3 x N x M
+    CudaTensor<real, 4> grad_mom; // 3 x 3 x N x M, is initialized to zeros in Fortran, no need to copy over
     CudaTensor<real, 1> skynob;
     CudaTensor<real, 1> sk_avrg;
     CudaTensor<real, 1> sk_var;

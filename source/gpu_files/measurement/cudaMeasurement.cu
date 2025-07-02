@@ -17,20 +17,21 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 {
     if (*FortranData::do_avrg == 'Y')
     {
-        assert(*FortranData::avrg_step > 0);
+        assert(*FortranData::avrg_step > 0 && *FortranData::avrg_buff > 0);
         measurables.push_back(std::make_unique<AverageMagnetization>(emomM));
         std::cout << "AverageMagnetization observable added" << std::endl;
     }
 
     if (*FortranData::do_cumu == 'Y')
     {
-        assert(*FortranData::cumu_step > 0);
+        assert(*FortranData::cumu_step > 0 && *FortranData::cumu_buff > 0);
         measurables.push_back(std::make_unique<BinderCumulant>(emomM));
         std::cout << "BinderCumulant observable added" << std::endl;
     }
 
-    if (true) // TODO check the skyrmion number flag
+    if (*FortranData::do_skyno == 'Y')
     {
+        assert(*FortranData::skyno_step > 0 && *FortranData::skyno_buff > 0);
         measurables.push_back(std::make_unique<SkyrmionNumber>(emomM, emom));
         std::cout << "SkyrmionNumber observable added" << std::endl;
     }

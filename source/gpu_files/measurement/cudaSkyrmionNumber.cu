@@ -4,9 +4,9 @@
 
 
 __global__ void grad_moments_kernel(const CudaTensor<real, 3> emomM,
-                                    const CudaTensor<uint, 1> dxyz_list,
-                                    const CudaTensor<uint, 2> dxyz_atom,
                                     const CudaTensor<real, 3> dxyz_vec,
+                                    const CudaTensor<int, 2> dxyz_atom,
+                                    const CudaTensor<int, 1> dxyz_list,
                                     CudaTensor<real, 4> grad_mom);
 
 __global__ void pontryagin_no_kernel(const CudaTensor<real, 3> emomM,
@@ -19,20 +19,53 @@ __global__ void avrg_skyno_kernel();
 SkyrmionNumber::SkyrmionNumber(const CudaTensor<real, 3>& emomM, const CudaTensor<real, 3>& emom)
 : emomM(emomM)
 , emom(emom)
-, skyno_step(100) // TODO: should be set from a Fortran flag
-, buffer_size(10) // TODO: should be set from a Fortran flag
+, skyno_step(*FortranData::skyno_step)
+, buffer_size(*FortranData::skyno_buff)
 {
     const uint N = emomM.extent(1);
     const uint M = emomM.extent(2);
 
+    Tensor<real, 3> dxyz_vec_fortran(FortranData::dxyz_vec, 3, 26, N);
     dxyz_vec.Allocate(3, 26, N); // why 26?
-    dxyz_vec.zeros(); // copy from Fortran instead
+    dxyz_vec.copy_sync(dxyz_vec_fortran);
 
+    Tensor<int, 2> dxyz_atom_fortran(FortranData::dxyz_atom, 26, N);
     dxyz_atom.Allocate(26, N);
-    dxyz_atom.zeros(); // copy from Fortran instead
+    dxyz_atom.copy_sync(dxyz_atom_fortran);
 
+    Tensor<int, 1> dxyz_list_fortran(FortranData::dxyz_list, N);
     dxyz_list.Allocate(N);
-    dxyz_list.zeros(); // copy from Fortran instead
+    dxyz_list.copy_sync(dxyz_list_fortran);
+
+//    std::cout << "dxyz_vec\n";
+//    for (uint i = 0; i < N; ++i)
+//    {
+//        std::cout << i << ": ";
+//        for (uint k = 0; k < 26; ++k)
+//        {
+//            std::cout << "(" << dxyz_vec_fortran(0, k, i) << " "
+//                      << dxyz_vec_fortran(1, k, i) << " "
+//                      << dxyz_vec_fortran(2, k, i) << "), ";
+//        }
+//        std::cout << "\n";
+//    }
+//
+//    std::cout << "\ndxyz_atom\n";
+//    for (uint i = 0; i < N; ++i)
+//    {
+//        std::cout << i << ": ";
+//        for (uint k = 0; k < 26; ++k)
+//        {
+//            std::cout << dxyz_atom_fortran(k, i) << " ";
+//        }
+//        std::cout << "\n";
+//    }
+//
+//    std::cout << "\ndxyz_list\n";
+//    for (uint i = 0; i < N; ++i)
+//    {
+//        std::cout << i << ": " << dxyz_list_fortran(i) << "\n";
+//    }
 
     grad_mom.Allocate(3, 3, N, M);
     grad_mom.zeros();
@@ -71,30 +104,31 @@ void SkyrmionNumber::measure(std::size_t mstep)
     if (mstep % skyno_step != 0)
         return;
 
-    std::cout << "[SkyrmionNumber::measure] mstep = " << mstep << ", ";
+    // std::cout << "[SkyrmionNumber::measure] mstep = " << mstep << ", ";
 
     const uint N = emomM.extent(1);
     const uint M = emomM.extent(2);
 
     // this seems to be done on every time step in fortran
     cudaStream_t workStream = CudaParallelizationHelper::def.getWorkStream();
-    dim3 threads = {1024};
+    dim3 threads = {512};
     dim3 blocks = {
             (N + threads.x - 1) / threads.x,
             (M + threads.y - 1) / threads.y
     };
 
     // TODO are we sure this should be emom, and not emomM?
-    grad_moments_kernel<<<blocks, threads, 0, workStream>>>(emom, dxyz_list, dxyz_atom, dxyz_vec, grad_mom);
-    pontryagin_no_kernel<<<1, 1, 0, workStream>>>(emomM, grad_mom, skynob.data() + buffer_count);
+    grad_moments_kernel<<<blocks, threads, 0, workStream>>>(emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom);
+    pontryagin_no_kernel<<<blocks, threads, 0, workStream>>>(emomM, grad_mom, skynob.data() + buffer_count);
     indxb_skyno(buffer_count++) = static_cast<uint>(mstep);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
     if (buffer_count >= buffer_size)
     {
         // TODO: copy to fortran
         buffer_count = 0;
+        skynob.zeros();
     }
 }
 
@@ -106,9 +140,9 @@ void SkyrmionNumber::flushMeasurements(std::size_t mstep)
 
 
 __global__ void grad_moments_kernel(const CudaTensor<real, 3> emomM,
-                                    const CudaTensor<uint, 1> dxyz_list,
-                                    const CudaTensor<uint, 2> dxyz_atom,
                                     const CudaTensor<real, 3> dxyz_vec,
+                                    const CudaTensor<int, 2> dxyz_atom,
+                                    const CudaTensor<int, 1> dxyz_list,
                                     CudaTensor<real, 4> grad_mom)
 {
     const uint N = emomM.extent(1);
@@ -124,7 +158,7 @@ __global__ void grad_moments_kernel(const CudaTensor<real, 3> emomM,
     for (uint jneigh = 0; jneigh < dxyz_list(iatom); ++jneigh)
     {
         assert(jneigh < 26);
-        const uint jatom = dxyz_atom(jneigh, iatom);
+        const uint jatom = dxyz_atom(jneigh, iatom) - 1; // needs -1 here since it gives the index of a neighboring atom
 
         assert(jatom < N);
         const real d_mom[3] = {
@@ -152,13 +186,9 @@ __global__ void grad_moments_kernel(const CudaTensor<real, 3> emomM,
 
     for (uint coord = 0; coord < 3; ++coord)
     {
-        if (dxyz_list(iatom) != 0) // this is not checked in fortran
-        {
-            grad_mom(coord, 0, iatom, kk) /= dxyz_list(iatom);
-            grad_mom(coord, 1, iatom, kk) /= dxyz_list(iatom);
-            grad_mom(coord, 2, iatom, kk) /= dxyz_list(iatom);
-        }
-
+        grad_mom(coord, 0, iatom, kk) /= dxyz_list(iatom);
+        grad_mom(coord, 1, iatom, kk) /= dxyz_list(iatom);
+        grad_mom(coord, 2, iatom, kk) /= dxyz_list(iatom);
     }
 }
 
@@ -167,31 +197,37 @@ __global__ void pontryagin_no_kernel(const CudaTensor<real, 3> emomM,
                                      const CudaTensor<real, 4> grad_mom,
                                      real* pontryagin_no_out)
 {
-    if (threadIdx.x > 0)
-        return;
-
     const uint N = emomM.extent(1);
     const uint M = emomM.extent(2);
 
-    real thesum = 0;
+    const uint iatom = blockDim.x * blockIdx.x + threadIdx.x;
+    const uint k = blockDim.y * blockIdx.y + threadIdx.y;
 
-    for (uint iatom = 0; iatom < N; ++iatom)
+    if (iatom >= N || k >= M)
+        return;
+
+    const real cvec_x = grad_mom(1,0,iatom,k) * grad_mom(2,1,iatom,k)
+                      - grad_mom(2,0,iatom,k) * grad_mom(1,1,iatom,k);
+
+    const real cvec_y = grad_mom(2,0,iatom,k) * grad_mom(0,1,iatom,k)
+                      - grad_mom(0,0,iatom,k) * grad_mom(2,1,iatom,k);
+
+    const real cvec_z = grad_mom(0,0,iatom,k) * grad_mom(1,1,iatom,k)
+                      - grad_mom(1,0,iatom,k) * grad_mom(0,1,iatom,k);
+
+
+    const real partial_sum = emomM(0,iatom,k) * cvec_x
+                           + emomM(1,iatom,k) * cvec_y
+                           + emomM(2,iatom,k) * cvec_z;
+
+    atomicAdd(pontryagin_no_out, partial_sum);
+
+    __syncthreads();
+
+    if (iatom == 0 && k == 0)
     {
-        for (uint k = 0; k < M; ++k)
-        {
-            const real cvec_x=grad_mom(1,0,iatom,k)*grad_mom(2,1,iatom,k)-grad_mom(2,0,iatom,k)*grad_mom(1,1,iatom,k);
-
-            const real cvec_y=grad_mom(2,0,iatom,k)*grad_mom(0,1,iatom,k)-grad_mom(0,0,iatom,k)*grad_mom(2,1,iatom,k);
-
-            const real cvec_z=grad_mom(0,0,iatom,k)*grad_mom(1,1,iatom,k)-grad_mom(1,0,iatom,k)*grad_mom(0,1,iatom,k);
-
-            thesum = thesum+emomM(0,iatom,k)*cvec_x+emomM(1,iatom,k)*cvec_y+emomM(2,iatom,k)*cvec_z;
-        }
+        *pontryagin_no_out /= (M_PI * M);
     }
-
-    *pontryagin_no_out = thesum / M_PI / M;
-
-    printf("[pontryagin_no_kernel] skyrmion number: %e\n", *pontryagin_no_out);
 }
 
 

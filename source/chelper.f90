@@ -19,6 +19,8 @@ module Chelper
         avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff, &
         mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
         avrgmcum, avrgm2cum, avrgm4cum
+   use prn_topology,     only : skyno, skyno_step, skyno_buff
+   use Gradients,        only : dxyz_vec, dxyz_atom, dxyz_list
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff, tottraj_step, &
         traj_step, traj_buff, traj_atom, mmomb, mmomb_traj, emomb, emomb_traj
@@ -177,13 +179,13 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_cuda_measurements)
+           do_cuda_measurements, skyno)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
          avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
-         tottraj_step, tottraj_buff)
+         tottraj_step, tottraj_buff, skyno_step, skyno_buff)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
@@ -192,7 +194,8 @@ contains
          external_field, btorque,Temp_array, &
          ipTemp, ipmcnstep, ipTemp_array, ipnstep)
 
-      call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi)
+      call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
+         dxyz_vec, dxyz_atom, dxyz_list)
 
       call FortranData_setMeasurables( &
            mavg_buff, mavg2_buff, mavg4_buff, &
