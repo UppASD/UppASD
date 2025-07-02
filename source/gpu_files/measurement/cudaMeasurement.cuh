@@ -21,9 +21,6 @@ public:
     void flushMeasurements(std::size_t mstep) override;
 
 private:
-    const CudaTensor<real, 3>& emomM;
-    const CudaTensor<real, 3>& emom;
-    const CudaTensor<real, 2>& mmom;
     std::vector<std::unique_ptr<Measurable>> measurables;
     StopwatchDeviceSync stopwatch;
     bool alwaysCopy;

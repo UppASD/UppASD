@@ -1,6 +1,7 @@
 #include "cudaMeasurement.cuh"
 #include "cudaAverageMagnetization.cuh"
 #include "cudaBinderCumulant.cuh"
+#include "cudaSkyrmionNumber.cuh"
 
 #include "c_helper.h"
 #include "stopwatchPool.hpp"
@@ -11,22 +12,27 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
                                  const CudaTensor<real, 3>& emom,
                                  const CudaTensor<real, 2>& mmom,
                                  bool alwaysCopy)
-: emomM(emomM)
-, emom(emom)
-, mmom(mmom)
-, stopwatch(GlobalStopwatchPool::get("Cuda measurement"))
+: stopwatch(GlobalStopwatchPool::get("Cuda measurement"))
 , alwaysCopy(alwaysCopy)
 {
-    if (*FortranData::do_avrg == 'Y' && *FortranData::avrg_step > 0)
+    if (*FortranData::do_avrg == 'Y')
     {
+        assert(*FortranData::avrg_step > 0);
         measurables.push_back(std::make_unique<AverageMagnetization>(emomM));
         std::cout << "AverageMagnetization observable added" << std::endl;
     }
 
-    if (*FortranData::do_cumu == 'Y' && *FortranData::cumu_step > 0)
+    if (*FortranData::do_cumu == 'Y')
     {
+        assert(*FortranData::cumu_step > 0);
         measurables.push_back(std::make_unique<BinderCumulant>(emomM));
         std::cout << "BinderCumulant observable added" << std::endl;
+    }
+
+    if (true) // TODO check the skyrmion number flag
+    {
+        measurables.push_back(std::make_unique<SkyrmionNumber>(emomM, emom));
+        std::cout << "SkyrmionNumber observable added" << std::endl;
     }
 }
 
