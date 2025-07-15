@@ -77,24 +77,22 @@ void AverageMagnetization::measure(std::size_t mstep)
     );
 
     ++bcount_mavrg;
-    // cudaDeviceSynchronize(); // I think this is not necessary
-
+    cudaDeviceSynchronize(); // for printing
 
 
     if (bcount_mavrg >= mavg_buff_size)
-    {
-        // copy to fortran since buffer is full, and reset buffer
-        // mavg_buff_fortran.copy_sync(mavg_buff);
-        mavg_buff.zeros();
-        bcount_mavrg = 0;
-        // TODO: add function call to Fortran for writing the buffer to file
-    }
+        flushMeasurements(mstep);
+
 }
 
 
 void AverageMagnetization::flushMeasurements(std::size_t mstep)
 {
-
+    // copy to fortran since buffer is full, and reset buffer
+    // mavg_buff_fortran.copy_sync(mavg_buff);
+    mavg_buff.zeros();
+    bcount_mavrg = 0;
+    // TODO: add function call to Fortran for writing the buffer to file
 }
 
 
@@ -142,7 +140,7 @@ __global__ void naiveAverageMagnetization_kernel(const CudaTensor<real, 3> emomM
         d->m_stdv = sqrt(max(d->m_stdv, real(0.0)));
 
         // for debug
-        printf("[cuda_kernels::measurement::averageMagnetization] = {%e, %e, %e, %e, %e}\n",
+        printf("[naiveAverageMagnetization_kernel] %e, %e, %e, %e, %e\n",
                d->m_x,
                d->m_y,
                d->m_z,

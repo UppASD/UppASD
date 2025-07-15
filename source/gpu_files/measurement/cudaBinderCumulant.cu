@@ -54,19 +54,21 @@ void BinderCumulant::measure(std::size_t mstep)
             cumu_buff.data() + cumu_buff_count
         );
     }
+
     cudaDeviceSynchronize(); // for printing without delay
     ++cumu_buff_count;
     if (cumu_buff_count >= cumu_buff_size)
     {
-        // TODO: save to Fortran
-        cumu_buff_count = 0;
+        flushMeasurements(mstep);
     }
 }
 
 
 void BinderCumulant::flushMeasurements(std::size_t mstep)
 {
-
+    // TODO: save to Fortran
+    cumu_buff.zeros();
+    cumu_buff_count = 0;
 }
 
 
@@ -98,27 +100,30 @@ __global__ void naiveBinderCumulantNoEnergy_kernel(const CudaTensor<real, 3> emo
         const real avrgme = norm(3, m) / atoms;
         const real avrgm2 = pow(avrgme, 2);
         const real avrgm4 = pow(avrgm2, 2);
-        d->cumuw += real(1);
+        d->cumuw += 1;
 
         d->avrgmcum = (d->avrgmcum * d->cumutotw + avrgme * d->cumuw ) / (d->cumutotw + d->cumuw);
         d->avrgm2cum = (d->avrgm2cum * d->cumutotw + avrgm2 * d->cumuw ) / (d->cumutotw + d->cumuw);
         d->avrgm4cum = (d->avrgm4cum * d->cumutotw + avrgm4 * d->cumuw ) / (d->cumutotw + d->cumuw);
 
-        if (d->avrgm2cum > 0.0)
-            d->binderc = real(1) - (d->avrgm4cum / real(3) / pow(d->avrgm2cum, 2));
+        assert(d->avrgm2cum != 0.0); // this is not checked in Fortran
+        d->binderc = 1.0 - (d->avrgm4cum / 3.0 / pow(d->avrgm2cum, 2));
 
         // For T=0, not the proper susceptibility
-        const real extra = (temp == 0.0)? 1.0 : k_bolt * temp;
-        d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / (k_bolt * extra);
+//        const real extra = (temp == 0.0)? 1.0 : k_bolt * temp;
+//        d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / (k_bolt * extra);
+
+        if (temp > 0.0)
+            d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / pow(k_bolt, 2) / temp;
+        else
+            d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / k_bolt;
+
 
         d->Navrgcum += 1;
         d->cumutotw += d->cumuw;
     }
 
-
-
-    printf("%d\t%e\t%e\t%e\t%e\t%e\t\n",
-           d->Navrgcum / ensembles,
+    printf("[naiveBinderCumulantNoEnergy_kernel] %e\t%e\t%e\t%e\t%e\t\n",
            d->avrgmcum,
            d->avrgm2cum,
            d->avrgm4cum,

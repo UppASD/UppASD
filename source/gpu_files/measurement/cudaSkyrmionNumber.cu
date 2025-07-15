@@ -118,24 +118,23 @@ void SkyrmionNumber::measure(std::size_t mstep)
     };
 
     // TODO are we sure this should be emom, and not emomM?
+    grad_mom.zeros();
     grad_moments_kernel<<<blocks, threads, 0, workStream>>>(emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom);
     pontryagin_no_kernel<<<blocks, threads, 0, workStream>>>(emomM, grad_mom, skynob.data() + buffer_count);
     indxb_skyno(buffer_count++) = static_cast<uint>(mstep);
 
-    // cudaDeviceSynchronize();
+    cudaDeviceSynchronize(); // for print debugging only
 
     if (buffer_count >= buffer_size)
-    {
-        // TODO: copy to fortran
-        buffer_count = 0;
-        skynob.zeros();
-    }
+        flushMeasurements(mstep);
 }
 
 
 void SkyrmionNumber::flushMeasurements(std::size_t mstep)
 {
-
+    // TODO: copy to fortran
+    skynob.zeros();
+    buffer_count = 0;
 }
 
 
@@ -227,6 +226,8 @@ __global__ void pontryagin_no_kernel(const CudaTensor<real, 3> emomM,
     if (iatom == 0 && k == 0)
     {
         *pontryagin_no_out /= (M_PI * M);
+
+        printf("[pontryagin_no_kernel] %e\n", *pontryagin_no_out);
     }
 }
 
