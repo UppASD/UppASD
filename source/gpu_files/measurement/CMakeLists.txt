@@ -13,6 +13,8 @@ target_sources(${UppASD_LIB} PRIVATE
         cudaBinderCumulant.cu
         cudaSkyrmionNumber.cuh
         cudaSkyrmionNumber.cu
+        cudaEnergy.cuh
+        cudaEnergy.cu
 )
 
 target_include_directories(${UppASD_LIB}
