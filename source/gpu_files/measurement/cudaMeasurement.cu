@@ -44,7 +44,7 @@ void CudaMeasurement::measure(std::size_t mstep)
     // TODO: fortran_do_measurements seems to only check flags
 //    if ( !(alwaysCopy || fortran_do_measurements(mstep)) )
 //        return;
-
+    --mstep;
     for (const auto& meas : measurables)
     {
         meas->measure(mstep);

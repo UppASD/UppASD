@@ -5,6 +5,8 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
+// #include "MeasurementWriter.h"
+
 namespace cg = cooperative_groups;
 
 // should spawn one thread per ensemble M
@@ -42,11 +44,18 @@ AverageMagnetization::AverageMagnetization(const CudaTensor<real, 3>& emomM, dim
 , threads(cudaThreads)
 , blocks( (M + threads.x - 1) / threads.x ) // could use GridHelper for this
 {
-    mavg_buff_fortran.set(FortranData::mavg_buff, 3, mavg_buff_size, M);
+    // mavg_buff_cpu.set(FortranData::mavg_buff, 3, mavg_buff_size, M);
+    // mavg_buff_cpu.AllocateHost(mavg_buff_size);
+
     mavg_buff.Allocate(mavg_buff_size);
+    mavg_buff_cpu.AllocateHost(mavg_buff_size);
+    indxb_mavg.AllocateHost(mavg_buff_size);
+
     mavg_block_buff.Allocate(3 * blocks.x, M);
 
     mavg_buff.zeros();
+    mavg_buff_cpu.zeros();
+    indxb_mavg.zeros();
     mavg_block_buff.zeros();
 }
 
@@ -54,13 +63,15 @@ AverageMagnetization::AverageMagnetization(const CudaTensor<real, 3>& emomM, dim
 AverageMagnetization::~AverageMagnetization()
 {
     mavg_buff.Free();
+    mavg_buff_cpu.FreeHost();
+    indxb_mavg.FreeHost();
     mavg_block_buff.Free();
 }
 
 
 void AverageMagnetization::measure(std::size_t mstep)
 {
-    if ((mstep-1) % avrg_step != 0)
+    if (mstep % avrg_step != 0)
         return;
 
     cudaStream_t workStream = CudaParallelizationHelper::def.getWorkStream();
@@ -76,8 +87,8 @@ void AverageMagnetization::measure(std::size_t mstep)
             mavg_buff.data() + bcount_mavrg
     );
 
-    ++bcount_mavrg;
-    cudaDeviceSynchronize(); // for printing
+    indxb_mavg(bcount_mavrg++) = static_cast<uint>(mstep);
+    // cudaDeviceSynchronize(); // for printing
 
 
     if (bcount_mavrg >= mavg_buff_size)
@@ -90,7 +101,14 @@ void AverageMagnetization::flushMeasurements(std::size_t mstep)
 {
     // copy to fortran since buffer is full, and reset buffer
     // mavg_buff_fortran.copy_sync(mavg_buff);
+    mavg_buff_cpu.copy_sync(mavg_buff);
+
+    for (uint i = 0; i < bcount_mavrg; ++i)
+        measurementWriter.write(MeasurementType::AverageMagnetization, indxb_mavg(i), (real*)&mavg_buff_cpu[i], sizeof(AverageMagnetizationData) / sizeof(real));
+
+
     mavg_buff.zeros();
+    mavg_buff_cpu.zeros();
     bcount_mavrg = 0;
     // TODO: add function call to Fortran for writing the buffer to file
 }
@@ -140,13 +158,13 @@ __global__ void naiveAverageMagnetization_kernel(const CudaTensor<real, 3> emomM
         d->m_stdv = sqrt(max(d->m_stdv, real(0.0)));
 
         // for debug
-        printf("[naiveAverageMagnetization_kernel] %e, %e, %e, %e, %e\n",
-               d->m_x,
-               d->m_y,
-               d->m_z,
-               d->m,
-               d->m_stdv
-        );
+//        printf("[naiveAverageMagnetization_kernel] %e, %e, %e, %e, %e\n",
+//               d->m_x,
+//               d->m_y,
+//               d->m_z,
+//               d->m,
+//               d->m_stdv
+//        );
     }
 }
 

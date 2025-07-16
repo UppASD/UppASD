@@ -1,5 +1,6 @@
 #pragma once
 #include "measurable.hpp"
+#include "MeasurementWriter.h"
 
 struct AverageMagnetizationData
 {
@@ -8,7 +9,6 @@ struct AverageMagnetizationData
     real m_z;
     real m;
     real m_stdv;
-    uint iter; // can be buffered on CPU instead
 };
 
 class AverageMagnetization : public Measurable
@@ -30,10 +30,14 @@ private:
     const dim3 threads;
     const dim3 blocks;
 
+    MeasurementWriter measurementWriter;
+
     CudaTensor<AverageMagnetizationData, 1> mavg_buff;
+    Tensor<AverageMagnetizationData, 1> mavg_buff_cpu;
+    Tensor<size_t, 1> indxb_mavg;
 
     CudaTensor<real, 2> mavg_block_buff;
-    Tensor<real, 3> mavg_buff_fortran;
+//    Tensor<real, 3> mavg_buff_cpu;
     uint bcount_mavrg = 0;
     //Block variables
 
