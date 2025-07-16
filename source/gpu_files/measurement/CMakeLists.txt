@@ -15,6 +15,8 @@ target_sources(${UppASD_LIB} PRIVATE
         cudaSkyrmionNumber.cu
         cudaEnergy.cuh
         cudaEnergy.cu
+        MeasurementWriter.h
+        MeasurementWriter.cpp
 )
 
 target_include_directories(${UppASD_LIB}
