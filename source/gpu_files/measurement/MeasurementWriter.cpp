@@ -48,7 +48,7 @@ void MeasurementWriter::write(MeasurementType mtype, size_t iteration, const rea
         std::ofstream& out = outputFiles[mtype];
         out.open(filename, std::ios::out | std::ios::trunc);
 
-        if (!out.is_open())
+        if (!out)
             throw std::runtime_error("Failed to open file '" + filename + "' for writing.");
 
         out << indent;
@@ -57,9 +57,11 @@ void MeasurementWriter::write(MeasurementType mtype, size_t iteration, const rea
         out << '\n';
 
         out.close();
+        if (!out)
+            throw std::runtime_error("Failed to close file '" + filename + "' for writing.");
 
         out.open(filename, std::ios::out | std::ios::app);
-        if (!out.is_open())
+        if (!out)
             throw std::runtime_error("Failed to open file '" + filename + "' for writing.");
 
         out << std::scientific << std::uppercase << std::setprecision(8);
@@ -70,6 +72,9 @@ void MeasurementWriter::write(MeasurementType mtype, size_t iteration, const rea
     for (uint i = 0; i < N; ++i)
         out << colWidth << data[i];
     out << "\n";
+
+    if (!out)
+        throw std::runtime_error("Failed to write to file '" + filename + "'.");
 }
 
 
