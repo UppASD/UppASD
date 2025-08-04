@@ -77,8 +77,10 @@ bool HipThermfield::initiate(std::size_t N, std::size_t M, hiprandRngType_t rngT
    }
 
    stopwatch.skip();
-   field.Allocate(3, N, M);
-   sigmaFactor.Allocate(N);
+   field.Allocate(static_cast <long int>(3), static_cast <long int>(N), static_cast <long int>(M));
+   sigmaFactor.Allocate(static_cast <long int>(N));
+   //field.Allocate(3, N, M);
+   //sigmaFactor.Allocate(N);
    if(!field.empty() && !sigmaFactor.empty()) {
       if(hiprandCreateGenerator(&gen, rngType) == HIPRAND_STATUS_SUCCESS) {
          if(seed == 0ULL) {
