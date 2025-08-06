@@ -147,6 +147,7 @@ class SPRKKRPlotDos:
         the DOS from SPRKKR.
         """
         import sys
+
         import yaml
 
         try:
@@ -268,9 +269,10 @@ class SPRKKRPlotDos:
         return
 
     def SPRKKR_DOS_parse_data(self):
-        import numpy as np
         import itertools
+
         import matplotlib.pyplot as plt
+        import numpy as np
 
         #######################################################################
         # Set the discriminating flag to False again
@@ -369,8 +371,8 @@ class SPRKKRPlotDos:
         ]
 
     def SPRKKR_DOS_plot(self):
-        import numpy as np
         import matplotlib.pyplot as plt
+        import numpy as np
         from matplotlib import cm as cm
 
         if self.is_latex():

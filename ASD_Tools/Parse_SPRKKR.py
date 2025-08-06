@@ -16,9 +16,10 @@
 
 import glob
 import string
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from matplotlib import cm as cm
 
 plt.rc("text", usetex=True)

@@ -10,10 +10,11 @@
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
 #
 
-import vtk
-from math import atan2, acos
 import glob
 import string
+from math import acos, atan2
+
+import vtk
 
 # from ReadTimeData import * # Functions that let us read the files
 

@@ -4,11 +4,12 @@
 #
 
 # Import the modules for the code
-import tkinter
-import sys
-import vtk
 import glob
 import string
+import sys
+import tkinter
+
+import vtk
 
 # import vtkTkRenderWindowInteractor
 from vtk.tk.vtkTkRenderWindowInteractor import vtkTkRenderWindowInteractor

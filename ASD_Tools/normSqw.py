@@ -4,8 +4,9 @@
 # In[1]:
 
 
-import numpy as np
 import os.path
+
+import numpy as np
 from scipy import ndimage
 
 

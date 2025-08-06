@@ -10,17 +10,18 @@
 # Camera positioning can be changed using GetActiveCamera.Elevation, Roll, and Azimuth
 #
 
-import vtk
-from math import atan2, acos
-from copy import copy, deepcopy
 import glob
 import string
-import uppasd as asd
-from vtk.util import numpy_support
-import numpy as np
-from scipy.ndimage.filters import gaussian_filter
-import matplotlib.pyplot as plt
+from copy import copy, deepcopy
+from math import acos, atan2
+
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+import numpy as np
+import uppasd as asd
+import vtk
+from scipy.ndimage.filters import gaussian_filter
+from vtk.util import numpy_support
 
 
 def close_window(iren):

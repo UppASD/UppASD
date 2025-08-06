@@ -4,14 +4,14 @@
 # In[1]:
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-import spglib as spg
-import seekpath as spth
-import matplotlib.cm as cmap
 import os.path
-from scipy import ndimage
 
+import matplotlib.cm as cmap
+import matplotlib.pyplot as plt
+import numpy as np
+import seekpath as spth
+import spglib as spg
+from scipy import ndimage
 
 # In[2]:
 
