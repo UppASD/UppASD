@@ -76,7 +76,7 @@ jobs:
         cp ./bin/sd.gfortran.exe ./bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
         ls ./bin
         
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}
        path: ./bin/uppasd*.exe
