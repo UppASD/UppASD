@@ -79,39 +79,39 @@ kstr = ', '.join('{}'.format(e) for e in kpath)
 print("\nK-path written to 'qfile.kpath':")
 print(kstr, '\n')
 
-# Interpolate k-points and associate labels
-mypath = spth.getpaths.get_explicit_k_path(cell, reference_distance=10)
-mypath = mypath['explicit_kpoints_rel']
-lpath = []
-xpath = mypath[0,:]
-for row in range(mypath.shape[0]-1):
-    nwaves = (mypath[row+1,:] - mypath[row,:]) * mesh
-    nsteps = np.int32(np.max(np.abs(nwaves)))
-    lpath.append([k for k,v in kpath_obj['point_coords'].items() if (v == mypath[row]).all()][0])
-    for iint in range(nsteps):
-        ipart = (iint+1)/(nsteps)
-        xpath = np.append(xpath, mypath[row,:]*(1.0-ipart) + mypath[row+1,:]*ipart, axis=0)
-        if(iint < nsteps-1):
-            lpath.append(' ')
-lpath.append([k for k,v in kpath_obj['point_coords'].items() if (v == mypath[mypath.shape[0]-1]).all()][0])
-np.savetxt('qfile.klabel', lpath, fmt='%s')
+# Use get_explicit_k_path_orig_cell with reference_distance=2*pi/(N+1), N=max(mesh)
+N = max(mesh)
+ref_dist = 2.0 * np.pi / (N + 1)
+mypath_obj = spth.getpaths.get_explicit_k_path_orig_cell(cell, reference_distance=ref_dist)
+mypath = mypath_obj['explicit_kpoints_rel']
+mylabels = mypath_obj['explicit_kpoints_labels']
 
-xpath = xpath.reshape(int(xpath.shape[0]/3),3)
+xpath = []
+lpath = []
+for vec, label in zip(mypath, mylabels):
+    print(f"Vector: {vec}, Label: {label}")
+    xpath.append(np.array(np.float32(vec)))
+    # Store as a list of native Python types (floats and str)
+    lpath.append([float(vec[0]), float(vec[1]), float(vec[2]), str(label)])
+
+# Convert xpath to a NumPy array for advanced indexing
+xpath = np.array(xpath)
+
 # Save q-point mesh to file
-nq = xpath.shape[0]
-with open('qfile.kpath','w') as qf:
-    print("         ", nq, file=qf)
-    for i, gp in enumerate(xpath):
-        print("%s     %s" % (' '.join(format(f, '10.8f') for f in gp), lpath[i]), file=qf)
+nq = len(xpath)
+with open('qfile.kpath', 'w') as f:
+    f.write(f"         {nq}\n")
+    for row in lpath:
+        f.write(f' {row[0]:10.8f}  {row[1]:10.8f}  {row[2]:10.8f}    {row[3]}\n')
 
 # Save 2D q-point mesh to file
-xpath2d = xpath[xpath[:,2]==0]
-nq = xpath2d.shape[0]
-with open('qfile.kpath2d','w') as qf:
-    print("         ", nq, file=qf)
-    for i, gp in enumerate(xpath):
-        if gp[2]==0:
-            print("%s     %s" % (' '.join(format(f, '10.8f') for f in gp), lpath[i]), file=qf)
+xpath2d = xpath[xpath[:, 2] == 0]
+lpath2d = [lpath[i] for i in range(len(xpath)) if xpath[i, 2] == 0]
+nq2d = xpath2d.shape[0]
+with open('qfile.kpath2d', 'w') as qf:
+    qf.write(f"         {nq2d}\n")
+    for row in lpath2d:
+        qf.write(f' {row[0]:10.8f}  {row[1]:10.8f}  {row[2]:10.8f}    {row[3]}\n')
 
 # Reduced k-mesh (unchanged, can use modular routine if available)
 import spglib as spg
@@ -129,12 +129,9 @@ print(
     "\nNumber of reduced k-points: ", irk_idx.size, " Written to file `qfile.reduced`."
 )
 with open("qfile.reduced", "w") as qf:
-    print("         ", irk_idx.size, file=qf)
+    qf.write(f"         {irk_idx.size}\n")
     for i, (ir_gp_id, gp) in enumerate(zip(irk_idx, grid[irk_idx])):
-        print(
-            "%s     %10.4f"
-            % (" ".join(format(f, "10.8f") for f in gp / mesh), mult[i]),
-            file=qf,
-        )
+        gp_str = " ".join(f"{f/mesh[j]: 10.8f}" for j, f in enumerate(gp))
+        qf.write(f"{gp_str}     {mult[i]:10.4f}\n")
 
 # Done!
