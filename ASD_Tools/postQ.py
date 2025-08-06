@@ -612,8 +612,8 @@ if got_lswt_sqw_tens:
             extent=[axidx[0], axidx[-1], 0, emax_lswt],
             aspect="auto",
         )
-        # plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
-        plt.xticks(axidx_abs, axlab)
+        # plt.plot(ams[:,0]/ams[-1,0]*axidx[-1],ams[:,1:ams_dist_col],'black',lw=  1)
+        plt.xticks(axidx, axlab)
 
     plt.tight_layout()
 
@@ -628,7 +628,7 @@ if got_lswt_sqw_tens:
     hbar = 4.135667662e-15
     emax = 0.5 * np.float64(hbar) / (np.float64(timestep) * np.float64(sc_step)) * 1e3
 
-    plt.xticks(axidx_abs, axlab)
+    plt.xticks(axidx, axlab)
     plt.xlabel("q")
     plt.ylabel("Energy (meV)")
 
@@ -659,11 +659,11 @@ if got_lswt_sqw_tens:
                 cmap=cmap.gist_ncar_r,
                 interpolation="nearest",
                 origin="lower",
-                extent=[axidx_abs[0], axidx_abs[-1], 0, emax_lswt],
+                extent=[axidx[0], axidx[-1], 0, emax_lswt],
                 aspect="auto",
             )
-            # plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
-            plt.xticks(axidx_abs, axlab)
+            # plt.plot(ams[:,0]/ams[-1,0]*axidx[-1],ams[:,1:ams_dist_col],'black',lw=  1)
+            plt.xticks(axidx, axlab)
 
     plt.tight_layout()
 
