@@ -128,7 +128,7 @@ def read_inpsd(ifile):
                 if key == "timestep":
                     try:
                         data["timestep"] = float(line_data[1])
-                    except Exception:
+                    except ValueError:
                         data["timestep"] = line_data[1]
                 if key == "sc_step":
                     try:
@@ -143,6 +143,7 @@ def read_inpsd(ifile):
                 if key == "qfile":
                     data["qfile"] = line_data[1]
         return data
+
 
 def extract_chemical_name_common(cif_file):
     """
@@ -163,6 +164,7 @@ def extract_chemical_name_common(cif_file):
                     return value
     return None
 
+
 def extract_structure_from_cif(cif_file, primitive=False):
     """
     Reads a CIF file, extracts lattice parameters, and prepares a spglib cell tuple.
@@ -175,14 +177,14 @@ def extract_structure_from_cif(cif_file, primitive=False):
     """
     parser = CifParser(cif_file)
     structure = parser.parse_structures(primitive=primitive)[0]
-    # Extract chemical name using public API or fallback
+
     chemical_name = extract_chemical_name_common(cif_file)
     if chemical_name is not None:
         chemical_name = str(chemical_name)
     else:
-        chemical_name = "unknown_"
+        chemical_name = "unknown"
     # Extract a_lat from structure.lattice.a
-    a_lat = getattr(structure.lattice, 'a', None)
+    a_lat = getattr(structure.lattice, "a", None)
 
     # Extract lattice parameters
     lattice = structure.lattice
@@ -192,16 +194,19 @@ def extract_structure_from_cif(cif_file, primitive=False):
     print(f"a = {a}, b = {b}, c = {c}")
     print(f"alpha = {alpha}, beta = {beta}, gamma = {gamma}")
 
-    # Prepare spglib cell: (lattice, positions, numbers)
+    # Get the unscaled (unit) lattice matrix in Cartesian coordinates (i.e., in units of a, b, c = 1)
+    # For cubic, this is identity; for primitive, use the normalized basis vectors
+    cart_matrix = lattice.matrix / a if a else lattice.matrix
+    print("\nLattice matrix (Cartesian, units of a):")
+    for row in cart_matrix:
+        print(row)
+
+    # Use this matrix for cell definition
     cell = (
-        lattice.matrix,
+        cart_matrix,
         [site.frac_coords for site in structure.sites],
         [site.specie.number for site in structure.sites],
     )
-    print("\nSpglib cell:")
-    print("Lattice matrix:")
-    for row in cell[0]:
-        print(row)
     print("Fractional positions:")
     for pos in cell[1]:
         print(pos)
@@ -228,7 +233,9 @@ def write_inpsd_dat(
     with open(template_path, encoding="utf-8") as tf:
         template_str = tf.read()
     # Format cell_matrix as required for the template
-    cell_matrix_str = "".join(f"     {row[0]:.3f}    {row[1]:.3f}    {row[2]:.3f}\n" for row in cell_matrix)
+    cell_matrix_str = "".join(
+        f"     {row[0]:.3f}    {row[1]:.3f}    {row[2]:.3f}\n" for row in cell_matrix
+    )
     # Format alat
     alat_str = f"{alat:.6e}"
     # Format extra_params
@@ -282,7 +289,7 @@ def write_momfile(filename, moments):
         moments (list): List of tuples (index, atomic_number, mx, my, mz).
     """
     print("Writing moments to file:", moments)
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         for idx, _, m_mag, mx, my, mz in moments:
             f.write(f"{idx}  1   {m_mag}  {mx:.7f}     {my:.6f}   {mz:.6f}\n")
 
@@ -308,6 +315,7 @@ def find_real_space_neighbors(cell, cutoff):
 
         neighbors[i] = [(n.index, n.nn_distance) for n in nbrs]
     return neighbors
+
 
 def get_symmetry_reduced_neighbor_shells(cell, cutoff=5.0, decimal=3):
     """

@@ -176,7 +176,7 @@ class PreProcessor:
 
         dictlist = []
         for key, value in sympoints.items():
-            str1 = " ".join("{: 4.4f}".format(e) for e in value)
+            str1 = " ".join(f"{e: 4.4f}" for e in value)
             temp = [key, str1]
             dictlist.append(temp)
 
@@ -189,7 +189,7 @@ class PreProcessor:
 
         klist = list(sum(kpath_obj["path"], ()))
         kpath = [" -> ".join(x) for x in zip(klist[0::2], klist[1::2])]
-        kstr = ", ".join("{}".format(e) for e in kpath)
+        kstr = ", ".join(f"{e}" for e in kpath)
         print("\nK-path written to 'qfile.kpath':")
         print(kstr, "\n")
 
