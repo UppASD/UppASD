@@ -1,6 +1,4 @@
 target_sources(${UppASD_LIB} PRIVATE
-        cudaAverageMagnetization.cuh
-        cudaAverageMagnetization.cu
         measurable.hpp
         fortranMeasurement.cuh
         fortranMeasurement.cu
@@ -9,14 +7,11 @@ target_sources(${UppASD_LIB} PRIVATE
         cudaMeasurement.cuh
         cudaMeasurement.cu
         measurementFactory.cuh
-        cudaBinderCumulant.cuh
-        cudaBinderCumulant.cu
-        cudaSkyrmionNumber.cuh
-        cudaSkyrmionNumber.cu
-        cudaEnergy.cuh
-        cudaEnergy.cu
-        MeasurementWriter.h
-        MeasurementWriter.cpp
+        measurementWriter.cuh
+        measurementWriter.cu
+        kernels.cuh
+        kernels.cu
+        measurementData.h
 )
 
 target_include_directories(${UppASD_LIB}

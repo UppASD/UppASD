@@ -4,8 +4,10 @@
 #include "tensor.cuh"
 #include "real_type.h"
 #include "stopwatchDeviceSync.hpp"
-// #include "cudaStructures.hpp"
-#include "MeasurementWriter.h"
+#include "fortranData.hpp"
+#include "measurementWriter.cuh"
+#include "measurementData.h"
+
 
 class CudaMeasurement : public Measurable
 {
@@ -15,63 +17,55 @@ public:
                     const CudaTensor<real, 2>& mmom,
                     bool alwaysCopy = false);
     ~CudaMeasurement() override;
-    void measure(std::size_t mstep) override;
-    void flushMeasurements(std::size_t mstep) override;
-
-    struct AverageMagnetizationData { real m_x, m_y, m_z, m, m_stdv; };
-
-    struct BinderCumulantData
-    {
-        real avrgmcum;      // Cumulated average of m
-        real avrgm2cum;     // Cumulated average of m^2
-        real avrgm4cum;     // Cumulated average of m^4
-        real binderc;       // Binder cumulant
-        real pmsusc;        // Susceptibility
-        real cv;            // Specific heat
-        real avrgecum;      // Cumulated average of E
-        // real avrge2cum;     // Cumulated average of E^2
-        real avrgetcum;     // Cumulated average of E_xc
-        real avrgelcum;     // Cumulated average of E_LSF
-
-        real cumuw;         // Weight for current sample to cumulant
-        real cumutotw;      // Sum of all cumulant weights
-        uint Navrgcum;      // Counter for number of cumulated averages
-    };
+    void measure(size_t mstep) override;
+    void flushMeasurements(size_t mstep) override;
 
 private:
-    void measureAverageMagnetization(std::size_t mstep);
-    void measureBinderCumulant(std::size_t mstep);
-    void measureSkyrmionNumber(std::size_t mstep);
-
-
+    bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
+    void saveToFile(MeasurementType mtype);
+    
+    void calculateEmomMSum();
+    void measureAverageMagnetization(size_t mstep);
+    void measureBinderCumulant(size_t mstep);
+    void measureSkyrmionNumber(size_t mstep);
+    
 private:
     const CudaTensor<real, 3>& emomM;
     const CudaTensor<real, 3>& emom;
     const CudaTensor<real, 2>& mmom;
+    const uint N;
+    const uint M;
+    cudaStream_t workStream;
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
 
+    const bool do_avrg;
+    const bool do_cumu;
+    const bool do_skyno;
+
     // Average magnetization
-    CudaTensor<AverageMagnetizationData, 1> mavg_buff_gpu;
-    Tensor<AverageMagnetizationData, 1> mavg_buff_cpu;
-    Tensor<std::size_t, 1> mavg_iter;
+    CudaVector<AverageMagnetizationData> mavg_buff_gpu;
+    Vector<AverageMagnetizationData> mavg_buff_cpu;
+    Vector<size_t> mavg_iter;
     uint mavg_count = 0;
 
     // Binder cumulant
-    CudaTensor<BinderCumulantData, 1> cumu_buff_gpu; // constant but tensor of rank 0 is not allowed, so rank 1 is size 1
-    Tensor<BinderCumulantData, 1> cumu_buff_cpu;
-    uint cumu_count = 0;
+    CudaVector<BinderCumulantData> cumu_buff_gpu; // scalar but tensor of rank 0 is not allowed, so rank 1 is size 1
+    Vector<BinderCumulantData> cumu_buff_cpu;
+    size_t cumu_count = 0;
+
+    // Used for both Average magnetization and Binder cumulant
+    CudaTensor<real, 2> emomMEnsembleSums; // tensor of dim = 3 x M
 
     // Skyrmion number
     CudaTensor<real, 3> dxyz_vec;
     CudaTensor<int, 2> dxyz_atom;
     CudaTensor<int, 1> dxyz_list;
     CudaTensor<real, 4> grad_mom; // 3 x 3 x N x M, is initialized to zeros in Fortran, no need to copy over
-    CudaTensor<real, 2> skyno_buff_gpu;
-    Tensor<real, 2> skyno_buff_cpu;
-    Tensor<std::size_t, 1> skyno_iter;
+    CudaVector<SkyrmionNumberData> skyno_buff_gpu;
+    Vector<SkyrmionNumberData> skyno_buff_cpu;
+    Vector<size_t> skyno_iter;
     uint skyno_count = 0;
 };
 
-__global__ void naiveAverageMagnetization_kernel(const CudaTensor<real, 3> emomM,
-                                                 CudaMeasurement::AverageMagnetizationData* d);
+
