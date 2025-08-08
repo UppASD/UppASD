@@ -161,6 +161,10 @@ __global__ void kernels::grad_moments(const CudaTensor<real, 3> emomM,
 
     assert(dxyz_list(iatom) < N);
 
+    for (uint i = 0; i < 3; ++i)
+        for (uint j = 0; j < 3; ++j)
+            grad_mom(i, j, iatom, kk) = 0;
+
     for (uint jneigh = 0; jneigh < dxyz_list(iatom); ++jneigh)
     {
         assert(jneigh < 26);

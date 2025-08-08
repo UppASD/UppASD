@@ -219,8 +219,6 @@ void CudaMeasurement::measureSkyrmionNumber(std::size_t mstep)
         (M + threads.y - 1) / threads.y
     };
 
-    grad_mom.zeros();
-
     // TODO are we sure this should be emom, and not emomM?
     kernels::grad_moments<<<blocks, threads, 0, workStream>>>(emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom);
     kernels::pontryagin_number<<<blocks, threads, 0, workStream>>>(
@@ -242,8 +240,6 @@ void CudaMeasurement::measureSkyrmionNumber(std::size_t mstep)
 void CudaMeasurement::calculateEmomMSum()
 {
     constexpr dim3 threads = 256;
-
-    emomMEnsembleSums.zeros();
 
     dim3 blocks = {3, M};
     kernels::sumOverAtoms<<<blocks, threads, 0, workStream>>>(emomM, emomMEnsembleSums);
