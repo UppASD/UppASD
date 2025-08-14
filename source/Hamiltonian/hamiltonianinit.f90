@@ -65,6 +65,7 @@ contains
       use LatticeHamiltonianInit, only : setup_neighbour_latticehamiltonian
       use DipoleManager, only : dipole_setup
       use InputData, only : ham_inp
+      use ScaleHamiltonian, only : jscaling_flag, read_and_apply_jscaling
 
       !.. Implicit declarations
       implicit none
@@ -356,8 +357,12 @@ contains
             ! Deallocate the large neighbour map.
             call deallocate_nm()
 
-            ! Re-scale Jij if needed
+            ! Re-scale Jij if needed (global scaling)
             if(ham_inp%jij_scale.ne.1.0_dblprec) ham%ncoup=ham_inp%jij_scale*ham%ncoup
+            ! Local scaling of Jij
+            if(jscaling_flag) then
+               call read_and_apply_jscaling()
+            end if
 
             ! Randomize Jij if Edwards-Anderson model is enabled
             if(ham_inp%ea_model) then

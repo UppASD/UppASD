@@ -67,6 +67,7 @@ contains
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
       use DemagField
       use MacroCells
+      use ScaleHamiltonian
 
       implicit none
 
@@ -373,6 +374,14 @@ contains
 
             case('jij_scale')
                read(ifile,*,iostat=i_err) ham_inp%jij_scale
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('jscaling_flag')
+               read(ifile,*,iostat=i_err) jscaling_flag
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('jscaling_file')
+               read(ifile,*,iostat=i_err) jscaling_file
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('ea_model')
