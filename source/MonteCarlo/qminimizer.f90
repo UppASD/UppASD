@@ -1165,7 +1165,8 @@ contains
       end do
       close(ofileno)
       !
-      10003 format(es16.8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
+      10003 format(i8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
+      !10003 format(es16.8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
       !
       !
    end subroutine plot_cube
@@ -1411,7 +1412,7 @@ contains
                   do iq=1,nq
                      call normalize(m_j)
                      m_j=m_j*mmom(ja,k)/nq
-                     qr=q_trial(1,nq)*coord(1,ja)+q_trial(2,nq)*coord(2,ja)+q_trial(3,nq)*coord(3,ja)
+                     qr=q_trial(1,iq)*coord(1,ja)+q_trial(2,iq)*coord(2,ja)+q_trial(3,iq)*coord(3,ja)
                      m_j(1)=m_j(1)+cos(2*pi*qr+phi_trial(iq))*sin(theta_trial(iq))*mmom(ja,k)/nq
                      m_j(2)=m_j(2)+sin(2*pi*qr+phi_trial(iq))*sin(theta_trial(iq))*mmom(ja,k)/nq
                      m_j(3)=m_j(3)+cos(theta_trial(iq))*mmom(ja,k)/nq
@@ -1428,6 +1429,7 @@ contains
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
                   constellations,constellationsNeighType,energy,Num_macro,&
                   cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               energy = -energy
             end do
          end do
          ! Store best energy configuration
