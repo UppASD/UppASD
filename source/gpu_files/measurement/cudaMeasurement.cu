@@ -24,7 +24,15 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 , stopwatch(GlobalStopwatchPool::get("Cuda measurement"))
 , do_avrg(*FortranData::do_avrg == 'Y')
 , do_cumu(*FortranData::do_cumu == 'Y')
-, do_skyno(*FortranData::do_skyno == 'Y')
+, do_skyno([](char c) -> SkyrmionMethod {
+                switch (c)
+                {
+                    case 'Y': return SkyrmionMethod::BruteForce;
+                    case 'T': return SkyrmionMethod::Triangulation;
+                    default: return SkyrmionMethod::None;
+                }
+        }(*FortranData::do_skyno))
+, nsimp()
 {
     if (do_avrg)
     {
@@ -61,10 +69,24 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
         emomMEnsembleSums.zeros();
     }
 
-    if (do_skyno)
+    if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
     {
         assert(*FortranData::skyno_step > 0 && *FortranData::skyno_buff > 0);
 
+        skyno_buff_gpu.Allocate(*FortranData::skyno_buff);
+        skyno_buff_gpu.zeros();
+
+        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff);
+        skyno_buff_cpu.zeros();
+
+        skyno_iter.AllocateHost(*FortranData::skyno_buff);
+        skyno_iter.zeros();
+
+        std::cout << "SkyrmionNumber observable added" << std::endl;
+    }
+
+    if (do_skyno == SkyrmionMethod::BruteForce)
+    {
         Tensor<real, 3> dxyz_vec_fortran(FortranData::dxyz_vec, 3, 26, N);
         dxyz_vec.Allocate(3, 26, N);
         dxyz_vec.copy_sync(dxyz_vec_fortran);
@@ -79,18 +101,14 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 
         grad_mom.Allocate(3, 3, N, M);
         grad_mom.zeros();
-
-        skyno_buff_gpu.Allocate(*FortranData::skyno_buff);
-        skyno_buff_gpu.zeros();
-
-        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff);
-        skyno_buff_cpu.zeros();
-
-        skyno_iter.AllocateHost(*FortranData::skyno_buff);
-        skyno_iter.zeros();
-
-        std::cout << "SkyrmionNumber observable added" << std::endl;
     }
+
+    if (do_skyno == SkyrmionMethod::Triangulation)
+    {
+        simp.Allocate(3, nsimp);
+    }
+
+    stopwatch.add("constructor");
 }
 
 
@@ -114,15 +132,24 @@ CudaMeasurement::~CudaMeasurement()
         emomMEnsembleSums.Free();
     }
 
-    if (do_skyno)
+    if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
+    {
+        skyno_buff_gpu.Free();
+        skyno_buff_cpu.FreeHost();
+        skyno_iter.FreeHost();
+    }
+
+    if (do_skyno == SkyrmionMethod::BruteForce)
     {
         dxyz_vec.Free();
         dxyz_atom.Free();
         dxyz_list.Free();
         grad_mom.Free();
-        skyno_buff_gpu.Free();
-        skyno_buff_cpu.FreeHost();
-        skyno_iter.FreeHost();
+    }
+
+    if (do_skyno == SkyrmionMethod::Triangulation)
+    {
+        simp.Free();
     }
 }
 
@@ -135,16 +162,28 @@ void CudaMeasurement::measure(std::size_t mstep)
     const bool cumu = timeToMeasure(MeasurementType::BinderCumulant, mstep);
 
     if (avrg || cumu)
+    {
         calculateEmomMSum();
+        stopwatch.add("sum reduction of emomM for shared use");
+    }
 
     if (avrg)
+    {
         measureAverageMagnetization(mstep);
+        stopwatch.add("average magnetization");
+    }
 
     if (cumu)
+    {
         measureBinderCumulant(mstep);
+        stopwatch.add("binder cumulant");
+    }
 
     if (timeToMeasure(MeasurementType::SkyrmionNumber, mstep))
+    {
         measureSkyrmionNumber(mstep);
+        stopwatch.add("skyrmion number");
+    }
 }
 
 
@@ -156,7 +195,7 @@ void CudaMeasurement::flushMeasurements(std::size_t mstep)
     if (do_cumu)
         saveToFile(MeasurementType::BinderCumulant);
 
-    if (do_skyno)
+    if (do_skyno != SkyrmionMethod::None)
         saveToFile(MeasurementType::SkyrmionNumber);
 }
 
@@ -170,7 +209,7 @@ void CudaMeasurement::measureAverageMagnetization(std::size_t mstep)
         emomMEnsembleSums,
         N,
         M,
-        mavg_buff_gpu.data() + mavg_count
+        mavg_buff_gpu.data()[mavg_count]
     );
 
     mavg_iter(mavg_count++) = mstep;
@@ -194,7 +233,7 @@ void CudaMeasurement::measureBinderCumulant(std::size_t mstep)
             *FortranData::temperature,
             *FortranData::mub,
             *FortranData::k_bolt,
-            cumu_buff_gpu.data()
+            *cumu_buff_gpu.data()
         );
     }
     else
@@ -221,11 +260,11 @@ void CudaMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
     // TODO are we sure this should be emom, and not emomM?
     kernels::grad_moments<<<blocks, threads, 0, workStream>>>(emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom);
-    kernels::pontryagin_number<<<blocks, threads, 0, workStream>>>(
+    kernels::pontryagin_no<<<blocks, threads, 0, workStream>>>(
         emomM,
         grad_mom,
         skyno_count + 1,
-        skyno_buff_gpu.data() + skyno_count
+        skyno_buff_gpu.data()[skyno_count]
     );
 
     skyno_iter(skyno_count++) = mstep;
@@ -246,7 +285,57 @@ void CudaMeasurement::calculateEmomMSum()
 }
 
 
-bool CudaMeasurement::timeToMeasure(MeasurementType mtype, std::size_t mstep) const
+void CudaMeasurement::saveToFile(MeasurementType mtype)
+{
+    switch (mtype)
+    {
+        case MeasurementType::AverageMagnetization:
+            mavg_buff_cpu.copy_sync(mavg_buff_gpu);
+
+            measurementWriter.write(
+                    mavg_iter.data(),
+                    mavg_buff_cpu.data(),
+                    mavg_count
+            );
+
+            mavg_buff_gpu.zeros();
+            mavg_buff_cpu.zeros();
+            mavg_iter.zeros();
+            mavg_count = 0;
+        break;
+
+        case MeasurementType::BinderCumulant:
+            cumu_buff_cpu.copy_sync(cumu_buff_gpu);
+
+            measurementWriter.write(
+                    &cumu_count, // TODO: in fortran the equiv to cumu_count is printed, but should it not be mstep?
+                    cumu_buff_cpu.data(),
+                    1
+            );
+        break;
+
+        case MeasurementType::SkyrmionNumber:
+            skyno_buff_cpu.copy_sync(skyno_buff_gpu);
+
+            measurementWriter.write(
+                    skyno_iter.data(),
+                    skyno_buff_cpu.data(),
+                    skyno_count
+            );
+
+            skyno_buff_gpu.zeros();
+            skyno_buff_cpu.zeros();
+            skyno_iter.zeros();
+            skyno_count = 0;
+        break;
+
+        default:
+            throw std::invalid_argument("Not yet implemented.");
+    }
+}
+
+
+bool CudaMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
 {
     switch (mtype)
     {
@@ -257,60 +346,10 @@ bool CudaMeasurement::timeToMeasure(MeasurementType mtype, std::size_t mstep) co
             return do_cumu && ((mstep % *FortranData::cumu_step) == 0);
 
         case MeasurementType::SkyrmionNumber:
-            return do_skyno && ((mstep % *FortranData::skyno_step) == 0);
-    }
-}
+            return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
 
-
-void CudaMeasurement::saveToFile(MeasurementType mtype)
-{
-    switch (mtype)
-    {
-        case MeasurementType::AverageMagnetization:
-        {
-            mavg_buff_cpu.copy_sync(mavg_buff_gpu);
-
-            measurementWriter.write(
-                MeasurementType::AverageMagnetization,
-                mavg_iter.data(),
-                mavg_buff_cpu.data(),
-                mavg_count
-            );
-
-            mavg_buff_gpu.zeros();
-            mavg_buff_cpu.zeros();
-            mavg_iter.zeros();
-            mavg_count = 0;
-        } break;
-
-        case MeasurementType::BinderCumulant:
-        {
-            cumu_buff_cpu.copy_sync(cumu_buff_gpu);
-
-            measurementWriter.write(
-                MeasurementType::BinderCumulant,
-                &cumu_count, // TODO: in fortran the equiv to cumu_count is printed, but should it not be mstep?
-                cumu_buff_cpu.data(),
-                1
-            );
-        } break;
-
-        case MeasurementType::SkyrmionNumber:
-        {
-            skyno_buff_cpu.copy_sync(skyno_buff_gpu);
-
-            measurementWriter.write(
-                    MeasurementType::SkyrmionNumber,
-                    skyno_iter.data(),
-                    skyno_buff_cpu.data(),
-                    skyno_count
-            );
-
-            skyno_buff_gpu.zeros();
-            skyno_buff_cpu.zeros();
-            skyno_iter.zeros();
-            skyno_count = 0;
-        } break;
+        default:
+            throw std::invalid_argument("Not yet implemented.");
     }
 }
 

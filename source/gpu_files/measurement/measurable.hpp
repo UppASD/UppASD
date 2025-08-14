@@ -1,9 +1,5 @@
 #pragma once
 
-#include <memory>
-#include "c_headers.hpp"
-#include "tensor.cuh"
-#include "real_type.h"
 
 class Measurable
 {

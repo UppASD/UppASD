@@ -7,8 +7,9 @@ target_sources(${UppASD_LIB} PRIVATE
         cudaMeasurement.cuh
         cudaMeasurement.cu
         measurementFactory.cuh
-        measurementWriter.cuh
-        measurementWriter.cu
+        measurementWriter.h
+        measurementWriter.cpp
+        measurementWriterHelper.h
         kernels.cuh
         kernels.cu
         measurementData.h

@@ -5,7 +5,7 @@
 #include "real_type.h"
 #include "stopwatchDeviceSync.hpp"
 #include "fortranData.hpp"
-#include "measurementWriter.cuh"
+#include "measurementWriter.h"
 #include "measurementData.h"
 
 
@@ -23,7 +23,6 @@ public:
 private:
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
     void saveToFile(MeasurementType mtype);
-    
     void calculateEmomMSum();
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
@@ -39,17 +38,16 @@ private:
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
 
-    const bool do_avrg;
-    const bool do_cumu;
-    const bool do_skyno;
 
     // Average magnetization
+    const bool do_avrg;
     CudaVector<AverageMagnetizationData> mavg_buff_gpu;
     Vector<AverageMagnetizationData> mavg_buff_cpu;
     Vector<size_t> mavg_iter;
-    uint mavg_count = 0;
+    size_t mavg_count = 0;
 
     // Binder cumulant
+    const bool do_cumu;
     CudaVector<BinderCumulantData> cumu_buff_gpu; // scalar but tensor of rank 0 is not allowed, so rank 1 is size 1
     Vector<BinderCumulantData> cumu_buff_cpu;
     size_t cumu_count = 0;
@@ -58,14 +56,20 @@ private:
     CudaTensor<real, 2> emomMEnsembleSums; // tensor of dim = 3 x M
 
     // Skyrmion number
-    CudaTensor<real, 3> dxyz_vec;
-    CudaTensor<int, 2> dxyz_atom;
-    CudaTensor<int, 1> dxyz_list;
-    CudaTensor<real, 4> grad_mom; // 3 x 3 x N x M, is initialized to zeros in Fortran, no need to copy over
     CudaVector<SkyrmionNumberData> skyno_buff_gpu;
     Vector<SkyrmionNumberData> skyno_buff_cpu;
     Vector<size_t> skyno_iter;
-    uint skyno_count = 0;
-};
+    size_t skyno_count = 0;
 
+    // Skyrmion number method brute force
+    const SkyrmionMethod do_skyno;
+    CudaTensor<real, 3> dxyz_vec;
+    CudaTensor<int, 2> dxyz_atom;
+    CudaVector<int> dxyz_list;
+    CudaTensor<real, 4> grad_mom; // 3 x 3 x N x M, is initialized to zeros in Fortran, no need to copy over
+
+    // Skyrmion number method triangulation
+    CudaTensor<uint, 2> simp;
+    const uint nsimp = 1;
+};
 

@@ -11,8 +11,8 @@ __inline__ __device__ real kernels::warpReduceSum(real val, cg::thread_block_til
 }
 
 
-__global__ void kernels::sumOverAtoms(const CudaTensor<real, 3> in_tensor,
-                                        CudaTensor<real, 2> out_tensor)
+__global__ void kernels::sumOverAtoms(const CudaTensor<real, 3>& in_tensor,
+                                        CudaTensor<real, 2>& out_tensor)
 {
     const uint N_atoms = in_tensor.extent(1);
     const uint M_ensembles = in_tensor.extent(2);
@@ -54,10 +54,10 @@ __global__ void kernels::sumOverAtoms(const CudaTensor<real, 3> in_tensor,
 }
 
 
-__global__ void kernels::averageMagnetization(const CudaTensor<real, 2> emomMSum,
+__global__ void kernels::averageMagnetization(const CudaTensor<real, 2>& emomMSum,
                                                  uint atoms,
                                                  uint ensembles,
-                                                 AverageMagnetizationData* out)
+                                                 AverageMagnetizationData& out)
 {
     const uint k = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -77,33 +77,33 @@ __global__ void kernels::averageMagnetization(const CudaTensor<real, 2> emomMSum
     const real m_norm = norm(3, m);
     const real avrgms = pow(m_norm, 2);
 
-    atomicAdd(&(out->m_x), m[0]);
-    atomicAdd(&(out->m_y), m[1]);
-    atomicAdd(&(out->m_z), m[2]);
-    atomicAdd(&(out->m), m_norm);
-    atomicAdd(&(out->m_stdv), avrgms);
+    atomicAdd(&(out.m_x), m[0]);
+    atomicAdd(&(out.m_y), m[1]);
+    atomicAdd(&(out.m_z), m[2]);
+    atomicAdd(&(out.m), m_norm);
+    atomicAdd(&(out.m_stdv), avrgms);
 
     __syncthreads();
 
     if (k == 0)
     {
-        out->m_x /= ensembles;
-        out->m_y /= ensembles;
-        out->m_z /= ensembles;
-        out->m /= ensembles;
-        out->m_stdv = out->m_stdv / ensembles - pow(out->m, 2);
-        out->m_stdv = sqrt(max(out->m_stdv, 0.0));
+        out.m_x /= ensembles;
+        out.m_y /= ensembles;
+        out.m_z /= ensembles;
+        out.m /= ensembles;
+        out.m_stdv = out.m_stdv / ensembles - pow(out.m, 2);
+        out.m_stdv = sqrt(max(out.m_stdv, 0.0));
     }
 }
 
 
-__global__ void kernels::binderCumulantNoEnergy(const CudaTensor<real, 2> emomMSum,
+__global__ void kernels::binderCumulantNoEnergy(const CudaTensor<real, 2>& emomMSum,
                                                    uint atoms,
                                                    uint ensembles,
                                                    real temp,
                                                    real mub,
                                                    real k_bolt,
-                                                   BinderCumulantData* d)
+                                                   BinderCumulantData& d)
 {
     const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -121,35 +121,35 @@ __global__ void kernels::binderCumulantNoEnergy(const CudaTensor<real, 2> emomMS
         const real avrgme = norm(3, m) / atoms;
         const real avrgm2 = pow(avrgme, 2);
         const real avrgm4 = pow(avrgm2, 2);
-        d->cumuw += 1;
+        d.cumuw += 1;
 
-        d->avrgmcum = (d->avrgmcum * d->cumutotw + avrgme * d->cumuw ) / (d->cumutotw + d->cumuw);
-        d->avrgm2cum = (d->avrgm2cum * d->cumutotw + avrgm2 * d->cumuw ) / (d->cumutotw + d->cumuw);
-        d->avrgm4cum = (d->avrgm4cum * d->cumutotw + avrgm4 * d->cumuw ) / (d->cumutotw + d->cumuw);
+        d.avrgmcum = (d.avrgmcum * d.cumutotw + avrgme * d.cumuw ) / (d.cumutotw + d.cumuw);
+        d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2 * d.cumuw ) / (d.cumutotw + d.cumuw);
+        d.avrgm4cum = (d.avrgm4cum * d.cumutotw + avrgm4 * d.cumuw ) / (d.cumutotw + d.cumuw);
 
-        assert(d->avrgm2cum != 0.0); // this is not checked in Fortran
-        d->binderc = 1.0 - (d->avrgm4cum / 3.0 / pow(d->avrgm2cum, 2));
+        assert(d.avrgm2cum != 0.0); // this is not checked in Fortran
+        d.binderc = 1.0 - (d.avrgm4cum / 3.0 / pow(d.avrgm2cum, 2));
 
         // For T=0, not the proper susceptibility
     //        const real extra = (temp == 0.0)? 1.0 : k_bolt * temp;
-    //        d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / (k_bolt * extra);
+    //        d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / (k_bolt * extra);
 
         if (temp > 0.0)
-            d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / pow(k_bolt, 2) / temp;
+            d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / pow(k_bolt, 2) / temp;
         else
-            d->pmsusc = (d->avrgm2cum - pow(d->avrgmcum, 2)) * pow(mub, 2) * atoms / k_bolt;
+            d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / k_bolt;
 
-        d->cumutotw += d->cumuw;
+        d.cumutotw += d.cumuw;
     }
 }
 
 
 
-__global__ void kernels::grad_moments(const CudaTensor<real, 3> emomM,
-                                        const CudaTensor<real, 3> dxyz_vec,
-                                        const CudaTensor<int, 2> dxyz_atom,
-                                        const CudaTensor<int, 1> dxyz_list,
-                                        CudaTensor<real, 4> grad_mom)
+__global__ void kernels::grad_moments(const CudaTensor<real, 3>& emomM,
+                                        const CudaTensor<real, 3>& dxyz_vec,
+                                        const CudaTensor<int, 2>& dxyz_atom,
+                                        const CudaTensor<int, 1>& dxyz_list,
+                                        CudaTensor<real, 4>& grad_mom)
 {
     const uint N = emomM.extent(1);
     const uint M = emomM.extent(2);
@@ -203,10 +203,10 @@ __global__ void kernels::grad_moments(const CudaTensor<real, 3> emomM,
 }
 
 
-__global__ void kernels::pontryagin_number(const CudaTensor<real, 3> emomM,
-                                     const CudaTensor<real, 4> grad_mom,
-                                     uint sk_num_count,
-                                     SkyrmionNumberData* d)
+__global__ void kernels::pontryagin_no(const CudaTensor<real, 3>& emomM,
+                                       const CudaTensor<real, 4>& grad_mom,
+                                       uint sk_num_count,
+                                       SkyrmionNumberData& d)
 {
     const uint N = emomM.extent(1);
     const uint M = emomM.extent(2);
@@ -231,16 +231,56 @@ __global__ void kernels::pontryagin_number(const CudaTensor<real, 3> emomM,
                              + emomM(1,iatom,k) * cvec_y
                              + emomM(2,iatom,k) * cvec_z;
 
-    atomicAdd(&d->skyno, partial_sum);
+    atomicAdd(&d.skyno, partial_sum);
 
     __syncthreads();
 
     if (iatom == 0 && k == 0)
     {
-        d->skyno /= (M_PI * M);
+        d.skyno /= (M_PI * M);
 
-        const real skyno_avg_prev = d->skyno_avg;
-        d->skyno_avg = skyno_avg_prev + (d->skyno - skyno_avg_prev) / sk_num_count;
-        d->skyno_stdv += (d->skyno - skyno_avg_prev) * (d->skyno - d->skyno_avg) / sk_num_count;
+        const real skyno_avg_prev = d.skyno_avg;
+        d.skyno_avg = skyno_avg_prev + (d.skyno - skyno_avg_prev) / sk_num_count;
+        d.skyno_stdv += (d.skyno - skyno_avg_prev) * (d.skyno - d.skyno_avg) / sk_num_count;
     }
+}
+
+
+__global__ void delaunay_tri_tri(uint32_t nx, uint32_t ny, uint32_t nz, uint32_t nt,
+                                 CudaTensor<uint32_t, 2>& simp)
+{
+    const uint64_t cells = static_cast<uint64_t>(nx) * ny * nz;
+    const uint64_t pairs = cells * nt;
+    const uint64_t tid = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (tid >= pairs)
+        return;
+
+    const auto it = static_cast<uint32_t>(tid % nt);
+    uint64_t t = tid / nt;
+    const auto x = static_cast<uint32_t>(t % nx); t /= nx;
+    const auto y = static_cast<uint32_t>(t % ny); t /= ny;
+    const auto z = static_cast<uint32_t>(t);
+
+    const uint32_t xp1 = (x + 1u) % nx;
+    const uint32_t yp1 = (y + 1u) % ny;
+    const uint32_t xm1 = (x + nx - 1u) % nx;
+
+    auto vid = [&](uint32_t cx, uint32_t cy, uint32_t cz, uint32_t it0) -> uint32_t {
+        const uint64_t lin = (static_cast<uint64_t>(cz) * ny + cy) * nx + cx;
+        const uint64_t id  = static_cast<uint64_t>(nt) * lin + it0;
+        return static_cast<uint32_t>(id);
+    };
+
+    const auto tri1 = static_cast<size_t>(tid);
+    const auto tri2 = static_cast<size_t>(tid + pairs);
+
+    // Triangle 1: [0 -> +x -> +y]
+    simp(0, tri1) = vid(x,   y,   z, it);
+    simp(1, tri1) = vid(xp1, y,   z, it);
+    simp(2, tri1) = vid(x,   yp1, z, it);
+
+    // Triangle 2: [0 -> +y -> +y - x]
+    simp(0, tri2) = vid(x,   y,   z, it);
+    simp(1, tri2) = vid(x,   yp1, z, it);
+    simp(2, tri2) = vid(xm1, yp1, z, it);
 }

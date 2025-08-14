@@ -32,7 +32,7 @@ FortranMeasurement::FortranMeasurement(const CudaTensor<real, 3>& p1, const Cuda
           fortran_mmom(p6),
           fastCopy(p7),
           alwaysCopy(p8),
-          stopwatch(GlobalStopwatchPool::get("Cuda measurement")),
+          stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
           parallel(CudaParallelizationHelper::def) {
 #ifdef NVPROF
     nvtxNameOsThread(pthread_self(), "MAIN_THREAD");
