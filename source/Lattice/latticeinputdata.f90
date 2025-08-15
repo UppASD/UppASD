@@ -49,6 +49,7 @@ module LatticeInputData
    integer, dimension(:), allocatable :: ll_nn          !< No. shells of neighbours for LL
    integer :: nn_ll_tot                                 !< Calculated number of neighbours with PD interactions
    integer :: max_no_llshells                           !< Actual maximum number of shells for LL interactions
+   real(dblprec) :: ll_scale                            !< Manual scaling of LL couplings
 
 
    !LL phonopy data
@@ -164,6 +165,7 @@ contains
       !LL data
       llfile = 'llfile'
       do_ll  = 0
+      ll_scale=1.0_dblprec
 
       !LL phonopy data
       do_ll_phonopy = 0

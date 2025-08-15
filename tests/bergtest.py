@@ -381,14 +381,14 @@ if __name__ == "__main__":
 
     if not args.dirty:
         print("\nCleaning up directories and examples")
-        execstr = "rm -f */*.out */meminfo */fort.* */tempfile "
+        execstr = "rm -f */*.out */meminfo */fort.* */tempfile */*.yaml */*.json"
         os.system(execstr)
         execstr = "rm -f */out* */averages.* */totenergy.* */cumulants.* "
         os.system(execstr)
     if(args.cleanup):
         quit()
 
-    os.system('cls' if os.name == 'nt' else 'clear')
+    #os.system('cls' if os.name == 'nt' else 'clear')
     startdir = os.getcwd()
 
     print("-----------------------------------------------")

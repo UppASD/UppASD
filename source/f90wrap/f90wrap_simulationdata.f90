@@ -1,4 +1,4 @@
-! Module simulationdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/System/simulationdata.f90
+! Module simulationdata defined in file System/simulationdata.f90
 
 subroutine f90wrap_simulationdata__get__lambda1(f90wrap_lambda1)
     use simulationdata, only: simulationdata_lambda1 => lambda1
@@ -88,5 +88,5 @@ subroutine f90wrap_simulationdata__set__total_energy(f90wrap_total_energy)
     simulationdata_total_energy = f90wrap_total_energy
 end subroutine f90wrap_simulationdata__set__total_energy
 
-! End of module simulationdata defined in file /Users/andersb/Jobb/UppASD_release/UppASD_release/source/System/simulationdata.f90
+! End of module simulationdata defined in file System/simulationdata.f90
 

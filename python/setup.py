@@ -59,20 +59,18 @@ class cmake_build_ext(build_ext):
             subprocess.check_call(['cmake', ext.cmake_lists_dir] + cmake_args,
                                   cwd=self.build_temp)
 
-            ## Config
-            #subprocess.check_call(['cmake', ext.cmake_lists_dir] + cmake_args,
-            #                      cwd=self.build_temp)
-
             # Build
             subprocess.check_call(['cmake', '--build', '.','-j4', '--config', cfg],
                                   cwd=self.build_temp)
 
-            src_file=glob.glob(self.build_temp+'/_uppasd.*.so')
-            lib_path=self.build_temp.replace('temp','lib')+'/uppasd/'
+            src_file=glob.glob('./'+self.build_temp+'/_uppasd.*.so')
+            lib_path=self.build_temp.replace('temp','lib') #+'/uppasd/'
+            if not os.path.exists(lib_path):
+                os.makedirs(lib_path)
+            
             shutil.copy2(src_file[0],'uppasd/')
             shutil.copy2(src_file[0],lib_path)
-            #src_file=glob.glob(self.build_temp+'/asd.py')
-            #shutil.copy2(src_file[0],'asd/')
+            
 
 
 #### Environment flag needed for appending library flags to f2py
@@ -82,8 +80,6 @@ if (platform.system()=='Darwin'):
     os.environ['LDFLAGS'] = "-framework Accelerate"
 elif (platform.system()=='Linux'):
     os.environ['LDFLAGS'] = "-fopenmp"
-###os.environ['FC'] = "gfortran"
-####os.environ['CC'] = "gcc"
 
 setup(
         name = 'uppasd',
@@ -97,7 +93,6 @@ setup(
         include_package_data = True, 
         packages=['uppasd'],
         package_dir={'uppasd': 'uppasd'},
-#        package_data={'uppasd': ['uppasd/_uppasd.cpython-39-x86_64-linux-gnu.so']},
         ext_modules=[CMakeExtension(name='_uppasd')],
         scripts=['bin/uppasd','bin/uppasd_interactive']
         )

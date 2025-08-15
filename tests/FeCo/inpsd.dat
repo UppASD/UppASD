@@ -1,0 +1,43 @@
+simid FeCo__B2                                    
+ncell     6 6 6
+BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
+cell      1.00000   0.00000   0.00000         
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+do_ralloy 0
+
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./jASD  
+#anisotropy ./kfile
+
+SDEalgh   1                                     SDE solver: 1=midpoint, 2=heun, 3=heun3, 4=Heun_proper, 5=Depondt
+Initmag   3                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+#restartfile ./restart.bccFe100.out
+Mensemble 1
+
+ip_mode   N                                     Initial phase parameters
+ip_temp   100                                   --
+ip_mcNstep   10000                           --
+
+mode      S                                     S=SD, M=MC
+temp     00                                   Measurement phase parameters
+Nstep  5000
+damping 0.001
+timestep 1.0e-16
+maptype 2
+
+do_avrg   Y                                     Measure averages
+
+do_prnstruct 0
+
+do_cumu Y
+cumu_step 20
+cumu_buff 10
+
+plotenergy 1
+
+do_reduced Y
+
