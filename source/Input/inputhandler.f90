@@ -58,13 +58,15 @@ contains
       use FixedMom,           only : do_fixed_mom
       use stiffness
       use prn_fields
-      use macrocells,         only : prn_dip_subset,dip_file
+      !use macrocells,         only : prn_dip_subset,dip_file
       use temperature,        only : grad, tempfile, do_3tm
       use Polarization
       use prn_topology
       use prn_currents
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
+      use DemagField
+      use MacroCells
 
       implicit none
 
@@ -189,8 +191,27 @@ contains
                read(ifile,*,iostat=i_err) do_ralloy
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_macro_cells')
+               read(ifile,*,iostat=i_err) do_macro_cells
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('block_size')
                read(ifile,*,iostat=i_err) block_size
+               block_size_x = block_size
+               block_size_y = block_size
+               block_size_z = block_size
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_x')
+               read(ifile,*,iostat=i_err) block_size_x
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_y')
+               read(ifile,*,iostat=i_err) block_size_y
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('block_size_z')
+               read(ifile,*,iostat=i_err) block_size_z
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR CRYSTAL STRUCTURE
@@ -362,6 +383,10 @@ contains
                read(ifile,*,iostat=i_err) ham_inp%ea_sigma
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('ea_algo')
+               read(ifile,*,iostat=i_err) ham_inp%ea_algo
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('exc_inter')
                read(ifile,*,iostat=i_err) ham_inp%exc_inter
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -439,6 +464,18 @@ contains
 
             case('dm_scale')
                read(ifile,*,iostat=i_err) ham_inp%dm_scale
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_model')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_model
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_sigma')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_sigma
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('rdm_algo')
+               read(ifile,*,iostat=i_err) ham_inp%rdm_algo
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('sa')
@@ -1168,7 +1205,7 @@ contains
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------
-            ! START OF VARIABLES FOR PRINTING STT TORQUES
+            ! START OF VARIABLES FOR PRINTING FIELD TORQUES
             !------------------------------------------------------------------------
 
             case('do_prn_torques')
@@ -1184,7 +1221,7 @@ contains
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------
-            ! END OF VARIABLES FOR PRINTING STT TORQUES
+            ! END OF VARIABLES FOR PRINTING FIELD TORQUES
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------
@@ -1266,6 +1303,34 @@ contains
 
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR SKYRMION NUMBER
+            !------------------------------------------------------------------------
+
+            !------------------------------------------------------------------------
+            ! START OF VARIABLES FOR DEMAG FIELDS
+            !------------------------------------------------------------------------
+            case('demag')
+               read(ifile,*,iostat=i_err) demag
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_vol')
+               read(ifile,*,iostat=i_err) demagvol
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_x')
+               read(ifile,*,iostat=i_err) demag1
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_y')
+               read(ifile,*,iostat=i_err) demag2
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('demag_z')
+               read(ifile,*,iostat=i_err) demag3
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+
+            !------------------------------------------------------------------------
+            ! END OF VARIABLES FOR DEMAG FIELDS
             !------------------------------------------------------------------------
 
             !------------------------------------------------------------------------

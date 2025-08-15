@@ -45,7 +45,7 @@ FCDEBUG =
 CCFLAGS = -O3 -g 
 CCLIBFLAGS =-qopenmp
 # Declare what fortran compiler is used (for C/C++/CUDA code)
-C_FCFLAG = -D__IFORT__
+C_FCFLAG = -D__Intel__
 #------------------------------------------------------------------------------------
 # Flags for C++ compilation
 #------------------------------------------------------------------------------------
@@ -87,7 +87,7 @@ NVCCFLAGS = -O3
 # Sepcific setting for each NIVIDA graphic card
 # Other common alternatives:
 #  - gencode=arch=compute_70,code=\"sm_70,compute_70\"
-GENCODE_ARCH  = -gencode=arch=compute_30,code=\"sm_30,compute_30\"
+GENCODE_ARCH  = -gencode=arch=compute_70,code=\"sm_70,compute_70\"
 
 # CUDA install, include and library paths is not matching default
 # This is computer specific. Change if needed.

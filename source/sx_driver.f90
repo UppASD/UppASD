@@ -492,16 +492,7 @@ contains
       else if (irep==4) then
          allocate(sx_emom_fm(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(sx_emom_fm))*kind(sx_emom_fm),'sx_emom_fm','sx_copy_ens')
-         if (norm2(hfield)>0.0_dblprec) then
-            mom_hat=hfield/norm2(hfield)
-         else
-            mom_hat(1)=0.0_dblprec;mom_hat(2)=0.0_dblprec;mom_hat(3)=1.0_dblprec
-         end if
-         do ik=1,Mensemble
-            do ia=1,Natom
-               sx_emom_fm(1:3,ia,ik)=mom_hat
-            end do
-         end do
+         sx_emom_fm = emom
       end if
 
    end subroutine sx_copy_ens

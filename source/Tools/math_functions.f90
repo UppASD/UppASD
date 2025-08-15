@@ -674,7 +674,8 @@ contains
          ! The binary search sometimes get stuck
          !xi1 = f_joint_search(x_val,x_arr,x_len)
 
-         xi2 = xi1 + 1
+         xi1 = min(xi1, x_len-1)
+         xi2 = min(xi1 + 1, x_len)
 
          x1 = x_arr(xi1)
          x2 = x_arr(xi2)

@@ -1,16 +1,13 @@
-#ifndef __RANDOMNUM_HPP__
-#define __RANDOMNUM_HPP__
+#pragma once
 
+#include "c_headers.hpp"
 #include "real_type.h"
 
 class RandomNumbers {
 public:
-	RandomNumbers();
-	~RandomNumbers();
+   RandomNumbers();
+   ~RandomNumbers();
 
-	void fillArray(real * v, size_t len);
+   void fillArray(real* v, std::size_t len);
 };
-
-
-#endif
 

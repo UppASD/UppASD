@@ -22,6 +22,10 @@ module HamiltonianActions
 
    implicit none
 
+   interface effective_field
+      module procedure effective_field_bare, effective_field_full
+   end interface
+
 contains
 
    !----------------------------------------------------------------------------
@@ -34,7 +38,28 @@ contains
    !ham%dm_vect !< DM vector \f$H_{DM}=\sum{D_{ij}\dot(m_i \times m_j)}\f$
    !> @todo Check the sign of the dipolar field
    !----------------------------------------------------------------------------
-   subroutine effective_field(Natom,Mensemble,start_atom,stop_atom,   &
+   ! Aliases with less arguments
+   subroutine effective_field_bare()
+      use InputData, only : Natom, Mensemble, NA, N1, N2, N3
+      use MomentData, only : emomM, mmom
+      use FieldData, only : external_field, time_external_field, beff, beff1, beff2
+      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, maxNoConstl
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      implicit none
+
+      real(dblprec) :: energy
+
+
+      call effective_field_full(Natom,Mensemble,1,Natom,   &
+         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         macro_nlistsize,NA,N1,N2,N3)
+
+   end subroutine effective_field_bare
+      !
+   subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
@@ -168,6 +193,7 @@ contains
             endif
             beff1(1:3,i,k)= beff_s
             beff2(1:3,i,k)= beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
+            ! Here the dipole contribution is added since beff != 0 in that case.
             beff(1:3,i,k) = beff(1:3,i,k)+ beff1(1:3,i,k)+beff2(1:3,i,k)
 
             tfield=0.50_dblprec*(beff_s+2.0_dblprec*beff_q+2.0_dblprec*external_field(1:3,i,k)+time_external_field(1:3,i,k))
@@ -177,7 +203,7 @@ contains
       !$omp end parallel do
       energy = energy * mub / mry
 
-   end subroutine effective_field
+   end subroutine effective_field_full
 
    !contains
 
@@ -357,6 +383,12 @@ contains
                ham%dm_vect(3,j,ih)*emomM(1,ham%dmlist(j,i),k)
             field(3) = field(3) + ham%dm_vect(2,j,ih)*emomM(1,ham%dmlist(j,i),k) -&
                ham%dm_vect(1,j,ih)*emomM(2,ham%dmlist(j,i),k)
+            !field(1) = field(1) - ham%dm_vect(3,j,ih)*emomM(2,ham%dmlist(j,i),k) +&
+            !   ham%dm_vect(2,j,ih)*emomM(3,ham%dmlist(j,i),k)
+            !field(2) = field(2) - ham%dm_vect(1,j,ih)*emomM(3,ham%dmlist(j,i),k) +&
+            !   ham%dm_vect(3,j,ih)*emomM(1,ham%dmlist(j,i),k)
+            !field(3) = field(3) - ham%dm_vect(2,j,ih)*emomM(1,ham%dmlist(j,i),k) +&
+            !   ham%dm_vect(1,j,ih)*emomM(2,ham%dmlist(j,i),k)
          end do
 
       end subroutine dzyaloshinskii_moriya_field
@@ -578,7 +610,7 @@ contains
       end subroutine biquadratic_field
       
 	  !---------------------ring_field--------------------!
-	  subroutine ring_field(i, k, field,Natom,Mensemble,emomM)
+      subroutine ring_field(i, k, field,Natom,Mensemble,emomM)
 	  !
       !.. Implicit declarations
       implicit none

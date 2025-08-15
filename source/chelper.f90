@@ -15,7 +15,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array
    use Spinicedata,      only : vert_ice_coord
@@ -25,6 +25,12 @@ module Chelper
    use Measurements,     only : measure, do_measurements, flush_measurements, calc_mavrg
    use UpdateMoments,    only : moment_update
 
+   use Correlation
+   use Correlation_core
+   use AutoCorrelation,       only : autocorr_sample, do_autocorr
+   use ChemicalData, only : achtype
+   use MetaTypes
+   use Omegas
 
    implicit none
 
@@ -56,7 +62,7 @@ contains
 
    !---------------------------------------------------------------------
    !> @brief
-   !> Calculates and returns the magnetic avergage to C++ simulation.
+   !> Calculates and returns the magnetic average to C++ simulation.
    !> Needed so that the right mavrg and bindc is printed during simulation.
    !> Binderc is used as a pointer and is only updated if not already calculated
    !> elsewhere.
@@ -79,12 +85,21 @@ contains
       implicit none
       integer, intent(in) :: cmstep !< Current simulation step
 
+      integer :: cgk_flag
+      cgk_flag=0
+
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,cmstep,emom,emomM,mmom,&
          Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp,       &
          1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp,ham%max_no_neigh,ham%nlist,  &
          ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,     &
          ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind,    &
          ham%sus_ind,do_mom_legacy,mode)
+
+      ! Spin correlation
+      ! Sample magnetic moments for correlation functions
+      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,cmstep,delta_t,  &
+      NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+
    end subroutine fortran_measure
 
 
@@ -96,12 +111,22 @@ contains
       real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
       integer, intent(in) :: ext_mstep
 
+      integer :: cgk_flag
+      cgk_flag=0
+
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,ext_emom,    &
          ext_emomM,ext_mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,    &
          plotenergy,Temp,1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp,             &
          ham%max_no_neigh,ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field, &
          beff,beff1,beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,  &
          ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
+
+
+      ! Spin correlation
+      ! Sample magnetic moments for correlation functions
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,ext_mstep,delta_t,  &
+         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+
    end subroutine fortran_measure_moment
 
 
@@ -112,7 +137,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-         traj_step,do_cumu,cumu_step,logsamp,do_copy)
+         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
    end subroutine fortran_do_measurements
 
 
@@ -145,12 +170,18 @@ contains
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh)
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, ham_inp%do_anisotropy, nHam)
 
-      call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
-         beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
-         external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
-         mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+      !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
+      !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
+      !   external_field(1,1,1),mmom(1,1),btorque(1,1,1),Temp_array(1),mmom0(1,1),   &
+      !   mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
+
+
+      call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
+         beff,b2eff,emomM,emom,emom2,            &
+         external_field,mmom,btorque,Temp_array,mmom0,   &
+         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb, ham%aHam)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
