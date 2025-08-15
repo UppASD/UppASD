@@ -1,0 +1,31 @@
+simid    spinstat
+
+!! Multiscale !!
+multiscale    multiscale.conf
+
+initmag    3
+
+!! Thermalization !!
+ip_mode    MS 
+ip_nphase  4
+100000   100.0   1.000e-15   0.3
+100000   10.1    1.000e-15   0.2
+100000   0.1     1.000e-15   0.1
+200000   0.01    1.000e-15   0.05
+
+!! Simulation !!
+mode         MS
+sdeAlgh      1
+nstep        200000
+timestep     1.000e-15 s
+hfield       0.0   0.0   0.0
+temp         0.01 K
+damping      0.05
+
+!! Trace !!
+do_tottraj      Y
+tottraj_step    100
+tottraj_buff    20
+do_prnstruct    1
+prn_multiscale  1
+do_anisotropy   1

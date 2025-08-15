@@ -1,0 +1,24 @@
+simid  skyrmion
+
+!! Multiscale !!
+multiscale    multiscale.conf
+
+initmag       4     takes moments from restart
+restartfile   restart
+
+!! Simulation !!
+ip_mode   N
+mode      MS
+sdeAlgh   1
+nstep     500000
+timestep  1.000e-15 s
+hfield    0.0   0.0   0.0 
+temp      0.001 K
+damping   0.1
+
+!! Trace !!
+do_tottraj      Y
+tottraj_step    100
+do_prnstruct    1
+prn_multiscale  1
+do_anisotropy   1

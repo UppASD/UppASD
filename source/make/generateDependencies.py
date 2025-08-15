@@ -97,15 +97,15 @@ def createDependencyFile():
     ############################################################################
     dependenciesFORT = readDependenciesFORT(source_folder, sourcefilesFORT,"use ")
     dependenciesCCCC = readDependenciesCCCC(source_folder, sourcefilesCCCC)
-    dependenciesCCCC_ThirdParty = readDependenciesCCCC(source_folder, ThirdPartysourcefilesCCCC)
+    #dependenciesCCCC_ThirdParty = readDependenciesCCCC(source_folder, ThirdPartysourcefilesCCCC)
     f = path.join(scriptlocation, "dependencies.make")
     writeDependencyFile(f, dependenciesFORT)
 
     fg = path.join(scriptlocation, "dependencies_c.make")
     writeDependencyFileCCCC(fg, dependenciesCCCC)
 
-    fg = path.join(scriptlocation, "dependencies_tp_c.make")
-    writeDependencyFileCCCC(fg, dependenciesCCCC_ThirdParty)
+    #fg = path.join(scriptlocation, "dependencies_tp_c.make")
+    #writeDependencyFileCCCC(fg, dependenciesCCCC_ThirdParty)
 
     #print "------------------------------------------------"
 
@@ -151,7 +151,7 @@ def createProgramObjsDepsFile():
     ThirdPartysourcefilesFORT =findThirdPartyFORTSourcefiles(third_party_folder,source_folder)
     ThirdPartysourcefilesCCCC =findThirdPartyCPPSourcefiles(third_party_folder,source_folder)
     sourcefilesFORT=ThirdPartysourcefilesFORT+sourcefilesFORT
-    sourcefilesCCCC=ThirdPartysourcefilesCCCC+sourcefilesCCCC
+    #sourcefilesCCCC=ThirdPartysourcefilesCCCC+sourcefilesCCCC
     dependenciesFORT = readDependenciesFORT(source_folder, sourcefilesFORT, "use ")
     implicitFORT = calculateImplicitDependencies(dependenciesFORT, mainFile)
 

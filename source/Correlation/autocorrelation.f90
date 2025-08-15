@@ -10,6 +10,7 @@
 module AutoCorrelation
    use Parameters
    use Profiling
+   use macrocells
    !
    implicit none
    !
@@ -26,6 +27,7 @@ module AutoCorrelation
    real(dblprec), dimension(:,:,:), allocatable :: spinwait !< Data for autocorrelation analysis
    !
    real(dblprec), dimension(:,:,:), allocatable   :: autocorr_buff        !< Buffer for average magnetizations
+   real(dblprec), dimension(:,:,:), allocatable   :: autocorr_buff_loc    !< Buffer for average magnetizations
    real(dblprec), dimension(:), allocatable       :: indxb_ac       !< Step counter forautocorrelation
    integer :: bcount_ac    !< Counter of buffer for autocorrelation
    !
@@ -53,6 +55,12 @@ contains
          allocate(autocorr_buff(nspinwait,ac_buff,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(autocorr_buff))*kind(autocorr_buff),'autocorr_buff','autocorr_allocate')
          autocorr_buff=0.0_dblprec
+         if (do_macro_cells=='Y') then
+            allocate(autocorr_buff_loc(nspinwait,ac_buff,Num_macro),stat=i_stat)
+            call memocc(i_stat,product(shape(autocorr_buff_loc))*kind(autocorr_buff_loc),'autocorr_buff_loc','autocorr_allocate')
+            autocorr_buff_loc=0.0_dblprec
+         end if
+
          allocate(indxb_ac(ac_buff),stat=i_stat)
          call memocc(i_stat,product(shape(indxb_ac))*kind(indxb_ac),'indxb_ac','autocorr_allocate')
          indxb_ac=0
@@ -178,6 +186,7 @@ contains
    subroutine buffer_autocorr(Natom,Mensemble,do_autocorr,mstep,nspinwait,spinwait,emom,&
       emomM,bcount_ac,delta_t,real_time_measure)
       !
+      use macrocells, only: do_macro_cells, cell_index, Num_macro
 
       !.. Implicit declarations
       implicit none
@@ -196,11 +205,13 @@ contains
 
       !.. Scalar variables
       integer :: i,j,k, i_stat, i_all
+      integer :: i_block
       !real(dblprec) :: tm
 
       !.. Local arrays
-      real(dblprec), dimension(3,Mensemble) ::  m
+      !real(dblprec), dimension(3,Mensemble) ::  m
       real(dblprec), dimension(:), allocatable :: autocorr
+      real(dblprec), dimension(:,:), allocatable :: autocorr_loc
 
       !.. Executable statements
       if(do_autocorr=='Y') then
@@ -208,31 +219,62 @@ contains
          call memocc(i_stat,product(shape(autocorr))*kind(autocorr),'autocorr','buffer_autocorr')
          autocorr=0.0_dblprec
 
+         if (do_macro_cells=='Y') then
+            allocate(autocorr_loc(nspinwait,Num_macro),stat=i_stat)
+            call memocc(i_stat,product(shape(autocorr_loc))*kind(autocorr_loc),'autocorr_loc','buffer_autocorr')
+            autocorr_loc=0.0_dblprec
+         end if
+
          !.. Sum over moments
          do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
-            end do
-            !Autocorr only over sample 1
+            !do k=1,Mensemble
+            !   m(:,k) = m(:,k) + emomM(:,i,k)
+            !end do
+            !Autocorr only over ensemble 1
             do j=1, nspinwait
                autocorr(j) = autocorr(j)+spinwait(1,i,j)*emom(1,i,1)+&
                   spinwait(2,i,j)*emom(2,i,1)+spinwait(3,i,j)*emom(3,i,1)
             end do
          end do
 
-         do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
+         if (do_macro_cells=='Y') then
+            do i=1, Natom
+               !Autocorr only over ensemble 1
+               do j=1, nspinwait
+                  i_block = cell_index(i)
+                  autocorr_loc(j,i_block) = autocorr_loc(j,i_block)+spinwait(1,i,j)*emom(1,i,1)+&
+                     spinwait(2,i,j)*emom(2,i,1)+spinwait(3,i,j)*emom(3,i,1)
+               end do
             end do
-         end do
+         end if   
+
+         !do i=1, Natom
+         !   do k=1,Mensemble
+         !      m(:,k) = m(:,k) + emomM(:,i,k)
+         !   end do
+         !end do
 
          do j=1, nspinwait
             autocorr_buff(j,bcount_ac,1) = autocorr(j)
          end do
 
+         if (do_macro_cells=='Y') then
+            do j=1, nspinwait
+               do i=1, Num_macro
+                  autocorr_buff_loc(j,bcount_ac,i) = autocorr_loc(j,i)
+               end do
+            end do
+         end if
+
          i_all=-product(shape(autocorr))*kind(autocorr)
          deallocate(autocorr,stat=i_stat)
          call memocc(i_stat,i_all,'autocorr','buffer_ac')
+
+         if (do_macro_cells=='Y') then
+            i_all=-product(shape(autocorr_loc))*kind(autocorr_loc)
+            deallocate(autocorr_loc,stat=i_stat)
+            call memocc(i_stat,i_all,'autocorr_loc','buffer_ac')
+         end if
 
          if (real_time_measure=='Y') then
             indxb_ac(bcount_ac)=mstep*delta_t
@@ -250,6 +292,8 @@ contains
    !---------------------------------------------------------------------------------
    subroutine prn_autocorr(Natom, simid, do_autocorr, nspinwait,real_time_measure)
 
+      use macrocells, only : max_num_atom_macro_cell
+
       !.. Implicit declarations
       implicit none
 
@@ -258,9 +302,10 @@ contains
       character(len=8), intent(in) :: simid       !< Name of simulation
       character(len=1), intent(in) :: do_autocorr !< Perform autocorrelation (Y/N)
       character(len=1), intent(in) :: real_time_measure !< Real time measurement flag
-      integer :: i,j, i_all, i_stat
+      integer :: i,j, i_all, i_stat, i_macro
       real(dblprec), dimension(:), allocatable :: autocorr
-      character(len=30) :: filn4
+      real(dblprec), dimension(:,:), allocatable :: autocorr_loc
+      character(len=35) :: filn4
 
       !.. Executable statements
       if(do_autocorr=='Y') then
@@ -269,7 +314,7 @@ contains
          call memocc(i_stat,product(shape(autocorr))*kind(autocorr),'autocorr','prn_autocorr')
 
          write (filn4,'(''autocorr.'',a,''.out'')') trim(simid)
-         open(ofileno, file=filn4, position="append")
+         open(ofileno, file=trim(filn4), position="append")
 
          do i=1, bcount_ac
             do j=1, nspinwait
@@ -286,8 +331,36 @@ contains
          deallocate(autocorr,stat=i_stat)
          call memocc(i_stat,i_all,'autocorr','prn_autocorr')
 
-
          close(ofileno)
+
+      end if
+
+      if (do_macro_cells=='Y') then
+            allocate(autocorr_loc(nspinwait,Num_macro),stat=i_stat)
+            call memocc(i_stat,product(shape(autocorr_loc))*kind(autocorr_loc),'autocorr_loc','prn_autocorr')
+
+            do i_macro = 1, Num_macro
+               write (filn4,'(''autocorr_loc.'',i4.4,''.'',a,''.out'')') i_macro, trim(simid)
+               open(ofileno, file=trim(filn4), position="append")
+
+               do i=1, bcount_ac
+                  do j=1, nspinwait
+                     autocorr_loc(j,i_macro) = autocorr_buff_loc(j,i,i_macro)/max_num_atom_macro_cell
+                  end do
+                  if (real_time_measure=='Y') then
+                     write (ofileno,10005) indxb_ac(i), autocorr_loc(1:nspinwait,i_macro)
+                  else
+                     write (ofileno,10004) int(indxb_ac(i)), autocorr_loc(1:nspinwait,i_macro)
+                  endif
+               end do
+
+            end do
+
+            i_all=-product(shape(autocorr_loc))*kind(autocorr_loc)
+            deallocate(autocorr_loc,stat=i_stat)
+            call memocc(i_stat,i_all,'autocorr_loc','prn_autocorr')
+
+            close(ofileno)
       end if
 
       return
