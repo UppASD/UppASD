@@ -130,6 +130,7 @@ contains
       !max_num_atom_macro_cell=NA*block_size**dim
       call allocate_macrocell(1,Natom,Mensemble)
 
+      print *,'Number of macrocells:',Num_macro
       ! Create the macrocells lists needed for the macrocell approximation
       do II3=0, N3-1, block_size_z
          do II2=0, N2-1, block_size_y
@@ -149,6 +150,7 @@ contains
                            min_coord_macro(1,kk)=min(coord(1,ii),min_coord_macro(1,kk))
                            min_coord_macro(2,kk)=min(coord(2,ii),min_coord_macro(2,kk))
                            min_coord_macro(3,kk)=min(coord(3,ii),min_coord_macro(3,kk))
+                           !print *,kk,ii,coord(1,ii),coord(2,ii),coord(3,ii)
                         enddo
                      enddo
                   enddo

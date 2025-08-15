@@ -340,6 +340,7 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use MetaTypes
+      use Temperature_3TM
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
@@ -351,6 +352,12 @@ contains
       logical :: sd_phaseflag
 
       real(dblprec) :: temprescale, temprescalegrad, totene, totenergy,dummy
+
+      ! 3TM data
+      real(dblprec) :: Temp_s !< Spin temperature (for 3TM)
+      real(dblprec) :: Temp_l !< Lattice temperature (for 3TM)
+      real(dblprec) :: Temp_e !< Electron temperature (for 3TM)
+      real(dblprec) :: t_in !< Time (for 3TM)
 
       ! Spin correlation measurements allowed
       adapt_step = 0
@@ -431,6 +438,37 @@ contains
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
       end if
 
+      ! Initialize 3TM functionality if enabled
+      ! Note that the 3TM functionality is here used for 2TM modelling
+      if(do_3tm=='Y'.or.do_3tm=='E') then
+!        call allocate_3tm(Natom,0,1)
+         call init_3tm_cv(1)
+         call unify_3tm_params(C1,C2,C3,alat,NA)
+         if (do_3tm=='E') then
+            call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
+               external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
+               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
+               constellations,constellationsNeighType,totenergy,Num_macro,   &
+               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
+            Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
+            call threetemp_elec_init(simid,Temp,Temp_s,Temp_l,Temp_e)
+         else 
+            call set_initial_temp_3tm(Temp,Temp_s,Temp_l,Temp_e)
+            call threetemp_print(rstep,nstep,delta_t,simid)
+         end if
+         print '(1x,a,3f14.5)', 'Initial 3TM temperatures:',Temp_s,Temp_l,Temp_e
+      else
+         Temp_s=Temp
+         Temp_l=Temp
+         Temp_e=Temp
+      end if
+   
+      ! Rescaling of temperature according to exponential cooling/heating
+      if (do_tempexp == 'Y') then
+         print *, 'Exponential temperature profile used'
+      end if
+
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
       temprescalegrad=0.0_dblprec
@@ -477,6 +515,17 @@ contains
       !------------------------------------------------------------------------------
 
       do while (mstep.LE.rstep+nstep) !+1
+
+         if (do_3tm=='Y') then
+            t_in=delta_t*mstep
+            call threetemp_single(t_in,delta_t,Temp_s,Temp_l,Temp_e)
+         else if (do_3tm=='E') then
+            t_in=delta_t*mstep
+            Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
+            Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
+            call threetemp_elec(t_in,delta_t,Temp_s,Temp_l,Temp_e)
+            call threetemp_elec_print(mstep,simid,Temp_s,Temp_l,Temp_e)
+         end if
 
          if (time_dept_flag) then
             ! Calculate Microwave fields (time dependent fields)
@@ -568,6 +617,12 @@ contains
             write(*,'(2x,a,i3,a,G13.6)')   "Iteration",mstep," Mbar ",mavg
          endif
 
+         ! Adjust of temperature according to exponential cooling/heating
+         if (do_tempexp == 'Y') then
+            Temp = f_tempexp(delta_t,mstep,simid)
+            Temp_array = Temp
+         end if
+
          !Adjust QHB
          if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
             if(qhb_mode=='MT') then
@@ -624,6 +679,13 @@ contains
             if (llg==2.or.llg==3) then
                call calc_averagefield(Natom,Mensemble,beff1,beff2,field1,field2)
             endif
+
+         ! Set temperature to spin temperature for 3TM simulationa
+         ! TODO: Change to spatially resolved temperatures
+         if(do_3tm=='Y') Temp_array=Temp_s
+         if(do_3tm=='E') Temp_array=Temp_e
+
+
             ! Check if this changes
             thermal_field=0.0_dblprec
             call evolve_first(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
@@ -798,7 +860,16 @@ contains
       if (do_spintemp=='Y') then
          call spintemperature(Natom,Mensemble,mstep,1,simid,emomM,beff,2)
       endif
+
+
       call timing(0,'Measurement   ','OF')
+
+         ! Deallocate 3TM arrays
+      if(do_3tm=='Y') then
+         call init_3tm_cv(-1)
+!        call allocate_3tm(Natom,0,-1)
+      end if
+
    end subroutine sd_mphase
 
    !---------------------------------------------------------------------------
