@@ -108,22 +108,25 @@ contains
                constlNCoup,constellations,constellationsNeighType,energy,                  &
                emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
          else
-      write (*,'(1x,a)', advance='no') " OSO :"
-           call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.40d0, 50, 'PRP', energy, iters)
+     write (*,'(1x,a)', advance='no') " OSO :"
+     ! Orthogonal spin optimization (OSO), Ivanov et al. Comp. Phys. Comm. 107749, 260 (2021)
+     ! 
+          call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 5d-5, 1d-4, 0.9d0, 0.40d0, 50, 'LBFGS', energy, iters)
+           !call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.40d0, 50, 'PRP', energy, iters)
            ! call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.45d0, 50, 'PRP', energy, iters)
            !call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.35d0, 50, 'PRP', energy, iters)
 
-!     write (*,'(1x,a)', advance='no') " VPO :"
-!           call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,&
-!              Mensemble,                                                                  &
-!              Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
-!              simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
-!              macro_nlistsize,mmom,                                                       &
-!              emom,emomM_macro,                                                           &
-!              external_field,maxNoConstl,unitCellType,                                    &
-!              constlNCoup,constellations,constellationsNeighType,energy,                  &
-!              emomM,NA,N1,N2,N3,mode,do_mom_legacy)
-         end if
+!      write (*,'(1x,a)', advance='no') " VPO :"
+!            call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,&
+!               Mensemble,                                                                  &
+!               Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
+!               simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
+!               macro_nlistsize,mmom,                                                       &
+!               emom,emomM_macro,                                                           &
+!               external_field,maxNoConstl,unitCellType,                                    &
+!               constlNCoup,constellations,constellationsNeighType,energy,                  &
+!               emomM,NA,N1,N2,N3,mode,do_mom_legacy)
+          end if
 
       end if
       ! emomM(1,:,:) = 0

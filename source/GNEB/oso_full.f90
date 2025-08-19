@@ -483,160 +483,344 @@ contains
 
     end subroutine calculate_torques_and_energy
 
+subroutine oso_cg_minimize(prob, emom, maxiter, tol_grad,                    &
+                           c1, c2, theta_rms_cap, reanchor_period,           &
+                           method, energy_out, iters_done)
+  use oso_kinds_mod,         only : dp
+  use oso_rotation_mod,      only : angles_axes_from_a, rodrigues_apply_batch
+  use oso_pack_mod,          only : torque_to_grad, vec_to_pack3, step_rms_angle
+  use cg_direction_mod,      only : get_cg_direction
+  use line_search_wolfe_mod, only : line_search_strong_wolfe
+  use lbfgs_direction_mod,   only : lbfgs_state, lbfgs_init, lbfgs_reset,     &
+                                    lbfgs_push_pair, lbfgs_direction
+  implicit none
+  ! --- inputs/outputs ---
+  type(oso_problem), intent(in)        :: prob
+  real(dp), intent(inout)              :: emom(3, prob%Natom, prob%Mensemble) ! UPDATED in place
+  integer,  intent(in)                 :: maxiter
+  real(dp), intent(in)                 :: tol_grad
+  real(dp), intent(in)                 :: c1, c2           ! Wolfe; e.g. 1e-4, 0.9
+  real(dp), intent(in)                 :: theta_rms_cap    ! e.g. 0.35–0.40 (radians)
+  integer,  intent(in)                 :: reanchor_period  ! e.g. 50; 0 means never
+  character(*), intent(in)             :: method           ! 'PRP' | 'FR' | 'LBFGS'
+  real(dp), intent(out)                :: energy_out
+  integer,  intent(out)                :: iters_done
 
-  subroutine oso_cg_minimize(prob, moments, maxiter, tol_grad,                    &
-                             c1, c2, theta_rms_cap, reanchor_period,           &
-                             method, energy_out, iters_done)
-    !! Main optimizer.
-    type(oso_problem), intent(in)        :: prob
-    real(dp), intent(inout)              :: moments(3, prob%Natom, prob%Mensemble) ! spins updated in place
-    integer,  intent(in)                 :: maxiter
-    real(dp), intent(in)                 :: tol_grad
-    real(dp), intent(in)                 :: c1, c2           ! Wolfe; typical 1e-4, 0.9
-    real(dp), intent(in)                 :: theta_rms_cap    ! e.g. 0.35 (radians)
-    integer,  intent(in)                 :: reanchor_period  ! e.g. 50; 0 means never
-    character(*), intent(in)             :: method           ! 'PRP' or 'FR'
-    real(dp), intent(out)                :: energy_out
-    integer,  intent(out)                :: iters_done
+  ! --- locals ---
+  integer :: N, M, ndof, iter
+  real(dp), allocatable :: a_total(:), g(:), g_old(:), p(:), p_old(:)
+  real(dp), allocatable :: a_step_pack(:,:,:), a_trial_pack(:,:,:)
+  real(dp), allocatable :: theta(:,:), axis(:,:,:)
+  real(dp), allocatable :: emom_ref(:,:,:), emom_trial(:,:,:), torque(:,:,:)
+  real(dp), allocatable :: g_tmp(:), s_vec(:), y_vec(:)
+  real(dp) :: energy, phi0, dphi0, alpha_init, alpha_max, alpha_star
+  real(dp) :: gnorm_inf, alpha_prev
+  integer  :: status_ls
+  type(lbfgs_state) :: lb
+  integer :: lbfgs_m
+  real(dp) :: theta_rms_cap_0
 
-    integer :: N, M, ndof, iter
-    real(dp), allocatable :: a_total(:), g(:), g_prev(:), p(:), p_prev(:)
-    real(dp), allocatable :: a_step_pack(:,:,:), a_trial_pack(:,:,:)
-    real(dp), allocatable :: theta(:,:), axis(:,:,:)
-    real(dp) :: energy, phi0, dphi0, alpha_init, alpha_max, alpha_star, alpha_prev
-    real(dp) :: gnorm_inf, status_dummy
-    integer  :: status_ls
-    real(dp), allocatable :: emom_ref(:,:,:), emom_trial(:,:,:), torque(:,:,:)
+  N = prob%Natom;  M = prob%Mensemble;  ndof = 3*N*M ; theta_rms_cap_0 = theta_rms_cap
+  if (.not. associated(prob%eval)) error stop 'oso_cg_minimize: prob%eval not set.'
 
-    N = prob%Natom
-    M = prob%Mensemble
-    ndof = 3*N*M
+  allocate(a_total(ndof), g(ndof), g_old(ndof), p(ndof), p_old(ndof))
+  allocate(a_step_pack(3,N,M), a_trial_pack(3,N,M))
+  allocate(theta(N,M), axis(3,N,M))
+  allocate(emom_ref(3,N,M), emom_trial(3,N,M), torque(3,N,M))
+  allocate(g_tmp(ndof), s_vec(ndof), y_vec(ndof))
 
-    alpha_prev = 1.0_dp
+  ! L-BFGS history (active only if method='LBFGS')
+  lbfgs_m = 10
+  call lbfgs_init(lb, ndof, lbfgs_m)
 
-    if (.not. associated(prob%eval)) error stop 'oso_cg_minimize: prob%eval not set.'
+  ! Reference configuration and zero initial OSO parameters
+  emom_ref = emom
+  a_total  = 0.0_dp
 
-    allocate(a_total(ndof), g(ndof), g_prev(ndof), p(ndof), p_prev(ndof))
-    allocate(a_step_pack(3,N,M), a_trial_pack(3,N,M))
-    allocate(theta(N,M), axis(3,N,M))
-    allocate(emom_ref(3,N,M), emom_trial(3,N,M), torque(3,N,M))
+  ! Initial energy/gradient
+  call prob%eval(N, M, emom, energy, torque)
+  call torque_to_grad(N, M, torque, g)
+  energy_out = energy
 
-    ! Reference spins and zero initial "a".
-    emom_ref = moments
-    a_total  = 0.0d0
+  gnorm_inf = maxval(abs(g))
+  if (gnorm_inf <= tol_grad) then
+    iters_done = 0
+    return
+  end if
 
-    call prob%eval(N, M, moments, energy, torque)
-    call torque_to_grad(N, M, torque, g)
-    energy_out = energy
+  ! Initial search direction (steepest) and histories
+  p      = -g
+  p_old  = p
+  g_old  = g
+  alpha_prev = 1.0_dp
 
-    gnorm_inf = maxval(abs(g))
-    if (gnorm_inf <= tol_grad) then
-      iters_done = 0; return
+  do iter = 1, maxiter
+    ! --- Line-search setup on current (g, p) ---
+    phi0  = energy
+    dphi0 = dot_product(g, p)
+
+    ! Ensure descent direction; if not, restart (and reset LBFGS history)
+    if (dphi0 >= 0.0_dp) then
+      p = -g
+      dphi0 = -dot_product(g, g)
+      if (is_lbfgs(method)) call lbfgs_reset(lb)
     end if
 
-    ! Initial direction: steepest descent
-    p = -g
-    g_prev = g
-    p_prev = p
+    ! α_max from θ_rms cap for α=1 (scale if needed); α_init from previous step
+    call vec_to_pack3(N, M, p, a_step_pack)
+    alpha_max = 1.0d6
+    if (theta_rms_cap > 0.0_dp) then
+      alpha_max = min(alpha_max, theta_rms_cap / max(step_rms_angle(N,M,a_step_pack), 1.0e-16_dp))
+    end if
+    alpha_init = min( max(0.25_dp, 1.5_dp*alpha_prev), alpha_max )
 
+    call line_search_strong_wolfe( eval_phi, c1, c2, alpha_init, alpha_max,   &
+                                   40, phi0, dphi0, alpha_star, status_ls )
 
-    do iter = 1, maxiter
+    ! --- Accept step (update a_total and emom) ---
+    a_total = a_total + alpha_star * p
+    call vec_to_pack3(N, M, a_total, a_trial_pack)
+    call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
+    call rodrigues_apply_batch(N,M, theta, axis, emom_ref, emom)
 
-      ! ---- Line-search callback φ(α) and φ'(α) = g(α)·p ----
-      phi0  = energy
-      dphi0 = dot_product(g, p)
+    ! New energy/gradient at accepted point
+    call prob%eval(N, M, emom, energy, torque)
+    call torque_to_grad(N,M, torque, g)
+    energy_out = energy
+    alpha_prev = alpha_star
 
-      ! Cap alpha via RMS rotation for α=1:  α_max = min(user cap, θ_cap / θ_rms(α=1))
-      call vec_to_pack3(N, M, p, a_step_pack)
-      alpha_max = 1.0d6
-      if (theta_rms_cap > 0.0d0) then
-  alpha_max = min(alpha_max, theta_rms_cap / max(step_rms_angle(N,M,a_step_pack), 1.0e-16_dp))
-      end if
-      alpha_init = min(1.0d0, alpha_max)
-      ! alpha_init = min( max(0.25d0, 1.5d0*alpha_prev), alpha_max )
-
-
-      call line_search_strong_wolfe( eval_phi, c1, c2, alpha_init, alpha_max, &
-                                     40, phi0, dphi0, alpha_star, status_ls )
-
-      ! ---- Accept step ----
-      a_total = a_total + alpha_star * p
-      alpha_prev = alpha_star
-
-      call vec_to_pack3(N, M, a_total, a_trial_pack)
-      call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
-      call rodrigues_apply_batch(N,M, theta, axis, emom_ref, moments)
-
-      call prob%eval(N, M, moments, energy, torque)
-      call torque_to_grad(N,M, torque, g)
-      energy_out = energy
-
+    ! Convergence test
     gnorm_inf = maxval(abs(g))
+    if (gnorm_inf <= tol_grad) then
+      iters_done = iter
+      exit
+    end if
+
     print *, 'Iteration', iter, ': energy =', energy/N, ', |g|_inf =', gnorm_inf
     write(200,'(A,i7, A,F12.8,A,F10.4)') 'Iteration', iter, ' : energy =', energy/N, ' , |g|_inf =', gnorm_inf
-      if (gnorm_inf <= tol_grad) then
-        iters_done = iter; exit
-      end if
 
-      ! ---- CG update ----
-        call get_cg_direction(g, g_prev, p_prev, p, method, iter, 50)
+    ! --- Build step/curvature pair for LBFGS (s = α*p_old, y = g - g_old) ---
+    s_vec = alpha_star * p
+    y_vec = g - g_old
+    if (is_lbfgs(method)) call lbfgs_push_pair(lb, s_vec, y_vec)
 
-        ! Shift state for next iteration
-        g_prev = g
-        p_prev = p
+    ! --- Choose next direction ---
+    if (is_lbfgs(method)) then
+      call lbfgs_direction(lb, g, p)
+    else
+      call get_cg_direction(g, g_old, p_old, p, method, iter, 50)
+    end if
 
-      ! ---- CG update ---- (wrong order)
-      ! g_prev = g
-      ! p_prev = p
-      ! call get_cg_direction(g, g_prev, p_prev, p, method, iter, 50)
+    ! --- Shift histories for next iteration ---
+    g_old = g
+    p_old = p
 
-      ! ---- Optional re-anchoring ----
-      if (reanchor_period > 0 .and. mod(iter, reanchor_period) == 0) then
-        emom_ref = moments
-        a_total  = 0.0d0
-      end if
+    ! --- Optional re-anchoring of the reference frame ---
+    if (reanchor_period > 0 .and. mod(iter, reanchor_period) == 0) then
+      emom_ref = emom
+      a_total  = 0.0_dp
+      if (is_lbfgs(method)) call lbfgs_reset(lb)
+    end if
+  end do
 
+contains
+  logical function is_lbfgs(meth) result(ans)
+    character(*), intent(in) :: meth
+    ans = (meth == 'LBFGS' .or. meth == 'lbfgs' .or. meth == 'Lbfgs')
+  end function is_lbfgs
+
+  subroutine eval_phi(alpha, phi, dphi)
+    !! φ(α) = E(e_ref rotated by a_total + α p);  φ'(α) = g(α)·p
+    real(dp), intent(in)  :: alpha
+    real(dp), intent(out) :: phi, dphi
+
+    ! Trial a and trial spins
+    call vec_to_pack3(N, M, a_total + alpha*p, a_trial_pack)
+    call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
+    call rodrigues_apply_batch(N,M, theta, axis, emom_ref, emom_trial)
+
+    ! Energy and gradient at trial
+    call prob%eval(N, M, emom_trial, phi, torque)
+    call torque_to_grad(N, M, torque, g_tmp)
+    dphi = dot_product(g_tmp, p)
+  end subroutine eval_phi
+end subroutine oso_cg_minimize
+
+!!!   subroutine oso_cg_minimize(prob, moments, maxiter, tol_grad,                    &
+!!!                              c1, c2, theta_rms_cap, reanchor_period,           &
+!!!                              method, energy_out, iters_done)
+!!!     !! Main optimizer.
+!!!     type(oso_problem), intent(in)        :: prob
+!!!     real(dp), intent(inout)              :: moments(3, prob%Natom, prob%Mensemble) ! spins updated in place
+!!!     integer,  intent(in)                 :: maxiter
+!!!     real(dp), intent(in)                 :: tol_grad
+!!!     real(dp), intent(in)                 :: c1, c2           ! Wolfe; typical 1e-4, 0.9
+!!!     real(dp), intent(in)                 :: theta_rms_cap    ! e.g. 0.35 (radians)
+!!!     integer,  intent(in)                 :: reanchor_period  ! e.g. 50; 0 means never
+!!!     character(*), intent(in)             :: method           ! 'PRP' or 'FR'
+!!!     real(dp), intent(out)                :: energy_out
+!!!     integer,  intent(out)                :: iters_done
+!!! 
+!!!     integer :: N, M, ndof, iter
+!!!     real(dp), allocatable :: a_total(:), g(:), g_prev(:), p(:), p_prev(:)
+!!!     real(dp), allocatable :: a_step_pack(:,:,:), a_trial_pack(:,:,:)
+!!!     real(dp), allocatable :: theta(:,:), axis(:,:,:)
+!!!     real(dp) :: energy, phi0, dphi0, alpha_init, alpha_max, alpha_star, alpha_prev
+!!!     real(dp) :: gnorm_inf, status_dummy
+!!!     integer  :: status_ls
+!!!     real(dp), allocatable :: emom_ref(:,:,:), emom_trial(:,:,:), torque(:,:,:)
+!!! 
+!!!     N = prob%Natom
+!!!     M = prob%Mensemble
+!!!     ndof = 3*N*M
+!!! 
+!!!     alpha_prev = 1.0_dp
+!!! 
+!!!     if (.not. associated(prob%eval)) error stop 'oso_cg_minimize: prob%eval not set.'
+!!! 
+!!!     allocate(a_total(ndof), g(ndof), g_prev(ndof), p(ndof), p_prev(ndof))
+!!!     allocate(a_step_pack(3,N,M), a_trial_pack(3,N,M))
+!!!     allocate(theta(N,M), axis(3,N,M))
+!!!     allocate(emom_ref(3,N,M), emom_trial(3,N,M), torque(3,N,M))
+!!! 
+!!!     ! Reference spins and zero initial "a".
+!!!     emom_ref = moments
+!!!     a_total  = 0.0d0
+!!! 
+!!!     call prob%eval(N, M, moments, energy, torque)
+!!!     call torque_to_grad(N, M, torque, g)
+!!!     energy_out = energy
+!!! 
+!!!     gnorm_inf = maxval(abs(g))
+!!!     if (gnorm_inf <= tol_grad) then
+!!!       iters_done = 0; return
+!!!     end if
+!!! 
+!!!     ! Initial direction: steepest descent
+!!!     p = -g
+!!!     g_prev = g
+!!!     p_prev = p
+!!! 
+!!! 
+!!!     do iter = 1, maxiter
+!!! 
+!!!       ! ---- Line-search callback φ(α) and φ'(α) = g(α)·p ----
+!!!       phi0  = energy
+!!!       dphi0 = dot_product(g, p)
+!!! 
+!!!       ! Cap alpha via RMS rotation for α=1:  α_max = min(user cap, θ_cap / θ_rms(α=1))
+!!!       call vec_to_pack3(N, M, p, a_step_pack)
+!!!       alpha_max = 1.0d6
+!!!       if (theta_rms_cap > 0.0d0) then
+!!!   alpha_max = min(alpha_max, theta_rms_cap / max(step_rms_angle(N,M,a_step_pack), 1.0e-16_dp))
+!!!       end if
+!!!       alpha_init = min(1.0d0, alpha_max)
+!!!       ! alpha_init = min( max(0.25d0, 1.5d0*alpha_prev), alpha_max )
+!!! 
+!!! 
+!!!       call line_search_strong_wolfe( eval_phi, c1, c2, alpha_init, alpha_max, &
+!!!                                      40, phi0, dphi0, alpha_star, status_ls )
+!!! 
+!!!       ! ---- Accept step ----
+!!!       a_total = a_total + alpha_star * p
+!!!       alpha_prev = alpha_star
+!!! 
+!!!       call vec_to_pack3(N, M, a_total, a_trial_pack)
+!!!       call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
+!!!       call rodrigues_apply_batch(N,M, theta, axis, emom_ref, moments)
+!!! 
+!!!       call prob%eval(N, M, moments, energy, torque)
+!!!       call torque_to_grad(N,M, torque, g)
+!!!       energy_out = energy
+!!! 
+!!!     gnorm_inf = maxval(abs(g))
+!!!     print *, 'Iteration', iter, ': energy =', energy/N, ', |g|_inf =', gnorm_inf
+!!!     write(200,'(A,i7, A,F12.8,A,F10.4)') 'Iteration', iter, ' : energy =', energy/N, ' , |g|_inf =', gnorm_inf
+!!!       if (gnorm_inf <= tol_grad) then
+!!!         iters_done = iter; exit
+!!!       end if
+!!! 
+!!!       ! ---- CG update ----
+!!!         call get_cg_direction(g, g_prev, p_prev, p, method, iter, 50)
+!!! 
+!!!         ! Shift state for next iteration
+!!!         g_prev = g
+!!!         p_prev = p
+!!! 
+!!!       ! ---- CG update ---- (wrong order)
+!!!       ! g_prev = g
+!!!       ! p_prev = p
+!!!       ! call get_cg_direction(g, g_prev, p_prev, p, method, iter, 50)
+!!! 
+!!!       ! ---- Optional re-anchoring ----
+!!!       if (reanchor_period > 0 .and. mod(iter, reanchor_period) == 0) then
+!!!         emom_ref = moments
+!!!         a_total  = 0.0d0
+!!!       end if
+!!! 
+!!!     end do
+!!! 
+!!!   contains
+!!! 
+!!!     subroutine eval_phi(alpha, phi, dphi)
+!!!       !! Evaluate φ(α) = E(e_ref rotated by a_total + α p), and φ'(α)=g·p.
+!!!       real(dp), intent(in)  :: alpha
+!!!       real(dp), intent(out) :: phi, dphi
+!!! 
+!!!       ! Make trial a = a_total + alpha * p
+!!!       a_trial_pack = 0.0d0
+!!!       call vec_to_pack3(N, M, a_total + alpha*p, a_trial_pack)
+!!! 
+!!!       call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
+!!!       call rodrigues_apply_batch(N,M, theta, axis, emom_ref, emom_trial)
+!!! 
+!!!       call prob%eval(N, M, emom_trial, phi, torque)
+!!!       call torque_to_grad(N, M, torque, g_prev)  ! reuse g_prev as temp
+!!!       dphi = dot_product(g_prev, p)
+!!!     end subroutine eval_phi
+!!! 
+!!!   end subroutine oso_cg_minimize
+
+
+subroutine oso_run(N, M, emom, eval_proc, maxiter, tol_grad, c1, c2,          &
+                   theta_rms_cap, reanchor_period, method, energy_out, iters_done)
+  use oso_kinds_mod,     only : dp
+!  use oso_optimize_mod,  only : oso_problem, oso_cg_minimize, energy_torque_iface
+  implicit none
+  integer,  intent(in)    :: N, M
+  real(dp), intent(inout) :: emom(3,N,M)
+  procedure(energy_torque_iface) :: eval_proc
+  integer,  intent(in)    :: maxiter, reanchor_period
+  real(dp), intent(in)    :: tol_grad, c1, c2, theta_rms_cap
+  character(*), intent(in):: method
+  real(dp), intent(out)   :: energy_out
+  integer,  intent(out)   :: iters_done
+
+  type(oso_problem) :: prob
+  integer :: i, j
+  real(dp) :: nrm
+  character(len=:), allocatable :: meth
+
+  ! 0) light sanity on method (oso_cg_minimize is case-insensitive anyway)
+  meth = adjustl(method)
+
+  ! 1) ensure unit directions (cheap safeguard)
+  do j=1,M
+    do i=1,N
+      nrm = sqrt(emom(1,i,j)**2 + emom(2,i,j)**2 + emom(3,i,j)**2)
+      if (nrm > 0.0_dp) emom(:,i,j) = emom(:,i,j) / nrm
     end do
+  end do
 
-  contains
+  ! 2) bind problem + callback and dispatch to the driver
+  prob%Natom      = N
+  prob%Mensemble  = M
+  prob%eval       => eval_proc
 
-    subroutine eval_phi(alpha, phi, dphi)
-      !! Evaluate φ(α) = E(e_ref rotated by a_total + α p), and φ'(α)=g·p.
-      real(dp), intent(in)  :: alpha
-      real(dp), intent(out) :: phi, dphi
+  call oso_cg_minimize(prob, emom, maxiter, tol_grad, c1, c2,                  &
+                       theta_rms_cap, reanchor_period, meth, energy_out, iters_done)
+end subroutine oso_run
 
-      ! Make trial a = a_total + alpha * p
-      a_trial_pack = 0.0d0
-      call vec_to_pack3(N, M, a_total + alpha*p, a_trial_pack)
-
-      call angles_axes_from_a(N,M, a_trial_pack, theta, axis)
-      call rodrigues_apply_batch(N,M, theta, axis, emom_ref, emom_trial)
-
-      call prob%eval(N, M, emom_trial, phi, torque)
-      call torque_to_grad(N, M, torque, g_prev)  ! reuse g_prev as temp
-      dphi = dot_product(g_prev, p)
-    end subroutine eval_phi
-
-  end subroutine oso_cg_minimize
-
-
-    subroutine oso_run(N, M, emom, eval_proc, maxiter, tol_grad, c1, c2,          &
-                       theta_rms_cap, reanchor_period, method, energy_out, iters_done)
-      integer,  intent(in)    :: N, M
-      real(dp), intent(inout) :: emom(3,N,M)
-      procedure(energy_torque_iface) :: eval_proc     ! your callback
-      integer,  intent(in)    :: maxiter, reanchor_period
-      real(dp), intent(in)    :: tol_grad, c1, c2, theta_rms_cap
-      character(*), intent(in):: method
-      real(dp), intent(out)   :: energy_out
-      integer,  intent(out)   :: iters_done
-      type(oso_problem) :: prob
-    
-      prob%Natom = N; prob%Mensemble = M
-      prob%eval  => eval_proc
-      call oso_cg_minimize(prob, emom, maxiter, tol_grad, c1, c2,                 &
-                           theta_rms_cap, reanchor_period, method, energy_out, iters_done)
-    end subroutine oso_run
 
 end module oso_optimize_mod
 

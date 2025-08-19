@@ -395,7 +395,7 @@ contains
       mintraj_step      = 1000
       vpodt             = 0.010_dblprec
       vpomass           = 1.0_dblprec
-      minitrmax         = 100000
+      minitrmax         = 10000
 
       !Parameters for GNEB calculations
       initpath          = 1
