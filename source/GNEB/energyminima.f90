@@ -592,6 +592,7 @@ contains
 
          itr=itr+1
 
+         write(200,'(A,i7, A,F12.8,A,F10.4)') 'Iteration', itr, ' : energy =', energy/Natom, ' , |g|_inf =', fchkmax*mub/mry
          if (mod(itr,every).eq.0) then
             ! Calculation of the total energy
             call effective_field(Natom,Mensemble,1,nHam,emomM,mmom, &

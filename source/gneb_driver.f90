@@ -47,11 +47,14 @@ contains
       use HamiltonianActions
       use EnergyMinima
       use macrocells
+      use oso_optimize_mod, only : oso_run, calculate_torques_and_energy
+
      
       !
       implicit none
 
       real(dblprec) :: energy
+      integer :: iters, iatom, iens
 
       if(plotenergy.lt.1) then
          call allocate_energies(1, Mensemble)
@@ -82,7 +85,7 @@ contains
          call timing(0,'Hamiltonian   ','ON')
       end if
 
-      write (*,'(1x,a)') "Energy minimization in progress"
+      write (*,'(1x,a)', advance='no') "Energy minimization in progress"
       if (minalgo==1) then
 
          !!! call vpo_min(nHam,mintraj_step,Natom,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip, &
@@ -95,6 +98,7 @@ contains
          !!!    constlNCoup,constellations,constellationsNeighType,energy,                  &
          !!!    emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
          if (mode=='G') then
+      write (*,'(1x,a)', advance='no') " VPO :"
             call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,2,     &
                Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
                simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
@@ -104,18 +108,32 @@ contains
                constlNCoup,constellations,constellationsNeighType,energy,                  &
                emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
          else
-            call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,&
-               Mensemble,                                                                  &
-               Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
-               simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
-               macro_nlistsize,mmom,                                                       &
-               emom,emomM_macro,                                                           &
-               external_field,maxNoConstl,unitCellType,                                    &
-               constlNCoup,constellations,constellationsNeighType,energy,                  &
-               emomM,NA,N1,N2,N3,mode,do_mom_legacy)
+      write (*,'(1x,a)', advance='no') " OSO :"
+           call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.40d0, 50, 'PRP', energy, iters)
+           ! call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.45d0, 50, 'PRP', energy, iters)
+           !call oso_run(Natom, Mensemble, emomM, calculate_torques_and_energy, minitrmax, 1d-6, 1d-4, 0.9d0, 0.35d0, 50, 'PRP', energy, iters)
+
+!     write (*,'(1x,a)', advance='no') " VPO :"
+!           call vpo_min_single(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,&
+!              Mensemble,                                                                  &
+!              Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
+!              simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
+!              macro_nlistsize,mmom,                                                       &
+!              emom,emomM_macro,                                                           &
+!              external_field,maxNoConstl,unitCellType,                                    &
+!              constlNCoup,constellations,constellationsNeighType,energy,                  &
+!              emomM,NA,N1,N2,N3,mode,do_mom_legacy)
          end if
 
       end if
+      ! emomM(1,:,:) = 0
+      ! emomM(2,:,:) = 0
+      ! emomM(3,:,:) = 1
+      do iens = 1, Mensemble
+         do iatom = 1, Natom
+            emom(:,iatom, iens) = emomM(:,iatom, iens)/mmom(iatom, iens)
+         end do
+      end do
       write (*,'(1x,a)') "Done"
       write (*,'(1x,a)') "------------------------------------------"
 

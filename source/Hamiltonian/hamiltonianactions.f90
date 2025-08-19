@@ -59,6 +59,54 @@ contains
 
    end subroutine effective_field_bare
       !
+   subroutine effective_field_energy(energy)
+      !
+      use InputData, only : Natom, Mensemble, NA, N1, N2, N3
+      use MomentData, only : emomM, mmom
+      use FieldData, only : external_field, time_external_field, beff, beff1, beff2
+      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, maxNoConstl
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      implicit none
+
+      !<
+      real(dblprec), intent(out) :: energy
+      ! real(dblprec) :: energy
+
+
+      call effective_field_full(Natom,Mensemble,1,Natom,   &
+         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         macro_nlistsize,NA,N1,N2,N3)
+
+   end subroutine effective_field_energy
+      !
+   subroutine effective_field_standalone(moments, bfield, energy)
+      !
+      use InputData, only : Natom, Mensemble, NA, N1, N2, N3
+      use MomentData, only : mmom
+      use FieldData, only : external_field, time_external_field, beff1, beff2
+      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, maxNoConstl
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      implicit none
+
+      !<
+      real(dblprec), dimension(3, Natom, Mensemble), intent(in) :: moments
+      real(dblprec), dimension(3, Natom, Mensemble), intent(inout) :: bfield
+      real(dblprec), intent(out) :: energy
+      ! real(dblprec) :: energy
+
+
+      call effective_field_full(Natom,Mensemble,1,Natom,   &
+         moments,mmom,external_field,time_external_field,bfield,beff1,beff2,OPT_flag,      &
+         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         macro_nlistsize,NA,N1,N2,N3)
+
+   end subroutine effective_field_standalone
+      !
    subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
