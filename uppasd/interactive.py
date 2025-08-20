@@ -12,7 +12,10 @@ cycling through different color schemes, and taking screenshots of the visualiza
 Author: Anders Bergman
 """
 
-import glob
+# standard libs
+import argparse
+import logging
+import os
 
 import numpy as np
 # import uppasd.pyasd as asd
@@ -67,21 +70,27 @@ def readAtoms(file, Nmax):
     """
     points = vtk.vtkPoints()
     nrAtoms = 0
-    # Read ahead
-    line = file.readline()
-    data = line.split()
-
-    # Read all data
-    while line:
-        if nrAtoms <= Nmax:
-            a = int(data[0])
-            x, y, z = float(data[1]), float(data[2]), float(data[3])
-            # print "a ", a, " x ", x, " y ", y, " z ", z
-            # points.InsertPoint(a, x, y, z)
+    # Read all data defensively
+    for line in file:
+        if not line:
+            break
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        # need at least 4 columns: index, x, y, z
+        if len(parts) < 4:
+            # malformed line, stop or skip
+            continue
+        try:
+            # a = int(parts[0])  # original atom index, unused here
+            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+        except ValueError:
+            # skip lines that do not parse
+            continue
+        if nrAtoms < Nmax:
             points.InsertPoint(nrAtoms, x, y, z)
-        nrAtoms = nrAtoms + 1
-        line = file.readline()
-        data = line.split()
+        nrAtoms += 1
     return points, nrAtoms
 
 
@@ -101,34 +110,49 @@ def readVectorsData(file, time, nrAtoms, Nmax):
     - vectors: A vtkFloatArray object representing the vectors.
     - colors: A vtkFloatArray object representing the colors.
     """
-    # Create a Double array which represents the vectors
+    # Create arrays which represent the vectors and scalar colors
     vectors = vtk.vtkFloatArray()
     colors = vtk.vtkFloatArray()
 
     # Define number of elements
     vectors.SetNumberOfComponents(3)
     colors.SetNumberOfComponents(1)
-    for i in range(7):
-        line = file.readline()
+
+    # Skip header lines if present (defensive)
+    for _ in range(7):
+        header_line = file.readline()
+        if not header_line:
+            break
 
     i = 0
     # Read all data for a certain time
     while i < nrAtoms:
         line = file.readline()
+        if not line:
+            break
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        # expect at least 7 columns based on previous code
+        if len(parts) < 7:
+            # malformed line, skip
+            continue
+        try:
+            # validate integer fields exist
+            int(parts[0])
+            int(parts[1])
+            x = float(parts[4])
+            y = float(parts[5])
+            z = float(parts[6])
+        except ValueError:
+            # skip lines that don't parse
+            continue
         if i < Nmax:
-            data = line.split()
-            t, a = int(data[0]), int(data[1])
-            x, y, z = float(data[4]), float(data[5]), float(data[6])
-            # x, y, z = float(data[3]), float(data[4]), float(data[5])
             m = (z + 1.0) / 2.0
-            # m = (x+y+2.0)/2.0
-            # m = (z+y+x)/3.0**0.5
-            # m = atan2(x,y)/acos(-1)+1
-            # m = (atan2(x,z)/acos(-1)+1)/2
-            # print m
             vectors.InsertTuple3(i, x, y, z)
             colors.InsertValue(i, m)
-            i = i + 1
+        i += 1
     return vectors, colors
 
 
@@ -206,6 +230,7 @@ def cycleColorScheme(lut, colorSeries, backwards=False):
         colorSeries.BuildLookupTable(lut, vtkColorSeries.ORDINAL)
     return lut, colorSeries
 
+
 number_of_screenshots = 1
 
 
@@ -277,6 +302,20 @@ def CheckAbort(obj, event):
 
 def main():
 
+    # parse command line options
+    parser = argparse.ArgumentParser(description="Interactive UppASD VTK visualizer")
+    parser.add_argument("--coords", help="Path to coord file (overrides simulator coords)")
+    parser.add_argument("--moments", help="Path to moments file (not yet used)")
+    parser.add_argument("--screenshots-dir", help="Directory to write screenshots", default=None)
+    parser.add_argument("--verbose", help="Enable debug logging", action="store_true")
+    args = parser.parse_args()
+
+    # configure logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+
     # Instantiate the ASD simulation object
     asd = sim.Simulator()
     asd.init_simulation()
@@ -300,24 +339,22 @@ def main():
     # ----------------------------
     # Screenshot code begins here
     # ----------------------------
-    number_of_screenshots = 1
 
     # ASD STUFF
     asd.get_moments()
     asd.get_coords()
 
     initmom = asd.moments[:, :, 0]
-    currmom = asd.moments[:, :, 0].T
-    vecz = numpy_support.numpy_to_vtk(currmom, deep=False)
+    currmom = asd.moments[:, :, 0].T.copy()
+    vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
 
     initcol = asd.moments[2, :, 0]
-    currcol = asd.moments[2, :, 0].T
-    colz = numpy_support.numpy_to_vtk(currcol, deep=False)
+    currcol = asd.moments[2, :, 0].T.copy()
+    colz = numpy_support.numpy_to_vtk(currcol, deep=True)
 
     # vecz,colz=(readVectorsData(directionsFile,0,nrAtoms,Nmax))
 
-    # Size of system
-    Nmax = 1000000
+    # Size of system (unused in this path)
 
     # Viewing distance
     # decrease number to zoom out and vice versa
@@ -327,25 +364,36 @@ def main():
     # momfiles = glob.glob("restart.????????.out")
     # directionsFile = open(momfiles[0])
     # directionsFile = open("momentsparsed.out")
-    posfiles = glob.glob("coord.????????.out")
-    # print posfiles
-    atomsFile = open(posfiles[0])
-    # atomsFile = open("atomsparsed.out")
+    logging.debug("Skip reading coords from file unless --coords is provided")
+    # posfiles = glob.glob("coord.????????.out")
+    # # print posfiles
+    # atomsFile = open(posfiles[0])
+    # # atomsFile = open("atomsparsed.out")
 
     # Read atom positions
-    atomPoints = vtk.vtkPoints()
-    atomData = numpy_support.numpy_to_vtk(asd.coords.T, deep=False)
-    atomPoints.SetData(atomData)
-    nrAtoms = asd.natom
-    # atomData, nrAtoms = self.readAtoms(atomsFile)
-    print("Number of atoms: ", nrAtoms)
-    Datatest.SetPoints(atomPoints)
-    DataFour.SetPoints(atomPoints)
-    atomData, nrAtoms = readAtoms(atomsFile, Nmax)
-    # print nrAtoms
-    Datatest.SetPoints(atomData)
-    # DataScal.SetPoints(atomData)
-    DataFour.SetPoints(atomData)
+    # If the user provided a coords file, use it; otherwise use asd.coords
+    if args.coords:
+        if not os.path.exists(args.coords):
+            logging.error("Coords file not found: %s", args.coords)
+            return
+        with open(args.coords, "r") as atomsFile:
+            atomDataPts, nrAtoms = readAtoms(atomsFile, 10_000_000)
+        logging.info("Read %d atom positions from %s", nrAtoms, args.coords)
+        Datatest.SetPoints(atomDataPts)
+        DataFour.SetPoints(atomDataPts)
+    else:
+        atomPoints = vtk.vtkPoints()
+        atomData = numpy_support.numpy_to_vtk(asd.coords.T.copy(), deep=True)
+        atomPoints.SetData(atomData)
+        nrAtoms = asd.natom
+        logging.info("Number of atoms (from simulator): %d", nrAtoms)
+        Datatest.SetPoints(atomPoints)
+        DataFour.SetPoints(atomPoints)
+    # atomData, nrAtoms = readAtoms(atomsFile, Nmax)
+    # # print nrAtoms
+    # Datatest.SetPoints(atomData)
+    # # DataScal.SetPoints(atomData)
+    # DataFour.SetPoints(atomData)
 
     # Read data for vectors
     # for i in range(0,55,1):
@@ -356,6 +404,47 @@ def main():
 
     DataFour.GetPointData().SetVectors(vecz)
     DataFour.GetPointData().SetScalars(colz)
+
+    # create a small status text actor to indicate busy state (defined early so helpers can use it)
+    status_txt = vtk.vtkTextActor()
+    status_txt.SetInput("")
+    status_txt_prop = status_txt.GetTextProperty()
+    status_txt_prop.SetFontFamilyToArial()
+    status_txt_prop.SetFontSize(28)
+    status_txt_prop.SetColor(0, 0, 0)
+    status_txt_prop.BoldOn()
+    status_txt.SetDisplayPosition(20, 20)
+
+    # Helper to run relax, fetch moments and update VTK arrays
+    def run_relax_and_update(mode=None, temperature=None, take_snapshot=False):
+        if mode is not None:
+            # show busy status (guard in case status_txt isn't created yet)
+            try:
+                status_txt.SetInput("Running...")
+                renWin.Render()
+            except NameError:
+                pass
+            # prefer explicit float for temperature
+            temp = temperature if temperature is not None else float(asd.inputdata.iptemp)
+            asd.relax(mode=mode, temperature=temp)
+            asd.get_moments()
+
+        # update VTK arrays with deep copies to avoid dangling memory refs
+        currmom_local = asd.moments[:, :, 0].T.copy()
+        currcol_local = asd.moments[2, :, 0].T.copy()
+        vec_local = numpy_support.numpy_to_vtk(currmom_local, deep=True)
+        col_local = numpy_support.numpy_to_vtk(currcol_local, deep=True)
+        Datatest.GetPointData().SetVectors(vec_local)
+        Datatest.GetPointData().SetScalars(col_local)
+        renWin.Render()
+        if take_snapshot:
+            Screenshot(renWin)
+        # clear status (guard in case status_txt isn't created yet)
+        try:
+            status_txt.SetInput("")
+            renWin.Render()
+        except NameError:
+            pass
 
     # Create colortable for the coloring of the vectors
     lut = vtk.vtkLookupTable()
@@ -558,6 +647,8 @@ def main():
     enetxtprop.BoldOn()
     enetxt.SetDisplayPosition(20, 50)
 
+    # (status_txt already created earlier)
+
     # LIGHTS ON
     light = vtk.vtkLight()
     light.SetColor(1.0, 1.0, 1.0)
@@ -609,6 +700,36 @@ def main():
     ren.AddActor(temptxt)
     ren.AddActor(fieldtxt)
     ren.AddActor(enetxt)
+    # Status text (busy indicator)
+    ren.AddActor(status_txt)
+
+    # Update initial text fields from simulator so they show correct values
+    try:
+        # ensure simulator has calculated energy
+        asd.calculate_energy()
+    except Exception:
+        # if calculate_energy fails, continue silently
+        pass
+
+    try:
+        temp_val = float(asd.inputdata.iptemp)
+    except Exception:
+        temp_val = 0.0
+    try:
+        bz_val = float(asd.inputdata.iphfield[2])
+    except Exception:
+        # fallback if iphfield not available or not indexable
+        try:
+            bz_val = float(asd.inputdata.iphfield)
+        except Exception:
+            bz_val = 0.0
+
+    temp = "{:4.3f}".format(temp_val)
+    temptxt.SetInput("T = " + temp + " K")
+    bz = "{:4.1f}".format(bz_val)
+    fieldtxt.SetInput("Bz = " + bz + " T")
+    ene = "{:6.4f}".format(getattr(asd, "energy", 0.0))
+    enetxt.SetInput("E= " + ene + " mRy/atom")
 
     # Outline
     # ren.AddActor(outline)
@@ -635,52 +756,19 @@ def main():
         if key == "0":
             print("Resetting UppASD")
             asd.put_moments(initmom[:, :])
-            vecz = numpy_support.numpy_to_vtk(initmom[:, :].T)
-            colz = numpy_support.numpy_to_vtk(initcol)
+            vecz = numpy_support.numpy_to_vtk(initmom[:, :].T.copy(), deep=True)
+            colz = numpy_support.numpy_to_vtk(initcol.copy(), deep=True)
             Datatest.GetPointData().SetVectors(vecz)
             Datatest.GetPointData().SetScalars(colz)
         if key == "M" or key == "m":
-            print("Running UppASD")
-            asd.relax(mode="M", temperature=asd.inputdata.iptemp)
-            asd.get_moments()
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
-            if key == "M":
-                Screenshot(renWin)
+            print("Running UppASD (M)")
+            run_relax_and_update(mode="M", temperature=float(asd.inputdata.iptemp), take_snapshot=(key == "M"))
         if key == "H" or key == "h":
-            print("Running UppASD")
-            asd.relax(mode="H", temperature=asd.inputdata.iptemp + 1.0e-6)
-            asd.get_moments()
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
-            if key == "H":
-                Screenshot(renWin)
+            print("Running UppASD (H)")
+            run_relax_and_update(mode="H", temperature=float(asd.inputdata.iptemp) + 1.0e-6, take_snapshot=(key == "H"))
         if key == "S" or key == "s":
-            print("Running UppASD")
-            asd.relax(mode="S", temperature=asd.inputdata.iptemp)
-            asd.get_moments()
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
-            vecz = numpy_support.numpy_to_vtk(currmom)
-            colz = numpy_support.numpy_to_vtk(currcol)
-            Datatest.GetPointData().SetVectors(vecz)
-            Datatest.GetPointData().SetScalars(colz)
-            renWin.Render()
-            if key == "S":
-                Screenshot(renWin)
+            print("Running UppASD (S)")
+            run_relax_and_update(mode="S", temperature=float(asd.inputdata.iptemp), take_snapshot=(key == "S"))
         if key == "c" or key == "C":
             cycleColorScheme(lut, colorSeries, backwards=(key == "c"))
             lut.Build()
