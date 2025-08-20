@@ -48,9 +48,10 @@ contains
       return
    end subroutine cudasim_initiatematrices
 
-   subroutine cudasim_cudarunsimulation(whichsim, whichphase)
+   subroutine cudasim_cudarunsimulation(whichsim, whichphase, gpu_mc_bf)
       implicit none
-      integer, intent(inout) :: whichsim, whichphase
+      integer, intent(in) :: whichsim, whichphase
+      character(len=1), intent(in) :: gpu_mc_bf
       return
   end subroutine cudasim_cudarunsimulation
 

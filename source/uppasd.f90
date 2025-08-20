@@ -169,7 +169,6 @@ contains
    !> - Moved to separate function
    !---------------------------------------------------------------------------------
    subroutine run_initial_phase()
-      use InputData, only : ipmode, iphfield
       use QMinimizer
       use InputData
       implicit none
@@ -179,10 +178,10 @@ contains
 
       if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
          ! Monte Carlo initial phase
-         if (gpu_mode==0) then !FORTRAN
-            call mc_iphase()
-         else ! C++ or CUDA
+         if (gpu_mode == 1 .and. do_gpu_mc == 'Y') then
             call sd_mphaseCUDA(1, 0)
+         else ! Fortran
+            call mc_iphase()
          endif
       
       elseif (ipmode=='MS') then
@@ -196,10 +195,10 @@ contains
          call ErrorHandling_missing('Spin-lattice Monte Carlo')
       elseif (ipmode=='S') then
          ! Spin dynamics initial phase
-         if (gpu_mode==0) then !FORTRAN
-            call sd_iphase()
-         else ! C++ or CUDA
+         if (gpu_mode==1 .and. do_gpu_llg == 'Y') then !FORTRAN
             call sd_mphaseCUDA(0, 0)
+         else ! C++ or CUDA
+            call sd_iphase()
          endif
       elseif (ipmode=='P') then
          write (*,'(1x,a)') "Calls ld_iphase"
@@ -292,10 +291,10 @@ contains
       call timing(0,'SpinCorr      ','OF')
 
       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
-         if (gpu_mode==0) then
-            call mc_mphase() ! Monte Carlo measurement phase
-         else ! C++ or CUDA
+         if (gpu_mode==1 .and. do_gpu_mc == 'Y') then
             call sd_mphaseCUDA(1, 1)
+         else ! Fortran
+            call mc_mphase() ! Monte Carlo measurement phase
          endif
 
       elseif (mode=='MS') then
@@ -307,10 +306,10 @@ contains
 
       elseif (mode=='S') then
          call print_siminfo()
-         if (gpu_mode==0) then !FORTRAN
-            call sd_mphase() ! Spin Dynamics measurement phase
-         else ! C++ or CUDA
+         if (gpu_mode==1 .and. do_gpu_llg == 'Y') then
             call sd_mphaseCUDA(0, 1)
+         else ! Fortran
+            call sd_mphase() ! Spin Dynamics measurement phase
          endif
 
       elseif (mode=='E') then

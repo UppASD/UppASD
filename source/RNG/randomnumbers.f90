@@ -47,7 +47,7 @@ module RandomNumbers
    private
 
    public :: rng_uniform,rng_gaussian, rng_norm, rannum, allocate_randomwork
-   public :: rng_defaults, setup_rng_hb, rng_init, fill_rngarray,rng_uniformP
+   public :: rng_defaults, setup_rng_hb, rng_init, fill_rngarray, rng_uniformP
    public :: ranv, use_vsl,rng_gaussianP
    public :: lattranv, lattrannum
 

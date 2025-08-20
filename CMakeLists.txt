@@ -196,9 +196,13 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 IF(USE_OPENMP)
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
+   message(STATUS "Which are the OpenMP flags?  ${OpenMP_Fortran_FLAGS}")
+
 
    if(OpenMP_Fortran_FOUND)
-      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+        target_link_libraries(${UppASD_LIB} PRIVATE OpenMP::OpenMP_Fortran)
+
    endif()
 
 ENDIF(USE_OPENMP)
@@ -387,6 +391,7 @@ endif()
 if(USE_VSL AND MKL_FOUND)
    add_compile_definitions(VSL)
    #add_compile_definitions(USE_VSL)
+   include_directories($ENV{MKLROOT}/include)
 endif()
 ##############################################################################################
 
@@ -560,7 +565,7 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # Add the needed libraries and special compiler flags
 ##############################################################################################
-TARGET_LINK_LIBRARIES(${UppASD_LIB}
+TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    -lgfortran
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
@@ -571,7 +576,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB}
    ${OpenMP_Fortran_LIBRARIES}
    )
 
-TARGET_LINK_LIBRARIES(${UppASD_EXE}
+   TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
    -lgfortran
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}
