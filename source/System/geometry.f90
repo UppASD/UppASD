@@ -68,7 +68,7 @@ contains
       write (*,'(a)') ' done'
 
       write (*,'(2x,a)',advance='no') 'Set up chemical information of alloy'
-      if(do_ralloy==1) then
+      if(do_ralloy==1.or.do_ralloy==2) then
          call setup_chemicaldata(Natom,NA,N1,N2,N3,atype,tseed,do_ralloy,Natom_full,&
             Nchmax,Nch,achtype,acellnumb,acellnumbrev,chconc,atype_ch,asite_ch,     &
             achem_ch)
@@ -225,19 +225,27 @@ contains
       integer, dimension(:,:), allocatable :: atoms
       integer, dimension(:,:), allocatable :: qch
       integer, dimension(:), allocatable :: ns, ne
-      integer, dimension(:), allocatable :: atoms2, atoms2T
+      !integer, dimension(:), allocatable :: atoms2, atoms2T
       real(dblprec), dimension(:), allocatable :: rn
 
-      if (do_ralloy==1) then
+      if (do_ralloy==1.or.do_ralloy==2) then
+      !if (do_ralloy==1) then
 
          ! Same seed as for Monte-Carlo
          Ncell = N1*N2*N3
+
+         ! For rnd planes version
+         if  (do_ralloy==2) then
+                 Ncell = N3
+         endif
+
          allocate(atoms(Ncell,Na),stat=i_stat)
          call memocc(i_stat,product(shape(atoms))*kind(atoms),'atoms','setup_chemicaldata')
-         allocate(atoms2(Ncell),stat=i_stat)
-         call memocc(i_stat,product(shape(atoms2))*kind(atoms2),'atoms2','setup_chemicaldata')
-         allocate(atoms2T(Ncell),stat=i_stat)
-         call memocc(i_stat,product(shape(atoms2T))*kind(atoms2T),'atoms2T','setup_chemicaldata')
+         ! Not used
+         !allocate(atoms2(Ncell),stat=i_stat)
+         !call memocc(i_stat,product(shape(atoms2))*kind(atoms2),'atoms2','setup_chemicaldata')
+         !allocate(atoms2T(Ncell),stat=i_stat)
+         !call memocc(i_stat,product(shape(atoms2T))*kind(atoms2T),'atoms2T','setup_chemicaldata')
          allocate(qch(Nchmax,Na),stat=i_stat)
          call memocc(i_stat,product(shape(qch))*kind(qch),'qch','setup_chemicaldata')
          allocate(rn(Ncell),stat=i_stat)
@@ -273,8 +281,20 @@ contains
             end do
             do ich=1,Nch(ia)
                do i=ns(ich),ne(ich)
-                  A1=(atoms(i,ia)-1)*Na+ia
-                  achtype(A1)=ich
+               ! For random planes, garantee that chemical species in
+               ! z plane are fixed
+                  if  (do_ralloy==2) then
+                     do I2=0, N2-1
+                        do I1=0, N1-1
+                           A1=ia+I1*NA+I2*N1*NA+(atoms(i,ia)-1)*N2*N1*NA
+                           achtype(A1)=ich
+                        end do
+                     end do
+               ! Bulk alloy
+                  else
+                     A1=(atoms(i,ia)-1)*Na+ia
+                     achtype(A1)=ich
+                  end if
                end do
             end do
          end do
@@ -306,12 +326,12 @@ contains
          i_all=-product(shape(atoms))*kind(atoms)
          deallocate(atoms,stat=i_stat)
          call memocc(i_stat,i_all,'atoms','setup_chemicaldata')
-         i_all=-product(shape(atoms2))*kind(atoms2)
-         deallocate(atoms2,stat=i_stat)
-         call memocc(i_stat,i_all,'atoms2','setup_chemicaldata')
-         i_all=-product(shape(atoms2T))*kind(atoms2T)
-         deallocate(atoms2T,stat=i_stat)
-         call memocc(i_stat,i_all,'atoms2T','setup_chemicaldata')
+         !i_all=-product(shape(atoms2))*kind(atoms2)
+         !deallocate(atoms2,stat=i_stat)
+         !call memocc(i_stat,i_all,'atoms2','setup_chemicaldata')
+         !i_all=-product(shape(atoms2T))*kind(atoms2T)
+         !deallocate(atoms2T,stat=i_stat)
+         !call memocc(i_stat,i_all,'atoms2T','setup_chemicaldata')
          i_all=-product(shape(qch))*kind(qch)
          deallocate(qch,stat=i_stat)
          call memocc(i_stat,i_all,'qch','setup_chemicaldata')

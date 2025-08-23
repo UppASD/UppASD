@@ -100,7 +100,7 @@ contains
          write(*,'(1x,a)') 'done'
       endif
 
-     if (do_ralloy==1) then
+     if (do_ralloy==1.or.do_ralloy==2) then
       write(*,'(1x,a)',advance='no') 'Calculate the ferromagnetic stiffness of random alloy'
       ! Calculate the excnage stiffness
       call ferro_random_stiffness(NT,NA,N1,N2,N3,1,mconf,Natom,nHam, Nchmax,eta_max,&
@@ -201,7 +201,7 @@ contains
                call memocc(i_stat,product(shape(DM0_mat_lsq))*kind(DM0_mat_lsq),'DM0_mat_lsq','allocate_stiffness')
                DM0_mat=0.0_dblprec
             endif
-!            if (do_ralloy==1) then
+!            if (do_ralloy==1.or.do_ralloy==2) then
               allocate(J0_matrix_alloy(NA,NA,natom),stat=i_stat)
               call memocc(i_stat,product(shape(J0_matrix_alloy))*kind(J0_matrix_alloy),'J0_matrix_alloy','allocate_stiffness')
               J0_matrix_alloy=0.0_dblprec
@@ -243,7 +243,7 @@ contains
                deallocate(DM0_mat_lsq,stat=i_stat)
                call memocc(i_stat,i_all,'DM0_mat_lsq','allocate_stiffness')
             endif
-!            if(do_ralloy==1) then
+!            if(do_ralloy==1.or.do_ralloy==2) then
                i_all=-product(shape(J0_matrix_alloy))*kind(J0_matrix_alloy)
                deallocate(J0_matrix_alloy,stat=i_stat)
                call memocc(i_stat,i_all,'J0_matrix_alloy','allocate_stiffness')
@@ -344,7 +344,7 @@ contains
 
       call print_J0_vector(NA, J0_matrix)
 
-      if(do_ralloy==1) then
+      if(do_ralloy==1.or.do_ralloy==2) then
         call print_random_stiffness(natom,na,Axc_fit_alloy,Dxc_fit_alloy,Tc_alloy,  &
          J0_matrix_alloy)
       endif

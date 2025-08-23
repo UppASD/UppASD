@@ -820,7 +820,7 @@ contains
             do I1=0, N1_clus-1
                do I0=1, NA_clus
                   i=I0+I1*NA_clus+I2*N1_clus*NA_clus+I3*N2_clus*N1_clus*NA_clus
-                  if (do_ralloy==1) i = acellnumb_clus(i)
+                  if (do_ralloy==1.or.do_ralloy==2) i = acellnumb_clus(i)
                   if (i==0) cycle
                   write (ofileno,*) "------------------------------------------------------"
                   if (do_ralloy==0) then
@@ -934,7 +934,7 @@ contains
             do I1=0, N1_clus-1
                do I0=1, NA_clus
                   i=I0+I1*NA_clus+I2*N1_clus*NA_clus+I3*N2_clus*N1_clus*NA_clus
-                  if (do_ralloy==1) i = acellnumb_clus(i)
+                  if (do_ralloy==1.or.do_ralloy==2) i = acellnumb_clus(i)
                   if (i==0) cycle
                   write (ofileno,*) "------------------------------------------------------"
                   if (do_ralloy==0) then

@@ -253,7 +253,7 @@ contains
             total_mom=total_mom+ammom_inp(i,1,mconf)
          enddo
          ! In case of random alloy calculate the weighted average
-      else if (do_ralloy==1) then
+      else if (do_ralloy==1.or.do_ralloy==2) then
          do i=1,NA
             do ich=1,Nch(i)
                total_mom=total_mom+ammom_inp(i,ich,mconf)*chconc(i,ich)
@@ -481,7 +481,7 @@ contains
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Calculate the stiffness for the random alloy
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      else if (do_ralloy==1) then
+      else if (do_ralloy==1.or.do_ralloy==2) then
          ! Loop over the convergency factor to make sure that the sum is well defined
 
          do eta=1, eta_max
