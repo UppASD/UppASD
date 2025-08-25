@@ -1,6 +1,6 @@
 name: Build and test binaries
 
-#on: [release]
+#on:  [release]
 on: [release, push, pull_request]
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           # fftw3 
-          brew install fftw meson
+          brew install fftw ninja meson
           fftw-wisdom -V
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
@@ -54,25 +54,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Fetch tags for versioning
-        run: git fetch --prune --unshallow --tags
+        run: git fetch --prune --unshallow --tags --force
 
       # Used to host cibuildwheel
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Build binaries ${{ matrix.icon}} on macOS
-        if: runner.os == 'macOS'
-        run: |
-             FC=gfortran-14 cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
-             cmake --build build --parallel 
-             mkdir ./dist
-             ls -l ./bin
-             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
-             ls -l ./dist 
-
-      - name: Build binaries ${{ matrix.icon}} on Windows and Linux
-        if: runner.os != 'macOS'
+      - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
         run: |
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --parallel 
@@ -98,10 +87,6 @@ jobs:
         run: |
              cd build
              cpack -G ZIP
-             for file in *.zip; do
-               echo "File: $file"
-               cp $file ${file/.zip/}.${{matrix.arch}}.zip
-             done 
              ls -l
              cd ..
 
@@ -140,23 +125,11 @@ jobs:
       #        ls -l
       #        cd ..
 
-      #- name: Build binaries
-      #  run: |
-      #       FC=gfortran-13 CC=gcc-13 cmake -S . -B build 
-      #       cmake --build build --parallel
-      #       mkdir ./dist
-      #       echo "uname -a:"
-      #       uname -a
-      #       echo "runner.name:"
-      #       echo ${{runner.name}}
-      #       cp ./bin/sd.* ./dist/uppasd.${{matrix.os}}.${{matrix.arch}}
-      #       echo "Binary:" uppasd.${{matrix.os}}.${{matrix.arch}}
-
-      - name: Upload self-extracting package
-        uses: actions/upload-artifact@v4
-        with:
-          name: UppASD.${{runner.os}}.${{matrix.arch}}
-          path: ./build/uppasd*.sh
+      # - name: Upload self-extracting package
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/UppASD*.sh
 
       - name: Upload .deb package
         uses: actions/upload-artifact@v4
