@@ -1201,8 +1201,8 @@ if(APPLE)
 endif()
 
 if(WIN32)
-    # Include system libraries
-    include(InstallRequiredSystemLibraries)
+    # Static build - no system libraries needed
+    # include(InstallRequiredSystemLibraries)  # Disabled for static build
     
     # Choose installer type based on available tools or preference
     # Set INSTALLER_TYPE to "NSIS" or "WIX" to force a specific installer
@@ -1239,6 +1239,13 @@ if(WIN32)
         set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
         set(CPACK_NSIS_CONTACT "${CPACK_PACKAGE_CONTACT}")
         
+        # Optimization: Fast compression for static executable
+        set(CPACK_NSIS_COMPRESSOR "lzma")
+        set(CPACK_NSIS_COMPRESSOR_FLAGS "/SOLID")
+        
+        # Only package essential files for static build
+        set(CPACK_NSIS_IGNORE_LICENSE_PAGE OFF)
+        
         # Enable PATH modification and other advanced features
         set(CPACK_NSIS_MODIFY_PATH ON)
         set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
@@ -1269,16 +1276,7 @@ if(WIN32)
             Delete '$SMPROGRAMS\\\\$START_MENU\\\\UppASD Documentation.lnk'
         ")
         
-        # Configure bundled libraries for Windows
-        if(BUNDLE_LIBRARIES)
-            message(STATUS "Configuring NSIS installer for bundled libraries")
-            # Install bundled libraries
-            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                    DESTINATION bin 
-                    USE_SOURCE_PERMISSIONS
-                    OPTIONAL
-                    FILES_MATCHING PATTERN "*.dll")
-        endif()
+        # Static executable - no additional libraries needed
         
     elseif(INSTALLER_TYPE STREQUAL "WIX")
         #############################################################################
