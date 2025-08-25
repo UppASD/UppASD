@@ -1246,34 +1246,19 @@ if(WIN32)
         # Only package essential files for static build
         set(CPACK_NSIS_IGNORE_LICENSE_PAGE OFF)
         
-        # Enable PATH modification and other advanced features
+        # Simple PATH modification without custom scripts
         set(CPACK_NSIS_MODIFY_PATH ON)
         set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
         
-        # Custom NSIS script for PATH management
-        set(CPACK_NSIS_EXTRA_PREINSTALL_COMMANDS "
-            !include '${CMAKE_SOURCE_DIR}/cpack/PathManagement.nsh'
-        ")
-        set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
-            Push '$INSTDIR\\\\bin'
-            Call AddToPath
-        ")
-        set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "
-            Push '$INSTDIR\\\\bin'
-            Call un.RemoveFromPath
-        ")
-        
-        # Desktop and Start Menu shortcuts
+        # Simple desktop shortcut creation without complex PATH management
         set(CPACK_NSIS_CREATE_ICONS_EXTRA "
-            CreateShortCut '$DESKTOP\\\\UppASD.lnk' '$INSTDIR\\\\bin\\\\uppasd.exe'
-            CreateDirectory '$SMPROGRAMS\\\\$STARTMENU_FOLDER'
-            CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\UppASD.lnk' '$INSTDIR\\\\bin\\\\uppasd.exe'
-            CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\UppASD Documentation.lnk' '$INSTDIR\\\\README.md'
+            CreateShortCut '$$DESKTOP\\\\UppASD.lnk' '$$INSTDIR\\\\bin\\\\uppasd.exe'
+            CreateDirectory '$$SMPROGRAMS\\\\$$STARTMENU_FOLDER'
+            CreateShortCut '$$SMPROGRAMS\\\\$$STARTMENU_FOLDER\\\\UppASD.lnk' '$$INSTDIR\\\\bin\\\\uppasd.exe'
         ")
         set(CPACK_NSIS_DELETE_ICONS_EXTRA "
-            Delete '$DESKTOP\\\\UppASD.lnk'
-            Delete '$SMPROGRAMS\\\\$START_MENU\\\\UppASD.lnk'
-            Delete '$SMPROGRAMS\\\\$START_MENU\\\\UppASD Documentation.lnk'
+            Delete '$$DESKTOP\\\\UppASD.lnk'
+            Delete '$$SMPROGRAMS\\\\$$START_MENU\\\\UppASD.lnk'
         ")
         
         # Static executable - no additional libraries needed
