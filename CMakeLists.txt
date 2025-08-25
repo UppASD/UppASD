@@ -191,6 +191,53 @@ endif (USE_FFTW)
 include(CMakeDependentOption)
 OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
+OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
+
+##############################################################################################
+# Configure RPATH for portable distribution
+##############################################################################################
+if(BUNDLE_LIBRARIES)
+   message(STATUS "Enabling library bundling with RPATH")
+   
+   # Set RPATH configuration for macOS
+   if(APPLE)
+      # Use @rpath for library paths
+      set(CMAKE_MACOSX_RPATH TRUE)
+      
+      # Set RPATH for build tree
+      set(CMAKE_BUILD_RPATH "@executable_path/../lib")
+      
+      # Set RPATH for install tree
+      set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
+      
+      # Don't skip the full RPATH for the build tree
+      set(CMAKE_SKIP_BUILD_RPATH FALSE)
+      
+      # When building, don't use the install RPATH already
+      set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+      
+      # Add the automatically determined parts of the RPATH
+      # which point to directories outside the build tree to the install RPATH
+      set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+      
+      # Define bundled library directory
+      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
+      
+      message(STATUS "RPATH configuration for bundling:")
+      message(STATUS "  CMAKE_BUILD_RPATH: ${CMAKE_BUILD_RPATH}")
+      message(STATUS "  CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
+      message(STATUS "  BUNDLE_LIB_DIR: ${BUNDLE_LIB_DIR}")
+   elseif(UNIX AND NOT APPLE)
+      # Linux RPATH configuration
+      set(CMAKE_BUILD_RPATH "$ORIGIN/../lib")
+      set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+      set(CMAKE_SKIP_BUILD_RPATH FALSE)
+      set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+      set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
+   endif()
+endif()
+##############################################################################################
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -619,6 +666,26 @@ if(BUILD_PYTHON)
             ${UppASD_LIB},  ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIBRARIES}")
       message(STATUS " CMAKE_MODULE_LINKER_FLAGS : ${CMAKE_MODULE_LINKER_FLAGS}")
       target_include_directories(_${CMAKE_PROJECT_NAME} PRIVATE "${F2PY_INCLUDE_DIR}" )
+
+      ##############################################################################################
+      # Configure RPATH for Python extension when bundling
+      ##############################################################################################
+      if(BUNDLE_LIBRARIES AND APPLE)
+         # Set RPATH for Python extension
+         set_target_properties(_${CMAKE_PROJECT_NAME} PROPERTIES
+            BUILD_RPATH "@loader_path"
+            INSTALL_RPATH "@loader_path"
+         )
+         
+         # Add post-build commands to bundle libraries for Python extension
+         add_custom_command(
+            TARGET _${CMAKE_PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E echo "Fixing Python extension rpath for bundled libraries"
+            COMMAND ${CMAKE_SOURCE_DIR}/bundle_python_ext.sh "${CMAKE_BINARY_DIR}" "${BUNDLE_LIB_DIR}"
+            COMMENT "Configuring Python extension for bundled libraries"
+         )
+      endif()
+      ##############################################################################################
 ##############################################################################################
 
 ##############################################################################################
@@ -753,7 +820,13 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 #    # On macOS, avoid static linking
 #    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
-    set(UppASD_links "-static-libgfortran -static-libgcc")
+    if(BUNDLE_LIBRARIES)
+        # When bundling, don't statically link runtime libraries as we want to bundle them
+        message(STATUS "Library bundling enabled - using dynamic linking for runtime libraries")
+    else()
+        # Default behavior - static linking of runtime libraries
+        set(UppASD_links "-static-libgfortran -static-libgcc")
+    endif()
 endif()
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
@@ -782,6 +855,121 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})
+
+##############################################################################################
+# Bundle runtime libraries for portable distribution
+##############################################################################################
+if(BUNDLE_LIBRARIES)
+   message(STATUS "Setting up library bundling for portable distribution")
+   
+   # Create the lib directory in the build tree
+   file(MAKE_DIRECTORY "${BUNDLE_LIB_DIR}")
+   
+   if(APPLE)
+      # Function to find and bundle a library
+      function(bundle_library lib_pattern lib_name)
+         # Extract compiler version for better search prioritization
+         if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+            string(REGEX MATCH "([0-9]+)" COMPILER_MAJOR_VERSION "${CMAKE_Fortran_COMPILER_VERSION}")
+         endif()
+         
+         # Use CMake's find_library or find_file instead of execute_process
+         find_file(FOUND_LIB_${lib_name}
+            NAMES ${lib_pattern}
+            HINTS 
+               # Prioritize the compiler version being used
+               /opt/homebrew/Cellar/gcc@${COMPILER_MAJOR_VERSION}/${CMAKE_Fortran_COMPILER_VERSION}/lib/gcc/${COMPILER_MAJOR_VERSION}
+               /opt/homebrew/lib/gcc/${COMPILER_MAJOR_VERSION}
+               # Then try other versions
+               /opt/homebrew/lib 
+               /opt/homebrew/lib/gcc/15
+               /opt/homebrew/lib/gcc/14
+               /opt/homebrew/lib/gcc/13
+               /opt/homebrew/lib/gcc/12
+               /opt/homebrew/lib/gcc/11
+               /opt/homebrew/Cellar/gcc/15.1.0/lib/gcc/15
+               /opt/homebrew/Cellar/gcc@14/14.2.0/lib/gcc/14
+               /opt/homebrew/Cellar/gcc@13/13.4.0/lib/gcc/13
+               /opt/homebrew/Cellar/gcc@12/12.4.0/lib/gcc/12
+               /opt/homebrew/Cellar/gcc@11/11.5.0/lib/gcc/11
+               /usr/local/lib 
+               /usr/local/lib/gcc/14
+               /usr/local/lib/gcc/13
+               /usr/local/lib/gcc/12
+               /usr/local/lib/gcc/11
+            PATH_SUFFIXES . lib
+            NO_DEFAULT_PATH
+         )
+         
+         # If not found in standard locations, try compiler-specific paths
+         if(NOT FOUND_LIB_${lib_name})
+            get_filename_component(COMPILER_DIR ${CMAKE_Fortran_COMPILER} DIRECTORY)
+            get_filename_component(COMPILER_ROOT ${COMPILER_DIR} DIRECTORY)
+            find_file(FOUND_LIB_${lib_name}
+               NAMES ${lib_pattern}
+               HINTS 
+                  ${COMPILER_ROOT}/lib
+                  ${COMPILER_ROOT}/lib/gcc
+                  ${COMPILER_DIR}/../lib
+               PATH_SUFFIXES . lib
+               NO_DEFAULT_PATH
+            )
+         endif()
+         
+         if(FOUND_LIB_${lib_name})
+            message(STATUS "Found ${lib_name}: ${FOUND_LIB_${lib_name}}")
+            
+            # Add custom command to copy library after build
+            add_custom_command(
+               TARGET ${UppASD_EXE} POST_BUILD
+               COMMAND ${CMAKE_COMMAND} -E copy_if_different
+               "${FOUND_LIB_${lib_name}}"
+               "${BUNDLE_LIB_DIR}/"
+               COMMENT "Bundling ${lib_name}"
+            )
+            
+            # Get library filename for rpath fixing
+            get_filename_component(LIB_FILENAME "${FOUND_LIB_${lib_name}}" NAME)
+            
+            # Add custom command to fix rpath in binary
+            add_custom_command(
+               TARGET ${UppASD_EXE} POST_BUILD
+               COMMAND ${CMAKE_SOURCE_DIR}/fix_rpath.sh "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${UppASD_EXE}" "${lib_name}" "${LIB_FILENAME}"
+               COMMENT "Fixing ${lib_name} rpath in binary"
+            )
+         else()
+            message(WARNING "Could not find ${lib_name} for bundling. Searched for: ${lib_pattern}")
+            message(STATUS "  Compiler: ${CMAKE_Fortran_COMPILER}")
+            message(STATUS "  Search paths included: /opt/homebrew/lib, /usr/local/lib, compiler-relative paths")
+         endif()
+      endfunction()
+      
+      # Bundle commonly needed libraries for gfortran builds
+      if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+         bundle_library("libgfortran.5.dylib;libgfortran.4.dylib;libgfortran.dylib" "libgfortran")
+         bundle_library("libquadmath.0.dylib;libquadmath.dylib" "libquadmath")
+         bundle_library("libgcc_s.1.1.dylib;libgcc_s.1.dylib;libgcc_s.dylib" "libgcc_s")
+         bundle_library("libgomp.1.dylib;libgomp.dylib" "libgomp")
+      endif()
+      
+      # Add verification command
+      add_custom_command(
+         TARGET ${UppASD_EXE} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E echo "=== Library bundling verification ==="
+         COMMENT "Verifying library bundling"
+      )
+      
+      # Create a post-build command to prepare libraries for CPack
+      add_custom_command(
+         TARGET ${UppASD_EXE} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E echo "Preparing bundled libraries for packaging"
+         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/cpack_staging/lib"
+         COMMAND ${CMAKE_COMMAND} -E copy_directory "${BUNDLE_LIB_DIR}" "${CMAKE_BINARY_DIR}/cpack_staging/lib"
+         COMMENT "Staging libraries for CPack"
+      )
+   endif()
+endif()
+##############################################################################################
 
 
 ##############################################################################################
@@ -901,6 +1089,37 @@ if(APPLE)
     set(CPACK_DMG_APPLICATION_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns")
     set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/cpack/DS_Store")
     set(CPACK_DMG_VOLUME_NAME "UppASD")
+    
+    # Configure for bundled libraries
+    if(BUNDLE_LIBRARIES)
+        message(STATUS "Configuring CPack for bundled libraries")
+        
+        # Install bundled libraries from staging area
+        install(DIRECTORY "${CMAKE_BINARY_DIR}/cpack_staging/" 
+                DESTINATION "."
+                USE_SOURCE_PERMISSIONS)
+        
+        # Alternative: Direct install from BUNDLE_LIB_DIR if staging fails
+        install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
+                DESTINATION lib 
+                FILES_MATCHING PATTERN "*.dylib"
+                PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE 
+                           GROUP_READ GROUP_EXECUTE 
+                           WORLD_READ WORLD_EXECUTE)
+        
+        # Add a note about the bundled distribution
+        set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
+            "UppASD - Portable distribution with bundled runtime libraries")
+        
+        # Use portable-specific README if available
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
+            set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
+        endif()
+        
+        # DMG-specific configuration for bundled libraries
+        set(CPACK_DMG_VOLUME_NAME "UppASD-Portable")
+    endif()
+    
     # install(TARGETS uppasd DESTINATION ".") # Place uppasd in the DMG root
 
     # Include NSIS for creating Windows installers

@@ -64,12 +64,28 @@ jobs:
       - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
         if: runner.os == 'macOS'
         run: |
-             FC=gfortran-14 cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             FC=gfortran-14 cmake -S . -G Ninja -B build \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DBUNDLE_LIBRARIES=ON \
+               -DUSE_STATIC_LIBGFORTRAN=OFF
              cmake --build build --parallel 
              mkdir ./dist
              # echo "./bin directory:"
              # ls -l ./bin
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             
+             # Copy bundled libraries if they exist
+             if [ -d "./lib" ]; then
+               mkdir -p ./dist/lib
+               cp ./lib/* ./dist/lib/ 2>/dev/null || true
+             fi
+             
+             # Verify the binary works and show dependencies
+             echo "=== Binary verification ==="
+             otool -L ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             echo "=== RPATH verification ==="
+             otool -l ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe | grep -A2 LC_RPATH || echo "No RPATH found"
+             
              #  echo "./dist directory:"
              #  ls -l ./dist 
              #  echo "./build directory:"
@@ -105,8 +121,17 @@ jobs:
       - name: Build zip file archive ${{ matrix.icon}}
         run: |
              cd build
+             
+             # For macOS with bundled libraries, ensure proper installation structure
+             if [ "${{ runner.os }}" = "macOS" ]; then
+               # Install to a staging directory with proper structure
+               cmake --install . --prefix ../zip_staging
+               echo "=== ZIP staging structure ==="
+               find ../zip_staging -type f -exec ls -la {} \;
+             fi
+             
              cpack -G ZIP
-             ls -l
+             ls -l *.zip
              cd ..
 
       - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
@@ -121,9 +146,28 @@ jobs:
       - name: Build DragNDrop package on Mac OS ${{ matrix.icon}}
         if: runner.os == 'macOS'
         run: |
+             # Prepare installation with bundled libraries
              cd build
+             cmake --install . --prefix ../package_staging
+             
+             # Verify the package staging has the correct structure
+             echo "=== Package staging structure ==="
+             find ../package_staging -type f -exec ls -la {} \;
+             
+             # Build the DMG with proper structure
              cpack -G DragNDrop
-             ls -l
+             ls -l *.dmg
+             
+             # Verify DMG contents
+             if [ -f *.dmg ]; then
+               DMG_FILE=$(ls *.dmg | head -n1)
+               echo "=== DMG Contents ==="
+               hdiutil attach "$DMG_FILE" -readonly -mountpoint /tmp/dmg_mount || true
+               if [ -d "/tmp/dmg_mount" ]; then
+                 find /tmp/dmg_mount -type f -exec ls -la {} \; || true
+                 hdiutil detach /tmp/dmg_mount || true
+               fi
+             fi
              cd ..
 
       # - name: Build NSIS installation package on Windows ${{ matrix.icon}}
@@ -181,13 +225,20 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: uppasd.${{runner.os}}.${{matrix.arch}}
+          name: uppasd.${{runner.os}}.${{matrix.arch}}${{ runner.os == 'macOS' && '.portable' || '' }}
           path: ./dist/uppasd*
+
+      - name: Upload DMG package (macOS)
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.dmg
+          path: ./build/*.dmg
 
       - name: Upload zip archives
         uses: actions/upload-artifact@v4
         with:
-          name: uppasd.${{runner.os}}.${{matrix.arch}}.zip
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.zip${{ runner.os == 'macOS' && '.portable' || '' }}
           path: ./build/uppasd*.zip
 
       # - name: Upload NSIS log
