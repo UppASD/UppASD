@@ -49,6 +49,7 @@ jobs:
             mingw-w64-x86_64-fftw
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-nsis
             git 
 
       - uses: actions/checkout@v4
@@ -138,6 +139,20 @@ jobs:
         if: runner.os == 'macOS'
         run: |
              cd build
+             
+             # Remove quarantine attributes from app bundle before packaging
+             if [ -d "_CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app" ]; then
+               echo "=== Removing quarantine attributes from app bundle ==="
+               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -type f -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -type d -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+               
+               # Set bundle bit for app
+               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -name "UppASD.app" -exec SetFile -a B {} \; 2>/dev/null || true
+               
+               # Fix permissions
+               chmod -R 755 _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app
+             fi
+             
              cpack -G DragNDrop
              ls -l *.dmg
              
@@ -148,19 +163,29 @@ jobs:
                hdiutil attach "$DMG_FILE" -readonly -mountpoint /tmp/dmg_mount || true
                if [ -d "/tmp/dmg_mount" ]; then
                  find /tmp/dmg_mount -type f -exec ls -la {} \; || true
+                 # Also remove quarantine from mounted DMG contents
+                 echo "=== Removing quarantine from DMG contents ==="
+                 find /tmp/dmg_mount -type f -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+                 find /tmp/dmg_mount -type d -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
                  hdiutil detach /tmp/dmg_mount || true
                fi
              fi
              cd ..
 
-      # - name: Build NSIS installation package on Windows ${{ matrix.icon}}
-      #   if: runner.os == 'Windows'
-      #   run: |
-      #        cd build
-      #        cat CPackConfig.cmake
-      #        cpack -G NSIS64
-      #        ls -l
-      #        cd ..
+      - name: Build NSIS installation package on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+             cd build
+             echo "=== Checking for NSIS ==="
+             which makensis || echo "NSIS not found in PATH"
+             ls -la /mingw64/bin/*nsis* || echo "No NSIS binaries found"
+             echo "=== CMake configuration ==="
+             cat CPackConfig.cmake | head -20
+             echo "=== Building NSIS installer ==="
+             cpack -G NSIS64 --verbose
+             ls -l *.exe || echo "No .exe files found"
+             cd ..
 
       # - name: Build WIX installation package on Windows ${{ matrix.icon}}
       #   if: runner.os == 'Windows'
@@ -191,12 +216,12 @@ jobs:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
           path: ./build/uppasd*.rpm
 
-      # - name: Upload Windows NSIS installer
-      #   uses: actions/upload-artifact@v4
-      #   if: runner.os == 'Windows'
-      #   with:
-      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
-      #     path: ./build/uppasd*.exe
+      - name: Upload Windows NSIS installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
+          path: ./build/UppASD*.exe
 
       # - name: Upload Windows WIX installer
       #   uses: actions/upload-artifact@v4

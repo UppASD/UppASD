@@ -249,6 +249,12 @@ if(BUNDLE_LIBRARIES)
       set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
       set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
       set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
+   elseif(WIN32)
+      # Windows library bundling configuration
+      # On Windows, DLLs should be in the same directory as the executable
+      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+      message(STATUS "Windows library bundling configuration:")
+      message(STATUS "  BUNDLE_LIB_DIR: ${BUNDLE_LIB_DIR}")
    endif()
 endif()
 ##############################################################################################
@@ -827,15 +833,12 @@ endif ()
 
 # Detect the platform and configure linker flags and libraries
 unset(UppASD_links)
-#if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    # On Linux, use static linking and include libquadmath
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # On Linux and Windows, use static linking for portable executables
     set(UppASD_links "-static")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-#    # On macOS, avoid static linking
-#    set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -dynamic")
     if(BUNDLE_LIBRARIES)
-        # When bundling, don't statically link runtime libraries as we want to bundle them
+        # When bundling on macOS, don't statically link runtime libraries as we want to bundle them
         message(STATUS "Library bundling enabled - using dynamic linking for runtime libraries")
     else()
         # Default behavior - static linking of runtime libraries
@@ -980,13 +983,20 @@ if(BUNDLE_LIBRARIES)
       
       # Function to find and bundle a Windows library (DLL)
       function(bundle_windows_library lib_pattern lib_name)
+         # Get compiler directory
+         get_filename_component(COMPILER_DIR ${CMAKE_Fortran_COMPILER} DIRECTORY)
+         get_filename_component(COMPILER_ROOT_DIR ${COMPILER_DIR} DIRECTORY)
+         
          # Find the library in common Windows locations
          find_file(FOUND_LIB_${lib_name}
             NAMES ${lib_pattern}
             HINTS 
-               # MSYS2/MinGW paths
-               ${CMAKE_Fortran_COMPILER}/../bin
-               ${CMAKE_Fortran_COMPILER}/../../bin
+               # Compiler-relative paths (most reliable)
+               ${COMPILER_DIR}
+               ${COMPILER_ROOT_DIR}/bin
+               # MSYS2/MinGW paths relative to detected paths
+               ${COMPILER_ROOT_DIR}
+               # Standard MSYS2 paths
                /mingw64/bin
                /mingw32/bin
                /msys64/mingw64/bin
@@ -996,9 +1006,6 @@ if(BUNDLE_LIBRARIES)
                "C:/Program Files/mingw-w64/mingw32/bin"
                "C:/mingw64/bin"
                "C:/mingw32/bin"
-               # Compiler-relative paths
-               ${CMAKE_C_COMPILER}/../bin
-               ${CMAKE_CXX_COMPILER}/../bin
             PATH_SUFFIXES . bin
             NO_DEFAULT_PATH
          )
@@ -1236,6 +1243,22 @@ if(APPLE)
         # Install app icon
         install(FILES "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns"
                 DESTINATION "${APP_BUNDLE_DEST}/Resources")
+        
+        # Add post-install script to fix app bundle permissions and attributes
+        install(CODE "
+            # Fix executable permissions
+            execute_process(COMMAND chmod +x \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_DEST}/MacOS/uppasd\")
+            
+            # Set proper bundle bit
+            execute_process(COMMAND SetFile -a B \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\" 
+                           ERROR_QUIET)
+            
+            # Try to remove quarantine attributes (helps with \"damaged\" issues)
+            execute_process(COMMAND xattr -rd com.apple.quarantine \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
+                           ERROR_QUIET)
+            
+            message(STATUS \"Fixed app bundle permissions and attributes\")
+        ")
         
         # Add a note about the bundled distribution
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
