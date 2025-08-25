@@ -108,9 +108,8 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Build directory contents:"
-        Get-ChildItem build -Recurse -Name "*.exe", "*.msi", "*.zip" | ForEach-Object {
-          $file = Get-ChildItem "build\$_"
-          Write-Host "$($_.Name): $($file.Length) bytes"
+        Get-ChildItem build -Recurse -Include "*.exe", "*.msi", "*.zip" | ForEach-Object {
+          Write-Host "$($_.Name): $($_.Length) bytes"
         }
     
     - name: Find installer file
