@@ -23,8 +23,8 @@ jobs:
       - name: Provide fftw, ninja on macOS ${{ matrix.icon}}
         if: runner.os == 'macOS'
         run: |
-          # fftw3 
-          brew install fftw ninja meson
+          # fftw3  ninja
+          brew install fftw meson
           fftw-wisdom -V
           echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
@@ -62,13 +62,32 @@ jobs:
           python-version: '3.11'
 
       - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
+        if: runner.os == 'macOS'
+        run: |
+             FC=gfortran-14 cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake --build build --parallel 
+             mkdir ./dist
+             # echo "./bin directory:"
+             # ls -l ./bin
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             #  echo "./dist directory:"
+             #  ls -l ./dist 
+             #  echo "./build directory:"
+             #  ls -l ./build
+
+      - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
+        if: runner.os != 'macOS'
         run: |
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
              cmake --build build --parallel 
              mkdir ./dist
-             ls -l ./bin
+             #  echo "./bin directory:"
+             #  ls -l ./bin
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
-             ls -l ./dist 
+             #  echo "./dist directory:"
+             #  ls -l ./dist 
+             #  echo "./build directory:"
+             #  ls -l ./build
 
       - name: Install python packages for testing
         if: runner.os != 'Windows'
@@ -136,14 +155,14 @@ jobs:
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
-          path: ./build/UppASD*.deb
+          path: ./build/uppasd*.deb
 
       - name: Upload .rpm package
         uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
-          path: ./build/UppASD*.rpm
+          path: ./build/uppasd*.rpm
 
       # - name: Upload Windows NSIS installer
       #   uses: actions/upload-artifact@v4
