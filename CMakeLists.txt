@@ -250,11 +250,8 @@ if(BUNDLE_LIBRARIES)
       set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
       set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
    elseif(WIN32)
-      # Windows library bundling configuration
-      # On Windows, DLLs should be in the same directory as the executable
-      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-      message(STATUS "Windows library bundling configuration:")
-      message(STATUS "  BUNDLE_LIB_DIR: ${BUNDLE_LIB_DIR}")
+      # Windows: No library bundling - we use static linking instead
+      message(STATUS "Windows detected: Library bundling disabled (using static linking)")
    endif()
 endif()
 ##############################################################################################
@@ -977,101 +974,9 @@ if(BUNDLE_LIBRARIES)
       )
    elseif(WIN32)
       #############################################################################
-      # Windows Library Bundling
+      # Windows: Static Linking (No Library Bundling Needed)
       #############################################################################
-      message(STATUS "Setting up Windows library bundling")
-      
-      # Function to find and bundle a Windows library (DLL)
-      function(bundle_windows_library lib_pattern lib_name)
-         # Get compiler directory
-         get_filename_component(COMPILER_DIR ${CMAKE_Fortran_COMPILER} DIRECTORY)
-         get_filename_component(COMPILER_ROOT_DIR ${COMPILER_DIR} DIRECTORY)
-         
-         # Find the library in common Windows locations
-         find_file(FOUND_LIB_${lib_name}
-            NAMES ${lib_pattern}
-            HINTS 
-               # Compiler-relative paths (most reliable)
-               ${COMPILER_DIR}
-               ${COMPILER_ROOT_DIR}/bin
-               # MSYS2/MinGW paths relative to detected paths
-               ${COMPILER_ROOT_DIR}
-               # Standard MSYS2 paths
-               /mingw64/bin
-               /mingw32/bin
-               /msys64/mingw64/bin
-               /msys64/mingw32/bin
-               # Standard Windows paths
-               "C:/Program Files/mingw-w64/mingw64/bin"
-               "C:/Program Files/mingw-w64/mingw32/bin"
-               "C:/mingw64/bin"
-               "C:/mingw32/bin"
-            PATH_SUFFIXES . bin
-            NO_DEFAULT_PATH
-         )
-         
-         # Also try system PATH
-         if(NOT FOUND_LIB_${lib_name})
-            find_file(FOUND_LIB_${lib_name}
-               NAMES ${lib_pattern}
-               PATHS ENV PATH
-               NO_DEFAULT_PATH
-            )
-         endif()
-         
-         if(FOUND_LIB_${lib_name})
-            message(STATUS "Found ${lib_name}: ${FOUND_LIB_${lib_name}}")
-            
-            # Add custom command to copy library after build
-            add_custom_command(
-               TARGET ${UppASD_EXE} POST_BUILD
-               COMMAND ${CMAKE_COMMAND} -E copy_if_different
-               "${FOUND_LIB_${lib_name}}"
-               "${BUNDLE_LIB_DIR}/"
-               COMMENT "Bundling ${lib_name}"
-            )
-         else()
-            message(WARNING "Could not find ${lib_name} for bundling. Searched for: ${lib_pattern}")
-            message(STATUS "  Compiler: ${CMAKE_Fortran_COMPILER}")
-            message(STATUS "  Search paths included: MinGW, MSYS2, and compiler-relative paths")
-         endif()
-      endfunction()
-      
-      # Bundle commonly needed libraries for Windows builds
-      if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-         # MinGW/MSYS2 runtime libraries
-         bundle_windows_library("libgfortran-5.dll;libgfortran-4.dll;libgfortran.dll" "libgfortran")
-         bundle_windows_library("libquadmath-0.dll;libquadmath.dll" "libquadmath") 
-         bundle_windows_library("libgcc_s_seh-1.dll;libgcc_s_dw2-1.dll;libgcc_s.dll" "libgcc_s")
-         bundle_windows_library("libgomp-1.dll;libgomp.dll" "libgomp")
-         bundle_windows_library("libwinpthread-1.dll;libwinpthread.dll" "libwinpthread")
-         
-         # Additional common MinGW libraries
-         bundle_windows_library("libstdc++-6.dll;libstdc++.dll" "libstdc++")
-         bundle_windows_library("zlib1.dll" "zlib")
-      elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-         # Intel Fortran runtime libraries  
-         bundle_windows_library("libifcoremd.dll" "libifcoremd")
-         bundle_windows_library("libifportmd.dll" "libifportmd") 
-         bundle_windows_library("libmmd.dll" "libmmd")
-         bundle_windows_library("svml_dispmd.dll" "svml_dispmd")
-      endif()
-      
-      # Bundle OpenMP libraries if available
-      if(USE_OPENMP AND OpenMP_Fortran_FOUND)
-         if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-            # Already handled above with libgomp
-         elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-            bundle_windows_library("libiomp5md.dll" "libiomp5md")
-         endif()
-      endif()
-      
-      # Add verification command
-      add_custom_command(
-         TARGET ${UppASD_EXE} POST_BUILD
-         COMMAND ${CMAKE_COMMAND} -E echo "=== Windows Library bundling verification ==="
-         COMMENT "Verifying Windows library bundling"
-      )
+      message(STATUS "Windows detected: Using static linking - no library bundling required")
    endif()
 endif()
 ##############################################################################################

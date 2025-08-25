@@ -187,14 +187,19 @@ jobs:
              ls -l *.exe || echo "No .exe files found"
              cd ..
 
-      # - name: Build WIX installation package on Windows ${{ matrix.icon}}
-      #   if: runner.os == 'Windows'
-      #   run: |
-      #        cd build
-      #        cat CPackConfig.cmake
-      #        cpack -G WIX
-      #        ls -l
-      #        cd ..
+      - name: Build WIX installation package on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+             cd build
+             echo "=== Checking for WiX ==="
+             which candle || echo "WiX not found in PATH"
+             echo "=== CMake configuration ==="
+             cat CPackConfig.cmake | head -20
+             echo "=== Building WiX installer ==="
+             cpack -G WIX --verbose
+             ls -l *.msi || echo "No .msi files found"
+             cd ..
 
       # - name: Upload self-extracting package
       #   uses: actions/upload-artifact@v4
@@ -223,12 +228,12 @@ jobs:
           name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
           path: ./build/UppASD*.exe
 
-      # - name: Upload Windows WIX installer
-      #   uses: actions/upload-artifact@v4
-      #   if: runner.os == 'Windows'
-      #   with:
-      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
-      #     path: ./build/UppASD*.msi
+      - name: Upload Windows WIX installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+          path: ./build/UppASD*.msi
 
       # - name: Upload binaries
       #   uses: actions/upload-artifact@v4
