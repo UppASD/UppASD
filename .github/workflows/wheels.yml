@@ -72,9 +72,12 @@ jobs:
 
       - name: Build wheels on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
+        # uses: pypa/cibuildwheel@v2.23.1
         run: |
           which gfortran
           pipx run cibuildwheel --output-dir wheelhouse
+        # which gfortran
+        # . my_env/Scripts/activate
         # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:

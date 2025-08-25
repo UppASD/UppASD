@@ -59,15 +59,15 @@ class cmake_build_ext(build_ext):
             if not os.path.exists(self.build_temp):
                 os.makedirs(self.build_temp)
 
-            # Config
+            # Use an out-of-tree build: explicitly set source and build directories
+            # This prevents CMake from doing an in-tree configure in the source tree.
             subprocess.check_call(
-                ["cmake", ext.cmake_lists_dir] + cmake_args, cwd=self.build_temp
+                ["cmake", "-S", ext.cmake_lists_dir, "-B", self.build_temp] + cmake_args
             )
 
-            # Build
+            # Build using the build directory
             subprocess.check_call(
-                ["cmake", "--build", ".", "--parallel", "--config", cfg],
-                cwd=self.build_temp,
+                ["cmake", "--build", self.build_temp, "--parallel", "--config", cfg]
             )
 
 

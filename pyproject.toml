@@ -4,7 +4,8 @@ requires = [
    "setuptools-git-versioning",
     "wheel",
     "numpy>1.19",
-   "ninja"]
+   "ninja",
+   "cmake"]
 build-backend = "setuptools.build_meta"
 
 [project]
