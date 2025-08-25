@@ -830,9 +830,13 @@ endif ()
 
 # Detect the platform and configure linker flags and libraries
 unset(UppASD_links)
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    # On Linux and Windows, use static linking for portable executables
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # On Windows, use static linking for portable executables
     set(UppASD_links "-static")
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # On Linux, use selective static linking - only static link runtime libs if available
+    # Don't use full -static as it conflicts with dynamic system libraries
+    set(UppASD_links "-static-libgfortran -static-libgcc")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     if(BUNDLE_LIBRARIES)
         # When bundling on macOS, don't statically link runtime libraries as we want to bundle them
@@ -1151,18 +1155,34 @@ if(APPLE)
         
         # Add post-install script to fix app bundle permissions and attributes
         install(CODE "
+            message(STATUS \"Running app bundle post-install fixes...\")
+            message(STATUS \"Install prefix: \${CMAKE_INSTALL_PREFIX}\")
+            message(STATUS \"App bundle path: \${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\")
+            
             # Fix executable permissions
-            execute_process(COMMAND chmod +x \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_DEST}/MacOS/uppasd\")
+            execute_process(COMMAND chmod +x \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_DEST}/MacOS/uppasd\"
+                           RESULT_VARIABLE CHMOD_RESULT)
+            message(STATUS \"chmod result: \${CHMOD_RESULT}\")
             
             # Set proper bundle bit
             execute_process(COMMAND SetFile -a B \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\" 
+                           RESULT_VARIABLE SETFILE_RESULT
                            ERROR_QUIET)
+            message(STATUS \"SetFile result: \${SETFILE_RESULT}\")
             
-            # Try to remove quarantine attributes (helps with \"damaged\" issues)
+            # Try to remove quarantine attributes (helps with \\\"damaged\\\" issues)
             execute_process(COMMAND xattr -rd com.apple.quarantine \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
+                           RESULT_VARIABLE XATTR_RESULT
                            ERROR_QUIET)
+            message(STATUS \"xattr quarantine removal result: \${XATTR_RESULT}\")
             
-            message(STATUS \"Fixed app bundle permissions and attributes\")
+            # List current xattr on the app bundle
+            execute_process(COMMAND xattr -l \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
+                           OUTPUT_VARIABLE XATTR_LIST
+                           ERROR_QUIET)
+            message(STATUS \"Remaining xattr on app bundle: \${XATTR_LIST}\")
+            
+            message(STATUS \"App bundle post-install fixes completed\")
         ")
         
         # Add a note about the bundled distribution

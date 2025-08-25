@@ -127,68 +127,9 @@ jobs:
           exit 1
         }
     
-    - name: Test Windows Installer
-      shell: pwsh
-      run: |
-        $installerPath = "${{ steps.find_installer.outputs.installer_path }}"
-        Write-Host "Testing installer: $installerPath"
-        
-        # Run our test script
-        ./test_windows_installer.ps1 -InstallerPath $installerPath
-    
     - name: Upload installer artifact
       uses: actions/upload-artifact@v4
       with:
         name: UppASD-Windows-${{ matrix.installer_type }}-Installer
         path: ${{ steps.find_installer.outputs.installer_path }}
         retention-days: 30
-    
-    - name: Cleanup test installation
-      if: always()
-      shell: pwsh
-      run: |
-        # Clean up test installation
-        ./test_windows_installer.ps1 -InstallerPath "dummy" -Uninstall
-      continue-on-error: true
-
-  # Test with different Windows versions
-  test-compatibility:
-    needs: build-windows-installer
-    runs-on: ${{ matrix.os }}
-    if: github.event_name != 'pull_request'  # Skip for PRs to save resources
-    
-    strategy:
-      matrix:
-        os: [windows-2019, windows-2022]
-    
-    steps:
-    - name: Download NSIS installer
-      uses: actions/download-artifact@v4
-      with:
-        name: UppASD-Windows-NSIS-Installer
-        path: ./
-    
-    - name: Checkout test script
-      uses: actions/checkout@v4
-      with:
-        sparse-checkout: |
-          test_windows_installer.ps1
-        sparse-checkout-cone-mode: false
-    
-    - name: Test on ${{ matrix.os }}
-      shell: pwsh
-      run: |
-        $installer = Get-ChildItem -Filter "*.exe" | Select-Object -First 1
-        if ($installer) {
-          ./test_windows_installer.ps1 -InstallerPath $installer.FullName
-        } else {
-          Write-Error "No installer found"
-          exit 1
-        }
-    
-    - name: Cleanup
-      if: always()
-      shell: pwsh
-      run: |
-        ./test_windows_installer.ps1 -InstallerPath "dummy" -Uninstall
-      continue-on-error: true

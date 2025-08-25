@@ -140,35 +140,44 @@ jobs:
         run: |
              cd build
              
-             # Remove quarantine attributes from app bundle before packaging
-             if [ -d "_CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app" ]; then
-               echo "=== Removing quarantine attributes from app bundle ==="
-               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -type f -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
-               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -type d -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
-               
-               # Set bundle bit for app
-               find _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app -name "UppASD.app" -exec SetFile -a B {} \; 2>/dev/null || true
-               
-               # Fix permissions
-               chmod -R 755 _CPack_Packages/Darwin/DragNDrop/UppASD-*/UppASD.app
-             fi
-             
+             # Build the DMG
              cpack -G DragNDrop
              ls -l *.dmg
              
-             # Verify DMG contents
+             # Post-process DMG to remove quarantine attributes
              if [ -f *.dmg ]; then
                DMG_FILE=$(ls *.dmg | head -n1)
-               echo "=== DMG Contents ==="
+               echo "=== Processing DMG: $DMG_FILE ==="
+               
+               # Remove quarantine from the DMG file itself
+               xattr -d com.apple.quarantine "$DMG_FILE" 2>/dev/null || true
+               
+               # Mount DMG and remove quarantine from contents
+               echo "=== Mounting DMG to remove quarantine from contents ==="
                hdiutil attach "$DMG_FILE" -readonly -mountpoint /tmp/dmg_mount || true
                if [ -d "/tmp/dmg_mount" ]; then
+                 echo "=== DMG Contents ==="
                  find /tmp/dmg_mount -type f -exec ls -la {} \; || true
-                 # Also remove quarantine from mounted DMG contents
+                 
+                 # Remove quarantine from all files and directories in DMG
                  echo "=== Removing quarantine from DMG contents ==="
-                 find /tmp/dmg_mount -type f -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
-                 find /tmp/dmg_mount -type d -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+                 find /tmp/dmg_mount -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+                 
+                 # If there's an app bundle, specifically target it
+                 if [ -d "/tmp/dmg_mount/UppASD.app" ]; then
+                   echo "=== Processing UppASD.app bundle ==="
+                   xattr -rd com.apple.quarantine "/tmp/dmg_mount/UppASD.app" 2>/dev/null || true
+                   # Set bundle bit
+                   SetFile -a B "/tmp/dmg_mount/UppASD.app" 2>/dev/null || true
+                   # Fix permissions
+                   chmod -R 755 "/tmp/dmg_mount/UppASD.app" || true
+                   chmod +x "/tmp/dmg_mount/UppASD.app/Contents/MacOS"/* 2>/dev/null || true
+                 fi
+                 
                  hdiutil detach /tmp/dmg_mount || true
                fi
+               
+               echo "=== Quarantine removal completed ==="
              fi
              cd ..
 
