@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asd_gui"
-version = "1.5.0"
+version = "1.6.0"
 description = "The UppASD GUI"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
