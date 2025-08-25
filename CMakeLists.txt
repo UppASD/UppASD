@@ -972,6 +972,99 @@ if(BUNDLE_LIBRARIES)
          COMMAND ${CMAKE_COMMAND} -E echo "=== Library bundling verification ==="
          COMMENT "Verifying library bundling"
       )
+   elseif(WIN32)
+      #############################################################################
+      # Windows Library Bundling
+      #############################################################################
+      message(STATUS "Setting up Windows library bundling")
+      
+      # Function to find and bundle a Windows library (DLL)
+      function(bundle_windows_library lib_pattern lib_name)
+         # Find the library in common Windows locations
+         find_file(FOUND_LIB_${lib_name}
+            NAMES ${lib_pattern}
+            HINTS 
+               # MSYS2/MinGW paths
+               ${CMAKE_Fortran_COMPILER}/../bin
+               ${CMAKE_Fortran_COMPILER}/../../bin
+               /mingw64/bin
+               /mingw32/bin
+               /msys64/mingw64/bin
+               /msys64/mingw32/bin
+               # Standard Windows paths
+               "C:/Program Files/mingw-w64/mingw64/bin"
+               "C:/Program Files/mingw-w64/mingw32/bin"
+               "C:/mingw64/bin"
+               "C:/mingw32/bin"
+               # Compiler-relative paths
+               ${CMAKE_C_COMPILER}/../bin
+               ${CMAKE_CXX_COMPILER}/../bin
+            PATH_SUFFIXES . bin
+            NO_DEFAULT_PATH
+         )
+         
+         # Also try system PATH
+         if(NOT FOUND_LIB_${lib_name})
+            find_file(FOUND_LIB_${lib_name}
+               NAMES ${lib_pattern}
+               PATHS ENV PATH
+               NO_DEFAULT_PATH
+            )
+         endif()
+         
+         if(FOUND_LIB_${lib_name})
+            message(STATUS "Found ${lib_name}: ${FOUND_LIB_${lib_name}}")
+            
+            # Add custom command to copy library after build
+            add_custom_command(
+               TARGET ${UppASD_EXE} POST_BUILD
+               COMMAND ${CMAKE_COMMAND} -E copy_if_different
+               "${FOUND_LIB_${lib_name}}"
+               "${BUNDLE_LIB_DIR}/"
+               COMMENT "Bundling ${lib_name}"
+            )
+         else()
+            message(WARNING "Could not find ${lib_name} for bundling. Searched for: ${lib_pattern}")
+            message(STATUS "  Compiler: ${CMAKE_Fortran_COMPILER}")
+            message(STATUS "  Search paths included: MinGW, MSYS2, and compiler-relative paths")
+         endif()
+      endfunction()
+      
+      # Bundle commonly needed libraries for Windows builds
+      if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+         # MinGW/MSYS2 runtime libraries
+         bundle_windows_library("libgfortran-5.dll;libgfortran-4.dll;libgfortran.dll" "libgfortran")
+         bundle_windows_library("libquadmath-0.dll;libquadmath.dll" "libquadmath") 
+         bundle_windows_library("libgcc_s_seh-1.dll;libgcc_s_dw2-1.dll;libgcc_s.dll" "libgcc_s")
+         bundle_windows_library("libgomp-1.dll;libgomp.dll" "libgomp")
+         bundle_windows_library("libwinpthread-1.dll;libwinpthread.dll" "libwinpthread")
+         
+         # Additional common MinGW libraries
+         bundle_windows_library("libstdc++-6.dll;libstdc++.dll" "libstdc++")
+         bundle_windows_library("zlib1.dll" "zlib")
+      elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+         # Intel Fortran runtime libraries  
+         bundle_windows_library("libifcoremd.dll" "libifcoremd")
+         bundle_windows_library("libifportmd.dll" "libifportmd") 
+         bundle_windows_library("libmmd.dll" "libmmd")
+         bundle_windows_library("svml_dispmd.dll" "svml_dispmd")
+      endif()
+      
+      # Bundle OpenMP libraries if available
+      if(USE_OPENMP AND OpenMP_Fortran_FOUND)
+         if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+            # Already handled above with libgomp
+         elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+            bundle_windows_library("libiomp5md.dll" "libiomp5md")
+         endif()
+      endif()
+      
+      # Add verification command
+      add_custom_command(
+         TARGET ${UppASD_EXE} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E echo "=== Windows Library bundling verification ==="
+         COMMENT "Verifying Windows library bundling"
+      )
    endif()
 endif()
 ##############################################################################################
@@ -1076,7 +1169,12 @@ set(CPACK_PACKAGE_DESCRIPTION "UppASD is a package for atomistic spin dynamics a
 set(CPACK_PACKAGE_VERSION "6.0.3")
 set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
 set(CPACK_PACKAGE_VENDOR "The UppASD group")
-set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
+# Use appropriate icon format for each platform
+if(WIN32)
+    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+else()
+    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
+endif()
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_SOURCE_DIR}/cpack/WELCOME.txt")
@@ -1175,32 +1273,158 @@ if(APPLE)
 endif()
 
 if(WIN32)
-    set(CPACK_GENERATOR "ZIP")
+    # Include system libraries
+    include(InstallRequiredSystemLibraries)
+    
+    # Choose installer type based on available tools or preference
+    # Set INSTALLER_TYPE to "NSIS" or "WIX" to force a specific installer
+    if(NOT DEFINED INSTALLER_TYPE)
+        # Auto-detect available installer tools
+        find_program(MAKENSIS_EXECUTABLE makensis)
+        find_program(CANDLE_EXECUTABLE candle)
+        
+        if(MAKENSIS_EXECUTABLE)
+            set(INSTALLER_TYPE "NSIS")
+            message(STATUS "Found NSIS, using NSIS installer")
+        elseif(CANDLE_EXECUTABLE)
+            set(INSTALLER_TYPE "WIX")
+            message(STATUS "Found WiX Toolset, using WiX installer")
+        else()
+            set(INSTALLER_TYPE "ZIP")
+            message(STATUS "No installer tools found, using ZIP packaging")
+        endif()
+    endif()
+    
+    if(INSTALLER_TYPE STREQUAL "NSIS")
+        #############################################################################
+        # NSIS Installer Configuration
+        #############################################################################
+        set(CPACK_GENERATOR "NSIS64")
+        
+        # Basic NSIS settings
+        set(CPACK_NSIS_DISPLAY_NAME "UppASD ${VERSION}")
+        set(CPACK_NSIS_PACKAGE_NAME "UppASD")
+        set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\uppasd.exe")
+        set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        set(CPACK_NSIS_HELP_LINK "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        set(CPACK_NSIS_CONTACT "${CPACK_PACKAGE_CONTACT}")
+        
+        # Enable PATH modification and other advanced features
+        set(CPACK_NSIS_MODIFY_PATH ON)
+        set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+        
+        # Custom NSIS script for PATH management
+        set(CPACK_NSIS_EXTRA_PREINSTALL_COMMANDS "
+            !include '${CMAKE_SOURCE_DIR}/cpack/PathManagement.nsh'
+        ")
+        set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
+            Push '$INSTDIR\\\\bin'
+            Call AddToPath
+        ")
+        set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "
+            Push '$INSTDIR\\\\bin'
+            Call un.RemoveFromPath
+        ")
+        
+        # Desktop and Start Menu shortcuts
+        set(CPACK_NSIS_CREATE_ICONS_EXTRA "
+            CreateShortCut '$DESKTOP\\\\UppASD.lnk' '$INSTDIR\\\\bin\\\\uppasd.exe'
+            CreateDirectory '$SMPROGRAMS\\\\$STARTMENU_FOLDER'
+            CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\UppASD.lnk' '$INSTDIR\\\\bin\\\\uppasd.exe'
+            CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\UppASD Documentation.lnk' '$INSTDIR\\\\README.md'
+        ")
+        set(CPACK_NSIS_DELETE_ICONS_EXTRA "
+            Delete '$DESKTOP\\\\UppASD.lnk'
+            Delete '$SMPROGRAMS\\\\$START_MENU\\\\UppASD.lnk'
+            Delete '$SMPROGRAMS\\\\$START_MENU\\\\UppASD Documentation.lnk'
+        ")
+        
+        # Configure bundled libraries for Windows
+        if(BUNDLE_LIBRARIES)
+            message(STATUS "Configuring NSIS installer for bundled libraries")
+            # Install bundled libraries
+            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
+                    DESTINATION bin 
+                    USE_SOURCE_PERMISSIONS
+                    OPTIONAL
+                    FILES_MATCHING PATTERN "*.dll")
+        endif()
+        
+    elseif(INSTALLER_TYPE STREQUAL "WIX")
+        #############################################################################
+        # WiX Installer Configuration  
+        #############################################################################
+        set(CPACK_GENERATOR "WIX")
+        
+        # WiX-specific settings
+        set(CPACK_WIX_UPGRADE_GUID "02cf4cf7-fa5b-43de-a8ff-b39098d35db3")
+        set(CPACK_WIX_PRODUCT_GUID "*") # Generate new GUID for each version
+        set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        
+        # License and UI
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+            set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+        endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+            set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+        endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+            set(CPACK_WIX_UI_DIALOG "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+        endif()
+        
+        # PATH environment variable modification
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+            set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+        endif()
+        
+        # Program Files installation
+        set(CPACK_WIX_PROGRAM_MENU_FOLDER "UppASD")
+        set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        
+        # Configure bundled libraries for Windows
+        if(BUNDLE_LIBRARIES)
+            message(STATUS "Configuring WiX installer for bundled libraries")
+            # Install bundled libraries
+            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
+                    DESTINATION bin 
+                    USE_SOURCE_PERMISSIONS
+                    OPTIONAL
+                    FILES_MATCHING PATTERN "*.dll")
+        endif()
+        
+    else()
+        #############################################################################
+        # Fallback to ZIP packaging
+        #############################################################################
+        set(CPACK_GENERATOR "ZIP")
+        message(STATUS "Using ZIP packaging for Windows")
+        
+        # Configure bundled libraries for Windows
+        if(BUNDLE_LIBRARIES)
+            message(STATUS "Configuring ZIP package for bundled libraries")
+            # Install bundled libraries
+            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
+                    DESTINATION bin 
+                    USE_SOURCE_PERMISSIONS
+                    OPTIONAL
+                    FILES_MATCHING PATTERN "*.dll")
+        endif()
+    endif()
+    
+    # Common Windows-specific install components
+    install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+    install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+    
+    # Install examples if available
+    if(EXISTS "${CMAKE_SOURCE_DIR}/examples")
+        install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/" 
+                DESTINATION examples
+                USE_SOURCE_PERMISSIONS
+                OPTIONAL)
+    endif()
+    
 endif()
-# if(WIN32)
-#    include(InstallRequiredSystemLibraries)
-# 
-#     # Include NSIS for creating Windows installers
-#     set(CPACK_GENERATOR "NSIS64")
-# 
-#     # Include the custom NSIS script
-#     set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
-# 
-#     # Additional NSIS settings if needed
-#     set(CPACK_NSIS_MODIFY_PATH ON)
-#     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
-#     set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "Call AddToPath")
-# 
-#     # WIX installer
-#     # set(CPACK_WIX_UPGRADE_GUID "E25F58C1-EC45-422A-9700-7254DB19547B")
-#     # WIX installer
-#     set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
-#     set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
-#     set(CPACK_WIX_UI_DIALOG "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
-#     set(CPACK_WIX_UPGRADE_GUID "02cf4cf7-fa5b-43de-a8ff-b39098d35db3")
-#     set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
-#     # set(CPACK_WIX_EXTRA_SOURCES "${CMAKE_SOURCE_DIR}/PathEnvironment.wxs")
-#    set(CPACK_WIX_VERSION "4")
-# endif()
 
 include(CPack)
