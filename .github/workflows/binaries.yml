@@ -121,15 +121,6 @@ jobs:
       - name: Build zip file archive ${{ matrix.icon}}
         run: |
              cd build
-             
-             # For macOS with bundled libraries, ensure proper installation structure
-             if [ "${{ runner.os }}" = "macOS" ]; then
-               # Install to a staging directory with proper structure
-               cmake --install . --prefix ../zip_staging
-               echo "=== ZIP staging structure ==="
-               find ../zip_staging -type f -exec ls -la {} \;
-             fi
-             
              cpack -G ZIP
              ls -l *.zip
              cd ..
@@ -146,15 +137,7 @@ jobs:
       - name: Build DragNDrop package on Mac OS ${{ matrix.icon}}
         if: runner.os == 'macOS'
         run: |
-             # Prepare installation with bundled libraries
              cd build
-             cmake --install . --prefix ../package_staging
-             
-             # Verify the package staging has the correct structure
-             echo "=== Package staging structure ==="
-             find ../package_staging -type f -exec ls -la {} \;
-             
-             # Build the DMG with proper structure
              cpack -G DragNDrop
              ls -l *.dmg
              

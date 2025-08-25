@@ -958,15 +958,6 @@ if(BUNDLE_LIBRARIES)
          COMMAND ${CMAKE_COMMAND} -E echo "=== Library bundling verification ==="
          COMMENT "Verifying library bundling"
       )
-      
-      # Create a post-build command to prepare libraries for CPack
-      add_custom_command(
-         TARGET ${UppASD_EXE} POST_BUILD
-         COMMAND ${CMAKE_COMMAND} -E echo "Preparing bundled libraries for packaging"
-         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/cpack_staging/lib"
-         COMMAND ${CMAKE_COMMAND} -E copy_directory "${BUNDLE_LIB_DIR}" "${CMAKE_BINARY_DIR}/cpack_staging/lib"
-         COMMENT "Staging libraries for CPack"
-      )
    endif()
 endif()
 ##############################################################################################
@@ -1094,18 +1085,12 @@ if(APPLE)
     if(BUNDLE_LIBRARIES)
         message(STATUS "Configuring CPack for bundled libraries")
         
-        # Install bundled libraries from staging area
-        install(DIRECTORY "${CMAKE_BINARY_DIR}/cpack_staging/" 
-                DESTINATION "."
-                USE_SOURCE_PERMISSIONS)
-        
-        # Alternative: Direct install from BUNDLE_LIB_DIR if staging fails
+        # Install bundled libraries directly from BUNDLE_LIB_DIR
         install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
                 DESTINATION lib 
-                FILES_MATCHING PATTERN "*.dylib"
-                PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE 
-                           GROUP_READ GROUP_EXECUTE 
-                           WORLD_READ WORLD_EXECUTE)
+                USE_SOURCE_PERMISSIONS
+                OPTIONAL
+                FILES_MATCHING PATTERN "*.dylib")
         
         # Add a note about the bundled distribution
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
