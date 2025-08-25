@@ -204,11 +204,24 @@ if(BUNDLE_LIBRARIES)
       # Use @rpath for library paths
       set(CMAKE_MACOSX_RPATH TRUE)
       
+      # Check if we're building an app bundle (detect from install destination)
+      set(BUILD_APP_BUNDLE FALSE)
+      if(CMAKE_INSTALL_PREFIX MATCHES ".*\\.app.*" OR 
+         EXISTS "${CMAKE_SOURCE_DIR}/cpack/Info.plist.in")
+         set(BUILD_APP_BUNDLE TRUE)
+      endif()
+      
       # Set RPATH for build tree
       set(CMAKE_BUILD_RPATH "@executable_path/../lib")
       
-      # Set RPATH for install tree
-      set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
+      # Set RPATH for install tree based on bundle type
+      if(BUILD_APP_BUNDLE)
+         set(CMAKE_INSTALL_RPATH "@executable_path/../Frameworks")
+         message(STATUS "Configuring for app bundle with Frameworks directory")
+      else()
+         set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
+         message(STATUS "Configuring for standard bundle with lib directory")
+      endif()
       
       # Don't skip the full RPATH for the build tree
       set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -227,6 +240,7 @@ if(BUNDLE_LIBRARIES)
       message(STATUS "  CMAKE_BUILD_RPATH: ${CMAKE_BUILD_RPATH}")
       message(STATUS "  CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
       message(STATUS "  BUNDLE_LIB_DIR: ${BUNDLE_LIB_DIR}")
+      message(STATUS "  BUILD_APP_BUNDLE: ${BUILD_APP_BUNDLE}")
    elseif(UNIX AND NOT APPLE)
       # Linux RPATH configuration
       set(CMAKE_BUILD_RPATH "$ORIGIN/../lib")
@@ -975,14 +989,20 @@ ENDIF(WIN32)
 
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
+
+# Only install in traditional structure if we're not building an app bundle
 if (NOT BUILD_PYTHON)
    #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
-   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   if(NOT (APPLE AND BUNDLE_LIBRARIES))
+       INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   endif()
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
    #   INSTALL(TARGETS ${UppASD_pyLIB} RUNTIME DESTINATION lib)
    INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
-   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   if(NOT (APPLE AND BUNDLE_LIBRARIES))
+       INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   endif()
 endif(NOT BUILD_PYTHON)
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
 install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
@@ -1075,34 +1095,73 @@ set (CPACK_DEBIAN_PACKAGE_DEBUG ON)
 
 if(APPLE)
     set(CPACK_GENERATOR "DragNDrop,ZIP")
-    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg") # Optional background image
+    # Background image will be placed in .background/background.jpg within the DMG
+    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
     set(CPACK_DMG_FORMAT "UDZO") # Compressed image
     set(CPACK_DMG_APPLICATION_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns")
     set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/cpack/DS_Store")
     set(CPACK_DMG_VOLUME_NAME "UppASD")
     
+    # Ensure .background and metadata files are properly hidden
+    # This tells CPack to create proper hidden attributes for DMG metadata
+    set(CPACK_DMG_DISABLE_APPLICATIONS_SYMLINK OFF)
+    
     # Configure for bundled libraries
     if(BUNDLE_LIBRARIES)
         message(STATUS "Configuring CPack for bundled libraries")
         
-        # Install bundled libraries directly from BUNDLE_LIB_DIR
+        # Create macOS app bundle structure
+        set(APP_BUNDLE_NAME "UppASD.app")
+        set(APP_BUNDLE_DEST "${APP_BUNDLE_NAME}/Contents")
+        
+        # Install binary into app bundle
+        install(TARGETS ${UppASD_EXE} 
+                RUNTIME DESTINATION "${APP_BUNDLE_DEST}/MacOS")
+        
+        # Install bundled libraries into app bundle 
         install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                DESTINATION lib 
+                DESTINATION "${APP_BUNDLE_DEST}/Frameworks"
                 USE_SOURCE_PERMISSIONS
                 OPTIONAL
                 FILES_MATCHING PATTERN "*.dylib")
         
+        # Create Info.plist for the app bundle
+        configure_file("${CMAKE_SOURCE_DIR}/cpack/Info.plist.in" 
+                      "${CMAKE_BINARY_DIR}/Info.plist" @ONLY)
+        install(FILES "${CMAKE_BINARY_DIR}/Info.plist"
+                DESTINATION "${APP_BUNDLE_DEST}")
+        
+        # Install documentation into Resources
+        install(FILES "${CMAKE_SOURCE_DIR}/README.md" "${CMAKE_SOURCE_DIR}/LICENSE"
+                DESTINATION "${APP_BUNDLE_DEST}/Resources")
+        
+        # Install app icon
+        install(FILES "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns"
+                DESTINATION "${APP_BUNDLE_DEST}/Resources")
+        
         # Add a note about the bundled distribution
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
-            "UppASD - Portable distribution with bundled runtime libraries")
+            "UppASD - Portable macOS Application Bundle")
         
         # Use portable-specific README if available
         if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
             set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
         endif()
         
-        # DMG-specific configuration for bundled libraries
-        set(CPACK_DMG_VOLUME_NAME "UppASD-Portable")
+        # DMG-specific configuration for app bundle
+        set(CPACK_DMG_VOLUME_NAME "UppASD-${VERSION}")
+        
+        # Don't install additional files at root level for app bundle
+        set(CPACK_RESOURCE_FILE_LICENSE)
+        set(CPACK_RESOURCE_FILE_README)
+        
+    else()
+        # Standard installation for non-bundled builds
+        install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
+                DESTINATION lib 
+                USE_SOURCE_PERMISSIONS
+                OPTIONAL
+                FILES_MATCHING PATTERN "*.dylib")
     endif()
     
     # install(TARGETS uppasd DESTINATION ".") # Place uppasd in the DMG root

@@ -205,11 +205,11 @@ jobs:
       #     name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
       #     path: ./build/UppASD*.msi
 
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: uppasd.${{runner.os}}.${{matrix.arch}}${{ runner.os == 'macOS' && '.portable' || '' }}
-          path: ./dist/uppasd*
+      # - name: Upload binaries
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: uppasd.${{runner.os}}.${{matrix.arch}}${{ runner.os == 'macOS' && '.portable' || '' }}
+      #     path: ./dist/uppasd*
 
       - name: Upload DMG package (macOS)
         uses: actions/upload-artifact@v4
