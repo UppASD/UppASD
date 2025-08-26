@@ -1157,38 +1157,6 @@ if(APPLE)
         install(FILES "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns"
                 DESTINATION "${APP_BUNDLE_DEST}/Resources")
         
-        # Add post-install script to fix app bundle permissions and attributes
-        install(CODE "
-            message(STATUS \"Running app bundle post-install fixes...\")
-            message(STATUS \"Install prefix: \${CMAKE_INSTALL_PREFIX}\")
-            message(STATUS \"App bundle path: \${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\")
-            
-            # Fix executable permissions
-            execute_process(COMMAND chmod +x \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_DEST}/MacOS/uppasd\"
-                           RESULT_VARIABLE CHMOD_RESULT)
-            message(STATUS \"chmod result: \${CHMOD_RESULT}\")
-            
-            # Set proper bundle bit
-            execute_process(COMMAND SetFile -a B \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\" 
-                           RESULT_VARIABLE SETFILE_RESULT
-                           ERROR_QUIET)
-            message(STATUS \"SetFile result: \${SETFILE_RESULT}\")
-            
-            # Try to remove quarantine attributes (helps with \\\"damaged\\\" issues)
-            execute_process(COMMAND xattr -d com.apple.quarantine \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
-                           RESULT_VARIABLE XATTR_RESULT
-                           ERROR_QUIET)
-            message(STATUS \"xattr quarantine removal result: \${XATTR_RESULT}\")
-            
-            # List current xattr on the app bundle
-            execute_process(COMMAND xattr -l \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
-                           OUTPUT_VARIABLE XATTR_LIST
-                           ERROR_QUIET)
-            message(STATUS \"Remaining xattr on app bundle: \${XATTR_LIST}\")
-            
-            message(STATUS \"App bundle post-install fixes completed\")
-        ")
-        
         # Add a note about the bundled distribution
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
             "UppASD - Portable macOS Application Bundle")
