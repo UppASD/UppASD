@@ -66,7 +66,31 @@ Function StrStr
 FunctionEnd
 
 Section -Post
-    Push "$INSTDIR"
-    Call AddToPath
+  ; Diagnostic: write current PATH and the candidate addition to a temp file
+  ; so we can debug PATH length issues on target machines.
+  ; Read current user PATH (HKCU) and the string we plan to add.
+  ReadRegStr $R0 HKCU "Environment" "PATH"
+  StrCpy $R1 "$INSTDIR\\bin"
+
+  ; Compute lengths
+  StrLen $R2 $R0
+  StrLen $R3 $R1
+  IntOp $R4 $R2 + $R3
+
+  ; Open debug file in TEMP
+  FileOpen $R5 "$TEMP\\uppasd_path_debug.txt" w
+  FileWrite $R5 "=== UppASD PATH debug ===\r\n"
+  FileWrite $R5 "Current PATH (HKCU):\r\n"
+  FileWrite $R5 "$R0\r\n"
+  FileWrite $R5 "Current PATH length: $R2\r\n"
+  FileWrite $R5 "Candidate to add: $R1\r\n"
+  FileWrite $R5 "Candidate length: $R3\r\n"
+  FileWrite $R5 "Resulting length (sum): $R4\r\n"
+  FileWrite $R5 "(Note: system limits ~= 32766)\r\n"
+  FileClose $R5
+
+  ; Now perform the actual PATH update (original behavior)
+  Push "$INSTDIR"
+  Call AddToPath
 SectionEnd
 
