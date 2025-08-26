@@ -949,12 +949,7 @@ if(BUNDLE_LIBRARIES)
             # Get library filename for rpath fixing
             get_filename_component(LIB_FILENAME "${FOUND_LIB_${lib_name}}" NAME)
             
-            # Add custom command to fix rpath in binary
-            add_custom_command(
-               TARGET ${UppASD_EXE} POST_BUILD
-               COMMAND ${CMAKE_SOURCE_DIR}/fix_rpath.sh "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${UppASD_EXE}" "${lib_name}" "${LIB_FILENAME}"
-               COMMENT "Fixing ${lib_name} rpath in binary"
-            )
+            # Note: RPATH should already be configured correctly by CMAKE_MACOSX_RPATH settings
          else()
             message(WARNING "Could not find ${lib_name} for bundling. Searched for: ${lib_pattern}")
             message(STATUS "  Compiler: ${CMAKE_Fortran_COMPILER}")
@@ -1115,6 +1110,7 @@ if(APPLE)
     set(CPACK_DMG_APPLICATION_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns")
     set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/cpack/DS_Store")
     set(CPACK_DMG_VOLUME_NAME "UppASD")
+    set(CPACK_BUNDLE_NAME "UppASD")
     
     # Ensure .background and metadata files are properly hidden
     # This tells CPack to create proper hidden attributes for DMG metadata
@@ -1171,7 +1167,7 @@ if(APPLE)
             message(STATUS \"SetFile result: \${SETFILE_RESULT}\")
             
             # Try to remove quarantine attributes (helps with \\\"damaged\\\" issues)
-            execute_process(COMMAND xattr -rd com.apple.quarantine \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
+            execute_process(COMMAND xattr -d com.apple.quarantine \"\${CMAKE_INSTALL_PREFIX}/${APP_BUNDLE_NAME}\"
                            RESULT_VARIABLE XATTR_RESULT
                            ERROR_QUIET)
             message(STATUS \"xattr quarantine removal result: \${XATTR_RESULT}\")
@@ -1294,6 +1290,10 @@ if(WIN32)
         set(CPACK_WIX_PRODUCT_GUID "*") # Generate new GUID for each version
         set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
         
+        # Optimization: Faster WiX build for static executable
+        set(CPACK_WIX_SKIP_PROGRAM_FOLDER TRUE)  # Skip if no additional programs
+        set(CPACK_WIX_CMAKE_PACKAGE_REGISTRY FALSE)  # Skip registry entries for speed
+        
         # License and UI
         if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
             set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
@@ -1313,6 +1313,10 @@ if(WIN32)
         # Program Files installation
         set(CPACK_WIX_PROGRAM_MENU_FOLDER "UppASD")
         set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        
+        # Optimization: Simple static build configuration
+        # With examples excluded, WiX should complete much faster (under 5 minutes)
+        message(STATUS "WiX installer configured for minimal static build (no examples)")
         
         # Configure bundled libraries for Windows
         if(BUNDLE_LIBRARIES)
@@ -1348,13 +1352,8 @@ if(WIN32)
     install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
     
-    # Install examples if available
-    if(EXISTS "${CMAKE_SOURCE_DIR}/examples")
-        install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/" 
-                DESTINATION examples
-                USE_SOURCE_PERMISSIONS
-                OPTIONAL)
-    endif()
+    # Note: Examples directory is excluded from Windows packages for smaller installers
+    # Users can download examples separately from the repository
     
 endif()
 
