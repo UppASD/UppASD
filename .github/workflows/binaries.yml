@@ -143,9 +143,7 @@ jobs:
              
              # Generate packages separately
              echo "=== Creating DMG package ==="
-             cpack -G DragNDrop
-             
-             echo "=== Creating simple ZIP archive (no app bundle) ==="
+
              # Clear CMake cache and reconfigure to disable app bundle for ZIP generation
              rm -f CMakeCache.txt
              FC=gfortran-14 cmake -S .. -B . \
@@ -158,7 +156,7 @@ jobs:
              cmake --build . --parallel
              
              # Generate ZIP without app bundle
-             cpack -G ZIP
+             cpack -G DragNDrop
              
              ls -l *.zip *.dmg 2>/dev/null || echo "Package files created"
              cd ..
@@ -178,19 +176,19 @@ jobs:
              ls -l *.exe || echo "No .exe files found"
              cd ..
 
-      #- name: Build WIX installation package on Windows ${{ matrix.icon}}
-      #   if: runner.os == 'Windows'
-      #   shell: msys2 {0}
-      #   run: |
-      #        cd build
-      #        echo "=== Checking for WiX ==="
-      #        which candle || echo "WiX not found in PATH"
-      #        echo "=== CMake configuration ==="
-      #        cat CPackConfig.cmake | head -20
-      #        echo "=== Building WiX installer ==="
-      #        cpack -G WIX --verbose
-      #        ls -l *.msi || echo "No .msi files found"
-      #        cd ..
+      - name: Build WIX installation package on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+             cd build
+             echo "=== Checking for WiX ==="
+             which candle || echo "WiX not found in PATH"
+             echo "=== CMake configuration ==="
+             cat CPackConfig.cmake | head -20
+             echo "=== Building WiX installer ==="
+             cpack -G WIX --verbose
+             ls -l *.msi || echo "No .msi files found"
+             cd ..
 
       # - name: Upload self-extracting package
       #   uses: actions/upload-artifact@v4
