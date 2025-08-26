@@ -175,6 +175,19 @@ jobs:
              ls -l *.exe || echo "No .exe files found"
              cd ..
 
+      - name: Install WiX Toolset on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Download and install WiX v3 (v4 has different syntax)
+          $wixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
+          $wixPath = "$env:TEMP\wix311-binaries.zip"
+          $wixDir = "C:\Program Files\WiX Toolset v3.11"
+          
+          Invoke-WebRequest -Uri $wixUrl -OutFile $wixPath
+          Expand-Archive -Path $wixPath -DestinationPath $wixDir
+          echo "$wixDir\bin" >> $env:GITHUB_PATH
+
       - name: Build WIX installation package on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
         shell: msys2 {0}
