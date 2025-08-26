@@ -217,7 +217,10 @@ if(BUNDLE_LIBRARIES)
       set(BUILD_APP_BUNDLE FALSE)
       if(NOT FORCE_NO_APP_BUNDLE AND (CMAKE_INSTALL_PREFIX MATCHES ".*\\.app.*" OR 
          EXISTS "${CMAKE_SOURCE_DIR}/cpack/Info.plist.in"))
+         message(STATUS "Configuring for app bundle")
          set(BUILD_APP_BUNDLE TRUE)
+      else()
+         message(STATUS "Configuring for standard zip")
       endif()
       
       # Set RPATH for build tree
@@ -242,8 +245,12 @@ if(BUNDLE_LIBRARIES)
       # which point to directories outside the build tree to the install RPATH
       set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
       
-      # Define bundled library directory
-      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
+   # Define bundled library directory inside the build tree to avoid
+   # accidentally pointing to system-wide library directories like
+   # /usr/local/lib or /opt/homebrew/lib which would cause large
+   # unintended copies. Use a dedicated directory under the build
+   # directory so only explicitly bundled files end up here.
+   set(BUNDLE_LIB_DIR "${CMAKE_BINARY_DIR}/bundled_libs")
       
       message(STATUS "RPATH configuration for bundling:")
       message(STATUS "  CMAKE_BUILD_RPATH: ${CMAKE_BUILD_RPATH}")
@@ -257,7 +264,8 @@ if(BUNDLE_LIBRARIES)
       set(CMAKE_SKIP_BUILD_RPATH FALSE)
       set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
       set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-      set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
+   # On non-mac Unix builds also use a build-tree directory for bundled libs
+   set(BUNDLE_LIB_DIR "${CMAKE_BINARY_DIR}/bundled_libs")
    elseif(WIN32)
       # Windows: No library bundling - we use static linking instead
       message(STATUS "Windows detected: Using static linking (no library bundling needed)")
@@ -892,6 +900,12 @@ if(BUNDLE_LIBRARIES)
    
    # Create the lib directory in the build tree
    file(MAKE_DIRECTORY "${BUNDLE_LIB_DIR}")
+
+   # Collect the exact files we intend to bundle. Using a list and
+   # installing the explicit files prevents accidentally packaging an
+   # entire system library tree if BUNDLE_LIB_DIR pointed at a system
+   # location in older configurations.
+   set(BUNDLED_LIBS "")
    
    if(APPLE)
       # Function to find and bundle a library
@@ -958,6 +972,20 @@ if(BUNDLE_LIBRARIES)
             
             # Get library filename for rpath fixing
             get_filename_component(LIB_FILENAME "${FOUND_LIB_${lib_name}}" NAME)
+
+                  # Record the exact file we found so we can install only
+                  # these files later instead of an entire directory.
+                  # NOTE: we're in a CMake function scope so use PARENT_SCOPE to
+                  # modify the top-level BUNDLED_LIBS variable.
+                  get_filename_component(FOUND_LIB_PATH "${FOUND_LIB_${lib_name}}" REALPATH)
+                  if(FOUND_LIB_PATH)
+                     if(DEFINED BUNDLED_LIBS)
+                        set(NEW_BUNDLED_LIBS "${BUNDLED_LIBS};${FOUND_LIB_PATH}")
+                     else()
+                        set(NEW_BUNDLED_LIBS "${FOUND_LIB_PATH}")
+                     endif()
+                     set(BUNDLED_LIBS "${NEW_BUNDLED_LIBS}" PARENT_SCOPE)
+                  endif()
             
             # Note: RPATH should already be configured correctly by CMAKE_MACOSX_RPATH settings
          else()
@@ -1007,8 +1035,12 @@ SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
 # Only install in traditional structure if we're not building an app bundle
 if (NOT BUILD_PYTHON)
    #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
-   if(NOT (APPLE AND BUNDLE_LIBRARIES))
-       INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   # Only skip the traditional bin/ install when we're on macOS and
+   # actually creating an .app bundle (BUNDLE_LIBRARIES enabled and
+   # FORCE_NO_APP_BUNDLE not set). Honor FORCE_NO_APP_BUNDLE so users
+   # can force a flat bin+/lib/ layout for ZIP packaging.
+   if(NOT (APPLE AND BUNDLE_LIBRARIES AND NOT FORCE_NO_APP_BUNDLE))
+      INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    endif()
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
@@ -1112,8 +1144,8 @@ set (CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
 set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_NAME} - ${CMAKE_PROJECT_DESCRIPTION}")
 set (CPACK_DEBIAN_PACKAGE_DEBUG ON)
 
-if(APPLE)
-    set(CPACK_GENERATOR "DragNDrop")
+if(APPLE AND NOT FORCE_NO_APP_BUNDLE)
+   set(CPACK_GENERATOR "DragNDrop")
     # Background image will be placed in .background/background.jpg within the DMG
     set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
     set(CPACK_DMG_FORMAT "UDZO") # Compressed image
@@ -1127,7 +1159,7 @@ if(APPLE)
     set(CPACK_DMG_DISABLE_APPLICATIONS_SYMLINK OFF)
     
     # Configure for bundled libraries
-    if(BUNDLE_LIBRARIES)
+   if(BUNDLE_LIBRARIES AND NOT FORCE_NO_APP_BUNDLE)
         message(STATUS "Configuring CPack for bundled libraries")
         
         # Create macOS app bundle structure
@@ -1139,11 +1171,14 @@ if(APPLE)
                 RUNTIME DESTINATION "${APP_BUNDLE_DEST}/MacOS")
         
         # Install bundled libraries into app bundle 
-        install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                DESTINATION "${APP_BUNDLE_DEST}/Frameworks"
-                USE_SOURCE_PERMISSIONS
-                OPTIONAL
-                FILES_MATCHING PATTERN "*.dylib")
+   # Install only the explicitly found bundled libraries into the
+   # app bundle Frameworks directory. This avoids copying unrelated
+   # files from other directories.
+   if(BUNDLED_LIBS)
+       install(FILES ${BUNDLED_LIBS}
+          DESTINATION "${APP_BUNDLE_DEST}/Frameworks"
+          OPTIONAL)
+   endif()
         
         # Create Info.plist for the app bundle
         configure_file("${CMAKE_SOURCE_DIR}/cpack/Info.plist.in" 
@@ -1175,14 +1210,16 @@ if(APPLE)
         set(CPACK_RESOURCE_FILE_LICENSE)
         set(CPACK_RESOURCE_FILE_README)
         
-    else()
-        # Standard installation for non-bundled builds
-        install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                DESTINATION lib 
-                USE_SOURCE_PERMISSIONS
-                OPTIONAL
-                FILES_MATCHING PATTERN "*.dylib")
-    endif()
+   else()
+      # Standard installation for non-bundled builds: install only the
+      # explicitly found bundled libraries into lib/. This avoids
+      # inadvertently packaging unrelated system libraries.
+      if(BUNDLED_LIBS)
+      install(FILES ${BUNDLED_LIBS}
+         DESTINATION lib
+         OPTIONAL)
+      endif()
+   endif()
     
     # install(TARGETS uppasd DESTINATION ".") # Place uppasd in the DMG root
 
@@ -1328,3 +1365,12 @@ if(WIN32)
 endif()
 
 include(CPack)
+
+# If we are bundling libraries but did not enter the APPLE app-bundle branch
+# (for example because FORCE_NO_APP_BUNDLE=ON), ensure the explicitly found
+# bundled libraries are still installed into lib/ so ZIP packages include them.
+if(BUNDLE_LIBRARIES AND BUNDLED_LIBS AND (NOT (APPLE AND NOT FORCE_NO_APP_BUNDLE)))
+   install(FILES ${BUNDLED_LIBS}
+         DESTINATION lib
+         OPTIONAL)
+endif()
