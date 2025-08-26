@@ -157,9 +157,21 @@ jobs:
                fi
              done
              
-             # Generate all configured packages (ZIP, DMG)
-             echo "=== Creating packages ==="
-             cpack
+             # Generate packages separately
+             echo "=== Creating DMG package ==="
+             cpack -G DragNDrop
+             
+             echo "=== Creating simple ZIP archive (no app bundle) ==="
+             # Reconfigure to disable app bundle for ZIP generation
+             cmake -S .. -B . \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DBUNDLE_LIBRARIES=ON \
+               -DUSE_STATIC_LIBGFORTRAN=OFF \
+               -DFORCE_NO_APP_BUNDLE=ON
+             
+             # Generate ZIP without app bundle
+             cpack -G ZIP
+             
              ls -l *.zip *.dmg 2>/dev/null || echo "Package files created"
              cd ..
 
@@ -242,7 +254,7 @@ jobs:
       - name: Upload zip archives
         uses: actions/upload-artifact@v4
         with:
-          name: uppasd.${{runner.os}}.${{matrix.arch}}.zip
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.archive
           path: ./build/uppasd*.zip
 
       # - name: Upload NSIS log

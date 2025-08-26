@@ -192,6 +192,8 @@ include(CMakeDependentOption)
 OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
 OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
+OPTION(USE_STATIC_LIBGFORTRAN "Use static linking for libgfortran" OFF)
+OPTION(FORCE_NO_APP_BUNDLE "Force disable macOS app bundle creation for all generators" OFF)
 
 # Windows uses static linking, so disable library bundling automatically
 if(WIN32 AND BUNDLE_LIBRARIES)
@@ -213,8 +215,8 @@ if(BUNDLE_LIBRARIES)
       
       # Check if we're building an app bundle (detect from install destination)
       set(BUILD_APP_BUNDLE FALSE)
-      if(CMAKE_INSTALL_PREFIX MATCHES ".*\\.app.*" OR 
-         EXISTS "${CMAKE_SOURCE_DIR}/cpack/Info.plist.in")
+      if(NOT FORCE_NO_APP_BUNDLE AND (CMAKE_INSTALL_PREFIX MATCHES ".*\\.app.*" OR 
+         EXISTS "${CMAKE_SOURCE_DIR}/cpack/Info.plist.in"))
          set(BUILD_APP_BUNDLE TRUE)
       endif()
       
@@ -1111,7 +1113,7 @@ set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_NAME} - ${CMAKE_PROJECT_
 set (CPACK_DEBIAN_PACKAGE_DEBUG ON)
 
 if(APPLE)
-    set(CPACK_GENERATOR "DragNDrop,ZIP")
+    set(CPACK_GENERATOR "DragNDrop")
     # Background image will be placed in .background/background.jpg within the DMG
     set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
     set(CPACK_DMG_FORMAT "UDZO") # Compressed image
