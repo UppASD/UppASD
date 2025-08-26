@@ -1117,7 +1117,7 @@ if(APPLE)
     set(CPACK_DMG_FORMAT "UDZO") # Compressed image
     set(CPACK_DMG_APPLICATION_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns")
     set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/cpack/DS_Store")
-    set(CPACK_DMG_VOLUME_NAME "UppASD")
+    set(CPACK_DMG_VOLUME_NAME "UppASD-${VERSION}")  # Use dynamic version to avoid conflicts)
     set(CPACK_BUNDLE_NAME "UppASD")
     
     # Ensure .background and metadata files are properly hidden

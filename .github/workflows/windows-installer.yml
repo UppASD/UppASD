@@ -129,6 +129,6 @@ jobs:
     - name: Upload installer artifact
       uses: actions/upload-artifact@v4
       with:
-        name: UppASD-Windows-${{ matrix.installer_type }}-Installer
+        name: UppASD-Windows-${{ matrix.installer_type }}
         path: ${{ steps.find_installer.outputs.installer_path }}
         retention-days: 30

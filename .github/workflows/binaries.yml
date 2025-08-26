@@ -140,7 +140,37 @@ jobs:
         run: |
              cd build
              
-             # Build the DMG
+             # Clean up any stale mounts first
+             echo "=== Cleaning up stale mounts ==="
+             # Check for any UppASD-related mounts
+             mount | grep "/Volumes/UppASD" || echo "No UppASD volumes mounted"
+             for mount in $(mount | grep "/Volumes/UppASD" | cut -d' ' -f3); do
+               echo "Unmounting stale mount: $mount"
+               hdiutil detach "$mount" -force || true
+             done
+             
+             # Also check for any mounts with version numbers (both current and old)
+             mount | grep "/Volumes/UppASD-" || echo "No versioned UppASD volumes mounted"
+             for mount in $(mount | grep "/Volumes/UppASD-" | cut -d' ' -f3); do
+               echo "Unmounting stale version mount: $mount"
+               hdiutil detach "$mount" -force || true
+             done
+             
+             # Clean up any leftover mount points
+             for mp in /tmp/dmg_mount*; do
+               if [ -d "$mp" ]; then
+                 echo "Cleaning up leftover mount point: $mp"
+                 hdiutil detach "$mp" -force 2>/dev/null || true
+                 rmdir "$mp" 2>/dev/null || true
+               fi
+             done
+             
+             # Generate both ZIP and DMG packages
+             echo "=== Creating ZIP package ==="
+             cpack -G ZIP
+             ls -l *.zip
+             
+             echo "=== Creating DMG package ==="
              cpack -G DragNDrop
              ls -l *.dmg
              
@@ -154,27 +184,43 @@ jobs:
                
                # Mount DMG and remove quarantine from contents
                echo "=== Mounting DMG to remove quarantine from contents ==="
-               hdiutil attach "$DMG_FILE" -readonly -mountpoint /tmp/dmg_mount || true
-               if [ -d "/tmp/dmg_mount" ]; then
+               MOUNT_POINT="/tmp/dmg_mount_$$"  # Use unique mount point with process ID
+               
+               # Ensure mount point is clean
+               if [ -d "$MOUNT_POINT" ]; then
+                 echo "Cleaning existing mount point: $MOUNT_POINT"
+                 hdiutil detach "$MOUNT_POINT" -force 2>/dev/null || true
+                 rmdir "$MOUNT_POINT" 2>/dev/null || true
+               fi
+               
+               # Create fresh mount point
+               mkdir -p "$MOUNT_POINT"
+               
+               echo "Mounting DMG to: $MOUNT_POINT"
+               if hdiutil attach "$DMG_FILE" -readonly -mountpoint "$MOUNT_POINT"; then
                  echo "=== DMG Contents ==="
-                 find /tmp/dmg_mount -type f -exec ls -la {} \; || true
+                 find "$MOUNT_POINT" -type f -exec ls -la {} \; || true
                  
                  # Remove quarantine from all files and directories in DMG
                  echo "=== Removing quarantine from DMG contents ==="
-                 find /tmp/dmg_mount -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
+                 find "$MOUNT_POINT" -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
                  
                  # If there's an app bundle, specifically target it
-                 if [ -d "/tmp/dmg_mount/UppASD.app" ]; then
+                 if [ -d "$MOUNT_POINT/UppASD.app" ]; then
                    echo "=== Processing UppASD.app bundle ==="
-                   xattr -rd com.apple.quarantine "/tmp/dmg_mount/UppASD.app" 2>/dev/null || true
+                   xattr -rd com.apple.quarantine "$MOUNT_POINT/UppASD.app" 2>/dev/null || true
                    # Set bundle bit
-                   SetFile -a B "/tmp/dmg_mount/UppASD.app" 2>/dev/null || true
+                   SetFile -a B "$MOUNT_POINT/UppASD.app" 2>/dev/null || true
                    # Fix permissions
-                   chmod -R 755 "/tmp/dmg_mount/UppASD.app" || true
-                   chmod +x "/tmp/dmg_mount/UppASD.app/Contents/MacOS"/* 2>/dev/null || true
+                   chmod -R 755 "$MOUNT_POINT/UppASD.app" || true
+                   chmod +x "$MOUNT_POINT/UppASD.app/Contents/MacOS"/* 2>/dev/null || true
                  fi
                  
-                 hdiutil detach /tmp/dmg_mount || true
+                 echo "=== Unmounting DMG ==="
+                 hdiutil detach "$MOUNT_POINT" || true
+                 rmdir "$MOUNT_POINT" 2>/dev/null || true
+               else
+                 echo "Failed to mount DMG or mount point not accessible"
                fi
                
                echo "=== Quarantine removal completed ==="
