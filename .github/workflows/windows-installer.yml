@@ -88,7 +88,6 @@ jobs:
         cmake .. \
           -G "Ninja" \
           -DCMAKE_BUILD_TYPE=Release \
-          -DBUNDLE_LIBRARIES=ON \
           -DINSTALLER_TYPE=${{ matrix.installer_type }} \
           -DCMAKE_INSTALL_PREFIX="C:/Program Files/UppASD"
     

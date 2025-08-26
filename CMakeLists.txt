@@ -193,6 +193,13 @@ OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
 OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
 
+# Windows uses static linking, so disable library bundling automatically
+if(WIN32 AND BUNDLE_LIBRARIES)
+   message(WARNING "BUNDLE_LIBRARIES is not supported on Windows (using static linking)")
+   message(STATUS "Automatically disabling BUNDLE_LIBRARIES for Windows")
+   set(BUNDLE_LIBRARIES OFF CACHE BOOL "Bundle runtime libraries with RPATH for portable distribution" FORCE)
+endif()
+
 ##############################################################################################
 # Configure RPATH for portable distribution
 ##############################################################################################
@@ -251,6 +258,7 @@ if(BUNDLE_LIBRARIES)
       set(BUNDLE_LIB_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib")
    elseif(WIN32)
       # Windows: No library bundling - we use static linking instead
+      message(STATUS "Windows detected: Using static linking (no library bundling needed)")
       message(STATUS "Windows detected: Library bundling disabled (using static linking)")
    endif()
 endif()
@@ -1319,14 +1327,10 @@ if(WIN32)
         message(STATUS "WiX installer configured for minimal static build (no examples)")
         
         # Configure bundled libraries for Windows
+        # NOTE: Windows uses static linking, so no library bundling needed
         if(BUNDLE_LIBRARIES)
-            message(STATUS "Configuring WiX installer for bundled libraries")
-            # Install bundled libraries
-            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                    DESTINATION bin 
-                    USE_SOURCE_PERMISSIONS
-                    OPTIONAL
-                    FILES_MATCHING PATTERN "*.dll")
+            message(STATUS "Windows detected: Library bundling disabled (using static linking)")
+            message(STATUS "Static executable needs no additional DLLs")
         endif()
         
     else()
@@ -1337,14 +1341,10 @@ if(WIN32)
         message(STATUS "Using ZIP packaging for Windows")
         
         # Configure bundled libraries for Windows
+        # NOTE: Windows uses static linking, so no library bundling needed
         if(BUNDLE_LIBRARIES)
-            message(STATUS "Configuring ZIP package for bundled libraries")
-            # Install bundled libraries
-            install(DIRECTORY "${BUNDLE_LIB_DIR}/" 
-                    DESTINATION bin 
-                    USE_SOURCE_PERMISSIONS
-                    OPTIONAL
-                    FILES_MATCHING PATTERN "*.dll")
+            message(STATUS "Windows detected: Library bundling disabled (using static linking)")
+            message(STATUS "Static executable needs no additional DLLs")
         endif()
     endif()
     
