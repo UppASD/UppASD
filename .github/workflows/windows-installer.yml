@@ -101,7 +101,7 @@ jobs:
       shell: msys2 {0}
       run: |
         cd build
-        cpack -G ${{ matrix.installer_type }}
+        cpack -G ${{ matrix.installer_type }} --verbose
     
     - name: List build artifacts
       shell: pwsh

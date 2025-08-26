@@ -120,7 +120,6 @@ jobs:
              cd ..
 
       - name: Build zip file archive ${{ matrix.icon}}
-        if: runner.os != 'macOS'
         run: |
              cd build
              cpack -G ZIP
