@@ -120,6 +120,7 @@ jobs:
              cd ..
 
       - name: Build zip file archive ${{ matrix.icon}}
+        if: runner.os != 'macOS'
         run: |
              cd build
              cpack -G ZIP
@@ -140,34 +141,21 @@ jobs:
         run: |
              cd build
              
-             # Clean up any stale mounts first
-             echo "=== Cleaning up stale mounts ==="
-             mount | grep "/Volumes/UppASD" || echo "No UppASD volumes mounted"
-             for mount in $(mount | grep "/Volumes/UppASD" | cut -d' ' -f3); do
-               echo "Unmounting stale mount: $mount"
-               hdiutil detach "$mount" -force || true
-             done
-             
-             # Clean up any leftover mount points
-             for mp in /tmp/dmg_mount*; do
-               if [ -d "$mp" ]; then
-                 echo "Cleaning up leftover mount point: $mp"
-                 hdiutil detach "$mp" -force 2>/dev/null || true
-                 rmdir "$mp" 2>/dev/null || true
-               fi
-             done
-             
              # Generate packages separately
              echo "=== Creating DMG package ==="
              cpack -G DragNDrop
              
              echo "=== Creating simple ZIP archive (no app bundle) ==="
-             # Reconfigure to disable app bundle for ZIP generation
-             cmake -S .. -B . \
+             # Clear CMake cache and reconfigure to disable app bundle for ZIP generation
+             rm -f CMakeCache.txt
+             FC=gfortran-14 cmake -S .. -B . \
                -DCMAKE_BUILD_TYPE=Release \
                -DBUNDLE_LIBRARIES=ON \
                -DUSE_STATIC_LIBGFORTRAN=OFF \
-               -DFORCE_NO_APP_BUNDLE=ON
+               -DFORCE_NO_APP_BUNDLE=OFF
+             
+             # Rebuild with new configuration
+             cmake --build . --parallel
              
              # Generate ZIP without app bundle
              cpack -G ZIP

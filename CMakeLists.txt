@@ -193,7 +193,7 @@ OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
 OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
 OPTION(USE_STATIC_LIBGFORTRAN "Use static linking for libgfortran" OFF)
-OPTION(FORCE_NO_APP_BUNDLE "Force disable macOS app bundle creation for all generators" OFF)
+OPTION(FORCE_NO_APP_BUNDLE "Force disable macOS app bundle creation for all generators" ON)
 
 # Windows uses static linking, so disable library bundling automatically
 if(WIN32 AND BUNDLE_LIBRARIES)
