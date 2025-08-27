@@ -38,26 +38,27 @@ contains
       return
    end subroutine fortrandata_setinputdata
 
-   subroutine cudasim_initiateconstants()
+   subroutine gpusim_initiateconstants()
       implicit none
       return
-   end subroutine cudasim_initiateconstants
+   end subroutine gpusim_initiateconstants
 
-   subroutine cudasim_initiatematrices()
+   subroutine gpusim_initiatematrices()
       implicit none
       return
-   end subroutine cudasim_initiatematrices
+   end subroutine gpusim_initiatematrices
 
-   subroutine cudasim_cudarunsimulation(whichsim, whichphase)
+   subroutine gpusim_gpurunsimulation(whichsim, whichphase)
       implicit none
-      integer, intent(inout) :: whichsim, whichphase
+      integer, intent(in) :: whichsim, whichphase
+      character(len=1), intent(in) :: gpu_mc_bf
       return
-  end subroutine cudasim_cudarunsimulation
+  end subroutine gpusim_gpurunsimulation
 
-   subroutine cudasim_release()
+   subroutine gpusim_release()
       implicit none
       return
-   end subroutine cudasim_release
+   end subroutine gpusim_release
 
  !  subroutine cmdsim_initiateconstants()
  !     implicit none

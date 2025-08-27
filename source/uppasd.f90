@@ -179,10 +179,10 @@ contains
 
       if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
          ! Monte Carlo initial phase
-         if (gpu_mode==0) then !FORTRAN
+         if (do_gpu == 'Y' .and. do_gpu_mc == 'Y') then !HIP or CUDA
+            call mc_iphaseGPU()
+         else ! FORTRAN            
             call mc_iphase()
-         else ! C++ or CUDA
-            call sd_mphaseCUDA(1, 0)
          endif
       
       elseif (ipmode=='MS') then
@@ -195,11 +195,10 @@ contains
          ! Spin-lattice Hamiltonian Monte Carlo initial phase
          call ErrorHandling_missing('Spin-lattice Monte Carlo')
       elseif (ipmode=='S') then
-         ! Spin dynamics initial phase
-         if (gpu_mode==0) then !FORTRAN
+         if (do_gpu == 'Y' .and. do_gpu_llg == 'Y') then !HIP or CUDA
+            call sd_iphaseGPU()
+         else ! FORTRAN            
             call sd_iphase()
-         else ! C++ or CUDA
-            call sd_mphaseCUDA(0, 0)
          endif
       elseif (ipmode=='P') then
          write (*,'(1x,a)') "Calls ld_iphase"
@@ -292,10 +291,10 @@ contains
       call timing(0,'SpinCorr      ','OF')
 
       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
-         if (gpu_mode==0) then
+         if (do_gpu == 'Y' .and. do_gpu_mc == 'Y') then !HIP or CUDA
+            call mc_mphaseGPU()
+         else ! FORTRAN            
             call mc_mphase() ! Monte Carlo measurement phase
-         else ! C++ or CUDA
-            call sd_mphaseCUDA(1, 1)
          endif
 
       elseif (mode=='MS') then
@@ -307,10 +306,10 @@ contains
 
       elseif (mode=='S') then
          call print_siminfo()
-         if (gpu_mode==0) then !FORTRAN
-            call sd_mphase() ! Spin Dynamics measurement phase
-         else ! C++ or CUDA
-            call sd_mphaseCUDA(0, 1)
+         if (do_gpu == 'Y' .and. do_gpu_llg == 'Y') then !HIP or CUDA
+            call sd_mphaseGPU()
+         else ! FORTRAN            
+            call mc_mphase() ! Spin Dynamics measurement phase
          endif
 
       elseif (mode=='E') then
@@ -441,6 +440,11 @@ contains
    !> - Moved to separate function
    !---------------------------------------------------------------------------------
    subroutine cleanup_simulation()
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+#else
+      use NoCuda
+#endif
       use LSF,          only : allocate_lsfdata
       use Tools
       use Energy,       only : allocate_energies
@@ -547,6 +551,11 @@ contains
          call deallocate_gradient_lists()
       end if
     endif
+
+      if (do_gpu == 'Y') then  !GPU
+         call gpuSim_release();     
+      endif
+
    end subroutine cleanup_simulation
 
    !---------------------------------------------------------------------------------
@@ -559,6 +568,11 @@ contains
    subroutine setup_simulation()
       !
       !use Diamag_full
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+#else
+      use NoCuda
+#endif
       use ams
       use KMC
       use BLS
@@ -630,6 +644,7 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
+
       
       implicit none
 
@@ -1198,7 +1213,7 @@ contains
          ham%fix_num,ham%fix_list,read_ovf,do_mom_legacy,relaxed_if)
 
       ! Treat the embedding of the cluster
-      if(do_cluster=='Y') then
+      if(do_cluster=='Y') then      
          if (Natom_clus.ge.Natom) write(*,'(a)') "WARNING: Number of atoms in the cluster is larger than in the host! Check input"
          write(*,'(1x,a)') "Embed cluster infromation into the host"
          call cluster_creation(NT,ham_inp%do_dm,Natom,initmag,conf_num,Mensemble,    &
@@ -1389,6 +1404,13 @@ contains
          end if
       end if
     endif
+
+    ! Initiate GPU data
+
+      if (do_gpu == 'Y') then  !GPU
+         call gpuSim_initiateConstants()
+         call gpuSim_initiateMatrices()         
+      endif
 
     !call get_rlist_corr(Natom,NA,coord,1)
    end subroutine setup_simulation

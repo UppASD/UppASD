@@ -16,7 +16,7 @@ module Measurements
    private
 
    !public subroutines
-   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg!, do_cuda_measurements
+   public :: measure, flush_measurements, do_measurements, allocate_measurementdata, calc_mavrg
 
 contains
 
@@ -30,7 +30,7 @@ contains
    !> Niklas Fejes
    !-----------------------------------------------------------------------------
    subroutine do_measurements(mstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,&
-      traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_measurements)
+      traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
       !
       implicit none
       !
@@ -45,7 +45,7 @@ contains
       integer, intent(in)          :: cumu_step          !< Interval for sampling Binder cumulant
       character(len=1)             :: logsamp            !< Sample measurements logarithmically (Y/N)
       integer, intent(out)         :: do_copy            !< Flag if moment must be copied
-      character(len=1),intent(in)  :: do_cuda_measurements  !< Measurements (Y/N) with CUDA
+      character(len=1),intent(in)  :: do_gpu_measurements  !< Measurements (Y/N) with CUDA
 
       integer :: i
       integer :: sstep

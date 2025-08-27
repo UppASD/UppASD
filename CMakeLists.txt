@@ -204,9 +204,13 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 IF(USE_OPENMP)
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
+   message(STATUS "Which are the OpenMP flags?  ${OpenMP_Fortran_FLAGS}")
+
 
    if(OpenMP_Fortran_FOUND)
-      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+        target_link_libraries(${UppASD_LIB} PRIVATE OpenMP::OpenMP_Fortran)
+
    endif()
 
 ENDIF(USE_OPENMP)
@@ -253,7 +257,7 @@ if(BUILD_DOXYGEN)
    else (DOXYGEN_FOUND)
       message("Doxygen need to be installed to generate the doxygen documentation")
    endif (DOXYGEN_FOUND)
-endif()
+endif()   
 ##############################################################################################
 
 
@@ -434,6 +438,7 @@ endif()
 if(USE_VSL AND MKL_FOUND)
    add_compile_definitions(VSL)
    #add_compile_definitions(USE_VSL)
+      include_directories($ENV{MKLROOT}/include)
 endif()
 ##############################################################################################
 
@@ -494,7 +499,7 @@ if(BUILD_PYTHON)
       set(f2py_module_name "uppasd")
       SET(UppASD_F90w f90_wraps)
       set(F90wrap_kind
-         ${CMAKE_SOURCE_DIR}/cmake/.f2py_f2cmap
+         ${CMAKE_SOURCE_DIR}/cmake/.f2py_f2cmapPRIVATE
          )
 
       # Uncomment if f90wrap needs to be invoked
@@ -609,7 +614,7 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 # Add the needed libraries and special compiler flags
 ##############################################################################################
 ########hip here?????
-TARGET_LINK_LIBRARIES(${UppASD_LIB}
+TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    -lgfortran
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
@@ -622,7 +627,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB}
 #    ${HIP_LIBRARIES}
    )
 
-TARGET_LINK_LIBRARIES(${UppASD_EXE}
+TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
    -lgfortran
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}

@@ -541,4 +541,95 @@ contains
    end subroutine mc_minimal
 
 
+   subroutine mc_iphaseGPU()
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+
+#else
+      use NoCuda
+#endif
+      use Damping
+      use SpinTorques, only : btorque, stt
+      use InputData, only : do_gpu, gpu_mc_bf
+
+      ! Common stuff
+      integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
+      integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
+
+      whichsim = 1
+      whichphase = 0
+
+      ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
+      !!! TEMPORARY COMMENTED OUT
+      call FortranData_Initiate(stt,btorque)
+      !!! TEMPORARY COMMENTED OUT
+
+      ! Let the fortran timing think we are in Measurement
+      call timing(0,'Measurement   ','ON')
+
+      ! Start simulation
+      !if (do_gpu==1) then  !CUDA
+         !call cudaSim_initiateConstants()
+         !call cudaSim_initiateMatrices()
+         call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
+         !call gpuSim_release();
+
+      !else if (do_gpu==2) then     !C/C++
+      !   call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
+      !   call cMdSim_initiateFortran()   ! calls mdSimulation.cpp to copy and initialize matrices from fortrandata.hpp
+      !   call cMdSim_measurementPhase()
+
+      !else
+      !  stop "Invalid do_gpu"
+      !endif
+      call timing(0,'Measurement   ','OF')
+   end subroutine mc_iphaseGPU
+
+   subroutine mc_mphaseGPU()
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+
+#else
+      use NoCuda
+#endif
+      use Damping
+      use SpinTorques, only : btorque, stt
+      use InputData, only : do_gpu, gpu_mc_bf
+
+      ! Common stuff
+      integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
+      integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
+
+      whichsim = 1
+      whichphase = 1
+
+      ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
+      !!! TEMPORARY COMMENTED OUT
+      call FortranData_Initiate(stt,btorque)
+      !!! TEMPORARY COMMENTED OUT
+
+      ! Let the fortran timing think we are in Measurement
+      call timing(0,'Measurement   ','ON')
+
+      ! Start simulation
+      !if (do_gpu==1) then  !CUDA
+         !call cudaSim_initiateConstants()
+         !call cudaSim_initiateMatrices()
+         call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
+         !call gpuSim_release();
+
+      !else if (do_gpu==2) then     !C/C++
+      !   call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
+      !   call cMdSim_initiateFortran()   ! calls mdSimulation.cpp to copy and initialize matrices from fortrandata.hpp
+      !   call cMdSim_measurementPhase()
+
+      !else
+      !   stop "Invalid do_gpu"
+      !endif
+      call timing(0,'Measurement   ','OF')
+   end subroutine mc_mphaseGPU
+
+
 end module mc_driver

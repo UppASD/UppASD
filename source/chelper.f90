@@ -77,7 +77,7 @@ contains
    !> @author
    !> Thomas Nystrand
    !---------------------------------------------------------------------
-   subroutine fortran_calc_simulation_status_variables(mavrg)
+   subroutine fortran_calc_simulation_status_variables(mavrg) bind(C,name='fortran_calc_simulation_status_variables')
       implicit none
       real(dblprec), intent(inout) :: mavrg
       call calc_mavrg(Natom, Mensemble, emomM, mavrg)
@@ -144,7 +144,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-           traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_measurements)
+           traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
    end subroutine fortran_do_measurements
 
 
@@ -177,7 +177,7 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_cuda_measurements)
+           do_gpu_measurements)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &

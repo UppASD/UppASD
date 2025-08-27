@@ -270,7 +270,11 @@ module InputData
    integer :: gpu_rng      !< What CURAND RNG to use (0 = DEFAULT, 1 = XORWOW, 2 = MRG32K3A, 3 = MTGP32)
    integer :: gpu_rng_seed !< Seed for RNG. If 0, the current time will be used.
    character(len=1) :: gpu_mc_bf   !< Use brute force CUDA Monte Carlo
-   character(len=1) :: do_cuda_measurements   !< Do measurements in CUDA (Y/N)
+   character(len=1) :: do_gpu      !< Use GPU functionalities (replaces gpu_mode) (Y/N)
+   character(len=1) :: do_gpu_llg  !< Do LLG on GPU (Y/N)
+   character(len=1) :: do_gpu_mc   !< Do eventual MC on GPU (Y/N)
+   character(len=1) :: do_gpu_measurements   !< Do measurements on GPU (Y/N)
+   character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -525,6 +529,12 @@ contains
       gpu_rng           = 0
       gpu_rng_seed      = 0
       gpu_mc_bf         = 'N'
+      do_gpu            = 'N'
+      do_gpu_llg        = 'Y'
+      do_gpu_mc         = 'N'
+      do_gpu_measurements = 'Y'
+      do_gpu_correlations = 'Y'
+
 
       ! I/O OVF
       prn_ovf           = 'N'

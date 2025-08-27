@@ -39,19 +39,19 @@ void cmdsim_writematrices_() {
 // Cuda
 static GpuSimulation gpuSim;
 
-void cudasim_initiateconstants_() {
+void gpusim_initiateconstants_() {
    gpuSim.initiateConstants();
 }
 
-void cudasim_initiatematrices_() {
+void gpusim_initiatematrices_() {
    gpuSim.initiateMatrices();
 }
 
-void cudasim_cudarunsimulation_(int *whichsim, int *whichphase, char* bf){
+void gpusim_gpurunsimulation_(int *whichsim, int *whichphase, char* bf){
    gpuSim.gpuRunSimulation(*whichsim, *whichphase, *bf);
 };
 
-void cudasim_release_(){
+void gpusim_release_(){
    gpuSim.release();
 };
 
