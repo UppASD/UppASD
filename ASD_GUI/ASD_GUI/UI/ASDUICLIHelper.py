@@ -7,6 +7,7 @@ Author:
 # pylint: disable=invalid-name, no-name-in-module, no-member
 
 import os
+import sys
 from ASD_GUI.UI import ASDUIActorHelper
 
 
@@ -60,12 +61,25 @@ class ASDUICLIHelper:
         }
 
         self.file_exist = {}
+        self.has_errors = False
 
         for key, file_path in self.file_list.items():
             if file_path:
-                self.file_exist[key] = os.path.isfile(file_path)
+                if os.path.isfile(file_path):
+                    self.file_exist[key] = True
+                else:
+                    self.file_exist[key] = False
+                    self.has_errors = True
+                    # Show error for missing file
+                    error_msg = f"Error: {self._get_file_description(key)} '{file_path}' not found!"
+                    print(error_msg)
+                    sys.exit(1)
             else:
                 self.file_exist[key] = False
+
+        if self.has_errors:
+            # Don't proceed with setting up files if there are errors
+            return
 
         if self.file_exist["coordfile"]:
             window.ASDdata.posfiles = self.file_list["coordfile"]
@@ -87,6 +101,18 @@ class ASDUICLIHelper:
         if self.file_exist["settings_file"]:
             window.settings_file = self.file_list["settings_file"]
 
+    def _get_file_description(self, key):
+        """Get a human-readable description for a file type."""
+        descriptions = {
+            "coordfile": "Coordinate",
+            "momentfile": "Magnetic moment",
+            "structfile": "Structure",
+            "dmfile": "DM data",
+            "enefile": "Energy",
+            "settings_file": "Settings",
+        }
+        return descriptions.get(key, "File")
+
     def InitActorsFromCLI(self, window):
         """
         Initializes actors in the given window based on the command-line interface (CLI)
@@ -104,6 +130,10 @@ class ASDUICLIHelper:
             Calls `ASDUIActorHelper.AddActors` with the window and its `viz_type` if `viz_type
             is set.
         """
+        if self.has_errors:
+            # Don't initialize actors if there were file errors
+            return
+            
         window.viz_type = self.viz_type
         if self.viz_type:
             ASDUIActorHelper.AddActors(window, window.viz_type)
@@ -112,5 +142,9 @@ class ASDUICLIHelper:
         """
         Initialize settings from the command line interface.
         """
+        if self.has_errors:
+            # Don't load settings if there were file errors
+            return
+            
         if self.file_exist["settings_file"]:
             window.LoadSettings()

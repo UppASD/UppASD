@@ -24,7 +24,7 @@ Jonathan Chico
 # pylint: disable=invalid-name, no-name-in-module, no-member, import-error
 
 import glob
-
+import os
 import numpy as np
 import pandas as pd
 from PyQt6 import QtWidgets
@@ -162,7 +162,19 @@ class ASDReading:
             # Find the restartfile
             # ------------------------------------------------------------------------
             if len(self.magnetization) > 0:
-                self.MagFile = open(self.magnetization, encoding="utf-8")
+                if os.path.isfile(self.magnetization):
+                    self.MagFile = open(self.magnetization, encoding="utf-8")
+                else:
+                    window.Res_Error_Window = ASDInputWindows.ErrorWindow()
+                    window.Res_Error_Window.FunMsg.setText(
+                        "File not found"
+                    )
+                    window.Res_Error_Window.ErrorMsg.setText(
+                        f"Error: Magnetic moment file '{self.magnetization}' not found!"
+                    )
+                    window.Res_Error_Window.show()
+                    self.error_trap = True
+                    return
             else:
                 print(
                     "No file name selected from menu. Trying to find a 'restart.*.out' file"
@@ -199,7 +211,19 @@ class ASDReading:
                 # Find the structfile
                 # --------------------------------------------------------------------
                 if len(self.structfiles) > 0:
-                    self.structFile = self.structfiles
+                    if os.path.isfile(self.structfiles):
+                        self.structFile = self.structfiles
+                    else:
+                        window.Neigh_Error_Window = ASDInputWindows.ErrorWindow()
+                        window.Neigh_Error_Window.FunMsg.setText(
+                            "File not found"
+                        )
+                        window.Neigh_Error_Window.ErrorMsg.setText(
+                            f"Error: Structure file '{self.structfiles}' not found!"
+                        )
+                        window.Neigh_Error_Window.show()
+                        self.error_trap = True
+                        return
                 else:
                     print(
                         "No file name selected from menu. Trying to find a 'struct.*.out' file"
@@ -225,7 +249,19 @@ class ASDReading:
                 # Find the dmdatafile
                 # ---------------------------------------------------------------
                 if len(self.dmdatafiles) > 0:
-                    self.DMFile = self.dmdatafiles
+                    if os.path.isfile(self.dmdatafiles):
+                        self.DMFile = self.dmdatafiles
+                    else:
+                        window.DMNeigh_Error_Window = ASDInputWindows.ErrorWindow()
+                        window.DMNeigh_Error_Window.FunMsg.setText(
+                            "File not found"
+                        )
+                        window.DMNeigh_Error_Window.ErrorMsg.setText(
+                            f"Error: DM data file '{self.dmdatafiles}' not found!"
+                        )
+                        window.DMNeigh_Error_Window.show()
+                        self.error_trap = True
+                        return
                 else:
                     print(
                         "No file name selected from menu. Trying to find a 'dmdata.*.out' file"
@@ -254,7 +290,19 @@ class ASDReading:
             # Find the restartfile
             # -------------------------------------------------------------------
             if len(self.enefiles) > 0:
-                self.eneFile = self.enefiles
+                if os.path.isfile(self.enefiles):
+                    self.eneFile = self.enefiles
+                else:
+                    window.Ene_Error_Window = ASDInputWindows.ErrorWindow()
+                    window.Ene_Error_Window.FunMsg.setText(
+                        "File not found"
+                    )
+                    window.Ene_Error_Window.ErrorMsg.setText(
+                        f"Error: Energy file '{self.enefiles}' not found!"
+                    )
+                    window.Ene_Error_Window.show()
+                    self.error_trap = True
+                    return
             else:
                 print(
                     "No file name selected from menu. Trying to find a 'localenergy.*.out' file"
@@ -279,7 +327,19 @@ class ASDReading:
         # Find the coordinate file
         # -----------------------------------------------------------------------
         if len(self.posfiles) > 0:
-            atomsFile = open(self.posfiles, encoding="utf-8")
+            if os.path.isfile(self.posfiles):
+                atomsFile = open(self.posfiles, encoding="utf-8")
+            else:
+                window.Coord_Error_Window = ASDInputWindows.ErrorWindow()
+                window.Coord_Error_Window.FunMsg.setText(
+                    "File not found"
+                )
+                window.Coord_Error_Window.ErrorMsg.setText(
+                    f"Error: Coordinate file '{self.posfiles}' not found!"
+                )
+                window.Coord_Error_Window.show()
+                self.error_trap = True
+                return
         else:
             print(
                 "No file name selected from menu. Trying to find a 'coord.*.out' file"
