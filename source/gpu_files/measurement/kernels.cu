@@ -1,278 +1,386 @@
 #include "kernels.cuh"
 
-namespace cg = cooperative_groups;
+#include <cuda_runtime.h>
+#include <cmath>
 
 
-__inline__ __device__ real kernels::warpReduceSum(real val, cg::thread_block_tile<32> warp)
+// ============================================================================
+// Utilities (device)
+// First index is contiguous in CudaTensor, so reading (i=0..2, j fixed) is contiguous.
+// ============================================================================
+
+namespace
 {
-    for (int offset = 16; offset > 0; offset /= 2)
-        val += warp.shfl_down(val, offset);
-    return val;
-}
-
-
-__global__ void kernels::sumOverAtoms(const CudaTensor<real, 3>& in_tensor,
-                                        CudaTensor<real, 2>& out_tensor)
-{
-    const uint N_atoms = in_tensor.extent(1);
-    const uint M_ensembles = in_tensor.extent(2);
-
-    assert(out_tensor.extent(0) == 3);
-    assert(out_tensor.extent(1) == M_ensembles);
-
-    const uint i = blockIdx.x; // 0 <= i < 3
-    const uint k = blockIdx.y; // 0 <= k < M_ensembles
-
-    const uint tid = threadIdx.x;
-
-    real local_sum = 0.0;
-
-    for (uint j = tid; j < N_atoms; j += blockDim.x)
+    __device__ __forceinline__ real warp_reduce_sum(real v)
     {
-        local_sum += in_tensor(i, j, k);
+        unsigned mask = 0xffffffffu;
+        v += __shfl_down_sync(mask, v, 16);
+        v += __shfl_down_sync(mask, v, 8);
+        v += __shfl_down_sync(mask, v, 4);
+        v += __shfl_down_sync(mask, v, 2);
+        v += __shfl_down_sync(mask, v, 1);
+        return v;
     }
 
-
-    cg::thread_block cta = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(cta);
-    local_sum = kernels::warpReduceSum(local_sum, warp);
-
-    __shared__ real warp_sums[32];
-    if (warp.thread_rank() == 0)
-        warp_sums[warp.meta_group_rank()] = local_sum;
-    cg::sync(cta);
-
-    real block_sum = 0.0;
-    if (warp.meta_group_rank() == 0)
+    // 1D block-wide reduce; shared must have >= number of warps elements
+    __device__ __forceinline__ real block_reduce_sum_1d(real v, real* shared)
     {
-        if (tid < (blockDim.x / 32))
-            block_sum = warp_sums[tid];
-        block_sum = kernels::warpReduceSum(block_sum, warp);
-        if (tid == 0)
-            out_tensor(i, k) = block_sum;
+        v = warp_reduce_sum(v);
+        int lane  = threadIdx.x & 31;
+        int wid   = threadIdx.x >> 5;
+        int nwarp = (blockDim.x + 31) >> 5;
+        if (lane == 0) shared[wid] = v;
+        __syncthreads();
+        real out = (threadIdx.x < nwarp) ? shared[threadIdx.x] : real(0);
+        if (wid == 0) out = warp_reduce_sum(out);
+        return out; // valid when threadIdx.x==0
+    }
+
+    __device__ __forceinline__ real vnorm3(real x, real y, real z) { return sqrt(x*x + y*y + z*z); }
+
+} // anon
+
+// ============================================================================
+// sumOverAtoms (optimized for N ≫ M):
+// - grid.x tiles across atoms (N)
+// - grid.y enumerates (i,k) pairs: q=blockIdx.y, i=q%3, k=q/3
+// - Each block reduces its tile into a scalar, then atomicAdd into out_tensor(i,k)
+//   (OUT MUST BE ZEROED BEFORE LAUNCH).
+// ============================================================================
+
+__global__ void kernels::measurement::sumOverAtoms(const CudaTensor<real, 3>& in_tensor,
+                                      CudaTensor<real, 2>& out_tensor)
+{
+    const uint N_atoms     = static_cast<uint>(in_tensor.extent(1));
+    const uint M_ensembles = static_cast<uint>(in_tensor.extent(2));
+
+    const uint q = blockIdx.y;      // 0..(3*M-1)
+    const uint i = q % 3u;          // component
+    const uint k = q / 3u;          // ensemble
+    if (k >= M_ensembles) return;
+
+    // Tile over atoms in grid-stride
+    real local = real(0);
+    for (uint j = blockIdx.x * blockDim.x + threadIdx.x; j < N_atoms; j += blockDim.x * gridDim.x)
+    {
+        // first index (i) is contiguous, so these 3 loads are coalesced per thread
+        local += in_tensor(i, j, k);
+    }
+
+    extern __shared__ real s[];
+    real block_sum = block_reduce_sum_1d(local, s);
+
+    if (threadIdx.x == 0)
+    {
+        // one atomicAdd per block per (i,k)
+        atomicAdd(&out_tensor(i, k), block_sum);
     }
 }
 
+// ============================================================================
+// averageMagnetization (two-phase across ensembles)
+// ============================================================================
 
-__global__ void kernels::averageMagnetization(const CudaTensor<real, 2>& emomMSum,
-                                                 uint atoms,
-                                                 uint ensembles,
-                                                 AverageMagnetizationData& out)
+__global__ void kernels::measurement::averageMagnetization_partial(const CudaTensor<real, 2>& emomMSum,
+                                                      uint atoms,
+                                                      uint ensembles,
+                                                      AvgMPart* __restrict__ block_parts)
 {
-    const uint k = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint k0 = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint stride = blockDim.x * gridDim.x;
 
-    if (k >= ensembles)
-        return;
+    real sx=0, sy=0, sz=0, sm=0, sm2=0;
 
-    real m[3] = {
-        emomMSum(0, k), 
-        emomMSum(1, k), 
-        emomMSum(2, k)
-    };
+    for (uint k = k0; k < ensembles; k += stride)
+    {
+        // emomMSum(:,k) holds sums over atoms -> divide by atoms for averages
+        real mx = emomMSum(0, k) / static_cast<real>(atoms);
+        real my = emomMSum(1, k) / static_cast<real>(atoms);
+        real mz = emomMSum(2, k) / static_cast<real>(atoms);
+        real mn = vnorm3(mx, my, mz);
+        sx  += mx;  sy += my;  sz += mz;
+        sm  += mn;  sm2 += mn*mn;
+    }
 
-    m[0] /= atoms;
-    m[1] /= atoms;
-    m[2] /= atoms;
+    extern __shared__ real s[];
+    real r;
+    r = block_reduce_sum_1d(sx, s);  if (threadIdx.x==0) block_parts[blockIdx.x].mx = r; __syncthreads();
+    r = block_reduce_sum_1d(sy, s);  if (threadIdx.x==0) block_parts[blockIdx.x].my = r; __syncthreads();
+    r = block_reduce_sum_1d(sz, s);  if (threadIdx.x==0) block_parts[blockIdx.x].mz = r; __syncthreads();
+    r = block_reduce_sum_1d(sm, s);  if (threadIdx.x==0) block_parts[blockIdx.x].m  = r; __syncthreads();
+    r = block_reduce_sum_1d(sm2,s);  if (threadIdx.x==0) block_parts[blockIdx.x].m2 = r;
+}
 
-    const real m_norm = norm(3, m);
-    const real avrgms = pow(m_norm, 2);
+__global__ void kernels::measurement::averageMagnetization_finalize(const AvgMPart* __restrict__ block_parts,
+                                                       uint nblocks,
+                                                       uint ensembles,
+                                                       AverageMagnetizationData& out)
+{
+    real sx=0, sy=0, sz=0, sm=0, sm2=0;
+    for (uint i = threadIdx.x; i < nblocks; i += blockDim.x) {
+        sx  += block_parts[i].mx;
+        sy  += block_parts[i].my;
+        sz  += block_parts[i].mz;
+        sm  += block_parts[i].m;
+        sm2 += block_parts[i].m2;
+    }
 
-    atomicAdd(&(out.m_x), m[0]);
-    atomicAdd(&(out.m_y), m[1]);
-    atomicAdd(&(out.m_z), m[2]);
-    atomicAdd(&(out.m), m_norm);
-    atomicAdd(&(out.m_stdv), avrgms);
+    extern __shared__ real s[];
+    real r;
+    r = block_reduce_sum_1d(sx, s);  if (threadIdx.x==0) out.m_x = r / ensembles; __syncthreads();
+    r = block_reduce_sum_1d(sy, s);  if (threadIdx.x==0) out.m_y = r / ensembles; __syncthreads();
+    r = block_reduce_sum_1d(sz, s);  if (threadIdx.x==0) out.m_z = r / ensembles; __syncthreads();
+    r = block_reduce_sum_1d(sm, s);  if (threadIdx.x==0) out.m   = r / ensembles; __syncthreads();
+    r = block_reduce_sum_1d(sm2,s);
+    if (threadIdx.x==0) {
+        real Em2 = r / ensembles;
+        real Em  = out.m;
+        real var = fmax(Em2 - Em*Em, real(0));
+        out.m_stdv = sqrt(var);
+    }
+}
 
+// ============================================================================
+// Binder cumulant (no energy) (two-phase across ensembles)
+// ============================================================================
+
+__global__ void kernels::measurement::binderCumulantNoEnergy_partial(const CudaTensor<real, 2>& emomMSum,
+                                                        uint atoms,
+                                                        uint ensembles,
+                                                        BinderPart* __restrict__ block_parts)
+{
+    const uint k0 = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint stride = blockDim.x * gridDim.x;
+
+    const real atoms_inv = 1.0 / static_cast<real>(atoms);
+
+    real s1=0, s2=0, s4=0;
+
+    for (uint k = k0; k < ensembles; k += stride)
+    {
+        const real mx = emomMSum(0, k) * atoms_inv;
+        const real my = emomMSum(1, k) * atoms_inv;
+        const real mz = emomMSum(2, k) * atoms_inv;
+        const real m  = vnorm3(mx, my, mz);
+        const real m2 = m*m;
+        s1 += m;  s2 += m2;  s4 += m2*m2;
+    }
+
+    extern __shared__ real s[];
+    real r;
+    r = block_reduce_sum_1d(s1, s); if (threadIdx.x==0) block_parts[blockIdx.x].s1 = r; __syncthreads();
+    r = block_reduce_sum_1d(s2, s); if (threadIdx.x==0) block_parts[blockIdx.x].s2 = r; __syncthreads();
+    r = block_reduce_sum_1d(s4, s); if (threadIdx.x==0) block_parts[blockIdx.x].s4 = r;
+}
+
+__global__ void kernels::measurement::binderCumulantNoEnergy_finalize(const BinderPart* __restrict__ block_parts,
+                                                         uint nblocks,
+                                                         uint atoms,
+                                                         uint ensembles,
+                                                         real temp,
+                                                         real mub,
+                                                         real k_bolt,
+                                                         BinderCumulantData& d)
+{
+    // Strided accumulation over blocks
+    real s1 = 0, s2 = 0, s4 = 0;
+    for (uint i = threadIdx.x; i < nblocks; i += blockDim.x) {
+        s1 += block_parts[i].s1;
+        s2 += block_parts[i].s2;
+        s4 += block_parts[i].s4;
+    }
+
+    // Shared memory must be at least (#warps) * sizeof(real)
+    extern __shared__ real sh[];
+
+    // Reduce each scalar with the block helper.
+    // IMPORTANT: barrier between calls since the helper reuses 'sh' and has no trailing sync.
+    real S1 = 0, S2 = 0, S4 = 0;
+
+    real r = block_reduce_sum_1d(s1, sh);
+    if (threadIdx.x == 0) S1 = r;
     __syncthreads();
 
-    if (k == 0)
-    {
-        out.m_x /= ensembles;
-        out.m_y /= ensembles;
-        out.m_z /= ensembles;
-        out.m /= ensembles;
-        out.m_stdv = out.m_stdv / ensembles - pow(out.m, 2);
-        out.m_stdv = sqrt(max(out.m_stdv, 0.0));
-    }
-}
+    r = block_reduce_sum_1d(s2, sh);
+    if (threadIdx.x == 0) S2 = r;
+    __syncthreads();
 
+    r = block_reduce_sum_1d(s4, sh);
+    if (threadIdx.x == 0) S4 = r;
+    __syncthreads();
 
-__global__ void kernels::binderCumulantNoEnergy(const CudaTensor<real, 2>& emomMSum,
-                                                   uint atoms,
-                                                   uint ensembles,
-                                                   real temp,
-                                                   real mub,
-                                                   real k_bolt,
-                                                   BinderCumulantData& d)
-{
-    const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (threadIdx.x == 0) {
+        const real w_new = static_cast<real>(ensembles);
+        const real tot   = d.cumutotw + w_new;
 
-    if (tid >= 1)
-        return;
+        const real avrgme   = S1 / w_new; // batch mean |m|
+        const real avrgm2_b = S2 / w_new;
+        const real avrgm4_b = S4 / w_new;
 
-    for (uint k = 0; k < ensembles; ++k)
-    {
-        real m[3] = {
-            emomMSum(0, k),
-            emomMSum(1, k),
-            emomMSum(2, k)
-        };
+        d.avrgmcum  = (d.avrgmcum  * d.cumutotw + avrgme   * w_new) / tot;
+        d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2_b * w_new) / tot;
+        d.avrgm4cum = (d.avrgm4cum * d.cumutotw + avrgm4_b * w_new) / tot;
 
-        const real avrgme = norm(3, m) / atoms;
-        const real avrgm2 = pow(avrgme, 2);
-        const real avrgm4 = pow(avrgm2, 2);
-        d.cumuw += 1;
+        const real eps = (sizeof(real) == sizeof(double)) ? real(1e-15) : real(1e-7);
+        const real m2c = (fabs(d.avrgm2cum) < eps) ? eps : d.avrgm2cum;
 
-        d.avrgmcum = (d.avrgmcum * d.cumutotw + avrgme * d.cumuw ) / (d.cumutotw + d.cumuw);
-        d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2 * d.cumuw ) / (d.cumutotw + d.cumuw);
-        d.avrgm4cum = (d.avrgm4cum * d.cumutotw + avrgm4 * d.cumuw ) / (d.cumutotw + d.cumuw);
+        d.binderc = real(1) - (d.avrgm4cum / (real(3) * m2c * m2c));
 
-        assert(d.avrgm2cum != 0.0); // this is not checked in Fortran
-        d.binderc = 1.0 - (d.avrgm4cum / 3.0 / pow(d.avrgm2cum, 2));
-
-        // For T=0, not the proper susceptibility
-    //        const real extra = (temp == 0.0)? 1.0 : k_bolt * temp;
-    //        d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / (k_bolt * extra);
-
-        if (temp > 0.0)
-            d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / pow(k_bolt, 2) / temp;
+        if (temp > real(0))
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / (k_bolt*k_bolt) / temp;
         else
-            d.pmsusc = (d.avrgm2cum - pow(d.avrgmcum, 2)) * pow(mub, 2) * atoms / k_bolt;
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / k_bolt;
 
-        d.cumutotw += d.cumuw;
+        d.cumuw    += w_new;
+        d.cumutotw  =  tot;
     }
 }
 
 
+// ============================================================================
+// grad_moments (first index contiguous; N ≫ M → set block.y=1 typically)
+// ============================================================================
 
-__global__ void kernels::grad_moments(const CudaTensor<real, 3>& emomM,
-                                        const CudaTensor<real, 3>& dxyz_vec,
-                                        const CudaTensor<int, 2>& dxyz_atom,
-                                        const CudaTensor<int, 1>& dxyz_list,
-                                        CudaTensor<real, 4>& grad_mom)
+__global__ void kernels::measurement::grad_moments(const CudaTensor<real, 3>& emomM,
+                                      const CudaTensor<real, 3>& dxyz_vec,
+                                      const CudaTensor<int, 2>& dxyz_atom,
+                                      const CudaTensor<int, 1>& dxyz_list,
+                                      CudaTensor<real, 4>& grad_mom)
 {
-    const uint N = emomM.extent(1);
-    const uint M = emomM.extent(2);
-    const uint iatom = blockDim.x * blockIdx.x + threadIdx.x;
-    const uint kk = blockDim.y * blockIdx.y + threadIdx.y;
+    const uint N  = static_cast<uint>(emomM.extent(1));
+    const uint M  = static_cast<uint>(emomM.extent(2));
+    const uint i  = blockIdx.x * blockDim.x + threadIdx.x; // atom
+    const uint kk = blockIdx.y * blockDim.y + threadIdx.y; // ensemble
 
-    if (iatom >= N || kk >= M)
-        return;
+    if (i >= N || kk >= M) return;
 
-    assert(dxyz_list(iatom) < N);
+    // zero 3x3
+    #pragma unroll
+    for (int r=0; r<3; ++r)
+        #pragma unroll
+        for (int c=0; c<3; ++c)
+            grad_mom(r, c, i, kk) = real(0);
 
-    for (uint i = 0; i < 3; ++i)
-        for (uint j = 0; j < 3; ++j)
-            grad_mom(i, j, iatom, kk) = 0;
+    const uint nnei = static_cast<uint>(dxyz_list(i));
 
-    for (uint jneigh = 0; jneigh < dxyz_list(iatom); ++jneigh)
-    {
-        assert(jneigh < 26);
-        const uint jatom = dxyz_atom(jneigh, iatom) - 1; // needs -1 here since it gives the index of a neighboring atom
+    for (uint jn = 0; jn < nnei; ++jn) {
+        const uint j = static_cast<uint>(dxyz_atom(jn, i)) - 1u; // 1-based neighbor index
+        if (j >= N) continue;
 
-        assert(jatom < N);
-        const real d_mom[3] = {
-                emomM(0, jatom, kk) - emomM(0, iatom, kk),
-                emomM(1, jatom, kk) - emomM(1, iatom, kk),
-                emomM(2, jatom, kk) - emomM(2, iatom, kk)
-        };
+        const real dx = dxyz_vec(0, jn, i);
+        const real dy = dxyz_vec(1, jn, i);
+        const real dz = dxyz_vec(2, jn, i);
 
-        const real dv[3] = { // dv = {dx, dy, dz}
-                dxyz_vec(0, jneigh, iatom),
-                dxyz_vec(1, jneigh, iatom),
-                dxyz_vec(2, jneigh, iatom)
-        };
+        const real dmx = emomM(0, j, kk) - emomM(0, i, kk);
+        const real dmy = emomM(1, j, kk) - emomM(1, i, kk);
+        const real dmz = emomM(2, j, kk) - emomM(2, i, kk);
 
-        for (uint coord = 0; coord < 3; ++coord)
-        {
-            if (abs( dv[coord] ) > 1e-7)
-            {
-                grad_mom(0, coord, iatom, kk) += d_mom[0] / dv[coord];
-                grad_mom(1, coord, iatom, kk) += d_mom[1] / dv[coord];
-                grad_mom(2, coord, iatom, kk) += d_mom[2] / dv[coord];
-            }
-        }
+        if (fabs(dx) > real(1e-12)) { const real inv = real(1)/dx;
+            grad_mom(0,0,i,kk) += dmx*inv; grad_mom(1,0,i,kk) += dmy*inv; grad_mom(2,0,i,kk) += dmz*inv; }
+        if (fabs(dy) > real(1e-12)) { const real inv = real(1)/dy;
+            grad_mom(0,1,i,kk) += dmx*inv; grad_mom(1,1,i,kk) += dmy*inv; grad_mom(2,1,i,kk) += dmz*inv; }
+        if (fabs(dz) > real(1e-12)) { const real inv = real(1)/dz;
+            grad_mom(0,2,i,kk) += dmx*inv; grad_mom(1,2,i,kk) += dmy*inv; grad_mom(2,2,i,kk) += dmz*inv; }
     }
 
-    for (uint coord = 0; coord < 3; ++coord)
-    {
-        grad_mom(coord, 0, iatom, kk) /= dxyz_list(iatom);
-        grad_mom(coord, 1, iatom, kk) /= dxyz_list(iatom);
-        grad_mom(coord, 2, iatom, kk) /= dxyz_list(iatom);
+    const real inv_n = (nnei > 0) ? (real(1)/real(nnei)) : real(0);
+    #pragma unroll
+    for (int c=0; c<3; ++c) {
+        grad_mom(0,c,i,kk) *= inv_n;
+        grad_mom(1,c,i,kk) *= inv_n;
+        grad_mom(2,c,i,kk) *= inv_n;
     }
 }
 
+// ============================================================================
+// pontryagin_no (brute-force): two-phase across (atom, ensemble)
+// Good for N ≫ M → use block=(256,1), grid=(ceil_div(N,256), M)
+// ============================================================================
 
-__global__ void kernels::pontryagin_no(const CudaTensor<real, 3>& emomM,
-                                       const CudaTensor<real, 4>& grad_mom,
-                                       uint sk_num_count,
-                                       SkyrmionNumberData& d)
+__global__ void kernels::measurement::pontryagin_no_partial(const CudaTensor<real, 3>& emomM,
+                                               const CudaTensor<real, 4>& grad_mom,
+                                               SumPart* __restrict__ block_parts)
 {
-    const uint N = emomM.extent(1);
-    const uint M = emomM.extent(2);
+    const uint N = static_cast<uint>(emomM.extent(1));
+    const uint M = static_cast<uint>(emomM.extent(2));
 
-    const uint iatom = blockDim.x * blockIdx.x + threadIdx.x;
-    const uint k = blockDim.y * blockIdx.y + threadIdx.y;
+    const uint i = blockIdx.x * blockDim.x + threadIdx.x; // atom
+    const uint k = blockIdx.y * blockDim.y + threadIdx.y; // ensemble (usually 1)
 
-    if (iatom >= N || k >= M)
-        return;
+    real local = real(0);
 
-    const real cvec_x = grad_mom(1,0,iatom,k) * grad_mom(2,1,iatom,k)
-                        - grad_mom(2,0,iatom,k) * grad_mom(1,1,iatom,k);
+    if (i < N && k < M) {
+        const real cvec_x = grad_mom(1,0,i,k) * grad_mom(2,1,i,k)
+                            - grad_mom(2,0,i,k) * grad_mom(1,1,i,k);
+        const real cvec_y = grad_mom(2,0,i,k) * grad_mom(0,1,i,k)
+                            - grad_mom(0,0,i,k) * grad_mom(2,1,i,k);
+        const real cvec_z = grad_mom(0,0,i,k) * grad_mom(1,1,i,k)
+                            - grad_mom(1,0,i,k) * grad_mom(0,1,i,k);
 
-    const real cvec_y = grad_mom(2,0,iatom,k) * grad_mom(0,1,iatom,k)
-                        - grad_mom(0,0,iatom,k) * grad_mom(2,1,iatom,k);
+        local = emomM(0,i,k)*cvec_x + emomM(1,i,k)*cvec_y + emomM(2,i,k)*cvec_z;
+    }
 
-    const real cvec_z = grad_mom(0,0,iatom,k) * grad_mom(1,1,iatom,k)
-                        - grad_mom(1,0,iatom,k) * grad_mom(0,1,iatom,k);
+    extern __shared__ real s[];
+    real block_sum = block_reduce_sum_1d(local, s);
 
-
-    const real partial_sum = emomM(0,iatom,k) * cvec_x
-                             + emomM(1,iatom,k) * cvec_y
-                             + emomM(2,iatom,k) * cvec_z;
-
-    atomicAdd(&d.skyno, partial_sum);
-
-    __syncthreads();
-
-    if (iatom == 0 && k == 0)
-    {
-        d.skyno /= (M_PI * M);
-
-        const real skyno_avg_prev = d.skyno_avg;
-        d.skyno_avg = skyno_avg_prev + (d.skyno - skyno_avg_prev) / sk_num_count;
-        d.skyno_stdv += (d.skyno - skyno_avg_prev) * (d.skyno - d.skyno_avg) / sk_num_count;
+    if (threadIdx.x == 0) {
+        const uint bid = blockIdx.y * gridDim.x + blockIdx.x;
+        block_parts[bid].s = block_sum;
     }
 }
 
-
-__global__ void delaunay_tri_tri(uint32_t nx, uint32_t ny, uint32_t nz, uint32_t nt,
-                                 CudaTensor<uint32_t, 2>& simp)
+__global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
+                                                uint nblocks_total,
+                                                uint ensembles,
+                                                uint sk_num_count,
+                                                SkyrmionNumberData& d)
 {
-    const uint64_t cells = static_cast<uint64_t>(nx) * ny * nz;
-    const uint64_t pairs = cells * nt;
-    const uint64_t tid = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    if (tid >= pairs)
-        return;
+    real sum = real(0);
+    for (uint i = threadIdx.x; i < nblocks_total; i += blockDim.x) sum += block_parts[i].s;
 
-    const auto it = static_cast<uint32_t>(tid % nt);
-    uint64_t t = tid / nt;
-    const auto x = static_cast<uint32_t>(t % nx); t /= nx;
-    const auto y = static_cast<uint32_t>(t % ny); t /= ny;
-    const auto z = static_cast<uint32_t>(t);
+    extern __shared__ real s[];
+    s[threadIdx.x] = sum; __syncthreads();
+    for (int off = blockDim.x>>1; off>0; off>>=1) {
+        if (threadIdx.x < off) s[threadIdx.x] += s[threadIdx.x+off];
+        __syncthreads();
+    }
 
-    const uint32_t xp1 = (x + 1u) % nx;
-    const uint32_t yp1 = (y + 1u) % ny;
-    const uint32_t xm1 = (x + nx - 1u) % nx;
+    if (threadIdx.x == 0) {
+        d.skyno = s[0] / (M_PI * static_cast<real>(ensembles));
+        const real prev = d.skyno_avg;
+        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
+        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+    }
+}
 
-    auto vid = [&](uint32_t cx, uint32_t cy, uint32_t cz, uint32_t it0) -> uint32_t {
-        const uint64_t lin = (static_cast<uint64_t>(cz) * ny + cy) * nx + cx;
-        const uint64_t id  = static_cast<uint64_t>(nt) * lin + it0;
-        return static_cast<uint32_t>(id);
+// ============================================================================
+// Delaunay triangulation (namespace kernels; uint/ULL types; 0-based ids)
+// ============================================================================
+
+__global__ void kernels::measurement::delaunay_tri_tri(uint nx, uint ny, uint nz, uint nt,
+                                          CudaTensor<uint, 2>& simp)
+{
+    const uint pairs = nx * ny * nz * nt;
+    const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= pairs) return;
+
+    const uint it = tid % nt;
+    uint t = tid / nt;
+    const uint x = t % nx; t /= nx;
+    const uint y = t % ny; t /= ny;
+    const uint z = t;
+
+    const uint xp1 = (x + 1u) % nx;
+    const uint yp1 = (y + 1u) % ny;
+    const uint xm1 = (x + nx - 1u) % nx;
+
+    const auto vid = [nx, ny, nt](uint cx, uint cy, uint cz, uint it0) -> uint {
+        const uint lin = cz * ny + cy * nx + cx;
+        return nt * lin + it0;
     };
 
-    const auto tri1 = static_cast<size_t>(tid);
-    const auto tri2 = static_cast<size_t>(tid + pairs);
+    const uint tri1 = tid;
+    const uint tri2 = tid + pairs;
 
     // Triangle 1: [0 -> +x -> +y]
     simp(0, tri1) = vid(x,   y,   z, it);
@@ -283,4 +391,91 @@ __global__ void delaunay_tri_tri(uint32_t nx, uint32_t ny, uint32_t nz, uint32_t
     simp(0, tri2) = vid(x,   y,   z, it);
     simp(1, tri2) = vid(x,   yp1, z, it);
     simp(2, tri2) = vid(xm1, yp1, z, it);
+}
+
+
+
+// ======================= Triangulation Pontryagin (two-phase) =======================
+// Phase A: per-block partial sums over triangles (and all ensembles in a small loop)
+__global__ void kernels::measurement::pontryagin_tri_partial(const CudaTensor<real, 3>& emom,
+                                                const CudaTensor<uint, 2>&  simp,
+                                                SumPart* __restrict__ block_parts)
+{
+    const uint nsimp = static_cast<uint>(simp.extent(1));   // triangles
+    const uint M     = static_cast<uint>(emom.extent(2));   // ensembles (usually small, often 1)
+
+    const uint tid     = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint stride  = blockDim.x * gridDim.x;
+
+    real local = real(0);
+
+    // Grid-stride over triangles; inner loop over ensembles (M small)
+    for (uint isimp = tid; isimp < nsimp; isimp += stride) {
+        const uint i1 = simp(0, isimp);
+        const uint i2 = simp(1, isimp);
+        const uint i3 = simp(2, isimp);
+
+        for (uint k = 0; k < M; ++k) {
+            // Load m1, m2, m3 (first index contiguous → three coalesced loads per vector)
+            const real m1x = emom(0, i1, k), m1y = emom(1, i1, k), m1z = emom(2, i1, k);
+            const real m2x = emom(0, i2, k), m2y = emom(1, i2, k), m2z = emom(2, i2, k);
+            const real m3x = emom(0, i3, k), m3y = emom(1, i3, k), m3z = emom(2, i3, k);
+
+            // Cross and dot products
+            const real cx = m2y*m3z - m2z*m3y;
+            const real cy = m2z*m3x - m2x*m3z;
+            const real cz = m2x*m3y - m2y*m3x;
+
+            const real triple = m1x*cx + m1y*cy + m1z*cz;
+
+            const real m1m2 = m1x*m2x + m1y*m2y + m1z*m2z;
+            const real m1m3 = m1x*m3x + m1y*m3y + m1z*m3z;
+            const real m2m3 = m2x*m3x + m2y*m3y + m2z*m3z;
+
+            const real denom = real(1) + m1m2 + m1m3 + m2m3;
+            // Optional tiny guard if needed:
+            // const real eps = (sizeof(real)==8)? 1e-15 : 1e-7f;
+            // const real q = real(2) * atan(triple / ((fabs(denom) < eps) ? copysign(eps, denom) : denom));
+
+            const real q = real(2) * atan(triple / denom);
+            local += q;
+        }
+    }
+
+    // Block reduction → one partial per block
+    extern __shared__ real s[];
+    real block_sum = block_reduce_sum_1d(local, s);
+
+    if (threadIdx.x == 0) {
+        block_parts[blockIdx.x].s = block_sum;
+    }
+}
+
+// Phase B: reduce partials, scale by (4π·M), update SkyrmionNumberData (Welford-like)
+__global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,
+                                                 uint nblocks_total,
+                                                 uint ensembles,
+                                                 uint sk_num_count,
+                                                 SkyrmionNumberData& d)
+{
+    real sum = real(0);
+    for (uint i = threadIdx.x; i < nblocks_total; i += blockDim.x)
+        sum += block_parts[i].s;
+
+    extern __shared__ real s[];
+    s[threadIdx.x] = sum;
+    __syncthreads();
+    for (int off = blockDim.x >> 1; off > 0; off >>= 1) {
+        if (threadIdx.x < off) s[threadIdx.x] += s[threadIdx.x + off];
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0) {
+        // Fortran: pontryagin_tri = thesum / (4*pi) / Mensemble
+        d.skyno = s[0] / (real(4) * real(M_PI) * static_cast<real>(ensembles));
+
+        const real prev = d.skyno_avg;
+        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
+        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+    }
 }

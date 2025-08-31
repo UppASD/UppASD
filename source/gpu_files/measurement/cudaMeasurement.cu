@@ -1,15 +1,11 @@
 #include "cudaMeasurement.cuh"
-
 #include <cuda_runtime.h>
-
 #include "c_helper.h"
 #include "stopwatchPool.hpp"
-
 #include "cudaParallelizationHelper.hpp"
-#include "kernels.cuh"
-
 #include <iostream>
 
+namespace mm = kernels::measurement;
 
 CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
                                  const CudaTensor<real, 3>& emom,
@@ -20,10 +16,18 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 , mmom(mmom)
 , N(emomM.extent(1))
 , M(emomM.extent(2))
+, NX(128) // TODO: dont hardcode these values, needs to be imported from Fortran
+, NY(128)
+, NZ(1)
+, NT(1)
 , workStream(CudaParallelizationHelper::def.getWorkStream())
 , stopwatch(GlobalStopwatchPool::get("Cuda measurement"))
 , do_avrg(*FortranData::do_avrg == 'Y')
+, mavg_kernel_threads(256)
+, mavg_kernel_blocks(mm::ceil_div(M, mavg_kernel_threads.x))
 , do_cumu(*FortranData::do_cumu == 'Y')
+, cumu_kernel_threads(32)
+, cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -32,7 +36,16 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
                     default: return SkyrmionMethod::None;
                 }
         }(*FortranData::do_skyno))
-, nsimp()
+, nsimp(2 * NX * NY * NZ * NT)
+, skyno_kernel_threads(128, 1)
+, skyno_kernel_blocks([this](SkyrmionMethod method) -> dim3 {
+                switch (method)
+                {
+                    case SkyrmionMethod::BruteForce: return (mm::ceil_div(N, skyno_kernel_threads.x), M);
+                    case SkyrmionMethod::Triangulation: return mm::ceil_div(nsimp, skyno_kernel_threads.x);
+                    default: return 0;
+                }
+        }(do_skyno))
 {
     if (do_avrg)
     {
@@ -43,6 +56,8 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 
         mavg_buff_cpu.AllocateHost(*FortranData::avrg_buff);
         mavg_buff_cpu.zeros();
+
+        mavg_partial_buff.Allocate(mavg_kernel_blocks.x);
 
         mavg_iter.AllocateHost(*FortranData::avrg_buff);
         mavg_iter.zeros();
@@ -59,6 +74,8 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 
         cumu_buff_cpu.AllocateHost(1);
         cumu_buff_cpu.zeros();
+
+        cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
 
         std::cout << "BinderCumulant observable added" << std::endl;
     }
@@ -101,11 +118,20 @@ CudaMeasurement::CudaMeasurement(const CudaTensor<real, 3>& emomM,
 
         grad_mom.Allocate(3, 3, N, M);
         grad_mom.zeros();
+
+        skyno_partial_buff.Allocate(skyno_kernel_threads.x * skyno_kernel_threads.y);
     }
 
     if (do_skyno == SkyrmionMethod::Triangulation)
     {
         simp.Allocate(3, nsimp);
+        skyno_partial_buff.Allocate(skyno_kernel_blocks.x);
+
+        const uint pairs = nsimp / 2;
+        const uint threads = 256;
+        const uint blocks = mm::ceil_div(pairs, threads);
+
+        mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
     }
 
     stopwatch.add("constructor");
@@ -118,6 +144,7 @@ CudaMeasurement::~CudaMeasurement()
     {
         mavg_buff_gpu.Free();
         mavg_buff_cpu.FreeHost();
+        mavg_partial_buff.Free();
         mavg_iter.FreeHost();
     }
 
@@ -125,6 +152,7 @@ CudaMeasurement::~CudaMeasurement()
     {
         cumu_buff_gpu.Free();
         cumu_buff_cpu.FreeHost();
+        cumu_partial_buff.Free();
     }
 
     if (do_avrg || do_cumu)
@@ -137,6 +165,7 @@ CudaMeasurement::~CudaMeasurement()
         skyno_buff_gpu.Free();
         skyno_buff_cpu.FreeHost();
         skyno_iter.FreeHost();
+        skyno_partial_buff.Free();
     }
 
     if (do_skyno == SkyrmionMethod::BruteForce)
@@ -202,14 +231,14 @@ void CudaMeasurement::flushMeasurements(std::size_t mstep)
 
 void CudaMeasurement::measureAverageMagnetization(std::size_t mstep)
 {
-    const uint threads = std::min(256u, M);
-    const uint blocks = (M + threads - 1) / threads;
+    const size_t smem = mm::nwarps(mavg_kernel_threads) * sizeof(real);
 
-    kernels::averageMagnetization<<<blocks, threads, 0, workStream>>>(
-        emomMEnsembleSums,
-        N,
-        M,
-        mavg_buff_gpu.data()[mavg_count]
+    mm::averageMagnetization_partial<<<mavg_kernel_blocks, mavg_kernel_threads, smem, workStream>>>(
+            emomMEnsembleSums, N, M, mavg_partial_buff.data()
+    );
+
+    mm::averageMagnetization_finalize<<<1, mavg_kernel_threads, smem, workStream>>>(
+            mavg_partial_buff.data(), mavg_kernel_blocks.x, M, mavg_buff_gpu.data()[mavg_count]
     );
 
     mavg_iter(mavg_count++) = mstep;
@@ -221,24 +250,30 @@ void CudaMeasurement::measureAverageMagnetization(std::size_t mstep)
 }
 
 
-
 void CudaMeasurement::measureBinderCumulant(std::size_t mstep)
 {
     if (*FortranData::plotenergy == 0)
     {
-        kernels::binderCumulantNoEnergy<<<1, 1, 0, workStream>>>(
-            emomMEnsembleSums,
-            N,
-            M,
-            *FortranData::temperature,
-            *FortranData::mub,
-            *FortranData::k_bolt,
-            *cumu_buff_gpu.data()
+        const size_t smem = mm::nwarps(cumu_kernel_threads) * sizeof(real);
+
+        mm::binderCumulantNoEnergy_partial<<<cumu_kernel_blocks, cumu_kernel_threads, smem, workStream>>>(
+                emomMEnsembleSums, N, M, cumu_partial_buff.data()
+        );
+
+        mm::binderCumulantNoEnergy_finalize<<<1, cumu_kernel_threads, smem, workStream>>>(
+                cumu_partial_buff.data(),
+                cumu_kernel_blocks.x,
+                N,
+                M,
+                *FortranData::temperature,
+                *FortranData::mub,
+                *FortranData::k_bolt,
+                *cumu_buff_gpu.data()
         );
     }
     else
     {
-        assert(false); // not yet implemented
+        throw std::invalid_argument("Not yet implemented.");
     }
 
 
@@ -252,20 +287,36 @@ void CudaMeasurement::measureBinderCumulant(std::size_t mstep)
 
 void CudaMeasurement::measureSkyrmionNumber(std::size_t mstep)
 {
-    constexpr dim3 threads = 256;
-    const dim3 blocks = {
-        (N + threads.x - 1) / threads.x,
-        (M + threads.y - 1) / threads.y
-    };
+    if (do_skyno == SkyrmionMethod::BruteForce)
+    {
+        mm::grad_moments<<<skyno_kernel_blocks, skyno_kernel_threads, 0, workStream>>>(
+                emomM, dxyz_vec, dxyz_atom, dxyz_list, grad_mom
+        );
 
-    // TODO are we sure this should be emom, and not emomM?
-    kernels::grad_moments<<<blocks, threads, 0, workStream>>>(emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom);
-    kernels::pontryagin_no<<<blocks, threads, 0, workStream>>>(
-        emomM,
-        grad_mom,
-        skyno_count + 1,
-        skyno_buff_gpu.data()[skyno_count]
-    );
+
+        size_t smem = mm::nwarps(skyno_kernel_threads) * sizeof(real);
+        mm::pontryagin_no_partial<<<skyno_kernel_blocks, skyno_kernel_threads, smem, workStream>>>(
+                emomM, grad_mom, skyno_partial_buff.data()
+        );
+
+        smem = skyno_kernel_threads.x * sizeof(real);
+        mm::pontryagin_no_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+        );
+    }
+
+    else if (do_skyno == SkyrmionMethod::Triangulation)
+    {
+        size_t smem = mm::nwarps(skyno_kernel_threads) * sizeof(real);
+        mm::pontryagin_tri_partial<<<skyno_kernel_blocks, skyno_kernel_threads, smem, workStream>>>(
+                emom, simp, skyno_partial_buff.data()
+        );
+
+        smem = skyno_kernel_threads.x * sizeof(real);
+        mm::pontryagin_tri_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+        );
+    }
 
     skyno_iter(skyno_count++) = mstep;
 
@@ -278,10 +329,11 @@ void CudaMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
 void CudaMeasurement::calculateEmomMSum()
 {
-    constexpr dim3 threads = 256;
-
-    dim3 blocks = {3, M};
-    kernels::sumOverAtoms<<<blocks, threads, 0, workStream>>>(emomM, emomMEnsembleSums);
+    emomMEnsembleSums.zeros();
+    const dim3 threads(256, 1);
+    const dim3 blocks(mm::ceil_div(N, threads.x), 3 * M);
+    const size_t smem = mm::nwarps(threads) * sizeof(real);
+    mm::sumOverAtoms<<<blocks, threads, smem, workStream>>>(emomM, emomMEnsembleSums);
 }
 
 
