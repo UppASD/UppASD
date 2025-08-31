@@ -311,12 +311,13 @@ void CudaSimulation::release() {
    // gpuLattice.ipTemp.Free();
      if(FortranData::btorque) {gpuLattice.btorque.Free();  }
 
-    
 
    // gpuMeasurables.mavg_buff.Free();  
    // gpuMeasurables.mcumu_buff.Free();  
-  
 
+    TensorMemoryTracker::printResults();
+    // TensorMemoryTracker::saveToFile();
+    TensorDataMovementTracker::printResults();
 }
 
 void CudaSimulation::copyFromFortran() {

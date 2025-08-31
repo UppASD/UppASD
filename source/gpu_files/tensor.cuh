@@ -12,7 +12,7 @@
 #include <utility>
 
 #include "base.cuh"
-
+#include "memoryMeasurement.h"
 
 #define TENSOR_STATIC_ASSERT_DIMENSION() \
    static_assert(sizeof...(Ints) == dim, \
@@ -85,6 +85,7 @@ public:
    void AllocateHost(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
       ASSERT_CUDA(cudaMallocHost(&data_, size() * sizeof(T)));
+       TensorMemoryTracker::add_host(static_cast<size_t>(size()) * sizeof(T));
    }
 
 
@@ -95,6 +96,7 @@ public:
 
 
    void FreeHost() {
+       TensorMemoryTracker::remove_host(static_cast<size_t>(size()) * sizeof(T));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
       ASSERT_CUDA(cudaFreeHost(data_));
    }
@@ -401,6 +403,7 @@ public:
    __host__ void Allocate(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
       ASSERT_CUDA(cudaMalloc(&data_, size() * sizeof(T)));
+       TensorMemoryTracker::add_device(static_cast<size_t>(size()) * sizeof(T));
    }
 
 
@@ -411,6 +414,7 @@ public:
 
 
    __host__ void Free() {
+       TensorMemoryTracker::remove_device(static_cast<size_t>(size()) * sizeof(T));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
       ASSERT_CUDA(cudaFree(data_));
    }
@@ -461,6 +465,7 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    __host__ void copy_sync(const Tensor<T, dim>& A) {
       assert(same_extents(*this, A));
+       TensorDataMovementTracker::add_h2d(static_cast<size_t>(size()) * sizeof(T));
       ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice));
    }
 
@@ -473,6 +478,7 @@ public:
 
    __host__ void copy_async(const Tensor<T, dim>& A, cudaStream_t stream = 0) {
       assert(same_extents(*this, A));
+       TensorDataMovementTracker::add_h2d_async(static_cast<size_t>(size()) * sizeof(T));
       ASSERT_CUDA(cudaMemcpyAsync(
           data(), A.data(), size() * sizeof(T), cudaMemcpyHostToDevice, stream));
    }
@@ -506,6 +512,7 @@ private:
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
    assert(same_extents(*this, A));
+    TensorDataMovementTracker::add_d2h(static_cast<size_t>(size()) * sizeof(T));
    ASSERT_CUDA(cudaMemcpy(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost));
 }
 
@@ -513,6 +520,7 @@ void Tensor<T, dim>::copy_sync(const CudaTensor<T, dim>& A) {
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_async(const CudaTensor<T, dim>& A, cudaStream_t stream) {
    assert(same_extents(*this, A));
+    TensorDataMovementTracker::add_d2h_async(static_cast<size_t>(size()) * sizeof(T));
    ASSERT_CUDA(
        cudaMemcpyAsync(data(), A.data(), size() * sizeof(T), cudaMemcpyDeviceToHost, stream));
 }

@@ -13,6 +13,8 @@ target_sources(${UppASD_LIB} PRIVATE
         kernels.cuh
         kernels.cu
         measurementData.h
+        memoryMeasurement.h
+        memoryMeasurement.cpp
 )
 
 target_include_directories(${UppASD_LIB}
