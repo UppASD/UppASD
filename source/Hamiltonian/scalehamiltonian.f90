@@ -6,6 +6,7 @@ module ScaleHamiltonian
     implicit none
 
     real(dblprec), dimension(:,:,:), allocatable :: ncoup_orig !< Original coupling constant before scaling
+    real(dblprec), dimension(:,:,:,:), allocatable :: j_tens_orig !< Original coupling constant before scaling
     real(dblprec), dimension(:), allocatable :: jscale_factor !< Scaling matrix for Hamiltonian
     logical :: jscaling_flag  !< Flag to indicate if the scaling matrix is used for J_ij
     logical :: jscaling_dynamic  !< Flag to indicate dynamic scaling
@@ -69,52 +70,79 @@ module ScaleHamiltonian
     end subroutine read_jscaling_file
     
     subroutine apply_local_jscaling()
-        use InputData, only: Natom, do_reduced
+        use InputData, only: Natom, do_reduced, ham_inp
         use HamiltonianData, only : ham
     
         implicit none
         integer :: i_atom, j_neigh, j_atom, i_neigh
     
         real(dblprec), dimension(:,:), allocatable :: temp_ncoup
-    
-    
-        if (.not. allocated(ncoup_orig)) then
-            allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
-            ncoup_orig = ham%ncoup  ! Store original coupling matrix
-        end if
-    
+
         if (do_reduced == 'Y') then
             write(*,*) 'Applying J scaling to reduced Hamiltonian not possible for `do_reduced` = Y'
             return
         end if
+
+        if (ham_inp%do_jtensor/=1) then
+            if (.not. allocated(ncoup_orig)) then
+                allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
+                ncoup_orig = ham%ncoup  ! Store original coupling matrix
+            end if
     
-        ! Allocate temporary array for scaled coupling matrix
-        allocate(temp_ncoup(size(ham%ncoup, 1), size(ham%ncoup, 2)))
-        temp_ncoup = ham%ncoup(:,:, 1)  ! Copy original coupling matrix
+            ! Allocate temporary array for scaled coupling matrix
+            ! allocate(temp_ncoup(size(ham%ncoup, 1), size(ham%ncoup, 2)))
+            ! temp_ncoup = ham%ncoup(:,:, 1)  ! Copy original coupling matrix
+            ham%ncoup = ncoup_orig  ! Reset to original coupling matrix
     
-        ! Apply scaling to the coupling matrix
-        ! First scale all couplings Jij for each given atom
-        do i_atom = 1, Natom
-            ham%ncoup(:, i_atom, 1) = ham%ncoup(:, i_atom, 1) * jscale_factor(i_atom)
-            ! Then loop over the neighbors to apply the scaling
-            ! to the J_ji couplings
-            do j_neigh=1,ham%nlistsize(i_atom)
-                j_atom = ham%nlist(j_neigh, i_atom)
-                do i_neigh=1,ham%nlistsize(j_atom)
-                    if (i_atom == ham%nlist(i_neigh, j_atom)) then
-                        ham%ncoup(i_neigh, j_atom, 1) = ham%ncoup(i_neigh, j_atom, 1) * jscale_factor(i_atom)
-                    end if
+            ! Apply scaling to the coupling matrix
+            ! First scale all couplings Jij for each given atom
+            do i_atom = 1, Natom
+                ham%ncoup(:, i_atom, 1) = ham%ncoup(:, i_atom, 1) * jscale_factor(i_atom)
+                ! Then loop over the neighbors to apply the scaling
+                ! to the J_ji couplings
+                do j_neigh=1,ham%nlistsize(i_atom)
+                    j_atom = ham%nlist(j_neigh, i_atom)
+                    do i_neigh=1,ham%nlistsize(j_atom)
+                        if (i_atom == ham%nlist(i_neigh, j_atom)) then
+                            ham%ncoup(i_neigh, j_atom, 1) = ham%ncoup(i_neigh, j_atom, 1) * jscale_factor(i_atom)
+                        end if
+                    end do
                 end do
             end do
-        end do
     
-        deallocate(temp_ncoup)
+            ! deallocate(temp_ncoup)
+        else ! Tensor Jij
+            if (.not. allocated(j_tens_orig)) then
+                allocate(j_tens_orig(size(ham%j_tens, 1), size(ham%j_tens, 2), size(ham%j_tens, 3), size(ham%j_tens, 4)))
+                j_tens_orig = ham%j_tens  ! Store original tensor coupling matrix
+            end if
+
+            ham%j_tens = j_tens_orig  ! Reset to original tensor coupling matrix
+
+            ! Apply scaling to the tensor coupling matrix
+            ! First scale all couplings Jij for each given atom
+            do i_atom = 1, Natom
+                ham%j_tens(:, :, :, i_atom) = ham%j_tens(:, :, :, i_atom) * jscale_factor(i_atom)
+                ! Then loop over the neighbors to apply the scaling
+                ! to the J_ji couplings
+                do j_neigh=1,ham%nlistsize(i_atom)
+                    j_atom = ham%nlist(j_neigh, i_atom)
+                    do i_neigh=1,ham%nlistsize(j_atom)
+                        if (i_atom == ham%nlist(i_neigh, j_atom)) then
+                            ham%j_tens(:, :, i_neigh, j_atom) = ham%j_tens(:, :, i_neigh, j_atom) * jscale_factor(i_atom)
+                        end if
+                    end do
+                end do
+            end do
+    
+            ! deallocate(temp_ncoup)
+        end if
     
     end subroutine apply_local_jscaling
 
 
     subroutine apply_dynamic_jscaling(time)
-        use InputData, only: Natom, do_reduced
+        use InputData, only: Natom, do_reduced, ham_inp
         use HamiltonianData, only : ham
     
         implicit none
@@ -125,19 +153,20 @@ module ScaleHamiltonian
         integer :: i_atom, j_neigh, j_atom, i_neigh, idx
         real(dblprec) :: scale_factor
 
+        if (do_reduced == 'Y') then
+            write(*,*) 'Applying J scaling to reduced Hamiltonian not possible for `do_reduced` = Y'
+            return
+        end if
+
         ! real(dblprec), dimension(:,:), allocatable :: temp_ncoup
     
+        if (ham_inp%do_jtensor/=1) then
     
         if (.not. allocated(ncoup_orig)) then
             !print *,'Storing copy of ham%ncoup, shape:', shape(ham%ncoup)
             allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
             !print *,'ncoup_orig stored, shape:', shape(ncoup_orig)
             ncoup_orig = ham%ncoup  ! Store original coupling matrix
-        end if
-    
-        if (do_reduced == 'Y') then
-            write(*,*) 'Applying J scaling to reduced Hamiltonian not possible for `do_reduced` = Y'
-            return
         end if
     
         ! Allocate temporary array for scaled coupling matrix
@@ -162,6 +191,32 @@ module ScaleHamiltonian
                 end do
             end do
         end do
+        else
+
+        if (.not. allocated(j_tens_orig)) then
+            allocate(j_tens_orig(size(ham%j_tens, 1), size(ham%j_tens, 2), size(ham%j_tens, 3), size(ham%j_tens, 4)))
+            j_tens_orig = ham%j_tens  ! Store original tensor coupling matrix
+        end if
+
+        scale_factor = 1.0_dblprec + jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
+        write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
+        ! Apply scaling to the tensor coupling matrix
+        ! First scale all couplings Jij for each given atom
+        do idx = 1, jscaling_natoms
+            i_atom = jscaling_atomlist(idx)
+            ham%j_tens(:, :, :, i_atom) = j_tens_orig(:, :, :, i_atom) * scale_factor
+            ! Then loop over the neighbors to apply the scaling
+            ! to the J_ji couplings
+            do j_neigh=1,ham%nlistsize(i_atom)
+            j_atom = ham%nlist(j_neigh, i_atom)
+            do i_neigh=1,ham%nlistsize(j_atom)
+                if (i_atom == ham%nlist(i_neigh, j_atom)) then
+                ham%j_tens(:, :, i_neigh, j_atom) = j_tens_orig(:, :, i_neigh, j_atom) * scale_factor
+                end if
+            end do
+            end do
+        end do
+        end if
     
     end subroutine apply_dynamic_jscaling
     
