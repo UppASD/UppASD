@@ -1,0 +1,80 @@
+ASDCamera:
+  position: !!python/tuple
+  - 16.25
+  - 28.1458255
+  - 64.42667257859026
+  focal_point: !!python/tuple
+  - 16.25
+  - 28.1458255
+  - 0.5
+  view_up: !!python/tuple
+  - 0.0
+  - 1.0
+  - 0.0
+  clipping_range: !!python/tuple
+  - 60.30723352850504
+  - 69.76759863328408
+  parallel_scale: 1.0
+  is_parallel: 0
+ASDColors:
+  num_colors: 256
+  mapnum: 0
+  rgb:
+  - 0.0
+  - 0.0
+  - 0.0
+  rgb_background:
+  - 255.0
+  - 255.0
+  - 255.0
+  lut_scale: Linear
+ASDVizOptions:
+  ssao: true
+  fxaa: true
+  axes: true
+  colorbar: false
+  time_label: false
+  focal_disc: 100
+  auto_focus: false
+  focal_blur: false
+ASDVTKTexture:
+  albedo: false
+  albedoTex: null
+  material: false
+  materialTex: null
+  anisotropy: false
+  anisotropyTex: null
+  emissive: false
+  emissiveTex: null
+  normal: false
+  normalTex: null
+  skybox: false
+  skyboxfile: null
+  hdri: false
+  hdrifile: null
+MomActors:
+  spin_resolution: 16
+  atom_resolution: 12
+  spin_glyph: Arrow
+  center_on: true
+  contour: false
+  vector_directions: false
+  show_spins: true
+  show_atoms: false
+  show_density: false
+  projection_type: spins
+  projection_vector: 2
+  autorange_color: false
+  spin_size: 1.3
+  spin_shade: Gouraud
+  ambient: 0.6
+  specular: 0.4
+  specular_power: 80
+  diffuse: 0.4
+  opacity: 1.0
+  pbr_emission: 1.0
+  pbr_occlusion: 1.0
+  pbr_roughness: 0.5
+  pbr_metallic: 0.5
+  atom_size: 0.1
+  atom_opacity: 1.0
