@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
 
 
 using index_t = long int;
@@ -19,12 +20,7 @@ using index_t = long int;
    {                                                     \
       cudaError_t error = cudaCall;                      \
       if(error != cudaSuccess) {                         \
-         std::fprintf(stderr,                            \
-                      "Error on line %i, file %s: %s\n", \
-                      __LINE__,                          \
-                      __FILE__,                          \
-                      cudaGetErrorString(error));        \
-         std::exit(EXIT_FAILURE);                        \
+          throw std::runtime_error(cudaGetErrorString(error)); \
       }                                                  \
    }
 
