@@ -27,43 +27,43 @@ module ScaleHamiltonian
 
         if (.not. jscaling_dynamic) then
             ! Read scaling file
-            open(unit=ifileno, file=jscaling_file, status='old', action='read')
+            open(unit=ifileno2, file=jscaling_file, status='old', action='read')
             jscaling_natoms = 0
             do
-                read(ifileno, *, iostat=i_err) temp
+                read(ifileno2, *, iostat=i_err) temp
                 if (i_err /= 0) exit
                 jscaling_natoms = jscaling_natoms + 1 
             end do
-            rewind(ifileno)
+            rewind(ifileno2)
             ! Initialize scaling matrix
             allocate(jscale_factor(jscaling_natoms))
             jscale_factor = 1.0_dblprec
     
             ! Read scaling file
-            open(unit=ifileno, file=jscaling_file, status='old', action='read')
+            open(unit=ifileno2, file=jscaling_file, status='old', action='read')
             do i = 1, jscaling_natoms
-                read(ifileno, *) jscale_factor(i)
+                read(ifileno2, *) jscale_factor(i)
             end do
-            close(ifileno)
+            close(ifileno2)
         else
             ! Read scaling file
-            open(unit=ifileno, file=jscaling_file, status='old', action='read')
+            open(unit=ifileno2, file=jscaling_file, status='old', action='read')
             jscaling_natoms = 0
             do
-                read(ifileno, *, iostat=i_err) idum
+                read(ifileno2, *, iostat=i_err) idum
                 if (i_err /= 0) exit
                 jscaling_natoms = jscaling_natoms + 1 
             end do
-            rewind(ifileno)
+            rewind(ifileno2)
             print *,'Jscaling file read with ', jscaling_natoms, ' atoms'
             100 continue
             ! Initialize scaling matrix
             allocate(jscaling_atomlist(jscaling_natoms))
             ! Read scaling file
             do i = 1, jscaling_natoms
-                read(ifileno, *) jscaling_atomlist(i)
+                read(ifileno2, *) jscaling_atomlist(i)
             end do
-            close(ifileno)
+            close(ifileno2)
         end if
 
     end subroutine read_jscaling_file

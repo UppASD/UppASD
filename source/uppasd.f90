@@ -757,7 +757,7 @@ contains
       call read_parameters_3tm(ifileno)
       rewind(ifileno)
       call read_parameters_jscaling(ifileno)
-      close(ifileno)
+      rewind(ifileno)
       call read_parameters_tempexp(ifileno)
       close(ifileno)
       
