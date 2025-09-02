@@ -341,6 +341,7 @@ contains
       use AdaptiveTimeStepping
       use MetaTypes
       use Temperature_3TM
+      use ScaleHamiltonian
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
@@ -525,6 +526,13 @@ contains
             Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
             call threetemp_elec(t_in,delta_t,Temp_s,Temp_l,Temp_e)
             call threetemp_elec_print(mstep,simid,Temp_s,Temp_l,Temp_e)
+         end if
+
+         ! Dynamic jij scaling
+         if (jscaling_dynamic) then
+            !print *,'Applying dynamic J scaling at time:', mstep*delta_t
+            call apply_dynamic_jscaling(mstep*delta_t)
+            !print *,'Finished applying dynamic J scaling at time:', mstep*delta_t
          end if
 
          if (time_dept_flag) then

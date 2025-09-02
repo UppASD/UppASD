@@ -627,7 +627,8 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
-      
+      use ScaleHamiltonian
+
       implicit none
 
       integer :: i, i_stat,mconf
@@ -703,6 +704,8 @@ contains
       call wanglandau_init()
       ! Set q-sweep defaults
       call qminimizer_init()
+      ! Set j-scaling defaults
+      call jscaling_init()
 
       open(ifileno,file='inpsd.dat')
       call read_parameters(ifileno)
@@ -753,6 +756,8 @@ contains
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
       rewind(ifileno)
+      call read_parameters_jscaling(ifileno)
+      close(ifileno)
       call read_parameters_tempexp(ifileno)
       close(ifileno)
       
