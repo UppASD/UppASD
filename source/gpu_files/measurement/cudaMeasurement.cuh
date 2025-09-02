@@ -1,5 +1,8 @@
 #pragma once
 
+// Ivan Zivkovic, ivanzi@kth.se
+// Requires C++ and CUDA 20 support
+
 #include "measurable.hpp"
 #include "tensor.cuh"
 #include "real_type.h"
