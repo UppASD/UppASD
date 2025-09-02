@@ -9,7 +9,9 @@
 #include "real_type.h"
 #include "stopwatch.hpp"
 
-#define DUMMY_STOPWATCH true
+#include <iostream>
+
+#define ASYNC_STOPWATCH true // this makes the gpu time measuring async, only works if "DUMMY_STOPWATCH" is false
 
 class StopwatchDeviceSync {
 #if defined(DUMMY_STOPWATCH) || defined(ASYNC_STOPWATCH)
