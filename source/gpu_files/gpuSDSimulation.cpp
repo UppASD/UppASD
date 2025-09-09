@@ -41,7 +41,7 @@ void GpuSimulation::GpuSDSimulation::printMdStatus(std::size_t mstep, GpuSimulat
       if(mstep % ((gpuSim.SimParam.rstep + gpuSim.SimParam.nstep) / 20) == 0) {
          gpuSim.copyToFortran();  // This is run so seldomly it has not impact on overall performance
          fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
-         std::printf("CUDA: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
+         std::printf("GPU: %3ld%% done. Mbar: %10.6f. U: %8.5f.\n",
                      mstep * 100 / (gpuSim.SimParam.rstep + gpuSim.SimParam.nstep),
                      *gpuSim.SimParam.mavg,
                      *gpuSim.SimParam.binderc);

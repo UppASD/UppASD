@@ -570,10 +570,10 @@ contains
 
       ! Start simulation
       !if (do_gpu==1) then  !CUDA
-         !call cudaSim_initiateConstants()
-         !call cudaSim_initiateMatrices()
+         call gpuSim_initiateConstants()
+         call gpuSim_initiateMatrices()
          call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
-         !call gpuSim_release();
+         call gpuSim_release();
 
       !else if (do_gpu==2) then     !C/C++
       !   call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
@@ -615,10 +615,10 @@ contains
 
       ! Start simulation
       !if (do_gpu==1) then  !CUDA
-         !call cudaSim_initiateConstants()
-         !call cudaSim_initiateMatrices()
+         call gpuSim_initiateConstants()
+         call gpuSim_initiateMatrices()
          call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
-         !call gpuSim_release();
+         call gpuSim_release();
 
       !else if (do_gpu==2) then     !C/C++
       !   call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp

@@ -36,24 +36,24 @@ public:
    void SDiphase(GpuSimulation& gpuSim);
 };
 
-   // class CudaMCSimulation;  // runs mc simulation
+   // class GpuMCSimulation;  // runs mc simulation
 
-/*class CudaMCSimulation {
+class GpuMCSimulation {
 private:
    bool isInitiatedSD;
    void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
    void printMdStatus_iphase(std::size_t mstep, GpuSimulation& gpuSim, int step);
 
 public:
-   CudaMCSimulation();
-   ~CudaMCSimulation();
+   GpuMCSimulation();
+   ~GpuMCSimulation();
 
    void MCmphase(GpuSimulation& gpuSim);
    void MCiphase(GpuSimulation& gpuSim);
    void MCiphase_bf(GpuSimulation& gpuSim);
    void MCmphase_bf(GpuSimulation& gpuSim);
 };
-*/
+
     bool isInitiated;
     bool isFreed;
     //void printConstants();

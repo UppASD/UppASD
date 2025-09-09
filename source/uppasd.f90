@@ -552,9 +552,9 @@ contains
       end if
     endif
 
-      if (do_gpu == 'Y') then  !GPU
-         call gpuSim_release();     
-      endif
+      !if (do_gpu == 'Y') then  !GPU
+      !   call gpuSim_release();     
+      !endif
 
    end subroutine cleanup_simulation
 
@@ -644,6 +644,7 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
+      use SpinTorques, only : btorque, stt
 
       
       implicit none
@@ -1407,10 +1408,10 @@ contains
 
     ! Initiate GPU data
 
-      if (do_gpu == 'Y') then  !GPU
-         call gpuSim_initiateConstants()
-         call gpuSim_initiateMatrices()         
-      endif
+     ! if (do_gpu == 'Y') then  !GPU
+     !    call gpuSim_initiateConstants()
+     !    call gpuSim_initiateMatrices()         
+     ! endif
 
     !call get_rlist_corr(Natom,NA,coord,1)
    end subroutine setup_simulation

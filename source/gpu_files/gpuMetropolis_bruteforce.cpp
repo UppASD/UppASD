@@ -1,15 +1,20 @@
 #pragma once
 
-#include <curand.h>
 #include "gpuHamiltonianCalculations.hpp"
-
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
 #include "gpuStructures.hpp"
-#include "cudaMetropolis_bruteforce.cuh"
+#include "gpuMetropolis_bruteforce.hpp"
 #include "thrust/device_vector.h"
 #include "thrust/host_vector.h"
+
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hiprand/hiprand.h>
+#elif defined(CUDA_V)
+#include <curand.h>
+#endif
 
 __global__ void moms_bf(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> emom2,GpuTensor<real, 2> mmom0, GpuTensor<real, 2> mmom2, GpuTensor<real, 2> mmomi) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -31,11 +36,11 @@ __global__ void moms_bf(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> e
 
 }
 
-__device__ void GetRandomXYZ_bf(real& x, real& y, real& z, real magnitude, curandState* d_state, int& idx) {
+__device__ void GetRandomXYZ_bf(real& x, real& y, real& z, real magnitude, GPU_RAND_STATE* d_state, int& idx) {
     real norm;
-    x = curand_normal_double(d_state + idx);
-    y = curand_normal_double(d_state + idx);
-    z = curand_normal_double(d_state + idx);
+    x = GPU_NORMAL_DOUBLE(d_state + idx);
+    y = GPU_NORMAL_DOUBLE(d_state + idx);
+    z = GPU_NORMAL_DOUBLE(d_state + idx);
 
     norm = magnitude / sqrt(x * x + y * y + z * z);
     x *= norm;
@@ -43,13 +48,13 @@ __device__ void GetRandomXYZ_bf(real& x, real& y, real& z, real magnitude, curan
     z *= norm;
 }
 
-__global__ void InitGenerator_bf(curandState* state, unsigned long long seed, unsigned int taskMax) {
+__global__ void InitGenerator_bf(GPU_RAND_STATE* state, unsigned long long seed, unsigned int taskMax) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
     if (idx < taskMax)
-        curand_init(seed, idx, 0, &state[idx]);
+        GPU_RAND_INIT(seed, idx, 0, &state[idx]);
 }
 
-__global__ void MCSweep_bf(GpuTensor<curandState, 2> d_state, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> eneff, real beta, unsigned int N, unsigned int tasknum, real k_bolt, real mub) {
+__global__ void MCSweep_bf(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> eneff, real beta, unsigned int N, unsigned int tasknum, real k_bolt, real mub) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
     if (idx < N) {
         unsigned int mInd = blockIdx.y;
@@ -89,22 +94,22 @@ __global__ void MCSweep_bf(GpuTensor<curandState, 2> d_state, GpuTensor<real, 2>
 }
 
 // Constructor
-CudaMetropolis_bruteforce::CudaMetropolis_bruteforce() {
+GpuMetropolis_bruteforce::GpuMetropolis_bruteforce() {
     isallocated = false;
     thread_num = 256;
 }
 // Destructor
-CudaMetropolis_bruteforce::~CudaMetropolis_bruteforce() {
+GpuMetropolis_bruteforce::~GpuMetropolis_bruteforce() {
     if (isallocated && !isfreed) { release(); }
 }
 
-void CudaMetropolis_bruteforce::rnd_init() {
+void GpuMetropolis_bruteforce::rnd_init() {
     srand(time(NULL));
     unsigned long long seed = (unsigned long long)rand();
     InitGenerator_bf << <taskMax, 1 >> > (d_state.data(), seed, taskMax);
 }
 
-bool CudaMetropolis_bruteforce::initiate(const SimulationParameters SimParam) {
+bool GpuMetropolis_bruteforce::initiate(const SimulationParameters SimParam) {
 
     // Assert that we're not already initialized
     release();
@@ -131,7 +136,7 @@ bool CudaMetropolis_bruteforce::initiate(const SimulationParameters SimParam) {
 
 }
 
-void CudaMetropolis_bruteforce::release() {
+void GpuMetropolis_bruteforce::release() {
     if (isallocated && !isfreed) {
         d_state.Free();
         isfreed = true;
@@ -141,7 +146,7 @@ void CudaMetropolis_bruteforce::release() {
 
 }
 
-void CudaMetropolis_bruteforce::MCrun(deviceLattice& gpuLattice, real beta) {
+void GpuMetropolis_bruteforce::MCrun(deviceLattice& gpuLattice, real beta) {
     threads = { thread_num, 1, 1 };
       
     blocks = { static_cast <unsigned int>((N + thread_num - 1)/thread_num),  static_cast <unsigned int>(M), static_cast <unsigned int>(1) };
@@ -152,7 +157,7 @@ void CudaMetropolis_bruteforce::MCrun(deviceLattice& gpuLattice, real beta) {
     
 }
 
-void CudaMetropolis_bruteforce::mom_update(deviceLattice& gpuLattice){
+void GpuMetropolis_bruteforce::mom_update(deviceLattice& gpuLattice){
     threads = {thread_num, 1, 1};
     blocks = {(N + thread_num - 1)/thread_num, M, 1};
      moms_bf << <blocks, threads >> > (N, gpuLattice.mmom, gpuLattice.emomM, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom0, gpuLattice.mmom2, gpuLattice.mmomi);

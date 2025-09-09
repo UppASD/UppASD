@@ -1,15 +1,20 @@
 #pragma once
 
-#include <curand.h>
 #include "gpuHamiltonianCalculations.hpp"
-
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
 #include "gpuStructures.hpp"
-#include "cudaMetropolis.cuh"
+#include "gpuMetropolis.hpp"
 #include "thrust/device_vector.h"
 #include "thrust/host_vector.h"
+
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hiprand/hiprand.h>
+#elif defined(CUDA_V)
+#include <curand.h>
+#endif
 
 __global__ void moms(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> emom2,GpuTensor<real, 2> mmom0, GpuTensor<real, 2> mmom2, GpuTensor<real, 2> mmomi) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -32,11 +37,11 @@ __global__ void moms(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emom
 }
 
 
-__device__ void GetRandomXYZ(real& x, real& y, real& z, real magnitude, curandState* d_state, int& idx) {
+__device__ void GetRandomXYZ(real& x, real& y, real& z, real magnitude, GPU_RAND_STATE* d_state, int& idx) {
     real norm;
-    x = curand_normal_double(d_state + idx);
-    y = curand_normal_double(d_state + idx);
-    z = curand_normal_double(d_state + idx);
+    x = GPU_NORMAL_DOUBLE(d_state + idx);
+    y = GPU_NORMAL_DOUBLE(d_state + idx);
+    z = GPU_NORMAL_DOUBLE(d_state + idx);
 
     norm = magnitude / sqrt(x * x + y * y + z * z);
     x *= norm;
@@ -44,13 +49,13 @@ __device__ void GetRandomXYZ(real& x, real& y, real& z, real magnitude, curandSt
     z *= norm;
 }
 
-__global__ void InitGenerator(curandState* state, unsigned long long seed, unsigned int taskMax) {
+__global__ void InitGenerator(GPU_RAND_STATE* state, unsigned long long seed, unsigned int taskMax) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
     if (idx < taskMax)
-        curand_init(seed, idx, 0, &state[idx]);
+        GPU_RAND_INIT(seed, idx, 0, &state[idx]);
 }
 
-__global__ void MCSweep(GpuTensor<curandState, 2> d_state, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> eneff, GpuTensor<unsigned int, 2> subLIdx, real beta, unsigned int N, unsigned int tasknum, unsigned int subL, unsigned int max_spins, real k_bolt, real mub) {
+__global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> eneff, GpuTensor<unsigned int, 2> subLIdx, real beta, unsigned int N, unsigned int tasknum, unsigned int subL, unsigned int max_spins, real k_bolt, real mub) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
     if (idx < tasknum) {
         unsigned int mInd = blockIdx.y;
@@ -89,22 +94,22 @@ __global__ void MCSweep(GpuTensor<curandState, 2> d_state, GpuTensor<real, 2> mm
     }
 }
 // Constructor
-CudaMetropolis::CudaMetropolis() {
+GpuMetropolis::GpuMetropolis() {
     isallocated = false;
     thread_num = 256;
 }
 // Destructor
-CudaMetropolis::~CudaMetropolis() {
+GpuMetropolis::~GpuMetropolis() {
     if (isallocated && !isfreed) { release(); }
 }
-void CudaMetropolis::fillneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i) {
+void GpuMetropolis::fillneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i) {
     for (int k = 0; k < mnn; k++) {
         neigbours_in_play[k] = nlist(k, i);
         //printf("%i ", neigbours_in_play[k]);
     }
     //printf("\n");
 }
-unsigned int CudaMetropolis::increaseneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, unsigned int mnn_cur, int i) {
+unsigned int GpuMetropolis::increaseneighbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, unsigned int mnn_cur, int i) {
     int nli = 0;
     int npi = mnn_cur;
     for (int k = 0; k < mnn; k++) {
@@ -128,7 +133,7 @@ unsigned int CudaMetropolis::increaseneighbours_in_play(unsigned int* neigbours_
     //printf("k = %i, increase = %i\n", i, increase);
     return (mnn_cur + increase);
 }
-void CudaMetropolis::refillneigbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i) {
+void GpuMetropolis::refillneigbours_in_play(unsigned int* neigbours_in_play, Tensor<unsigned int, 2> nlist, int i) {
     int k = 0;
     int l = 0;
     while (neigbours_in_play[k] != 0) k++;
@@ -147,7 +152,7 @@ void CudaMetropolis::refillneigbours_in_play(unsigned int* neigbours_in_play, Te
    // printf("HERE!\n");
 
 }
-void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
+void GpuMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
     //printf("SL: HERE - 1\n");
 
     Tensor<unsigned int, 1> used_sites;
@@ -299,7 +304,7 @@ void CudaMetropolis::split_lattice(const Tensor<unsigned int, 2> nlist) {
     // return subIdx_cpu;
 }
 
-void CudaMetropolis::count_spins() {
+void GpuMetropolis::count_spins() {
     unsigned int countL = subIdx_cpu.extent(1);
     unsigned int max_spins = subIdx_cpu.extent(0);
     unsigned int cur_spins = 1;
@@ -318,13 +323,13 @@ void CudaMetropolis::count_spins() {
 
 }
 
-void CudaMetropolis::rnd_init() {
+void GpuMetropolis::rnd_init() {
     srand(time(NULL));
     unsigned long long seed = (unsigned long long)rand();
     InitGenerator << <taskMax, 1 >> > (d_state.data(), seed, taskMax);
 }
 
-unsigned int CudaMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
+unsigned int GpuMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
 
     // Assert that we're not already initialized
     release();
@@ -379,7 +384,7 @@ unsigned int CudaMetropolis::initiate(const SimulationParameters SimParam, const
 
 }
 
-void CudaMetropolis::release() {
+void GpuMetropolis::release() {
     if (isallocated && !isfreed) {
         subIdx_gpu.Free();
         subL_spnum_cpu.FreeHost();
@@ -394,7 +399,7 @@ void CudaMetropolis::release() {
 
 }
 
-void CudaMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub) {
+void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub) {
 
     
         
@@ -408,7 +413,7 @@ void CudaMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int su
     
 }
 
-void CudaMetropolis::mom_update(deviceLattice& gpuLattice){
+void GpuMetropolis::mom_update(deviceLattice& gpuLattice){
     threads = {thread_num, 1, 1};
     blocks = {(N + thread_num - 1)/thread_num, M, 1};
      moms << <blocks, threads >> > (N, gpuLattice.mmom, gpuLattice.emomM, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom0, gpuLattice.mmom2, gpuLattice.mmomi);

@@ -19,7 +19,12 @@ gpuHamiltonianCalculations.hpp
 gpuSimulation.cpp
 gpuSimulation.hpp
 gpuSDSimulation.cpp
+gpuMCSimulation.cpp
 gpuMeasurement.cpp
+gpuMetropolis.hpp
+gpuMetropolis.cpp
+gpuMetropolis_bruteforce.hpp
+gpuMetropolis_bruteforce.cpp
 gpuMomentUpdater.cpp
 gpuMomentUpdater.hpp
 gpuParallelizationHelper.hpp 

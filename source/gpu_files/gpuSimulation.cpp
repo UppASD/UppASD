@@ -28,11 +28,14 @@ GpuSimulation::~GpuSimulation() {
 }
 
 void GpuSimulation::initiateConstants() {
+   //printf("HERE - 0\n");
+
     SimParam.SDEalgh = *FortranData::SDEalgh;
     if(!(SimParam.SDEalgh == 1 || SimParam.SDEalgh == 4 || SimParam.SDEalgh == 5 || SimParam.SDEalgh == 11)) {
         std::fprintf(stderr, "Invalid SDEalgh!\n");
         std::exit(EXIT_FAILURE);
     }
+
     Flags.do_dm = static_cast<bool>(*FortranData::do_dm);
     Flags.do_jtensor = static_cast<bool>(*FortranData::do_jtensor);
     Flags.do_aniso = static_cast<bool>(*FortranData::do_aniso);
@@ -105,6 +108,7 @@ switch(*FortranData::gpu_rng) {
 }
 
 void GpuSimulation::initiate_fortran_cpu_matrices() {
+
     long int N = static_cast <long int>( SimParam.N);
     long int  NH = static_cast <long int>( SimParam.NH);
     long int  M = static_cast <long int>( SimParam.M);
@@ -166,11 +170,14 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
             //cpuMeasurables.ecumu_buff.set(FortranData::ecumu_buff, SimParam.cumu_buff); 
         }
     }*/
+        
+
 
 }
 
 bool GpuSimulation::initiateMatrices() {
    // Dimensions
+   printf("Initiate matrices GPU -1\n");
     long int N = static_cast <long int>( SimParam.N);
     long int NH = static_cast <long int>(SimParam.NH);
     long int M = static_cast <long int>( SimParam.M);
@@ -425,18 +432,18 @@ printf("current type %i\n", whichsim);
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
     else if(whichsim == 1){
-      /*   CudaMCSimulation CudaMC;//TODO
+         GpuMCSimulation GpuMC;//TODO
 
         if(whichphase == 0) {
-            if(bf == 'Y') CudaMC.MCiphase_bf(*this);
-            else CudaMC.MCiphase(*this);
+            if(bf == 'Y') GpuMC.MCiphase_bf(*this);
+            else GpuMC.MCiphase(*this);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            if(bf == 'Y') CudaMC.MCmphase_bf(*this);
-            else CudaMC.MCmphase(*this);
+            if(bf == 'Y') GpuMC.MCmphase_bf(*this);
+            else GpuMC.MCmphase(*this);
         }
-        else {printf("Wrong phase! 0 - initial, 1 - measurement");}*/
+        else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
     else {printf("Wrong simulation type! 0 - SD, 1 - MC; current type %i\n", whichsim);}
     //release();
