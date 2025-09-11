@@ -164,7 +164,7 @@ class ASDVizOptions:
         """
         Updates the clipping plane position and refreshes the render window.
         """
-        self.ASDGenActors.plane.SetOrigin(origin)
+        window.ASDGenActors.plane.SetOrigin(origin)
         window.ClipPlaneLabel.setText(
             f"Clip. Plane Pos.={float(origin[0]):.1f},{float(origin[1]):.1f},{float(origin[2]):.1f}"
         )
@@ -174,21 +174,21 @@ class ASDVizOptions:
     ##########################################################################
     # Set the opacity of the neighbour spheres
     ##########################################################################
-    def NeighOpacityUpdate(self, value):
+    def NeighOpacityUpdate(self, value, window):
         """
         Update the opacity of the NeighActor based on the given value.
         """
-        self.NeighActors.NeighActor.GetProperty().SetOpacity(value * 0.1)
+        window.NeighActors.NeighActor.GetProperty().SetOpacity(value * 0.1)
         return
 
     ##########################################################################
     # Set the opacity of the atom spheres
     ##########################################################################
-    def AtomOpacityUpdate(self, value):
+    def AtomOpacityUpdate(self, value, window):
         """
         Updates the opacity of the AtomsActor based on the given value.
         """
-        self.NeighActors.AtomsActor.GetProperty().SetOpacity(value * 0.1)
+        window.NeighActors.AtomsActor.GetProperty().SetOpacity(value * 0.1)
         return
 
     ##########################################################################

@@ -177,7 +177,7 @@ class ASDGenActors:
         # Create the axes actor
         try:
             self.axes
-        except BaseException:
+        except AttributeError:
             self.axes = vtk.vtkAxesActor()
             self.axes.SetShaftTypeToCylinder()
             self.axes.SetCylinderRadius(0.05)
@@ -209,7 +209,7 @@ class ASDGenActors:
         #######################################################################
         try:
             self.OrientMarker
-        except BaseException:
+        except AttributeError:
             self.OrientMarker = vtk.vtkOrientationMarkerWidget()
             self.OrientMarker.SetOutlineColor(0.9300, 0.5700, 0.1300)
             self.OrientMarker.SetOrientationMarker(self.axes)

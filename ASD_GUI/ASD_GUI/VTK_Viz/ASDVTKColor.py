@@ -417,7 +417,7 @@ class ASDVTKColor:
             rgb=rgb,
             viz_type=window.viz_type,
         )
-        self.rgb = rgb * 255.0
+        self.rgb = [x * 255.0 for x in rgb]
         return
 
     ##########################################################################
@@ -440,7 +440,7 @@ class ASDVTKColor:
         ]
 
         self.set_RGBbackground(rgb=rgb, ren=window.ren)
-        self.rgb_background = rgb * 255
+        self.rgb_background = [x * 255 for x in rgb]
 
         return
 
