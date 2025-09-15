@@ -6,6 +6,9 @@
 #include "c_headers.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
+#include <iostream>
+#define ASYNC_STOPWATCH true // this makes the gpu time measuring async, only works if "DUMMY_STOPWATCH" is false
+
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>

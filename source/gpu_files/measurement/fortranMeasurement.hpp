@@ -1,5 +1,7 @@
 #pragma once
 
+#include "c_headers.hpp"
+#include "measurable.hpp"
 #include "gpuEventPool.hpp"
 #include "tensor.hpp"
 #include "measurementQueue.hpp"
@@ -22,13 +24,13 @@ using ParallelizationHelper = GpuParallelizationHelper;
 #define DEFAULT_FAST_COPY false
 #endif
 
-class GpuMeasurement {
+class FortranMeasurement : public Measurable {
    // Queue callback data struct
    struct queue_callback_data {
-      queue_callback_data(GpuMeasurement* m, std::size_t s) : me(m), step(s) {
+      queue_callback_data(FortranMeasurement* m, std::size_t s) : me(m), step(s) {
       }
 
-      GpuMeasurement* me;
+      FortranMeasurement* me;
       std::size_t step;
    };
 
@@ -77,14 +79,14 @@ class GpuMeasurement {
 
 public:
    // TODO add flag for fast_copy
-   GpuMeasurement(const GpuTensor<real, 3>& emomM, const GpuTensor<real, 3>& emom,
+   FortranMeasurement(const GpuTensor<real, 3>& emomM, const GpuTensor<real, 3>& emom,
                    const GpuTensor<real, 2>& mmom, Tensor<real, 3>& f_emomM, Tensor<real, 3>& f_emom,
                    Tensor<real, 2>& f_mmom, bool fastCopy = DEFAULT_FAST_COPY,
                    bool alwaysCopy = false);
-   ~GpuMeasurement();
+   ~FortranMeasurement() override;
 
    // Access methods
-   void measure(std::size_t mstep);
-   void flushMeasurements(std::size_t mstep);
+   void measure(std::size_t mstep) override;
+   void flushMeasurements(std::size_t mstep) override;
 };
 

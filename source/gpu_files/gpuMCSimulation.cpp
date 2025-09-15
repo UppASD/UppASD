@@ -15,6 +15,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 #include "tensor.hpp"
+#include "measurementFactory.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -202,19 +203,12 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    }
 
  // Measurement
-   GpuMeasurement measurement(gpuSim.gpuLattice.emomM,
-                               gpuSim.gpuLattice.emom,
-                               gpuSim.gpuLattice.mmom,
-                               gpuSim.cpuLattice.emomM,
-                               gpuSim.cpuLattice.emom,
-                               gpuSim.cpuLattice.mmom);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    real beta = 1 / (gpuSim.SimParam.Temp * gpuSim.SimParam.k_bolt);
-
-
 
    // Timing
    stopwatch.add("initiate");
@@ -225,7 +219,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -234,7 +228,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       // Apply Hamiltonian to obtain effective field
       //hamCalc.heisge(gpuSim.gpuLattice);
       //stopwatch.add("hamiltonian");
-      for(unsigned int sub; sub < num_subL; sub++){
+      for(unsigned int sub = 0; sub < num_subL; sub++){
          // Perform Metropolis sweep
          gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
          stopwatch.add("montecarlo");
@@ -257,11 +251,11 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(mcnstep + 1);  // TODO
+   measurement->measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(mcnstep + 1);  // TODO
+   measurement->flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device
@@ -401,12 +395,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    }
 
  // Measurement
-   GpuMeasurement measurement(gpuSim.gpuLattice.emomM,
-                               gpuSim.gpuLattice.emom,
-                               gpuSim.gpuLattice.mmom,
-                               gpuSim.cpuLattice.emomM,
-                               gpuSim.cpuLattice.emom,
-                               gpuSim.cpuLattice.mmom);
+const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -424,7 +413,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -456,11 +445,11 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(mcnstep + 1);  // TODO
+   measurement->measure(mcnstep + 1);
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(mcnstep + 1);  // TODO
+   measurement->flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device

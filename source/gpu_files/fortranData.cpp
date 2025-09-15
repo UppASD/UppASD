@@ -34,10 +34,12 @@ unsigned int* FortranData::do_jtensor;
 unsigned int* FortranData::do_aniso;
 unsigned int* FortranData::max_no_dmneigh;
 
-unsigned int*FortranData::do_cuda_measurements;
-unsigned int*FortranData::do_avrg;
-unsigned int*FortranData::do_cumu;
-unsigned int*FortranData::do_autocorr;
+char* FortranData::do_cuda_measurements;
+char* FortranData::do_avrg;
+char* FortranData::do_cumu;
+char* FortranData::do_autocorr;
+unsigned int* FortranData::plotenergy;
+char* FortranData::do_skyno;
 
 // Matrices
 unsigned int * FortranData::aHam;
@@ -70,6 +72,10 @@ real* FortranData::eaniso;
 unsigned int* FortranData::taniso;
 real* FortranData::sb;
 
+real* FortranData::dxyz_vec;
+int* FortranData::dxyz_atom;
+int* FortranData::dxyz_list;
+
 // GPU stuff
 int* FortranData::gpu_mode;
 int* FortranData::gpu_rng;
@@ -88,11 +94,13 @@ unsigned int* FortranData::cumu_step;
 unsigned int* FortranData::cumu_buff;
 unsigned int* FortranData::eavrg_step;
 unsigned int* FortranData::eavrg_buff;
+unsigned int* FortranData::skyno_step;
+unsigned int* FortranData::skyno_buff;
 
-void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-                                  unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-                                  unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-                                  unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements){
+void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy,
+                                  char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+                                  unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+                                  unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno){
 
 
    do_dm = p_do_dm;
@@ -102,6 +110,8 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    do_avrg = p_do_avrg;
    do_cumu = p_do_cumu;
    do_autocorr = p_do_autocorr;
+   plotenergy = p_plotenergy;
+   do_skyno = p_do_skyno;
 }
 
 void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -110,7 +120,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
                                       real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
                                       unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
                                       unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-                                      unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff,  unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff){
+                                      unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff,  unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+                                      unsigned int* p_skyno_step, unsigned int* p_skyno_buff){
 
    stt = p_stt;
    SDEalgh = p_SDEalgh;
@@ -149,6 +160,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    eavrg_step = p_eavrg_step;
    eavrg_buff = p_eavrg_buff;
 
+   skyno_step = p_skyno_step;
+   skyno_buff = p_skyno_buff;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -182,7 +195,8 @@ void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, u
 
 
 void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
-                                     real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi){
+                                     real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
+                                     real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list){
 
 
    beff = p_beff;
@@ -195,6 +209,9 @@ void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM,
    mmom2 = p_mmom2;
    mmomi = p_mmomi;
 
+   dxyz_vec = p_dxyz_vec;
+   dxyz_atom = p_dxyz_atom;
+   dxyz_list = p_dxyz_list;
 }
 
 //TODO:binderc, autocorr_buff, spinwait
@@ -298,12 +315,12 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
 
 // Fortran helpers
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-   unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-   unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-   unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements) {
+   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno) {
 FortranData::setFlagPointers(
    p_do_dm, p_do_jtensor, p_do_anisotropy, p_do_avrg, p_do_proj_avrg, p_do_cumu,  p_plotenergy, 
-   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements);
+   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno);
 }
 
 extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -312,12 +329,14 @@ extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned 
    real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
    unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
    unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-   unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff) {
+   unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+   unsigned int* p_skyno_step, unsigned int* p_skyno_buff) {
 FortranData::setConstantPointers(
    p_stt, p_SDEalgh, p_rstep, p_nstep, p_Natom, p_Mensemble, p_max_no_neigh, p_delta_t, p_gamma, 
    p_k_bolt, p_mub, p_mplambda1, p_binderc, p_mavg, p_mompar, p_initexc, p_max_no_dmneigh, p_nHam, 
    p_Temp, p_ipmcnphase, p_mcnstep, p_ipnphase,
-   p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_eavrg_step, p_eavrg_buff, p_tottraj_step, p_tottraj_buff);
+   p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_eavrg_step, p_eavrg_buff, p_tottraj_step, p_tottraj_buff,
+   p_skyno_step, p_skyno_buff);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -334,9 +353,9 @@ FortranData::setHamiltonianPointers(
 }
 
 extern "C" void fortrandata_setlattice_(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
-   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi) {
+   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi, real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list) {
 FortranData::setLatticePointers(
-   p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi);
+   p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list);
 }
 
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,

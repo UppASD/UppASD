@@ -34,6 +34,10 @@
 //
 // stt          char      1          Method to handle spin transfer torque
 // sb 			real 	 (N)	     Ratio between cubic and uniaxial anisotropy
+//
+// dxyz_vec
+// dxyz_atom
+// dxyz_list
 
 class FortranData {
 public:
@@ -72,10 +76,13 @@ public:
    static unsigned int* do_aniso;  // Information on weather the anisotropy should be used or not
 
 
-   static unsigned int* do_cuda_measurements;
-   static unsigned int* do_avrg;
-   static unsigned int* do_cumu;
-   static unsigned int*do_autocorr;
+   static char* do_cuda_measurements;           // Do measurements in CUDA (Y/N)
+   static char* do_avrg;                        // Measure average magnetization (Y/N)
+   static char* do_cumu;                        // Measure Binder cumulant, susceptibility, and specific heat(Y/N)
+   static char* do_autocorr;                    // Perform autocorrelation (Y/N)
+   static unsigned int* plotenergy;             // Calculate and plot energy (0/1)
+   static char* do_skyno;
+
 
    // Matrices / vectors
    static unsigned int * aHam;
@@ -112,6 +119,10 @@ public:
    static real* mmom2;
    static real* mmomi;
 
+   static real* dxyz_vec;
+   static int* dxyz_atom;
+   static int* dxyz_list;
+
    // Input
    static int* gpu_mode;
    static int* gpu_rng;
@@ -130,13 +141,15 @@ public:
    static unsigned int* cumu_buff;
    static unsigned int* eavrg_step;
    static unsigned int* eavrg_buff;
+   static unsigned int* skyno_step;
+   static unsigned int* skyno_buff;
 
 
    // Initiators
     static void setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
-                                unsigned int* p_do_avrg, unsigned int* p_do_proj_avrg, unsigned int* p_do_cumu, 
-                                unsigned int* p_plotenergy, unsigned int* p_do_autocorr, unsigned int* p_do_tottraj, 
-                                unsigned int* p_ntraj, unsigned int* p_do_cuda_measurements);
+                                char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
+                                unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
+                                unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
                                     unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
@@ -144,7 +157,8 @@ public:
                                     real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
                                     unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
                                     unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-                                    unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff);
+                                    unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+                                    unsigned int* p_skyno_step, unsigned int* p_skyno_buff);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
@@ -155,7 +169,8 @@ public:
                                        real * p_ipTemp_array, unsigned int* p_ipnstep);
 
     static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
-                                   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi);
+                                   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
+                                   real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list);
 
     static void setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 

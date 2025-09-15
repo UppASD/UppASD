@@ -15,6 +15,7 @@
 #include "stopwatchPool.hpp"
 #include "tensor.hpp"
 #include "gpuParallelizationHelper.hpp"
+#include "measurementFactory.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -193,12 +194,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
    // Measurement
-   GpuMeasurement measurement(gpuSim.gpuLattice.emomM,
-                               gpuSim.gpuLattice.emom,
-                               gpuSim.gpuLattice.mmom,
-                               gpuSim.cpuLattice.emomM,
-                               gpuSim.cpuLattice.emom,
-                               gpuSim.cpuLattice.mmom);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
@@ -237,7 +233,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
-      measurement.measure(mstep);
+      measurement->measure(mstep);
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -273,11 +269,11 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   measurement.measure(rstep + nstep + 1);  // TODO
+   measurement->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
    // Print remaining measurements
-   measurement.flushMeasurements(rstep + nstep + 1);  // TODO
+   measurement->flushMeasurements(rstep + nstep + 1);  // TODO
    stopwatch.add("flush measurement");
 
    // Synchronize with device

@@ -14,22 +14,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
 
 
 using index_t = long int;
 
-#define ASSERT_GPU(gpuCall)                                  \
-   {                                                         \
-      GPU_ERROR_T error = gpuCall;                           \
-      if (error != GPU_SUCCESS) {                            \
-         std::fprintf(stderr,                                \
-                      "Error on line %i, file %s: %s\n",     \
-                      __LINE__,                              \
-                      __FILE__,                              \
-                      GPU_GET_ERROR_STRING(error));          \
-         std::exit(EXIT_FAILURE);                            \
-      }                                                      \
+
+#define ASSERT_GPU(gpuCall)                            \
+   {                                                     \
+      GPU_ERROR_T error = gpuCall;                      \
+      if(error != GPU_SUCCESS) {                         \
+          throw std::runtime_error(GPU_GET_ERROR_STRING(error)); \
+      }                                                  \
    }
+
 
 template <index_t dim>
 struct Extents {

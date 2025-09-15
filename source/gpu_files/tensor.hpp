@@ -13,6 +13,7 @@
 
 #include "base.hpp"
 #include "gpu_wrappers.h"
+#include "memoryMeasurement.h"
 
 
 #define TENSOR_STATIC_ASSERT_DIMENSION() \
@@ -86,6 +87,7 @@ public:
    void AllocateHost(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
       ASSERT_GPU(GPU_MALLOC_HOST(&data_, size() * sizeof(T)));
+      TensorMemoryTracker::add_host(static_cast<size_t>(size()) * sizeof(T));
    }
 
 
@@ -96,6 +98,7 @@ public:
 
 
    void FreeHost() {
+      TensorMemoryTracker::remove_host(static_cast<size_t>(size()) * sizeof(T));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
       ASSERT_GPU(GPU_FREE_HOST(data_));
    }
@@ -402,6 +405,7 @@ public:
    __host__ void Allocate(const Extents<dim>& ext) {
       IndexBase<T, dim>::SetExtents(ext);
       ASSERT_GPU(GPU_MALLOC(&data_, size() * sizeof(T)));
+      TensorMemoryTracker::add_device(static_cast<size_t>(size()) * sizeof(T));
    }
 
 
@@ -412,6 +416,7 @@ public:
 
 
    __host__ void Free() {
+      TensorMemoryTracker::remove_device(static_cast<size_t>(size()) * sizeof(T));
       IndexBase<T, dim>::SetExtents(Extents<dim>{});
       ASSERT_GPU(GPU_FREE(data_));
    }
@@ -462,6 +467,7 @@ public:
    ////////////////////////////////////////////////////////////////////////////////////////////////
    __host__ void copy_sync(const Tensor<T, dim>& A) {
       assert(same_extents(*this, A));
+      TensorDataMovementTracker::add_h2d(static_cast<size_t>(size()) * sizeof(T));
       ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_HOST_TO_DEVICE));
    }
 
@@ -474,6 +480,7 @@ public:
 
    __host__ void copy_async(const Tensor<T, dim>& A, GPU_STREAM_T stream = 0) {
       assert(same_extents(*this, A));
+       TensorDataMovementTracker::add_h2d_async(static_cast<size_t>(size()) * sizeof(T));
       ASSERT_GPU(GPU_MEMCPY_ASYNC(
           data(), A.data(), size() * sizeof(T), GPU_MEMCPY_HOST_TO_DEVICE, stream));
    }
@@ -495,7 +502,7 @@ public:
 
 
    void zeros() {
-      ASSERT_GPU(GPU_MEMSET(data(), T{}, size() * sizeof(T)));
+      ASSERT_GPU(GPU_MEMSET(data(), 0, size() * sizeof(T)));
    }
 
 
@@ -507,6 +514,7 @@ private:
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_sync(const GpuTensor<T, dim>& A) {
    assert(same_extents(*this, A));
+   TensorDataMovementTracker::add_d2h(static_cast<size_t>(size()) * sizeof(T));
    ASSERT_GPU(GPU_MEMCPY(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_HOST));
 }
 
@@ -514,6 +522,7 @@ void Tensor<T, dim>::copy_sync(const GpuTensor<T, dim>& A) {
 template <typename T, index_t dim>
 void Tensor<T, dim>::copy_async(const GpuTensor<T, dim>& A, GPU_STREAM_T stream) {
    assert(same_extents(*this, A));
+   TensorDataMovementTracker::add_d2h_async(static_cast<size_t>(size()) * sizeof(T));
    ASSERT_GPU(
       GPU_MEMCPY_ASYNC(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_HOST, stream));
 }

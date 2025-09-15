@@ -3,6 +3,7 @@
 
 #pragma once
 
+#define DUMMY_STOPWATCH true // this fully disables the stopwatch, no timing is done
 #include <sys/time.h>
 
 #include <ctime>

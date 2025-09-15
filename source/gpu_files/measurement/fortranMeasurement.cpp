@@ -1,8 +1,7 @@
 #include <pthread.h>
-
+#include "fortranMeasurement.hpp"
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "gpuMeasurement.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -24,7 +23,7 @@ using ParallelizationHelper = GpuParallelizationHelper;
 #include "measurementQueue.hpp"
 
 // Constructor
-GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
+FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
                                  const GpuTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
                                  Tensor<real, 2>& p6, bool p7, bool p8)
     : emomM(p1),
@@ -35,7 +34,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<rea
       fortran_mmom(p6),
       fastCopy(p7),
       alwaysCopy(p8),
-      stopwatch(GlobalStopwatchPool::get("GPU measurement")),
+      stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
       parallel( ParallelizationHelperInstance) {
 #ifdef NVPROF
    nvtxNameOsThread(pthread_self(), "MAIN_THREAD");
@@ -64,7 +63,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<rea
 }
 
 // Destructor
-GpuMeasurement::~GpuMeasurement() {
+FortranMeasurement::~FortranMeasurement() {
    if(fastCopy) {
       tmp_emomM.Free();
       tmp_emom.Free();
@@ -77,7 +76,7 @@ GpuMeasurement::~GpuMeasurement() {
 }
 
 // Callback
-void GpuMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
+void FortranMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 #ifdef NVPROF
    nvtxRangePush("queue_callback");
 #endif
@@ -90,12 +89,12 @@ void GpuMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 }
 
 // Callback method
-void GpuMeasurement::queueMeasurement(std::size_t mstep) {
+void FortranMeasurement::queueMeasurement(std::size_t mstep) {
    measurementQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), mmom.size());
 }
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
-void GpuMeasurement::copyQueueFast(std::size_t mstep) {
+void FortranMeasurement::copyQueueFast(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -134,7 +133,7 @@ void GpuMeasurement::copyQueueFast(std::size_t mstep) {
 }
 
 // Slow copying (D -> H)
-void GpuMeasurement::copyQueueSlow(std::size_t mstep) {
+void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -154,7 +153,7 @@ void GpuMeasurement::copyQueueSlow(std::size_t mstep) {
    measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
 }
 
-void GpuMeasurement::measure(std::size_t mstep) {
+void FortranMeasurement::measure(std::size_t mstep) {
    // Copy required?
    bool copy = (alwaysCopy || fortran_do_measurements(mstep));
 
@@ -171,7 +170,7 @@ void GpuMeasurement::measure(std::size_t mstep) {
    }
 }
 
-void GpuMeasurement::flushMeasurements(std::size_t mstep) {
+void FortranMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 

@@ -20,7 +20,7 @@ gpuSimulation.cpp
 gpuSimulation.hpp
 gpuSDSimulation.cpp
 gpuMCSimulation.cpp
-gpuMeasurement.cpp
+#gpuMeasurement.cpp
 gpuMetropolis.hpp
 gpuMetropolis.cpp
 gpuMetropolis_bruteforce.hpp
@@ -34,8 +34,8 @@ fortranData.cpp
 fortranData.hpp
 gridHelper.hpp
 gpu_wrappers.h
-measurementQueue.cpp
-measurementQueue.hpp
+#measurementQueue.cpp
+#measurementQueue.hpp
 printDebug.hpp
 real_type.h
 stopwatch.hpp
@@ -44,6 +44,15 @@ stopwatchPool.cpp
 stopwatchPool.hpp
 stopwatch_fortran.cpp
 tensor.hpp
+)
+
+target_include_directories(${UppASD_LIB}
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_subdirectory(measurement)
+
 #common.cuh
 #cudaMatrix.hpp
 #depondtIntegrator.cpp
@@ -67,6 +76,6 @@ tensor.hpp
 #thermfield.cpp
 #thermfield.hpp
 
-)
+
 
 

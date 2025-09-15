@@ -32,6 +32,7 @@ module Gradients
    private
 
    public :: differentiate_moments, setup_stencil_mesh, grad_moments, proj_grad_moments, deallocate_gradient_lists
+   public :: dxyz_vec, dxyz_atom, dxyz_list
 
 contains
 

@@ -346,7 +346,9 @@ void GpuSimulation::release() {
    // gpuMeasurables.mavg_buff.Free();  
    // gpuMeasurables.mcumu_buff.Free();  
   
-
+    TensorMemoryTracker::printResults();
+    // TensorMemoryTracker::saveToFile();
+    TensorDataMovementTracker::printResults();
 }
 
 void GpuSimulation::copyFromFortran() {
