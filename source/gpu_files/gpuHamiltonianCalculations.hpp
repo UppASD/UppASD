@@ -81,8 +81,11 @@ public:
    class SetupNeighbourListExchangeTensor;
    class SetupAnisotropy;
    class HeisgeJij;
-   class HeisJijTensor;
+   class HeisgeJijDM;
    class HeisgeJijAniso;
+   class HeisgeJijDMAniso;
+   class HeisgeJijTensor;
+   class HeisgeJijTensorAniso;
    class HeisgeJijElement;
 
    // Constructor
