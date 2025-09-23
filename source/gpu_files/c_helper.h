@@ -37,6 +37,7 @@ extern void FORTNAME(chelper, fortran_do_measurements)(const std::size_t* mstep,
 extern void FORTNAME(chelper, fortran_moment_update)();
 extern void FORTNAME(chelper, fortran_flush_measurements)(const std::size_t* mstep);
 extern void FORTNAME(chelper, cmdsim_initiate_constants)();
+extern void FORTNAME(chelper, fortran_print_correlations)();
 extern void FORTNAME(chelper, fortran_measure_moment)(const real* emomM, const real* emom, const real* mmom,
                                                       const std::size_t* mstep);
 // extern void FORTNAME(chelper, fortran_calc_simulation_status_variables)(real* mavg);
@@ -65,6 +66,10 @@ inline void fortran_flush_measurements(std::size_t mstep) {
 
 inline void fortran_init_c_md_const() {
    FORTNAME(chelper, cmdsim_initiate_constants)();
+}
+
+inline void fortran_print_correlations() {
+   FORTNAME(chelper, fortran_print_correlations)();
 }
 
 // For the status variables

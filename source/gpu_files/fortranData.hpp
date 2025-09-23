@@ -54,6 +54,26 @@ public:
    static unsigned int* ipmcnphase;
    static unsigned int* mcnstep;
    static unsigned int* ipnphase;
+   
+
+   static unsigned int* nq;
+   static unsigned int* sc_step;
+   static unsigned int* sc_sep;
+   static char* do_sc;
+   static unsigned int* sc_max_nstep;
+   static unsigned int* sc_window_fun;
+   static unsigned int* nw;
+
+   static real* r_mid;
+   static real* q;
+   static real* coord;
+   static real* w;
+   static std::complex<real>* m_k;
+   static std::complex<real>* m_kw;
+   static std::complex<real>* m_kt;
+
+
+   //delta_t;
 
    static real* delta_t;
    static real* gamma;
@@ -149,7 +169,7 @@ public:
     static void setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
                                 char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                 unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
-                                unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno);
+                                unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
                                     unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
@@ -158,7 +178,8 @@ public:
                                     unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
                                     unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
                                     unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
-                                    unsigned int* p_skyno_step, unsigned int* p_skyno_buff);
+                                    unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
+                                    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
@@ -180,7 +201,10 @@ public:
                                        real* p_traj_step, real* p_traj_buff, real* p_traj_atom,
                                        real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj);
    
-   
+   static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, std::complex<real>* p_m_k, 
+                                       std::complex<real>* p_m_kw, std::complex<real>* p_m_kt);
+
+    
    
     /*static void setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
                                    unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,

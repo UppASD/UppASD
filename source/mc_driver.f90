@@ -551,6 +551,7 @@ contains
       use Damping
       use SpinTorques, only : btorque, stt
       use InputData, only : do_gpu, gpu_mc_bf
+      use Correlation
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
@@ -562,7 +563,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque)
+      call FortranData_Initiate(stt,btorque, sc)
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -596,6 +597,7 @@ contains
       use Damping
       use SpinTorques, only : btorque, stt
       use InputData, only : do_gpu, gpu_mc_bf
+      use Correlation
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
@@ -607,7 +609,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque)
+      call FortranData_Initiate(stt,btorque, sc)
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement

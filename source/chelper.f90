@@ -34,10 +34,15 @@ module Chelper
 
    use Correlation
    use Correlation_core
+   use Correlation_Print
+   use Correlation_type
+   use Omegas
+   use Qvectors
+   use Correlation_utils
    use AutoCorrelation,  only : autocorr_sample, do_autocorr, spinwait, autocorr_buff, indxb_ac
    use ChemicalData, only : achtype
    use MetaTypes
-   use Omegas
+
 
    use prn_cudameasurements,   only :  print_observable, print_trajectory
 
@@ -48,7 +53,8 @@ module Chelper
 
    public :: fortran_do_measurements,fortran_measure,fortran_measure_moment,        &
       fortran_moment_update,fortran_flush_measurements,FortranData_Initiate,        &
-      fortran_calc_simulation_status_variables, fortran_print_measurables
+      fortran_calc_simulation_status_variables, fortran_print_measurables,          &
+      fortran_print_correlations
 
 contains
 
@@ -168,24 +174,46 @@ contains
          Nchmax,atype,real_time_measure,mcnstep,ham%ind_list_full,do_mom_legacy,mode)
    end subroutine fortran_flush_measurements
 
+      ! print GPU calculated correlations
+   subroutine fortran_print_correlations()
+      implicit none
+      !type(corr_t), intent(inout) :: cc !< Derived type for correlation data
+      if(do_sc=='C'.or.do_sc=='Y') then
+         call print_gk(NT, Nchmax, sc, sc, simid, sc%label)
+      endif
+     if(do_sc=='Q'.or.do_sc=='Y') then
+         call print_gkw(NT, Nchmax, sc, sc, simid, sc%label)
+      endif
+     if(do_sc=='T'.or.do_sc=='Y') then
+         call print_gkt(NT, Nchmax, sc, sc, simid, sc%label)
+      endif
+   end subroutine fortran_print_correlations
+
 
 
    ! Initiate pointers for C/C++ implementation
    !> Calls functions in fortrandata.cpp
-   subroutine FortranData_Initiate(stt,btorque)
+   subroutine FortranData_Initiate(stt,btorque,cc)
       implicit none
-      character(len=1), intent(in) :: STT !< Treat spin transfer torque? (Y/N)
+      character(len=1), intent(in) :: STT !< Treat spi p_sc_max_nstn transfer torque? (Y/N)
+      type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
+
+      if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
+         print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"
+         return  
+      end if
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno)
+           do_gpu_measurements, skyno, do_sc)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
          avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
-         tottraj_step, tottraj_buff, skyno_step, skyno_buff)
+         tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
+         cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
@@ -206,6 +234,8 @@ contains
            traj_step, traj_buff, traj_atom, &
            mmomb, mmomb_traj, emomb, emomb_traj &
            )
+
+      call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
