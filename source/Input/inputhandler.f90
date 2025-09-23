@@ -407,6 +407,10 @@ contains
                read(ifile,*,iostat=i_err) do_sortcoup
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_sfc')
+               read(ifile,*,iostat=i_err) do_sfc
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_jtensor')
                read(ifile,*,iostat=i_err) ham_inp%do_jtensor
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

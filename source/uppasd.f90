@@ -602,6 +602,7 @@ contains
       use HamiltonianData
       use AutoCorrelation
       use hamiltonianinit
+      use FullHamiltonianDispatcher
       use LatticeInputData
       use magnetizationinit
       use prn_latticefields
@@ -1139,6 +1140,16 @@ contains
       !!!    max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
       !!!    do_reduced,do_prnstruct,do_sortcoup,simid,print_dip_tensor,read_dipole,    &
       !!!    qdip_files)
+      
+      ! Configure Hamiltonian setup method (SFC vs traditional)
+      if (do_sfc == 'Y') then
+         call set_hamiltonian_method(.true.)
+         write(*,'(a)') 'Using SFC coordinate-based Hamiltonian setup'
+      else
+         call set_hamiltonian_method(.false.)
+         write(*,'(a)') 'Using traditional supercell-based Hamiltonian setup'
+      end if
+      
       call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Mensemble,  &
          nHam,Natom,achtype,atype_ch,asite_ch,achem_ch,acellnumb,acellnumbrev,atype,&
          anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,sym,        &
