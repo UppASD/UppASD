@@ -602,7 +602,7 @@ contains
       use HamiltonianData
       use AutoCorrelation
       use hamiltonianinit
-      use FullHamiltonianDispatcher
+      ! use HamiltonianInitSFC  ! Not needed - using conditional calls in setup_hamiltonian
       use LatticeInputData
       use magnetizationinit
       use prn_latticefields
@@ -1141,15 +1141,15 @@ contains
       !!!    do_reduced,do_prnstruct,do_sortcoup,simid,print_dip_tensor,read_dipole,    &
       !!!    qdip_files)
       
-      ! Configure Hamiltonian setup method (SFC vs traditional)
+      ! Debug: Check do_sfc value
+      write(*,'(1x,a,a)') 'DEBUG: do_sfc value = ', do_sfc
+      ! Hamiltonian setup - unified approach with conditional neighbor mapping
       if (do_sfc == 'Y') then
-         call set_hamiltonian_method(.true.)
-         write(*,'(a)') 'Using SFC coordinate-based Hamiltonian setup'
+         write(*,'(a)') 'Using SFC coordinate-based neighbor mapping (O(N log N))'
       else
-         call set_hamiltonian_method(.false.)
-         write(*,'(a)') 'Using traditional supercell-based Hamiltonian setup'
+         write(*,'(a)') 'Using traditional supercell-based neighbor mapping (O(N²))'
       end if
-      
+         
       call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Mensemble,  &
          nHam,Natom,achtype,atype_ch,asite_ch,achem_ch,acellnumb,acellnumbrev,atype,&
          anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,sym,        &
@@ -1166,6 +1166,7 @@ contains
          max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
          do_reduced,do_prnstruct,do_sortcoup,simid,ham_inp%print_dip_tensor,ham_inp%read_dipole,    &
          ham_inp%qdip_files)
+      
       !call setup_reduced_hamiltonian(Natom,NA,conf_num)
       ! Allocate arrays for simulation and measurement
       call allocate_general(1)

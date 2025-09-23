@@ -8,10 +8,7 @@ hamiltonianactions.f90
 hamiltonianactions_lite.f90
 hamiltonianinit.f90
 neighbourmap.f90
+neighbourmap_sfc.f90
 printhamiltonian.f90
-sfc_neighbour_finder.f90
-sfc_optimized_neighbors.f90
-sfc_integration_full.f90
-sfc_hamiltonian_interface.f90
 hamiltonian_dispatcher.f90
 full_hamiltonian_dispatcher.f90)

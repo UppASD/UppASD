@@ -11,6 +11,7 @@ module HamiltonianInit
 
    use Profiling
    use Parameters
+   use NeighbourMapSFC
 
    implicit none
 
@@ -52,7 +53,7 @@ contains
       use LSF,             only : LSF_datareshape
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
-      use InputData,       only : ham_inp
+      use InputData,       only : ham_inp, do_sfc
       !use InputData,       only : jij_scale, dm_scale, ea_model, ea_sigma
       use NeighbourMap,    only : setup_nm, setup_nm_nelem
       use InducedMoments
@@ -314,9 +315,15 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !  Setup neighbor map
             write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
-               atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
-               ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
+            if (do_sfc == 'Y') then
+               call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+                  atype, coord, ham%max_no_neigh, ham_inp%max_no_shells, max_no_equiv, sym, &
+                  ham_inp%nn, ham_inp%redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+            else
+               call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
+                  atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
+                  ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
+            end if
             write(*,'(a)') ' done'
 
             ! If one is doing the cluster method one could have that the impurity system
@@ -412,9 +419,15 @@ contains
       else ! If tensor
          !  Setup neighbor map and exchange tensor
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
-            nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_neigh, ham_inp%max_no_shells, max_no_equiv, sym, &
+               ham_inp%nn, ham_inp%redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
+               nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! Transform data to general structure
@@ -482,9 +495,15 @@ contains
       if(ham_inp%do_dm==1) then
          ! Allocate and mount DM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
-            nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_dmneigh, ham_inp%max_no_dmshells, max_no_equiv, 0, &
+               ham_inp%dm_nn, ham_inp%dm_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
+               nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! If one is doing the cluster method one could have that the impurity system
@@ -533,9 +552,15 @@ contains
       if(ham_inp%do_sa==1) then
          ! Allocate and mount SA Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for symmetric anisotropic exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,0,ham_inp%sa_nn,ham_inp%sa_redcoord,&
-            nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_saneigh, ham_inp%max_no_sashells, max_no_equiv, sym, &
+               ham_inp%sa_nn, ham_inp%sa_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,sym,ham_inp%sa_nn,ham_inp%sa_redcoord,&
+               nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! If one is doing the cluster method one could have that the impurity system
@@ -584,9 +609,15 @@ contains
       if(ham_inp%do_pd==1) then
         ! Allocate and mount PD Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Pseudo-Dipolar exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
-            nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%nn_pd_tot, ham_inp%max_no_pdshells, max_no_equiv, 0, &
+               ham_inp%pd_nn, ham_inp%pd_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
+               nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          !write(*,'(a)') ' done'
 
           !call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
