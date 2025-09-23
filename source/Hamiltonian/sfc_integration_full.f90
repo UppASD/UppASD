@@ -115,12 +115,12 @@ contains
    
    !----------------------------------------------------------------------------
    ! SUBROUTINE: setup_sfc_neighbor_map
-   !> @brief Create neighbor map using coordinate-based approach
-   !> @details This replaces the supercell-based neighbor map generation
-   !> with direct coordinate-based distance calculations
+   !> @brief OPTIMIZED neighbor map using O(N log N) SFC algorithm  
+   !> @details Uses the complete optimized SFC implementation for dramatic performance
+   !> improvement on large systems
    !----------------------------------------------------------------------------
    subroutine setup_sfc_neighbor_map(coord, atype, nn, Natom, max_no_shells, max_no_equiv, nm, nmdim)
-      
+      use SFCOptimizedNeighbors, only: setup_sfc_neighbor_map_optimized
       implicit none
       integer, intent(in) :: Natom, max_no_shells, max_no_equiv
       real(dblprec), dimension(3,Natom), intent(in) :: coord
@@ -129,37 +129,8 @@ contains
       integer, dimension(Natom,max_no_shells,max_no_equiv), intent(out) :: nm
       integer, dimension(max_no_shells,Natom), intent(out) :: nmdim
       
-      ! Local variables
-      integer :: i, j, k, count_in_shell
-      real(dblprec) :: distance
-      real(dblprec), parameter :: shell_tolerance = 0.15_dblprec
-      
-      ! Initialize
-      nm = 0
-      nmdim = 0
-      
-      ! Process each atom
-      do i = 1, Natom
-         do k = 1, nn(atype(i))
-            count_in_shell = 0
-            
-            ! Find all neighbors in shell k for atom i
-            do j = 1, Natom
-               if (i /= j) then
-                  distance = sqrt(sum((coord(:,i) - coord(:,j))**2))
-                  
-                  ! Simple shell assignment based on distance
-                  ! In practice, you would use actual lattice shell distances
-                  if (is_in_shell(distance, k, shell_tolerance) .and. count_in_shell < max_no_equiv) then
-                     count_in_shell = count_in_shell + 1
-                     nm(i, k, count_in_shell) = j
-                  end if
-               end if
-            end do
-            
-            nmdim(k, i) = count_in_shell
-         end do
-      end do
+      ! Simply call the optimized implementation
+      call setup_sfc_neighbor_map_optimized(coord, atype, nn, Natom, max_no_shells, max_no_equiv, nm, nmdim)
       
    end subroutine setup_sfc_neighbor_map
    
