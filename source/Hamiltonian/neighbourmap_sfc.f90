@@ -104,26 +104,32 @@ contains
          estimated_neighbors_per_shell = 100  ! Reasonable fallback
       end if
       
-      ! Safety factor: search more atoms than strictly needed to ensure completeness
-      ! Higher factor for sparse systems, lower for dense systems
+      ! For 100% completeness guarantee: Use adaptive approach
+      ! Start with Morton optimization, fall back to full search if needed
       if (density < 0.1_dblprec) then
-         safety_factor = 10.0_dblprec  ! Sparse systems need wider search
+         safety_factor = 20.0_dblprec  ! Very sparse systems need much wider search
       else if (density < 1.0_dblprec) then
-         safety_factor = 5.0_dblprec   ! Medium density
+         safety_factor = 10.0_dblprec  ! Medium density systems
       else
-         safety_factor = 3.0_dblprec   ! Dense systems can use narrower search
+         safety_factor = 5.0_dblprec   ! Dense systems can use narrower search
       end if
       
-      MAX_SEARCH_RANGE = max(500, min(int(estimated_neighbors_per_shell * safety_factor), Natom/2))
+      ! Start with optimistic Morton-based search range
+      MAX_SEARCH_RANGE = max(1000, min(int(estimated_neighbors_per_shell * safety_factor), Natom/2))
       
-      ! Ensure search range is reasonable for Morton ordering
-      ! Morton codes cluster nearby atoms, so we need enough range to cover interaction shells
+      ! Ensure search range covers maximum interaction distance with generous margin
       if (max_interaction_range > 0.0_dblprec .and. avg_nearest_neighbor_dist > 0.0_dblprec) then
-         MAX_SEARCH_RANGE = max(MAX_SEARCH_RANGE, int(max_interaction_range / avg_nearest_neighbor_dist * 20))
+         ! Use at least 50x the interaction range in terms of atom indices for safety
+         MAX_SEARCH_RANGE = max(MAX_SEARCH_RANGE, int(max_interaction_range / avg_nearest_neighbor_dist * 50))
       end if
       
-      ! Final bounds check
-      MAX_SEARCH_RANGE = max(100, min(MAX_SEARCH_RANGE, Natom))
+      ! For small systems, ensure we search enough atoms to guarantee completeness
+      if (Natom < 10000) then
+         MAX_SEARCH_RANGE = max(MAX_SEARCH_RANGE, Natom/3)  ! Search at least 1/3 of all atoms
+      end if
+      
+      ! Upper bound: never exceed full system size
+      MAX_SEARCH_RANGE = min(MAX_SEARCH_RANGE, Natom)
       
       write(*,'(4x,a)') 'SFC Parameter Tuning:'
       write(*,'(6x,a,i0,a,f8.3,a)') 'System: ', Natom, ' atoms, density = ', density, ' atoms/unit³'
@@ -285,7 +291,7 @@ contains
       ! Local variables
       integer :: i_stat, i_all
       integer :: iat, jat, ishell, itype, counter, nelem, inei
-      integer :: isorted, jsorted, search_start, search_end, fallback_count
+      integer :: isorted, jsorted, search_start, search_end, fallback_count, exhaustive_count
       integer :: num_threads, thread_id
       real(dblprec) :: tol, distance, start_time, end_time
       real(dblprec), dimension(3) :: rvec, target_vec
@@ -354,10 +360,11 @@ contains
       
       !$ start_time = omp_get_wtime()
       fallback_count = 0
+      exhaustive_count = 0
       
       ! Step 2: Main neighbor finding loop - O(N log N) due to limited search range
       ! Parallelized over atoms for better performance
-      !$omp parallel default(shared) private(isorted,iat,itype,ishell,inei,counter,target_vec,search_start,search_end,jsorted,jat,rvec,distance) reduction(+:fallback_count)
+      !$omp parallel default(shared) private(isorted,iat,itype,ishell,inei,counter,target_vec,search_start,search_end,jsorted,jat,rvec,distance) reduction(+:fallback_count,exhaustive_count)
       !$omp do schedule(dynamic,100)
       do isorted = 1, Natom
          iat = morton_order(isorted)  ! Original atom index
@@ -373,12 +380,12 @@ contains
                ! Get target vector from symmetry-expanded coordinates  
                target_vec = nncoord(:, inei, ishell, itype)
                
-               ! Step 3: Robust search to handle Morton curve kinks
-               ! First try: Standard Morton order search
+               ! Step 3: Multi-stage robust search for 100% completeness guarantee
+               
+               ! Stage 1: Optimized Morton order search (most efficient)
                search_start = max(1, isorted - MAX_SEARCH_RANGE/2)
                search_end = min(Natom, isorted + MAX_SEARCH_RANGE/2)
                
-               ! Search through nearby atoms in Morton order
                do jsorted = search_start, search_end
                   jat = morton_order(jsorted)  ! Original atom index
                   
@@ -392,13 +399,12 @@ contains
                      counter = counter + 1
                      if (counter <= max_no_equiv) then
                         nm(iat, ishell, inei) = jat
-                        exit  ! Found the neighbor for this symmetry equivalent site
+                        exit  ! Found the neighbor - stage 1 success
                      end if
                   end if
                end do
                
-               ! Step 4: Fallback for Morton curve kinks - spatial proximity search
-               ! If we didn't find the neighbor, do a targeted spatial search
+               ! Stage 2: If not found, do targeted spatial search around expected position
                if (counter == 0) then
                   call fallback_spatial_search(iat, target_vec, tol, coord, Natom, jat)
                   if (jat > 0) then
@@ -406,6 +412,22 @@ contains
                      nm(iat, ishell, inei) = jat
                      fallback_count = fallback_count + 1
                   end if
+               end if
+               
+               ! Stage 3: If still not found, do exhaustive search (guarantee completeness)
+               if (counter == 0) then
+                  do jat = 1, Natom
+                     if (iat == jat) cycle  ! Skip self-interaction
+                     
+                     rvec = coord(:, jat) - coord(:, iat)
+                     distance = sqrt(sum((rvec - target_vec)**2))
+                     if (distance < tol) then
+                        counter = counter + 1
+                        nm(iat, ishell, inei) = jat
+                        exhaustive_count = exhaustive_count + 1
+                        exit  ! Found neighbor - exhaustive search success
+                     end if
+                  end do
                end if
             end do
             
@@ -421,10 +443,14 @@ contains
       write(*,'(4x,a,i0)') 'SFC: Maximum equivalent neighbors: ', max_no_equiv
       write(*,'(4x,a,i0,a,i0)') 'SFC Parameters used: MORTON_BITS=', MORTON_BITS, &
          ', MAX_SEARCH_RANGE=', MAX_SEARCH_RANGE
-      write(*,'(4x,a,i0,a)') 'SFC: Fallback searches used: ', fallback_count, &
-         ' (for Morton curve discontinuities)'
+      write(*,'(4x,a)') 'SFC: Search stage statistics:'
+      write(*,'(6x,a,i0,a)') 'Stage 2 (spatial fallback): ', fallback_count, ' neighbors found'
+      write(*,'(6x,a,i0,a)') 'Stage 3 (exhaustive search): ', exhaustive_count, ' neighbors found'
+      if (exhaustive_count > 0) then
+         write(*,'(6x,a)') 'Note: Exhaustive search ensures 100% completeness'
+      end if
       !$ write(*,'(4x,a,f8.3,a)') 'SFC: Parallel neighbor search time: ', end_time - start_time, ' seconds'
-      write(*,'(2x,a)') 'SFC O(N log N) neighbor mapping completed successfully!'
+      write(*,'(2x,a)') 'SFC: 100% complete neighbor mapping finished successfully!'
       
       ! Cleanup temporary arrays
       i_all=-product(shape(nncoord))*kind(nncoord)
@@ -470,46 +496,33 @@ contains
       ! Calculate expected absolute position of the neighbor
       expected_pos = coord(:, iat) + target_vec
       
-      ! Search in expanding radius around the current atom
-      ! This handles Morton curve kinks where nearby atoms are far in sort order
-      search_radius = min(1000, Natom/10)  ! Limit to reasonable range
-      
-      ! First search: local neighborhood (parallelized for better performance)
-      !$omp parallel do default(shared) private(jat,distance) reduction(min:min_distance) schedule(static)
-      do jat = max(1, iat - search_radius), min(Natom, iat + search_radius)
+      ! First try: Search by expected absolute position (most efficient for sparse cases)
+      ! This is faster than relative vector matching
+      do jat = 1, Natom
          if (iat == jat) cycle  ! Skip self-interaction
          
          ! Check if this atom is at the expected neighbor position
          distance = sqrt(sum((coord(:, jat) - expected_pos)**2))
          if (distance < tol .and. distance < min_distance) then
-            !$omp critical
-            if (distance < min_distance) then
-               min_distance = distance
-               found_jat = jat
-            end if
-            !$omp end critical
+            min_distance = distance
+            found_jat = jat
+            ! Don't exit - find the closest match in case of numerical precision issues
          end if
       end do
-      !$omp end parallel do
       
-      ! If still not found, try a broader search by target vector
+      ! If still not found, try alternative approach with relative vectors
+      ! This handles potential numerical precision issues
       if (found_jat == 0) then
-         !$omp parallel do default(shared) private(jat,rvec,distance) reduction(min:min_distance) schedule(static)
          do jat = 1, Natom
             if (iat == jat) cycle  ! Skip self-interaction
             
             rvec = coord(:, jat) - coord(:, iat)
             distance = sqrt(sum((rvec - target_vec)**2))
             if (distance < tol .and. distance < min_distance) then
-               !$omp critical
-               if (distance < min_distance) then
-                  min_distance = distance
-                  found_jat = jat
-               end if
-               !$omp end critical
+               min_distance = distance
+               found_jat = jat
             end if
          end do
-         !$omp end parallel do
       end if
       
    end subroutine fallback_spatial_search
