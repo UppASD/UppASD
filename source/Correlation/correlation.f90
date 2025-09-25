@@ -55,6 +55,8 @@ module Correlation
    !-----------------------
    character(len=1) :: do_bimag  !< Perform spin-correlation sampling of bi-magnons (Y/N) (not implemented currently)
 
+   ! CPU/GPU control flag
+   character(len=1) :: do_gpu_correlations !< Perform correlations on GPU (Y/N)
    ! Working variables to perform the printing of the correlation
 
    private
@@ -915,6 +917,10 @@ end subroutine read_parameters_correlation
             ! Real space correlation cut-off
          case('lc_cr_cut')
             read(ifile,*,iostat=i_err) lc%cr_cut
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+         case('do_gpu_correlations')
+            read(ifile,*,iostat=i_err) do_gpu_correlations
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
          end select
