@@ -152,7 +152,7 @@ contains
          ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
          ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
          ! Ax,Ay,Az off-diagonal components of A
-         ! solve with Cramers' rule => define detAi=1/determinant(A)
+         ! solve with Cramers´ rule => define detAi=1/determinant(A)
          !
          Ax=0.5_dblprec*dtg*a1x+0.5_dblprec*sqrtdtg*s1x
          Ay=0.5_dblprec*dtg*a1y+0.5_dblprec*sqrtdtg*s1y
@@ -167,7 +167,7 @@ contains
          ety=a2x*(Ay*Ax-Az)+a2y*(1+Ay*Ay)+a2z*(Ay*Az+Ax)
          etz=a2x*(Az*Ax+Ay)+a2y*(Az*Ay-Ax)+a2z*(1+Az*Az)
 
-         ! now use et for writing et'=(e1+et)/2 in emom2
+         ! now use et for writing et´=(e1+et)/2 in emom2
          etx=0.5_dblprec*(e1x+etx*detAi)
          ety=0.5_dblprec*(e1y+ety*detAi)
          etz=0.5_dblprec*(e1z+etz*detAi)
@@ -242,7 +242,7 @@ contains
          !write(*,10003) 'efpnorm ', enorm, 'etnorm ', enorm2
 
          ! write efp in emom2.
-         ! (* This corresponds to the write et'=(e1+et)/2 in emom2 *)
+         ! (* This corresponds to the write et´=(e1+et)/2 in emom2 *)
          emom2(1,i,j)=efpx
          emom2(2,i,j)=efpy
          emom2(3,i,j)=efpz
@@ -358,7 +358,7 @@ contains
          e1x=emom(1,i,j) ! load e1 back from emom
          e1y=emom(2,i,j) ! emom unchanged by step t
          e1z=emom(3,i,j)
-         etpx=emom2(1,i,j) ! load etp=et' back from emom2
+         etpx=emom2(1,i,j) ! load etp=et´ back from emom2
          etpy=emom2(2,i,j)
          etpz=emom2(3,i,j)
          b1x=beff(1,i,j) ! effective field approximated from emom2
@@ -383,7 +383,7 @@ contains
          ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
          ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
          ! Ax,Ay,Az off-diagonal components of A
-         ! solve with Cramers' rule => define detAi=1/determinant(A)
+         ! solve with Cramers´ rule => define detAi=1/determinant(A)
          !
          Ax=0.5_dblprec*dtg*a1x+0.5_dblprec*sqrtdtg*s1x
          Ay=0.5_dblprec*dtg*a1y+0.5_dblprec*sqrtdtg*s1y
@@ -599,7 +599,7 @@ contains
          ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
          ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
          ! Ax,Ay,Az off-diagonal components of A
-         ! solve with Cramers' rule => define detAi=1/determinant(A)
+         ! solve with Cramers´ rule => define detAi=1/determinant(A)
          !
          !Ax=0.5_dblprec*dtg*a1x+0.5_dblprec*sqrtdtg*s1x
          !Ay=0.5_dblprec*dtg*a1y+0.5_dblprec*sqrtdtg*s1y
@@ -614,7 +614,7 @@ contains
          !ety=a2x*(Ay*Ax-Az)+a2y*(1+Ay*Ay)+a2z*(Ay*Az+Ax)
          !etz=a2x*(Az*Ax+Ay)+a2y*(Az*Ay-Ax)+a2z*(1+Az*Az)
 
-         ! now use et for writing et'=(e1+et)/2 in emom2
+         ! now use et for writing et´=(e1+et)/2 in emom2
          !etx=0.5_dblprec*(e1x+etx*detAi)
          !ety=0.5_dblprec*(e1y+ety*detAi)
          !etz=0.5_dblprec*(e1z+etz*detAi)
@@ -693,7 +693,7 @@ contains
          !write(*,10003) 'efpnorm ', enorm, 'etnorm ', enorm2
 
          ! write efp in emom2.
-         ! (* This corresponds to the write et'=(e1+et)/2 in emom2 *)
+         ! (* This corresponds to the write et´=(e1+et)/2 in emom2 *)
          emom2(1,i,j)=efpux
          emom2(2,i,j)=efpuy
          emom2(3,i,j)=efpuz
@@ -806,7 +806,7 @@ contains
          e1x=emom(1,i,j) ! load e1 back from emom
          e1y=emom(2,i,j) ! emom unchanged by step t
          e1z=emom(3,i,j)
-         etpx=emom2(1,i,j) ! load etp=et' back from emom2
+         etpx=emom2(1,i,j) ! load etp=et´ back from emom2
          etpy=emom2(2,i,j)
          etpz=emom2(3,i,j)
          b1x=beff(1,i,j) ! effective field approximated from emom2
@@ -831,7 +831,7 @@ contains
          ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
          ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
          ! Ax,Ay,Az off-diagonal components of A
-         ! solve with Cramers' rule => define detAi=1/determinant(A)
+         ! solve with Cramers´ rule => define detAi=1/determinant(A)
          !
          !Ax=0.5_dblprec*dtg*a1x+0.5_dblprec*sqrtdtg*s1x
          !Ay=0.5_dblprec*dtg*a1y+0.5_dblprec*sqrtdtg*s1y

@@ -1207,8 +1207,12 @@ contains
       ! Adaptive time stepping
       integer :: ipstep, ia, ik
       real(dblprec) :: temprescale,temprescalegrad, dummy, denergy
+      real(dblprec) :: org_temp
       real(dblprec) :: mavg
 
+      org_temp = temp
+      temp = sd_temp
+      temp_array = sd_temp
       ! Copy inmoments to working array
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1219,6 +1223,10 @@ contains
          end do
       end do
 
+      ! Calculate demagnitization field
+      if(demag=='Y') then
+         call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+      endif
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
@@ -1231,10 +1239,10 @@ contains
             call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
-      ! Calculate external fields
-      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
-         do_bpulse,sitefld,sitenatomfld)
 
+      ! Calculate external fields
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,&
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Main initial loop
       !--------------------------------------!
@@ -1325,6 +1333,7 @@ contains
 
       enddo
 
+      ! emom2 = 0.0_dblprec
       ! Copy working moments to outdata
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1333,6 +1342,10 @@ contains
             emomM_io(:,ia,ik)=emomM(:,ia,ik)
          end do
       end do
+
+      ! Rescale temperature back to original
+      temp_array = org_temp
+      temp = org_temp
 
    end subroutine sd_minimal
 

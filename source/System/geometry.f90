@@ -393,20 +393,22 @@ contains
          invmatrix(3,2)=(C1(2)*C3(1)-C3(2)*C1(1))/detmatrix
          invmatrix(3,3)=(C1(1)*C2(2)-C2(1)*C1(2))/detmatrix
       end if
-
+      ! print *,' '
       do I0=1,NA
          !find coordinate vector in basis coordinates
          icvec(1)=Bas(1,I0)*invmatrix(1,1)+Bas(2,I0)*invmatrix(2,1)+Bas(3,I0)*invmatrix(3,1)
          icvec(2)=Bas(1,I0)*invmatrix(1,2)+Bas(2,I0)*invmatrix(2,2)+Bas(3,I0)*invmatrix(3,2)
          icvec(3)=Bas(1,I0)*invmatrix(1,3)+Bas(2,I0)*invmatrix(2,3)+Bas(3,I0)*invmatrix(3,3)
+         ! print '(i4,a,3f12.8)', i0, ' icvec=',icvec
          ! fold back to original cell
-         bsf(1)=floor(icvec(1)+1d-7)
-         bsf(2)=floor(icvec(2)+1d-7)
-         bsf(3)=floor(icvec(3)+1d-7)
+         bsf(1)=floor(icvec(1)+1d-5)
+         bsf(2)=floor(icvec(2)+1d-5)
+         bsf(3)=floor(icvec(3)+1d-5)
          !
          Bas(1,I0)=Bas(1,I0)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
          Bas(2,I0)=Bas(2,I0)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
          Bas(3,I0)=Bas(3,I0)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
+         ! print '(i4,a,3f12.8)', i0, ' bas  =',Bas(1:3,I0)
       end do
 
       ! Open file for writing the coordinates
@@ -466,8 +468,8 @@ contains
                                        atype_ch(iatom),asite_ch(iatom),achem_ch(iatom)
                                  end if
                                  if(do_prn_poscar==1) then
-                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy &
-                                         currently not supported.'
+                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy'// &
+                                         '  currently not supported.'
                                  end if
                               end if
                            end if

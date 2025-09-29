@@ -506,7 +506,7 @@ contains
    !    implicit none
    !    integer :: j,i,k,file_id
    !    character(LEN=20) :: filename
-   !    filename='ams.eigenvectors.out
+   !    filename='ams.eigenvectors.out'
    !
    !    file_id = 33
    !

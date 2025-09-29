@@ -47,10 +47,21 @@ Author
 Jonathan Chico
 """
 import sys
+import locale
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QLocale
 from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 
 if __name__ == '__main__':
+
+
+    # Try to enforce en_US locale for number parsing/formatting
+    try:
+        locale.setlocale(locale.LC_NUMERIC, 'en_US.UTF-8')
+        QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+    except locale.Error:
+        print("Could not set en_US locale, using fallback.")
+        locale.setlocale(locale.LC_NUMERIC, 'C')
 
     # Open the Application Window
     app = QApplication(sys.argv)

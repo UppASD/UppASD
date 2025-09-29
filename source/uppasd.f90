@@ -72,6 +72,7 @@ contains
 
       implicit none
 
+   print *,'Start UppASD from fortran main()'
    ! Executable statements
    !==============================================================!
    ! Check if inpsd.dat exists and whether it contains anything
@@ -939,8 +940,8 @@ contains
          ! Read normal exchange file which is thereafter used to build tensor coupling
          call read_exchange_build_tensor()
       else
-         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor &
-            &and calc_tensor")
+         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor"// &
+            &" and calc_tensor")
       end if
       ham_inp%max_no_shells=maxval(ham_inp%NN)
 
@@ -1285,9 +1286,19 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='T') then
+      if (skyno=='T'.or.do_chiral=='Y') then
          write(*,'(1x, a)') "Triangulating mesh"
          call delaunay_tri_tri(n1,n2,n3, NA)
+      end if
+
+      if (do_chiral=='Y') then
+         write(*,'(1x, a)') "Setup chiral mesh"
+        call triangulate_layers(nAtom, coord)
+      end if
+
+      if (do_oam=='Y') then
+         write(*,'(1x, a)') "Setup OAM mesh"
+         call calculate_oam(Natom,Mensemble,emom, 1, 0)
       end if
 
       if (mode=='W') then
