@@ -13,6 +13,7 @@ module Topology
 
    use Parameters
    use Profiling
+   use Systemdata, only : coord
 
    ! Parameters for the printing
    integer :: skyno_step !< Interval for sampling the skyrmion number
@@ -30,10 +31,6 @@ module Topology
    real(dblprec), dimension(3) :: kappa_cavg = 0.0_dblprec !< Average scalar chirality (cumulative)
    real(dblprec), dimension(3) :: kappa_csum = 0.0_dblprec !< Cumulative sum of the vector chirality
    integer :: n_chi_cavg = 0 !< Number of times the average scalar chirality has been calculated
-
-   integer, dimension(:,:), allocatable :: triangle_list !< List of triangles for each layer
-   integer :: n_triangles !< Number of triangles in the triangulation
-   integer :: n_layers !< Number of layers in the triangulation
 
    ! Variables for OAM 
    character(len=1) :: do_oam = 'N' !< Perform OAM measurement
@@ -387,318 +384,8 @@ subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
 end subroutine delaunay_tri_tri
 
 
-!======================================================================
-   subroutine triangulate_layers ( nAtoms, coords )
-      !----------------------------------------------------------------------
-      ! Build triangle_list(3,n_triangles) for all atomic layers (z–slices)
-      ! using a centroid-fan triangulation that rejects zero-area triangles.
-      !----------------------------------------------------------------------
-      
-         implicit none
-         integer,          intent(in)  :: nAtoms
-         real(dblprec),    intent(in)  :: coords(3,nAtoms)
-      
-      
-         ! ---- local -------------------------------------------------------
-         integer                 :: i,j,k, count, out_idx, nLayers
-         real(dblprec), allocatable :: zvals(:), uniqueZ(:)
-         integer,       allocatable :: layerIdx(:)
-         real(dblprec), allocatable :: angles(:), rho2(:)
-         real(dblprec) :: cx, cy, dx, dy, tempAng, tempR
-         integer       :: tempIdx
-         real(dblprec) :: A, tol
-         integer, allocatable :: itmp(:,:)
-         real(dblprec), allocatable :: dtmp(:)
-      
-         tol = 1.0d-8
-      
-      !----------------------------------------------------------------------
-      ! 1.  Collect unique z-coordinates  (layer detection)
-      !----------------------------------------------------------------------
-         allocate(zvals(nAtoms))
-         zvals = coords(3,:)
-      
-         allocate(uniqueZ(nAtoms))      ! temporary oversize
-         nLayers = 0
-         do i = 1, nAtoms
-            if (nLayers == 0) then
-               nLayers = 1
-               uniqueZ(1) = zvals(i)
-            else
-               do j = 1, nLayers
-                  if (abs(zvals(i)-uniqueZ(j)) < tol) exit
-               end do
-               if (j > nLayers) then
-                  nLayers = nLayers + 1
-                  uniqueZ(nLayers) = zvals(i)
-               end if
-            end if
-         end do
-          allocate(dtmp(nLayers))
-          dtmp = uniqueZ(1:nLayers)
-          call move_alloc(dtmp, uniqueZ)   ! reshape uniqueZ to minimal size and transfer data
-      
-      !----------------------------------------------------------------------
-      ! 2. First pass:  count triangles  (fan gives  count-2  per layer)
-      !----------------------------------------------------------------------
-         n_triangles = 0
-         do k = 1, nLayers
-            count = count_atoms_in_layer(coords, uniqueZ(k), tol)
-            if (count >= 3) n_triangles = n_triangles + (count - 2)
-         end do
-         allocate(triangle_list(3, n_triangles))
-      
-         out_idx = 0         ! running index into triangle_list
-      !----------------------------------------------------------------------
-      ! 3. Process each layer
-      !----------------------------------------------------------------------
-         do k = 1, nLayers
-            call collect_layer_indices(coords, uniqueZ(k), tol, layerIdx, count)
-            if (count < 3) cycle
-      
-            ! ---- centroid --------------------------------------------------
-            cx = sum(coords(1,layerIdx(1:count))) / real(count, dblprec)
-            cy = sum(coords(2,layerIdx(1:count))) / real(count, dblprec)
-      
-            ! ---- polar coordinates (angle & radius²) -----------------------
-            allocate(angles(0:count), rho2(0:count))
-            do i = 1, count
-               dx = coords(1,layerIdx(i)) - cx
-               dy = coords(2,layerIdx(i)) - cy
-               angles(i) = atan2(dy, dx)
-               rho2(i)   = dx*dx + dy*dy
-            end do
-      
-            ! ---- insertion sort by (angle , rho²) --------------------------
-            do i = 2, count
-               tempAng = angles(i) ; tempR = rho2(i) ; tempIdx = layerIdx(i)
-               j = i - 1
-               do while ( j>=1 .and. &
-                 ( angles(j) > tempAng  .or. &
-                   ( abs(angles(j)-tempAng) < 1.0e-12_dblprec .and. rho2(j) > tempR ) ) )
-                  angles(j+1)   = angles(j)
-                  rho2(j+1)     = rho2(j)
-                  layerIdx(j+1) = layerIdx(j)
-                  j = j - 1
-               end do
-               angles(j+1)   = tempAng
-               rho2(j+1)     = tempR
-               layerIdx(j+1) = tempIdx
-            end do
-      
-            ! ---- fan triangulation, skip zero-area triples -----------------
-            do i = 2, count-1
-               A = 0.5d0 * ( (coords(1,layerIdx(i  ))-coords(1,layerIdx(1)))* &
-                             (coords(2,layerIdx(i+1))-coords(2,layerIdx(1))) - &
-                             (coords(1,layerIdx(i+1))-coords(1,layerIdx(1)))* &
-                             (coords(2,layerIdx(i  ))-coords(2,layerIdx(1))) )
-               if (abs(A) < 1.0e-10_dblprec) cycle   ! collinear -> skip
-               out_idx = out_idx + 1
-               triangle_list(1,out_idx) = layerIdx(1)
-               triangle_list(2,out_idx) = layerIdx(i)
-               triangle_list(3,out_idx) = layerIdx(i+1)
-            end do
-      
-            deallocate(angles, rho2, layerIdx)
-         end do
-      
-         ! update globals
-         n_triangles = out_idx
-         allocate(itmp(3, n_triangles))
-         itmp = triangle_list(:,1:n_triangles)
-         call move_alloc(itmp, triangle_list)   ! reshape triangle_list to minimal size and transfer data
-         n_layers    = nLayers
-
-         ! Pretty print the triangle list
-         ! if (allocated(triangle_list)) then
-         !    print *, "Triangle list: Total number of triangles =", size(triangle_list, dim=2)
-         !    do i = 1, size(triangle_list, dim=2)
-         !       write(*,'(A,I5,A,3(I5))') "Triangle ", i, ": ", triangle_list(1,i), triangle_list(2,i), triangle_list(3,i)
-         !    end do
-         ! else
-         !    print *, "Triangle list is not allocated."
-         ! end if
-         ! print *, "Number of layers: ", n_layers
-         ! print *, "Number of triangles: ", n_triangles
-         ! print *,'__________________________________________________________'
-
-      
-      contains
-      !----------------------------------------------------------------------
-      function count_atoms_in_layer(c,z0,tol) result(cnt)
-         real(dblprec), intent(in) :: c(3,nAtoms), z0, tol
-         integer :: cnt, ii
-         cnt = 0
-         do ii=1,nAtoms
-            if (abs(c(3,ii)-z0) < tol) cnt = cnt+1
-         end do
-      end function count_atoms_in_layer
-      !----------------------------------------------------------------------
-      subroutine collect_layer_indices(c,z0,tol,idx,ct)
-         real(dblprec), intent(in) :: c(3,nAtoms), z0, tol
-         integer, allocatable, intent(out) :: idx(:)
-         integer,               intent(out) :: ct
-         integer :: ii
-         integer, allocatable :: idx_tmp(:)
-      
-         ct=0
-         allocate(idx(nAtoms))     ! temporary oversize
-         do ii=1,nAtoms
-            if (abs(c(3,ii)-z0) < tol) then
-               ct = ct+1
-               idx(ct) = ii
-            end if
-         end do
-         allocate(idx_tmp(ct))
-         idx_tmp = idx(1:ct)
-         call move_alloc(idx_tmp, idx)   ! reshape idx to minimal size and transfer data
-      end subroutine collect_layer_indices
-      !----------------------------------------------------------------------
-      end subroutine triangulate_layers
-      !======================================================================
 
 
-!!!    subroutine triangulate_layers(nAtoms, coords)
-!!!       implicit none
-!!!       integer, intent(in) :: nAtoms         ! Total number of atoms
-!!!       real(dblprec), dimension(3, nAtoms), intent(in) :: coords  ! Atom coordinates (x,y,z)
-!!! 
-!!!       integer :: i, j, k, nLayers, totalTri, idx, count, out_idx
-!!!       real(dblprec), allocatable, dimension(:) :: zvals, uniqueZ
-!!!       integer, allocatable, dimension(:) :: layerIdx
-!!!       real(dblprec), allocatable, dimension(:) :: angles
-!!!       integer :: tempIdx
-!!!       real(dblprec) :: tempAngle
-!!!       real(dblprec), allocatable :: tmp(:)
-!!! 
-!!!       real(dblprec) :: cx, cy
-!!!       real(dblprec) :: tol
-!!!       tol = 1.0e-8_dblprec
-!!! 
-!!!       !---------------------------------------------------------------------
-!!!       ! Determine unique z values (layers)
-!!!       allocate(zvals(nAtoms))
-!!!       do i = 1, nAtoms
-!!!           zvals(i) = coords(3,i)
-!!!       end do
-!!! 
-!!!       allocate(uniqueZ(nAtoms))
-!!!       nLayers = 0
-!!!       do i = 1, nAtoms
-!!!           if (nLayers == 0) then
-!!!                nLayers = 1
-!!!                uniqueZ(1) = zvals(i)
-!!!           else
-!!!                do j = 1, nLayers
-!!!                    if (abs(zvals(i)-uniqueZ(j)) < tol) exit
-!!!                end do
-!!!                if (j > nLayers) then
-!!!                    nLayers = nLayers + 1
-!!!                    uniqueZ(nLayers) = zvals(i)
-!!!                end if
-!!!           end if
-!!!       end do
-!!!       if (nLayers < size(uniqueZ)) then
-!!!          allocate(tmp(nLayers))
-!!!          tmp = uniqueZ(1:nLayers)
-!!!          deallocate(uniqueZ)
-!!!          allocate(uniqueZ(nLayers))
-!!!          uniqueZ = tmp
-!!!          deallocate(tmp)
-!!!       end if
-!!!       !---------------------------------------------------------------------
-!!!       ! First pass: count total number of triangles (for convex, non‐degenerate layers)
-!!!       totalTri = 0
-!!!       do k = 1, nLayers
-!!!           count = 0
-!!!           do i = 1, nAtoms
-!!!                if (abs(coords(3,i)-uniqueZ(k)) < tol) count = count + 1
-!!!           end do
-!!!           if (count >= 3) totalTri = totalTri + (count - 2)
-!!!       end do
-!!! 
-!!!       if (totalTri <= 0) then
-!!!           allocate(triangle_list(3, 0))
-!!!           return
-!!!       end if
-!!! 
-!!!       allocate(triangle_list(3, totalTri))
-!!!       out_idx = 0
-!!! 
-!!!       !---------------------------------------------------------------------
-!!!       ! Process each layer separately: triangulate using a fan method.
-!!!       ! For each layer, sort the points in order around the centroid.
-!!!       do k = 1, nLayers
-!!!           ! Get indices for atoms in the current layer
-!!!           count = 0
-!!!           allocate(layerIdx(nAtoms))
-!!!           do i = 1, nAtoms
-!!!                if (abs(coords(3,i)-uniqueZ(k)) < tol) then
-!!!                    count = count + 1
-!!!                    layerIdx(count) = i
-!!!                end if
-!!!           end do
-!!! 
-!!!           if (count < 3) then
-!!!                deallocate(layerIdx)
-!!!                cycle
-!!!           end if
-!!! 
-!!!           ! Compute centroid in the xy-plane
-!!!           cx = 0.0_dblprec
-!!!           cy = 0.0_dblprec
-!!!           do i = 1, count
-!!!                cx = cx + coords(1, layerIdx(i))
-!!!                cy = cy + coords(2, layerIdx(i))
-!!!           end do
-!!!           cx = cx / real(count, dblprec)
-!!!           cy = cy / real(count, dblprec)
-!!! 
-!!!           ! Allocate temporary array to hold angle of each point relative to centroid
-!!!           allocate(angles(0:count))
-!!!           angles = 0.0_dblprec
-!!!           do i = 1, count
-!!!                angles(i) = atan2(coords(2, layerIdx(i)) - cy, coords(1, layerIdx(i)) - cx)
-!!!           end do
-!!! 
-!!!           ! Simple insertion sort of layerIdx and angles based on the angle values
-!!!           do i = 2, count
-!!!                tempAngle = angles(i)
-!!!                tempIdx = layerIdx(i)
-!!!                j = i - 1
-!!!                do while (j >= 1 .and. angles(j) > tempAngle)
-!!!                    angles(j+1) = angles(j)
-!!!                    layerIdx(j+1) = layerIdx(j)
-!!!                    j = j - 1
-!!!                end do
-!!!                angles(j+1) = tempAngle
-!!!                layerIdx(j+1) = tempIdx
-!!!           end do
-!!! 
-!!!           ! Fan triangulation: use first point as anchor
-!!!           do i = 2, count-1
-!!!                out_idx = out_idx + 1
-!!!                triangle_list(1, out_idx) = layerIdx(1)
-!!!                triangle_list(2, out_idx) = layerIdx(i)
-!!!                triangle_list(3, out_idx) = layerIdx(i+1)
-!!!           end do
-!!! 
-!!!           deallocate(angles, layerIdx)
-!!!       end do
-!!! 
-!!!       ! Pretty print the triangle list
-!!!       ! if (allocated(triangle_list)) then
-!!!       !    print *, "Triangle list: Total number of triangles =", size(triangle_list, dim=2)
-!!!       !    do i = 1, size(triangle_list, dim=2)
-!!!       !       write(*,'(A,I5,A,3(I5))') "Triangle ", i, ": ", triangle_list(1,i), triangle_list(2,i), triangle_list(3,i)
-!!!       !    end do
-!!!       ! else
-!!!       !    print *, "Triangle list is not allocated."
-!!!       ! end if
-!!! 
-!!!       n_triangles = totalTri
-!!!       n_layers = nLayers
-!!!    end subroutine triangulate_layers
    !---------------------------------------------------------------------------------
    !> @brief
    !> Calculates the scalar chirality using triangulation
@@ -709,6 +396,7 @@ end subroutine delaunay_tri_tri
    function chirality_tri(Natom,Mensemble,emom) result(kappa_avg)
       use constants
       use math_functions, only : f_cross_product
+      use InputData, only: N1, N2, N3, NA
       implicit none
       integer, intent(in) :: Natom, Mensemble
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
@@ -718,18 +406,24 @@ end subroutine delaunay_tri_tri
       real(dblprec) :: chi_tot                   ! optional scalar version
       real(dblprec), dimension(3) :: m1,m2,m3
       real(dblprec), dimension(3) :: c12,c23,c31
-      integer :: k,i_triangle
+      integer :: k,isimp
+
+      ! Ensure triangulation is set up
+      if (nsimp == 0) then
+         write(*,'(1x, a)') "Setting up triangulation for chirality calculation"
+         call delaunay_tri_tri(N1, N2, N3, NA, coord)
+      end if
 
       kappa_tot = 0.0_dblprec
       chi_tot   = 0.0_dblprec
 
-      !$omp parallel do default(shared) private(i_triangle,k,m1,m2,m3,c12,c23,c31)  &
+      !$omp parallel do default(shared) private(isimp,k,m1,m2,m3,c12,c23,c31)  &
       !$omp& reduction(+:kappa_tot,chi_tot)
-      do i_triangle = 1, n_triangles
+      do isimp = 1, nsimp
          do k = 1, Mensemble
-            m1 = emom(:,triangle_list(1,i_triangle),k)
-            m2 = emom(:,triangle_list(2,i_triangle),k)
-            m3 = emom(:,triangle_list(3,i_triangle),k)
+            m1 = emom(:,simp(1,isimp),k)
+            m2 = emom(:,simp(2,isimp),k)
+            m3 = emom(:,simp(3,isimp),k)
 
             ! pairwise cross-products
             c12 = f_cross_product(m1,m2)   ! c12 = m1 × m2
@@ -745,9 +439,9 @@ end subroutine delaunay_tri_tri
       end do
       !$omp end parallel do
 
-      kappa_avg = kappa_tot / real(n_triangles*Mensemble, dblprec)
+      kappa_avg = kappa_tot / real(nsimp*Mensemble, dblprec)
       ! Chi avg stored in module data
-      chi_avg = chi_tot / real(n_triangles*Mensemble, dblprec)
+      chi_avg = chi_tot / real(nsimp*Mensemble, dblprec)
    end function chirality_tri
 
 !===============================================================
@@ -875,8 +569,8 @@ real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
          x3=coords(1,i3); y3=coords(2,i3); z3=coords(3,i3)
 
          ! Apply minimal image correction relative to vertex 1 using fractional coordinates
-         call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
-         call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+         ! call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+         ! call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
 
          ! Check if triangle is valid (not spanning across periodic boundaries)
          dist2 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
@@ -980,6 +674,7 @@ subroutine minimal_image_correction(x, y, z, x_ref, y_ref, z_ref, C1, C2, C3, N1
    y = y_ref + s1*C1(2) + s2*C2(2) + s3*C3(2)
    z = z_ref + s1*C1(3) + s2*C2(3) + s3*C3(3)
 end subroutine minimal_image_correction
+
 subroutine local_frame(n0, ex, ey, ez)
    use Constants
    implicit none
@@ -1012,83 +707,6 @@ function project_transverse(mu_vec, ex, ey, ez) result(mu)
    mu(1) = dot_product(mu_vec, ex)
    mu(2) = dot_product(mu_vec, ey)
 end function project_transverse
-
-!!! real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
-!!!    use Constants
-!!!    implicit none
-!!!    integer, intent(in) :: Natom
-!!!    integer, intent(in) :: Mensemble
-!!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
-!!!    real(dblprec), dimension(3,Natom), intent(in) :: coords   ! atom positions (x,y,z)
-!!! 
-!!!    integer :: k, isimp, i1,i2,i3
-!!!    real(dblprec) :: Lsum, rho_t, gamma_t, area_t
-!!!    real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
-!!!    real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
-!!!    real(dblprec) :: mx,my, norm
-!!!    real(dblprec) :: n_hat(3), transverse(3), mu_vec(3)
-!!! 
-!!!    Lsum = 0.0_dblprec
-!!! 
-!!!    ! !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
-!!!    ! !     x1,y1,x2,y2,x3,y3,cross,area_t,mx,my,norm,n_hat,transverse,mu_vec) reduction(+:Lsum)
-!!!    do isimp=1,nsimp
-!!!       i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
-!!!       do k=1,Mensemble
-!!!          ! coordinates
-!!!          x1=coords(1,i1); y1=coords(2,i1)
-!!!          x2=coords(1,i2); y2=coords(2,i2)
-!!!          x3=coords(1,i3); y3=coords(2,i3)
-!!! 
-!!!          ! transverse components and phases for vertex 1
-!!!          n_hat = S0_arr(:,i1)/norm2(S0_arr(:,i1))
-!!!          mu_vec = emom(:,i1,k) - S0_arr(:,i1)  ! subtract ground state
-!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
-!!!          mx = transverse(1); my = transverse(2)
-!!!          th1 = atan2(my,mx)
-!!!          norm = mx*mx+my*my
-!!!          rho_t = norm
-!!! 
-!!!          ! transverse components and phases for vertex 2
-!!!          n_hat = S0_arr(:,i2)/norm2(S0_arr(:,i2))
-!!!          mu_vec = emom(:,i2,k) - S0_arr(:,i2)  ! subtract ground state
-!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
-!!!          mx = transverse(1); my = transverse(2)
-!!!          th2 = atan2(my,mx)
-!!!          rho_t = rho_t + mx*mx+my*my
-!!! 
-!!!          ! transverse components and phases for vertex 3
-!!!          n_hat = S0_arr(:,i3)/norm2(S0_arr(:,i3))
-!!!          mu_vec = emom(:,i3,k) - S0_arr(:,i3)  ! subtract ground state
-!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
-!!!          mx = transverse(1); my = transverse(2)
-!!!          th3 = atan2(my,mx)
-!!!          rho_t = rho_t + mx*mx+my*my
-!!! 
-!!!          rho_t = rho_t/3.0_dblprec
-!!! 
-!!!          ! unwrap phase differences
-!!!          dth12 = modulo(th2-th1+pi,2*pi)-pi
-!!!          dth23 = modulo(th3-th2+pi,2*pi)-pi
-!!!          dth31 = modulo(th1-th3+pi,2*pi)-pi
-!!! 
-!!!          gamma_t = dth12 + dth23 + dth31   ! total winding on triangle
-!!! 
-!!!          ! triangle area (2D cross product)
-!!!          cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
-!!!          area_t = 0.5_dblprec*abs(cross)
-!!! 
-!!!          ! OAM contribution from this triangle
-!!!          Lsum = Lsum + rho_t * gamma_t * area_t
-!!!       end do
-!!!    end do
-!!!    !!$omp end parallel do
-!!! 
-!!!    oam_tri = Lsum / Mensemble
-!!!    ! print *, 'OAM (triangulation) = ', oam_tri / real(Natom*Mensemble, dblprec)
-!!!    return
-!!! end function oam_tri
-
 
 !======================================================================
 !> @brief

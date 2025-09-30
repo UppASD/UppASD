@@ -1286,16 +1286,11 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='T'.or.do_chiral=='Y') then
+      if (skyno=='T'.or.do_chiral=='Y'.or.do_oam=='Y') then
          write(*,'(1x, a)') "Triangulating mesh"
          call delaunay_tri_tri(n1,n2,n3, NA, coord)
          ! Print triangulation mesh to file for debugging/visualization
          call print_triangulation_mesh('triangulation', coord, Natom, simid, C1, C2, C3, N1, N2, N3)
-      end if
-
-      if (do_chiral=='Y') then
-         write(*,'(1x, a)') "Setup chiral mesh"
-        call triangulate_layers(nAtom, coord)
       end if
 
       if (do_oam=='Y') then
