@@ -36,9 +36,10 @@ module Topology
    integer :: n_layers !< Number of layers in the triangulation
 
    ! Variables for OAM 
-   character(len=1) :: do_oam !< Perform OAM measurement
+   character(len=1) :: do_oam = 'N' !< Perform OAM measurement
    integer :: oam_step !< Interval for sampling OAM
    integer :: oam_buff !< Buffer size for the sampling of OAM
+   character(len=1) :: print_mesh = 'N' !< Print triangulation mesh to file
    real(dblprec), dimension(:, :, :), allocatable :: mu_arr !< Array for dynamic magnetization
    real(dblprec), dimension(:, :), allocatable :: S0_arr !< Array for static magnetization
    real(dblprec), dimension(:), allocatable:: Lz_t !< Array for OAM
@@ -328,88 +329,63 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    !> @author
    !> Anders Bergman
    !---------------------------------------------------------------------------------
-   subroutine delaunay_tri_tri(nx,ny,nz, NT)
-      use Constants
+subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
+   use Constants
+   implicit none
 
-      implicit none
+   integer, intent(in) :: nx,ny,nz,NT
+   real(dblprec), intent(in) :: coords(3,nx*ny*nz*NT)
+   ! coords(:,i) = global atom positions, needed for diagonal length test
 
-      integer, intent(in) :: nx    !< Unit cell repetitions in X
-      integer, intent(in) :: ny    !< Unit cell repetitions in Y
-      integer, intent(in) :: nz    !< Unit cell repetitions in Z
-      integer, intent(in) :: NT    !< Number of types of atoms
+   integer :: x,y,z,it, nsimp_max
+   integer :: i00,i10,i01,i11
+   real(dblprec) :: d2_diag1,d2_diag2
+   real(dblprec), dimension(3) :: r00,r10,r01,r11
 
+   nsimp_max = 2*nx*ny*nz*NT
+   allocate(simp(3,nsimp_max))
+   nsimp = 0
 
-      integer :: x,y,z, ix,iy,iz, it
+   do z=1,nz
+      do y=1,ny
+         do x=1,nx
+            do it=1,NT
+               ! Four corners of the plaquette
+               i00 = NT*wrap_idx(x,       y,       z,nx,ny,nz)+it-NT
+               i10 = NT*wrap_idx(modulo(x,nx)+1, y,       z,nx,ny,nz)+it-NT
+               i01 = NT*wrap_idx(x,       modulo(y,ny)+1,z,nx,ny,nz)+it-NT
+               i11 = NT*wrap_idx(modulo(x,nx)+1, modulo(y,ny)+1,z,nx,ny,nz)+it-NT
 
-      !!! if (NT>1) then
-      !!!    write(*,'(1x,a)') 'Hard-coded triangulation only works for one atom per unit cell.' 
-      !!!    stop
-      !!! endif
+               r00 = coords(:,i00)
+               r10 = coords(:,i10)
+               r01 = coords(:,i01)
+               r11 = coords(:,i11)
 
-      nsimp = 2*nx*ny*nz*nt
-      allocate(simp(3,nsimp))
-      simp=1
+               ! Compare diagonals
+               d2_diag1 = sum((r00-r11)**2)   ! |r00 - r11|^2
+               d2_diag2 = sum((r10-r01)**2)   ! |r10 - r01|^2
 
-      nsimp=0
-      do z=1,nz
-         !do y=1,ny
-         !   do x=1,nx
-         do y=1,ny
-            do x=1,nx
-               do it=1,NT
-                  ! Triangle 1  [0 -> +x -> +y -> 0]
-                  nsimp=nsimp+1
-                  simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
-                  ! simp(2,nsimp)=NT*wrap_idx(x+1,y,z,nx,ny,nz)+it-NT
-                  ! simp(3,nsimp)=NT*wrap_idx(x,y+1,z,nx,ny,nz)+it-NT
-                  simp(2,nsimp)=NT*wrap_idx(modulo(x,nx)+1,y,z,nx,ny,nz)+it-NT
-                  simp(3,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
-               end do
+               if (d2_diag1 <= d2_diag2) then
+                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i10,i11]
+                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i11,i01]
+               else
+                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i10,i01]
+                  nsimp = nsimp+1 ; simp(:,nsimp) = [i10,i11,i01]
+               end if
+
             end do
          end do
       end do
-      do z=1,nz
-         !do y=1,ny
-         !   do x=1,nx
-         do y=1,ny
-            do x=1,nx
-               do it=1,NT
-                  ! Triangle  2  [ 0 -> +y -> +y - x -> 0]
-                  nsimp=nsimp+1
-                  simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
-                  ! simp(2,nsimp)=NT*wrap_idx(x,y+1,z,nx,ny,nz)+it-NT
-                  ! simp(3,nsimp)=NT*wrap_idx(x-1,y+1,z,nx,ny,nz)+it-NT
-                  simp(2,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
-                  simp(3,nsimp)=NT*wrap_idx(modulo(x-2,nx)+1,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
-               end do
-            end do
-         end do
-      end do
+   end do
 
+   contains
+      integer function wrap_idx(x,y,z,nx,ny,nz)
+         implicit none
+         integer, intent(in) :: x,y,z,nx,ny,nz
+         wrap_idx = nx*ny*(z-1) + nx*(y-1) + x
+      end function wrap_idx
+end subroutine delaunay_tri_tri
 
-      ! if (nsimp .ne. 2*(nx)*(ny)*nz*nt) then
-      !    write(*,'(1x,a,2i8)') 'Warning: Delaunay failure', nsimp, (2*nx-1)*(ny-1)*nz
-      !    print *,shape(simp)
-      ! end if
-
-
-      !
-      return
-
-      contains 
-
-         integer function wrap_idx(x,y,z,nx,ny,nz)
-            !
-            implicit none
-            !
-            integer, intent(in) :: x,y,z
-            integer, intent(in) :: nx,ny,nz
-
-               wrap_idx=nx*ny*(z-1)+nx*(y-1)+x
-
-            end function wrap_idx
-      !
-   end subroutine delaunay_tri_tri
 
 !======================================================================
    subroutine triangulate_layers ( nAtoms, coords )
@@ -780,7 +756,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    subroutine calculate_oam(Natom,Mensemble,emom,mstep,flag)
       use math_functions, only : f_cross_product
       use SystemData, only : coord
-      use InputData, only : simid, N1, N2, N3, NA
+      use InputData, only : simid, N1, N2, N3, NA, C1, C2, C3
       implicit none
       integer,          intent(in) :: Natom, Mensemble, mstep, flag
       real(dblprec),    intent(in) :: emom(3,Natom,Mensemble)
@@ -800,7 +776,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       ! Ensure triangulation is set up for solid-angle OAM calculation
       if (nsimp == 0) then
          write(*,'(1x, a)') "Setting up triangulation for OAM calculation"
-         call delaunay_tri_tri(N1, N2, N3, NA)
+         call delaunay_tri_tri(N1, N2, N3, NA, coord)
       end if
 
       ! Allocate arrays (keeping some for compatibility, but not all are needed for triangulation approach)
@@ -853,8 +829,9 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
 !> - Uses transverse fluctuations relative to ground state S0_arr
 !> - Works for arbitrary noncollinear reference states
 !===============================================================
-real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) !, S0_arr)
+real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
    use Constants
+   use InputData, only: C1, C2, C3, N1, N2, N3
    implicit none
    integer, intent(in) :: Natom
    integer, intent(in) :: Mensemble
@@ -865,23 +842,47 @@ real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) !, S0_arr)
    integer :: k, isimp, i1,i2,i3
    real(dblprec) :: Lsum, rho_t, gamma_t, area_t
    real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+   real(dblprec) :: z1,z2,z3
    real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
    real(dblprec) :: mu(2), norm
+
+   ! Box dimensions for minimal image
+   real(dblprec) :: Lx, Ly, Lz
+
+   ! Variables for triangle validity check
+   real(dblprec) :: dist2, dist3, threshold
 
    ! local frame basis
    real(dblprec) :: ex(3), ey(3), ez(3)
 
+   ! Compute box dimensions
+   Lx = N1 * sqrt(dot_product(C1,C1))
+   Ly = N2 * sqrt(dot_product(C2,C2))
+   Lz = N3 * sqrt(dot_product(C3,C3))
+
+   ! print *, 'OAM: System dimensions (Lx, Ly, Lz): ', Lx, Ly, Lz
+
    Lsum = 0.0_dblprec
 
    !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
-   !$omp   x1,y1,x2,y2,x3,y3,cross,area_t,mu,norm,ex,ey,ez) reduction(+:Lsum)
+   !$omp   x1,y1,z1,x2,y2,z2,x3,y3,z3,cross,area_t,mu,norm,ex,ey,ez) reduction(+:Lsum)
    do isimp=1,nsimp
       i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
       do k=1,Mensemble
          ! coordinates
-         x1=coords(1,i1); y1=coords(2,i1)
-         x2=coords(1,i2); y2=coords(2,i2)
-         x3=coords(1,i3); y3=coords(2,i3)
+         x1=coords(1,i1); y1=coords(2,i1); z1=coords(3,i1)
+         x2=coords(1,i2); y2=coords(2,i2); z2=coords(3,i2)
+         x3=coords(1,i3); y3=coords(2,i3); z3=coords(3,i3)
+
+         ! Apply minimal image correction relative to vertex 1 using fractional coordinates
+         call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+         call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+
+         ! Check if triangle is valid (not spanning across periodic boundaries)
+         dist2 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+         dist3 = sqrt((x3-x1)**2 + (y3-y1)**2 + (z3-z1)**2)
+         threshold = min(Lx, Ly) / 2.0_dblprec
+         if (dist2 > threshold .or. dist3 > threshold) cycle
 
          rho_t = 0.0_dblprec
 
@@ -929,9 +930,56 @@ real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) !, S0_arr)
 end function oam_tri
 
 !===============================================================
-!> Construct a local orthonormal frame (ex,ey,ez)
-!> from a reference spin n0 (ez = n0/|n0|)
+!> Apply minimal image correction to coordinates relative to a reference point
+!> using fractional coordinates for general lattices
 !===============================================================
+subroutine minimal_image_correction(x, y, z, x_ref, y_ref, z_ref, C1, C2, C3, N1, N2, N3)
+   use Constants
+   implicit none
+   real(dblprec), intent(inout) :: x, y, z
+   real(dblprec), intent(in) :: x_ref, y_ref, z_ref
+   real(dblprec), dimension(3), intent(in) :: C1, C2, C3
+   integer, intent(in) :: N1, N2, N3
+   
+   real(dblprec) :: dx, dy, dz, s1, s2, s3
+   real(dblprec), dimension(3) :: cross23, cross31, cross12, r_diff
+   real(dblprec) :: vol
+   
+   ! Vector difference
+   dx = x - x_ref
+   dy = y - y_ref  
+   dz = z - z_ref
+   r_diff = [dx, dy, dz]
+   
+   ! Calculate cross products and volume for fractional coordinate conversion
+   cross23(1) = C2(2)*C3(3) - C2(3)*C3(2)
+   cross23(2) = C2(3)*C3(1) - C2(1)*C3(3)
+   cross23(3) = C2(1)*C3(2) - C2(2)*C3(1)
+   vol = dot_product(C1, cross23)  ! C1 · (C2 × C3)
+   
+   cross31(1) = C3(2)*C1(3) - C3(3)*C1(2)
+   cross31(2) = C3(3)*C1(1) - C3(1)*C1(3)
+   cross31(3) = C3(1)*C1(2) - C3(2)*C1(1)
+   
+   cross12(1) = C1(2)*C2(3) - C1(3)*C2(2)
+   cross12(2) = C1(3)*C2(1) - C1(1)*C2(3)
+   cross12(3) = C1(1)*C2(2) - C1(2)*C2(1)
+   
+   ! Convert to fractional coordinates
+   s1 = dot_product(r_diff, cross23) / vol
+   s2 = dot_product(r_diff, cross31) / vol
+   s3 = dot_product(r_diff, cross12) / vol
+   
+   ! Apply periodic boundary conditions for supercell
+   s1 = s1 - real(N1, dblprec) * nint(s1 / real(N1, dblprec))
+   s2 = s2 - real(N2, dblprec) * nint(s2 / real(N2, dblprec))
+   s3 = s3 - real(N3, dblprec) * nint(s3 / real(N3, dblprec))
+   
+   ! Convert back to Cartesian coordinates relative to reference
+   x = x_ref + s1*C1(1) + s2*C2(1) + s3*C3(1)
+   y = y_ref + s1*C1(2) + s2*C2(2) + s3*C3(2)
+   z = z_ref + s1*C1(3) + s2*C2(3) + s3*C3(3)
+end subroutine minimal_image_correction
 subroutine local_frame(n0, ex, ey, ez)
    use Constants
    implicit none
@@ -1040,6 +1088,94 @@ end function project_transverse
 !!!    ! print *, 'OAM (triangulation) = ', oam_tri / real(Natom*Mensemble, dblprec)
 !!!    return
 !!! end function oam_tri
+
+
+!======================================================================
+!> @brief
+!> Write the triangulation mesh to a file for visualization/debugging
+!> Outputs both vertex coordinates and triangle connectivity
+!> Applies minimal image correction to coordinates relative to origin for compact visualization
+!======================================================================
+subroutine print_triangulation_mesh(filename, coords, Natom, simid, C1, C2, C3, N1, N2, N3)
+   use Constants
+   implicit none
+
+   character(len=*), intent(in) :: filename
+   real(dblprec), intent(in) :: coords(3,*)  ! atom coordinates
+   integer, intent(in) :: Natom              ! number of atoms
+   character(len=*), intent(in) :: simid     ! simulation ID for filename
+   real(dblprec), dimension(3), intent(in) :: C1, C2, C3
+   integer, intent(in) :: N1, N2, N3
+
+   integer :: i, j, ios, valid_count
+   character(len=100) :: filn
+   real(dblprec) :: x, y, z, x1, y1, z1, x2, y2, z2, x3, y3, z3, dist2, dist3, threshold, Lx, Ly, Lz
+
+   ! Only print if flag is set
+   if (print_mesh /= 'Y') return
+
+   ! Create filename
+   filn = trim(filename) // '.' // trim(simid) // '.mesh'
+
+   open(unit=1001, file=trim(filn), status='replace', action='write', iostat=ios)
+   if (ios /= 0) then
+      write(*,*) 'Error opening mesh file: ', trim(filn)
+      return
+   end if
+
+   ! Compute system dimensions
+   Lx = real(N1, dblprec) * sqrt(dot_product(C1, C1))
+   Ly = real(N2, dblprec) * sqrt(dot_product(C2, C2))
+   Lz = real(N3, dblprec) * sqrt(dot_product(C3, C3))
+   print *, 'System dimensions (Lx, Ly, Lz): ', Lx, Ly, Lz
+   threshold = min(Lx, Ly) / 2.0_dblprec
+
+   ! Write header
+   write(1001,'(a)') '# Triangulation mesh file'
+   write(1001,'(a,i8)') '# Total triangles in triangulation: ', nsimp
+   write(1001,'(a)') '# Format: triangle_index vertex1_index vertex2_index vertex3_index'
+   write(1001,'(a)') '# Followed by vertex coordinates: vertex_index x y z (minimal image corrected relative to origin)'
+   write(1001,'(a,f12.6)') '# Triangle validity threshold: ', threshold
+
+   ! Write triangle connectivity (only valid triangles)
+   write(1001,'(a)') '# Triangle connectivity (only valid triangles):'
+   valid_count = 0
+   do i = 1, nsimp
+      ! Get original coordinates
+      x1 = coords(1,simp(1,i)); y1 = coords(2,simp(1,i)); z1 = coords(3,simp(1,i))
+      x2 = coords(1,simp(2,i)); y2 = coords(2,simp(2,i)); z2 = coords(3,simp(2,i))
+      x3 = coords(1,simp(3,i)); y3 = coords(2,simp(3,i)); z3 = coords(3,simp(3,i))
+      
+      ! Apply minimal image correction relative to vertex 1
+      ! call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+      ! call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+      
+      ! Check validity
+      dist2 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+      dist3 = sqrt((x3-x1)**2 + (y3-y1)**2 + (z3-z1)**2)
+      
+      if (dist2 <= threshold .and. dist3 <= threshold) then
+         valid_count = valid_count + 1
+         write(1001,'(i8,3i12)') valid_count, simp(1,i), simp(2,i), simp(3,i)
+      end if
+   end do
+   write(1001,'(a,i8)') '# Valid triangles written: ', valid_count
+
+   ! Write vertex coordinates (with minimal image correction relative to origin)
+   write(1001,'(a)') '# Vertex coordinates (minimal image corrected relative to origin):'
+   do i = 1, Natom
+      x = coords(1,i)
+      y = coords(2,i)
+      z = coords(3,i)
+      ! Apply minimal image correction relative to origin
+      ! call minimal_image_correction(x, y, z, 0.0_dblprec, 0.0_dblprec, 0.0_dblprec, C1, C2, C3, N1, N2, N3)
+      write(1001,'(i8,3f16.8)') i, x, y, z
+   end do
+
+   close(1001)
+   write(*,'(1x,a,a)') 'Triangulation mesh written to: ', trim(filn)
+
+end subroutine print_triangulation_mesh
 
 
 end module Topology

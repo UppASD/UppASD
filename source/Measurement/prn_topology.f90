@@ -37,7 +37,7 @@ module prn_topology
 
    public :: print_topology, flush_topology, allocate_topology,prn_topology_init
    public :: skyno, skyno_step, skyno_buff, do_proj_skyno, do_skyno_den, do_skyno_cmass
-   public :: sk_avrg, sk_var, do_oam, oam_buff, oam_step
+   public :: sk_avrg, sk_var, do_oam, oam_buff, oam_step, print_mesh
 
 contains
 
@@ -248,6 +248,7 @@ contains
       do_oam       = "N"
       oam_step    = 100
       oam_buff    = 10
+      print_mesh  = "N"
 
    end subroutine prn_topology_init
 
