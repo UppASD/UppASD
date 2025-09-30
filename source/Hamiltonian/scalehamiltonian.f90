@@ -57,12 +57,14 @@ module ScaleHamiltonian
             end do
             rewind(ifileno2)
             print *,'Jscaling file read with ', jscaling_natoms, ' atoms'
-            100 continue
+
             ! Initialize scaling matrix
             allocate(jscaling_atomlist(jscaling_natoms))
+            allocate(jscale_factor(jscaling_natoms))
+            jscale_factor = 1.0_dblprec
             ! Read scaling file
             do i = 1, jscaling_natoms
-                read(ifileno2, *) jscaling_atomlist(i)
+                read(ifileno2, *) jscaling_atomlist(i), jscale_factor(i)
             end do
             close(ifileno2)
         end if
@@ -179,14 +181,14 @@ module ScaleHamiltonian
         do idx = 1, jscaling_natoms
             ! print *,idx, 'Applying J scaling to atom:', jscaling_atomlist(idx), scale_factor
             i_atom = jscaling_atomlist(idx)
-            ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * scale_factor
+            ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * scale_factor * jscale_factor(idx)
             ! Then loop over the neighbors to apply the scaling
             ! to the J_ji couplings
             do j_neigh=1,ham%nlistsize(i_atom)
                 j_atom = ham%nlist(j_neigh, i_atom)
                 do i_neigh=1,ham%nlistsize(j_atom)
                     if (i_atom == ham%nlist(i_neigh, j_atom)) then
-                        ham%ncoup(i_neigh, j_atom, 1) = ncoup_orig(i_neigh, j_atom, 1) * scale_factor
+                                    ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * scale_factor * jscale_factor(idx)
                     end if
                 end do
             end do
