@@ -7,9 +7,11 @@ module ScaleHamiltonian
 
     real(dblprec), dimension(:,:,:), allocatable :: ncoup_orig !< Original coupling constant before scaling
     real(dblprec), dimension(:,:,:,:), allocatable :: j_tens_orig !< Original coupling constant before scaling
+    real(dblprec), dimension(:,:,:), allocatable :: dm_vect_orig !< Original DMI vectors before scaling
     real(dblprec), dimension(:), allocatable :: jscale_factor !< Scaling matrix for Hamiltonian
     logical :: jscaling_flag  !< Flag to indicate if the scaling matrix is used for J_ij
     logical :: jscaling_dynamic  !< Flag to indicate dynamic scaling
+    logical :: jscaling_dmi  !< Flag to indicate if DMI should be scaled as well
     integer :: jscaling_natoms !< Number of atoms in the scaling file
     integer, dimension(:), allocatable :: jscaling_atomlist !< List of atoms in the scaling file
     character(len=30) :: jscaling_file !< Name of the scaling file
@@ -139,6 +141,31 @@ module ScaleHamiltonian
     
             ! deallocate(temp_ncoup)
         end if
+
+            ! Apply scaling to DMI vectors if requested
+            if (jscaling_dmi .and. ham_inp%do_dm==1 .and. allocated(ham%dm_vect)) then
+                if (.not. allocated(dm_vect_orig)) then
+                    allocate(dm_vect_orig(size(ham%dm_vect,1), size(ham%dm_vect,2), size(ham%dm_vect,3)))
+                    dm_vect_orig = ham%dm_vect  ! Store original DMI vectors
+                end if
+
+                ham%dm_vect = dm_vect_orig  ! Reset to original DMI vectors
+
+                ! Loop over atoms and their DM neighbours and apply local scaling
+                do i_atom = 1, Natom
+                    do i_neigh = 1, ham%dmlistsize(i_atom)
+                        j_atom = ham%dmlist(i_neigh, i_atom)
+                        ! Scale the D_ij vector corresponding to (i_atom -> j_atom)
+                        ham%dm_vect(:, i_neigh, i_atom) = ham%dm_vect(:, i_neigh, i_atom) * jscale_factor(i_atom)
+                        ! Find the corresponding reverse entry D_ji and scale it
+                        do j_neigh = 1, ham%dmlistsize(j_atom)
+                            if (i_atom == ham%dmlist(j_neigh, j_atom)) then
+                                ham%dm_vect(:, j_neigh, j_atom) = ham%dm_vect(:, j_neigh, j_atom) * jscale_factor(i_atom)
+                            end if
+                        end do
+                    end do
+                end do
+            end if
     
     end subroutine apply_local_jscaling
 
@@ -193,6 +220,27 @@ module ScaleHamiltonian
                 end do
             end do
         end do
+        ! Dynamic scaling for DMI
+        if (jscaling_dmi .and. ham_inp%do_dm==1 .and. allocated(ham%dm_vect)) then
+            if (.not. allocated(dm_vect_orig)) then
+                allocate(dm_vect_orig(size(ham%dm_vect,1), size(ham%dm_vect,2), size(ham%dm_vect,3)))
+                dm_vect_orig = ham%dm_vect  ! Store original DMI vectors
+            end if
+
+            do idx = 1, jscaling_natoms
+                i_atom = jscaling_atomlist(idx)
+                do i_neigh = 1, ham%dmlistsize(i_atom)
+                    j_atom = ham%dmlist(i_neigh, i_atom)
+                    ham%dm_vect(:, i_neigh, i_atom) = dm_vect_orig(:, i_neigh, i_atom) * scale_factor * jscale_factor(idx)
+                    ! Find and scale reverse entry
+                    do j_neigh = 1, ham%dmlistsize(j_atom)
+                        if (i_atom == ham%dmlist(j_neigh, j_atom)) then
+                            ham%dm_vect(:, j_neigh, j_atom) = dm_vect_orig(:, j_neigh, j_atom) * scale_factor * jscale_factor(idx)
+                        end if
+                    end do
+                end do
+            end do
+        end if
         else
 
         if (.not. allocated(j_tens_orig)) then
@@ -239,6 +287,7 @@ module ScaleHamiltonian
        !
         jscaling_flag = .false.
         jscaling_dynamic = .false.
+        jscaling_dmi = .false.
         jscaling_file = 'jscaling.dat'
         jscaling_freq = 0.0
         jscaling_phase = 0.0
@@ -296,6 +345,11 @@ module ScaleHamiltonian
            read(ifile,*,iostat=i_err) jscaling_dynamic
            print *,'jscaling_dynamic:', jscaling_dynamic
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+         case('jscaling_dmi')
+              read(ifile,*,iostat=i_err) jscaling_dmi
+              print *,'jscaling_dmi:', jscaling_dmi
+              if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_prefactor')
            read(ifile,*,iostat=i_err) jscaling_prefactor
