@@ -41,8 +41,6 @@ module Topology
    integer :: oam_buff !< Buffer size for the sampling of OAM
    real(dblprec), dimension(:, :, :), allocatable :: mu_arr !< Array for dynamic magnetization
    real(dblprec), dimension(:, :), allocatable :: S0_arr !< Array for static magnetization
-   real(dblprec), dimension(:, :, :), allocatable::  gradx, grady
-   real(dblprec), dimension(:, :), allocatable:: px_arr,  py_arr        ! (Natoms,Mensemble)
    real(dblprec), dimension(:), allocatable:: Lz_t !< Array for OAM
    real(dblprec), dimension(:, :), allocatable:: Lz_i !< Array for local OAM
    real(dblprec) :: Lz_avg !< Average OAM (instantaneous)
@@ -51,10 +49,6 @@ module Topology
    integer :: n_Lz_cavg = 0 !< Number of times the average OAM has been calculated
 
    integer :: step_counter = 0
-
-   ! Weight data for OAM
-   ! real(dblprec), dimension(:), allocatable :: x, y            ! site positions
-   real(dblprec), dimension(:,:), allocatable :: wx, wy      ! barycentric weights
 
    public
 contains
@@ -358,12 +352,16 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
 
       nsimp=0
       do z=1,nz
+         !do y=1,ny
+         !   do x=1,nx
          do y=1,ny
             do x=1,nx
                do it=1,NT
                   ! Triangle 1  [0 -> +x -> +y -> 0]
                   nsimp=nsimp+1
                   simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
+                  ! simp(2,nsimp)=NT*wrap_idx(x+1,y,z,nx,ny,nz)+it-NT
+                  ! simp(3,nsimp)=NT*wrap_idx(x,y+1,z,nx,ny,nz)+it-NT
                   simp(2,nsimp)=NT*wrap_idx(modulo(x,nx)+1,y,z,nx,ny,nz)+it-NT
                   simp(3,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
                end do
@@ -371,12 +369,16 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
          end do
       end do
       do z=1,nz
+         !do y=1,ny
+         !   do x=1,nx
          do y=1,ny
             do x=1,nx
                do it=1,NT
                   ! Triangle  2  [ 0 -> +y -> +y - x -> 0]
                   nsimp=nsimp+1
                   simp(1,nsimp)=NT*wrap_idx(x,y,z,nx,ny,nz)+it-NT
+                  ! simp(2,nsimp)=NT*wrap_idx(x,y+1,z,nx,ny,nz)+it-NT
+                  ! simp(3,nsimp)=NT*wrap_idx(x-1,y+1,z,nx,ny,nz)+it-NT
                   simp(2,nsimp)=NT*wrap_idx(x,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
                   simp(3,nsimp)=NT*wrap_idx(modulo(x-2,nx)+1,modulo(y,ny)+1,z,nx,ny,nz)+it-NT
                end do
@@ -385,10 +387,10 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       end do
 
 
-      if (nsimp .ne. 2*(nx)*(ny)*nz*nt) then
-         write(*,'(1x,a,2i8)') 'Warning: Delaunay failure', nsimp, (2*nx-1)*(ny-1)*nz
-         print *,shape(simp)
-      end if
+      ! if (nsimp .ne. 2*(nx)*(ny)*nz*nt) then
+      !    write(*,'(1x,a,2i8)') 'Warning: Delaunay failure', nsimp, (2*nx-1)*(ny-1)*nz
+      !    print *,shape(simp)
+      ! end if
 
 
       !
@@ -772,42 +774,13 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       chi_avg = chi_tot / real(n_triangles*Mensemble, dblprec)
    end function chirality_tri
 
-   subroutine precompute_weights
-      use SystemData, only : coord
-      !
-      implicit none
-      !
-      integer :: t,i1,i2,i3
-      real(dblprec):: x1,x2,x3,y1,y2,y3, Ainv2,area
-
-      do t = 1, n_triangles
-         i1=triangle_list(1,t); i2=triangle_list(2,t); i3=triangle_list(3,t)
-         ! print *, 'Triangle ', t, ' vertices: ', i1, i2, i3
-         ! print *, 'Triangle ', t, ' vert 1: ', coord(1,i1), coord(2,i1), coord(3,i1)
-         ! print *, 'Triangle ', t, ' vert 2: ', coord(1,i2), coord(2,i2), coord(3,i2)
-         ! print *, 'Triangle ', t, ' vert 3: ', coord(1,i3), coord(2,i3), coord(3,i3)
-         x1=coord(1,i1)
-         y1=coord(2,i1)
-         x2=coord(1,i2)
-         y2=coord(2,i2)
-         x3=coord(1,i3)
-         y3=coord(2,i3)
-         area = 0.5d0*((x2-x1)*(y3-y1)-(x3-x1)*(y2-y1))
-         ! print *,' Triangle ', t, ' area = ', area
-         Ainv2=1.d0/(2.d0*area)
-         wx(1,t)=(y2-y3)*Ainv2; wy(1,t)=(x3-x2)*Ainv2
-         wx(2,t)=(y3-y1)*Ainv2; wy(2,t)=(x1-x3)*Ainv2
-         wx(3,t)=(y1-y2)*Ainv2; wy(3,t)=(x2-x1)*Ainv2
-      end do
-   end subroutine precompute_weights
-
 !===============================================================
 !   Main driver routine  (flag = 0/1/2)
 !===============================================================
    subroutine calculate_oam(Natom,Mensemble,emom,mstep,flag)
       use math_functions, only : f_cross_product
       use SystemData, only : coord
-      use InputData, only : simid
+      use InputData, only : simid, N1, N2, N3, NA
       implicit none
       integer,          intent(in) :: Natom, Mensemble, mstep, flag
       real(dblprec),    intent(in) :: emom(3,Natom,Mensemble)
@@ -824,81 +797,33 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    !------------------ 0 :  allocate & initialise ------------------
    case (0)
    
+      ! Ensure triangulation is set up for solid-angle OAM calculation
+      if (nsimp == 0) then
+         write(*,'(1x, a)') "Setting up triangulation for OAM calculation"
+         call delaunay_tri_tri(N1, N2, N3, NA)
+      end if
+
+      ! Allocate arrays (keeping some for compatibility, but not all are needed for triangulation approach)
       allocate(S0_arr(3,Natom), mu_arr(3,Natom,Mensemble))
       allocate(Lz_i(Natom,Mensemble))
-      allocate(gradx(3,Natom,Mensemble), grady(3,Natom,Mensemble))
-      allocate(px_arr(Natom,Mensemble),  py_arr(Natom,Mensemble))
       allocate(Lz_t(0:mstep))
-      allocate(wx(3,n_triangles), wy(3,n_triangles))
    
       S0_arr = emom(:,:,1)               ! ground state from first frame
-      call precompute_weights()
       step_counter = 0
    
    !------------------ 1 :  sample current step --------------------
    case (1)
       if ( mod(mstep-1,oam_step)==0) then
       step_counter = step_counter + 1
-   
-      ! ---- build μ_i  -------------------------------------------
-      do k = 1, Mensemble
-         do i = 1, Natom
-            mu_arr(:,i,k) = emom(:,i,k) - S0_arr(:,i)
-            mu_arr(:,i,k) = mu_arr(:,i,k) - &
-                 dot_product(mu_arr(:,i,k),S0_arr(:,i))*S0_arr(:,i)/(norm2(S0_arr(:,i))**2+1d-20)
-         end do
-      end do
-   
-      gradx = 0.0d0;  grady = 0.0d0
-      ! ---- triangle loop for gradients --------------------------
-      ! print *,'--------------------', n_triangles
-      do t = 1, n_triangles
-         v1=triangle_list(1,t); v2=triangle_list(2,t); v3=triangle_list(3,t)
-         ! print *, "Weights: ", wx(1,t), wy(1,t), wx(2,t), wy(2,t), wx(3,t), wy(3,t)
-         ! print *, "Triangle: ", v1, v2, v3
-         do k = 1, Mensemble
-            dmu_dx = mu_arr(:,v1,k)*wx(1,t) + mu_arr(:,v2,k)*wx(2,t) + mu_arr(:,v3,k)*wx(3,t)
-            dmu_dy = mu_arr(:,v1,k)*wy(1,t) + mu_arr(:,v2,k)*wy(2,t) + mu_arr(:,v3,k)*wy(3,t)
-   
-            gradx(:,v1,k) = gradx(:,v1,k) + dmu_dx
-            gradx(:,v2,k) = gradx(:,v2,k) + dmu_dx
-            gradx(:,v3,k) = gradx(:,v3,k) + dmu_dx
-   
-            grady(:,v1,k) = grady(:,v1,k) + dmu_dy
-            grady(:,v2,k) = grady(:,v2,k) + dmu_dy
-            grady(:,v3,k) = grady(:,v3,k) + dmu_dy
-         end do
-      end do
-   
-      ! ---- site loop: momentum & Lz ------------------------------
-      Lz_tot = 0.0_dblprec
-      do k = 1, Mensemble
-         do i = 1, Natom
-            n_hat = S0_arr(:,i)/norm2(S0_arr(:,i))
-            cross_mu_n = f_cross_product(mu_arr(:,i,k), n_hat)
-            ! print *, "n_hat = ", n_hat
-            ! print *, "cross_mu_n = ", cross_mu_n
-            ! print *, "gradx = ", gradx(:,i,k)
-            ! print *, "grady = ", grady(:,i,k)
-   
-            px_arr(i,k) = dot_product(cross_mu_n, gradx(:,i,k))
-            py_arr(i,k) = dot_product(cross_mu_n, grady(:,i,k))
-            ! print *, "px_arr = ", px_arr(i,k)
-            ! print *, "py_arr = ", py_arr(i,k)
-   
-            Lz_i(i,k) = coord(1,i)*py_arr(i,k) - coord(2,i)*px_arr(i,k)
-            Lz_tot = Lz_tot + Lz_i(i,k)
-            ! print *, "Lz_i = ", Lz_i(i,k)
-         end do
-      end do
-      !Lz_t(step_counter) = Lz_avg
-      ! print *, "Lz_tot = ", Lz_tot
-      Lz_avg = Lz_tot / real(Natom*Mensemble, dblprec)
-      ! print *, "Lz_avg = ", Lz_avg/real(Natom*Mensemble, dblprec)
+
+      ! Use solid-angle triangulation approach for OAM calculation
+      Lz_tot = oam_tri(Natom, Mensemble, emom, coord)
+      Lz_avg = Lz_tot / real(Natom, dblprec)
+
       n_Lz_cavg = n_Lz_cavg + 1
       Lz_csum = Lz_csum + Lz_avg
 
-      ! write the skyrmion number
+      ! write the OAM data
       write(filn,'(''oam.'',a,''.out'')') trim(simid)
       if (mstep <= 1) then
          open(ofileno,file=filn, status="replace")
@@ -915,12 +840,206 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    case (2)
       !call fft_and_print(step_counter,Lz_t)   ! (replace with real FFT)
    
-      deallocate(S0_arr,mu_arr,gradx,grady,px_arr,py_arr,Lz_t,wx,wy)
+      deallocate(S0_arr, mu_arr, Lz_i, Lz_t)
       step_counter = 0
    end select
    !----------------------------------------------------------------
 
    240 format(i8,2x,3f16.8)
    end subroutine calculate_oam
-   
+  
+!===============================================================
+!> Compute orbital angular momentum Lz from triangulated phase windings
+!> - Uses transverse fluctuations relative to ground state S0_arr
+!> - Works for arbitrary noncollinear reference states
+!===============================================================
+real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) !, S0_arr)
+   use Constants
+   implicit none
+   integer, intent(in) :: Natom
+   integer, intent(in) :: Mensemble
+   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
+   real(dblprec), dimension(3,Natom), intent(in) :: coords   ! atom positions (x,y,z)
+   ! real(dblprec), dimension(3,Natom), intent(in) :: S0_arr   ! reference spins at t=0
+
+   integer :: k, isimp, i1,i2,i3
+   real(dblprec) :: Lsum, rho_t, gamma_t, area_t
+   real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+   real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
+   real(dblprec) :: mu(2), norm
+
+   ! local frame basis
+   real(dblprec) :: ex(3), ey(3), ez(3)
+
+   Lsum = 0.0_dblprec
+
+   !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
+   !$omp   x1,y1,x2,y2,x3,y3,cross,area_t,mu,norm,ex,ey,ez) reduction(+:Lsum)
+   do isimp=1,nsimp
+      i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+      do k=1,Mensemble
+         ! coordinates
+         x1=coords(1,i1); y1=coords(2,i1)
+         x2=coords(1,i2); y2=coords(2,i2)
+         x3=coords(1,i3); y3=coords(2,i3)
+
+         rho_t = 0.0_dblprec
+
+         ! --- vertex 1 ---
+         call local_frame(S0_arr(:,i1), ex,ey,ez)
+         mu = project_transverse(emom(:,i1,k)-S0_arr(:,i1), ex,ey,ez)
+         th1 = atan2(mu(2),mu(1))
+         norm = mu(1)*mu(1)+mu(2)*mu(2)
+         rho_t = rho_t + norm
+
+         ! --- vertex 2 ---
+         call local_frame(S0_arr(:,i2), ex,ey,ez)
+         mu = project_transverse(emom(:,i2,k)-S0_arr(:,i2), ex,ey,ez)
+         th2 = atan2(mu(2),mu(1))
+         norm = mu(1)*mu(1)+mu(2)*mu(2)
+         rho_t = rho_t + norm
+
+         ! --- vertex 3 ---
+         call local_frame(S0_arr(:,i3), ex,ey,ez)
+         mu = project_transverse(emom(:,i3,k)-S0_arr(:,i3), ex,ey,ez)
+         th3 = atan2(mu(2),mu(1))
+         norm = mu(1)*mu(1)+mu(2)*mu(2)
+         rho_t = rho_t + norm
+
+         rho_t = rho_t/3.0_dblprec
+
+         ! unwrap phase differences
+         dth12 = modulo(th2-th1+pi,2*pi)-pi
+         dth23 = modulo(th3-th2+pi,2*pi)-pi
+         dth31 = modulo(th1-th3+pi,2*pi)-pi
+         gamma_t = dth12 + dth23 + dth31
+
+         ! triangle area (2D cross product)
+         cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+         area_t = 0.5_dblprec*abs(cross)
+
+         ! OAM contribution
+         Lsum = Lsum + rho_t * gamma_t * area_t
+      end do
+   end do
+   !$omp end parallel do
+
+   oam_tri = Lsum / Mensemble
+   return
+end function oam_tri
+
+!===============================================================
+!> Construct a local orthonormal frame (ex,ey,ez)
+!> from a reference spin n0 (ez = n0/|n0|)
+!===============================================================
+subroutine local_frame(n0, ex, ey, ez)
+   use Constants
+   implicit none
+   real(dblprec), intent(in)  :: n0(3)
+   real(dblprec), intent(out) :: ex(3), ey(3), ez(3)
+   real(dblprec) :: tmp(3)
+
+   ez = n0 / sqrt(dot_product(n0,n0))
+   if (abs(ez(1)) < 0.9_dblprec) then
+      tmp = [1.0_dblprec, 0.0_dblprec, 0.0_dblprec]
+   else
+      tmp = [0.0_dblprec, 1.0_dblprec, 0.0_dblprec]
+   end if
+   ex = tmp - dot_product(tmp,ez)*ez
+   ex = ex / sqrt(dot_product(ex,ex))
+   ey(1) = ez(2)*ex(3) - ez(3)*ex(2)
+   ey(2) = ez(3)*ex(1) - ez(1)*ex(3)
+   ey(3) = ez(1)*ex(2) - ez(2)*ex(1)
+end subroutine local_frame
+
+!===============================================================
+!> Project a fluctuation vector mu_vec into the transverse plane
+!> defined by (ex,ey)
+!===============================================================
+function project_transverse(mu_vec, ex, ey, ez) result(mu)
+   use Constants
+   implicit none
+   real(dblprec), intent(in) :: mu_vec(3), ex(3), ey(3), ez(3)
+   real(dblprec) :: mu(2)
+   mu(1) = dot_product(mu_vec, ex)
+   mu(2) = dot_product(mu_vec, ey)
+end function project_transverse
+
+!!! real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
+!!!    use Constants
+!!!    implicit none
+!!!    integer, intent(in) :: Natom
+!!!    integer, intent(in) :: Mensemble
+!!!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
+!!!    real(dblprec), dimension(3,Natom), intent(in) :: coords   ! atom positions (x,y,z)
+!!! 
+!!!    integer :: k, isimp, i1,i2,i3
+!!!    real(dblprec) :: Lsum, rho_t, gamma_t, area_t
+!!!    real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+!!!    real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
+!!!    real(dblprec) :: mx,my, norm
+!!!    real(dblprec) :: n_hat(3), transverse(3), mu_vec(3)
+!!! 
+!!!    Lsum = 0.0_dblprec
+!!! 
+!!!    ! !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
+!!!    ! !     x1,y1,x2,y2,x3,y3,cross,area_t,mx,my,norm,n_hat,transverse,mu_vec) reduction(+:Lsum)
+!!!    do isimp=1,nsimp
+!!!       i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+!!!       do k=1,Mensemble
+!!!          ! coordinates
+!!!          x1=coords(1,i1); y1=coords(2,i1)
+!!!          x2=coords(1,i2); y2=coords(2,i2)
+!!!          x3=coords(1,i3); y3=coords(2,i3)
+!!! 
+!!!          ! transverse components and phases for vertex 1
+!!!          n_hat = S0_arr(:,i1)/norm2(S0_arr(:,i1))
+!!!          mu_vec = emom(:,i1,k) - S0_arr(:,i1)  ! subtract ground state
+!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
+!!!          mx = transverse(1); my = transverse(2)
+!!!          th1 = atan2(my,mx)
+!!!          norm = mx*mx+my*my
+!!!          rho_t = norm
+!!! 
+!!!          ! transverse components and phases for vertex 2
+!!!          n_hat = S0_arr(:,i2)/norm2(S0_arr(:,i2))
+!!!          mu_vec = emom(:,i2,k) - S0_arr(:,i2)  ! subtract ground state
+!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
+!!!          mx = transverse(1); my = transverse(2)
+!!!          th2 = atan2(my,mx)
+!!!          rho_t = rho_t + mx*mx+my*my
+!!! 
+!!!          ! transverse components and phases for vertex 3
+!!!          n_hat = S0_arr(:,i3)/norm2(S0_arr(:,i3))
+!!!          mu_vec = emom(:,i3,k) - S0_arr(:,i3)  ! subtract ground state
+!!!          transverse = mu_vec - dot_product(mu_vec, n_hat)*n_hat  ! project out longitudinal component
+!!!          mx = transverse(1); my = transverse(2)
+!!!          th3 = atan2(my,mx)
+!!!          rho_t = rho_t + mx*mx+my*my
+!!! 
+!!!          rho_t = rho_t/3.0_dblprec
+!!! 
+!!!          ! unwrap phase differences
+!!!          dth12 = modulo(th2-th1+pi,2*pi)-pi
+!!!          dth23 = modulo(th3-th2+pi,2*pi)-pi
+!!!          dth31 = modulo(th1-th3+pi,2*pi)-pi
+!!! 
+!!!          gamma_t = dth12 + dth23 + dth31   ! total winding on triangle
+!!! 
+!!!          ! triangle area (2D cross product)
+!!!          cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+!!!          area_t = 0.5_dblprec*abs(cross)
+!!! 
+!!!          ! OAM contribution from this triangle
+!!!          Lsum = Lsum + rho_t * gamma_t * area_t
+!!!       end do
+!!!    end do
+!!!    !!$omp end parallel do
+!!! 
+!!!    oam_tri = Lsum / Mensemble
+!!!    ! print *, 'OAM (triangulation) = ', oam_tri / real(Natom*Mensemble, dblprec)
+!!!    return
+!!! end function oam_tri
+
+
 end module Topology
