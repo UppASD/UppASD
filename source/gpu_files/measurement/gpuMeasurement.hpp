@@ -23,8 +23,10 @@ public:
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
+    void release();
 
 private:
+    bool isAllocated;
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();

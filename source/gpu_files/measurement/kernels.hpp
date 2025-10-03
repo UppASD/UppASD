@@ -26,11 +26,11 @@ namespace kernels::measurement
     //   dim3 block(256,1);
     //   dim3 grid(ceil_div(N, block.x) /*tiles over atoms*/, 3*M /*i,k pairs*/);
     //   shared = ((block.x*block.y + 31)/32) * sizeof(real)
-    __global__ void sumOverAtoms(const GpuTensor<real, 3>& in_tensor,
-                                 GpuTensor<real, 2>& out_tensor);
+    __global__ void sumOverAtoms(const GpuTensor<real, 3> in_tensor,
+                                 GpuTensor<real, 2> out_tensor);
 
     // Average magnetization over ensembles (two-phase)
-    __global__ void averageMagnetization_partial(const GpuTensor<real, 2>& emomMSum,
+    __global__ void averageMagnetization_partial(const GpuTensor<real, 2> emomMSum,
                                                  uint atoms,
                                                  uint ensembles,
                                                  AvgMPart* __restrict__ block_parts);
@@ -41,7 +41,7 @@ namespace kernels::measurement
                                                   AverageMagnetizationData& out);
 
     // Binder cumulant (no energy) over ensembles (two-phase)
-    __global__ void binderCumulantNoEnergy_partial(const GpuTensor<real, 2>& emomMSum,
+    __global__ void binderCumulantNoEnergy_partial(const GpuTensor<real, 2> emomMSum,
                                                    uint atoms,
                                                    uint ensembles,
                                                    BinderPart* __restrict__ block_parts);
@@ -56,15 +56,15 @@ namespace kernels::measurement
                                                     BinderCumulantData& d);
 
     // Gradient of magnetization field
-    __global__ void grad_moments(const GpuTensor<real, 3>& emomM,
-                                 const GpuTensor<real, 3>& dxyz_vec,
-                                 const GpuTensor<int, 2>& dxyz_atom,
-                                 const GpuTensor<int, 1>& dxyz_list,
-                                 GpuTensor<real, 4>& grad_mom);
+    __global__ void grad_moments(const GpuTensor<real, 3> emomM,
+                                 const GpuTensor<real, 3> dxyz_vec,
+                                 const GpuTensor<int, 2> dxyz_atom,
+                                 const GpuTensor<int, 1> dxyz_list,
+                                 GpuTensor<real, 4> grad_mom);
 
     // Pontryagin (brute force) over (atom, ensemble): two-phase reduce
-    __global__ void pontryagin_no_partial(const GpuTensor<real, 3>& emomM,
-                                          const GpuTensor<real, 4>& grad_mom,
+    __global__ void pontryagin_no_partial(const GpuTensor<real, 3> emomM,
+                                          const GpuTensor<real, 4> grad_mom,
                                           SumPart* __restrict__ block_parts);
 
     __global__ void pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
@@ -75,13 +75,13 @@ namespace kernels::measurement
 
     // Delaunay triangulation (0-based vertex ids), simp has extents (3, nsimp)
     __global__ void delaunay_tri_tri(uint nx, uint ny, uint nz, uint nt,
-                                     GpuTensor<uint, 2>& simp);
+                                     GpuTensor<uint, 2> simp);
 
     // Triangulation Pontryagin (sum over triangles × ensembles)
     // emom: (3, Natom, Mensemble)
     // simp: (3, nsimp) with 0-based vertex ids from delaunay_tri_tri
-    __global__ void pontryagin_tri_partial(const GpuTensor<real, 3>& emom,
-                                           const GpuTensor<uint, 2>& simp,
+    __global__ void pontryagin_tri_partial(const GpuTensor<real, 3> emom,
+                                           const GpuTensor<uint, 2> simp,
                                            SumPart* __restrict__ block_parts);
 
     __global__ void pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,

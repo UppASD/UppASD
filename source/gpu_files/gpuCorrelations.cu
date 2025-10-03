@@ -10,6 +10,7 @@
 #include <cooperative_groups/reduce.h>
 #include <thrust/complex.h>
 #include <curand.h>
+#include <cuda.h>
 
 namespace cg = cooperative_groups;
 #ifndef M_PI
@@ -20,10 +21,20 @@ __inline__ __device__
 thrust::complex<real> warpReduceSum(thrust::complex<real> val) {
     real valr = val.real();
     real vali = val.imag();
+#if CUDA_VERSION < 9000
     for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+
+        valr += __shfl_down(valr, offset);
+        vali += __shfl_down(vali, offset);
+    }
+#else
+    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+
         valr += __shfl_down_sync(0xffffffffffff, valr, offset);
         vali += __shfl_down_sync(0xffffffffffff, vali, offset);
     }
+#endif
+
     val = thrust::complex<real>(valr, vali);
     return val;
 }

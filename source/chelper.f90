@@ -36,6 +36,7 @@ module Chelper
    use Correlation_core
    use Correlation_Print
    use Correlation_type
+   use Correlation_utils, only: find_rmid
    use Omegas
    use Qvectors
    use Correlation_utils
@@ -169,7 +170,7 @@ contains
    ! Flush measurements with pre-set parameters
    subroutine fortran_flush_measurements(cmstep)
       implicit none
-      integer, intent(in) :: cmstep !< Current simulation step
+      integer, intent(in) :: cmstep !< Current simulation stepfind_rmid(rmid,coord,Natom)
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,cmstep,emom,mmom,&
          Nchmax,atype,real_time_measure,mcnstep,ham%ind_list_full,do_mom_legacy,mode)
    end subroutine fortran_flush_measurements
@@ -186,6 +187,7 @@ contains
       endif
      if(do_sc=='T'.or.do_sc=='Y') then
          call print_gkt(NT, Nchmax, sc, sc, simid, sc%label)
+
       endif
    end subroutine fortran_print_correlations
 
@@ -194,6 +196,7 @@ contains
    ! Initiate pointers for C/C++ implementation
    !> Calls functions in fortrandata.cpp
    subroutine FortranData_Initiate(stt,btorque,cc)
+      
       implicit none
       character(len=1), intent(in) :: STT !< Treat spi p_sc_max_nstn transfer torque? (Y/N)
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
@@ -204,9 +207,13 @@ contains
          return  
       end if
 
+      if(do_gpu_correlations=='Y') then
+         call find_rmid(r_mid,coord,Natom)
+      endif
+
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno, do_sc)
+           do_gpu_measurements, skyno, do_sc, do_gpu_correlations)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
@@ -237,6 +244,7 @@ contains
 
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt)
 
+
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
    end subroutine FortranData_Initiate
@@ -254,6 +262,7 @@ contains
       call print_observable(simid, Mensemble, obs_name, obs_step, obs_buff, &
       obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
    end subroutine fortran_print_measurables
+
 
 end module Chelper
 
