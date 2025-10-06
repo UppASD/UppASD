@@ -294,7 +294,7 @@ contains
          if (do_gpu == 'Y' .and. do_gpu_mc == 'Y') then !HIP or CUDA
             call mc_mphaseGPU()
          else ! FORTRAN            
-            call mc_mphase() ! Monte Carlo measurement phase
+            call sd_mphase() ! Monte Carlo measurement phase
          endif
 
       elseif (mode=='MS') then
