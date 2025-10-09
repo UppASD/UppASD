@@ -11,6 +11,7 @@
 #include "measurementWriter.h"
 #include "measurementData.h"
 #include "kernels.hpp"
+#include "gpu_wrappers.h"
 
 
 class GpuMeasurement : public Measurable
@@ -23,7 +24,7 @@ public:
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
-    void release();
+
 
 private:
     bool isAllocated;
@@ -33,6 +34,7 @@ private:
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
+    void release();
     
 private:
     const GpuTensor<real, 3>& emomM;
@@ -41,7 +43,7 @@ private:
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
-    cudaStream_t workStream;
+    GPU_STREAM_T workStream;
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
 

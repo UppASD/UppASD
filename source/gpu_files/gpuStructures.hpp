@@ -21,6 +21,7 @@ struct Flag {
    bool do_iphase_now;    
    bool do_mphase_now;    
    char do_sc;
+   bool do_gpu_correlations;
 };
 
 struct SimulationParameters {    
@@ -125,8 +126,6 @@ struct hostCorrelations {
    Tensor<real, 1> r_mid;
    Tensor<real, 2> q;
    Tensor<real, 1> w;
-
-
 };
    
 struct deviceHamiltonian {

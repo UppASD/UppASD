@@ -1,9 +1,9 @@
 if(USE_HIP)
 set(GPU_PARALLEL hipParallelizationHelper.tpp)
-set(GPU_TOOLS hipThermfield.cpp hipThermfield.hpp gpuCorrelations.hpp gpuCorrelation.hip.cpp)
+set(GPU_TOOLS hipThermfield.cpp hipThermfield.hpp)
 elseif(USE_CUDA)
 set(GPU_PARALLEL cudaParallelizationHelper.tpp)
-set(GPU_TOOLS cudaThermfield.cu cudaThermfield.hpp gpuCorrelations.cuh gpuCorrelations.cu)
+set(GPU_TOOLS cudaThermfield.cu cudaThermfield.hpp)
 endif()
 target_sources(${UppASD_LIB} PRIVATE c_helper.h
 base.hpp
@@ -52,6 +52,7 @@ target_include_directories(${UppASD_LIB}
 )
 
 add_subdirectory(measurement)
+add_subdirectory(correlations)
 
 #common.cuh
 #cudaMatrix.hpp
