@@ -9,6 +9,7 @@ module ScaleHamiltonian
     real(dblprec), dimension(:,:,:,:), allocatable :: j_tens_orig !< Original coupling constant before scaling
     real(dblprec), dimension(:,:,:), allocatable :: dm_vect_orig !< Original DMI vectors before scaling
     real(dblprec), dimension(:), allocatable :: jscale_factor !< Scaling matrix for Hamiltonian
+    real(dblprec), dimension(:,:), allocatable :: dmiscale_factor !< Component-wise scaling factors for DMI (3 x N)
     logical :: jscaling_flag  !< Flag to indicate if the scaling matrix is used for J_ij
     logical :: jscaling_dynamic  !< Flag to indicate dynamic scaling
     logical :: jscaling_dmi  !< Flag to indicate if DMI should be scaled as well
@@ -41,12 +42,24 @@ module ScaleHamiltonian
             ! Initialize scaling matrix
             allocate(jscale_factor(jscaling_natoms))
             jscale_factor = 1.0_dblprec
-    
+            if (jscaling_dmi) then
+                allocate(dmiscale_factor(3,jscaling_natoms))
+                dmiscale_factor = 1.0_dblprec
+            end if
+
             ! Read scaling file
             open(unit=ifileno2, file=jscaling_file, status='old', action='read')
-            do i = 1, jscaling_natoms
-                read(ifileno2, *) jscale_factor(i)
-            end do
+            if (.not. jscaling_dmi) then
+                do i = 1, jscaling_natoms
+                    read(ifileno2, *) jscale_factor(i)
+                end do
+            else
+                ! When jscaling_dmi is true we expect each line to contain three DMI component scale factors
+                ! Format assumption (static mode): dm_x dm_y dm_z  (one row per atom)
+                do i = 1, jscaling_natoms
+                    read(ifileno2, *) jscale_factor(i), dmiscale_factor(1,i), dmiscale_factor(2,i), dmiscale_factor(3,i)
+                end do
+            end if
             close(ifileno2)
         else
             ! Read scaling file
@@ -64,10 +77,22 @@ module ScaleHamiltonian
             allocate(jscaling_atomlist(jscaling_natoms))
             allocate(jscale_factor(jscaling_natoms))
             jscale_factor = 1.0_dblprec
+            if (jscaling_dmi) then
+                allocate(dmiscale_factor(3,jscaling_natoms))
+                dmiscale_factor = 1.0_dblprec
+            end if
             ! Read scaling file
-            do i = 1, jscaling_natoms
-                read(ifileno2, *) jscaling_atomlist(i), jscale_factor(i)
-            end do
+            if (.not. jscaling_dmi) then
+                do i = 1, jscaling_natoms
+                    read(ifileno2, *) jscaling_atomlist(i), jscale_factor(i)
+                end do
+            else
+                ! When jscaling_dmi is true we expect each line to contain: id dm_x dm_y dm_z jscale
+                ! Format assumption (dynamic mode): id dm_x dm_y dm_z jscale
+                do i = 1, jscaling_natoms
+                    read(ifileno2, *) jscaling_atomlist(i), jscale_factor(i), dmiscale_factor(1,i), dmiscale_factor(2,i), dmiscale_factor(3,i)
+                end do
+            end if
             close(ifileno2)
         end if
 
@@ -156,11 +181,23 @@ module ScaleHamiltonian
                     do i_neigh = 1, ham%dmlistsize(i_atom)
                         j_atom = ham%dmlist(i_neigh, i_atom)
                         ! Scale the D_ij vector corresponding to (i_atom -> j_atom)
-                        ham%dm_vect(:, i_neigh, i_atom) = ham%dm_vect(:, i_neigh, i_atom) * jscale_factor(i_atom)
+                        if (allocated(dmiscale_factor)) then
+                            ham%dm_vect(1, i_neigh, i_atom) = ham%dm_vect(1, i_neigh, i_atom) * dmiscale_factor(1,i_atom)
+                            ham%dm_vect(2, i_neigh, i_atom) = ham%dm_vect(2, i_neigh, i_atom) * dmiscale_factor(2,i_atom)
+                            ham%dm_vect(3, i_neigh, i_atom) = ham%dm_vect(3, i_neigh, i_atom) * dmiscale_factor(3,i_atom)
+                        else
+                            ham%dm_vect(:, i_neigh, i_atom) = ham%dm_vect(:, i_neigh, i_atom) * jscale_factor(i_atom)
+                        end if
                         ! Find the corresponding reverse entry D_ji and scale it
                         do j_neigh = 1, ham%dmlistsize(j_atom)
                             if (i_atom == ham%dmlist(j_neigh, j_atom)) then
-                                ham%dm_vect(:, j_neigh, j_atom) = ham%dm_vect(:, j_neigh, j_atom) * jscale_factor(i_atom)
+                                if (allocated(dmiscale_factor)) then
+                                    ham%dm_vect(1, j_neigh, j_atom) = ham%dm_vect(1, j_neigh, j_atom) * dmiscale_factor(1,i_atom)
+                                    ham%dm_vect(2, j_neigh, j_atom) = ham%dm_vect(2, j_neigh, j_atom) * dmiscale_factor(2,i_atom)
+                                    ham%dm_vect(3, j_neigh, j_atom) = ham%dm_vect(3, j_neigh, j_atom) * dmiscale_factor(3,i_atom)
+                                else
+                                    ham%dm_vect(:, j_neigh, j_atom) = ham%dm_vect(:, j_neigh, j_atom) * jscale_factor(i_atom)
+                                end if
                             end if
                         end do
                     end do
@@ -201,21 +238,23 @@ module ScaleHamiltonian
         ! Allocate temporary array for scaled coupling matrix
         ! allocate(temp_ncoup(size(ham%ncoup, 1), size(ham%ncoup, 2)))
         ! temp_ncoup = ham%ncoup(:,:, 1)  ! Copy original coupling matrix
-        scale_factor = 1.0_dblprec + jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
+        scale_factor = jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
         write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
+        ! print *, 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
         ! Apply scaling to the coupling matrix
         ! First scale all couplings Jij for each given atom
         do idx = 1, jscaling_natoms
             ! print *,idx, 'Applying J scaling to atom:', jscaling_atomlist(idx), scale_factor
             i_atom = jscaling_atomlist(idx)
-            ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * scale_factor * jscale_factor(idx)
+            ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
+            ! print *, 'Scaled J for atom ', i_atom, ' to: ', ham%ncoup(:, i_atom, 1)
             ! Then loop over the neighbors to apply the scaling
             ! to the J_ji couplings
             do j_neigh=1,ham%nlistsize(i_atom)
                 j_atom = ham%nlist(j_neigh, i_atom)
                 do i_neigh=1,ham%nlistsize(j_atom)
                     if (i_atom == ham%nlist(i_neigh, j_atom)) then
-                                    ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * scale_factor * jscale_factor(idx)
+                                    ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
                     end if
                 end do
             end do
@@ -231,11 +270,25 @@ module ScaleHamiltonian
                 i_atom = jscaling_atomlist(idx)
                 do i_neigh = 1, ham%dmlistsize(i_atom)
                     j_atom = ham%dmlist(i_neigh, i_atom)
-                    ham%dm_vect(:, i_neigh, i_atom) = dm_vect_orig(:, i_neigh, i_atom) * scale_factor * jscale_factor(idx)
+                    if (allocated(dmiscale_factor)) then
+                        ! print *, 'Scaling DMI for atom ', i_atom, ' with factors: ', dmiscale_factor(:,idx), ' and jscale: ', jscale_factor(idx)
+                        ham%dm_vect(1, i_neigh, i_atom) = dm_vect_orig(1, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
+                        ham%dm_vect(2, i_neigh, i_atom) = dm_vect_orig(2, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
+                        ham%dm_vect(3, i_neigh, i_atom) = dm_vect_orig(3, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
+                        ! print *, 'Scaled DMI for atom ', i_atom, ' to: ', ham%dm_vect(:, i_neigh, i_atom)
+                    else
+                        ham%dm_vect(:, i_neigh, i_atom) = dm_vect_orig(:, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
+                    end if
                     ! Find and scale reverse entry
                     do j_neigh = 1, ham%dmlistsize(j_atom)
                         if (i_atom == ham%dmlist(j_neigh, j_atom)) then
-                            ham%dm_vect(:, j_neigh, j_atom) = dm_vect_orig(:, j_neigh, j_atom) * scale_factor * jscale_factor(idx)
+                            if (allocated(dmiscale_factor)) then
+                                ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,i_atom))
+                                ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,i_atom))
+                                ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,i_atom))
+                            else
+                                ham%dm_vect(:, j_neigh, j_atom) = dm_vect_orig(:, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
+                            end if
                         end if
                     end do
                 end do
