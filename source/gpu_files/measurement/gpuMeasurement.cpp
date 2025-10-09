@@ -52,6 +52,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
                 }
         }(do_skyno))
 {
+    isAllocated = false;
     if (do_avrg)
     {
         assert(*FortranData::avrg_step > 0 && *FortranData::avrg_buff > 0);
@@ -139,52 +140,61 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
         mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
     }
 
+    isAllocated = true;
     stopwatch.add("constructor");
 }
 
+void GpuMeasurement::release(){
+    if(isAllocated){
+        if (do_avrg)
+            {
+                mavg_buff_gpu.Free();
+                mavg_buff_cpu.FreeHost();
+                mavg_partial_buff.Free();
+                mavg_iter.FreeHost();
+            }
+
+        if (do_cumu)
+            {
+                cumu_buff_gpu.Free();
+                cumu_buff_cpu.FreeHost();
+                cumu_partial_buff.Free();
+            }
+
+        if (do_avrg || do_cumu)
+            {
+                emomMEnsembleSums.Free();
+            }
+
+        if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
+            {
+                skyno_buff_gpu.Free();
+                skyno_buff_cpu.FreeHost();
+                skyno_iter.FreeHost();
+                skyno_partial_buff.Free();
+            }
+
+        if (do_skyno == SkyrmionMethod::BruteForce)
+            {
+                dxyz_vec.Free();
+                dxyz_atom.Free();
+                dxyz_list.Free();
+                grad_mom.Free();
+            }
+
+        if (do_skyno == SkyrmionMethod::Triangulation)
+            {
+                simp.Free();
+            }
+        isAllocated = false;
+    }
+
+}
 
 GpuMeasurement::~GpuMeasurement()
 {
-    if (do_avrg)
-    {
-        mavg_buff_gpu.Free();
-        mavg_buff_cpu.FreeHost();
-        mavg_partial_buff.Free();
-        mavg_iter.FreeHost();
-    }
+    release();
 
-    if (do_cumu)
-    {
-        cumu_buff_gpu.Free();
-        cumu_buff_cpu.FreeHost();
-        cumu_partial_buff.Free();
-    }
-
-    if (do_avrg || do_cumu)
-    {
-        emomMEnsembleSums.Free();
-    }
-
-    if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
-    {
-        skyno_buff_gpu.Free();
-        skyno_buff_cpu.FreeHost();
-        skyno_iter.FreeHost();
-        skyno_partial_buff.Free();
-    }
-
-    if (do_skyno == SkyrmionMethod::BruteForce)
-    {
-        dxyz_vec.Free();
-        dxyz_atom.Free();
-        dxyz_list.Free();
-        grad_mom.Free();
-    }
-
-    if (do_skyno == SkyrmionMethod::Triangulation)
-    {
-        simp.Free();
-    }
 }
 
 
@@ -218,6 +228,11 @@ void GpuMeasurement::measure(std::size_t mstep)
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
     }
+
+    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
+      release();   
+    }
+
 }
 
 
@@ -242,15 +257,19 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
             emomMEnsembleSums, N, M, mavg_partial_buff.data()
     );
 
+
     mm::averageMagnetization_finalize<<<1, mavg_kernel_threads, smem, workStream>>>(
             mavg_partial_buff.data(), mavg_kernel_blocks.x, M, mavg_buff_gpu.data()[mavg_count]
     );
+              
 
     mavg_iter(mavg_count++) = mstep;
+
 
     if (mavg_count >= *FortranData::avrg_buff)
     {
         saveToFile(MeasurementType::AverageMagnetization);
+
     }
 }
 

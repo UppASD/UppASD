@@ -309,7 +309,7 @@ contains
          if (do_gpu == 'Y' .and. do_gpu_llg == 'Y') then !HIP or CUDA
             call sd_mphaseGPU()
          else ! FORTRAN            
-            call mc_mphase() ! Spin Dynamics measurement phase
+            call sd_mphase() ! Spin Dynamics measurement phase
          endif
 
       elseif (mode=='E') then

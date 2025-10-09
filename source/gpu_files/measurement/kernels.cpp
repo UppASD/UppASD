@@ -53,8 +53,8 @@ namespace
 //   (OUT MUST BE ZEROED BEFORE LAUNCH).
 // ============================================================================
 
-__global__ void kernels::measurement::sumOverAtoms(const GpuTensor<real, 3>& in_tensor,
-                                      GpuTensor<real, 2>& out_tensor)
+__global__ void kernels::measurement::sumOverAtoms(const GpuTensor<real, 3> in_tensor,
+                                      GpuTensor<real, 2> out_tensor)
 {
     const uint N_atoms     = static_cast<uint>(in_tensor.extent(1));
     const uint M_ensembles = static_cast<uint>(in_tensor.extent(2));
@@ -86,7 +86,7 @@ __global__ void kernels::measurement::sumOverAtoms(const GpuTensor<real, 3>& in_
 // averageMagnetization (two-phase across ensembles)
 // ============================================================================
 
-__global__ void kernels::measurement::averageMagnetization_partial(const GpuTensor<real, 2>& emomMSum,
+__global__ void kernels::measurement::averageMagnetization_partial(const GpuTensor<real, 2> emomMSum,
                                                       uint atoms,
                                                       uint ensembles,
                                                       AvgMPart* __restrict__ block_parts)
@@ -149,7 +149,7 @@ __global__ void kernels::measurement::averageMagnetization_finalize(const AvgMPa
 // Binder cumulant (no energy) (two-phase across ensembles)
 // ============================================================================
 
-__global__ void kernels::measurement::binderCumulantNoEnergy_partial(const GpuTensor<real, 2>& emomMSum,
+__global__ void kernels::measurement::binderCumulantNoEnergy_partial(const GpuTensor<real, 2> emomMSum,
                                                         uint atoms,
                                                         uint ensembles,
                                                         BinderPart* __restrict__ block_parts)
@@ -246,11 +246,11 @@ __global__ void kernels::measurement::binderCumulantNoEnergy_finalize(const Bind
 // grad_moments (first index contiguous; N ≫ M → set block.y=1 typically)
 // ============================================================================
 
-__global__ void kernels::measurement::grad_moments(const GpuTensor<real, 3>& emomM,
-                                      const GpuTensor<real, 3>& dxyz_vec,
-                                      const GpuTensor<int, 2>& dxyz_atom,
-                                      const GpuTensor<int, 1>& dxyz_list,
-                                      GpuTensor<real, 4>& grad_mom)
+__global__ void kernels::measurement::grad_moments(const GpuTensor<real, 3> emomM,
+                                      const GpuTensor<real, 3> dxyz_vec,
+                                      const GpuTensor<int, 2> dxyz_atom,
+                                      const GpuTensor<int, 1> dxyz_list,
+                                      GpuTensor<real, 4> grad_mom)
 {
     const uint N  = static_cast<uint>(emomM.extent(1));
     const uint M  = static_cast<uint>(emomM.extent(2));
@@ -302,8 +302,8 @@ __global__ void kernels::measurement::grad_moments(const GpuTensor<real, 3>& emo
 // Good for N ≫ M → use block=(256,1), grid=(ceil_div(N,256), M)
 // ============================================================================
 
-__global__ void kernels::measurement::pontryagin_no_partial(const GpuTensor<real, 3>& emomM,
-                                               const GpuTensor<real, 4>& grad_mom,
+__global__ void kernels::measurement::pontryagin_no_partial(const GpuTensor<real, 3> emomM,
+                                               const GpuTensor<real, 4> grad_mom,
                                                SumPart* __restrict__ block_parts)
 {
     const uint N = static_cast<uint>(emomM.extent(1));
@@ -363,7 +363,7 @@ __global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __re
 // ============================================================================
 
 __global__ void kernels::measurement::delaunay_tri_tri(uint nx, uint ny, uint nz, uint nt,
-                                          GpuTensor<uint, 2>& simp)
+                                          GpuTensor<uint, 2> simp)
 {
     const uint pairs = nx * ny * nz * nt;
     const uint tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -402,8 +402,8 @@ __global__ void kernels::measurement::delaunay_tri_tri(uint nx, uint ny, uint nz
 
 // ======================= Triangulation Pontryagin (two-phase) =======================
 // Phase A: per-block partial sums over triangles (and all ensembles in a small loop)
-__global__ void kernels::measurement::pontryagin_tri_partial(const GpuTensor<real, 3>& emom,
-                                                const GpuTensor<uint, 2>&  simp,
+__global__ void kernels::measurement::pontryagin_tri_partial(const GpuTensor<real, 3> emom,
+                                                const GpuTensor<uint, 2>  simp,
                                                 SumPart* __restrict__ block_parts)
 {
     const uint nsimp = static_cast<uint>(simp.extent(1));   // triangles

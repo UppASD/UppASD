@@ -56,6 +56,7 @@ char* FortranData::do_cumu;
 char* FortranData::do_autocorr;
 unsigned int* FortranData::plotenergy;
 char* FortranData::do_skyno;
+char* FortranData::do_gpu_correlations;
 
 // Matrices
 unsigned int * FortranData::aHam;
@@ -116,7 +117,8 @@ unsigned int* FortranData::skyno_buff;
 void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy,
                                   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
-                                  unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc){
+                                  unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
+                                 char* p_do_gpu_correlations){
 
 
    do_dm = p_do_dm;
@@ -128,7 +130,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    do_autocorr = p_do_autocorr;
    plotenergy = p_plotenergy;
    do_skyno = p_do_skyno;
-   do_sc = p_do_sc;
+   do_gpu_correlations = p_do_gpu_correlations;
 }
 
 void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -234,6 +236,7 @@ void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM,
    mmomi = p_mmomi;
 
    dxyz_vec = p_dxyz_vec;
+
    dxyz_atom = p_dxyz_atom;
    dxyz_list = p_dxyz_list;
 }
@@ -353,10 +356,10 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
    char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
    unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
-   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc) {
+   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc, char* p_do_gpu_correlations) {
 FortranData::setFlagPointers(
    p_do_dm, p_do_jtensor, p_do_anisotropy, p_do_avrg, p_do_proj_avrg, p_do_cumu,  p_plotenergy, 
-   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno, p_do_sc);
+   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno, p_do_sc, p_do_gpu_correlations);
 }
 
 extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,

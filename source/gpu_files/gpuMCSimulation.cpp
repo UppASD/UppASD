@@ -5,7 +5,6 @@
 #include "gpuHamiltonianCalculations.hpp"
 #include "gpuMetropolis.hpp"
 #include "gpuMetropolis_bruteforce.hpp"
-#include "gpuMeasurement.hpp"
 #include "gpuParallelizationHelper.hpp"
 #include "gpuSimulation.hpp"
 #include "gpuStructures.hpp"

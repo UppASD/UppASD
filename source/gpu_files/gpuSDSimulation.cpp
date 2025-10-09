@@ -8,6 +8,7 @@
 #include "gpuMomentUpdater.hpp"
 #include "gpuSimulation.hpp"
 #include "gpuStructures.hpp"
+#include "gpuStructures.hpp"
 #include "fortranData.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
@@ -16,14 +17,17 @@
 #include "tensor.hpp"
 #include "gpuParallelizationHelper.hpp"
 #include "measurementFactory.hpp"
+#include "correlationFactory.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
 #include <hiprand/hiprand.h>
+#include "gpuCorrelations.hpp"
 #elif defined(CUDA_V)
 #include <cuda.h>
 #include <curand.h>
+#include "gpuCorrelations.cuh"
 #endif
 
 using ParallelizationHelper = GpuParallelizationHelper;
@@ -195,6 +199,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
+   //Corrrelations
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
@@ -222,7 +228,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Initiate constants for integrator
    integrator.initiateConstants(gpuSim.SimParam, gpuSim.cpuLattice.temperature);
-
 
    // Timing
    stopwatch.add("initiate");

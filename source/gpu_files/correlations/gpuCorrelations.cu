@@ -519,9 +519,16 @@ __global__ void GPUSqAvrg(GpuTensor<thrust::complex<real>, 2> sc, int n_steps, i
     }
 }
 // Constructor
-GpuCorrelations::GpuCorrelations() {
-    isallocated = 0; 
+GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations)
+: emomM(gpuLattice.emomM)
+, emom(gpuLattice.emom)
+, mmom(gpuLattice.mmom) {
 
+    isallocated = 0; 
+    if(!initiate(Flags, SimParam, cpuCorrelations)) {  
+      std::fprintf(stderr, "GpuCorrelations: correlations failed to initiate!\n");
+      return;
+   }
 }
 // Destructor
 GpuCorrelations::~GpuCorrelations() {
@@ -530,88 +537,84 @@ GpuCorrelations::~GpuCorrelations() {
 // Initiator
 bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations) {
     // Assert that we're not already initialized
-    release();
+    //release();
 
     // Parameters
+    if(Flags.do_gpu_correlations){
 
-    N = SimParam.N;
-    M = SimParam.M;
-    nq = SimParam.nq;
-    sc_max_nstep = SimParam.sc_max_nstep;
-    sc_window_fun = SimParam.sc_window_fun;
-    nw = SimParam.nw;
-    delta_t = SimParam.delta_t;
-    t_cur = 0;
-    n_samples = 0;
-    do_sc = Flags.do_sc;
-    sc_sep = SimParam.sc_sep;
-    sc_step = SimParam.sc_step;
-   // nainv = 1 / N;
-    // Blocks and threads
+        N = SimParam.N;
+        M = SimParam.M;
+        nq = SimParam.nq;
+        sc_max_nstep = SimParam.sc_max_nstep;
+        sc_window_fun = SimParam.sc_window_fun;
+        nw = SimParam.nw;
+        delta_t = SimParam.delta_t;
+        t_cur = 0;
+        n_samples = 0;
+        do_sc = Flags.do_sc;
+        sc_sep = SimParam.sc_sep;
+        sc_step = SimParam.sc_step;
+        // nainv = 1 / N;
+        // Blocks and threads
+        maxThreads = 512;
+        maxBlocks = 1024; 
+        tasksTot_q = 3 * N * M;
+        tasksTot_w = 3 * sc_max_nstep;
+        // maxBlocks = 1023; //must be devidable by 3, less than 1024
+        numThreads = maxThreads;
+        //numBlocks = std::min(((3 * ((spinTot + 2) / 3) + numThreads - 1) / numThreads), maxBlocks);
+        numBlocksX_q = std::min(((tasksTot_q + numThreads - 1) / numThreads), maxBlocks);
+        numBlocksX_w = std::min(((tasksTot_w + numThreads - 1) / numThreads), maxBlocks);
+        numBlocksY_q = nq;
+        numBlocksY_w = nq*nw;//TODO
+        blocks_q = { numBlocksX_q, numBlocksY_q, 1 };
+        blocks_w = { numBlocksX_w, numBlocksY_w, 1 };//TODO
+        threads = { numThreads, 1, 1 };
+        //printf("numBlocks = %i\n", numBlocksX_q);
 
-    maxThreads = 512;
-    maxBlocks = 1024; 
-    tasksTot_q = 3 * N * M;
-    tasksTot_w = 3 * sc_max_nstep;
-    // maxBlocks = 1023; //must be devidable by 3, less than 1024
-    numThreads = maxThreads;
-    //numBlocks = std::min(((3 * ((spinTot + 2) / 3) + numThreads - 1) / numThreads), maxBlocks);
-    numBlocksX_q = std::min(((tasksTot_q + numThreads - 1) / numThreads), maxBlocks);
-    numBlocksX_w = std::min(((tasksTot_w + numThreads - 1) / numThreads), maxBlocks);
-    numBlocksY_q = nq;
-    numBlocksY_w = nq*nw;//TODO
-    blocks_q = { numBlocksX_q, numBlocksY_q, 1 };
-    blocks_w = { numBlocksX_w, numBlocksY_w, 1 };//TODO
-    threads = { numThreads, 1, 1 };
-    printf("numBlocks = %i\n", numBlocksX_q);
+        //iqfac = thrust::complex<real>(0, 2 * M_PI);
+        r_mid.Allocate(static_cast <long int>(3));
+        q.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
+        coord.Allocate(static_cast <long int>(3), static_cast <long int>(N));
 
-//    iqfac = thrust::complex<real>(0, 2 * M_PI);
-    r_mid.Allocate(static_cast <long int>(3));
-    q.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
-    coord.Allocate(static_cast <long int>(3), static_cast <long int>(N));
+        r_mid.copy_sync(cpuCorrelations.r_mid);
+        q.copy_sync(cpuCorrelations.q);
+        coord.copy_sync(cpuCorrelations.coord);
+        int bl;
 
-    r_mid.copy_sync(cpuCorrelations.r_mid);
-    q.copy_sync(cpuCorrelations.q);
-    coord.copy_sync(cpuCorrelations.coord);
-    int bl;
+        sc_block_gpu.Allocate(static_cast <long int>(3 * numBlocksX_q), static_cast <long int>(nq));
+        if ((do_sc == 'C') || (do_sc == 'Y')) {
+            sc_q_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
+            bl = (3 * nq + numThreads - 1) / numThreads;
+            setZero<2> << <bl, numThreads >> > (sc_q_gpu, 3 * nq);
 
-    sc_block_gpu.Allocate(static_cast <long int>(3 * numBlocksX_q), static_cast <long int>(nq));
-    if ((do_sc == 'C') || (do_sc == 'Y')) {
-        sc_q_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
-        bl = (3 * nq + numThreads - 1) / numThreads;
-        setZero<2> << <bl, numThreads >> > (sc_q_gpu, 3 * nq);
+        }
+        if ((do_sc == 'Q') || (do_sc == 'Y')) {
+            sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
+            //sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
+            sc_qw_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(nw));
+            sc_block_w_gpu.Allocate(static_cast <long int>(3 * numBlocksX_w), static_cast <long int>(nq), static_cast <long int>(nw));
+            dt.Allocate(static_cast <long int>(sc_max_nstep));
+            dt_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
+            w.Allocate(static_cast <long int>(nw));
+            //dt.copy_sync(cpuCorrelations.dt);const deviceLattice& gpuLattice, const int curstep
+            w.copy_sync(cpuCorrelations.w);
 
+
+            bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (sc_qt_gpu, 3 * nq* sc_max_nstep);
+            bl = (3 * nq * nw + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (sc_qw_gpu, 3 * nq*nw);
+            //bl = (3 * nq * sc_max_nstep + numThreads - 1) / numThreads;
+        }
+
+        //mbuff_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(avrg_buff), static_cast <long int>(M));
+        isallocated = 1;
+        bl = (3 * numBlocksX_q * nq + numThreads - 1) / numThreads;
+        setZero<2> << <bl, numThreads >> > (sc_block_gpu, 3 * numBlocksX_q * nq);
+        //sc_block_gpu.zeros();
+        //sc_gpu.zeros();
     }
-    if ((do_sc == 'Q') || (do_sc == 'Y')) {
-        sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
-        //sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
-        sc_qw_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(nw));
-        sc_block_w_gpu.Allocate(static_cast <long int>(3 * numBlocksX_w), static_cast <long int>(nq), static_cast <long int>(nw));
-        dt.Allocate(static_cast <long int>(sc_max_nstep));
-        dt_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
-        w.Allocate(static_cast <long int>(nw));
-        //dt.copy_sync(cpuCorrelations.dt);
-        w.copy_sync(cpuCorrelations.w);
-
-
-        bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
-        setZero<3> << <bl, numThreads >> > (sc_qt_gpu, 3 * nq* sc_max_nstep);
-        bl = (3 * nq * nw + numThreads - 1) / numThreads;
-        setZero<3> << <bl, numThreads >> > (sc_qw_gpu, 3 * nq*nw);
-        //bl = (3 * nq * sc_max_nstep + numThreads - 1) / numThreads;
-
-
-
-    }
-
-    //mbuff_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(avrg_buff), static_cast <long int>(M));
-    isallocated = 1;
-    bl = (3 * numBlocksX_q * nq + numThreads - 1) / numThreads;
-    setZero<2> << <bl, numThreads >> > (sc_block_gpu, 3 * numBlocksX_q * nq);
-    //sc_block_gpu.zeros();
-    //sc_gpu.zeros();
-
-
 
     // All initialized?
     if (cudaDeviceSynchronize() != cudaSuccess) {
@@ -643,12 +646,13 @@ void GpuCorrelations::release() {
 
 }
 
-void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const int curstep) {
-
+void GpuCorrelations::measure(std::size_t mstep) {
+    
+    std::size_t curstep = mstep;
     switch (do_sc) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
-            GPUSqSum << <blocks_q, threads >> > (gpuLattice.emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_stat << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, numBlocksX_q);
             cudaDeviceSynchronize();
             n_samples++;
@@ -657,7 +661,7 @@ void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const
 
     case 'Q':
         if ((curstep % sc_step) == 0) {
-            GPUSqSum << <blocks_q, threads >> > (gpuLattice.emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_dyn << <nq, 1024 >> > (sc_block_gpu, sc_qt_gpu, numBlocksX_q, t_cur);
             cudaDeviceSynchronize();
             dt_cpu[t_cur] = delta_t * sc_step;
@@ -669,7 +673,7 @@ void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const
     case 'Y':
         if (((curstep % sc_step) == 0) && ((curstep % sc_sep) == 0)) {
             both_flag = 2;
-            GPUSqSum << <blocks_q, threads >> > (gpuLattice.emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             dt_cpu[t_cur] = delta_t * sc_step;
@@ -679,7 +683,7 @@ void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const
         }
         else if ((curstep % sc_step) == 0) {
             both_flag = 1;
-            GPUSqSum << <blocks_q, threads >> > (gpuLattice.emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             dt_cpu[t_cur] = delta_t * sc_step;
@@ -687,7 +691,7 @@ void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
-            GPUSqSum << <blocks_q, threads >> > (gpuLattice.emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             n_samples++;
@@ -698,7 +702,7 @@ void GpuCorrelations::runCorrelation_spin(const deviceLattice& gpuLattice, const
 
 }
 
-void GpuCorrelations::finalCorrelation(hostCorrelations& cpuCorrelations) {
+void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) {
     //TODO cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
     thrust::complex<real> sc_cur;
     
