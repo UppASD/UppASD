@@ -523,85 +523,53 @@ end subroutine delaunay_tri_tri
 !> - Uses transverse fluctuations relative to ground state S0_arr
 !> - Works for arbitrary noncollinear reference states
 !===============================================================
-real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
+real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) result(Lz)
    use Constants
-   use InputData, only: C1, C2, C3, N1, N2, N3
+   use InputData, only: C1,C2,C3,N1,N2,N3
    implicit none
-   integer, intent(in) :: Natom
-   integer, intent(in) :: Mensemble
-   real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
-   real(dblprec), dimension(3,Natom), intent(in) :: coords   ! atom positions (x,y,z)
-   ! real(dblprec), dimension(3,Natom), intent(in) :: S0_arr   ! reference spins at t=0
+   integer, intent(in) :: Natom, Mensemble
+   real(dblprec), intent(in) :: emom(3,Natom,Mensemble)
+   real(dblprec), intent(in) :: coords(3,Natom)
 
-   integer :: k, isimp, i1,i2,i3
+   integer :: isimp, k, i1,i2,i3
+   real(dblprec) :: Lx,Ly,Lz_box
    real(dblprec) :: Lsum, rho_t, gamma_t, area_t
    real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
-   real(dblprec) :: z1,z2,z3
-   real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
-   real(dblprec) :: mu(2), norm
+   real(dblprec) :: th1,th2,th3,dth12,dth23,dth31
+   real(dblprec) :: mu1(2),mu2(2),mu3(2)
+   real(dblprec) :: ex(3),ey(3),ez(3)
+   real(dblprec) :: Mavg(3),norm
 
-   ! Box dimensions for minimal image
-   real(dblprec) :: Lx, Ly, Lz
+   !--- box lengths
+   Lx = N1*sqrt(dot_product(C1,C1))
+   Ly = N2*sqrt(dot_product(C2,C2))
+   Lz_box = N3*sqrt(dot_product(C3,C3))
 
-   ! Variables for triangle validity check
-   real(dblprec) :: dist2, dist3, threshold
+   !--- choose a global frame from average magnetization of ensemble[1]
+   Mavg = 0.0_dblprec
+   do i1=1,Natom
+      Mavg = Mavg + emom(:,i1,1)
+   end do
+   Mavg = Mavg/sqrt(dot_product(Mavg,Mavg))
 
-   ! local frame basis
-   real(dblprec) :: ex(3), ey(3), ez(3)
-
-   ! Compute box dimensions
-   Lx = N1 * sqrt(dot_product(C1,C1))
-   Ly = N2 * sqrt(dot_product(C2,C2))
-   Lz = N3 * sqrt(dot_product(C3,C3))
-
-   ! print *, 'OAM: System dimensions (Lx, Ly, Lz): ', Lx, Ly, Lz
+   call make_orthonormal_basis(Mavg,ex,ey,ez)  ! ez=Mavg, ex,ey span transverse plane
 
    Lsum = 0.0_dblprec
 
-   !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
-   !$omp   x1,y1,z1,x2,y2,z2,x3,y3,z3,cross,area_t,mu,norm,ex,ey,ez) reduction(+:Lsum)
+   !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,mu1,mu2,mu3,th1,th2,th3, &
+   !$omp dth12,dth23,dth31,gamma_t,rho_t,x1,y1,x2,y2,x3,y3,cross,area_t,norm) reduction(+:Lsum)
    do isimp=1,nsimp
       i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+
       do k=1,Mensemble
-         ! coordinates
-         x1=coords(1,i1); y1=coords(2,i1); z1=coords(3,i1)
-         x2=coords(1,i2); y2=coords(2,i2); z2=coords(3,i2)
-         x3=coords(1,i3); y3=coords(2,i3); z3=coords(3,i3)
+         ! project onto fixed (ex,ey)
+         mu1 = [ dot_product(emom(:,i1,k),ex), dot_product(emom(:,i1,k),ey) ]
+         mu2 = [ dot_product(emom(:,i2,k),ex), dot_product(emom(:,i2,k),ey) ]
+         mu3 = [ dot_product(emom(:,i3,k),ex), dot_product(emom(:,i3,k),ey) ]
 
-         ! Apply minimal image correction relative to vertex 1 using fractional coordinates
-         ! call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
-         ! call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
-
-         ! Check if triangle is valid (not spanning across periodic boundaries)
-         dist2 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
-         dist3 = sqrt((x3-x1)**2 + (y3-y1)**2 + (z3-z1)**2)
-         threshold = min(Lx, Ly) / 2.0_dblprec
-         if (dist2 > threshold .or. dist3 > threshold) cycle
-
-         rho_t = 0.0_dblprec
-
-         ! --- vertex 1 ---
-         call local_frame(S0_arr(:,i1), ex,ey,ez)
-         mu = project_transverse(emom(:,i1,k)-S0_arr(:,i1), ex,ey,ez)
-         th1 = atan2(mu(2),mu(1))
-         norm = mu(1)*mu(1)+mu(2)*mu(2)
-         rho_t = rho_t + norm
-
-         ! --- vertex 2 ---
-         call local_frame(S0_arr(:,i2), ex,ey,ez)
-         mu = project_transverse(emom(:,i2,k)-S0_arr(:,i2), ex,ey,ez)
-         th2 = atan2(mu(2),mu(1))
-         norm = mu(1)*mu(1)+mu(2)*mu(2)
-         rho_t = rho_t + norm
-
-         ! --- vertex 3 ---
-         call local_frame(S0_arr(:,i3), ex,ey,ez)
-         mu = project_transverse(emom(:,i3,k)-S0_arr(:,i3), ex,ey,ez)
-         th3 = atan2(mu(2),mu(1))
-         norm = mu(1)*mu(1)+mu(2)*mu(2)
-         rho_t = rho_t + norm
-
-         rho_t = rho_t/3.0_dblprec
+         th1 = atan2(mu1(2),mu1(1))
+         th2 = atan2(mu2(2),mu2(1))
+         th3 = atan2(mu3(2),mu3(1))
 
          ! unwrap phase differences
          dth12 = modulo(th2-th1+pi,2*pi)-pi
@@ -609,20 +577,148 @@ real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
          dth31 = modulo(th1-th3+pi,2*pi)-pi
          gamma_t = dth12 + dth23 + dth31
 
-         ! triangle area (2D cross product)
+         ! amplitude (mean squared norm)
+         rho_t = ( dot_product(mu1,mu1) + dot_product(mu2,mu2) + dot_product(mu3,mu3) ) / 3.0_dblprec
+
+         ! area (2D, using coords projected to xy plane)
+         x1=coords(1,i1); y1=coords(2,i1)
+         x2=coords(1,i2); y2=coords(2,i2)
+         x3=coords(1,i3); y3=coords(2,i3)
          cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
          area_t = 0.5_dblprec*abs(cross)
 
-         ! OAM contribution
          Lsum = Lsum + rho_t * gamma_t * area_t
       end do
    end do
    !$omp end parallel do
 
-   oam_tri = Lsum / Mensemble
-   return
+   Lz = Lsum/Mensemble
 end function oam_tri
 
+subroutine make_orthonormal_basis(nz,ex,ey,ez)
+   real(dblprec), intent(in)  :: nz(3)
+   real(dblprec), intent(out) :: ex(3),ey(3),ez(3)
+   real(dblprec) :: tmp(3)
+   ez = nz
+   if (abs(ez(1))<0.9_dblprec) then
+      tmp = [1.0_dblprec,0.0_dblprec,0.0_dblprec]
+   else
+      tmp = [0.0_dblprec,1.0_dblprec,0.0_dblprec]
+   end if
+   ex = tmp - dot_product(tmp,ez)*ez
+   ex = ex/sqrt(dot_product(ex,ex))
+   ey = [ ez(2)*ex(3)-ez(3)*ex(2), ez(3)*ex(1)-ez(1)*ex(3), ez(1)*ex(2)-ez(2)*ex(1) ]
+end subroutine
+
+! real(dblprec) function oam_tri(Natom, Mensemble, emom, coords)
+!    use Constants
+!    use InputData, only: C1, C2, C3, N1, N2, N3
+!    implicit none
+!    integer, intent(in) :: Natom
+!    integer, intent(in) :: Mensemble
+!    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
+!    real(dblprec), dimension(3,Natom), intent(in) :: coords   ! atom positions (x,y,z)
+!    ! real(dblprec), dimension(3,Natom), intent(in) :: S0_arr   ! reference spins at t=0
+! 
+!    integer :: k, isimp, i1,i2,i3
+!    real(dblprec) :: Lsum, rho_t, gamma_t, area_t
+!    real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+!    real(dblprec) :: z1,z2,z3
+!    real(dblprec) :: th1, th2, th3, dth12, dth23, dth31
+!    real(dblprec) :: mu(2), norm
+! 
+!    ! Box dimensions for minimal image
+!    real(dblprec) :: Lx, Ly, Lz
+! 
+!    ! Variables for triangle validity check
+!    real(dblprec) :: dist2, dist3, threshold
+! 
+!    ! local frame basis
+!    real(dblprec) :: ex(3), ey(3), ez(3), psi(3)
+! 
+!    ! Compute box dimensions
+!    Lx = N1 * sqrt(dot_product(C1,C1))
+!    Ly = N2 * sqrt(dot_product(C2,C2))
+!    Lz = N3 * sqrt(dot_product(C3,C3))
+! 
+!    ! print *, 'OAM: System dimensions (Lx, Ly, Lz): ', Lx, Ly, Lz
+! 
+!    Lsum = 0.0_dblprec
+! 
+!    ex = 0.0_dblprec; ex(1) = 1.0_dblprec
+!    ey = 0.0_dblprec; ey(2) = 1.0_dblprec
+!    ez = 0.0_dblprec; ez(3) = 1.0_dblprec
+!    !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
+!    !$omp   x1,y1,z1,x2,y2,z2,x3,y3,z3,cross,area_t,mu,norm,ex,ey,ez) reduction(+:Lsum)
+!    do isimp=1,nsimp
+!       i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+!       do k=1,Mensemble
+!          ! coordinates
+!          x1=coords(1,i1); y1=coords(2,i1); z1=coords(3,i1)
+!          x2=coords(1,i2); y2=coords(2,i2); z2=coords(3,i2)
+!          x3=coords(1,i3); y3=coords(2,i3); z3=coords(3,i3)
+! 
+!          ! Apply minimal image correction relative to vertex 1 using fractional coordinates
+!          ! call minimal_image_correction(x2, y2, z2, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+!          ! call minimal_image_correction(x3, y3, z3, x1, y1, z1, C1, C2, C3, N1, N2, N3)
+! 
+!          ! Check if triangle is valid (not spanning across periodic boundaries)
+!          dist2 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+!          dist3 = sqrt((x3-x1)**2 + (y3-y1)**2 + (z3-z1)**2)
+!          threshold = min(Lx, Ly) / 2.0_dblprec
+!          if (dist2 > threshold .or. dist3 > threshold) cycle
+! 
+!          rho_t = 0.0_dblprec
+! 
+!          ! --- vertex 1 ---
+!          call local_frame(S0_arr(:,i1), ex,ey,ez)
+!          !psi = emom(:,i1,k) - S0_arr(:,i1)
+!          mu = project_transverse(emom(:,i1,k)-S0_arr(:,i1), ex,ey,ez)
+!          !print *, ' 1 mu = ', isimp, mu, atan2(mu(2),mu(1))
+!          th1 = atan2(mu(2),mu(1))
+!          norm = mu(1)*mu(1)+mu(2)*mu(2)
+!          rho_t = rho_t + norm
+! 
+!          ! --- vertex 2 ---
+!          call local_frame(S0_arr(:,i2), ex,ey,ez)
+!          !psi = emom(:,i2,k) - S0_arr(:,i2)
+!          mu = project_transverse(emom(:,i2,k)-S0_arr(:,i2), ex,ey,ez)
+!          !print *, ' 2 mu = ', isimp, mu, atan2(mu(2),mu(1))
+!          th2 = atan2(mu(2),mu(1))
+!          norm = mu(1)*mu(1)+mu(2)*mu(2)
+!          rho_t = rho_t + norm
+! 
+!          ! --- vertex 3 ---
+!          call local_frame(S0_arr(:,i3), ex,ey,ez)
+!          !psi = emom(:,i3,k) - S0_arr(:,i3)
+!          mu = project_transverse(emom(:,i3,k)-S0_arr(:,i3), ex,ey,ez)
+!          !print *, ' 3 mu = ', isimp, mu, atan2(mu(2),mu(1))
+!          th3 = atan2(mu(2),mu(1))
+!          norm = mu(1)*mu(1)+mu(2)*mu(2)
+!          rho_t = rho_t + norm
+! 
+!          rho_t = rho_t/3.0_dblprec
+! 
+!          ! unwrap phase differences
+!          dth12 = modulo(th2-th1+pi,2*pi)-pi
+!          dth23 = modulo(th3-th2+pi,2*pi)-pi
+!          dth31 = modulo(th1-th3+pi,2*pi)-pi
+!          gamma_t = dth12 + dth23 + dth31
+! 
+!          ! triangle area (2D cross product)
+!          cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+!          area_t = 0.5_dblprec*abs(cross)
+! 
+!          ! OAM contribution
+!          Lsum = Lsum + rho_t * gamma_t * area_t
+!       end do
+!    end do
+!    !$omp end parallel do
+! 
+!    oam_tri = Lsum / Mensemble
+!    return
+! end function oam_tri
+! 
 !===============================================================
 !> Apply minimal image correction to coordinates relative to a reference point
 !> using fractional coordinates for general lattices
