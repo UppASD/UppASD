@@ -332,7 +332,6 @@ subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
 
    integer, intent(in) :: nx,ny,nz,NT
    real(dblprec), intent(in) :: coords(3,nx*ny*nz*NT)
-   ! coords(:,i) = global atom positions, needed for diagonal length test
 
    integer :: x,y,z,it, nsimp_max
    integer :: i00,i10,i01,i11
@@ -347,20 +346,21 @@ subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
       do y=1,ny
          do x=1,nx
             do it=1,NT
-               ! Four corners of the plaquette
-               i00 = NT*wrap_idx(x,       y,       z,nx,ny,nz)+it-NT
-               i10 = NT*wrap_idx(modulo(x,nx)+1, y,       z,nx,ny,nz)+it-NT
-               i01 = NT*wrap_idx(x,       modulo(y,ny)+1,z,nx,ny,nz)+it-NT
-               i11 = NT*wrap_idx(modulo(x,nx)+1, modulo(y,ny)+1,z,nx,ny,nz)+it-NT
+               ! FIXED: Proper indexing calculation
+               ! Each cell has NT atoms, wrap_idx gives 1-based cell index
+               i00 = NT*(wrap_idx(x,       y,       z,nx,ny,nz)-1) + it
+               i10 = NT*(wrap_idx(modulo(x,nx)+1, y,       z,nx,ny,nz)-1) + it
+               i01 = NT*(wrap_idx(x,       modulo(y,ny)+1,z,nx,ny,nz)-1) + it
+               i11 = NT*(wrap_idx(modulo(x,nx)+1, modulo(y,ny)+1,z,nx,ny,nz)-1) + it
 
                r00 = coords(:,i00)
                r10 = coords(:,i10)
                r01 = coords(:,i01)
                r11 = coords(:,i11)
 
-               ! Compare diagonals
-               d2_diag1 = sum((r00-r11)**2)   ! |r00 - r11|^2
-               d2_diag2 = sum((r10-r01)**2)   ! |r10 - r01|^2
+               ! Compare diagonals to choose triangulation
+               d2_diag1 = sum((r00-r11)**2)
+               d2_diag2 = sum((r10-r01)**2)
 
                if (d2_diag1 <= d2_diag2) then
                   nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i10,i11]
@@ -375,6 +375,8 @@ subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
       end do
    end do
 
+   write(*,'(1x,a,i8,a)') 'Triangulation created with ', nsimp, ' simplices'
+
    contains
       integer function wrap_idx(x,y,z,nx,ny,nz)
          implicit none
@@ -382,8 +384,6 @@ subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
          wrap_idx = nx*ny*(z-1) + nx*(y-1) + x
       end function wrap_idx
 end subroutine delaunay_tri_tri
-
-
 
 
    !---------------------------------------------------------------------------------
@@ -487,7 +487,9 @@ end subroutine delaunay_tri_tri
       step_counter = step_counter + 1
 
       ! Use solid-angle triangulation approach for OAM calculation
-      Lz_tot = oam_tri(Natom, Mensemble, emom, coord)
+      ! Lz_tot = oam_tri_phase(Natom, Mensemble, emom, coord)
+      Lz_tot = oam_tri_improved(Natom, Mensemble, emom, coord)
+      ! Lz_tot = oam_tri(Natom, Mensemble, emom, coord)
       Lz_avg = Lz_tot / real(Natom, dblprec)
 
       n_Lz_cavg = n_Lz_cavg + 1
@@ -594,6 +596,151 @@ real(dblprec) function oam_tri(Natom, Mensemble, emom, coords) result(Lz)
 
    Lz = Lsum/Mensemble
 end function oam_tri
+
+!===============================================================
+!> @brief
+!> IMPROVED: Compute OAM using solid-angle formulation
+!> This is more robust for noncollinear spin configurations
+!===============================================================
+real(dblprec) function oam_tri_improved(Natom, Mensemble, emom, coords) result(Lz)
+   use Constants
+   use InputData, only: C1,C2,C3,N1,N2,N3
+   use math_functions, only: f_volume
+   implicit none
+   integer, intent(in) :: Natom, Mensemble
+   real(dblprec), intent(in) :: emom(3,Natom,Mensemble)
+   real(dblprec), intent(in) :: coords(3,Natom)
+
+   integer :: isimp, k, i1,i2,i3
+   real(dblprec) :: Lsum, Omega_t, area_t, rho_t
+   real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+   real(dblprec) :: m1(3),m2(3),m3(3), dm1(3),dm2(3),dm3(3)
+   real(dblprec) :: m1m2m3, m1m2, m1m3, m2m3, qq
+   real(dblprec) :: Lx, Ly
+
+   ! System dimensions
+   Lx = N1*sqrt(dot_product(C1,C1))
+   Ly = N2*sqrt(dot_product(C2,C2))
+
+   Lsum = 0.0_dblprec
+
+   !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,m1,m2,m3,dm1,dm2,dm3, &
+   !$omp m1m2m3,m1m2,m1m3,m2m3,qq,Omega_t,rho_t,x1,y1,x2,y2,x3,y3,cross,area_t) &
+   !$omp reduction(+:Lsum)
+   do isimp=1,nsimp
+      i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+
+      ! Get triangle coordinates (xy projection)
+      x1=coords(1,i1); y1=coords(2,i1)
+      x2=coords(1,i2); y2=coords(2,i2)
+      x3=coords(1,i3); y3=coords(2,i3)
+
+      ! Triangle area (2D cross product)
+      cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+      area_t = 0.5_dblprec*abs(cross)
+
+      do k=1,Mensemble
+         ! Current spin configuration
+         m1 = emom(:,i1,k)
+         m2 = emom(:,i2,k)
+         m3 = emom(:,i3,k)
+
+         ! Deviations from ground state (if tracking dynamics)
+         dm1 = m1 - S0_arr(:,i1)
+         dm2 = m2 - S0_arr(:,i2)
+         dm3 = m3 - S0_arr(:,i3)
+
+         ! Average transverse fluctuation amplitude
+         rho_t = (dot_product(dm1,dm1) + dot_product(dm2,dm2) + dot_product(dm3,dm3))/3.0_dblprec
+
+         ! Solid angle (skyrmion number formula)
+         m1m2m3 = f_volume(m1,m2,m3)
+         m1m2 = dot_product(m1,m2)
+         m1m3 = dot_product(m1,m3)
+         m2m3 = dot_product(m2,m3)
+         qq = m1m2m3/(1.0_dblprec+m1m2+m1m3+m2m3)
+         Omega_t = 2.0_dblprec*atan(qq)
+
+         ! OAM contribution: ρ_t * Ω_t * A_t
+         Lsum = Lsum + rho_t * Omega_t * area_t
+      end do
+   end do
+   !$omp end parallel do
+
+   Lz = Lsum / Mensemble
+end function oam_tri_improved
+
+!===============================================================
+!> @brief  
+!> ALTERNATIVE: Phase-winding OAM with proper local frames
+!> Uses local coordinate system at each vertex for better accuracy
+!===============================================================
+real(dblprec) function oam_tri_phase(Natom, Mensemble, emom, coords) result(Lz)
+   use Constants
+   use InputData, only: C1,C2,C3,N1,N2,N3
+   implicit none
+   integer, intent(in) :: Natom, Mensemble
+   real(dblprec), intent(in) :: emom(3,Natom,Mensemble)
+   real(dblprec), intent(in) :: coords(3,Natom)
+
+   integer :: isimp, k, i1,i2,i3
+   real(dblprec) :: Lsum, rho_t, gamma_t, area_t
+   real(dblprec) :: x1,y1,x2,y2,x3,y3, cross
+   real(dblprec) :: th1,th2,th3,dth12,dth23,dth31
+   real(dblprec) :: mu1(2),mu2(2),mu3(2)
+   real(dblprec) :: ex(3),ey(3),ez(3)
+   real(dblprec) :: dm1(3),dm2(3),dm3(3)
+
+   Lsum = 0.0_dblprec
+
+   !$omp parallel do default(shared) private(isimp,k,i1,i2,i3,dm1,dm2,dm3, &
+   !$omp ex,ey,ez,mu1,mu2,mu3,th1,th2,th3,dth12,dth23,dth31,gamma_t,rho_t, &
+   !$omp x1,y1,x2,y2,x3,y3,cross,area_t) reduction(+:Lsum)
+   do isimp=1,nsimp
+      i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+
+      ! Triangle area
+      x1=coords(1,i1); y1=coords(2,i1)
+      x2=coords(1,i2); y2=coords(2,i2)
+      x3=coords(1,i3); y3=coords(2,i3)
+      cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+      area_t = 0.5_dblprec*abs(cross)
+
+      do k=1,Mensemble
+         ! Deviations from ground state
+         dm1 = emom(:,i1,k) - S0_arr(:,i1)
+         dm2 = emom(:,i2,k) - S0_arr(:,i2)
+         dm3 = emom(:,i3,k) - S0_arr(:,i3)
+
+         ! Use LOCAL frame at each vertex for projection
+         call local_frame(S0_arr(:,i1), ex,ey,ez)
+         mu1 = [dot_product(dm1,ex), dot_product(dm1,ey)]
+         th1 = atan2(mu1(2),mu1(1))
+
+         call local_frame(S0_arr(:,i2), ex,ey,ez)
+         mu2 = [dot_product(dm2,ex), dot_product(dm2,ey)]
+         th2 = atan2(mu2(2),mu2(1))
+
+         call local_frame(S0_arr(:,i3), ex,ey,ez)
+         mu3 = [dot_product(dm3,ex), dot_product(dm3,ey)]
+         th3 = atan2(mu3(2),mu3(1))
+
+         ! Average amplitude
+         rho_t = (dot_product(mu1,mu1) + dot_product(mu2,mu2) + dot_product(mu3,mu3))/3.0_dblprec
+
+         ! Unwrap phase differences
+         dth12 = modulo(th2-th1+pi,2*pi)-pi
+         dth23 = modulo(th3-th2+pi,2*pi)-pi
+         dth31 = modulo(th1-th3+pi,2*pi)-pi
+         gamma_t = dth12 + dth23 + dth31
+
+         Lsum = Lsum + rho_t * gamma_t * area_t
+      end do
+   end do
+   !$omp end parallel do
+
+   Lz = Lsum / Mensemble
+end function oam_tri_phase
 
 subroutine make_orthonormal_basis(nz,ex,ey,ez)
    real(dblprec), intent(in)  :: nz(3)
@@ -891,5 +1038,67 @@ subroutine print_triangulation_mesh(filename, coords, Natom, simid, C1, C2, C3, 
 
 end subroutine print_triangulation_mesh
 
+!===============================================================
+!> @brief
+!> Validation routine to check triangulation quality
+!===============================================================
+subroutine validate_triangulation(coords, Natom, C1, C2, C3, N1, N2, N3)
+   use Constants
+   implicit none
+   real(dblprec), intent(in) :: coords(3,Natom)
+   integer, intent(in) :: Natom
+   real(dblprec), dimension(3), intent(in) :: C1, C2, C3
+   integer, intent(in) :: N1, N2, N3
+
+   integer :: isimp, i1,i2,i3, nerr
+   real(dblprec) :: x1,y1,z1,x2,y2,z2,x3,y3,z3
+   real(dblprec) :: d12,d23,d31, dmax, Lx,Ly,Lz, threshold
+   real(dblprec) :: area, cross
+
+   Lx = N1*sqrt(dot_product(C1,C1))
+   Ly = N2*sqrt(dot_product(C2,C2))
+   Lz = N3*sqrt(dot_product(C3,C3))
+   threshold = 0.5_dblprec*min(Lx,Ly)
+
+   nerr = 0
+   dmax = 0.0_dblprec
+
+   do isimp=1,nsimp
+      i1 = simp(1,isimp); i2 = simp(2,isimp); i3 = simp(3,isimp)
+      
+      ! Check indices
+      if (i1<1 .or. i1>Natom .or. i2<1 .or. i2>Natom .or. i3<1 .or. i3>Natom) then
+         write(*,*) 'ERROR: Triangle ',isimp,' has invalid indices:',i1,i2,i3
+         nerr = nerr + 1
+         cycle
+      endif
+
+      x1=coords(1,i1); y1=coords(2,i1); z1=coords(3,i1)
+      x2=coords(1,i2); y2=coords(2,i2); z2=coords(3,i2)
+      x3=coords(1,i3); y3=coords(2,i3); z3=coords(3,i3)
+
+      ! Check edge lengths
+      d12 = sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+      d23 = sqrt((x3-x2)**2 + (y3-y2)**2 + (z3-z2)**2)
+      d31 = sqrt((x1-x3)**2 + (y1-y3)**2 + (z1-z3)**2)
+      dmax = max(dmax, d12, d23, d31)
+
+      if (d12>threshold .or. d23>threshold .or. d31>threshold) then
+         write(*,'(a,i6,a,3f8.3)') 'WARNING: Triangle ',isimp, &
+                ' has long edge (PBC artifact?): ',d12,d23,d31
+      endif
+
+      ! Check area (degenerate triangles)
+      cross = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+      area = 0.5_dblprec*abs(cross)
+      if (area < 1.0e-10_dblprec) then
+         write(*,*) 'WARNING: Triangle ',isimp,' has zero area'
+      endif
+   end do
+
+   write(*,'(1x,a,i8)') 'Triangulation validation complete. Errors: ', nerr
+   write(*,'(1x,a,f12.6)') 'Maximum edge length: ', dmax
+   write(*,'(1x,a,f12.6)') 'PBC threshold: ', threshold
+end subroutine validate_triangulation
 
 end module Topology
