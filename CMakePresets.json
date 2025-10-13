@@ -1,0 +1,44 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "generator": "Unix Makefiles",
+      "binaryDir": "build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debugCuda",
+      "displayName": "Debug",
+      "generator": "Unix Makefiles",
+      "binaryDir": "build/debugCuda",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_CUDA": "1",
+        "CMAKE_CXX_STANDARD": "20"
+      }
+    },{
+      "name": "releaseCuda",
+      "displayName": "Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "build/releaseCuda",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "USE_CUDA": "1",
+        "CMAKE_CXX_STANDARD": "20"
+      }
+    }
+  ]
+}
