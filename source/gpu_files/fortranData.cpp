@@ -131,6 +131,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    plotenergy = p_plotenergy;
    do_skyno = p_do_skyno;
    do_gpu_correlations = p_do_gpu_correlations;
+   do_sc = p_do_sc;
 }
 
 void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
