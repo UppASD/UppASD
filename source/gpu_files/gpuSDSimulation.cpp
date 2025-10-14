@@ -200,7 +200,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
    //Corrrelations
-   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations);
+   //const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
