@@ -123,48 +123,50 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    unsigned int steps;
    int ipnphase = gpuSim.SimParam.ipnphase; 
    for(unsigned int it = 0; it < ipnphase; it++){
-   steps = gpuSim.cpuLattice.ipnstep(it);
+      steps = gpuSim.cpuLattice.ipnstep(it);
 
-   // Time step loop
-   for(std::size_t mstep = 1; mstep <= steps; mstep++) {
-      // Print simulation status for each 5% of the simulation length
-      // printMdStatus(mstep); -- Do we need it in initial phase?
+      // Time step loop
+      for(std::size_t mstep = 1; mstep <= steps; mstep++) {
+         // Print simulation status for each 5% of the simulation length
+         // printMdStatus(mstep); -- Do we need it in initial phase?
 
-      // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice);
-      stopwatch.add("hamiltonian");
+         // Apply Hamiltonian to obtain effective field
+         hamCalc.heisge(gpuSim.gpuLattice);
+         stopwatch.add("hamiltonian");
 
-      // Perform first step of SDE solver
-      integrator.evolveFirst(gpuSim.gpuLattice);
-      stopwatch.add("evolution");
+         // Perform first step of SDE solver
+         integrator.evolveFirst(gpuSim.gpuLattice);
+         stopwatch.add("evolution");
 
-      // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice);
-      stopwatch.add("hamiltonian");
+         // Apply Hamiltonian to obtain effective field
+         hamCalc.heisge(gpuSim.gpuLattice);
+         stopwatch.add("hamiltonian");
 
-      // Perform second (corrector) step of SDE solver
-      integrator.evolveSecond(gpuSim.gpuLattice);
-      stopwatch.add("evolution");
+         // Perform second (corrector) step of SDE solver
+         integrator.evolveSecond(gpuSim.gpuLattice);
+         stopwatch.add("evolution");
 
-      // Update magnetic moments after time evolution step
-      momUpdater.update();
-      stopwatch.add("moments");
+         // Update magnetic moments after time evolution step
+         momUpdater.update();
+         stopwatch.add("moments");
 
-      // Check for error
-      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-      if(e != GPU_SUCCESS) {
-         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
+         // Check for error
+         GPU_ERROR_T e = GPU_GET_LAST_ERROR();
+         if(e != GPU_SUCCESS) {
+            std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
+            GPU_DEVICE_RESET();
+            std::exit(EXIT_FAILURE);
+         }
       }
 
-      for(unsigned int k = 0; k < N; k++){
-      ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, it + 1);
-      integrator.resetConstants(ipTemp);
-   }
-
-   }
-   }  // End loop over simulation steps
+      if(it < (ipnphase - 1)){
+         for(unsigned int k = 0; k < N; k++){
+            ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, it + 1);
+         }  
+         integrator.resetConstants(ipTemp);
+         }
+      }  
+      
    // Synchronize with device
    GPU_DEVICE_SYNCHRONIZE();
    stopwatch.add("final synchronize");

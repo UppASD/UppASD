@@ -213,6 +213,9 @@ public:
       emomM = p_emomM.data();
       ext_f = p_ext_f.data();
       coup = ex.coupling.data();
+      pos = ex.neighbourPos.data();
+      mnn = ex.mnn;
+      aham = redHam.redNeibourCount.data();
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
