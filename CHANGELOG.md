@@ -4,6 +4,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0] - 2025-09-11
+
+### Added
+
+- Added **major new feature**, Chern number calculations for 3D systems and thermal magnon conductivity. [[Nastaran Salehi](https://github.com/Nastaran-Salehi)]
+  - Added Chern number calculation subroutine for topological magnon properties
+  - Added Kagome Chern number example: `./examples/SpinWaves/Kagome_ChernNumber`
+- Added **major enhancement**, comprehensive GUI improvements for ASD_GUI. [[Anders Bergman](anders.bergman@physics.uu.se)]
+  - Added PyPI installation support with `pip install asd_gui` command
+  - Added interactive simulation capabilities and real-time visualization
+  - Added comprehensive input file creation tools with structure templates
+  - Added support for importing .cif, SPRKKR, and RS-LMTO file formats
+  - Added J-file creation using neighbor vector search algorithms
+  - Added HDR image-based lighting and advanced visualization controls
+  - Added FXAA anti-aliasing and SSAO (Screen Space Ambient Occlusion) support
+  - Added settings persistence and programmatic GUI updates
+- Added **major enhancement**, CUDA/GPU acceleration improvements. [[Mariia Mohylna](mmogylnaya@gmail.com), [Arkadijs Slobodkins](aslobodkins@smu.edu)]
+  - Added tensorial exchange (J-tensor) support to GPU calculations
+  - Added uniaxial and cubic anisotropy implementation for GPU
+  - Added reduced Hamiltonian option support for CUDA
+  - Enhanced GPU memory management and error handling
+  - Improved CUDA build system integration with CMake
+- Added exponential temperature profile functionality for time-dependent simulations. [[Anders Bergman](anders.bergman@physics.uu.se)]
+  - Added exponential temperature example: `./examples/SpecialFeatures/ExpTemperature`
+- Added local autocorrelation measurements with macro cell support. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added modified temperature model for "3TM without lattice" (2-temperature model). [[Anders Bergman](anders.bergman@physics.uu.se)]
+  - Added 2TM example: `./examples/SpecialFeatures/bccFe2TM`
+- Added enhanced multiscale (muASD) functionalities with improved examples. [[Nastaran Salehi](https://github.com/Nastaran-Salehi), [Manuel Pereiro](manuel.pereiro@physics.uu.se)]
+  - Added skyrmion-stress multiscale example
+  - Added spin-states multiscale example  
+  - Added wall-dislocation multiscale example
+  - Improved STT calculations in multiscale simulations
+- Added additional algorithms for randomizing exchange interactions (Jij) and DMI. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added scale factor support for local STT current densities. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added fallback routine for bosonic diagonalization in AMS calculations. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added relaxation functionality to spin-spiral minimizers. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added support for non-cubic macrocells in coarse-graining procedures. [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added cell rotation functionality to q-space minimizer (qminimizer). [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Added cmake build support for coverage testing and improved build profiles:
+  - Added AOCC (AMD Optimizing C/C++ Compiler) build profile
+  - Added Cray compiler wrapper support (crayftn-ftn)
+  - Added gfortran-ftn build profile for Cray environments
+- Added comprehensive example scripts for running test suites:
+  - Added scripts for SimpleSystems, PhaseDiagrams, Mappings examples
+  - Added scripts for SpecialFeatures, SpinLattice, SpinWaves examples
+  - Added script for running complete example suite
+- Added GitHub Actions for automated building and testing. [[Anders Bergman](anders.bergman@physics.uu.se)]
+  - Added wheel-building workflows for Python package distribution
+  - Added Windows installer automation and cross-platform build support
+  - Added status badges and CI/CD improvements
+
+### Changed
+
+- Updated CUDA implementation with modern C++ standards and improved memory management [[Arkadijs Slobodkins](aslobodkins@smu.edu)]
+- Restructured GUI codebase with better modularization and UI organization [[Anders Bergman](anders.bergman@physics.uu.se)],[[Jonathan Chico](jonathanpchico@gmail.com)]
+- Enhanced build system with better compiler detection and optimization flags [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Improved example organization and documentation structure
+- Updated Python scripts for better Python 3 compatibility and modern dependencies
+
+### Fixed
+
+- Fixed CUDA compilation issues for modern GPU architectures and compute capabilities
+- Fixed GUI stability issues and improved error handling in visualization components
+- Fixed multiscale calculation accuracy in various solver implementations
+- Fixed memory allocation issues in CUDA temperature field calculations
+- Fixed cross-platform build compatibility issues for Windows and macOS
+
 ## [6.0.1] - 2022-10-08
  
 ### Added

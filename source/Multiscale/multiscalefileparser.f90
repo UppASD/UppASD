@@ -180,7 +180,7 @@ end function
 !< Counts lines from the current parser position that starts with an integer
 !! This is used to count the number of entries in some lists
 !! Todo: This function would be more useful if it used a predicate instead of
-!!       being limited to `lines starting with integers'
+!!       being limited to 'lines starting with integers'
 integer function countLinesStartWithInteger(fData)
 implicit none
     type(FileData), intent(inout) :: fData
@@ -348,9 +348,9 @@ subroutine parseInt(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(out) :: val
-    ! Sometimes fortran's read does neither fail nor read a value
+    ! Sometimes fortran´s read does neither fail nor read a value
     !  when the input is incorrect. We detect that with a fixed initial value.
-    ! Let's hope no parameter can be realistically HUGE(val)
+    ! Let´s hope no parameter can be realistically HUGE(val)
     val = HUGE(val)
     
     if (fData%ierr /= 0) then
@@ -368,9 +368,9 @@ subroutine parseReal(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     real(dblprec), intent(out) :: val
-    ! Sometimes fortran's read does neither fail nor read a value
+    ! Sometimes fortran´s read does neither fail nor read a value
     !  when the input is incorrect. We detect that with a fixed initial value.
-    ! Let's hope no parameter can be realistically HUGE(val)
+    ! Let´s hope no parameter can be realistically HUGE(val)
     val = HUGE(val)
     if (fData%ierr /= 0) then
         call createErrorMsg(fData, 1, ERROR_PARSING_REAL)

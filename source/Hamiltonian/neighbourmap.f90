@@ -196,9 +196,9 @@ contains
                if(do_hoc_debug==1) write(*,'(a,3f10.6)')'icvec ',icvec(:)
 
                ! Fold back to original cell
-               bsf(1)=floor(icvec(1)+1d-6)
-               bsf(2)=floor(icvec(2)+1d-6)
-               bsf(3)=floor(icvec(3)+1d-6)
+               bsf(1)=floor(icvec(1)+5.0d-5)
+               bsf(2)=floor(icvec(2)+5.0d-5)
+               bsf(3)=floor(icvec(3)+5.0d-5)
                if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'bsf   ',bsf(:)
 
                ! Corresponding position of atom in cell
@@ -846,9 +846,9 @@ contains
                   if(do_hoc_debug==1) write(*,'(a,3f10.6)')'icvec ',icvec(:)
 
                   ! Fold back to original cell
-                  bsf(1)=floor(icvec(1)+1d-6)
-                  bsf(2)=floor(icvec(2)+1d-6)
-                  bsf(3)=floor(icvec(3)+1d-6)
+                  bsf(1)=floor(icvec(1)+5.0d-5)
+                  bsf(2)=floor(icvec(2)+5.0d-5)
+                  bsf(3)=floor(icvec(3)+5.0d-5)
                   if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'bsf   ',bsf(:)
 
                   ! Corresponding position of atom in cell

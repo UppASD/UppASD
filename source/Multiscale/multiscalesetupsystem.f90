@@ -615,7 +615,7 @@ contains
   end subroutine rescale_loaded_dmCouplings
 
 
-  !> Adapt anisotropy setup from libmuasd to UppASD's representation
+  !> Adapt anisotropy setup from libmuasd to UppASD´s representation
   subroutine setupAnisotropy(anisotropies, &
        anisotropytype,anisotropyvalues, &
        axis2_anisotropytype,axis2_anisotropyvalues)

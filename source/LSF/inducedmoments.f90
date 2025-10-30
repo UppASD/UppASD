@@ -177,7 +177,7 @@ contains
       real(dblprec), dimension(NT) :: redcoord_dist
       real(dblprec), dimension(NT,3) :: redcoord_tmp
 
-      ! The idea is to be able to use the neighbour map routine that is used for the Jij's
+      ! The idea is to be able to use the neighbour map routine that is used for the Jij´s
       ! Hence the first step would be to grab the bonding vectors for each atom and then
       ! select for the ones that are induced create a list with only the fixed ones and
       ! then select the nearest neighbours

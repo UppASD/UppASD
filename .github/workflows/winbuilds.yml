@@ -1,9 +1,10 @@
-name: Build binaries Windows
+name: Build binaries on Windows
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  #push:
+  release:
+  #pull_request:
+  #workflow_dispatch:
 
 jobs:
 
@@ -18,13 +19,14 @@ jobs:
           #- { icon: '🟧', sys: clang64, arch: x86_64 } # Experimental!
           #- { icon: '⬛', sys: mingw32, arch: i686 } # Disabled
     name: 🚧 ${{ matrix.icon }} ${{ matrix.sys }}
+    continue-on-error: true
     defaults:
       run:
         shell: msys2 {0}
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
