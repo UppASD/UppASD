@@ -97,6 +97,7 @@ contains
       ! I.e. if replica 3 has the highest temperature, then replist(3)=1, and templist(1)=3
       ! At start, replist(i)=templist(i)=i.
       real(dblprec), dimension(:), allocatable :: sx_flipprob !< Array for RNG flipping probabilities.
+      integer :: imacro
 
       sx_numrep=4 
       ! Write header for moment file
@@ -147,10 +148,12 @@ contains
       sx_emom(:,:,:,3)=sx_emom_rn
       sx_emom(:,:,:,4)=sx_emom_fm
 
+      imacro = 0
       if(Num_macro>0) then
          sx_mmom_macro(:,:,irep)=mmom_macro
          sx_emom_macro(:,:,:,irep)=emom_macro
          sx_emomM_macro(:,:,:,irep)=emomM_macro
+         imacro = irep
       end if
 
       do irep=1,sx_numrep
@@ -196,7 +199,8 @@ contains
                   external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
                   constellations,constellationsNeighType,repene(irep),    &
-                  Num_macro,cell_index,sx_emomM_macro(:,:,:,irep),macro_nlistsize,  &
+                  !Num_macro,cell_index,sx_emomM_macro,macro_nlistsize,  &
+                  Num_macro,cell_index,sx_emomM_macro(:,:,:,imacro),macro_nlistsize,  &
                   NA,N1,N2,N3)
 
                !repene_sum(irep) = repene(irep)/Natom

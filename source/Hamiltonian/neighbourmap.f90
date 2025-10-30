@@ -33,6 +33,8 @@ contains
       Bas,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,         &
       do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
       !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
       implicit none
       !
       integer, intent(in) :: NT              !< Number of types of atoms
@@ -194,9 +196,9 @@ contains
                if(do_hoc_debug==1) write(*,'(a,3f10.6)')'icvec ',icvec(:)
 
                ! Fold back to original cell
-               bsf(1)=floor(icvec(1)+1d-6)
-               bsf(2)=floor(icvec(2)+1d-6)
-               bsf(3)=floor(icvec(3)+1d-6)
+               bsf(1)=floor(icvec(1)+5.0d-5)
+               bsf(2)=floor(icvec(2)+5.0d-5)
+               bsf(3)=floor(icvec(3)+5.0d-5)
                if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'bsf   ',bsf(:)
 
                ! Corresponding position of atom in cell
@@ -243,12 +245,12 @@ contains
       call memocc(i_stat,product(shape(nm))*kind(nm),'nm','setup_nm')
       nm=0
       ! With info in nm_cell and nm_trunk for first NA atoms, make full nm list
-      do iiz=0, N3-1, block_size
-         do iiy=0, N2-1, block_size
-            do iix=0, N1-1, block_size
-               do iz=iiz,min(iiz+block_size-1,N3-1)
-                  do iy=iiy,min(iiy+block_size-1,N2-1)
-                     do ix=iix,min(iix+block_size-1,N1-1)
+      do iiz=0, N3-1, block_size_z
+         do iiy=0, N2-1, block_size_y
+            do iix=0, N1-1, block_size_x
+               do iz=iiz,min(iiz+block_size_z-1,N3-1)
+                  do iy=iiy,min(iiy+block_size_y-1,N2-1)
+                     do ix=iix,min(iix+block_size_x-1,N1-1)
                         do i0=1, NA
                            itype=atype(i0)
                            iat=i0+ix*NA+iy*N1*NA+iz*N2*N1*NA
@@ -844,9 +846,9 @@ contains
                   if(do_hoc_debug==1) write(*,'(a,3f10.6)')'icvec ',icvec(:)
 
                   ! Fold back to original cell
-                  bsf(1)=floor(icvec(1)+1d-6)
-                  bsf(2)=floor(icvec(2)+1d-6)
-                  bsf(3)=floor(icvec(3)+1d-6)
+                  bsf(1)=floor(icvec(1)+5.0d-5)
+                  bsf(2)=floor(icvec(2)+5.0d-5)
+                  bsf(3)=floor(icvec(3)+5.0d-5)
                   if(do_hoc_debug==1) write(*,'(a,3f10.6)') 'bsf   ',bsf(:)
 
                   ! Corresponding position of atom in cell
@@ -880,7 +882,7 @@ contains
                   end do
 
                end do
-               print *,'---------------------------'
+               !print *,'---------------------------'
 
                ! Check that each of the 1, 2 or 3 neighbours have been found
                if(nelem == 1) hit = elemhit(1)

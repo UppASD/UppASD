@@ -91,7 +91,7 @@ contains
 
 
     
-    ! Set the sizes outside the dimensionality to 1, to avoid numerical problems with 0's
+    ! Set the sizes outside the dimensionality to 1, to avoid numerical problems with 0´s
     options%space%universeSize((options%space%spatDimension+1):3) = 1d0;
 
     call createFiniteDiffMesh(options%space, options%finiteDiffBoxes, &

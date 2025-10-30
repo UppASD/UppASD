@@ -23,9 +23,9 @@ template FMT_API int internal::char_traits<char>::format_float(
     char *buffer, std::size_t size, const char *format, int precision,
     double value);
 
-template FMT_API int internal::char_traits<char>::format_float(
-    char *buffer, std::size_t size, const char *format, int precision,
-    long double value);
+// template FMT_API int internal::char_traits<char>::format_float(
+//     char *buffer, std::size_t size, const char *format, int precision,
+//     long double value);
 
 // Explicit instantiations for wchar_t.
 

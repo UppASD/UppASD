@@ -772,16 +772,16 @@ contains
       ! Write header to output files for first iteration
       if(abs(indxb_uavrg(1))<=0.0e0_dblprec) then
          ! Averages
-         write (ofileno,'(a)') "# Iter.       u_avg_x         u_avg_y         u_avg_z         u_avg           u_stdev         &
-            & v_avg_x         v_avg_y         v_avg_z         v_avg           v_stdev"
-         write (ofileno2,'(a)') "# Iter.       p_avg_x         p_avg_y         p_avg_z         p_avg           p_stdev         &
-            & l_avg_x         l_avg_y         l_avg_z         l_avg           l_stdev"
-         write (ofileno3,'(a)') "# Iter.     ld_potenrg      sd_potenrg      sld_potenrg     totpot_enrg     kin_enrg       &
-            & tot_enrg       ionic temp   "
-         !& tot_enrg       tot_enrg_stdv"
+         write (ofileno,'(a)') "# Iter.       u_avg_x         u_avg_y         u_avg_z         u_avg           u_stdev        "// &
+            & "v_avg_x         v_avg_y         v_avg_z         v_avg           v_stdev"
+         write (ofileno2,'(a)') "# Iter.       p_avg_x         p_avg_y         p_avg_z         p_avg           p_stdev        "// &
+            & "l_avg_x         l_avg_y         l_avg_z         l_avg           l_stdev"
+         write (ofileno3,'(a)') "# Iter.     ld_potenrg      sd_potenrg      sld_potenrg     totpot_enrg     kin_enrg       "//&
+            & "tot_enrg       ionic temp   "
+         !& "tot_enrg       tot_enrg_stdv"
          !write (ofileno3,'(a)')"# Iter.       potenrg         kinenrg         totenrg         totenrgs"
-         !write (ofileno3,'(a)')"# Iter.       potenrg         potenrg2        kinenrg         kinenrg2        totenrg         &
-         !   & totenerg2       totenrgs"
+         !write (ofileno3,'(a)')"# Iter.       potenrg         potenrg2        kinenrg         kinenrg2        totenrg         "//&
+         !   & "totenerg2       totenrgs"
       end if
 
       !
@@ -954,8 +954,8 @@ contains
       open(ofileno, file=filn4, position="append")
       ! Write header to output files for first iteration
       if(abs(indxb_uavrg(1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)')"# Iter.       Cum potenrg     Cum kinenrg     Cum totenrg     Stdev totenrg   Heat cap        &
-            & Temperature"
+         write (ofileno,'(a)')"# Iter.       Cum potenrg     Cum kinenrg     Cum totenrg     Stdev totenrg   Heat cap       "// &
+            & "Temperature"
       end if
 
       do i=1, bcount_uavrg
@@ -1318,6 +1318,7 @@ contains
 
       !.. Executable statements
 
+      kinenergy = 0.0_dblprec
       !.. Sum over atoms
       do k=1,Mensemble
          do i=1, Natom
