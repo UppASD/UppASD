@@ -9,7 +9,7 @@ bccFe-qhb
 do
     cd $n
     echo Starts example $n
-    time ./runme.sh > out.log
+    time -p ./runme.sh > out.log
     echo Ends example $n
     cd ../
 done

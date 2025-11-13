@@ -11,7 +11,7 @@ do
 	sed -i "s/#restart/restart/" inpsd.dat 
 	cp ../restart.bccFe100.out .
     fi
-    ../../../../source/sd > out.log
+    ${SD_BINARY} > out.log
     cp restart.bccFe100.out ../
     cd ..
 done
