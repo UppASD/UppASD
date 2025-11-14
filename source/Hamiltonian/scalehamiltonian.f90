@@ -283,9 +283,12 @@ module ScaleHamiltonian
                     do j_neigh = 1, ham%dmlistsize(j_atom)
                         if (i_atom == ham%dmlist(j_neigh, j_atom)) then
                             if (allocated(dmiscale_factor)) then
-                                ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,i_atom))
-                                ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,i_atom))
-                                ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,i_atom))
+                                ! ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,i_atom))
+                                ! ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,i_atom))
+                                ! ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,i_atom))
+                                ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
+                                ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
+                                ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
                             else
                                 ham%dm_vect(:, j_neigh, j_atom) = dm_vect_orig(:, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
                             end if
