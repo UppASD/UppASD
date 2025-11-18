@@ -586,6 +586,11 @@ contains
          call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,  &
             NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
+         ! Sample effective fields for correlation functions
+         call correlation_wrapper(Natom,Mensemble,coord,simid,beff,mstep,delta_t,  &
+            NT_meta,atype_meta,Nchmax,achtype,bc,do_bc,do_br,cgk_flag)
+
+         ! BLS sampling
          call calc_bls(N1,N2,N3,C1,C2,C3,Natom,Mensemble,simid,coord,emomM,mstep,   &
             delta_t,1)
 

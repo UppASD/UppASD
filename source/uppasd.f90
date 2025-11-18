@@ -358,22 +358,33 @@ contains
       cflag = 2 
 
 
+      print *, 'DEBUG: Before correlation_wrapper'
       ! Spin-correlation
+      print *,' Spin-correlation'
       call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
          atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
 
       ! Lattice-correlation
+         print *,' Lattice-correlation'
       call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
          atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
 
       ! Velocity-correlation
+         print *,' Velocity-correlation'
       call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
          atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
 
       ! Angular momentum-correlation
+         print *,' Angular momentum-correlation'
       call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
          atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
 
+      ! Effective field-correlation
+         print *,' Effective field-correlation', cflag
+      call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
+         atype,Nchmax,achtype,bc,do_bc,do_br,cflag)
+
+      print *, 'DEBUG: Before print_gkw'
       if (do_suc=='Y'.and.(do_sc=='Y'.or.do_sc=='Q').and.(do_uc=='Y'.or.do_uc=='Q')) then
          call print_gkw(NT, Nchmax, sc, uc, simid, 'su')
       end if
@@ -390,12 +401,26 @@ contains
          call print_gkt(NT, Nchmax, uc, vc, simid, 'uv')
       end if
 
+      if (do_slc=='Y'.and.(do_sc=='Y'.or.do_sc=='Q').and.(do_lc=='Y'.or.do_lc=='Q')) then
+         call print_gkw(NT, Nchmax, lc, sc, simid, 'sl')
+      end if
+
       if (do_slc=='Y'.and.(do_sc=='Y'.or.do_sc=='T').and.(do_lc=='Y'.or.do_lc=='T')) then
          call print_gkt(NT, Nchmax, lc, sc, simid, 'sl')
       end if
 
+      if (do_sbc=='Y'.and.(do_sc=='Y'.or.do_sc=='Q').and.(do_bc=='Y'.or.do_bc=='Q')) then
+         call print_gkw(NT, Nchmax, sc, bc, simid, 'sb')
+      end if
+
+      if (do_sbc=='Y'.and.(do_sc=='Y'.or.do_sc=='T').and.(do_bc=='Y'.or.do_bc=='T')) then
+         call print_gkt(NT, Nchmax, sc, bc, simid, 'sb')
+      end if
+
       cflag = 3
 
+
+      print *, 'DEBUG: Before correlation_wrapper again'
       ! Spin-correlation deallocation
       call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
          atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
@@ -412,9 +437,14 @@ contains
       call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
          atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
 
+      ! Effective-field correlation deallocation
+      call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
+         atype,Nchmax,achtype,bc,do_bc,do_br,cflag)
+
       !call lattcorrelation_wrapper(Natom,Mensemble,coord,simid,uvec,vvec,mstep,     &
       !   delta_t,NT,atype,Nchmax,achtype,cflag,cflag_p)
 
+      print *, 'DEBUG: After correlation_wrapper again'
       ! Brillouin Light scattering function.
       cflag = 2 ; 
       call calc_bls(N1,N2,N3,C1,C2,C3,Natom,Mensemble,simid,coord,emomM,mstep,      &
@@ -447,7 +477,7 @@ contains
       use macrocells,   only : Num_macro,allocate_macrocell,do_macro_cells
       use MomentData
       use SystemData
-      use Correlation, only : do_sc, do_uc, do_vc, do_lc, sc, uc, vc, lc, do_sr
+      use Correlation, only : do_sc, do_uc, do_vc, do_lc, sc, uc, vc, lc, bc, do_sr, do_bc
       use Correlation_utils, only : allocate_corr, corr_sr_init
       use SpinTorques
       use SpinIceData,  only : allocate_spinice_data, allocate_vertex_data
@@ -524,6 +554,9 @@ contains
       end if
       if(do_lc=='Y'.or.do_lc=='Q'.or.do_lc=='C') then
          call allocate_corr(Natom,Mensemble,lc,-1)
+      end if
+      if(do_bc=='Y'.or.do_bc=='Q'.or.do_bc=='C') then
+         call allocate_corr(Natom,Mensemble,bc,-1)
       end if
       if(do_sr=='Y'.or.do_sr=='R'.or.do_sr=='T') then
          call corr_sr_init(Natom, sc, coord,-1)
@@ -675,11 +708,13 @@ contains
       call set_opt_defaults(delta_t)
       ! Set input defaults for the correlation
       call correlation_init()
+      print *,'DEB, correlation labels', '|', sc%label, '|', uc%label, '|', vc%label, '|', lc%label, '|', bc%label
       ! Set input defaults for the correlation
       call correlation_init_loc(sc)
       call correlation_init_loc(uc)
       call correlation_init_loc(vc)
       call correlation_init_loc(lc)
+      call correlation_init_loc(bc)
       !call correlation_init_loc(suc)
       !call correlation_init_loc(uvc)
       ! Set input defaults for topological information
@@ -1059,19 +1094,30 @@ contains
          call set_w_print_option(real_time_measure)
          if(do_sc=='Q'.or.do_sc=='Y') then
             write (*,'(1x,a)') "Set up spin-correlation frequencies"
+            ! call print_corr_t_data(sc)
             call set_w(delta_t,sc)
          end if
          if(do_uc=='Q'.or.do_uc=='Y') then
             write (*,'(1x,a)') "Set up lattice correlation frequencies"
+            ! call print_corr_t_data(uc)
             call set_w(delta_t,uc)
          end if
          if(do_vc=='Q'.or.do_vc=='Y') then
             write (*,'(1x,a)') "Set up velocity correlation frequencies"
+            ! call print_corr_t_data(vc)
             call set_w(delta_t,vc)
          end if
          if(do_lc=='Q'.or.do_lc=='Y') then
             write (*,'(1x,a)') "Set up angular momentum correlation frequencies"
+            ! call print_corr_t_data(lc)
             call set_w(delta_t,lc)
+         end if
+         if(do_bc=='Q'.or.do_bc=='Y') then
+            write (*,'(1x,a)') "Set up beff-correlation frequencies:", bc%label
+            call copy_corr_t_data(sc,bc)
+            ! print *,'DEB'
+            ! call print_corr_t_data(bc)
+            call set_w(delta_t,bc)
          end if
 
       !
@@ -1079,6 +1125,7 @@ contains
       call set_correlation_average(uc,i)
       call set_correlation_average(vc,i)
       call set_correlation_average(lc,i)
+      call set_correlation_average(bc,i)
       !
 
          if(do_sc=='Y'.or.do_sc=='Q'.or.do_sc=='C') then
@@ -1096,6 +1143,10 @@ contains
          if(do_lc=='Y'.or.do_lc=='Q'.or.do_lc=='C') then
             write (*,'(1x,a)') "Allocate  angular momentum correlation data"
             call allocate_corr(Natom,Mensemble,lc,1)
+         end if
+         if(do_bc=='Y'.or.do_bc=='Q'.or.do_bc=='C') then
+            write (*,'(1x,a)') "Allocate beff-correlation data"
+            call allocate_corr(Natom,Mensemble,bc,1)
          end if
 
          if(do_sr=='Y'.or.do_sr=='R'.or.do_sr=='T') then

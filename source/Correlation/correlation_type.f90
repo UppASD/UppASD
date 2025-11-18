@@ -109,4 +109,154 @@ module Correlation_type
 
    end type corr_t
 
+contains
+
+   subroutine copy_corr_t_data(src, dest)
+      implicit none
+      type(corr_t), intent(in) :: src
+      type(corr_t), intent(inout) :: dest
+
+
+      print *, 'Copying correlation data from ', src%label, ' to ', dest%label
+      ! dest%label = src%label
+
+      dest%sc_tidx = src%sc_tidx
+      dest%sc_sep = src%sc_sep
+      dest%sc_step = src%sc_step
+      dest%sc_nstep = src%sc_nstep
+      dest%do_sc_local_axis = src%do_sc_local_axis
+      dest%do_sc_dosonly = src%do_sc_dosonly
+      dest%do_sc_complex = src%do_sc_complex
+      dest%do_sc_tens = src%do_sc_tens
+      dest%do_sc_list = src%do_sc_list
+      dest%do_qt_traj = src%do_qt_traj
+      dest%sc_average = src%sc_average
+      dest%sc_local_axis_mix = src%sc_local_axis_mix
+      dest%do_connected = src%do_connected
+      dest%sc_naverages = src%sc_naverages
+      dest%gkt_flag = src%gkt_flag
+      dest%gk_flag = src%gk_flag
+      dest%cr_cut = src%cr_cut
+      dest%sc_emax = src%sc_emax
+      dest%sc_eres = src%sc_eres
+      dest%cmode = src%cmode
+      ! dest%deltat_corr = src%deltat_corr
+      ! dest%scstep_arr = src%scstep_arr
+      ! dest%sc_max_nstep = src%sc_max_nstep
+
+   end subroutine copy_corr_t_data
+
+   subroutine print_corr_t_data(corr)
+      implicit none
+      type(corr_t), intent(in) :: corr
+      integer :: i, j, k, l
+
+      print *, 'Correlation Type:', corr%label
+      print *, '  do_proj:', corr%do_proj
+      print *, '  do_projch:', corr%do_projch
+      print *, '  do_sc_local_axis:', corr%do_sc_local_axis
+      print *, '  do_sc_dosonly:', corr%do_sc_dosonly
+      print *, '  do_sc_complex:', corr%do_sc_complex
+      print *, '  do_sc_tens:', corr%do_sc_tens
+      print *, '  do_sc_list:', corr%do_sc_list
+      print *, '  do_qt_traj:', corr%do_qt_traj
+      print *, '  do_connected:', corr%do_connected
+      print *, '  sc_average:', corr%sc_average
+      print *, '  sc_sep:', corr%sc_sep
+      print *, '  sc_nsamp:', corr%sc_nsamp
+      print *, '  sc_step:', corr%sc_step
+      print *, '  sc_nstep:', corr%sc_nstep
+      print *, '  sc_max_nstep:', corr%sc_max_nstep
+      print *, '  sc_naverages:', corr%sc_naverages
+      print *, '  sc_emax:', corr%sc_emax
+      print *, '  sc_eres:', corr%sc_eres
+      print *, '  sc_tidx:', corr%sc_tidx
+      print *, '  sc_samp_done:', corr%sc_samp_done
+      print *, '  sc_samp_done_sr:', corr%sc_samp_done_sr
+      print *, '  sc_local_axis_mix:', corr%sc_local_axis_mix
+      print *, '  gkt_flag:', corr%gkt_flag
+      print *, '  gk_flag:', corr%gk_flag
+      print *, '  prefix:', corr%prefix
+      print *, '  cmode:', corr%cmode
+      print *, '  nw:', corr%nw
+      print *, '  cr_cut:', corr%cr_cut
+      print *, '  cr_nnmax:', corr%cr_nnmax
+      print *, '  cr_nhist:', corr%cr_nhist
+      print *, '  cr_flag:', corr%cr_flag
+
+      if (allocated(corr%deltat_corr)) then
+         print *, '  deltat_corr:'
+         do i = 1, size(corr%deltat_corr)
+            print *, '    ', corr%deltat_corr(i)
+         end do
+      end if
+
+      if (allocated(corr%scstep_arr)) then
+         print *, '  scstep_arr:'
+         do i = 1, size(corr%scstep_arr)
+            print *, '    ', corr%scstep_arr(i)
+         end do
+      end if
+
+      if (allocated(corr%time)) then
+         print *, '  time:'
+         do i = 1, size(corr%time)
+            print *, '    ', corr%time(i)
+         end do
+      end if
+
+      if (allocated(corr%dt)) then
+         print *, '  dt:'
+         do i = 1, size(corr%dt)
+            print *, '    ', corr%dt(i)
+         end do
+      end if
+
+      if (allocated(corr%w)) then
+         print *, '  w:'
+         do i = 1, size(corr%w)
+            print *, '    ', corr%w(i)
+         end do
+      end if
+
+      if (allocated(corr%cr_list)) then
+         print *, '  cr_list:'
+         do i = 1, size(corr%cr_list, 1)
+            print *, '    ', corr%cr_list(i, :)
+         end do
+      end if
+
+      if (allocated(corr%cr_vect)) then
+         print *, '  cr_vect:'
+         do i = 1, size(corr%cr_vect, 1)
+            do j = 1, size(corr%cr_vect, 2)
+               print *, '    ', corr%cr_vect(i, j, :)
+            end do
+         end do
+      end if
+
+      if (allocated(corr%cr_hist)) then
+         print *, '  cr_hist:'
+         do i = 1, size(corr%cr_hist)
+            print *, '    ', corr%cr_hist(i)
+         end do
+      end if
+
+      if (allocated(corr%cr_uniq_vect)) then
+         print *, '  cr_uniq_vect:'
+         do i = 1, size(corr%cr_uniq_vect, 1)
+            print *, '    ', corr%cr_uniq_vect(i, :)
+         end do
+      end if
+
+      if (allocated(corr%cr_lut)) then
+         print *, '  cr_lut:'
+         do i = 1, size(corr%cr_lut, 1)
+            print *, '    ', corr%cr_lut(i, :)
+         end do
+      end if
+
+
+   end subroutine print_corr_t_data
+
 end module Correlation_type

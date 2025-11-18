@@ -28,6 +28,7 @@ module Correlation
    type(corr_t)  :: uc   !< Lattice displacement-correlation 
    type(corr_t)  :: vc   !< Velocity displacement-correlation 
    type(corr_t)  :: lc   !< Lattice angular momentum  displacement-correlation 
+   type(corr_t)  :: bc   !< Effective field correlation
    !type(corr_t)  :: suc   !< Velocity displacement-correlation 
    !type(corr_t)  :: uvc   !< Velocity displacement-correlation 
 
@@ -44,6 +45,9 @@ module Correlation
    character(len=1) :: do_lc        !< Perform L-correlation sampling (Y/N/C)
    character(len=1) :: do_lr        !< Perform L-correlation sampling in real space directly (Y/N)
 
+   character(len=1) :: do_bc        !< Perform B-correlation sampling (Y/N/C)
+   character(len=1) :: do_br        !< Perform B-correlation sampling in real space directly (Y/N)
+
    character(len=1) :: do_suc        !< Perform velocity-correlation sampling (Y/N/C)
    !character(len=1) :: do_sur        !< Perform velocity-correlation sampling in real space directly (Y/N)
 
@@ -51,6 +55,8 @@ module Correlation
    !character(len=1) :: do_uvr        !< Perform velocity-correlation sampling in real space directly (Y/N)
 
    character(len=1) :: do_slc        !< Perform velocity-correlation sampling (Y/N/C)
+
+   character(len=1) :: do_sbc        !< Perform spin-field correlation sampling (Y/N/C)
 
    !-----------------------
    character(len=1) :: do_bimag  !< Perform spin-correlation sampling of bi-magnons (Y/N) (not implemented currently)
@@ -65,8 +71,8 @@ module Correlation
    public :: read_parameters_correlation_vc
    public :: read_parameters_correlation_lc
    public :: correlation_wrapper,  set_correlation_average
-   public :: do_sc, do_uc, do_sr, do_ur, do_vc, do_vr, do_uvc, do_suc, do_slc, do_lc, do_lr
-   public :: sc, uc, vc, lc!, uvc, suc
+   public :: do_sc, do_uc, do_sr, do_ur, do_vc, do_vr, do_uvc, do_suc, do_slc, do_lc, do_lr, do_bc, do_sbc, do_br
+   public :: sc, uc, vc, lc, bc!, uvc, suc
 
 contains
 
@@ -134,13 +140,16 @@ contains
 
          else if (flag==2) then
 
+            print *,'DEB: calc_gkt ', cc%label
             call calc_gkt(Natom, Mensemble,NT,atype,Nchmax,achtype, cc, coord, idata, gkt_flag)
 
             if(do_cc=='Q'.or.do_cc=='Y')  then
+            print *,'DEB: print_gkw ', cc%label
                call print_gkw(NT, Nchmax, cc, cc, simid, cc%label)
             end if
 
             if(do_cc=='T'.or.do_cc=='Y')  then
+            print *,'DEB: print_gkt ', cc%label
                call print_gkt(NT, Nchmax, cc, cc, simid, cc%label)
             end if
 
@@ -185,10 +194,13 @@ contains
       do_vr        = 'N'
       do_lc        = 'N'
       do_lr        = 'N'
+      do_bc        = 'N'
+      do_br        = 'N'
       do_suc       = 'N'
       !do_sur       = 'N'
       do_uvc       = 'N'
       !do_uvr       = 'N'
+      do_sbc       = 'N'
       do_bimag     = 'N'
       do_conv      = 'N'
       sc_window_fun = 1
@@ -208,6 +220,8 @@ contains
       vc%sc_tidx=0
       lc%label ='l'
       lc%sc_tidx=0
+      bc%label ='b'
+      bc%sc_tidx=0
 
       !suc%label ='su'
       !suc%sc_tidx=0
@@ -322,6 +336,14 @@ contains
 
          case('sc_window_fun')
             read(ifile,*,iostat=i_err) sc_window_fun
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+         case('do_bc')  ! Effective field correlation
+            read(ifile,*,iostat=i_err) do_bc
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+         case('do_sbc')  ! Effective field correlation
+            read(ifile,*,iostat=i_err) do_sbc
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             ! Flag for doing the convolutions in frequencies and qpoints can be in Gaussian (G)

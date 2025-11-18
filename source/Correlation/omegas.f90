@@ -38,6 +38,7 @@ contains
       real(dblprec) :: dww
       real(dblprec) :: emin,emax
       !
+      print *,'Debug:', 'henlo'
       ! Check if sc_eres and sc_emax are defined. 
       print '("Sampling intervals before",i6,i6)', cc%sc_nstep,cc%sc_step
       ! If so, set sc_step and sc_nstep accordingly
@@ -50,6 +51,7 @@ contains
       !
       dt=cc%sc_step*delta_t
       cc%nw = cc%sc_nstep
+      print *,'dEb = ',cc%sc_nstep
       if (.not. allocated(cc%w)) then
          allocate(cc%w(cc%nw),stat=i_stat)
          call memocc(i_stat,product(shape(cc%w))*kind(cc%w),'cc%w','set_w')
