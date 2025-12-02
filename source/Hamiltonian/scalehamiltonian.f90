@@ -114,6 +114,7 @@ module ScaleHamiltonian
 
         if (ham_inp%do_jtensor/=1) then
             if (.not. allocated(ncoup_orig)) then
+                print *,'Allocating ncoup_orig for local jscaling'
                 allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
                 ncoup_orig = ham%ncoup  ! Store original coupling matrix
             end if
@@ -228,100 +229,108 @@ module ScaleHamiltonian
     
         if (ham_inp%do_jtensor/=1) then
     
-        if (.not. allocated(ncoup_orig)) then
-            !print *,'Storing copy of ham%ncoup, shape:', shape(ham%ncoup)
-            allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
-            !print *,'ncoup_orig stored, shape:', shape(ncoup_orig)
-            ncoup_orig = ham%ncoup  ! Store original coupling matrix
-        end if
-    
-        ! Allocate temporary array for scaled coupling matrix
-        ! allocate(temp_ncoup(size(ham%ncoup, 1), size(ham%ncoup, 2)))
-        ! temp_ncoup = ham%ncoup(:,:, 1)  ! Copy original coupling matrix
-        scale_factor = jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
-        write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
-        ! print *, 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
-        ! Apply scaling to the coupling matrix
-        ! First scale all couplings Jij for each given atom
-        do idx = 1, jscaling_natoms
-            ! print *,idx, 'Applying J scaling to atom:', jscaling_atomlist(idx), scale_factor
-            i_atom = jscaling_atomlist(idx)
-            ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
-            ! print *, 'Scaled J for atom ', i_atom, ' to: ', ham%ncoup(:, i_atom, 1)
-            ! Then loop over the neighbors to apply the scaling
-            ! to the J_ji couplings
-            do j_neigh=1,ham%nlistsize(i_atom)
-                j_atom = ham%nlist(j_neigh, i_atom)
-                do i_neigh=1,ham%nlistsize(j_atom)
-                    if (i_atom == ham%nlist(i_neigh, j_atom)) then
-                                    ham%ncoup(:, i_atom, 1) = ncoup_orig(:, i_atom, 1) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
-                    end if
-                end do
-            end do
-        end do
-        ! Dynamic scaling for DMI
-        if (jscaling_dmi .and. ham_inp%do_dm==1 .and. allocated(ham%dm_vect)) then
-            if (.not. allocated(dm_vect_orig)) then
-                allocate(dm_vect_orig(size(ham%dm_vect,1), size(ham%dm_vect,2), size(ham%dm_vect,3)))
-                dm_vect_orig = ham%dm_vect  ! Store original DMI vectors
+            if (.not. allocated(ncoup_orig)) then
+                print *,'Allocating ncoup_orig for dynamic jscaling'
+                allocate(ncoup_orig(size(ham%ncoup, 1), size(ham%ncoup, 2), size(ham%ncoup, 3)))
+                ncoup_orig = ham%ncoup  ! Store original coupling matrix
+            ! else
+            !     print *,'ncoup_orig already allocated, restoring original values'
+            !     ham%ncoup = ncoup_orig  ! Restore original coupling matrix
             end if
+            ham%ncoup = ncoup_orig  ! Restore original coupling matrix
+    
+            scale_factor = 1.00_dblprec * jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
 
+            write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
+            ! Apply scaling to the coupling matrix
+            ! Note: For pairs where both atoms are in jscaling_atomlist, the scaling factors multiply:
+            ! J_ab will be scaled by (1+s*α_a)*(1+s*α_b) where s=scale_factor
             do idx = 1, jscaling_natoms
                 i_atom = jscaling_atomlist(idx)
-                do i_neigh = 1, ham%dmlistsize(i_atom)
-                    j_atom = ham%dmlist(i_neigh, i_atom)
-                    if (allocated(dmiscale_factor)) then
-                        ! print *, 'Scaling DMI for atom ', i_atom, ' with factors: ', dmiscale_factor(:,idx), ' and jscale: ', jscale_factor(idx)
-                        ham%dm_vect(1, i_neigh, i_atom) = dm_vect_orig(1, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
-                        ham%dm_vect(2, i_neigh, i_atom) = dm_vect_orig(2, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
-                        ham%dm_vect(3, i_neigh, i_atom) = dm_vect_orig(3, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
-                        ! print *, 'Scaled DMI for atom ', i_atom, ' to: ', ham%dm_vect(:, i_neigh, i_atom)
-                    else
-                        ham%dm_vect(:, i_neigh, i_atom) = dm_vect_orig(:, i_neigh, i_atom) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
-                    end if
-                    ! Find and scale reverse entry
-                    do j_neigh = 1, ham%dmlistsize(j_atom)
-                        if (i_atom == ham%dmlist(j_neigh, j_atom)) then
-                            if (allocated(dmiscale_factor)) then
-                                ! ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,i_atom))
-                                ! ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,i_atom))
-                                ! ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,i_atom))
-                                ham%dm_vect(1, j_neigh, j_atom) = dm_vect_orig(1, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
-                                ham%dm_vect(2, j_neigh, j_atom) = dm_vect_orig(2, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
-                                ham%dm_vect(3, j_neigh, j_atom) = dm_vect_orig(3, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
-                            else
-                                ham%dm_vect(:, j_neigh, j_atom) = dm_vect_orig(:, j_neigh, j_atom) * ( 1.0_dblprec + scale_factor * jscale_factor(idx))
-                            end if
+                do j_neigh=1,ham%nlistsize(i_atom)
+                    ! First scale all couplings Jij for each given atom
+                    ham%ncoup(j_neigh, i_atom, 1) = ham%ncoup(j_neigh, i_atom, 1) * (1.0_dblprec + scale_factor * jscale_factor(idx))
+                    ! Then loop over the neighbors to apply the scaling
+                    ! to the J_ji couplings
+                    j_atom = ham%nlist(j_neigh, i_atom)
+                    do i_neigh=1,ham%nlistsize(j_atom)
+                        if (i_atom == ham%nlist(i_neigh, j_atom)) then
+                            ham%ncoup(i_neigh, j_atom, 1) = ham%ncoup(i_neigh, j_atom, 1) * (1.0_dblprec + scale_factor * jscale_factor(idx))
                         end if
                     end do
                 end do
             end do
-        end if
-        else
 
-        if (.not. allocated(j_tens_orig)) then
-            allocate(j_tens_orig(size(ham%j_tens, 1), size(ham%j_tens, 2), size(ham%j_tens, 3), size(ham%j_tens, 4)))
-            j_tens_orig = ham%j_tens  ! Store original tensor coupling matrix
-        end if
-
-        scale_factor = 1.0_dblprec + jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
-        write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
-        ! Apply scaling to the tensor coupling matrix
-        ! First scale all couplings Jij for each given atom
-        do idx = 1, jscaling_natoms
-            i_atom = jscaling_atomlist(idx)
-            ham%j_tens(:, :, :, i_atom) = j_tens_orig(:, :, :, i_atom) * scale_factor
-            ! Then loop over the neighbors to apply the scaling
-            ! to the J_ji couplings
-            do j_neigh=1,ham%nlistsize(i_atom)
-            j_atom = ham%nlist(j_neigh, i_atom)
-            do i_neigh=1,ham%nlistsize(j_atom)
-                if (i_atom == ham%nlist(i_neigh, j_atom)) then
-                ham%j_tens(:, :, i_neigh, j_atom) = j_tens_orig(:, :, i_neigh, j_atom) * scale_factor
+            ! Dynamic scaling for DMI
+            if (jscaling_dmi .and. ham_inp%do_dm==1 .and. allocated(ham%dm_vect)) then
+                if (.not. allocated(dm_vect_orig)) then
+                    print *,'Allocating dm_vect_orig for dynamic jscaling'
+                    allocate(dm_vect_orig(size(ham%dm_vect,1), size(ham%dm_vect,2), size(ham%dm_vect,3)))
+                    dm_vect_orig = ham%dm_vect  ! Store original DMI vectors
+                else
+                    ! print *,'dm_vect_orig already allocated, restoring original values'
+                    ham%dm_vect = dm_vect_orig  ! Restore original DMI vectors
                 end if
+
+                do idx = 1, jscaling_natoms
+                    i_atom = jscaling_atomlist(idx)
+                    do j_neigh = 1, ham%dmlistsize(i_atom)
+                        j_atom = ham%dmlist(j_neigh, i_atom)
+                        ! Scale D_ij with factor for atom i
+                        ! If atom j is also in scaling list, D_ij will be scaled again in that pass
+                        if (allocated(dmiscale_factor)) then
+                            ham%dm_vect(1, j_neigh, i_atom) = ham%dm_vect(1, j_neigh, i_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
+                            ham%dm_vect(2, j_neigh, i_atom) = ham%dm_vect(2, j_neigh, i_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
+                            ham%dm_vect(3, j_neigh, i_atom) = ham%dm_vect(3, j_neigh, i_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
+                        else
+                            ham%dm_vect(:, j_neigh, i_atom) = ham%dm_vect(:, j_neigh, i_atom) * (1.0_dblprec + scale_factor * jscale_factor(idx))
+                        end if
+                        ! Find and scale reverse entry D_ji
+                        ! Note: D_ji and D_ij should be scaled with the same factor to preserve their antisymmetric relationship
+                        do i_neigh = 1, ham%dmlistsize(j_atom)
+                            if (i_atom == ham%dmlist(i_neigh, j_atom)) then
+                                if (allocated(dmiscale_factor)) then
+                                    ham%dm_vect(1, i_neigh, j_atom) = ham%dm_vect(1, i_neigh, j_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(1,idx))
+                                    ham%dm_vect(2, i_neigh, j_atom) = ham%dm_vect(2, i_neigh, j_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(2,idx))
+                                    ham%dm_vect(3, i_neigh, j_atom) = ham%dm_vect(3, i_neigh, j_atom) * (1.0_dblprec + scale_factor * dmiscale_factor(3,idx))
+                                else
+                                    ham%dm_vect(:, i_neigh, j_atom) = ham%dm_vect(:, i_neigh, j_atom) * (1.0_dblprec + scale_factor * jscale_factor(idx))
+                                end if
+                            end if
+                        end do
+                    end do
+                end do
+            end if
+
+        else ! Tensor Jij
+
+            if (.not. allocated(j_tens_orig)) then
+                print *,'Allocating j_tens_orig for dynamic jscaling'
+                allocate(j_tens_orig(size(ham%j_tens, 1), size(ham%j_tens, 2), size(ham%j_tens, 3), size(ham%j_tens, 4)))
+                j_tens_orig = ham%j_tens  ! Store original tensor coupling matrix
+            else
+                ham%j_tens = j_tens_orig  ! Restore original tensor coupling matrix
+            end if
+
+            scale_factor = jscaling_prefactor * sin(2.0_dblprec*pi*jscaling_freq * time + jscaling_phase)
+            write(1000,*) 'Time: ', time, ' Scale factor: ', scale_factor, jscaling_natoms
+            ! Apply scaling to the tensor coupling matrix
+            ! Note: For pairs where both atoms are in jscaling_atomlist, the scaling factors multiply:
+            ! J_ab will be scaled by (1+s*α_a)*(1+s*α_b) where s=scale_factor
+            do idx = 1, jscaling_natoms
+                i_atom = jscaling_atomlist(idx)
+                ham%j_tens(:, :, :, i_atom) = ham%j_tens(:, :, :, i_atom) * (1.0_dblprec + scale_factor * jscale_factor(idx))
+                ! Then loop over the neighbors to apply the scaling
+                ! to the J_ji couplings
+                do j_neigh=1,ham%nlistsize(i_atom)
+                    j_atom = ham%nlist(j_neigh, i_atom)
+                    do i_neigh=1,ham%nlistsize(j_atom)
+                        if (i_atom == ham%nlist(i_neigh, j_atom)) then
+                            ham%j_tens(:, :, i_neigh, j_atom) = ham%j_tens(:, :, i_neigh, j_atom) * (1.0_dblprec + scale_factor * jscale_factor(idx))
+                        end if
+                    end do
+                end do
             end do
-            end do
-        end do
         end if
     
     end subroutine apply_dynamic_jscaling
