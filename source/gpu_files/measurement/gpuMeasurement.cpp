@@ -33,6 +33,8 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 , do_cumu(*FortranData::do_cumu == 'Y')
 , cumu_kernel_threads(32)
 , cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
+, sumOverAtoms_kernel_threads(256, 1)
+, sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -90,6 +92,9 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
     {
         emomMEnsembleSums.Allocate(3, M);
         emomMEnsembleSums.zeros();
+
+        emomMEnsembleSums_partial.Allocate(sumOverAtoms_kernel_blocks.x, 3, M);
+        emomMEnsembleSums_partial.zeros();
     }
 
     if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
@@ -164,6 +169,7 @@ void GpuMeasurement::release(){
         if (do_avrg || do_cumu)
             {
                 emomMEnsembleSums.Free();
+                emomMEnsembleSums_partial.Free();
             }
 
         if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
@@ -353,11 +359,20 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
 void GpuMeasurement::calculateEmomMSum()
 {
-    emomMEnsembleSums.zeros();
-    const dim3 threads(256, 1);
-    const dim3 blocks(mm::ceil_div(N, threads.x), 3 * M);
-    const size_t smem = mm::nwarps(threads) * sizeof(real);
-    mm::sumOverAtoms<<<blocks, threads, smem, workStream>>>(emomM, emomMEnsembleSums);
+    size_t smem = mm::nwarps(sumOverAtoms_kernel_threads) * sizeof(real);
+    mm::sumOverAtoms_partial<<<sumOverAtoms_kernel_blocks, sumOverAtoms_kernel_threads, smem, workStream>>>(
+            emomM,
+            emomMEnsembleSums_partial
+    );
+
+    smem = sumOverAtoms_kernel_blocks.x * sizeof(real);
+    const dim3 threads = 256;
+    const dim3 grid = 3 * M;
+    mm::sumOverAtoms_finalize<<<grid, threads, smem, workStream>>>(
+            emomMEnsembleSums_partial,
+            sumOverAtoms_kernel_blocks.x,
+            emomMEnsembleSums
+    );
 }
 
 

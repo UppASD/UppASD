@@ -68,7 +68,10 @@ private:
     size_t cumu_count = 0;
 
     // Used for both Average magnetization and Binder cumulant
+    GpuTensor<real, 3> emomMEnsembleSums_partial;
     GpuTensor<real, 2> emomMEnsembleSums; // tensor of dim = 3 x M
+    const dim3 sumOverAtoms_kernel_threads;
+    const dim3 sumOverAtoms_kernel_blocks;
 
     // Skyrmion number
     const SkyrmionMethod do_skyno;

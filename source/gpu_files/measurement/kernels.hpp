@@ -20,14 +20,12 @@ namespace kernels::measurement
 
     // ----------------------------- kernels: declarations ----------------------------
 
-    // Sum over atoms: out_tensor has shape (3, M).  **IMPORTANT**: out_tensor must be
-    // ZEROED before launch (we do atomicAdd of per-block partials).
-    // Launch suggestion (good when N ≫ M):
-    //   dim3 block(256,1);
-    //   dim3 grid(ceil_div(N, block.x) /*tiles over atoms*/, 3*M /*i,k pairs*/);
-    //   shared = ((block.x*block.y + 31)/32) * sizeof(real)
-    __global__ void sumOverAtoms(const GpuTensor<real, 3> in_tensor,
-                                 GpuTensor<real, 2> out_tensor);
+    // Sum over atoms: out_tensor has shape (3, M).
+    __global__ void sumOverAtoms_partial(const GpuTensor<real, 3> in_tensor,
+                                         GpuTensor<real, 3> block_parts);
+    __global__ void sumOverAtoms_finalize(const GpuTensor<real, 3> block_parts,
+                                          uint nblocks,
+                                          GpuTensor<real, 2> emomMEnsembleSums);
 
     // Average magnetization over ensembles (two-phase)
     __global__ void averageMagnetization_partial(const GpuTensor<real, 2> emomMSum,
