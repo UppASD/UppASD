@@ -275,12 +275,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    }  // End loop over simulation steps
 
-   // Final measure
-   measurement->measure(rstep + nstep + 1);  // TODO
-   stopwatch.add("measurement");
-
-   // Print remaining measurements
-   measurement->flushMeasurements(rstep + nstep + 1);  // TODO
+   // Final measure and print remaining measurements to file
+   measurement->flushMeasurements(rstep + nstep + 1);
    stopwatch.add("flush measurement");
 
    // Synchronize with device

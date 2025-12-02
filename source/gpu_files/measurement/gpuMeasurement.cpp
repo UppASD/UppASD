@@ -244,14 +244,39 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
+    --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
+
+    if (do_avrg || do_cumu)
+    {
+        calculateEmomMSum();
+        stopwatch.add("sum reduction of emomM for shared use");
+    }
+
     if (do_avrg)
+    {
+        measureAverageMagnetization(mstep);
+        stopwatch.add("average magnetization");
         saveToFile(MeasurementType::AverageMagnetization);
+    }
 
     if (do_cumu)
+    {
+        measureBinderCumulant(mstep);
+        stopwatch.add("binder cumulant");
         saveToFile(MeasurementType::BinderCumulant);
+    }
 
     if (do_skyno != SkyrmionMethod::None)
+    {
+        measureSkyrmionNumber(mstep);
+        stopwatch.add("skyrmion number");
         saveToFile(MeasurementType::SkyrmionNumber);
+    }
+
+    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
+    {
+        release();
+    }
 }
 
 
