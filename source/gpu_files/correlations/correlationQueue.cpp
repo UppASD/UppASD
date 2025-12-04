@@ -92,7 +92,7 @@ void CorrelationQueue::processCorrelations() {
          }
 
          // Measure
-         fortran_measure_moment(emomM, emom, mmom, c->step);//TODO correlations
+         fortran_measure_correlations(emomM, emom, mmom, c->step);//TODO correlations
 
          // Destroy measurement data
          delete c;

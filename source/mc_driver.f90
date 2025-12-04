@@ -595,17 +595,28 @@ contains
       use NoCuda
 #endif
       use Damping
-      use SpinTorques, only : btorque, stt
-      use InputData, only : do_gpu, gpu_mc_bf
-      use Correlation
+      use SpinTorques, only : btorque, stt  
+      use Correlation  
+      use InputData
+      use MomentData
+      use FieldPulse
+      use SystemData,            only: coord
+      use SystemData,            only : atype, anumb, Landeg
+      use ChemicalData
+      use SimulationData,        only : bn, rstep, mstep
+      use MetaTypes
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
       integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      integer ::cgk_flag
       !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
-
-      whichsim = 1
+      whichsim = 0
       whichphase = 1
+      cgk_flag = 0
+
+      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,  &
+         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT

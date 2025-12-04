@@ -10,7 +10,8 @@ module Chelper
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
-   use AutoCorrelation,  only : nspinwait, spinwait, autocorr_buff
+   !use AutoCorrelation,  only : nspinwait, spinwait, autocorr_buff
+   use AutoCorrelation
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
@@ -24,7 +25,8 @@ module Chelper
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff, tottraj_step, &
         traj_step, traj_buff, traj_atom, mmomb, mmomb_traj, emomb, emomb_traj
-   use Temperature,      only : temp_array, iptemp_array
+   !use Temperature,      only : temp_array, iptemp_array
+   use Temperature
    use Spinicedata,      only : vert_ice_coord
    use Fielddata,        only : thermal_field, beff, beff1, beff3,  b2eff, external_field
    use Systemdata,       only : coord, atype
@@ -55,7 +57,8 @@ module Chelper
    public :: fortran_do_measurements,fortran_measure,fortran_measure_moment,        &
       fortran_moment_update,fortran_flush_measurements,FortranData_Initiate,        &
       fortran_calc_simulation_status_variables, fortran_print_measurables,          &
-      fortran_print_correlations
+      fortran_print_correlations, fortran_measure_correlations,                     &
+      fortran_measure_rest
 
 contains
 
@@ -113,10 +116,28 @@ contains
 
       ! Spin correlation
       ! Sample magnetic moments for correlation functions
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,cmstep,delta_t,  &
-      NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      !call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,cmstep,delta_t,  &
+      !NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
    end subroutine fortran_measure
+
+      ! Correlations on Fortran side
+   subroutine fortran_measure_correlations(ext_emomM, ext_emom, ext_mmom, ext_mstep)
+      implicit none
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
+      real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
+      integer, intent(in) :: ext_mstep
+
+      integer :: cgk_flag
+      cgk_flag=1
+
+      ! Spin correlation
+      ! Sample magnetic moments for correlation functions
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,ext_mstep,delta_t,  &
+         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+
+   end subroutine fortran_measure_correlations
 
 
    ! Measurements with pre-set parameters
@@ -140,10 +161,35 @@ contains
 
       ! Spin correlation
       ! Sample magnetic moments for correlation functions
-         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,ext_mstep,delta_t,  &
-         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      !   call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,ext_mstep,delta_t,  &
+      !   NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
    end subroutine fortran_measure_moment
+
+      ! Measurements not implemeted or not planned to be implementedon GPU
+   subroutine fortran_measure_rest(ext_emomM, ext_emom, ext_beff, ext_mstep)
+      implicit none
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_beff
+      integer, intent(in) :: ext_mstep
+
+      ! Sample autocorrelation
+      if(do_autocorr=='Y') then
+         call autocorr_sample(Natom, Mensemble, simid, ext_mstep, ext_emom)
+      end if
+
+      ! Sample spin temperature
+      if (do_spintemp=='Y') then
+         if(mod(ext_mstep,spintemp_step)==0) then
+            call spintemperature(Natom,Mensemble,ext_mstep,1,simid,ext_emomM,ext_beff,1)
+         end if
+      endif
+
+
+
+
+   end subroutine fortran_measure_rest
 
 
    ! Do measurements with pre-set parameters
@@ -178,6 +224,8 @@ contains
       ! print GPU calculated correlations
    subroutine fortran_print_correlations()
       implicit none
+      integer ::cgk_flag
+      cgk_flag = 2
       !type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       if(do_sc=='C'.or.do_sc=='Y') then
          call print_gk(NT, Nchmax, sc, sc, simid, sc%label)

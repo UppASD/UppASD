@@ -182,7 +182,8 @@ void FortranCorrelation::flushCorrelations(hostCorrelations& cpuCorrelations, st
   correlationQueue.finish();
 
    // Print remaining measurements
-   fortran_flush_measurements(mstep);//TODO correlations
+   //TODO
+   //fortran_flush_measurements(mstep);//TODO correlations
    stopwatch.add("measure");
 }
 

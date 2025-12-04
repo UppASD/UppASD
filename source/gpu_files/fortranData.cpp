@@ -1,6 +1,9 @@
+#pragma once
 #include "fortranData.hpp"
 
 #include "real_type.h"
+#include <thrust/complex.h>
+
 
 // Constants
 char* FortranData::stt;
@@ -28,9 +31,9 @@ real* FortranData::r_mid;
 real* FortranData::q;
 real* FortranData::coord;
 real* FortranData::w;
-std::complex<real>* FortranData::m_k;
-std::complex<real>* FortranData::m_kw;
-std::complex<real>* FortranData::m_kt;
+thrust::complex<real>* FortranData::m_k;
+thrust::complex<real>* FortranData::m_kw;
+thrust::complex<real>* FortranData::m_kt;
 
 real* FortranData::delta_t;
 real* FortranData::gamma;
@@ -260,8 +263,8 @@ void FortranData::setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, r
 
 }
 
-void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  std::complex<real>* p_m_k, 
-                                        std::complex<real>* p_m_kw, std::complex<real>* p_m_kt){
+void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  thrust::complex<real>* p_m_k, 
+                                        thrust::complex<real>* p_m_kw, thrust::complex<real>* p_m_kt){
 
 
    q = p_q;
@@ -412,8 +415,8 @@ FortranData::setMeasurablePointers(
    p_spinwait, p_autocorr_buff, p_indxb_ac, p_traj_step, p_traj_buff, p_traj_atom,p_mmomb, p_mmomb_traj, p_emomb, p_emomb_traj);
 }
 
-extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, std::complex<real>* p_m_k, 
-                                             std::complex<real>* p_m_kw, std::complex<real>* p_m_kt) {
+extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, thrust::complex<real>* p_m_k, 
+                                             thrust::complex<real>* p_m_kw, thrust::complex<real>* p_m_kt) {
 FortranData::setCorrelationPointers(
    p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt);
 }

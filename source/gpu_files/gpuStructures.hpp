@@ -4,6 +4,8 @@
 #include "tensor.hpp"
 #include "real_type.h"
 
+#include <thrust/complex.h>
+
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
@@ -126,6 +128,9 @@ struct hostCorrelations {
    Tensor<real, 1> r_mid;
    Tensor<real, 2> q;
    Tensor<real, 1> w;
+   Tensor<thrust::complex<real>, 2> m_k;
+   Tensor<thrust::complex<real>, 3> m_kt;
+   Tensor<thrust::complex<real>, 3> m_kw;
 };
    
 struct deviceHamiltonian {
