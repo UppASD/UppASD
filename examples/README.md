@@ -8,3 +8,4 @@ the name of the UppASD executable with
 
 ```console
 export SD_BINARY=<path to binary>
+```
