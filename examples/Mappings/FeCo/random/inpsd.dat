@@ -8,6 +8,7 @@ Sym       0                                     Symmetry of lattice (0 for no, 1
 
 do_ralloy 1
 
+maptype 2
 posfile   ./posfile
 momfile   ./momfile
 exchange  ./jASD  
@@ -26,11 +27,9 @@ ip_mcNstep    10000                          --
 
 mode      S                                     S=SD, M=MC
 temp      300                                   Measurement phase parameters
-mcNstep  100000
 Nstep  100000
 damping 0.05
 timestep 1.0e-16
-maptype 2
 
 do_avrg   Y                                     Measure averages
 do_projch_avrg Y

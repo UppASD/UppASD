@@ -103,7 +103,7 @@ pip install -e .
 This install the GUI as an **editable** Python module that is started by issuing the `asd_gui` command at the command prompt.
 
 ---
-(C) 2008-2024 [UppASD group][2]
+(C) 2008-2026 [UppASD group][2]
 
 [1]:https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 [2]:https://www.uu.se/en/department/physics-and-astronomy/research/materials-theory/code-development#svid12_21e11cd618fa418474b38bcd
