@@ -291,7 +291,7 @@ contains
 
             call calc_mavrg(Natom,Mensemble,pt_emomM(:,:,:,irep),mavg)
 
-            print '(a,i4,a,i4,a,f12.6a,f12.6,a,f12.6)', 'Replica #',irep, " List position: ", templist(irep), &
+            print '(a,i4,a,i4,a,f12.6,a,f12.6,a,f12.6)', 'Replica #',irep, " List position: ", templist(irep), &
                " Average magnetization:", mavg, " Temperature: ", iptemp(irep),"  Energy: " , repene(irep)/Natom
 
       end do
