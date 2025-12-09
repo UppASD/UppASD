@@ -67,6 +67,7 @@ contains
       use MomentData, only : emom, emomM, mmom
       use SystemData, only : coord
       use Qvectors,   only : q, nq
+      use de_minimizer, only : de_minimize_qvectors
 
       implicit none
       !
@@ -98,7 +99,15 @@ contains
             constellations,constellationsNeighType,Num_macro,cell_index,  &
             emomM_macro,macro_nlistsize,simid,q,nq)
          call plot_q3(Natom,Mensemble,coord,emom,emomM,mmom,simid)
-      elseif (mode=='S') then
+      elseif (qmode=='D') then
+         print *,'  Starting DE optimization of spin spiral...'
+         ! DE optimization
+         call de_wrapper(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
+            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
+            constellations,constellationsNeighType,Num_macro,cell_index,  &
+            emomM_macro,macro_nlistsize,simid)
+         ! `de_wrapper` now writes the appropriate restart (plot_q or plot_q3)
+      elseif (qmode=='S') then
          ! Spin spiral minimization measurement phase
          call qmc(Natom,Mensemble,NA,N1,N2,N3,coord, emomM,mmom,hfield,&
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
@@ -109,6 +118,92 @@ contains
       end if
    
    end subroutine qminimizer_wrapper
+
+   !-----------------------------------------------------------------------------
+   ! SUBROUTINE: de_wrapper
+   !> @brief Wrapper to call DE minimizer and store results in qminimizer variables
+   !> @author Anders Bergman
+   !-----------------------------------------------------------------------------
+   subroutine de_wrapper(Natom, Mensemble, NA, coord, emomM, mmom, hfield, &
+      OPT_flag, max_no_constellations, maxNoConstl, unitCellType, constlNCoup, &
+      constellations, constellationsNeighType, Num_macro, cell_index, &
+      emomM_macro, macro_nlistsize, simid)
+      
+      use InputData, only: N1, N2, N3
+      use MomentData, only: emom
+      use de_minimizer, only: de_minimize_qvectors, de_n_qvec, de_skyrmion_mode
+      
+      implicit none
+      
+      integer, intent(in) :: Natom, Mensemble, NA
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM
+      real(dblprec), dimension(Natom,Mensemble), intent(inout) :: mmom
+      real(dblprec), dimension(3), intent(in) :: hfield
+      logical, intent(in) :: OPT_flag
+      integer, intent(in) :: max_no_constellations
+      integer, dimension(Mensemble), intent(in) :: maxNoConstl
+      integer, dimension(Natom, Mensemble), intent(in) :: unitCellType
+      real(dblprec), dimension(ham%max_no_neigh, max_no_constellations, Mensemble), intent(in) :: constlNCoup
+      real(dblprec), dimension(3, max_no_constellations, Mensemble), intent(in) :: constellations
+      integer, dimension(ham%max_no_neigh, max_no_constellations, Mensemble), intent(in) :: constellationsNeighType
+      integer, intent(in) :: Num_macro
+      integer, dimension(Natom), intent(in) :: cell_index
+      real(dblprec), dimension(3, Num_macro, Mensemble), intent(in) :: emomM_macro
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize
+      character(len=8), intent(in) :: simid
+      
+      ! Local variables
+      real(dblprec), dimension(3, 3) :: q_result
+      real(dblprec), dimension(3, 3) :: s_result
+      real(dblprec), dimension(3) :: n_vec_result
+      real(dblprec) :: energy_result
+   integer :: iq
+   integer :: idebug_n, ii
+      
+      ! Run DE optimization
+      call de_minimize_qvectors(Natom, Mensemble, NA, coord, emomM, mmom, hfield, &
+         OPT_flag, max_no_constellations, maxNoConstl, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, Num_macro, cell_index, &
+         emomM_macro, macro_nlistsize, simid, q_result, s_result, n_vec_result, &
+         energy_result)
+      
+      ! Store results in qminimizer module variables
+      ! In skyrmion mode, store all 3 q and s vectors; otherwise store de_n_qvec
+      if (de_skyrmion_mode) then
+         do iq = 1, 3
+            q(:, iq) = q_result(:, iq)
+            s(:, iq) = s_result(:, iq)
+         end do
+      else
+         do iq = 1, de_n_qvec
+            q(:, iq) = q_result(:, iq)
+            s(:, iq) = s_result(:, iq)
+         end do
+      end if
+      n_vec = n_vec_result
+      
+      print '(a,f16.6)', '  DE optimization completed. Final energy (mRy): ', energy_result*1000.0_dblprec
+      
+      ! Initialize excluded atoms list if needed (required by plot writers)
+      if (.not. allocated(qm_excluded_atoms)) call qminimizer_build_exclude_list(Natom)
+
+      ! Write restart/plot using 3q writer when in skyrmion mode so qm_restart contains full 3q texture
+      if (de_skyrmion_mode) then
+         call plot_q3(Natom, Mensemble, coord, emom, emomM, mmom, simid)
+      else
+         call plot_q(Natom, Mensemble, coord, emom, emomM, mmom, simid)
+      end if
+
+      ! Debug: print first few atomic moments from emomM immediately after DE
+      ! This helps verify that the in-memory moments match the restart file
+      print *, 'DE_DEBUG: emomM sample after DE (ensemble=1):'
+      idebug_n = min(10, Natom)
+      do ii = 1, idebug_n
+         write(*,'(a,i5,a,3(f12.6,1x))') ' atom=', ii, ':', emomM(1,ii,1), emomM(2,ii,1), emomM(3,ii,1)
+      end do
+
+   end subroutine de_wrapper
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: sweep_q2

@@ -169,7 +169,7 @@ contains
 
 
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
-      call calc_external_fields(Natom, Mensemble, hfield, anumb, external_field, do_bpulse,sitefld,sitenatomfld)
+      call calc_external_fields(Natom, Mensemble, iphfield, anumb, external_field, do_bpulse,sitefld,sitenatomfld)
 
       ! Set up order for Metropolis sweeps
       call choose_random_atom_x(Natom,iflip_a)

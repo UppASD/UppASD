@@ -150,7 +150,8 @@ contains
          endif
          ! If there is no site dependent damping
       elseif (ip_mode=='H' .or. ip_mode=='M'.or.ip_mode=='I'.or.ip_mode=='D'&
-         .or.ip_mode=='R'.or.ip_mode=='L'.or.ip_mode=='Z'.or.ip_mode=='SX') then
+         .or.ip_mode=='R'.or.ip_mode=='L'.or.ip_mode=='Z'.or.ip_mode=='SX'.or.ip_mode=='DE') then
+            print *,'  Setting up uniform damping for the initial phase...'
          do i=1, ipnphase
             iplambda1_array(i,:)=iplambda1(i)
             iplambda2_array(i,:)=iplambda2(1)
