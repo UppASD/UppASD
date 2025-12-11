@@ -529,10 +529,13 @@ contains
          end if
 
          ! Dynamic jij scaling
-         if (jscaling_dynamic) then
+         if (jscaling_dynamic .and. .not. jscaling_pair) then
             !print *,'Applying dynamic J scaling at time:', mstep*delta_t
             call apply_dynamic_jscaling(mstep*delta_t)
             !print *,'Finished applying dynamic J scaling at time:', mstep*delta_t
+         else if (jscaling_pair) then
+            ! Pairwise dynamic J scaling
+            call apply_pair_jscaling(mstep*delta_t)
          end if
 
          if (time_dept_flag) then
