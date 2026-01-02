@@ -1,0 +1,96 @@
+name: Build wheels on Windows, optional cibuildwheel approach
+
+on:
+  release:
+  # push:
+  # pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build_wheels:
+    name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 64-bit Windows
+          - os: windows-2019
+            python: 37
+            platform: win_amd64
+          - os: windows-2019
+            python: 38
+            platform: win_amd64
+          - os: windows-2019
+            python: 39
+            platform: win_amd64
+          - os: windows-2019
+            python: 310
+            platform: win_amd64
+          - os: windows-2019
+            python: 311
+            platform: win_amd64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install mingw-w64 on Windows
+        if: ${{ runner.os == 'Windows' }}
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+  
+          pacboy: >-
+            toolchain:p
+            gcc-fortran:p
+            openblas:p
+            lapack:p
+            fftw:p
+            cmake:p
+            ninja:p
+
+      - name: Build and test wheels
+        uses: pypa/cibuildwheel@v2.18.1
+        with:
+          msystem: MINGW64
+        env:
+          CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform }}
+          CIBW_ENVIRONMENT_WINDOWS: >
+            PATH="$PATH;C:\\\\msys64\\mingw64\\bin" CC=gcc CXX=g++ FC=gfortran CMAKE_PREFIX_PATH="C:\msys64\mingw64" 
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: wheelhouse/*.whl
+
+  # build_sdist:
+  #   name: Build source distribution
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.10'
+
+  #     - name: Store artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         path: dist/*.tar.gz
+

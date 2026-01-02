@@ -1,9 +1,10 @@
 name: Build binaries for Linux
 
-on: [push, pull_request]
+on: [release]
+# on: [release, push, pull_request]
 
 jobs:
-  build_wheels:
+  build_binaries:
     name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
     runs-on: ${{ matrix.os }}
     continue-on-error: true
@@ -11,9 +12,10 @@ jobs:
       matrix:
         include:
           - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
+          - { icon: '🚧', os: ubuntu-latest,sys: linux, arch: i686 }
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Build binaries
         run: |
@@ -24,7 +26,7 @@ jobs:
              echo ${{runner.name}}
              cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: uppasd.${{matrix.sys}}.${{matrix.arch}}
           path: ./dist/

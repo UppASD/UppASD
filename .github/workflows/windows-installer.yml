@@ -1,0 +1,134 @@
+name: Windows Installer Build and Test
+
+on:
+  push:
+    branches: [ main, v7.0_rc1 ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'cpack/**'
+      - 'source/**'
+      - '.github/workflows/windows-installer.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'cpack/**'
+      - 'source/**'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      installer_type:
+        description: 'Installer type to build'
+        required: false
+        default: 'NSIS'
+        type: choice
+        options:
+        - NSIS
+        - WIX
+        - ZIP
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        installer_type: [NSIS, WIX]
+        include:
+          - installer_type: NSIS
+            installer_ext: exe
+          - installer_type: WIX
+            installer_ext: msi
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for version detection
+    
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc-fortran
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-openblas
+          mingw-w64-x86_64-fftw
+          git
+    
+    - name: Install NSIS (if needed)
+      if: matrix.installer_type == 'NSIS'
+      run: |
+        choco install nsis -y
+        echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH
+      shell: pwsh
+    
+    - name: Install WiX Toolset (if needed)
+      if: matrix.installer_type == 'WIX'
+      run: |
+        # Download and install WiX v3 (v4 has different syntax)
+        $wixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
+        $wixPath = "$env:TEMP\wix311-binaries.zip"
+        $wixDir = "C:\Program Files\WiX Toolset v3.11"
+        
+        Invoke-WebRequest -Uri $wixUrl -OutFile $wixPath
+        Expand-Archive -Path $wixPath -DestinationPath $wixDir
+        echo "$wixDir\bin" >> $env:GITHUB_PATH
+      shell: pwsh
+    
+    - name: Configure CMake with Library Bundling
+      shell: msys2 {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. \
+          -G "Ninja" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DINSTALLER_TYPE=${{ matrix.installer_type }} \
+          -DCMAKE_INSTALL_PREFIX="C:/Program Files/UppASD"
+    
+    - name: Build UppASD
+      shell: msys2 {0}
+      run: |
+        cd build
+        ninja
+    
+    - name: Create Windows Installer
+      shell: msys2 {0}
+      run: |
+        cd build
+        cpack -G ${{ matrix.installer_type }} --verbose
+    
+    - name: List build artifacts
+      shell: pwsh
+      run: |
+        Write-Host "Build directory contents:"
+        Get-ChildItem build -Recurse -Include "*.exe", "*.msi", "*.zip" | ForEach-Object {
+          Write-Host "$($_.Name): $($_.Length) bytes"
+        }
+    
+    - name: Find installer file
+      shell: pwsh
+      id: find_installer
+      run: |
+        $installerFile = Get-ChildItem build -Filter "*.${{ matrix.installer_ext }}" | Select-Object -First 1
+        if ($installerFile) {
+          $installerPath = $installerFile.FullName
+          echo "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
+          echo "installer_name=$($installerFile.Name)" >> $env:GITHUB_OUTPUT
+          Write-Host "Found installer: $installerPath"
+        } else {
+          Write-Error "Installer file not found"
+          exit 1
+        }
+    
+    - name: Upload installer artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: UppASD-Windows-${{ matrix.installer_type }}
+        path: ${{ steps.find_installer.outputs.installer_path }}
+        retention-days: 30

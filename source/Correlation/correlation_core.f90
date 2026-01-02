@@ -3,11 +3,11 @@
 !> and Fourier transforms \f$\mathbf{S}\left(\mathbf{q},\omega\right)\f$
 !> @details
 !> In this routine magnon disperion relations, magnon density of states, etc. are calculated from the
-!> time and spatially displaced correlation function \f$ C^k \left(\mathbf{r}-\mathbf{r'},t\right)\f$ which is defined as
-!> \f$ C^k (\mathbf{r}-\mathbf{r'},t) = \langle m^k_{\mathbf{r}}(t) m^k_{\mathbf{r'}}(0) \rangle - \langle m^k_{\mathbf{r}}(t) \rangle \langle m^k_{\mathbf{r'}}(0) \rangle\f$.
+!> time and spatially displaced correlation function \f$ C^k \left(\mathbf{r}-\mathbf{r´},t\right)\f$ which is defined as
+!> \f$ C^k (\mathbf{r}-\mathbf{r´},t) = \langle m^k_{\mathbf{r}}(t) m^k_{\mathbf{r´}}(0) \rangle - \langle m^k_{\mathbf{r}}(t) \rangle \langle m^k_{\mathbf{r´}}(0) \rangle\f$.
 !> Using this one can then calculate the dynamical structure factor \f$ \mathbf{S}\left(\mathbf{q},\omega\right)\f$, via a Fourier transforms
 !> of the correlation function
-!> \f$ S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r'}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r'})} \int_{-\infty}^{\infty} e^{i\omega t} C^k (\mathbf{r}-\mathbf{r'},t) dt\f$
+!> \f$ S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r´}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r´})} \int_{-\infty}^{\infty} e^{i\omega t} C^k (\mathbf{r}-\mathbf{r´},t) dt\f$
 !> @author
 !> A. Bergman, L. Bergqvist, J. Hellsvik, J. Chico
 !> @todo Automatic generation of q-points for do_sc="Y"

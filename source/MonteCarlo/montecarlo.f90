@@ -232,40 +232,8 @@ contains
                   loc_mag_fld = extfield + beff(:,iflip_a(i),k) + loc_demag_fld
                   if (mode=='H') then
                      ! Heat bath algorithm
-                     !call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, do_bq, do_chir, &
-                     !   emomM, emom, mult_axis, iflip_a(i),extfield, do_lsf, k, totfield,exc_inter,do_anisotropy)
-                     !call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),do_jtensor,      &
-                     !      do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
-                     !      external_field,time_external_field,beff,beff1,beff2,OPT_flag,                 &
-                     !      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-                     !      constellationsNeighType,mult_axis,henergy,Num_macro,cell_index,emomM_macro, &
-                     !      macro_nlistsize,NA,N1,N2,N3)
-                     if(do_jtensor==1) then
-                        call calculate_efield_tensor(Natom, Mensemble, &
-                           do_biqdm, do_bq, emomM, mult_axis,iflip_a(i),loc_mag_fld,k, totfield, do_dip,do_anisotropy)
-
-                     else
-
-                        call calculate_efield(Natom, Mensemble, conf_num,  do_dm,  do_pd, do_biqdm, &
-                           do_bq, do_ring, do_chir, do_sa, emomM, emom, mult_axis, iflip_a(i),loc_mag_fld, do_lsf, k, &
-                           totfield,exc_inter,do_anisotropy)
-                        !!! print '(a,3f12.6)', 'HB: ',totfield
-                        !!! call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,   &
-                        !!!    mmom,            &
-                        !!!    external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
-                        !!!    max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                        !!!    constellations,constellationsNeighType,henergy,    &
-                        !!!    Num_macro,cell_index,emomM_macro,macro_nlistsize,  &
-                        !!!    NA,N1,N2,N3)
-                        !!! totfield = beff(:,iflip_a(i),k)
-                        !! !print '(a,3f12.6)', 'SD: ',totfield
-                     end if
-
-                     ! Adding dipole field part
-                     !totfield=totfield - beff(:,iflip_a(i),k)
-                     !
-                     !print *,'TOT:', totfield
-                     !print *,'DEM:', loc_demag_fld
+                     call effective_field(iflip_a(i), k, totfield)
+                     
                      call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k), mmom(iflip_a(i),k), &
                         iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield, mflip(i,k))
 
@@ -697,6 +665,7 @@ contains
       !.. Executable statements
 
       ! First calculate effective field
+      totfield(:) = 0.0_dblprec
       befftemp(1) = 0.0_dblprec
       befftemp(2) = 0.0_dblprec
       befftemp(3) = 0.0_dblprec
@@ -704,9 +673,9 @@ contains
       ! Exchange
       do j=1,ham%nlistsize(iflip)
          !befftemp = befftemp +matmul(ham%j_tens(:,:,j,iflip),emomM(:,ham%nlist(j,iflip),k))
-         befftemp = befftemp +  ham%j_tens(:,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k)  &
-                             +  ham%j_tens(:,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k)  &
-                             +  ham%j_tens(:,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
+         befftemp = befftemp +  ham%j_tens(1,:,j,iflip)*emomM(1,ham%nlist(j,iflip),k)  &
+                             +  ham%j_tens(2,:,j,iflip)*emomM(2,ham%nlist(j,iflip),k)  &
+                             +  ham%j_tens(3,:,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
          !!! befftemp(1) = befftemp(1)+ ham%j_tens(1,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
          !!!    ham%j_tens(1,2,j,iflip)*emomM(2,ham%nlist(j,iflip),k) + ham%j_tens(1,3,j,iflip)*emomM(3,ham%nlist(j,iflip),k)
          !!! befftemp(2) = befftemp(2)+ ham%j_tens(2,1,j,iflip)*emomM(1,ham%nlist(j,iflip),k) + &
@@ -932,8 +901,10 @@ contains
          integer :: i_all, i_stat
 
          if(flag>0) then
-            allocate(iflip_a(natom),stat=i_stat)
-            call memocc(i_stat,product(shape(iflip_a))*kind(iflip_a),'iflip_a','allocate_mcdata')
+            if (.not. allocated(iflip_a)) then
+               allocate(iflip_a(natom),stat=i_stat)
+               call memocc(i_stat,product(shape(iflip_a))*kind(iflip_a),'iflip_a','allocate_mcdata')
+            end if
          else
             i_all=-product(shape(iflip_a))*kind(iflip_a)
             deallocate(iflip_a,stat=i_stat)

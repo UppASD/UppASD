@@ -217,13 +217,13 @@ contains
       write(ofileno2,'(a)') "#    iter                          q-vector                                 energy(mry)  "
      
     
-      if (qm_rot=='y'.or.qm_cellrot=='y') then
+      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
          !print '(3f12.5)', emomm
          allocate(emomm_start(3,natom,mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(emomm_start))*kind(emomm_start),'emomm_start','sweep_q2')
          emomm_start=emomm
 
-         if (qm_oaxis=='y') then
+         if (qm_oaxis=='Y') then
             mavg(1)=sum(emomm(1,:,:))/natom/mensemble
             mavg(2)=sum(emomm(2,:,:))/natom/mensemble
             mavg(3)=sum(emomm(3,:,:))/natom/mensemble
@@ -297,7 +297,7 @@ contains
          ! if qm_rot=y, take the original magnetic order and rotate each spin to 
          ! create spin-spirals in an disordered background
          ! otherwise rotate all spins to create pure spin-spirals
-         if (qm_rot=='y') then
+         if (qm_rot=='Y') then
             do ia=1,natom
                !
                call f_wrap_coord_diff(natom,coord,ia,countstart+1,srvec)
@@ -314,7 +314,7 @@ contains
                   emomm(1:3,ia,k)=emomm_start(:,ia,k)
                end if
             end do
-         elseif (qm_cellrot=='y') then
+         elseif (qm_cellrot=='Y') then
             do ia=1,natom
                !
                !ia_cell=ia/na+1
@@ -371,7 +371,7 @@ contains
                !print '(i7,3f12.6)', ia, emomm(1:3,ia,k)
             end do
          end if
-         !!! if (qm_rot=='y') then
+         !!! if (qm_rot=='Y') then
          !!! else
          !!!    do ia=1,natom
          !!!       !
@@ -448,7 +448,7 @@ contains
       close(ofileno)
       close(ofileno2)
       !
-      if (qm_rot=='y'.or.qm_cellrot=='y') then
+      if (qm_rot=='Y'.or.qm_cellrot=='Y') then
             do ia=1,natom
                !
                ia_cell=((ia-1)/na)*na+1

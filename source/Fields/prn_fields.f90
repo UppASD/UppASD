@@ -813,8 +813,8 @@ contains
 
       ! Write header to output files for first iteration
       if(abs(indxb_binteff (1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)') "# Iter.     Site     Replica      B_SD_x      B_SD_y      B_SD_z      B_SD       &
-            & B_SLD_x     B_SLD_y     B_SLD_z     B_SLD"
+         write (ofileno,'(a)') "# Iter.     Site     Replica      B_SD_x      B_SD_y      B_SD_z      B_SD       "//&
+            & "B_SLD_x     B_SLD_y     B_SLD_z     B_SLD"
       end if
 
       do k=1, bcount_binteff

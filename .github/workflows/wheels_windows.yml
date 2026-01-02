@@ -1,0 +1,71 @@
+name: Build wheels on windows using cibuildwheel
+
+on: [release]
+#on: [release , push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: msys2 {0}
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ windows-2019 ]
+        #os: [ubuntu-20.04, windows-2019, macOS-11]
+
+    steps:
+      - name: Provide gfortran (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-lapack
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            git 
+
+      - uses: actions/checkout@v4
+
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install cibuildwheel
+        run: |
+          python -m ensurepip 
+          python -m pip install git+https://github.com/anbergman/cibuildwheel.git@purepath
+          #python -m pip install cibuildwheel==2.10.1
+
+      - name: Build wheels
+        run: |
+          which gfortran
+          pipx run cibuildwheel --output-dir wheelhouse
+        # python -m cibuildwheel --output-dir wheelhouse
+        # to supply options, put them in 'env', like:
+        # env:
+        #   CIBW_SOME_OPTION: value
+        env:
+          #CIBW_SKIP: pp38-manylinux*
+          #CIBW_SKIP: pp39* pp31*
+          #CIBW_ENVIRONMENT_WINDOWS: >
+          #  PATH="$PATH;C:\\\\msys64\\mingw64\\bin"
+          CIBW_ENVIRONMENT_WINDOWS: >
+           CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran 
+          #CMAKE_PREFIX_PATH="C:\\\\msys64\\mingw64" CC=gcc CXX=g++ FC=gfortran 
+          #CIBW_ENVIRONMENT_WINDOWS: CC=gcc CXX=g++ FC=gfortran
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+
+      - uses: actions/upload-artifact@v4
+        with:
+          path: ./wheelhouse/*.whl

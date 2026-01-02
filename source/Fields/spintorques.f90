@@ -42,6 +42,7 @@ module SpinTorques
    real(dblprec) :: sot_field
    real(dblprec) :: thick_ferro  !< Thickness of ferromagnetic layer (t_f/alat)
    real(dblprec) :: sot_damping
+   real(dblprec) :: jscale       !< Scale factor for local current density
    real(dblprec), dimension(3) :: jvec !< Spin current vector
    real(dblprec), dimension(3) :: jdens !< Current density (A/m^2)
    real(dblprec) :: stt_dens_conv !< Conversion factor between jvec and jdens
@@ -472,6 +473,10 @@ contains
                read(ifile,*,iostat=i_err) jsite
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('jscale')
+               read(ifile,*,iostat=i_err) jscale
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('jvecfile')
                read(ifile,'(a)',iostat=i_err) cache
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -560,6 +565,7 @@ contains
       sot_site_file = 'site_pol'
       jvec          = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
       jdens         = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
+      jscale        = 1.0_dblprec
 
    end subroutine init_stt
 
