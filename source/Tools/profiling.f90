@@ -4,6 +4,7 @@
 !> @copyright
 !> GNU Public License.
 module Profiling
+   use omp_lib
    use Parameters
 
    implicit none
@@ -157,7 +158,6 @@ contains
       logical :: parallel,init
       integer, parameter :: ncat=14 ! define timing categories
       integer :: i,ii,nprocs
-      integer, external :: omp_get_num_threads,OMP_GET_NUM_PROCS
 
       !cputime routine gives a real
       real(kind=8) :: total,total0,time,time0

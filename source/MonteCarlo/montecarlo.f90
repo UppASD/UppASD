@@ -134,7 +134,6 @@ contains
       real(dblprec),dimension(natom,mensemble) :: flipprob_a ,newmmom_a,mflip
       real(dblprec),dimension(3,natom,mensemble) :: newmom_a,flipprob_g,flipprob_m
 
-      integer, external :: omp_get_thread_num
       real(dblprec) :: henergy
       real(dblprec), dimension(3) :: loc_demag_fld, loc_mag_fld
 
