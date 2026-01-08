@@ -1270,6 +1270,9 @@ contains
          ! Read the current density from file
          call read_jvecfile(Natom)
 
+         ! Resolve canonical current density (single source of truth)
+         call resolve_current_density(Natom)
+
          if (stt=='A'.or.(stt/='A'.and.skyno=='Y')) then
             call setup_stencil_mesh(Natom,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,            &
                ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
