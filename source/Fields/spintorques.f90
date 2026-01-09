@@ -80,6 +80,7 @@ module SpinTorques
    ! === LEGACY INPUT VARIABLES (kept for backward compatibility) ===
    real(dblprec), dimension(3) :: jvec !< Legacy spin current vector (dimensionless code units) - converted to jdens
    real(dblprec), dimension(3) :: jdens !< Current density input/output (A/m^2) - may be user input or converted from jvec
+   logical :: jdens_user_provided !< Flag: was jdens provided by user in input file? (tracked before set_curr_density conversion)
    real(dblprec) :: stt_dens_conv !< Conversion factor: jdens = stt_dens_conv * jvec (A/m^2 per code unit)
    ! === CANONICAL CURRENT DENSITY VARIABLES (single source of truth, used internally) ===
    logical :: have_jdens !< Flag: was jdens provided directly by user (vs converted from jvec)?
@@ -87,6 +88,7 @@ module SpinTorques
    real(dblprec), dimension(3) :: jdens_cell !< Canonical cell-uniform current density (A/m^2) - ALL torques use this
    real(dblprec), dimension(:,:), allocatable :: jdens_site !< Canonical site-resolved current density (3,Natom) (A/m^2) - used if available
    real(dblprec) :: b_rt_fac      !< Prefactor for Slonczewski STT
+   real(dblprec) :: b_zhang_li_fac !< Prefactor for Zhang-Li STT (atomistic Schieback formula with alat conversion)
    real(dblprec) :: sot_rt_fac      !< Prefactor for Spin Hall Torque (revamped SHE-torque)
    real(dblprec), dimension(3) :: she_sigma_vec !< Polarization vector for SHE
    real(dblprec), dimension(3) :: sot_pol_vec  !< Polarization vector for SOT
@@ -127,6 +129,7 @@ contains
    subroutine calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
       !
       use Gradients, only : differentiate_moments
+      use Constants, only : gama
       !
       implicit none
       !
@@ -143,60 +146,87 @@ contains
       real(dblprec) :: jmag, jdir_mag
       real(dblprec), dimension(3) :: jvec_i, jdir_i
       real(dblprec), parameter :: eps = 1.0e-15_dblprec
-      !
-      if(stt=='A') then
-         ! Zhang-Li gradient torque: uses canonical jdens
-         ! For each site, get current magnitude and direction from canonical source
-         
-         ! Ensure sitenatomjvec contains the canonical current direction for gradient calculation
-         ! The differentiate_moments routine expects direction (can be scaled)
+      real(dblprec) :: jmag_loc
+      real(dblprec), dimension(3) :: jtmp
+      real(dblprec), parameter :: eps_j = 1.0e-30_dblprec  ! tighter than eps for robust |j| test
+      
+      ! Guard: if no STT/SHE/SOT is enabled, exit early
+      if (stt /= 'A' .and. stt /= 'S' .and. stt /= 'F' .and. do_she /= 'Y' .and. do_sot /= 'Y') then
+         return
+      endif
+      
+      if (stt == 'A') then
+         ! Zhang–Li gradient STT (Schieback / Zhang–Li atomistic form)
+         !
+         ! We feed the gradient kernel with the drift-velocity-like coefficient in lattice units:
+         !
+         !   u_latt(i) = (b_zhang_li_fac / mmom_ref(i)) * jdens(i)
+         !
+         ! where b_zhang_li_fac must be defined consistently with your coordinate convention:
+         !
+         !   If coord is in lattice units (dimensionless) and b_zhang_li_fac was built as
+         !     b_zhang_li_fac = (P*g/(2e)) * (V_at/alat)
+         !   then this is correct as written (NO further /alat here).
+         !
+         ! The gradient routine returns dmomdr ≈ (u_latt · ∇_latt) m, with units 1/time.
+      
+         ! Build sitenatomjvec(:,iatom) = u_latt(:,iatom) (NOT normalized)
          if (use_jdens_site) then
-            ! Site-resolved: use jdens_site
-            do iatom=1, Natom
-               jmag = norm2(jdens_site(:,iatom))
-               if (jmag > eps) then
-                  sitenatomjvec(:,iatom) = jdens_site(:,iatom) / jmag  ! normalized direction
+            do iatom = 1, Natom
+               jmag_loc = norm2(jdens_site(:,iatom))
+               if (jmag_loc > eps_j .and. mmom(iatom,1) > eps) then
+                  sitenatomjvec(:,iatom) = b_zhang_li_fac * jdens_site(:,iatom) / mmom(iatom,1)
                else
                   sitenatomjvec(:,iatom) = 0.0_dblprec
                endif
             enddo
          else
-            ! Cell-uniform: use jdens_cell
-            jmag = norm2(jdens_cell)
-            if (jmag > eps) then
-               jdir_i = jdens_cell / jmag  ! normalized direction
+            jmag_loc = norm2(jdens_cell)
+            if (jmag_loc > eps_j) then
+               jtmp = jdens_cell
             else
-               jdir_i = 0.0_dblprec
+               jtmp = 0.0_dblprec
             endif
-            do iatom=1, Natom
-               sitenatomjvec(:,iatom) = jdir_i
+         
+            do iatom = 1, Natom
+               if (mmom(iatom,1) > eps) then
+                  sitenatomjvec(:,iatom) = b_zhang_li_fac * jtmp / mmom(iatom,1)
+               else
+                  sitenatomjvec(:,iatom) = 0.0_dblprec
+               endif
             enddo
          endif
-         
-         ! Gradient torque: calculates (j · ∇)m with direction from sitenatomjvec
-         call differentiate_moments(Natom, Mensemble,emom, dmomdr, sitenatomjvec)
-         
-         !$omp parallel do default(shared) private(j,k,iatom,jvec_i,jmag)
-         do j=1, Natom
-            ! Get current magnitude for this site from canonical source
-            if (use_jdens_site) then
-               jmag = norm2(jdens_site(:,j))
-            else
-               jmag = norm2(jdens_cell)
-            endif
-            
-            do k=1, Mensemble
-               ! Apply magnitude scaling and damping factors
-               btorque(1,j,k)=(lambda1_array(j)-adibeta)*dmomdr(1,j,k)*jmag
-               btorque(2,j,k)=(lambda1_array(j)-adibeta)*dmomdr(2,j,k)*jmag
-               btorque(3,j,k)=(lambda1_array(j)-adibeta)*dmomdr(3,j,k)*jmag
-               stt_prefac(j)=-(1.0_dblprec+adibeta*lambda1_array(j))*jmag
+      
+         ! Compute directional derivative using u_latt
+         call differentiate_moments(Natom, Mensemble, emom, dmomdr, sitenatomjvec)
+      
+         ! Apply the Zhang–Li algebra. dmomdr already includes the physical amplitude.
+         !$omp parallel do default(shared) private(j,k)
+         do j = 1, Natom
+            stt_prefac(j) = -(1.0_dblprec + adibeta * lambda1_array(j))
+            do k = 1, Mensemble
+               btorque(1,j,k) = (lambda1_array(j) - adibeta) * dmomdr(1,j,k)
+               btorque(2,j,k) = (lambda1_array(j) - adibeta) * dmomdr(2,j,k)
+               btorque(3,j,k) = (lambda1_array(j) - adibeta) * dmomdr(3,j,k)
             enddo
          enddo
          !$omp end parallel do
-         ! Calculates the m x (j*d/dr) m term
-         call mom_cross_dmomdr(Natom, Mensemble,emom)
-
+      
+         ! Adds the m × dmomdr term multiplied by stt_prefac(j)
+         call mom_cross_dmomdr(Natom, Mensemble, emom)
+         
+         ! Correct for gamma: The Zhang-Li prefactor uses the electron g-factor (g_e_abs)
+         ! without the gyromagnetic ratio (gamma). However, depondt.f90 multiplies all
+         ! effective fields by gamma during time evolution. To avoid double-counting gamma,
+         ! we divide btorque by gamma here. This ensures consistent scaling with the
+         ! Hamiltonian field (beff), which is NOT multiplied by gamma in its definition.
+         !$omp parallel do default(shared) private(j,k) collapse(2)
+         do k = 1, Mensemble
+            do j = 1, Natom
+               btorque(:,j,k) = btorque(:,j,k) / gama
+            enddo
+         enddo
+         !$omp end parallel do
          ! external_field=external_field+btorque
       else if(stt=='S') then
          ! Slonczewski torque a la Evans (J. Phys.: Condens. Matter 35 025801 (2023))
@@ -493,24 +523,18 @@ contains
             she_btorque=0.0_dblprec
          endif
 
+         ! Always allocate btorque (used by prn_fields even when STT is disabled)
+         allocate(btorque(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
+         btorque=0.0_dblprec
+         
          if (stt=='A') then
             allocate(stt_prefac(Natom),stat=i_stat)
             call memocc(i_stat,product(shape(stt_prefac))*kind(stt_prefac),'stt_prefac','allocate_stt_sata')
             stt_prefac=0.0_dblprec
-            allocate(btorque(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
-            btorque=0.0_dblprec
             allocate(dmomdr(3,Natom,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(dmomdr))*kind(dmomdr),'dmomdr','allocate_stt_data')
             dmomdr=0.0_dblprec
-         else if (stt=='S') then
-            allocate(btorque(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
-            btorque=0.0_dblprec
-         else if (stt=='F') then
-            allocate(btorque(3,Natom,Mensemble),stat=i_stat)
-            call memocc(i_stat,product(shape(btorque))*kind(btorque),'btorque','allocate_stt_data')
-            btorque=0.0_dblprec
          endif
          if (do_sot=='Y') then
             allocate(sot_btorque(3,Natom,Mensemble),stat=i_stat)
@@ -519,25 +543,23 @@ contains
          endif
 
       else
+         ! Always deallocate btorque (always allocated in flag==1 block)
+         i_all=-product(shape(btorque))*kind(btorque)
+         deallocate(btorque,stat=i_stat)
+         call memocc(i_stat,i_all,'btorque','allocate_stt_data')
+         
          if (do_she=='Y') then
             i_all=-product(shape(she_btorque))*kind(she_btorque)
             deallocate(she_btorque,stat=i_stat)
-            call memocc(i_stat,i_all,'btorque','allocate_stt_data')
+            call memocc(i_stat,i_all,'she_btorque','allocate_stt_data')
          endif
          if (stt=='A') then
             i_all=-product(shape(stt_prefac))*kind(stt_prefac)
             deallocate(stt_prefac,stat=i_stat)
-            call memocc(i_stat,i_all,'stt_prefac','allocate_stt,data')
-            i_all=-product(shape(btorque))*kind(btorque)
-            deallocate(btorque,stat=i_stat)
-            call memocc(i_stat,i_all,'btorque','allocate_stt_data')
+            call memocc(i_stat,i_all,'stt_prefac','allocate_stt_data')
             i_all=-product(shape(dmomdr))*kind(dmomdr)
             deallocate(dmomdr,stat=i_stat)
             call memocc(i_stat,i_all,'dmomdr','allocate_stt_data')
-         else if(stt=='F') then
-            i_all=-product(shape(btorque))*kind(btorque)
-            deallocate(btorque,stat=i_stat)
-            call memocc(i_stat,i_all,'btorque','allocate_stt_data')
          endif
          if(do_sot=='Y') then
             i_all=-product(shape(sot_btorque))*kind(sot_btorque)
@@ -600,6 +622,10 @@ contains
             case('jdens')
                read(ifile,*,iostat=i_err) jdens
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+               ! Track that jdens was provided by user (before set_curr_density might convert jvec)
+               if (norm2(jdens) > 1.0e-15_dblprec) then
+                  jdens_user_provided = .true.
+               endif
 
             case('jsite')
                read(ifile,*,iostat=i_err) jsite
@@ -702,6 +728,9 @@ contains
       jvec          = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
       jdens         = (/0.0_dblprec,0.0_dblprec,0.0_dblprec/)
       jscale        = 1.0_dblprec
+      jdens_user_provided = .false.
+      ! Track whether jdens was provided by user (before set_curr_density converts jvec)
+      jdens_user_provided = .false.
       ! Canonical current variables
       have_jdens    = .false.
       use_jdens_site = .false.
@@ -922,7 +951,7 @@ contains
       write(*,'(1x,a)') '========================================'
 
       ! Priority 1: User provided jdens directly (physical A/m^2)
-      if (norm2(jdens) > eps) then
+      if (jdens_user_provided) then
          jdens_cell = jdens
          have_jdens = .true.
          write(*,'(1x,a)') 'Current source: jdens (user-provided physical current density)'
@@ -930,9 +959,9 @@ contains
          write(*,'(1x,a,ES14.6,a)') '  |jdens|: ', norm2(jdens_cell), ' A/m^2'
          
          ! Check if both jdens and jvec were provided (warn about precedence)
-         if (norm2(jvec) > eps) then
-            write(*,'(1x,a)') 'WARNING: Both jdens and legacy jvec provided; using jdens and ignoring jvec'
-         endif
+         ! if (norm2(jvec) > eps) then
+         !    write(*,'(1x,a)') 'WARNING: Both jdens and legacy jvec provided; using jdens and ignoring jvec'
+         ! endif
 
       ! Priority 2: Legacy jvec or jvecfile (convert to physical jdens)
       else if (norm2(jvec) > eps .or. jsite == 'Y') then
@@ -972,7 +1001,7 @@ contains
          else
             jdens_cell = jvec * stt_dens_conv
             write(*,'(1x,a)') 'Current source: legacy jvec (converted to physical jdens)'
-            write(*,'(1x,a,ES14.6,a)') '  Conversion factor (stt_dens_conv): ', stt_dens_conv, ' A/m^2 per code unit'
+            write(*,'(1x,a,ES14.6,a)') '  Conversion factor (stt_dens_conv): ', stt_dens_conv, ' A/m^2 based on `alat`.'
             write(*,'(1x,a,3(ES14.6,1x),a)') '  jvec (code units): ', jvec(1), jvec(2), jvec(3)
             write(*,'(1x,a,3(ES14.6,1x),a)') '  jdens (A/m^2): ', jdens_cell(1), jdens_cell(2), jdens_cell(3)
             write(*,'(1x,a,ES14.6,a)') '  |jdens|: ', norm2(jdens_cell), ' A/m^2'
@@ -1038,125 +1067,162 @@ contains
    !> @author
    !> Jonathan Chico, Anders Bergman
    !---------------------------------------------------------------------------
+   !---------------------------------------------------------------------------
    subroutine set_curr_density(NA,Natom,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec,ammom_inp)
-      use InputData, only : N3
+      use InputData,   only : N3
       use Constants
       use math_functions, only : f_cross_product
-
       implicit none
 
       ! .. Input variables
-      integer, intent(in) :: NA  !< Number of atoms in one cell
-      integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Nchmax !< Max number of chemical components on each site in cell
-      integer, intent(in) :: conf_num !< Number of LSF configurations
-      real(dblprec), intent(inout) :: alat !< Lattice parameter
-      real(dblprec), intent(inout) :: spin_pol  !< Spin polarization of the current
-      real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
-      real(dblprec), dimension(3), intent(in) :: C2 !< Second lattice vector
-      real(dblprec), dimension(3), intent(in) :: C3 !< Third lattice vector
-      real(dblprec), dimension(3), intent(inout) :: jvec !< Input spin polarized current
-      real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp !< Magnetic moment directions from input (for alloys)
+      integer, intent(in) :: NA
+      integer, intent(in) :: Natom
+      integer, intent(in) :: Nchmax
+      integer, intent(in) :: conf_num
+      real(dblprec), intent(inout) :: alat
+      real(dblprec), intent(inout) :: spin_pol
+      real(dblprec), dimension(3), intent(in) :: C1, C2, C3
+      real(dblprec), dimension(3), intent(inout) :: jvec
+      real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp
 
       ! .. Local variables
-      real(dblprec) :: cell_vol  !< Volume of the unit cell
-      real(dblprec) :: total_mom !< Total magnetization of the unit cell
-      real(dblprec) :: xy_area   !< Area current passes through
-      real(dblprec) :: jmag      !< Magnitude of current density
-      real(dblprec), dimension(3) :: jdir !< Direction of current
-      real(dblprec), dimension(3) :: n_norm !< Normalized surface normal
-      real(dblprec), dimension(3) :: sigma_raw !< Raw sigma from cross product
+      real(dblprec) :: cell_vol          ! [m^3]
+      real(dblprec) :: V_at              ! [m^3] per atom in cell (magnetic atoms counted by NA)
+      real(dblprec) :: total_mom         ! [mu_B] sum of moments in the reference cell
+      real(dblprec) :: xy_area           ! [m^2]
+      real(dblprec) :: jmag              ! [A/m^2]
+      real(dblprec), dimension(3) :: jdir
+      real(dblprec), dimension(3) :: n_norm, sigma_raw
+      real(dblprec) :: detC              ! dimensionless determinant of C1,C2,C3
+      real(dblprec) :: g_factor          ! dimensionless electron g-factor (derived)
       real(dblprec), parameter :: eps = 1.0e-15_dblprec
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Calculation of the current density in the sample
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      ! If alat is not defined set it to BCC Fe
-      if (alat.eq.1._dblprec) then
-         alat=2.856e-10
-         write(*,'(1x,a,2x,G14.6,x,a)') 'No lattice constant given, assuming BCC Fe lattice constant: ',alat,'m'
+      !-----------------------------------------------------------------------
+      ! 0) Defaults / sanity
+      !-----------------------------------------------------------------------
+      if (alat <= 0.0_dblprec .or. abs(alat-1.0_dblprec) < eps) then
+         alat = 2.856e-10_dblprec
+         write(*,'(1x,a,2x,ES14.6,1x,a)') 'No lattice constant given, assuming BCC Fe lattice constant:', alat, 'm'
       endif
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Calculate the volume of the cell in meters
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      cell_vol=(C1(1)*C2(2)*C3(3)-C1(1)*C2(3)*C3(2)+&
-         C1(2)*C2(3)*C3(1)-C1(2)*C2(1)*C3(3)+&
-         C1(3)*C2(1)*C3(2)-C1(3)*C2(2)*C3(1))*alat**3
-
-      total_mom=sum(ammom_inp(:,1,1))
-
-      ! If the spin polarization is not set set it to one
-      if (spin_pol.eq.0.0_dblprec) then
-         spin_pol=1.0_dblprec
-         write(*,'(1x,a,2x,G14.6)') 'No polarization set, assuming 100% : ',spin_pol
+      if (spin_pol == 0.0_dblprec) then
+         spin_pol = 1.0_dblprec
+         write(*,'(1x,a,2x,F10.6)') 'No polarization set, assuming 100%:', spin_pol
       endif
-      
-      ! Calculate the current density conversion factor from jvec to jdens
-      ! j_dens = stt_dens_conv * jvec
+
+      !-----------------------------------------------------------------------
+      ! 1) Cell volume and "atomic volume" per simulated atom (within NA)
+      !    Here C1,C2,C3 are assumed dimensionless lattice vectors; alat sets meters.
+      !-----------------------------------------------------------------------
+      detC = (C1(1)*C2(2)*C3(3)-C1(1)*C2(3)*C3(2) + &
+              C1(2)*C2(3)*C3(1)-C1(2)*C2(1)*C3(3) + &
+              C1(3)*C2(1)*C3(2)-C1(3)*C2(2)*C3(1))
+
+      cell_vol = detC * alat**3         ! [m^3]
+      V_at     = cell_vol / real(NA, dblprec)
+
+      ! Total moment in the reference cell (user indicates ammom_inp(:,1,1) are magnitudes in mu_B)
+      total_mom = sum(ammom_inp(:,1,1)) ! [mu_B]
+
+      !-----------------------------------------------------------------------
+      ! 2) Legacy jvec -> physical jdens conversion factor (kept as in your design)
+      !
+      ! NOTE: This conversion is code-convention dependent. Keeping your existing
+      ! formula is fine if it reproduces legacy behavior. It is not used for new
+      ! Zhang–Li physics; Zhang–Li uses physical jdens directly.
+      !-----------------------------------------------------------------------
       stt_dens_conv = ev*total_mom*gama*alat/(cell_vol*spin_pol)
 
-      ! For now, assume current is in C3-direction i.e. area is C1 x C2
-      xy_area = alat**2 * norm2(f_cross_product(C1,C2)) 
-      
-      ! Calculate Meo prefactor for Slonczewski STT assuming current acts on full depth of system (NA * N3)
-      ! We do not divide by the local moment yet (done in slonczewski_field)
-      b_rt_fac = hbar * spin_pol / 2.0_dblprec / ev * xy_area / (NA * N3) / mub
+      !-----------------------------------------------------------------------
+      ! 3) Interface area (for SHE/SOT-style "slab" models): area spanned by C1,C2
+      !-----------------------------------------------------------------------
+      xy_area = alat**2 * norm2(f_cross_product(C1,C2))   ! [m^2]
 
-      ! Handle legacy jvec <-> jdens conversion (with precedence logic)
-      if (norm2(jdens).gt.eps) then
-         if (norm2(jvec).gt.eps) then
-            write(*,'(a)') 'NOTE: Both jvec and jdens are set; jdens takes precedence (jvec will be updated for consistency)'
-         end if
-         ! Update jvec for any legacy code that might still reference it
+      !-----------------------------------------------------------------------
+      ! 4) Slonczewski prefactor (Meo-style): ħ P /(2e) * (A_per_atom) / μB
+      !    Downstream you typically multiply by |j| and divide by local mmom.
+      !-----------------------------------------------------------------------
+      b_rt_fac = hbar * spin_pol / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub
+
+      !-----------------------------------------------------------------------
+      ! 5) Zhang–Li (Schieback / Zhang–Li) prefactor for lattice-unit gradients
+      !
+      ! Schieback: u = (P g μB)/(2 e Ms) * j
+      ! Atomistic: Ms ≈ (μ/ V_at), μ = mmom*μB  => μB cancels:
+      !     u_phys = (P g /(2e)) * (V_at/mmom) * j
+      !
+      ! Your coordinates are in lattice units, so the stencil computes ∂/∂(lattice-unit).
+      ! Therefore we must use u_latt = u_phys / alat.
+      !
+      ! We build a factor b_zhang_li_fac such that:
+      !     u_latt = (b_zhang_li_fac / mmom) * jdens
+      !
+      ! Formula (using electron g-factor g_e_abs from constants):
+      !   b_zhang_li_fac = (P * g_e_abs / (2e)) * (V_at/alat)
+      !
+      ! NOTE: This prefactor does NOT include gamma. After torques are computed and stored
+      ! in btorque(:,:,:), they will be divided by gamma (see below) to correct for the fact
+      ! that depondt.f90 will multiply them by gamma during time evolution. This ensures
+      ! consistent scaling across all field components (Hamiltonian beff, STT btorque, etc.).
+      !
+      ! Electron g-factor (dimensionless):
+      !   g_e_abs = 2.00231930436182 (CODATA 2018 value)
+      !-----------------------------------------------------------------------
+      b_zhang_li_fac = spin_pol * g_e_abs / (2.0_dblprec*ev) * (V_at/alat)
+
+
+      ! Units: (1/C) * (m^3/m) = m^2/C, so (b_zhang_li_fac * jdens) -> 1/s
+
+      !-----------------------------------------------------------------------
+      ! 6) Canonical jdens selection / legacy interoperability
+      !-----------------------------------------------------------------------
+      if (jdens_user_provided) then
+         if (norm2(jvec) > eps) then
+            write(*,'(1x,a)') 'NOTE: Both jvec and jdens are set; jdens takes precedence.'
+         endif
+         ! Keep legacy-consistency for any remaining code using jvec
          jvec = jdens / stt_dens_conv
-      else if (norm2(jvec).gt.eps) then
-         ! Convert legacy jvec to physical jdens
+      else if (norm2(jvec) > eps) then
          jdens = jvec * stt_dens_conv
       else
-         ! No current at all
          jdens = 0.0_dblprec
-      end if
+      endif
 
-      ! Print conversion info
-      write(*,'(1x,a,ES14.6,a)') 'Conversion factor (stt_dens_conv): ', stt_dens_conv, ' A/m^2 per code unit'
-      write(*,'(1x,a,2x,G14.6)') 'Spin polarization: ', spin_pol
-      write(*,'(1x,a,ES14.6,a)') 'Area current passes through: ', xy_area, ' m^2'
-      write(*,'(1x,a,ES14.6)') 'Slonczewski prefactor (b_rt_fac): ', b_rt_fac
+      !-----------------------------------------------------------------------
+      ! 7) Print summary
+      !-----------------------------------------------------------------------
+      write(*,'(1x,a,ES14.6,1x,a)') 'Cell volume:', cell_vol, 'm^3'
+      write(*,'(1x,a,ES14.6,1x,a)') 'Atomic volume V_at:', V_at, 'm^3'
+      write(*,'(1x,a,ES14.6)')      'Sum of moments in ref. cell (total_mom) [mu_B]:', total_mom
+      write(*,'(1x,a,ES14.6,1x,a)') 'Legacy conversion (stt_dens_conv):', stt_dens_conv, '(A/m^2) per legacy jvec-unit'
+      write(*,'(1x,a,ES14.6,1x,a)') 'Interface area (C1xC2):', xy_area, 'm^2'
+      write(*,'(1x,a,ES14.6)')      'Slonczewski prefactor (b_rt_fac):', b_rt_fac
+      write(*,'(1x,a,ES14.6,1x,a)') 'Zhang–Li lattice prefactor (b_zhang_li_fac):', b_zhang_li_fac, 'm^2/C'
+      write(*,'(1x,a,3(ES14.6,1x),a,ES14.6)') 'jdens [A/m^2]:', jdens(1), jdens(2), jdens(3), ' |j|=', norm2(jdens)
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! SHE sigma determination: sigma = n x j or sigma = jdir
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !-----------------------------------------------------------------------
+      ! 8) SHE sigma determination (unchanged logic; uses physical jdens)
+      !-----------------------------------------------------------------------
       jmag = norm2(jdens)
-      
+
       if (jmag <= eps) then
-         ! No current: disable SHE
          she_sigma_vec = 0.0_dblprec
-         sot_rt_fac = 0.0_dblprec
-         if (do_she == 'Y') then
-            write(*,'(1x,a)') 'WARNING: SHE enabled but |jdens| ~ 0; SHE torque will be zero'
-         endif
+         sot_rt_fac    = 0.0_dblprec
+         if (do_she == 'Y') write(*,'(1x,a)') 'WARNING: SHE enabled but |jdens| ~ 0; SHE torque will be zero'
       else
-         ! Normalize current direction
          jdir = jdens / jmag
-         
-         ! Check if she_n_vec is provided
+
          if (norm2(she_n_vec) > eps) then
-            ! Use sigma = n x j formalism
             n_norm = she_n_vec / norm2(she_n_vec)
             sigma_raw = f_cross_product(n_norm, jdir)
-            
+
             if (norm2(sigma_raw) <= eps) then
-               ! n parallel to j: undefined sigma
                she_sigma_vec = 0.0_dblprec
-               sot_rt_fac = 0.0_dblprec
-               if (do_she == 'Y') then
-                  write(*,'(1x,a)') 'WARNING: SHE: she_n_vec parallel to jdens; sigma undefined; torque disabled'
-               endif
+               sot_rt_fac    = 0.0_dblprec
+               if (do_she == 'Y') write(*,'(1x,a)') 'WARNING: SHE: she_n_vec parallel to jdens; sigma undefined; torque disabled'
             else
                she_sigma_vec = sigma_raw / norm2(sigma_raw)
-               sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * xy_area / (NA * N3) / mub * jmag
+               sot_rt_fac = hbar * SHE_angle / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub * jmag
                if (do_she == 'Y') then
                   write(*,'(1x,a)') 'SHE sigma mode: sigma = n × j'
                   write(*,'(1x,a,3(G14.6,1x))') '  n (normalized): ', n_norm
@@ -1166,9 +1232,8 @@ contains
                endif
             endif
          else
-            ! No she_n_vec: interpret jdens direction as sigma (legacy behavior)
             she_sigma_vec = jdir
-            sot_rt_fac = hbar * SHE_angle / 2.0_dblprec / ev * xy_area / (NA * N3) / mub * jmag
+            sot_rt_fac = hbar * SHE_angle / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub * jmag
             if (do_she == 'Y') then
                write(*,'(1x,a)') 'SHE sigma mode: sigma = jdir (no she_n_vec provided)'
                write(*,'(1x,a,3(G14.6,1x))') '  sigma (= j direction): ', she_sigma_vec
@@ -1177,9 +1242,7 @@ contains
          endif
       endif
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! End of calculation of the current density in the sample
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    end subroutine set_curr_density
+
 
 end module SpinTorques

@@ -1257,10 +1257,11 @@ contains
          write (*,'(a)') ' done.'
       end if
 
+      ! Always allocate STT data (needed by prn_fields regardless of STT status)
+      call allocate_stt_data(Natom,Mensemble,flag=1)
+
       if (stt/='N'.or.do_she/='N'.or.do_sot/='N') then
 
-         ! Call to allocate the needed stt data
-         call allocate_stt_data(Natom,Mensemble,flag=1)
          if (stt/='N' .or. do_she/='N') then
             ! Call the printing of the current density in proper units
             call set_curr_density(NA,Natom,Nchmax,conf_num,alat,spin_pol,C1,C2,C3,jvec, &
