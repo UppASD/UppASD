@@ -6,7 +6,7 @@
 
 enum class MeasurementType : uint8_t
 {
-    AverageMagnetization, BinderCumulant, SkyrmionNumber
+    AverageMagnetization, BinderCumulant, SkyrmionNumber, Energy
 };
 
 enum class SkyrmionMethod : uint8_t
@@ -16,28 +16,15 @@ enum class SkyrmionMethod : uint8_t
     Triangulation
 };
 
-
-//struct MeasurementConfig
-//{
-//    // Average magnetization
-//    bool do_avrg{};
-//    size_t avrg_step{};
-//    size_t avrg_buff{};
-//
-//    // Binder cumulant
-//    bool do_cumu{};
-//    size_t cumu_step{};
-//    size_t cumu_buff{};
-//
-//    // Skyrmion
-//    SkyrmionMethod skyno_method{SkyrmionMethod::None};
-//    size_t skyno_step{};
-//    size_t skyno_buff{};
-//
-//    // build this once from FortranData in a small helper
-//    static MeasurementConfig makeConfigFromFortran();
-//};
-
+inline SkyrmionMethod skyrmionMethodFromFlag(char c)
+{
+    switch (c)
+    {
+        case 'Y': return SkyrmionMethod::BruteForce;
+        case 'T': return SkyrmionMethod::Triangulation;
+        default: return SkyrmionMethod::None;
+    }
+}
 
 struct AverageMagnetizationData
 {
@@ -47,7 +34,6 @@ struct AverageMagnetizationData
     real m{};
     real m_stdv{};
 };
-
 
 struct BinderCumulantData
 {
@@ -74,3 +60,12 @@ struct SkyrmionNumberData
     real skyno_stdv{};
 };
 
+struct EnergyData
+{
+    real total;
+    real exchange;
+    real anisotropy;
+
+    // fields below not yet implemented
+    real DM, PD, BiqDM, BQ, Dip, Zeeman, LSF, Chir, Ring, SA;
+};

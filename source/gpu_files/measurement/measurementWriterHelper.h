@@ -76,3 +76,18 @@ template<> struct MeasurementTraits<SkyrmionNumberData>
     }
 };
 
+
+template<> struct MeasurementTraits<EnergyData>
+{
+    static constexpr std::string_view filebase = "totenergy";
+
+    static constexpr std::array<std::string_view, 14> columns = {
+        "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ","Dip","Zeeman","LSF","Chir","Ring","SA"
+    };
+
+    static void print(const EnergyData& d, std::ostream& out, int width)
+    {
+        write_cols(out, width, d.total, d.exchange, d.anisotropy,
+                d.DM, d.PD, d.BiqDM, d.BQ, d.Dip, d.Zeeman, d.LSF, d.Chir, d.Ring, d.SA);
+    }
+};

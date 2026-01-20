@@ -249,6 +249,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.b2eff.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.eneff.Allocate( static_cast <long int>(3), N, M);
+    gpuLattice.energy.Allocate(1);
     gpuLattice.emomM.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.emom.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.emom2.Allocate( static_cast <long int>(3), N, M);
@@ -309,7 +310,8 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuHamiltonian.extfield.empty() || 
                     gpuLattice.beff.empty() || 
                     gpuLattice.b2eff.empty() ||
-                    gpuLattice.eneff.empty() || 
+                    gpuLattice.eneff.empty() ||
+                    gpuLattice.energy.empty() ||
                     gpuLattice.emomM.empty() || 
                     gpuLattice.emom.empty() || 
                     gpuLattice.emom2.empty() || 
@@ -348,7 +350,8 @@ void GpuSimulation::release() {
    gpuHamiltonian.extfield.Free();  
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
-    gpuLattice.eneff.Free();   
+    gpuLattice.eneff.Free();
+    gpuLattice.energy.Free();
     gpuLattice.emomM.Free();  
     gpuLattice.emom.Free();  
     gpuLattice.emom2.Free();   

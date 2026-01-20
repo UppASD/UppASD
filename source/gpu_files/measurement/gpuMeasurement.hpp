@@ -3,6 +3,7 @@
 // Ivan Zivkovic, ivanzi@kth.se
 // Requires C++ and CUDA 20 support
 
+#include "gpuStructures.hpp"
 #include "measurable.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
@@ -12,34 +13,32 @@
 #include "measurementData.h"
 #include "kernels.hpp"
 #include "gpu_wrappers.h"
+#include "gpuParallelizationHelper.hpp"
+#include "gpuCommon.hpp"
 
 
 class GpuMeasurement : public Measurable
 {
 public:
-    GpuMeasurement(const GpuTensor<real, 3>& emomM,
-                    const GpuTensor<real, 3>& emom,
-                    const GpuTensor<real, 2>& mmom,
-                    bool alwaysCopy = false);
+    GpuMeasurement(const deviceLattice& gpuLattice, bool alwaysCopy = false);
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
 
-
 private:
-    bool isAllocated;
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
+    void measureEnergy(size_t mstep);
     void release();
-    
+    static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
+
 private:
-    const GpuTensor<real, 3>& emomM;
-    const GpuTensor<real, 3>& emom;
-    const GpuTensor<real, 2>& mmom;
+    bool isAllocated;
+    const deviceLattice& gpuLattice;
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
@@ -93,5 +92,11 @@ private:
     const dim3 skyno_kernel_threads;
     const dim3 skyno_kernel_blocks;
 
+    // Energy
+    const bool plotenergy;
+    GpuVector<EnergyData> energy_buff_gpu;
+    Vector<EnergyData> energy_buff_cpu;
+    Vector<size_t> energy_iter;
+    size_t energy_count = 0;
 };
 

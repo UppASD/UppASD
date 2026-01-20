@@ -21,11 +21,7 @@ public:
         if (*FortranData::do_cuda_measurements == 'Y')
         {
             std::cout << "GpuMeasurement used" << std::endl;
-            return std::make_unique<GpuMeasurement>(
-                gpuLattice.emomM,
-                gpuLattice.emom,
-                gpuLattice.mmom
-            );
+            return std::make_unique<GpuMeasurement>(gpuLattice);
         }
         else
         {

@@ -6,6 +6,7 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
+#include "measurementData.h"
 #if defined (HIP_V)
 #include <hip/hip_runtime.h>
 #elif defined(CUDA_V)
@@ -344,6 +345,7 @@ class GpuHamiltonianCalculations::HeisgeJijAniso : public ParallelizationHelper:
 private:
    real* beff;
    real* eneff;
+   GpuVector<EnergyData>& energy;
    const real* coup;
    const unsigned int* pos;
    const real* emomM;
@@ -356,8 +358,10 @@ private:
    const unsigned int* aham;
 
 public:
-   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const Anisotropy& aniso, const HamRed& redHam) {
+   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuVector<EnergyData>& p_energy, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
+             const Anisotropy& aniso, const HamRed& redHam)
+             :       energy(p_energy)
+    {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -380,13 +384,6 @@ public:
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
-      real c = (real)0.0;
-      unsigned int x_offset = (unsigned int) 0;
-
-      real Sx = (real)0.0;
-      real Sy = (real)0.0;
-      real Sz = (real)0.0;
-
       real ax = (real)0.0;
       real ay = (real)0.0;
       real az = (real)0.0;
@@ -405,8 +402,8 @@ public:
       const real* my_emomM = &emomM[ensemble * N * 3];
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
-         x_offset = site_pos[i * N] * 3;
-         c = site_coup[i * NH];
+         const auto x_offset = site_pos[i * N] * 3;
+         const auto c = site_coup[i * NH];
          // printf("%f\n", c);
          x += c * my_emomM[x_offset + 0];
          y += c * my_emomM[x_offset + 1];
@@ -414,9 +411,9 @@ public:
       }
 
       //Anisotropy
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
+      const real Sx = emomM[atom * 3 + 0];
+      const real Sy = emomM[atom * 3 + 1];
+      const real Sz = emomM[atom * 3 + 2];
 
       // direction of uniaxial anisotropy
       ex = eaniso[0 + site * 3];
@@ -473,6 +470,43 @@ public:
       eneff[atom * 3 + 0] = x + ax_en + ext_f[atom * 3 + 0];
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
+
+       __shared__ EnergyData smem[THREAD_COUNT];
+       smem[threadIdx.x].exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+       smem[threadIdx.x].anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+
+       if (threadIdx.x == 0 && blockIdx.x == 0)
+       {
+           energy(0) = {};
+       }
+       __syncthreads();
+
+       for (int s=1; s < blockDim.x; s *=2)
+       {
+           int index = 2 * s * threadIdx.x;
+           if (index < blockDim.x)
+           {
+               assert(index < THREAD_COUNT);
+               assert(index+s < THREAD_COUNT);
+
+               smem[index].exchange += smem[index + s].exchange;
+               smem[index].anisotropy += smem[index + s].anisotropy;
+           }
+           __syncthreads();
+       }
+
+       const real mub = 9.274009994e-24;
+       const real mry = 2.179872325e-21;
+       const real fcinv = mub / mry;
+       if (threadIdx.x == 0)
+       {
+           const real exchange = (smem[0].exchange / static_cast<real>(N)) * fcinv;
+           const real anisotropy = smem[0].anisotropy / static_cast<real>(N);
+           const real total = exchange + anisotropy;
+           atomicAdd(&energy(0).exchange, exchange);
+           atomicAdd(&energy(0).anisotropy, anisotropy);
+           atomicAdd(&energy(0).total, total);
+       }
    }
 };
 
@@ -1077,7 +1111,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice) {
       }
       else{
          if(do_aniso !=0){
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, ex, dm, aniso, redHam));
+            parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.energy, gpuLattice.emomM, external_field, ex, dm, aniso, redHam));
          }
          else{
             parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, ex, redHam));

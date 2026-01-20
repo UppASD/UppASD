@@ -5,6 +5,7 @@
 #include "real_type.h"
 
 #include "gpu_wrappers.h"
+#include "measurementData.h"
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
@@ -143,7 +144,7 @@ struct deviceHamiltonian {
    GpuTensor<real, 1>             sb;
    GpuTensor<real, 3>             extfield;
 }; 
-   
+
 struct deviceLattice {
    GpuTensor<real, 3> beff;
    GpuTensor<real, 3> b2eff;
@@ -159,6 +160,7 @@ struct deviceLattice {
    GpuTensor<real, 1> temperature;
    GpuTensor<real, 1> ipTemp;
    GpuTensor<real, 1> ipTemp_array;
+   GpuVector<EnergyData> energy;
 };
 
 struct deviceMeasurables {    
