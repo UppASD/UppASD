@@ -10,6 +10,13 @@ module QHB
    character(LEN=2) :: qhb_mode                !< Temperature control of QHB (TM/TR/MT)
    real(dblprec)    :: tcurie
 
+   ! Mixing scheme flags
+   character(LEN=1) :: do_qhb_mix                  !< Do mixing statistics scheme (N/Y)
+   character(LEN=2) :: qhb_mix_mode                !< Mixing function (LI/...) only LI/ implemented
+   real(dblprec) :: qhb_Tmix = 0                  !< Mix sampling temperature (dE dependent)
+   real(dblprec) :: qhb_Tmix_buff = 0
+   real(dblprec) :: qhb_Tmix_prn = -1
+
    public
 
 contains
@@ -137,6 +144,89 @@ contains
       qhb_mode= 'TC'
       tcurie=0.01
    end subroutine init_qhb
+
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !> Mixing Quantum-Classic statistics scheme for Metropolis !
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   
+   subroutine init_mix()
+      !
+      implicit none
+      do_qhb_mix = 'N'
+      qhb_mix_mode= 'LI'
+   end subroutine init_mix
+   
+   subroutine mix_beta(temperature,temprescale,de,beta_new)
+    ! Mixing statistics scheme for Metropolis algorithm where the probability
+    ! of acceptance of the new state (W) is given by:
+    !
+    ! W = alpha*exp(de*beta) + (1-alpha)*exp(de*beta/temprescale)
+    ! 
+    ! So both quantum and classical statistics are considered.
+    !
+    ! Effectively, a beta_mix is calculated so:
+    ! exp(de*beta_mix) = alpha*exp(de*beta)+(1-alpha)*exp(de*beta/temprescale)
+  
+      use Constants, only : k_bolt ! Ry units
+      use AMS, only : tcmfa, tcrpa
+  
+      real(dblprec),intent(in) :: temperature ! Simulation temperature
+      real(dblprec),intent(in) :: temprescale ! Temperature rescaling factor
+      real(dblprec),intent(in) :: de ! Energy diference in Ry
+      real(dblprec),intent(out) :: beta_new !Beta mix [output]
+
+      real(dblprec) :: tcrit ! Temperature free parameter in mixing
+      real(dblprec) :: alpha ! Mixing factor
+      real(dblprec) :: beta_qhb, beta_classic
+      integer :: i
+
+      beta_qhb=1.0_dblprec/k_bolt/(temprescale*temperature+1.0d-15)
+      beta_classic=1.0_dblprec/k_bolt/(temperature+1.0d-15)
+      
+      ! Mixing functions - control how quantum W and classic W are mixed
+      ! 'LI' - Linear mixing
+      ! 'SI' - TODO(?) Sigmoide function would imply more free parameters :(
+      !
+      ! Linear Mixing
+      if (qhb_mix_mode=='LI') then
+         if (qhb_mode=='TM') then
+            tcrit=tcmfa
+         elseif(qhb_mode=='TR') then
+            tcrit=tcrpa
+         elseif(qhb_mode=='TC') then
+            tcrit=tcurie
+         endif
+
+         if (temperature<=tcrit) then
+            alpha=temperature/tcrit
+         elseif (temperature>tcrit) then
+            alpha=1
+         endif
+
+      endif
+      ! end of mixing functions block  
+
+      !beta_new=log(alpha*(exp(-de*(beta_classic-beta_qhb))-1)+1)
+      beta_new=log(alpha*(exp(-beta_classic*de)-exp(-beta_qhb*de)) + exp(-beta_qhb*de))
+      beta_new=-(beta_new/de)
+      
+      ! Calculates and stores Tmix from beta_new
+      qhb_Tmix=(1.0_dblprec/k_bolt/beta_new) 
+
+   end subroutine mix_beta
+
+   subroutine qhb_Tmix_cumu(mcmstep,cumu_step)
+       integer, intent(in) :: mcmstep, cumu_step
+
+       qhb_Tmix_buff = qhb_Tmix_buff + qhb_Tmix
+       
+       if (mod(mcmstep, cumu_step) == 0) then
+          qhb_Tmix_prn = qhb_Tmix_buff/cumu_step
+          qhb_Tmix_buff = 0
+       endif
+
+   end subroutine qhb_Tmix_cumu
+
 
 
 end module qhb
