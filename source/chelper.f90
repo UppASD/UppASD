@@ -15,7 +15,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array
    use Spinicedata,      only : vert_ice_coord
@@ -24,7 +24,6 @@ module Chelper
 
    use Measurements,     only : measure, do_measurements, flush_measurements, calc_mavrg
    use UpdateMoments,    only : moment_update
-
 
    use Correlation
    use Correlation_core
@@ -63,7 +62,7 @@ contains
 
    !---------------------------------------------------------------------
    !> @brief
-   !> Calculates and returns the magnetic avergage to C++ simulation.
+   !> Calculates and returns the magnetic average to C++ simulation.
    !> Needed so that the right mavrg and bindc is printed during simulation.
    !> Binderc is used as a pointer and is only updated if not already calculated
    !> elsewhere.
@@ -138,7 +137,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-         traj_step,do_cumu,cumu_step,logsamp,do_copy)
+         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
    end subroutine fortran_do_measurements
 
 
@@ -171,7 +170,7 @@ contains
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble,        &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar,    &
-         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, ham_inp%do_anisotropy)
+         initexc,ham_inp%do_dm,ham%max_no_dmneigh, ham_inp%do_jtensor, ham_inp%do_anisotropy, nHam)
 
       !call FortranData_setMatrices(ham%ncoup(1,1,1),ham%nlist(1,1),ham%nlistsize(1),&
       !   beff(1,1,1),b2eff(1,1,1),emomM(1,1,1),emom(1,1,1),emom2(1,1,1),            &
@@ -182,7 +181,7 @@ contains
       call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
          beff,b2eff,emomM,emom,emom2,            &
          external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb)
+         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb, ham%aHam)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 

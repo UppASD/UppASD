@@ -340,7 +340,8 @@ contains
       !FACTOR=SQRT(EVTOJ/((1E-10)**2)/AMTOKG)
       !W*1000*PLANK/EVTOJ/2/PI
 
-      energyfac = sqrt( ev / (angstrom**2 * amu) ) * 1000 * hbar / (ev * 2 * pi)
+      !energyfac = sqrt( ev / (angstrom**2 * amu) ) * 1000 * hbar / (ev * 2 * pi)
+      energyfac =sqrt( mRy / (angstrom**2 * amu) ) * (1000 / ev ) * hbar ! / ( 2.0_dblprec * pi))
       write(*,*) 'energyfac ', energyfac
 
       ! before printing the eigenvalues of each matrix is sorted by size
@@ -505,7 +506,7 @@ contains
    !    implicit none
    !    integer :: j,i,k,file_id
    !    character(LEN=20) :: filename
-   !    filename='ams.eigenvectors.out
+   !    filename='ams.eigenvectors.out'
    !
    !    file_id = 33
    !

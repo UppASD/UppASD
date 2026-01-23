@@ -23,6 +23,8 @@ module diamag
    complex(dblprec), dimension(:,:,:), allocatable :: ektij
    !
    real(dblprec), dimension(:,:), allocatable :: nc_eval_q   !< Eigenvalues from NC-AMS
+   real(dblprec), dimension(:,:), allocatable :: nc_eval_qchern   !< Eigenvalues from NC-AMS
+   complex(dblprec),  dimension(:,:,:), allocatable :: nc_evec_qchern   !< Eigenvalues from NC-AMS in Chern
    real(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvalues from NC-AMS
    !
    character(len=1) :: do_diamag       !< Perform frequency based spin-correlation sampling (Y/N/C)
@@ -39,9 +41,9 @@ module diamag
 
    private
    ! public subroutines
-   public :: do_diamag, read_parameters_diamag
-   !public :: setup_diamag, setup_finite_hamiltonian, setup_infinite_hamiltonian
-   public :: setup_tensor_hamiltonian!, setup_altern_hamiltonian
+   public :: do_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
+             find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
+   public :: setup_tensor_hamiltonian, nc_evec_qchern, nc_eval_qchern
    public :: diamag_qvect
 
 contains
@@ -62,23 +64,22 @@ contains
    end subroutine setup_diamag
 
    !> Set up the Hamiltonian for first cell
-   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom)
+   subroutine setup_tensor_hamiltonian(NA,Natom, Mensemble, simid, emomM, mmom, q_vect, nq,flag)
 
       use Constants
       use AMS, only : magdos_calc, printEnergies
-      use Qvectors,        only : q,nq
-      !use math_functions, only : f_cross_product
-      !use Correlation,        only : q,nq
       !
       implicit none
       !
       integer, intent(in) :: NA  !< Number of atoms in one cell
+      integer, intent(in) :: flag !< Type of calculation (0=NC-AMS, 1=Chern number)
       integer, intent(in) :: Natom     !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       character(len=8), intent(in) :: simid !< Name of simulation
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment magnitude
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM    !< Current magnetic moment vector
-
+      real(dblprec), dimension(3,nq), intent(in) :: q_vect !< Qpoints
+      integer, intent(in) :: nq    !< Number of qpoints
       !
       real(dblprec), dimension(3) :: z
       !
@@ -95,9 +96,11 @@ contains
       !
       real(dblprec) :: msat,tcmfa,tcrpa
       !
-      character(LEN = 22) :: ncams_file
+      character(LEN = 25) :: ncams_file
       !
-      print '(1x,a)', 'Calculating LSWT magnon dispersions'
+      if (flag == 0) then
+        print '(1x,a)', 'Calculating LSWT magnon dispersions'
+      end if
 
       ! Hamiltonian dimension = 4x number of atoms
       hdim=2*NA
@@ -129,11 +132,18 @@ contains
       !
       allocate(h_k(hdim,hdim),stat=i_stat)
       call memocc(i_stat,product(shape(h_k))*kind(h_k),'h_k','setup_tensor_hamiltonian')
-      allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
-      allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
-      call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
-      !
+      if (flag == 0) then
+        allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
+        allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
+      else
+        allocate(nc_eval_qchern(hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','setup_tensor_hamiltonian')
+        allocate(nc_evec_qchern(hdim,hdim,nq_ext),stat=i_stat)
+        call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','setup_tensor_hamiltonian')
+      end if
+         !
       allocate(eig_vec(hdim,hdim),stat=i_stat)
       call memocc(i_stat,product(shape(eig_vec))*kind(eig_vec),'eig_vec','setup_tensor_hamiltonian')
       allocate(eig_val(hdim),stat=i_stat)
@@ -143,7 +153,7 @@ contains
 
       im=(0.0_dblprec,1.0_dblprec)
 
-      call clone_q(nq,q,nq_ext,q_ext,diamag_qvect)
+      call clone_q(nq,q_vect,nq_ext,q_ext,diamag_qvect)
 
       z(1)=0.0_dblprec;z(2)=0.0_dblprec;z(3)=1.0_dblprec
 
@@ -177,7 +187,7 @@ contains
                B_k(ia,ja) =B_k(ia,ja) +0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq+3*nq),uj)
                C_k(ia,ia) =C_k(ia,ia) +1.0_dblprec*mmom(ja,1)*sJs(vi,Jtens_q(:,:,ia,ja,0),vj)
 
-               ! Also mount S' for later correlation function use 
+               ! Also mount S´ for later correlation function use 
                do alfa=1,3
                   do beta=1,3
                      ! Y(alfa,beta,k)
@@ -198,7 +208,7 @@ contains
             end do
          end do
 
-         ! Hamiltonian h = [A(k)-C B(k) ; B'(k) A(-k)+C ]
+         ! Hamiltonian h = [A(k)-C B(k) ; B´(k) A(-k)+C ]
          h_k=0.0_dblprec
          do ia=1,NA
             do ja=1,NA
@@ -221,13 +231,13 @@ contains
 
          !!! write(2001,*) iq
          !!! write(2001,*) 'A'
-         !!! write(2001,'(2f12.6)')A_k
+         !!! write(2001,'(12f12.6)')A_k
          !!! write(2001,*) 'B'
-         !!! write(2001,'(2f12.6)')B_k
+         !!! write(2001,'(12f12.6)')B_k
          !!! write(2001,*)'C'
-         !!! write(2001,'(2f12.6)')C_k
+         !!! write(2001,'(12f12.6)')C_k
          !!! write(2001,*)'h'
-         !!! write(2001,'(4f12.6)')h_k
+         !!! write(2001,'(24f12.6)')h_k
 
          !if (iq<=nq) then 
          !   eig_fcinv = 0.5_dblprec*mub/mry
@@ -248,43 +258,48 @@ contains
          call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
-         nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
-         nc_evec_q(:,:,iq)=abs(eig_vec)
-
+         if (flag==0) then
+           nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+           nc_evec_q(:,:,iq)=abs(eig_vec)
+         else
+           nc_eval_qchern(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+           nc_evec_qchern(:,:,iq)=eig_vec
+         end if
       end do
 
+      if (flag==0) then
+        ncams_file = 'ncams.'//trim(simid)//'.out'
+        tcmfa=0.0_dblprec
+        tcrpa=0.0_dblprec
+        msat=sum(mmom(:,1),1)/natom
+        call printEnergies(ncams_file,nc_eval_q(1:NA,1:nq),msat,tcmfa,tcrpa,NA,2)
+        !if(norm2(diamag_qvect)>1.0e-12_dblprec) then
+        ncams_file = 'ncams+q.'//trim(simid)//'.out'
+        call printEnergies(ncams_file,nc_eval_q(1:NA,nq+1:2*nq),msat,tcmfa,tcrpa,NA,2)
+        ncams_file = 'ncams-q.'//trim(simid)//'.out'
+        call printEnergies(ncams_file,nc_eval_q(1:NA,2*nq+1:3*nq),msat,tcmfa,tcrpa,NA,2)
+        !end if
 
-      ncams_file = 'ncams.'//trim(simid)//'.out'
-      tcmfa=0.0_dblprec
-      tcrpa=0.0_dblprec
-      msat=sum(mmom(:,1),1)/natom
-      call printEnergies(ncams_file,nc_eval_q(1:NA,1:nq),msat,tcmfa,tcrpa,NA,2)
-      !if(norm2(diamag_qvect)>1.0e-12_dblprec) then
-      ncams_file = 'ncams+q.'//trim(simid)//'.out'
-      call printEnergies(ncams_file,nc_eval_q(1:NA,nq+1:2*nq),msat,tcmfa,tcrpa,NA,2)
-      ncams_file = 'ncams-q.'//trim(simid)//'.out'
-      call printEnergies(ncams_file,nc_eval_q(1:NA,2*nq+1:3*nq),msat,tcmfa,tcrpa,NA,2)
-      !end if
+        !!! write (filn,'(''ncams_evec.'',a,''.out'')') trim(simid)
+        !!! open(ofileno,file=filn, position='append')
+        !!! do iq=1,nq
+        !!!    do iv=1,hdim
+        !!!       write(ofileno,'(2i6,100f18.8)') iq,iv,nc_evec_q(:,iv,iq)
+        !!!    end do
+        !!! end do
+        !!! close(ofileno)
+        !   subroutine magdos_calc(filename,wres,magdos,iat)
+        !if (do_magdos=='Y') then
+        !   magdos_file = 'ncmagdos.'//simid//'.out'
+        !   call magdos_calc(magdos_file,nc_eval_q(1:na,1:nq),na)
+        !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
+        !end if
 
 
-      !!! write (filn,'(''ncams_evec.'',a,''.out'')') trim(simid)
-      !!! open(ofileno,file=filn, position='append')
-      !!! do iq=1,nq
-      !!!    do iv=1,hdim
-      !!!       write(ofileno,'(2i6,100f18.8)') iq,iv,nc_evec_q(:,iv,iq)
-      !!!    end do
-      !!! end do
-      !!! close(ofileno)
-      !   subroutine magdos_calc(filename,wres,magdos,iat)
-      !if (do_magdos=='Y') then
-      !   magdos_file = 'ncmagdos.'//simid//'.out'
-      !   call magdos_calc(magdos_file,nc_eval_q(1:na,1:nq),na)
-      !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
-      !end if
+        call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
 
-
-      call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q,nc_eval_q,S_prime,simid,diamag_nvect)
-
+      end if
+      
       i_all=-product(shape(magham))*kind(magham)
       deallocate(magham,stat=i_stat)
       call memocc(i_stat,i_all,'magham','setup_tensor_hamiltonian')
@@ -318,13 +333,16 @@ contains
       i_all=-product(shape(h_k))*kind(h_k)
       deallocate(h_k,stat=i_stat)
       call memocc(i_stat,i_all,'h_k','setup_tensor_hamiltonian')
-
+      !
+      if (flag == 0) then
       i_all=-product(shape(nc_eval_q))*kind(nc_eval_q)
       deallocate(nc_eval_q,stat=i_stat)
       call memocc(i_stat,i_all,'nc_eval_q','setup_tensor_hamiltonian')
       i_all=-product(shape(nc_evec_q))*kind(nc_evec_q)
       deallocate(nc_evec_q,stat=i_stat)
       call memocc(i_stat,i_all,'nc_evec_q','setup_tensor_hamiltonian')
+      end if
+      !
       i_all=-product(shape(eig_vec))*kind(eig_vec)
       deallocate(eig_vec,stat=i_stat)
       call memocc(i_stat,i_all,'eig_vec','setup_tensor_hamiltonian')
@@ -332,8 +350,10 @@ contains
       deallocate(eig_val,stat=i_stat)
       call memocc(i_stat,i_all,'eig_val','setup_tensor_hamiltonian')
 
-
+      if (flag == 0) then
       print '(1x,a)', 'LSWT done.'
+      end if
+      
 
       return
       !
@@ -379,6 +399,8 @@ contains
 
       complex(dblprec) :: cone, czero, fcinv, im, dia_eps
 
+      !  print *,'In diagonalize quad Hamiltonian'
+      !  print '(12f10.6)',real(h_in)
       !
       !
       hdim=2*NA
@@ -403,7 +425,7 @@ contains
          g_mat(ia+NA,ia+NA)=(-1.0_dblprec,0.0_dblprec)
       end do
       !
-      ! Cholesky decomposition of h to K'*K
+      ! Cholesky decomposition of h to K´*K
       !!! print *,'h'
       !!! print '(8f12.6)',h_in
       !!! print *,'Re h'
@@ -447,21 +469,20 @@ contains
       enddo
 
       if(info==0) then  ! Positive-definit matrix, Colpa diagonalization ok
+         do ia=1,hdim
+            do ja=ia+1,hdim
+               K_mat(ja,ia)=0.0_dblprec
+            end do
+         end do
+         call zgemm('N','C',hdim,hdim,hdim,cone,g_mat,hdim,K_mat,hdim,czero,dum_mat,hdim)
+         call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
       else
          print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
-         K_mat = 0.0_dblprec
-         !print '(2f10.6)',real(K_mat)
-         !print *,'-----------------'
-         !print '(2f10.6)',aimag(K_mat)
-         !print *,'-----------------'
+         ! print '(12f10.6)',real(h_in)
+         call fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+         ! print *,'eig_val',eig_val
       end if
-      do ia=1,hdim
-         do ja=ia+1,hdim
-            K_mat(ja,ia)=0.0_dblprec
-         end do
-      end do
-      call zgemm('N','C',hdim,hdim,hdim,cone,g_mat,hdim,K_mat,hdim,czero,dum_mat,hdim)
-      call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
+
       allocate(cwork(lwork))
       allocate(rwork(6*NA-2))
       ! Symmetrization of K (from SpinW code, not TothLake)
@@ -471,7 +492,7 @@ contains
       !       eig_vec(ja,ia)=eig_vec(ia,ja)
       !    end do
       ! end do
-      ! Eigenvaluesolver for HgH'
+      ! Eigenvaluesolver for HgH´
       KgK_mat=eig_vec
       call zheev('V','U', hdim, eig_vec, hdim, eig_val, cwork, lwork, rwork, info)
       deallocate(cwork)
@@ -519,7 +540,7 @@ contains
 
       do alfa=1,3
          do beta=1,3
-            ! Calculate T' * [Y Z ; V W ] * T
+            ! Calculate T´ * [Y Z ; V W ] * T
             call zgemm('N','N',hdim,hdim,hdim,cone,S_prime(:,:,alfa,beta,iq),hdim,T_mat,hdim,czero,dum_mat,hdim)
             call zgemm('C','N',hdim,hdim,hdim,cone,T_mat,hdim,dum_mat,hdim,czero,S_prime(:,:,alfa,beta,iq),hdim)
          end do
@@ -541,6 +562,93 @@ contains
       return
       !
    end subroutine diagonalize_quad_hamiltonian
+
+   subroutine fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+      use Constants
+      implicit none
+
+      integer, intent(in) :: NA, iq
+      integer :: hdim, ia, info, lwork
+      complex(dblprec), intent(in)  :: h_in(2*NA, 2*NA)
+      real(dblprec),    intent(out) :: eig_val(2*NA)
+      complex(dblprec), intent(out) :: eig_vec(2*NA, 2*NA)
+
+      complex(dblprec), allocatable :: alpha_mat(:), beta_mat(:), work(:)
+      complex(dblprec), allocatable :: eta(:,:), A_copy(:,:)
+      real(dblprec),    allocatable :: rwork(:)
+      complex(dblprec) :: czero
+      complex(dblprec) :: dummy_vl(1,1)
+
+      czero = (0.0_dblprec, 0.0_dblprec)
+      hdim = 2 * NA
+
+      !— allocate everything —
+      allocate(alpha_mat(hdim), beta_mat(hdim))
+      allocate(eta(hdim, hdim), A_copy(hdim, hdim))
+      allocate(work(8 * hdim))
+      allocate(rwork(hdim))
+
+      eig_vec = czero
+      eig_val = 0.0_dblprec
+
+      !— build η = diag(1, …, 1, –1, …, –1) —
+      eta = czero
+      do ia = 1, NA
+         eta(ia,   ia)       = (1.0_dblprec, 0.0_dblprec)
+         eta(NA+ia, NA+ia)   = (-1.0_dblprec, 0.0_dblprec)
+      end do
+
+      !— copy H into a working array —
+      A_copy = h_in
+
+      !- Pretty-print A_copy
+      ! print *, 'A_copy'
+      ! do ia = 1, hdim
+      !    print '(20f12.6)', h_in(ia, 1:hdim)
+      ! end do
+
+      !- Add small diagonal offset to ensure positive definiteness
+      !— (can be controlled by input parameter `nc_eps`) —
+      if (diamag_eps > -1.0_dblprec) then
+         do ia = 1, hdim
+            A_copy(ia, ia) = A_copy(ia, ia) + diamag_eps
+         end do
+      else
+         do ia = 1, hdim
+            A_copy(ia, ia) = A_copy(ia, ia) + 1.0d-6
+         end do
+      end if
+
+      !— solve A_copy * v = ω * η * v  via ZGGEV —
+      call zggev( 'N', 'V', hdim,                       &
+                  A_copy, hdim,                         &
+                  eta,   hdim,                         &
+                  alpha_mat, beta_mat,                 &
+                  dummy_vl, 1,                         & ! VL unused
+                  eig_vec, hdim,                       & ! VR returned
+                  work, 8*hdim,                        & ! complex workspace
+                  rwork,                                & ! <<<<< required real workspace
+                  info )
+
+      if (info /= 0) then
+         print *, 'ERROR: ZGGEV failed at iq=', iq, ' info=', info
+         eig_val = 0.0_dblprec
+         eig_vec = czero
+      else
+         do ia = 1, hdim
+            if (abs(beta_mat(ia)) > 1d-12) then
+               eig_val(ia) = real(alpha_mat(ia) / beta_mat(ia))
+            else
+               eig_val(ia) = 0.0_dblprec
+            end if
+         end do
+      end if
+
+      !— clean up —
+      deallocate(alpha_mat, beta_mat, eta, A_copy, work, rwork)
+
+   end subroutine fallback_bosonic_diag
+
 
    subroutine diamag_sqw(NA,nq,nq_ext,nw,q,nc_eval_q,S_prime,simid,n_vec)
       !
@@ -825,7 +933,7 @@ contains
       mom_hat=mom/mnorm
       !mnorm=1.0_dblprec
       !mom_hat=z_hat
-      ! Follow Toth-Lake recipe for R'
+      ! Follow Toth-Lake recipe for R´
       R_prime(3,:)=mom_hat
       !if(abs(mom_hat(3))==1.0_dblprec) then  !if m=00+-1 then R_2=0+-10
       if(abs(mom_hat(3)-1.0_dblprec)<0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)
@@ -898,11 +1006,17 @@ contains
       mnorm=sqrt(sum(mom_n*mom_n)+1.0d-15)
       mom_hat_n=mom_n/mnorm
       mdot=sum(mom_hat_0*mom_hat_n)
+      if (mdot>1.0_dblprec) then
+         mdot=1.0_dblprec
+      else if (mdot<-1.0_dblprec) then
+         mdot=-1.0_dblprec
+      end if
+
       angle=acos(mdot)
 
       ! Find perpendicular vector from cross-product
-      !print '(a,3f18.8)', 'k_hat',k_hat
-      !print '(a,f18.8)', 'angle: ',angle*180/3.1415
+      ! print '(a,3f18.8)', 'k_hat',k_hat
+      ! print '(a,f18.8)', 'angle: ',angle*180/3.1415
       !
       if (present(e_rot)) then
          e_norm=norm2(e_rot)

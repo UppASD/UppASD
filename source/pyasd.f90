@@ -40,24 +40,25 @@
 !> https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669
 !
 !------------------------------------------------------------------------------------
-module pyasd
-   !
-   use iso_c_binding
-   use omp_lib
-   use uppasd
-   use MomentData
-   use InputData
-
-   !.. Implicit declarations
-   implicit none
-
-   ! Variables for timing and number of processors
-
-   ! Local array for spins (for python reasons), low precision for now
-
-contains
-
-   subroutine RunUppASD()
+!module pyasd
+!   !
+!   use iso_c_binding
+!   use omp_lib
+!   use uppasd
+!   use MomentData
+!   use InputData
+!
+!   !.. Implicit declarations
+!   implicit none
+!
+!   ! Variables for timing and number of processors
+!
+!   ! Local array for spins (for python reasons), low precision for now
+!
+!contains
+!
+   subroutine RunUppASD() bind(c, name='runuppasd_')
+   use uppasd, only : main
       implicit none
 
       call main()
@@ -65,49 +66,70 @@ contains
    !==============================================================!
    ! Check if inpsd.dat exists and whether it contains anything
    !--------------------------------------------------------------!
-   subroutine SanityCheck()
+   subroutine SanityCheck() bind(c, name='sanitycheck_')
+           use ErrorHandling, only : ErrorHandling_check_input_file
 
       implicit none
 
       call ErrorHandling_check_input_file()
    end subroutine SanityCheck
 
-
    !==============================================================!
    ! Find number of OpenMP processors active
    !--------------------------------------------------------------!
-   function NumProcs() result(nprocs)
+   subroutine get_numprocs(nprocs) bind(c,name='get_numprocs_')
+      use iso_c_binding
+      use uppasd, only : number_of_active_processors
+
       implicit none
-      integer :: nprocs
+      !f2py intent(out) :: nprocs
+      integer(c_int), intent(out) :: nprocs
 
       nprocs = number_of_active_processors()
-      return
-   end function NumProcs
-
-
+   end subroutine get_numprocs
 
    !==============================================================!
    ! Initialize profiling routines and print the UppASD logo
    !--------------------------------------------------------------!
-   subroutine PrintLogo()
+   subroutine PrintLogo() bind(c, name='printlogo_')
+           use uppasd, only : print_logo
       implicit none
 
       call print_logo()
    end subroutine PrintLogo
-
    !==============================================================!
    ! Setup all things needed for a simulation
    !--------------------------------------------------------------!
-   subroutine SetupAll()
+   subroutine SetupAll(nat, men) bind(c, name='setupall_')
+      use iso_c_binding
+           use uppasd, only : setup_simulation
+           use InputData, only : natom, mensemble
+           use energy, only : allocate_energies
+           use MonteCarlo, only : allocate_mcdata
+             use RandomNumbers, only : allocate_randomwork
+      use Depondt,               only : allocate_depondtfields
+      use Midpoint,              only : allocate_aux_midpoint_fields
       implicit none
-
+      !f2py intent(out) :: nat
+      integer(c_int), intent(out) :: nat
+      !f2py intent(out) :: men
+      integer(c_int), intent(out) :: men
+      
       call setup_simulation()
+      call allocate_energies(1, Mensemble)
+      call allocate_randomwork(Natom,Mensemble,1,'N')
+      call allocate_depondtfields(Natom, Mensemble,1)
+      call allocate_aux_midpoint_fields(1,Natom,Mensemble)
+      call allocate_mcdata(Natom,1)
+      men = mensemble
+      nat = natom
    end subroutine SetupAll
 
    !==============================================================!
    ! Run an initial phase simulation 
    !--------------------------------------------------------------!
-   subroutine InitialPhase()
+   subroutine InitialPhase() bind(c, name='initialphase_')
+           use uppasd, only : run_initial_phase
       implicit none
 
       call run_initial_phase()
@@ -116,7 +138,8 @@ contains
    !==============================================================!
    ! Run an measurement phase simulation 
    !--------------------------------------------------------------!
-   subroutine Measure()
+   subroutine Measure() bind(c,name='measure_')
+           use uppasd, only : run_measurement_phase
       implicit none
       call run_measurement_phase()
    end subroutine Measure
@@ -125,189 +148,373 @@ contains
    !==============================================================!
    ! Clean up after simulation
    !--------------------------------------------------------------!
-   subroutine CleanUp()
+   subroutine CleanUp() bind(c,name='cleanup_')
+           use uppasd, only : cleanup_simulation
+           use energy, only : allocate_energies
+           use MonteCarlo, only : allocate_mcdata
+             use RandomNumbers, only : allocate_randomwork
       implicit none
       call cleanup_simulation()
+      call allocate_energies(-1)
+      call allocate_mcdata(1,-1)
+      call allocate_randomwork(1,1,-1,'N')
    end subroutine CleanUp
 
 
+!!!    !==============================================================!
+!!!    ! Relaxation Runners
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine RelaxMonteCarlo(moments, natom, mensemble) bind(c, name='relaxmontecarlo_')
+      use iso_c_binding
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+ 
+      call timing(0,'Initial       ','ON')
+       call mc_iphase()
+      call timing(0,'Initial       ','OF')
+       moments = emom
+    end subroutine RelaxMonteCarlo
+ 
+    subroutine RelaxMetropolis(moments, natom, mensemble) bind(c, name='relaxmetropolis_')
+      use iso_c_binding
+         use InputData, only : ipmode
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+ 
+      call timing(0,'Initial       ','ON')
+       ipmode='M'
+       call mc_iphase()
+      call timing(0,'Initial       ','OF')
+       moments = emom
+    end subroutine RelaxMetropolis
+ 
+    subroutine RelaxHeatBath(moments, natom, mensemble) bind(c, name='relaxheatbath_')
+      use iso_c_binding
+       use InputData, only : ipmode
+         use uppasd, only : mc_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
 
-   !==============================================================!
-   ! Relaxation Runners
-   !--------------------------------------------------------------!
+      call timing(0,'Initial       ','ON')
+       ipmode='H'
+       call mc_iphase()
+      call timing(0,'Initial       ','OF')
+       moments = emom
+    end subroutine RelaxHeatBath
 
-   subroutine RelaxMonteCarlo()
+!!! 
+!!!    subroutine RelaxMultiScale()
+!!!       implicit none
+!!! 
+!!!       call ms_iphase()
+!!!    end subroutine RelaxMultiScale
+!!! 
+    subroutine RelaxLLG(moments, natom, mensemble) bind(c, name='relaxllg_')
+      use iso_c_binding
+         use uppasd, only : sd_iphase
+         use MomentData, only : emom
+      use Profiling, only : timing
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+  
+      call timing(0,'Initial       ','ON')
+       call sd_iphase()
+      call timing(0,'Initial       ','OF')
+       moments = emom
+    end subroutine RelaxLLG
+
+    subroutine Relax(moments, natom, mensemble, imode, instep, itemperature, itimestep, idamping)  bind(c, name='relax_')
+      use iso_c_binding
+      use uppasd, only : sd_iphase, mc_iphase
+      use sd_driver, only : sd_minimal
+      use mc_driver, only : mc_minimal
+      use Damping, only : damping1 => lambda1_array
+      use MomentData, only : emomM, emom, mmom, emom2
+      use Profiling, only : timing
+
       implicit none
+      !f2py intent(out) moments
+      real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+      !f2py intent(in) :: natom
+      integer(c_int), intent(in) :: natom
+      !f2py intent(in) :: mensemble
+      integer(c_int), intent(in) :: mensemble
+      !f2py intent(in) :: imode
+      character(kind=c_char), intent(in) :: imode
+      !f2py intent(in) :: instep
+      integer(c_int), intent(in) :: instep
+      !f2py intent(in) :: itemperature
+      real(c_double), intent(in) :: itemperature
+      !f2py intent(in) :: itimestep
+      real(c_double), intent(in) :: itimestep
+      !f2py intent(in) :: idamping
+      real(c_double), intent(in) :: idamping
+ 
 
-      call mc_iphase()
-   end subroutine RelaxMonteCarlo
+      call timing(0,'Initial       ','ON')
+      if(imode == 'M' .or. imode == 'H') then
+         !call sd_minimal(emomM,emom,mmom, 1, 1, itemperature)
+         call mc_minimal(emomM, emom, mmom, instep, imode//" ", itemperature)
+      else
+         damping1 = idamping
+         call sd_minimal(emomM, emom, mmom, instep, 1, itemperature)
+      end if
+      call timing(0,'Initial       ','OF')
 
-   subroutine RelaxMetropolis()
-      use InputData, only : ipmode
-      implicit none
+      moments = emomM
 
-      ipmode='M'
-      call mc_iphase()
-   end subroutine RelaxMetropolis
-
-   subroutine RelaxHeatBath()
-      use InputData, only : ipmode
-      implicit none
-
-      ipmode='H'
-      call mc_iphase()
-   end subroutine RelaxHeatBath
-
-   subroutine RelaxMultiScale()
-      implicit none
-
-      call ms_iphase()
-   end subroutine RelaxMultiScale
-
-   subroutine RelaxLLG()
-      implicit none
-
-      call sd_iphase()
-   end subroutine RelaxLLG
-
-   subroutine RelaxMD()
-      implicit none
-
-      call ld_iphase() 
-   end subroutine RelaxMD 
-
-   subroutine RelaxSLDLLG()
-      implicit none 
-
-      call sld_iphase() 
-   end subroutine RelaxSLDLLG 
-
-   !!!    elseif (ipmode=='Q') then
-   !!!       ! Spin spiral minimization initial phase
-   !!!       !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
-   !!!       call sweep_q2(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
-   !!!          ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
-   !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
-   !!!       call plot_q(Natom,Mensemble,coord,emom,emomM,mmom,simid)
-   !!!    elseif (ipmode=='Z') then
-   !!!       ! Spin spiral minimization initial phase
-   !!!       !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
-   !!!       !call sweep_q3(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,    &
-   !!!       call sweep_cube(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
-   !!!          ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
-   !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
-   !!!       call plot_cube(Natom,Mensemble,coord,emom,emomM,mmom,simid)
-   !!!    elseif (ipmode=='Y') then
-   !!!       ! Spin spiral minimization initial phase
-   !!!       !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
-   !!!       call sweep_q3(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
-   !!!          !call sweep_cube(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
-   !!!       ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
-   !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
-   !!!       call plot_q3(Natom,Mensemble,coord,emom,emomM,mmom,simid)
-   !!!    elseif (ipmode=='G') then
-
-
-   !==============================================================!
-   ! Measurement Runners
-   !--------------------------------------------------------------!
-
-   subroutine RelaxGNEB()
-      implicit none
-
-      call em_iphase()
-   end subroutine RelaxGNEB
-
-   subroutine RunMonteCarlo()
-      implicit none
-
-      call mc_mphase() 
-   end subroutine RunMonteCarlo
-
-   subroutine RunMultiScale()
-      implicit none
-
-      call ms_mphase()
-   end subroutine RunMultiScale
-
-   subroutine RunLLGlite()
-      implicit none
-
-      call sd_mphase_lite() 
-   end subroutine RunLLGlite
-
-   subroutine RunLLG()
-      implicit none
-
-      call sd_mphase() 
-   end subroutine RunLLG
-
-   subroutine RunLLGCUDA()
-      implicit none
-
-      call sd_mphaseCUDA()
-   end subroutine RunLLGCUDA
-
-   subroutine RunLD()
-      implicit none
-
-      call ld_mphase()
-   end subroutine RunLD
-
-   subroutine RunSLDLLG()
-      implicit none
-
-      call sld_mphase()
-   end subroutine RunSLDLLG
-
-   subroutine RunSLDLLGimplicit()
-      implicit none
-
-      call sld_mphase3()
-   end subroutine RunSLDLLGimplicit
-
-   !!! elseif (mode=='Q') then
-   !!!    ! Spin spiral minimization measurement phase
-   !!!    call qmc(Natom,Mensemble,NA,N1,N2,N3,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,     &
-   !!!       ham_inp%do_pd,ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,hfield,&
-   !!!       OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!       constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
-   !!!       emomM_macro,macro_nlistsize,ham_inp%do_anisotropy)
-   !!!    call plot_q(Natom, Mensemble, coord, emom, emomM, mmom,simid)
-
-   subroutine RunGNEB()
-      implicit none
-
-      call mep_mphase()
-   end subroutine RunGNEB
-
-   function TotalEnergy() result(energy)
-      implicit none
-
-      real(dblprec) :: energy
-
-      call calculate_energy(energy)
       return
 
-   end function totalenergy
+      
+    end subroutine Relax
+!!! 
+!!!    !==============================================================!
+!!!    ! Moment handling routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_coord(coords, natom) bind(c, name='get_coord_')
+      use iso_c_binding
+         use SystemData, only : icoord => coord
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(out) coords
+       real(c_double), dimension(3,natom), intent(out) :: coords
 
-   !!! function getMoments() result(moments)
-   !!!    use MomentData
-   !!!    use InputData, only : Natom, Mensemble
-   !!!    implicit none
-   !!!
-   !!!    !f2py integer, parameter : Natom
-   !!!    !f2py integer, parameter : Mensemble
-   !!!    real(dblprec), dimension(3,Natom,Mensemble) :: moments
-   !!!
-   !!!    moments=emom
-   !!!    return 
-   !!! end function getMoments
+       coords = icoord
+    end subroutine get_coord
 
-end module pyasd
+    subroutine get_emom(moments, natom, mensemble) bind(c, name='get_emom_')
+      use iso_c_binding
+         use MomentData, only : emom
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) moments
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: moments
+
+       moments = emom
+    end subroutine get_emom
+
+    subroutine put_emom(moments, natom, mensemble) bind(c, name='put_emom_')
+      use iso_c_binding
+         use MomentData, only : emom, emomM, mmom, emom2
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(in) moments
+       real(c_double), dimension(3,natom, mensemble), intent(in) :: moments
+       !
+       integer(c_int) :: i_atom, i_ensemble
+
+       emom = moments 
+       emom2 = emom
+       do i_ensemble = 1, mensemble
+          do i_atom = 1, natom
+            emomM(:,i_atom,i_ensemble) = moments(:,i_atom,i_ensemble) * mmom(i_atom,i_ensemble)
+         end do
+       end do
+    end subroutine put_emom
+
+!!!    !==============================================================!
+!!!    ! Field handling routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_beff(fields, natom, mensemble) bind(c, name='get_beff_')
+      use iso_c_binding
+         use FieldData, only : beff
+         use HamiltonianActions, only : effective_field
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(out) fields
+       real(c_double), dimension(3,natom, mensemble), intent(out) :: fields
+
+      call effective_field()
+       fields = beff
+    end subroutine get_beff
+
+    subroutine put_beff(fields, natom, mensemble) bind(c, name='put_beff_')
+      use iso_c_binding
+         use FieldData, only : beff
+       implicit none
+       !f2py intent(in) :: natom
+       integer(c_int), intent(in) :: natom
+       !f2py intent(in) :: mensemble
+       integer(c_int), intent(in) :: mensemble
+       !f2py intent(in) moments
+       real(c_double), dimension(3,natom, mensemble), intent(in) :: fields
+
+       beff = fields
+    end subroutine put_beff
+!!!    !==============================================================!
+!!!    ! Input data routines
+!!!    !--------------------------------------------------------------!
+!!! 
+    subroutine get_nstep(nstep) bind(c, name='get_nstep_')
+      use iso_c_binding
+         use InputData, only : instep => nstep
+       implicit none
+       !f2py intent(out) nstep
+       integer(c_int), intent(out) :: nstep
+
+       nstep = instep
+    end subroutine get_nstep
+
+    subroutine get_hfield(hfield) bind(c, name='get_hfield_')
+      use iso_c_binding
+         use InputData, only : ihfield => hfield
+       implicit none
+       !f2py intent(out) hfield
+       real(c_double), dimension(3), intent(out) :: hfield
+
+       hfield = ihfield
+    end subroutine get_hfield
+
+    subroutine put_hfield(hfield) bind(c, name='put_hfield_')
+      use iso_c_binding
+         use InputData, only : ohfield => hfield
+       implicit none
+       !f2py intent(in) hfield
+       real(c_double), dimension(3), intent(in) :: hfield
+
+       ohfield = hfield
+    end subroutine put_hfield
+
+    subroutine get_iphfield(hfield) bind(c, name='get_iphfield_')
+      use iso_c_binding
+         use InputData, only : ihfield => iphfield
+       implicit none
+       !f2py intent(out) hfield
+       real(c_double), dimension(3), intent(out) :: hfield
+
+       hfield = ihfield
+    end subroutine get_iphfield
+
+    subroutine put_iphfield(hfield) bind(c, name='put_iphfield_')
+      use iso_c_binding
+         use InputData, only : ohfield => iphfield
+       implicit none
+       !f2py intent(in) hfield
+       real(c_double), dimension(3), intent(in) :: hfield
+
+       ohfield = hfield
+    end subroutine put_iphfield
+
+
+    subroutine get_mcnstep(nstep) bind(c, name='get_mcnstep_')
+      use iso_c_binding
+         use InputData, only : mcnstep
+       implicit none
+       !f2py intent(out) nstep
+       integer(c_int), intent(out) :: nstep
+
+       nstep = mcnstep
+    end subroutine get_mcnstep
+
+    subroutine get_temperature(temperature) bind(c, name='get_temperature_')
+      use iso_c_binding
+         use InputData, only : itemp => temp
+       implicit none
+       !f2py intent(out) temperature
+       real(c_double), intent(out) :: temperature
+
+       temperature = itemp
+    end subroutine get_temperature
+
+    subroutine put_temperature(temperature) bind(c, name='put_temperature_')
+      use iso_c_binding
+         use InputData, only : otemp => temp
+       implicit none
+       !f2py intent(in) temperature
+       real(c_double), intent(in) :: temperature
+
+       otemp = temperature
+    end subroutine put_temperature
+
+    subroutine get_iptemperature(temperature) bind(c, name='get_iptemperature_')
+      use iso_c_binding
+         use InputData, only : itemp => iptemp
+       implicit none
+       !f2py intent(out) temperature
+       real(c_double), intent(out) :: temperature
+
+       if (allocated(itemp)) then
+          temperature = itemp(1)
+       else
+          temperature = 1.0d-6
+       end if
+    end subroutine get_iptemperature
+
+    subroutine put_iptemperature(temperature) bind(c, name='put_iptemperature_')
+      use iso_c_binding
+         use InputData, only : otemp => iptemp
+       implicit none
+       !f2py intent(in) temperature
+       real(c_double), intent(in) :: temperature
+
+       otemp = temperature
+    end subroutine put_iptemperature
+
+    subroutine get_delta_t(timestep) bind(c, name='get_delta_t_')
+      use iso_c_binding
+         use InputData, only : delta_t
+       implicit none
+       !f2py intent(out) timestep
+       real(c_double), intent(out) :: timestep
+
+       timestep = delta_t
+    end subroutine get_delta_t
+
+   !!! 
+   subroutine get_energy(energy) bind(c, name='get_energy_')
+      use iso_c_binding
+      use InputData, only : Natom, Mensemble
+      use HamiltonianActions, only : effective_field
+      implicit none
+
+      !f2py intent(out) energy
+      real(c_double), intent(out) :: energy
+
+      call effective_field(energy)
+      energy = energy  / (Natom * Mensemble)
+   
+   end subroutine get_energy
+!!! 
+
+!!! end module pyasd

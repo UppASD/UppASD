@@ -4,6 +4,7 @@
 !> @copyright
 !> GNU Public License.
 module Profiling
+   use omp_lib
    use Parameters
 
    implicit none
@@ -155,9 +156,8 @@ contains
 
       !Local variables
       logical :: parallel,init
-      integer, parameter :: ncat=13 ! define timing categories
+      integer, parameter :: ncat=14 ! define timing categories
       integer :: i,ii,nprocs
-      integer, external :: omp_get_num_threads,OMP_GET_NUM_PROCS
 
       !cputime routine gives a real
       real(kind=8) :: total,total0,time,time0
@@ -165,7 +165,7 @@ contains
       real(kind=8) :: flops(ncat),timesum(ncat+1),timemax(ncat+1),timemin(ncat+1)
       save :: time0,init,timesum,total0,parallel
 
-      character(len=13), dimension(ncat), parameter :: cats = (/ &
+      character(len=14), dimension(ncat), parameter :: cats = (/ &
          'Startup      ' , &
          'Initial      ' , &
          'Measurement  ' , &
@@ -178,6 +178,7 @@ contains
          'PrintRestart ' , &
          'LattCorr     ' , &
          'SpinCorr     ' , &
+         'ChernNumber  ' , &
          'Dipolar Int. '/)
 
       !$omp parallel

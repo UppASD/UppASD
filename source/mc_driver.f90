@@ -64,6 +64,7 @@ contains
       real(dblprec) :: mc_mavg,mc_mavg2,mc_mavg4,mc_minst
       real(dblprec) :: mc_avcum,mc_avsus
       real(dblprec) :: mavg
+      real(dblprec), dimension(3) :: iphfield0
 
       ! Write header for moment file
       write (filn,'(''mcinitial.'',a,''.out'')') trim(simid)
@@ -72,6 +73,8 @@ contains
 
       ! Allocate work arrays for Metropolis algorithm
       call allocate_mcdata(Natom,1)
+
+      iphfield0 = iphfield
 
       do i=1,ipmcnphase
 
@@ -112,6 +115,13 @@ contains
          energy = 0.0_dblprec
          ! Loop over steps of sweeps
          do ipmcstep=1,ipmcnstep(i)
+
+            ! Calculate demagnetization field
+            if(demag=='Y') then
+               call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+               !print *,'HF', iphfield, '-', demagfld(:,1)
+               iphfield = iphfield0 + demagfld(:,1)
+            endif
             ! Perform metropolis algorithm
             call mc_evolve(Natom,Nchmax,Mensemble,nHam,ipTemp(i),temprescale,ipmode,   &
                conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
@@ -246,12 +256,14 @@ contains
       !use InducedMoments,        only : renorm_ncoup_ind
       use macrocells
       use optimizationRoutines
+      use DemagField
 
       !
       implicit none
       !
       integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc, mcmstep
       real(dblprec) :: temprescale,temprescalegrad,dummy,totene
+      real(dblprec), dimension(3) :: hfield0
 
       call timing(0,'MonteCarlo    ','ON')
 
@@ -270,7 +282,8 @@ contains
 
       ! Calculate demagnetizing field
       if(demag=='Y') then
-         call calc_demag(Natom, Mensemble, demag1, demag2, demag3, demagvol, emomM)
+         hfield0 = hfield
+         !call calc_demag(Natom, Mensemble, demag1, demag2, demag3, demagvol, emomM)
       endif
 
       ! Rescaling of temperature according to Quantum Heat bath
@@ -341,6 +354,13 @@ contains
          call timing(0,'MonteCarlo    ','ON')
 
          ! Metropolis sweeps
+
+            ! Calculate demagnetization field
+            if(demag=='Y') then
+               call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+               !print *,'HF', hfield, '\n', demagfld(:,1)
+               hfield = hfield0 + demagfld(:,1)
+            endif
 
             call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,   &
                conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
@@ -499,7 +519,7 @@ contains
             conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
             lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
             ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
-            ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),ham_inp%do_dip,    &
+            ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield(1:3),ham_inp%do_dip,    &
             Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
             macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
       enddo

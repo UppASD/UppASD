@@ -25,7 +25,7 @@ implicit none
         procedure newRealArray
     end interface newArray
 
-    !> Releases a dynamic array's memory, effectively leaving it empty.
+    !> Releases a dynamic array´s memory, effectively leaving it empty.
     !! The array can still be used.
     !! @param array (inout) the array to release
     interface deallocArray

@@ -1,0 +1,93 @@
+name: Build binaries for MacOS
+
+on: [release]
+#on: [relase, push, pull_request]
+
+jobs:
+  build_wheels:
+    name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          #- { icon: '🖥️', os: macos-14 ,sys: macos, arch: x86_64 } 
+          - { icon: '🦾', os: macos-14 ,sys: macos, arch: arm64 } 
+          - { icon: '🖥️', os: macos-13 ,sys: macos, arch: x86_64 } 
+          #- { icon: '🦾', os: macos-13-xlarge ,sys: macos, arch: arm64 } 
+        #os: [ ubuntu-latest,  macOS-latest]
+        #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
+
+    steps:
+      - name: Provide fftw  (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # fftw3 
+          brew install fftw
+          fftw-wisdom -V
+            
+      - uses: actions/checkout@v4
+
+      - name: Build binaries
+        run: |
+             FC=gfortran-13 CC=gcc-13 cmake -S . -B build \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DCMAKE_INSTALL_PREFIX="$(pwd)/dist" \
+               -DUSE_STATIC_LIBGFORTRAN=ON \
+               -DCMAKE_INSTALL_RPATH="@executable_path/../lib"
+             cmake --build build --parallel
+             cmake --install build
+             
+             # Check if we need to bundle libquadmath
+             HOMEBREW_PREFIX="$(brew --prefix)"
+             LIBQUADMATH="$(find "$HOMEBREW_PREFIX" -type f -name 'libquadmath*.dylib' | head -n1)"
+             
+             # Only bundle libquadmath if the binary depends on it
+             BINARY_PATH="dist/bin/uppasd"
+             if [ -f "$BINARY_PATH" ] && otool -L "$BINARY_PATH" | grep -q libquadmath; then
+               if [ -n "$LIBQUADMATH" ]; then
+                 mkdir -p dist/lib
+                 cp "$LIBQUADMATH" dist/lib/
+                 
+                 # Fix libquadmath rpath
+                 ORIGINAL_QUAD="$(otool -L "$BINARY_PATH" | grep libquadmath | awk '{print $1}' | head -n1)"
+                 if [ -n "$ORIGINAL_QUAD" ]; then
+                   install_name_tool -change "$ORIGINAL_QUAD" "@rpath/$(basename "$LIBQUADMATH")" "$BINARY_PATH"
+                 fi
+               fi
+             fi
+             
+             # Create legacy binary too
+             if [ -f "./bin/sd.gfortran-13" ]; then
+               mkdir -p ./legacy_dist
+               cp "./bin/sd.gfortran-13" "./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}"
+               
+               # Handle libquadmath for legacy binary if needed
+               if otool -L "./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}" | grep -q libquadmath && [ -n "$LIBQUADMATH" ]; then
+                 mkdir -p ./legacy_dist/lib
+                 cp "$LIBQUADMATH" ./legacy_dist/lib/
+                 ORIGINAL_QUAD="$(otool -L "./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}" | grep libquadmath | awk '{print $1}' | head -n1)"
+                 if [ -n "$ORIGINAL_QUAD" ]; then
+                   install_name_tool -change "$ORIGINAL_QUAD" "@rpath/$(basename "$LIBQUADMATH")" "./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}"
+                   install_name_tool -add_rpath "@executable_path/../lib" "./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}" 2>/dev/null || true
+                 fi
+               fi
+             fi
+             
+             echo "=== Final binary analysis ==="
+             otool -L "$BINARY_PATH" || true
+             echo "Binary size: $(ls -lh "$BINARY_PATH" | awk '{print $5}')"
+             
+             echo "uname -a:"
+             uname -a
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uppasd.${{matrix.os}}.${{matrix.arch}}
+          path: ./dist/
+          
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('./legacy_dist/uppasd.${{matrix.os}}.${{matrix.arch}}') != ''
+        with:
+          name: uppasd.legacy.${{matrix.os}}.${{matrix.arch}}
+          path: ./legacy_dist/

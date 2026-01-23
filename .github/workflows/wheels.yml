@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Fetch tags for versioning
-        run: git fetch --prune --unshallow --tags
+        run: git fetch --prune --unshallow --tags --force
 
       # Used to host cibuildwheel
       # - uses: actions/setup-python@v5
@@ -72,9 +72,12 @@ jobs:
 
       - name: Build wheels on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
+        # uses: pypa/cibuildwheel@v2.23.1
         run: |
           which gfortran
           pipx run cibuildwheel --output-dir wheelhouse
+        # which gfortran
+        # . my_env/Scripts/activate
         # python -m cibuildwheel --output-dir wheelhouse
         # to supply options, put them in 'env', like:
         # env:
@@ -119,7 +122,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch tags for versioning
-        run: git fetch --prune --unshallow --tags
+        run: git fetch --prune --unshallow --tags --force
 
       - name: Setup Python
         uses: actions/setup-python@v5

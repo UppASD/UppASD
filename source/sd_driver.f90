@@ -340,6 +340,7 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use MetaTypes
+      use Temperature_3TM
 
       implicit none
       logical :: time_dept_flag, deltat_correction_flag
@@ -351,6 +352,12 @@ contains
       logical :: sd_phaseflag
 
       real(dblprec) :: temprescale, temprescalegrad, totene, totenergy,dummy
+
+      ! 3TM data
+      real(dblprec) :: Temp_s !< Spin temperature (for 3TM)
+      real(dblprec) :: Temp_l !< Lattice temperature (for 3TM)
+      real(dblprec) :: Temp_e !< Electron temperature (for 3TM)
+      real(dblprec) :: t_in !< Time (for 3TM)
 
       ! Spin correlation measurements allowed
       adapt_step = 0
@@ -369,7 +376,7 @@ contains
          mwf_mov_gauss,mwf_gauss_spatial,mov_circle,mwf_mov_circle,mov_square,      &
          mwf_mov_square)
 
-      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5)
+      time_dept_flag = time_dept_flag .or. (do_bpulse.gt.0.and.do_bpulse.lt.5.or.demag=='Y')
 
       ! Calculate demagnetization field
       if(demag=='Y') then
@@ -399,6 +406,11 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
+      ! Calculate spin transfer torque contributions to the local field
+      if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
+         call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
+      end if
+
       ! Calculate the effective field before the simulation starts, if fields are to be printed
       if (do_prn_beff=='Y') then
          ! Apply Hamiltonian to obtain effective field
@@ -424,6 +436,37 @@ contains
       ! Adaptive Time Stepping Region
       if(adaptive_time_flag) then
          call calculate_omegainit(omega_max, larmor_numrev, delta_t)
+      end if
+
+      ! Initialize 3TM functionality if enabled
+      ! Note that the 3TM functionality is here used for 2TM modelling
+      if(do_3tm=='Y'.or.do_3tm=='E') then
+!        call allocate_3tm(Natom,0,1)
+         call init_3tm_cv(1)
+         call unify_3tm_params(C1,C2,C3,alat,NA)
+         if (do_3tm=='E') then
+            call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
+               external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
+               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
+               constellations,constellationsNeighType,totenergy,Num_macro,   &
+               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
+            Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
+            call threetemp_elec_init(simid,Temp,Temp_s,Temp_l,Temp_e)
+         else 
+            call set_initial_temp_3tm(Temp,Temp_s,Temp_l,Temp_e)
+            call threetemp_print(rstep,nstep,delta_t,simid)
+         end if
+         print '(1x,a,3f14.5)', 'Initial 3TM temperatures:',Temp_s,Temp_l,Temp_e
+      else
+         Temp_s=Temp
+         Temp_l=Temp
+         Temp_e=Temp
+      end if
+   
+      ! Rescaling of temperature according to exponential cooling/heating
+      if (do_tempexp == 'Y') then
+         print *, 'Exponential temperature profile used'
       end if
 
       ! Rescaling of temperature according to Quantum Heat bath
@@ -473,9 +516,25 @@ contains
 
       do while (mstep.LE.rstep+nstep) !+1
 
+         if (do_3tm=='Y') then
+            t_in=delta_t*mstep
+            call threetemp_single(t_in,delta_t,Temp_s,Temp_l,Temp_e)
+         else if (do_3tm=='E') then
+            t_in=delta_t*mstep
+            Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
+            Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
+            call threetemp_elec(t_in,delta_t,Temp_s,Temp_l,Temp_e)
+            call threetemp_elec_print(mstep,simid,Temp_s,Temp_l,Temp_e)
+         end if
+
          if (time_dept_flag) then
             ! Calculate Microwave fields (time dependent fields)
             call calculate_mwf_fields(Natom,mstep,rstep+nstep-1,delta_t,coord,0)
+
+            ! Calculate demagnitization field
+            if(demag=='Y') then
+               call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+            endif
 
             ! Calculate the total time dependent fields
             call calc_external_time_fields(Natom, Mensemble, time_external_field,   &
@@ -486,6 +545,7 @@ contains
                mwf_mov_gauss_spatial,mov_circle,mwf_mov_circle,mov_circle_spatial,  &
                mwf_mov_circle_spatial,mov_square,mwf_mov_square,mov_square_spatial, &
                mwf_mov_square_spatial)
+
          else
             time_external_field=0.0_dblprec
          endif
@@ -557,6 +617,12 @@ contains
             write(*,'(2x,a,i3,a,G13.6)')   "Iteration",mstep," Mbar ",mavg
          endif
 
+         ! Adjust of temperature according to exponential cooling/heating
+         if (do_tempexp == 'Y') then
+            Temp = f_tempexp(delta_t,mstep,simid)
+            Temp_array = Temp
+         end if
+
          !Adjust QHB
          if(do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
             if(qhb_mode=='MT') then
@@ -570,7 +636,7 @@ contains
          call timing(0,'Hamiltonian   ','ON')
 
          ! Calculate spin transfer torque contributions to the local field
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
          end if
 
@@ -613,6 +679,13 @@ contains
             if (llg==2.or.llg==3) then
                call calc_averagefield(Natom,Mensemble,beff1,beff2,field1,field2)
             endif
+
+         ! Set temperature to spin temperature for 3TM simulationa
+         ! TODO: Change to spatially resolved temperatures
+         if(do_3tm=='Y') Temp_array=Temp_s
+         if(do_3tm=='E') Temp_array=Temp_e
+
+
             ! Check if this changes
             thermal_field=0.0_dblprec
             call evolve_first(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
@@ -672,7 +745,7 @@ contains
          call timing(0,'Evolution     ','ON')
 
          ! Re-Calculate spin transfer torque
-         if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
+         if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom2,mmom)
          end if
 
@@ -783,7 +856,16 @@ contains
       if (do_spintemp=='Y') then
          call spintemperature(Natom,Mensemble,mstep,1,simid,emomM,beff,2)
       endif
+
+
       call timing(0,'Measurement   ','OF')
+
+         ! Deallocate 3TM arrays
+      if(do_3tm=='Y') then
+         call init_3tm_cv(-1)
+!        call allocate_3tm(Natom,0,-1)
+      end if
+
    end subroutine sd_mphase
 
    !---------------------------------------------------------------------------
@@ -1117,8 +1199,12 @@ contains
       ! Adaptive time stepping
       integer :: ipstep, ia, ik
       real(dblprec) :: temprescale,temprescalegrad, dummy, denergy
+      real(dblprec) :: org_temp
       real(dblprec) :: mavg
 
+      org_temp = temp
+      temp = sd_temp
+      temp_array = sd_temp
       ! Copy inmoments to working array
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1129,6 +1215,10 @@ contains
          end do
       end do
 
+      ! Calculate demagnitization field
+      if(demag=='Y') then
+         call calc_demag(Natom,Mensemble,demag1,demag2,demag3,demagvol,emomM)
+      endif
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
@@ -1141,10 +1231,10 @@ contains
             call qhb_rescale(sd_temp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
-      ! Calculate external fields
-      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
-         do_bpulse,sitefld,sitenatomfld)
 
+      ! Calculate external fields
+      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,&
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Main initial loop
       !--------------------------------------!
@@ -1235,6 +1325,7 @@ contains
 
       enddo
 
+      ! emom2 = 0.0_dblprec
       ! Copy working moments to outdata
       do ik=1,Mensemble
          do ia=1,Natom
@@ -1243,6 +1334,10 @@ contains
             emomM_io(:,ia,ik)=emomM(:,ia,ik)
          end do
       end do
+
+      ! Rescale temperature back to original
+      temp_array = org_temp
+      temp = org_temp
 
    end subroutine sd_minimal
 

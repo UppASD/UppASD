@@ -505,7 +505,7 @@ for frame in range(1, 9999, 1):
     renWin.Render()
     print("FLOPS:", 1.0 / ren.GetLastRenderTimeInSeconds())
     print("Screenshot..")
-    # Screenshot(renWin)
+    Screenshot(renWin)
     print("Read data..")
     # vecz=(readVectorsData(directionsFile,frame,nrAtoms,Nmax))
     vecz, colz = readVectorsData(directionsFile, frame, nrAtoms, Nmax)

@@ -45,3 +45,8 @@ source/Makefile
 inp.*.yaml
 *.gcno
 fort.*
+build/
+dist/
+eggs/
+*.egg*
+venv

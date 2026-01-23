@@ -119,7 +119,7 @@ contains
             constellationsUnitVec2,constellations,constellationsMag,delta_t)
       end if
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       !if(SDEalgh==1) then
          ! random numbers the same for calculation et and emom2
@@ -207,20 +207,20 @@ contains
               end if
          endif
 
-       call smodeulermpt_ms(Natom, Mensemble, Landeg,bn, lambda1_array, beff, &
-            emom, emom2, emomM, mmom, delta_t,thermal_field,dband)
+       call smodeulermpt_ms(Natom, Mensemble, Landeg,bn, lambda1_array, beff, emom, emom2, emomM, mmom, delta_t,thermal_field,dband,&
+                            STT,do_she,do_sot,btorque,she_btorque,sot_btorque)
         !print*, lambda1_array
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      elseif(SDEalgh==5) then
          ! Selective updater only some moments are updated
-         call depondt_evolve_first_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
-            btorque,emom,emom2,emomM,mmom,delta_t,Temp_array,temprescale,stt,       &
-            thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list,dband)
+         call depondt_evolve_first_ms(Natom,Mensemble,lambda1_array,beff,b2eff,   &
+         btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale,stt,      &
+         thermal_field,do_she,she_btorque,do_sot,sot_btorque,dband)
      endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
      
       !------------------------------------------------------------------------------
@@ -318,7 +318,7 @@ contains
          end do
       end if
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       !if(SDEalgh==1) then
       !   call modeulermpf(Natom,Mensemble,Landeg,bn,lambda1_array,beff, emom,emom2, &
@@ -335,19 +335,19 @@ contains
       !------------------------------------------------------------------------------
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      if(SDEalgh==1) then
-       call modeulermpf_ms(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, delta_t, dband)
+       call modeulermpf_ms(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, delta_t, dband,STT,do_she,do_sot,&
+                            btorque,she_btorque,sot_btorque)
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
      elseif(SDEalgh==5) then
           ! Selective updater only some moments are updated
           
-         call depondt_evolve_second_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,  &
-         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,  &
-         red_atom_list,dband)
+         call depondt_evolve_second_ms(Natom,Mensemble,lambda1_array,beff,b2eff,  &
+         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,dband)
       
       ! 
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
       !elseif(SDEalgh==6) then
       !   call sibf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,delta_t)

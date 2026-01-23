@@ -1,0 +1,74 @@
+caselist:
+  - workingdir: "./kagome_cuda"
+    run: "./runtest.sh"
+    name: "Kagome lattice (tensor)" 
+    comparisons:
+      - outfile:   averages.kagome_T.out
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 1300
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected:  [0.000376432611, 0.00431880575, -0.00287422668, 0.00520143861]
+              #expected:  [-3.57739023E-02,  7.00515945E-02,  4.98643602E-03,  7.88153698E-02 ]
+            type: "Magnetization"
+
+      - outfile:   cumulants.kagome_T.out
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 171
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            expected:   [0.00576048117, 3.39286723e-05, 1.28745915e-09, 0.627197795]
+            type: "Cumulant"
+
+  - workingdir: "./bccFe_cuda/"
+    run: "./runtest.sh"
+    name: "bcc Fe (scalar)"
+    comparisons:
+      - outfile:   ./averages.test
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 1700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected:  [2.16117297]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.test
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 41
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            expected: [2.09307165, 4.38839661, 19.3810564, 0.664537137]
+            type: "Cumulants"
+
+  - workingdir: "./FeCo_cuda/"
+    run: "./runtest.sh"
+    name: "FeCo B2 (reduced)"
+    comparisons:
+      - outfile:   ./averages.test
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 4700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected:  [1.97771406]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.test
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 221
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            expected: [1.86058404, 3.46805484, 12.1115283, 0.664335215]
+            type: "Cumulants"
+

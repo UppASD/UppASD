@@ -1,54 +1,264 @@
-name: Build binaries Linux, Macos
+name: Build and test binaries
 
-on: [push, pull_request]
+#on:  [release]
+on: [release, push, pull_request]
 
 jobs:
   build_wheels:
-    name: Build binary for ${{matrix.sys}}.${{matrix.arch}}
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
+    name: Build binaries on ${{ matrix.os }} ${{ matrix.icon}}
     strategy:
       matrix:
         include:
-          - { icon: '🟦', os: macOS-latest ,sys: macos, arch: x86_64 } 
-          - { icon: '⬛', os: ubuntu-latest,sys: linux, arch: x86_64 }
-        #os: [ ubuntu-latest,  macOS-latest]
-        #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
+          - { icon: '🐧' , os: ubuntu-latest,  shell: bash, arch: x86_64 }
+          - { icon: '💻' , os: windows-latest, shell: msys2, arch: x86_64 }
+          - { icon: '🍎' , os: macos-14,       shell: bash, arch: arm64 }
+          - { icon: '🍏' , os: macos-13,       shell: bash, arch: x86_64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
+    continue-on-error: true
 
     steps:
-      - name: Provide gfortran (macOS)
+      - name: Provide fftw, ninja on macOS ${{ matrix.icon}}
         if: runner.os == 'macOS'
         run: |
-          # https://github.com/actions/virtual-environments/issues/2524
-          # https://github.com/cbg-ethz/dce/blob/master/.github/workflows/pkgdown.yaml
-          sudo ln -s /usr/local/bin/gfortran-12 /usr/local/bin/gfortran
-          sudo ln -s /usr/local/bin/gcc-12 /usr/local/bin/gcc
-          sudo mkdir /usr/local/gfortran
-          sudo ln -s /usr/local/Cellar/gcc@12/*/lib/gcc/12 /usr/local/gfortran/lib
-          gfortran --version
-          gcc --version
-          which gcc
-          which gfortran
-
-      - name: Provide fftw  (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          # fftw3 
-          brew install fftw
+          # fftw3  ninja
+          brew install fftw meson
           fftw-wisdom -V
-            
-      - uses: actions/checkout@v3
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
 
-      - name: Build binaries
+      - name: Provide ninja on Linux ${{ matrix.icon}}
+        if: runner.os == 'Linux'
         run: |
-             cmake -S . -B build 
-             cmake --build build
-             mkdir ./dist
-             uname -a
-             echo ${{runner.name}}
-             cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
+          sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev
 
-      - uses: actions/upload-artifact@v4
+      - name: Provide gfortran on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
         with:
-          name: uppasd.${{matrix.sys}}.${{matrix.arch}}
-          path: ./dist/
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-blas
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-lapack
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-nsis
+            git 
+
+      - uses: actions/checkout@v4
+
+      - name: Fetch tags for versioning
+        run: git fetch --prune --unshallow --tags --force
+
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
+        if: runner.os == 'macOS'
+        run: |
+             FC=gfortran-14 cmake -S . -G Ninja -B build \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DBUNDLE_LIBRARIES=ON \
+               -DUSE_STATIC_LIBGFORTRAN=OFF
+             cmake --build build --parallel 
+             mkdir ./dist
+             # echo "./bin directory:"
+             # ls -l ./bin
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             
+             # Copy bundled libraries if they exist
+             if [ -d "./lib" ]; then
+               mkdir -p ./dist/lib
+               cp ./lib/* ./dist/lib/ 2>/dev/null || true
+             fi
+             
+             # Verify the binary works and show dependencies
+             echo "=== Binary verification ==="
+             otool -L ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             echo "=== RPATH verification ==="
+             otool -l ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe | grep -A2 LC_RPATH || echo "No RPATH found"
+             
+             #  echo "./dist directory:"
+             #  ls -l ./dist 
+             #  echo "./build directory:"
+             #  ls -l ./build
+
+      - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
+        if: runner.os != 'macOS'
+        run: |
+             cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake --build build --parallel 
+             mkdir ./dist
+             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+      - name: Install python packages for testing
+        if: runner.os != 'Windows'
+        run: |
+            python -m ensurepip 
+            python -m pip install pyyaml
+
+      - name: Test binaries ${{ matrix.icon}}
+        if: runner.os != 'Windows'
+        run: |
+             cd build
+             ctest --verbose --output-on-failure
+             cd ..
+
+      - name: Build zip file archive ${{ matrix.icon}}
+        run: |
+             cd build
+             cpack -G ZIP
+             ls -l *.zip
+             cd ..
+
+      - name: Build .deb and .rpm packages on Linux ${{ matrix.icon}}
+        if: runner.os == 'Linux'
+        run: |
+             cd build
+             cpack -G DEB
+             cpack -G RPM
+             ls -l
+             cd ..
+
+      - name: Build DragNDrop package on Mac OS ${{ matrix.icon}}
+        if: runner.os == 'macOS'
+        run: |
+             cd build
+             
+             # Generate packages separately
+             echo "=== Creating DMG package ==="
+
+             # Clear CMake cache and reconfigure to disable app bundle for ZIP generation
+             rm -f CMakeCache.txt
+             FC=gfortran-14 cmake -S .. -B . \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DBUNDLE_LIBRARIES=ON \
+               -DUSE_STATIC_LIBGFORTRAN=OFF \
+               -DFORCE_NO_APP_BUNDLE=OFF
+             
+             # Rebuild with new configuration
+             cmake --build . --parallel
+             
+             # Generate ZIP without app bundle
+             cpack -G DragNDrop
+             
+             ls -l *.zip *.dmg 2>/dev/null || echo "Package files created"
+             cd ..
+
+      - name: Build NSIS installation package on Windows ${{ matrix.icon}}
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+             cd build
+             echo "=== Checking for NSIS ==="
+             which makensis || echo "NSIS not found in PATH"
+             ls -la /mingw64/bin/*nsis* || echo "No NSIS binaries found"
+             echo "=== CMake configuration ==="
+             cat CPackConfig.cmake | head -20
+             echo "=== Building NSIS installer ==="
+             cpack -G NSIS64 --verbose
+             ls -l *.exe || echo "No .exe files found"
+             cd ..
+
+      # - name: Install WiX Toolset on Windows
+      #   if: runner.os == 'Windows'
+      #   shell: pwsh
+      #   run: |
+      #     # Download and install WiX v3 (v4 has different syntax)
+      #     $wixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
+      #     $wixPath = "$env:TEMP\wix311-binaries.zip"
+      #     $wixDir = "C:\Program Files\WiX Toolset v3.11"
+      #     
+      #     Invoke-WebRequest -Uri $wixUrl -OutFile $wixPath
+      #     Expand-Archive -Path $wixPath -DestinationPath $wixDir
+      #     echo "$wixDir\bin" >> $env:GITHUB_PATH
+
+      # - name: Build WIX installation package on Windows ${{ matrix.icon}}
+      #   if: runner.os == 'Windows'
+      #   shell: msys2 {0}
+      #   run: |
+      #        cd build
+      #        echo "=== Checking for WiX ==="
+      #        which candle || echo "WiX not found in PATH"
+      #        echo "=== CMake configuration ==="
+      #        cat CPackConfig.cmake | head -20
+      #        echo "=== Building WiX installer ==="
+      #        cpack -G WIX --verbose
+      #        ls -l *.msi || echo "No .msi files found"
+      #        cd ..
+
+      # - name: Upload self-extracting package
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/UppASD*.sh
+
+      - name: Upload .deb package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.deb
+          path: ./build/uppasd*.deb
+
+      - name: Upload .rpm package
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.rpm
+          path: ./build/uppasd*.rpm
+
+      - name: Upload Windows NSIS installer
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: UppASD.${{runner.os}}.${{matrix.arch}}.installer.exe
+          path: ./build/UppASD*.exe
+
+      # - name: Upload Windows WIX installer
+      #   uses: actions/upload-artifact@v4
+      #   if: runner.os == 'Windows'
+      #   with:
+      #     name: UppASD.${{runner.os}}.${{matrix.arch}}.msi
+      #     path: ./build/UppASD*.msi
+
+      # - name: Upload binaries
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: uppasd.${{runner.os}}.${{matrix.arch}}${{ runner.os == 'macOS' && '.portable' || '' }}
+      #     path: ./dist/uppasd*
+
+      - name: Upload DMG package (macOS)
+        uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.dmg
+          path: ./build/*.dmg
+
+      - name: Upload zip archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: uppasd.${{runner.os}}.${{matrix.arch}}.archive
+          path: ./build/uppasd*.zip
+
+      # - name: Upload NSIS log
+      #   if: runner.os == 'Windows'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: nsis_log.${{runner.os}}.${{matrix.arch}}
+      #     path: ./build/_CPack_Packages/win64/NSIS64/NSISOutput.log
+
+      - name: Upload test logs
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest_log.${{runner.os}}.${{matrix.arch}}
+          path: ./build/Testing/Temporary/LastTest.log

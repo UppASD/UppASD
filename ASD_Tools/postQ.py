@@ -284,276 +284,299 @@ class PostProcessor:
             plt.savefig("ams_q.png")
             plt.close()
 
-    def plot_sqw(self):
-        """Plot S(q,w) structure factor."""
-        sqw_x = self.results.get("sqw_x")
-        sqw_y = self.results.get("sqw_y")
-        ams = self.results.get("ams")
-        ams_pq = self.results.get("ams_pq")
-        ams_mq = self.results.get("ams_mq")
-        q_vecs = self.results.get("q_vecs")
-        q_min = self.results.get("q_min")
-        q_max = self.results.get("q_max")
-        ams_dist_col = self.results.get("ams_dist_col")
-        axidx = self.symmetry.get("axidx", [])
-        axlab = self.symmetry.get("axlab", [])
 
-        if sqw_x is None or sqw_y is None or ams is None:
-            return
 
-        emax = self._calculate_emax()
+# In[ ]:
 
-        # Basic S(q,w) plot
-        fig = plt.figure(figsize=[8, 5])
-        ax = plt.subplot(111)
+############################################################
+# Plot the S(q,w)
+############################################################
+if got_sqw:
+    fig = plt.figure(figsize=[8,5])
+    ax=plt.subplot(111)
+    
+    
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+    sqw_temp=(sqw_x**2+sqw_y**2)**0.5
+    sqw_temp[:,0]=sqw_temp[:,0]/100.0
+    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
+    plt.plot(q_vecs[:],ams[:,1:ams_dist_col],'black',lw=0.5)
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.grid(visible=True,which='major',axis='x')
+    ax.set_aspect('auto')
+    plt.autoscale(tight=True)
+    #plt.show()
+    plt.savefig('ams_sqw.png')
 
-        sqw_temp = (sqw_x**2 + sqw_y**2) ** 0.5
-        sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
-        sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-        sqw_temp = self._apply_gaussian_filter(sqw_temp)
 
-        plt.imshow(
-            sqw_temp,
-            cmap=cmap.gist_ncar_r,
-            interpolation="nearest",
-            origin="lower",
-            extent=[q_min, q_max, 0, emax],
-        )
-        plt.plot(q_vecs[:], ams[:, 1:ams_dist_col], "black", lw=0.5)
-        plt.xticks(axidx, axlab)
-        plt.xlabel("q")
-        plt.ylabel("Energy (meV)")
-        plt.grid(visible=True, which="major", axis="x")
-        ax.set_aspect("auto")
-        plt.autoscale(tight=True)
-        plt.savefig("ams_sqw.png")
-        plt.close()
+############################################################
+# Plot the S(q,w) with full nc-LSWT support
+############################################################
+if got_sqw and got_ncams and got_ncams_pq and got_ncams_mq:
+    fig = plt.figure(figsize=[8,5])
+    ax=plt.subplot(111)
+    
+    
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+    sqw_temp=(sqw_x**2+sqw_y**2)**0.5
+    sqw_temp[:,0]=sqw_temp[:,0]/100.0
+    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+    imx_min=np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1])
+    imx_max=np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[imx_min,imx_max,0,emax])
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    plt.plot(q_vecs[:],   ams[:,1:ams_dist_col],'black',lw=0.5)
+    plt.plot(q_vecs[:],ams_pq[:,1:ams_dist_col],'black',lw=0.5)
+    plt.plot(q_vecs[:],ams_mq[:,1:ams_dist_col],'black',lw=0.5)
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx_abs,axlab)
+    #print('::::>',[np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.grid(visible=True,which='major',axis='x')
+    ax.set_aspect('auto')
+    plt.autoscale(tight=True)
+    #plt.xlim([np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
+    plt.savefig('ams_sqw_q.png')
 
-        # Enhanced plot with nc-LSWT support
-        if ams_pq is not None and ams_mq is not None:
-            fig = plt.figure(figsize=[8, 5])
-            ax = plt.subplot(111)
 
-            sqw_temp = (sqw_x**2 + sqw_y**2) ** 0.5
-            sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
-            sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-            sqw_temp = self._apply_gaussian_filter(sqw_temp)
 
-            plt.imshow(
-                sqw_temp,
-                cmap=cmap.gist_ncar_r,
-                interpolation="nearest",
-                origin="lower",
-                extent=[q_min, q_max, 0, emax],
-            )
-            plt.plot(q_vecs[:], ams[:, 1:ams_dist_col], "black", lw=0.5)
-            plt.plot(q_vecs[:], ams_pq[:, 1:ams_dist_col], "black", lw=0.5)
-            plt.plot(q_vecs[:], ams_mq[:, 1:ams_dist_col], "black", lw=0.5)
-            plt.xticks(axidx, axlab)
-            plt.xlabel("q")
-            plt.ylabel("Energy (meV)")
-            plt.grid(visible=True, which="major", axis="x")
-            ax.set_aspect("auto")
-            plt.autoscale(tight=True)
-            plt.savefig("ams_sqw_q.png")
-            plt.close()
+############################################################
+# Plot the simulated S(q,w) intensity
+############################################################
+if got_sqw_int:
+    fig = plt.figure(figsize=[8,5])
+    ax=plt.subplot(111)
+    
+    
+    
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+    sqw_temp=sqw_int
+    sqw_temp[:,0]=sqw_temp[:,0]/100.0
+    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
+    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=False)
+    ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams_sqw_int.png')
 
-    def plot_sqw_intensity(self):
-        """Plot S(q,w) intensity data."""
-        sqw_int = self.results.get("sqw_int")
-        sqw_lint = self.results.get("sqw_lint")
-        ams = self.results.get("ams")
-        ams_dist_col = self.results.get("ams_dist_col")
-        emax_lswt = self.results.get("emax_lswt")
-        axidx = self.symmetry.get("axidx", [])
-        axlab = self.symmetry.get("axlab", [])
 
-        emax = self._calculate_emax()
 
-        # Plot simulated S(q,w) intensity
-        if sqw_int is not None and ams is not None:
-            fig = plt.figure(figsize=[8, 5])
-            ax = plt.subplot(111)
+############################################################
+# Plot the LSWT S(q,w) intensity
+############################################################
+if got_sqw_lint:
+    fig = plt.figure(figsize=[8,5])
+    ax=plt.subplot(111)
+    
+    
+    
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+    sqw_temp=sqw_lint
+    sqw_temp[:,0]=sqw_temp[:,0]/100.0
+    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax_lswt])
+    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
+    ala=plt.xticks()
+    
+    
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    plt.autoscale(tight=False)
+    ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
+    #plt.show()
+    plt.savefig('ams_ncsqw_int.png')
 
-            sqw_temp = sqw_int.copy()
-            sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
-            sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-            sqw_temp = self._apply_gaussian_filter(sqw_temp)
 
-            plt.imshow(
-                sqw_temp,
-                cmap=cmap.gist_ncar_r,
-                interpolation="nearest",
-                origin="lower",
-                extent=[axidx[0], axidx[-1], 0, emax],
-            )
-            plt.plot(
-                ams[:, 0] / ams[-1, 0] * axidx[-1],
-                ams[:, 1:ams_dist_col],
-                "black",
-                lw=1,
-            )
-            plt.xticks(axidx, axlab)
-            plt.xlabel("q")
-            plt.ylabel("Energy (meV)")
-            plt.autoscale(tight=False)
-            ax.set_aspect("auto")
-            plt.grid(visible=True, which="major", axis="x")
-            plt.savefig("ams_sqw_int.png")
-            plt.close()
 
-        # Plot LSWT S(q,w) intensity
-        if sqw_lint is not None and ams is not None and emax_lswt is not None:
-            fig = plt.figure(figsize=[8, 5])
-            ax = plt.subplot(111)
 
-            sqw_temp = sqw_lint.copy()
-            sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
-            sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-            sqw_temp = self._apply_gaussian_filter(sqw_temp)
+xyz=('x','y','z')
 
-            plt.imshow(
-                sqw_temp,
-                cmap=cmap.gist_ncar_r,
-                interpolation="nearest",
-                origin="lower",
-                extent=[axidx[0], axidx[-1], 0, emax_lswt],
-            )
-            plt.plot(
-                ams[:, 0] / ams[-1, 0] * axidx[-1],
-                ams[:, 1:ams_dist_col],
-                "black",
-                lw=1,
-            )
-            plt.xticks(axidx, axlab)
-            plt.xlabel("q")
-            plt.ylabel("Energy (meV)")
-            plt.autoscale(tight=False)
-            ax.set_aspect("auto")
-            plt.grid(visible=True, which="major", axis="x")
-            plt.savefig("ams_ncsqw_int.png")
-            plt.close()
+############################################################
+# Plot the S(q,w) on tensorial form (diagonal terms)
+############################################################
+if got_sqw_tens:
+    fig = plt.figure(figsize=[16,4])
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
 
-    def plot_sqw_tensor(self, diagonal_only=True):
-        """Plot S(q,w) tensor components."""
-        sqw_tens = self.results.get("sqw_tens")
-        lswt_sqw_tens = self.results.get("lswt_sqw_tens")
-        ams = self.results.get("ams")
-        ams_dist_col = self.results.get("ams_dist_col")
-        emax_lswt = self.results.get("emax_lswt")
-        axidx = self.symmetry.get("axidx", [])
-        axlab = self.symmetry.get("axlab", [])
-        xyz = self.plot_config["xyz"]
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    #plt.autoscale(tight=False)
+    ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
 
-        emax = self._calculate_emax()
+    #sqw_x[:,0]=sqw_x[:,0]/100.0
+    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
+    plt_idx=130
+    for ix in range(3):
+        iy=ix
+        sqw_temp=sqw_tens[:,:,ix,iy]
+        sqw_temp[:,0]=sqw_temp[:,0]/1e5
+        sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+        plt_idx=plt_idx+1
+        ax=plt.subplot(plt_idx)
+        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
+        ax.set_title(stitle)
 
-        # Plot simulated S(q,w) tensor
-        if sqw_tens is not None:
-            if diagonal_only:
-                fig = plt.figure(figsize=[16, 4])
-                plt_idx = 130
-                for ix in range(3):
-                    iy = ix
-                    sqw_temp = sqw_tens[:, :, ix, iy].copy()
-                    sqw_temp[:, 0] = sqw_temp[:, 0] / 1e5
-                    sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-                    plt_idx = plt_idx + 1
-                    ax = plt.subplot(plt_idx)
-                    stitle = f"$S^{{{xyz[ix]}{xyz[iy]}}}(q,\\omega)$"
-                    ax.set_title(stitle)
+        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax],aspect='auto')
+        plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
+        plt.xticks(axidx_abs,axlab)
 
-                    sqw_temp = self._apply_gaussian_filter(sqw_temp)
-                    plt.imshow(
-                        sqw_temp,
-                        cmap=cmap.gist_ncar_r,
-                        interpolation="nearest",
-                        origin="lower",
-                        extent=[axidx[0], axidx[-1], 0, emax],
-                        aspect="auto",
-                    )
-                    if ams is not None:
-                        plt.plot(
-                            ams[:, 0] / ams[-1, 0] * axidx[-1],
-                            ams[:, 1:ams_dist_col],
-                            "black",
-                            lw=1,
-                        )
-                    plt.xticks(axidx, axlab)
-                plt.tight_layout()
-                plt.savefig("sqw_diagonal.png")
-                plt.close()
-            else:
-                fig = plt.figure(figsize=[16, 10])
-                plt_idx = 330
-                for ix in range(3):
-                    for iy in range(3):
-                        sqw_temp = sqw_tens[:, :, ix, iy].copy()
-                        sqw_temp[:, 0] = sqw_temp[:, 0] / 1e5
-                        sqw_temp = sqw_temp.T / sqw_temp.T.max(axis=0)
-                        plt_idx = plt_idx + 1
-                        ax = plt.subplot(plt_idx)
-                        stitle = f"$S^{{{xyz[ix]}{xyz[iy]}}}(q,\\omega)$"
-                        ax.set_title(stitle)
+    plt.tight_layout()
 
-                        sqw_temp = self._apply_gaussian_filter(sqw_temp)
-                        plt.imshow(
-                            sqw_temp,
-                            cmap=cmap.gist_ncar_r,
-                            interpolation="nearest",
-                            origin="lower",
-                            extent=[axidx[0], axidx[-1], 0, emax],
-                            aspect="auto",
-                        )
-                        if ams is not None:
-                            plt.plot(
-                                ams[:, 0] / ams[-1, 0] * axidx[-1],
-                                ams[:, 1:ams_dist_col],
-                                "black",
-                                lw=1,
-                            )
-                        plt.xticks(axidx, axlab)
-                plt.tight_layout()
-                plt.savefig("sqw_tensor.png")
-                plt.close()
+    plt.savefig('sqw_diagonal.png')
 
-        # Plot LSWT S(q,w) tensor
-        if lswt_sqw_tens is not None and emax_lswt is not None:
-            if diagonal_only:
-                fig = plt.figure(figsize=[16, 4])
-                plt_idx = 130
-                for ix in range(3):
-                    iy = ix
-                    sqw_temp = lswt_sqw_tens[:, :, ix, iy].copy()
-                    sqw_temp = sqw_temp.T / (sqw_temp.T.max(axis=0) + 1.0e-20)
-                    plt_idx = plt_idx + 1
-                    ax = plt.subplot(plt_idx)
-                    stitle = r"$S^{{{xyz[ix]}{xyz[iy]}}}_{LSWT}$"
-                    ax.set_title(stitle)
 
-                    sqw_temp = self._apply_gaussian_filter(sqw_temp)
-                    plt.imshow(
-                        sqw_temp,
-                        cmap=cmap.gist_ncar_r,
-                        interpolation="nearest",
-                        origin="lower",
-                        extent=[axidx[0], axidx[-1], 0, emax_lswt],
-                        aspect="auto",
-                    )
-                    plt.xticks(axidx, axlab)
-                plt.tight_layout()
-                plt.savefig("ncsqw_diagonal.png")
-                plt.close()
-            else:
-                fig = plt.figure(figsize=[16, 10])
-                plt_idx = 330
-                for ix in range(3):
-                    for iy in range(3):
-                        sqw_temp = lswt_sqw_tens[:, :, ix, iy].copy()
-                        sqw_temp = sqw_temp.T / (sqw_temp.T.max(axis=0) + 1.0e-20)
-                        plt_idx = plt_idx + 1
-                        ax = plt.subplot(plt_idx)
-                        stitle = r"$S^{{{xyz[ix]}{xyz[iy]}}}_{LSWT}$"
-                        ax.set_title(stitle)
+
+############################################################
+# Plot the S(q,w) on tensorial form (full tensor)
+############################################################
+if got_sqw_tens:
+    fig = plt.figure(figsize=[16,10])
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    #plt.autoscale(tight=False)
+    ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
+
+    #sqw_x[:,0]=sqw_x[:,0]/100.0
+    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
+    plt_idx=330
+    for ix in range(3):
+        for iy in range(3):
+            sqw_temp=sqw_tens[:,:,ix,iy]
+            sqw_temp[:,0]=sqw_temp[:,0]/1e5
+            sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
+            plt_idx=plt_idx+1
+            ax=plt.subplot(plt_idx)
+            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
+            ax.set_title(stitle)
+
+            sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+            sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+            plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax],aspect='auto')
+            plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
+            plt.xticks(axidx_abs,axlab)
+
+    plt.tight_layout()
+
+    plt.savefig('sqw_tensor.png')
+
+
+
+############################################################
+# Plot the LSWT S(q,w) on tensorial form (only diagonal terms)
+############################################################
+if got_lswt_sqw_tens:
+    fig = plt.figure(figsize=[16,4])
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    #plt.autoscale(tight=False)
+    #ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
+
+    #sqw_x[:,0]=sqw_x[:,0]/100.0
+    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
+    plt_idx=130
+    for ix in range(3):
+        iy=ix
+        sqw_temp=lswt_sqw_tens[:,:,ix,iy]
+        sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
+        plt_idx=plt_idx+1
+        ax=plt.subplot(plt_idx)
+        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
+        ax.set_title(stitle)
+
+        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
+        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
+        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax_lswt],aspect='auto')
+        #plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
+        plt.xticks(axidx_abs,axlab)
+
+    plt.tight_layout()
+
+    plt.savefig('ncsqw_diagonal.png')
+
+
+############################################################
+# Plot the LSWT S(q,w) on tensorial form (full tensor)
+############################################################
+if got_lswt_sqw_tens:
+    fig = plt.figure(figsize=[16,10])
+    hbar=4.135667662e-15
+    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
+
+    plt.xticks(axidx_abs,axlab)
+    plt.xlabel('q')
+    plt.ylabel('Energy (meV)')
+    
+    #plt.autoscale(tight=False)
+    #ax.set_aspect('auto')
+    plt.grid(visible=True,which='major',axis='x')
+
+    #sqw_x[:,0]=sqw_x[:,0]/100.0
+    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
+    plt_idx=330
+    for ix in range(3):
+        for iy in range(3):
+            sqw_temp=lswt_sqw_tens[:,:,ix,iy]
+            sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
+            plt_idx=plt_idx+1
+            ax=plt.subplot(plt_idx)
+            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
+            ax.set_title(stitle)
 
                         sqw_temp = self._apply_gaussian_filter(sqw_temp)
                         plt.imshow(

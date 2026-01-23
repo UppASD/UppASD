@@ -58,10 +58,6 @@ do_diamag Y
 qpoints D
 qfile ./qfile.spinw
 
-
-nc_qvect 0.330000      0.571577      0.000000
-nc_nvect 0.0 0.0 1.0
-
 qm_nvec 1 0 0
 qm_svec 0 1 0
 
