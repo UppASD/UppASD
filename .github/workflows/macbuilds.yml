@@ -35,7 +35,7 @@ jobs:
                -DUSE_STATIC_LIBGFORTRAN=ON \
                -DCMAKE_INSTALL_RPATH="@executable_path/../lib"
              cmake --build build --parallel
-             cmake --install build
+             # cmake --install build
              
              # Check if we need to bundle libquadmath
              HOMEBREW_PREFIX="$(brew --prefix)"

@@ -139,6 +139,9 @@ SET(UppASD_LIB asdlib)
 set(lib_type STATIC)
 ADD_LIBRARY(${UppASD_LIB} ${lib_type})
 message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC} ${CMAKE_POSITION_INDEPENDENT_CODE}")
+# Always build the static library with position-independent code so it can be
+# linked into shared objects (Python extension modules) safely.
+set_target_properties(${UppASD_LIB} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 if (BUILD_PYTHON)
    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
    set_target_properties(${UppASD_LIB} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
@@ -871,14 +874,13 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    # -lgomp
    # -lgfortran
    # -lquadmath
-         ${UppASD_links}
          ${BLAS_LIBRARIES}
          ${LAPACK_LIBRARIES}
          ${CMAKE_THREAD_LIBS_INIT} 
          ${OVF_LIB} 
          ${FFTW_LIB}  
          ${CUDA_curand_LIBRARY}
-	 # ${OpenMP_Fortran_LIB_NAMES}
+ 	 # ${OpenMP_Fortran_LIB_NAMES}
          ${OpenMP_Fortran_FLAGS}
          ${OpenMP_Fortran_LIBRARIES} 
       )
@@ -890,7 +892,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
       endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
    
 
-TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB})
+TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB} ${UppASD_links})
 
 ##############################################################################################
 # Bundle runtime libraries for portable distribution
