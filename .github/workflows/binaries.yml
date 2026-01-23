@@ -12,7 +12,7 @@ jobs:
           - { icon: '🐧' , os: ubuntu-latest,  shell: bash, arch: x86_64 }
           - { icon: '💻' , os: windows-latest, shell: msys2, arch: x86_64 }
           - { icon: '🍎' , os: macos-14,       shell: bash, arch: arm64 }
-          - { icon: '🍏' , os: macos-13,       shell: bash, arch: x86_64 }
+          - { icon: '🍏' , os: macos-15-intel,       shell: bash, arch: x86_64 }
     runs-on: ${{ matrix.os }}
     defaults:
       run:

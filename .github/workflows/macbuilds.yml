@@ -1,7 +1,7 @@
 name: Build binaries for MacOS
 
-on: [release]
-#on: [relase, push, pull_request]
+#on: [release]
+on: [release, push, pull_request]
 
 jobs:
   build_wheels:
@@ -13,8 +13,7 @@ jobs:
         include:
           #- { icon: '🖥️', os: macos-14 ,sys: macos, arch: x86_64 } 
           - { icon: '🦾', os: macos-14 ,sys: macos, arch: arm64 } 
-          - { icon: '🖥️', os: macos-13 ,sys: macos, arch: x86_64 } 
-          #- { icon: '🦾', os: macos-13-xlarge ,sys: macos, arch: arm64 } 
+          - { icon: '🖥️', os: macos-15-intel,sys: macos, arch: x86_64 } 
         #os: [ ubuntu-latest,  macOS-latest]
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 
