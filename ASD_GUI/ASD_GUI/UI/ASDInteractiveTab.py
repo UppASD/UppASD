@@ -317,12 +317,17 @@ def InitializeInteractor(window):
 
     CurrentTemp = window.InteractiveVtk.asd.inputdata.get_temp()
     # window.IntTempLine.setPlaceholderText(CurrentTemp)
-    window.IntTempLine.setValue(CurrentTemp)
+    if CurrentTemp is not None:
+        window.IntTempLine.setValue(CurrentTemp)
+    else:
+        window.IntTempLine.setValue(0.0)
 
     CurrentTimeStep = str(window.InteractiveVtk.asd.inputdata.get_delta_t())
     window.IntSDStepSize.setPlaceholderText(CurrentTimeStep)
 
     CurrentMagField = window.InteractiveVtk.asd.inputdata.get_hfield()
+    if CurrentMagField is None:
+        CurrentMagField = [0.0, 0.0, 0.0]
 
     window.IntB_xLine.setValue(CurrentMagField[0])
     window.IntB_yLine.setValue(CurrentMagField[1])

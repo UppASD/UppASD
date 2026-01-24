@@ -24,7 +24,7 @@ from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
 from vtkmodules.vtkCommonColor import vtkColorSeries
 
-# import uppasd.pyasd as asd
+import uppasd.pyasd as pyasd
 import uppasd.simulator as sim
 
 
@@ -304,9 +304,7 @@ def main():
     number_of_screenshots = 1
 
     # ASD STUFF
-    asd.get_moments()
-    asd.get_coords()
-
+    # Load moments and coordinates from Fortran
     initmom = asd.moments[:, :, 0]
     currmom = asd.moments[:, :, 0].T
     vecz = numpy_support.numpy_to_vtk(currmom, deep=False)
@@ -335,7 +333,8 @@ def main():
 
     # Read atom positions
     atomPoints = vtk.vtkPoints()
-    atomData = numpy_support.numpy_to_vtk(asd.coords.T, deep=False)
+    coords = pyasd.get_coords(asd.natom)
+    atomData = numpy_support.numpy_to_vtk(coords.T, deep=False)
     atomPoints.SetData(atomData)
     nrAtoms = asd.natom
     # atomData, nrAtoms = self.readAtoms(atomsFile)
@@ -653,7 +652,6 @@ def main():
             print("Running UppASD")
             set_mode_for_relax("M")
             asd.relax(mode="M", temperature=asd.inputdata.iptemp)
-            asd.get_moments()
             print("Updating graphics")
             currmom = asd.moments[:, :, 0].T
             currcol = asd.moments[2, :, 0].T
@@ -667,8 +665,8 @@ def main():
         if key == "H" or key == "h":
             print("Running UppASD")
             set_mode_for_relax("H")
-            asd.relax(mode="H", temperature=asd.inputdata.iptemp + 1.0e-6)
-            asd.get_moments()
+            safe_temp = max(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 1.0e-8)
+            asd.relax(mode="H", temperature=safe_temp + 1.0e-6)
             print("Updating graphics")
             currmom = asd.moments[:, :, 0].T
             currcol = asd.moments[2, :, 0].T
@@ -683,7 +681,6 @@ def main():
             print("Running UppASD")
             set_mode_for_relax("S")
             asd.relax(mode="S", temperature=asd.inputdata.iptemp)
-            asd.get_moments()
             print("Updating graphics")
             currmom = asd.moments[:, :, 0].T
             currcol = asd.moments[2, :, 0].T
@@ -737,21 +734,22 @@ def main():
             fieldtxt.SetInput("Bz = " + bz + " T")
         if key == "T":
             asd.inputdata.iptemp = asd.inputdata.iptemp + 1.0
+            asd.inputdata.update_ipmax(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 0.0) + 1.0
             asd.inputdata.update_iptemp()
             temp = "{:4.3f}".format(asd.inputdata.iptemp)
             temptxt.SetInput("T = " + temp + " K")
         if key == "t":
-            asd.inputdata.iptemp = max(asd.inputdata.iptemp - 1.0, 1.0e-5)
+            asd.inputdata.iptemp = max((asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0) - 1.0, 1.0e-5)
             asd.inputdata.update_iptemp()
             temp = "{:4.3f}".format(asd.inputdata.iptemp)
             temptxt.SetInput("T = " + temp + " K")
         if key == "Y":
-            asd.inputdata.iptemp = asd.inputdata.iptemp + 10.0
+            asd.inputdata.iptemp = max(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 0.0) + 10.0
             asd.inputdata.update_iptemp()
             temp = "{:4.3f}".format(asd.inputdata.iptemp)
             temptxt.SetInput("T = " + temp + " K")
         if key == "y":
-            asd.inputdata.iptemp = max(asd.inputdata.iptemp - 10.0, 1.0e-5)
+            asd.inputdata.iptemp = max((asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0) - 10.0, 1.0e-5)
             asd.inputdata.update_iptemp()
             temp = "{:4.3f}".format(asd.inputdata.iptemp)
             temptxt.SetInput("T = " + temp + " K")

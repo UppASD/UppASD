@@ -379,7 +379,7 @@ def relax_montecarlo(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.info(f"Starting MC relaxation ({natom} atoms, {mensemble} ens.)")
         moments = _uppasd.relaxmontecarlo(natom, mensemble)
-        moments = np.asarray(moments)
+        moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "MC relaxation moments")
         logger.debug(f"✓ MC relaxation complete, moments shape: {moments.shape}")
         return moments
@@ -425,7 +425,7 @@ def relax_metropolis(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.info(f"Starting Metropolis relaxation ({natom} atoms)")
         moments = _uppasd.relaxmetropolis(natom, mensemble)
-        moments = np.asarray(moments)
+        moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Metropolis relaxation moments")
         logger.debug(f"✓ Metropolis relaxation complete")
         return moments
@@ -470,7 +470,7 @@ def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.info(f"Starting heat bath relaxation ({natom} atoms)")
         moments = _uppasd.relaxheatbath(natom, mensemble)
-        moments = np.asarray(moments)
+        moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Heat bath moments")
         logger.debug(f"✓ Heat bath relaxation complete")
         return moments
@@ -516,7 +516,7 @@ def relax_llg(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.info(f"Starting LLG relaxation ({natom} atoms)")
         moments = _uppasd.relaxllg(natom, mensemble)
-        moments = np.asarray(moments)
+        moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "LLG relaxation moments")
         logger.debug(f"✓ LLG relaxation complete")
         return moments
@@ -628,7 +628,9 @@ def relax(
         moments = _uppasd.relax(
             natom, mensemble, mode, nstep, temperature, timestep, damping
         )
-        moments = np.asarray(moments)
+        # Wrap Fortran array as numpy array with proper dtype
+        # F2PY allocates this array, we just reference it
+        moments = np.asarray(moments, dtype=np.float64)
         _check_array_nan(moments, f"{method} relaxation moments")
         logger.info(f"✓ {method} relaxation complete")
         return moments
@@ -665,7 +667,7 @@ def get_coords(natom: int) -> np.ndarray:
     try:
         logger.debug("Fetching atomic coordinates")
         coords = _uppasd.get_coord(natom)
-        coords = np.asarray(coords)
+        coords = np.array(coords, dtype=np.float64, copy=True)
         _check_array_nan(coords, "coordinates")
         return coords
     except Exception as e:
@@ -707,7 +709,10 @@ def get_moments(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.debug("Fetching magnetic moments")
         moments = _uppasd.get_emom(natom, mensemble)
-        moments = np.asarray(moments)
+        # CRITICAL: Must use explicit copy, not asarray()
+        # Fortran arrays passed to Python can cause malloc corruption if not copied
+        # This prevents the "Incorrect checksum for freed object" error
+        moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "moments")
         return moments
     except Exception as e:
@@ -795,7 +800,7 @@ def get_field(natom: int, mensemble: int) -> np.ndarray:
     try:
         logger.debug("Fetching effective field")
         field = _uppasd.get_beff(natom, mensemble)
-        field = np.asarray(field)
+        field = np.array(field, dtype=np.float64, copy=True)
         _check_array_nan(field, "field")
         return field
     except Exception as e:
@@ -845,6 +850,150 @@ def set_field(field: np.ndarray, natom: int, mensemble: int) -> None:
 
 # Backward compatibility alias
 put_beff = set_field
+
+
+def get_hfield() -> np.ndarray:
+    """
+    Get external magnetic field.
+    
+    Retrieves the applied external magnetic field.
+    
+    Returns
+    -------
+    hfield : ndarray
+        External field. Shape: (3,) representing (Bx, By, Bz) in Tesla
+    
+    Raises
+    ------
+    RuntimeError
+        If retrieval fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> hfield = get_hfield()
+    >>> print(f"Applied field: {hfield} T")
+    """
+    try:
+        logger.debug("Fetching external magnetic field")
+        hfield = _uppasd.get_hfield()
+        hfield = np.array(hfield, dtype=np.float64, copy=True)
+        _check_array_nan(hfield, "hfield")
+        return hfield
+    except Exception as e:
+        logger.error(f"Failed to get hfield: {e}")
+        raise RuntimeError(f"Cannot retrieve hfield: {e}") from e
+
+
+def set_hfield(hfield: np.ndarray) -> None:
+    """
+    Set external magnetic field.
+    
+    Updates the applied external magnetic field.
+    
+    Parameters
+    ----------
+    hfield : ndarray
+        External field. Shape: (3,) representing (Bx, By, Bz) in Tesla
+    
+    Raises
+    ------
+    ValueError
+        If hfield has wrong shape or contains NaN
+    RuntimeError
+        If setting fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_hfield(np.array([0.0, 0.0, 1.0]))  # 1 Tesla in z-direction
+    """
+    try:
+        hfield = np.asarray(hfield, dtype=np.float64)
+        if hfield.shape != (3,):
+            raise ValueError(f"hfield must have shape (3,), got {hfield.shape}")
+        _check_array_nan(hfield, "hfield")
+        logger.debug(f"Setting external field to {hfield} T")
+        _uppasd.put_hfield(hfield)
+    except Exception as e:
+        logger.error(f"Failed to set hfield: {e}")
+        raise RuntimeError(f"Cannot set hfield: {e}") from e
+
+
+# Backward compatibility alias
+put_hfield = set_hfield
+
+
+def get_iphfield() -> np.ndarray:
+    """
+    Get initial-phase external magnetic field.
+    
+    Retrieves the applied external magnetic field for the initial phase.
+    
+    Returns
+    -------
+    iphfield : ndarray
+        Initial-phase external field. Shape: (3,) representing (Bx, By, Bz) in Tesla
+    
+    Raises
+    ------
+    RuntimeError
+        If retrieval fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> iphfield = get_iphfield()
+    >>> print(f"Initial phase field: {iphfield} T")
+    """
+    try:
+        logger.debug("Fetching initial-phase external magnetic field")
+        iphfield = _uppasd.get_iphfield()
+        iphfield = np.array(iphfield, dtype=np.float64, copy=True)
+        _check_array_nan(iphfield, "iphfield")
+        return iphfield
+    except Exception as e:
+        logger.error(f"Failed to get iphfield: {e}")
+        raise RuntimeError(f"Cannot retrieve iphfield: {e}") from e
+
+
+def set_iphfield(iphfield: np.ndarray) -> None:
+    """
+    Set initial-phase external magnetic field.
+    
+    Updates the applied external magnetic field for the initial phase.
+    
+    Parameters
+    ----------
+    iphfield : ndarray
+        Initial-phase external field. Shape: (3,) representing (Bx, By, Bz) in Tesla
+    
+    Raises
+    ------
+    ValueError
+        If iphfield has wrong shape or contains NaN
+    RuntimeError
+        If setting fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_iphfield(np.array([0.0, 0.0, 0.5]))  # 0.5 Tesla in z-direction
+    """
+    try:
+        iphfield = np.asarray(iphfield, dtype=np.float64)
+        if iphfield.shape != (3,):
+            raise ValueError(f"iphfield must have shape (3,), got {iphfield.shape}")
+        _check_array_nan(iphfield, "iphfield")
+        logger.debug(f"Setting initial-phase field to {iphfield} T")
+        _uppasd.put_iphfield(iphfield)
+    except Exception as e:
+        logger.error(f"Failed to set iphfield: {e}")
+        raise RuntimeError(f"Cannot set iphfield: {e}") from e
+
+
+# Backward compatibility alias
+put_iphfield = set_iphfield
 
 
 # ============================================================================
@@ -911,6 +1060,126 @@ def get_nstep() -> int:
     except Exception as e:
         logger.error(f"Failed to get step number: {e}")
         raise RuntimeError(f"Cannot retrieve step number: {e}") from e
+
+
+def set_nstep(nstep: int) -> None:
+    """
+    Set simulation step number.
+    
+    Updates the internal step counter to the specified value.
+    
+    Parameters
+    ----------
+    nstep : int
+        The new step number
+    
+    Raises
+    ------
+    ValueError
+        If nstep is negative
+    RuntimeError
+        If setting fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_nstep(1000)
+    """
+    if not isinstance(nstep, int):
+        nstep = int(nstep)
+    
+    if nstep < 0:
+        raise ValueError(f"nstep must be non-negative, got {nstep}")
+    
+    try:
+        if hasattr(_uppasd, "put_nstep"):
+            logger.debug(f"Setting step number to {nstep}")
+            _uppasd.put_nstep(nstep)
+        else:
+            logger.warning("put_nstep not available in _uppasd; step number not updated")
+    except Exception as e:
+        logger.error(f"Failed to set step number: {e}")
+        raise RuntimeError(f"Cannot set step number: {e}") from e
+
+
+# Backward compatibility alias
+put_nstep = set_nstep
+
+
+def get_mcnstep() -> int:
+    """
+    Get current Monte Carlo step number.
+    
+    Returns the number of completed Monte Carlo steps since initialization.
+    
+    Returns
+    -------
+    mcnstep : int
+        Current MC step number
+    
+    Raises
+    ------
+    RuntimeError
+        If retrieval fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> for _ in range(10000):
+    ...     step = get_mcnstep()
+    ...     print(f"MC Step {step}")
+    """
+    try:
+        logger.debug("Fetching current MC step number")
+        mcnstep = _uppasd.get_mcnstep()
+        return int(mcnstep)
+    except Exception as e:
+        logger.error(f"Failed to get MC step number: {e}")
+        raise RuntimeError(f"Cannot retrieve MC step number: {e}") from e
+
+
+def set_mcnstep(mcnstep: int) -> None:
+    """
+    Set Monte Carlo step number.
+    
+    Updates the internal Monte Carlo step counter.
+    
+    Parameters
+    ----------
+    mcnstep : int
+        The new MC step number
+    
+    Raises
+    ------
+    ValueError
+        If mcnstep is negative
+    RuntimeError
+        If setting fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_mcnstep(5000)
+    """
+    if not isinstance(mcnstep, int):
+        mcnstep = int(mcnstep)
+    
+    if mcnstep < 0:
+        raise ValueError(f"mcnstep must be non-negative, got {mcnstep}")
+    
+    try:
+        if hasattr(_uppasd, "put_mcnstep"):
+            logger.debug(f"Setting MC step number to {mcnstep}")
+            _uppasd.put_mcnstep(mcnstep)
+        else:
+            logger.warning("put_mcnstep not available in _uppasd; MC step number not updated")
+    except Exception as e:
+        logger.error(f"Failed to set MC step number: {e}")
+        raise RuntimeError(f"Cannot set MC step number: {e}") from e
+
+
+# Backward compatibility alias
+put_mcnstep = set_mcnstep
 
 
 # ============================================================================
@@ -1054,6 +1323,49 @@ def set_temperature(temperature: float) -> None:
 put_temperature = set_temperature
 
 
+def set_iptemperature(temperature: float) -> None:
+    """
+    Set initial-phase temperature.
+    
+    Updates the temperature for the initial phase relaxation.
+    
+    Parameters
+    ----------
+    temperature : float
+        Temperature in Kelvin (must be >= 0)
+    
+    Raises
+    ------
+    ValueError
+        If temperature is negative
+    RuntimeError
+        If setting fails or if put_iptemperature not available
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_iptemperature(100)  # Set initial phase to 100K
+    """
+    if temperature < 0:
+        raise ValueError(f"Temperature must be non-negative, got {temperature}")
+    
+    if not hasattr(_uppasd, "put_iptemperature"):
+        raise RuntimeError(
+            "_uppasd.build missing put_iptemperature(); rebuild UppASD to enable iptemperature updates"
+        )
+    
+    try:
+        logger.debug(f"Setting initial-phase temperature to {temperature} K")
+        _uppasd.put_iptemperature(temperature)
+    except Exception as e:
+        logger.error(f"Failed to set initial-phase temperature: {e}")
+        raise RuntimeError(f"Cannot set initial-phase temperature: {e}") from e
+
+
+# Backward compatibility alias
+put_iptemperature = set_iptemperature
+
+
 def get_timestep() -> float:
     """
     Get current integration timestep.
@@ -1080,5 +1392,45 @@ def get_timestep() -> float:
         raise RuntimeError(f"Cannot retrieve timestep: {e}") from e
 
 
-# Backward compatibility alias
+def set_timestep(timestep: float) -> None:
+    """
+    Set integration timestep.
+    
+    Parameters
+    ----------
+    timestep : float
+        Integration timestep in seconds
+    
+    Raises
+    ------
+    ValueError
+        If timestep is non-positive or NaN
+    RuntimeError
+        If setting fails
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> set_timestep(1.0e-15)
+    """
+    timestep = float(timestep)
+    _check_nan(timestep, "timestep")
+    
+    if timestep <= 0.0:
+        raise ValueError(f"timestep must be positive, got {timestep}")
+    
+    try:
+        if hasattr(_uppasd, "put_delta_t"):
+            logger.debug(f"Setting timestep to {timestep:.2e}")
+            _uppasd.put_delta_t(timestep)
+        else:
+            logger.warning("put_delta_t not available in _uppasd; timestep not updated")
+    except Exception as e:
+        logger.error(f"Failed to set timestep: {e}")
+        raise RuntimeError(f"Cannot set timestep: {e}") from e
+
+
+# Backward compatibility aliases
 get_delta_t = get_timestep
+set_delta_t = set_timestep
+put_delta_t = set_timestep

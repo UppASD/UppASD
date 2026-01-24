@@ -1,6 +1,10 @@
 """
 InputData class for UppASD data
 """
+import logging
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class InputData:
@@ -29,7 +33,8 @@ class InputData:
         Returns:
             int: The value of nstep.
         """
-        self.nstep = self.driver.get_nstep()
+        if hasattr(self.driver, "get_nstep"):
+            self.nstep = self.driver.get_nstep()
         return self.nstep
 
     def get_mcnstep(self):
@@ -39,7 +44,8 @@ class InputData:
         Returns:
             int: The value of mcnstep.
         """
-        self.mcnstep = self.driver.get_mcnstep()
+        if hasattr(self.driver, "get_mcnstep"):
+            self.mcnstep = self.driver.get_mcnstep()
         return self.mcnstep
 
     def get_temp(self):
@@ -49,7 +55,8 @@ class InputData:
         Returns:
             float: The value of temp.
         """
-        self.temp = self.driver.get_temperature()
+        if hasattr(self.driver, "get_temperature"):
+            self.temp = self.driver.get_temperature()
         return self.temp
 
     def get_delta_t(self):
@@ -59,7 +66,8 @@ class InputData:
         Returns:
             float: The value of delta_t.
         """
-        self.delta_t = self.driver.get_delta_t()
+        if hasattr(self.driver, "get_delta_t"):
+            self.delta_t = self.driver.get_delta_t()
         return self.delta_t
 
     def get_hfield(self):
@@ -69,7 +77,8 @@ class InputData:
         Returns:
             list: The value of hfield.
         """
-        self.hfield = self.driver.get_hfield()
+        if hasattr(self.driver, "get_hfield"):
+            self.hfield = self.driver.get_hfield()
         return self.hfield
 
     def get_iptemp(self):
@@ -79,7 +88,8 @@ class InputData:
         Returns:
             float: The value of iptemp.
         """
-        self.iptemp = self.driver.get_iptemperature()
+        if hasattr(self.driver, "get_iptemperature"):
+            self.iptemp = self.driver.get_iptemperature()
         return self.iptemp
 
     def get_iphfield(self):
@@ -89,7 +99,8 @@ class InputData:
         Returns:
             list: The value of iphfield.
         """
-        self.iphfield = self.driver.get_iphfield()
+        if hasattr(self.driver, "get_iphfield"):
+            self.iphfield = self.driver.get_iphfield()
         return self.iphfield
 
     def get_ipmode(self):
@@ -113,7 +124,16 @@ class InputData:
         """
         if value is not None:
             self.nstep = value
-        self.driver.put_nstep(self.nstep)
+        if hasattr(self.driver, "set_nstep"):
+            try:
+                self.driver.set_nstep(self.nstep)
+            except Exception as e:
+                logger.warning(f"Failed to update nstep: {e}")
+        elif hasattr(self.driver, "put_nstep"):
+            try:
+                self.driver.put_nstep(self.nstep)
+            except Exception as e:
+                logger.warning(f"Failed to update nstep: {e}")
 
     def update_mcnstep(self, value=None):
         """
@@ -125,7 +145,16 @@ class InputData:
         """
         if value is not None:
             self.mcnstep = value
-        self.driver.put_mcnstep(self.mcnstep)
+        if hasattr(self.driver, "set_mcnstep"):
+            try:
+                self.driver.set_mcnstep(self.mcnstep)
+            except Exception as e:
+                logger.warning(f"Failed to update mcnstep: {e}")
+        elif hasattr(self.driver, "put_mcnstep"):
+            try:
+                self.driver.put_mcnstep(self.mcnstep)
+            except Exception as e:
+                logger.warning(f"Failed to update mcnstep: {e}")
 
     def update_temp(self, value=None):
         """
@@ -149,7 +178,21 @@ class InputData:
         """
         if value is not None:
             self.delta_t = value
-        self.driver.put_delta_t(self.delta_t)
+        if hasattr(self.driver, "set_timestep"):
+            try:
+                self.driver.set_timestep(self.delta_t)
+            except Exception as e:
+                logger.warning(f"Failed to update delta_t: {e}")
+        elif hasattr(self.driver, "set_delta_t"):
+            try:
+                self.driver.set_delta_t(self.delta_t)
+            except Exception as e:
+                logger.warning(f"Failed to update delta_t: {e}")
+        elif hasattr(self.driver, "put_delta_t"):
+            try:
+                self.driver.put_delta_t(self.delta_t)
+            except Exception as e:
+                logger.warning(f"Failed to update delta_t: {e}")
 
     def update_hfield(self, value=None):
         """
@@ -161,7 +204,23 @@ class InputData:
         """
         if value is not None:
             self.hfield = value
-        self.driver.put_hfield(self.hfield)
+        if hasattr(self.driver, "set_field"):
+            try:
+                # set_field expects shape (3, natom, mensemble) or (3,) for uniform field
+                field = np.array(self.hfield, dtype=np.float64)
+                if field.ndim == 1 and field.shape[0] == 3:
+                    # Uniform field: expand to (3, natom, mensemble)
+                    natom = self.driver.get_natom() if hasattr(self.driver, "get_natom") else 1
+                    mensemble = self.driver.get_mensemble() if hasattr(self.driver, "get_mensemble") else 1
+                    field = np.tile(field[:, np.newaxis, np.newaxis], (1, natom, mensemble))
+                self.driver.set_field(field, natom, mensemble)
+            except Exception as e:
+                logger.warning(f"Failed to update hfield via set_field: {e}")
+        elif hasattr(self.driver, "put_hfield"):
+            try:
+                self.driver.put_hfield(np.array(self.hfield, dtype=np.float64))
+            except Exception as e:
+                logger.warning(f"Failed to update hfield via put_hfield: {e}")
 
     def update_iptemp(self, value=None):
         """
@@ -173,7 +232,16 @@ class InputData:
         """
         if value is not None:
             self.iptemp = value
-        self.driver.put_iptemperature(self.iptemp)
+        if hasattr(self.driver, "set_iptemperature"):
+            try:
+                self.driver.set_iptemperature(self.iptemp)
+            except Exception as e:
+                logger.warning(f"Failed to update iptemp: {e}")
+        elif hasattr(self.driver, "put_iptemperature"):
+            try:
+                self.driver.put_iptemperature(self.iptemp)
+            except Exception as e:
+                logger.warning(f"Failed to update iptemp: {e}")
 
     def update_iphfield(self, value=None):
         """
@@ -185,7 +253,11 @@ class InputData:
         """
         if value is not None:
             self.iphfield = value
-        self.driver.put_iphfield(self.iphfield)
+        if hasattr(self.driver, "put_iphfield"):
+            try:
+                self.driver.put_iphfield(np.array(self.iphfield, dtype=np.float64))
+            except Exception as e:
+                logger.warning(f"Failed to update iphfield: {e}")
 
     def update_ipmode(self, value=None):
         """

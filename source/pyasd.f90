@@ -278,11 +278,10 @@
       real(c_double), intent(in) :: itimestep
       !f2py intent(in) :: idamping
       real(c_double), intent(in) :: idamping
- 
 
       call timing(0,'Initial       ','ON')
+      
       if(imode == 'M' .or. imode == 'H') then
-         !call sd_minimal(emomM,emom,mmom, 1, 1, itemperature)
          call mc_minimal(emomM, emom, mmom, instep, imode//" ", itemperature)
       else
          damping1 = idamping
@@ -290,10 +289,11 @@
       end if
       call timing(0,'Initial       ','OF')
 
+      ! Copy data directly to output array
+      ! F2PY allocates moments, we just fill it
       moments = emomM
 
       return
-
       
     end subroutine Relax
 !!! 
@@ -396,6 +396,16 @@
        nstep = instep
     end subroutine get_nstep
 
+    subroutine put_nstep(nstep) bind(c, name='put_nstep_')
+      use iso_c_binding
+         use InputData, only : ostep => nstep
+       implicit none
+       !f2py intent(in) nstep
+       integer(c_int), intent(in) :: nstep
+
+       ostep = nstep
+    end subroutine put_nstep
+
     subroutine get_hfield(hfield) bind(c, name='get_hfield_')
       use iso_c_binding
          use InputData, only : ihfield => hfield
@@ -470,6 +480,16 @@
        nstep = mcnstep
     end subroutine get_mcnstep
 
+    subroutine put_mcnstep(nstep) bind(c, name='put_mcnstep_')
+      use iso_c_binding
+         use InputData, only : mcnstep
+       implicit none
+       !f2py intent(in) nstep
+       integer(c_int), intent(in) :: nstep
+
+       mcnstep = nstep
+    end subroutine put_mcnstep
+
     subroutine get_temperature(temperature) bind(c, name='get_temperature_')
       use iso_c_binding
          use InputData, only : itemp => temp
@@ -523,6 +543,16 @@
 
        timestep = delta_t
     end subroutine get_delta_t
+
+    subroutine put_delta_t(timestep) bind(c, name='put_delta_t_')
+      use iso_c_binding
+         use InputData, only : delta_t
+       implicit none
+       !f2py intent(in) timestep
+       real(c_double), intent(in) :: timestep
+
+       delta_t = timestep
+    end subroutine put_delta_t
 
    !!! 
    subroutine get_energy(energy) bind(c, name='get_energy_')

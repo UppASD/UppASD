@@ -18,6 +18,7 @@ import numpy as np
 # from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
 from PyQt6.QtWidgets import QFileDialog
+import uppasd.pyasd as pyasd
 
 
 class InteractiveASD:
@@ -61,17 +62,28 @@ class InteractiveASD:
             #     print("Launch: UppASD module not installed.")
             #     return
         self.asd.init_simulation()
+        # CRITICAL: Must call initial_phase() to initialize moment arrays in Fortran
+        # without this, get_moments() returns uninitialized/garbage data
+        # which causes segfaults on first relaxation
+        try:
+            import uppasd.pyasd as pyasd_module
+            pyasd_module.initial_phase()
+        except Exception as e:
+            print(f"Warning: initial_phase() failed: {e}")
+            # Continue anyway - moments might still be initialized
+        
         print("InteractiveASD launched!", self.asd.natom, self.asd.mensemble)
 
         self.Datatest = vtk.vtkPolyData()
         self.DataFour = vtk.vtkPolyData()
 
-        self.initmom = self.asd.moments[:, :, 0].T
-        self.currmom = self.asd.moments[:, :, 0].T
-        self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=False)
-        self.initcol = self.asd.moments[2, :, 0].T
-        self.currcol = self.asd.moments[2, :, 0].T
-        self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=False)
+        # Make DEEP COPIES of moment data to avoid memory aliasing issues with VTK
+        self.initmom = np.array(self.asd.moments[:, :, 0].T, copy=True)
+        self.currmom = np.array(self.asd.moments[:, :, 0].T, copy=True)
+        self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=True)
+        self.initcol = np.array(self.asd.moments[2, :, 0].T, copy=True)
+        self.currcol = np.array(self.asd.moments[2, :, 0].T, copy=True)
+        self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=True)
 
         self.lut = vtk.vtkLookupTable()
         for i in range(0, 128, 1):
@@ -92,12 +104,13 @@ class InteractiveASD:
 
         # Read atom positions
         atomPoints = vtk.vtkPoints()
-        atomData = numpy_support.numpy_to_vtk(self.asd.coords.T, deep=False)
+        coords = pyasd.get_coords(self.asd.natom)
+        atomData = numpy_support.numpy_to_vtk(coords.T, deep=False)
         atomPoints.SetData(atomData)
         nrAtoms = self.asd.natom
         # atomData, nrAtoms = self.readAtoms(atomsFile)
         print("Coordinates read: ", nrAtoms)
-        print("Coordinates: ", self.asd.coords)
+        print("Coordinates: ", coords)
         print("Number of atoms: ", nrAtoms)
         self.Datatest.SetPoints(atomPoints)
         self.DataFour.SetPoints(atomPoints)
@@ -229,7 +242,8 @@ class InteractiveASD:
         # create a text actor for Temperature
         self.temptxt = vtk.vtkTextActor()
         # temp = f"{0.0:4.3f}"
-        temp = f"{self.asd.inputdata.get_temp():4.3f}"
+        temp_val = self.asd.inputdata.get_temp()
+        temp = f"{temp_val if temp_val is not None else 0.0:4.3f}"
         self.temptxt.SetInput("T = " + temp + " K")
         temptxtprop = self.temptxt.GetTextProperty()
         temptxtprop.SetFontFamilyToArial()
@@ -241,6 +255,8 @@ class InteractiveASD:
         # create a text actor for Field
         self.fieldtxt = vtk.vtkTextActor()
         Bfield = self.asd.inputdata.get_hfield()
+        if Bfield is None:
+            Bfield = [0.0, 0.0, 0.0]
         self.fieldtxt.SetInput(
             f"B = ({Bfield[0]:4.1f}, {Bfield[1]:4.1f}, {Bfield[2]:4.1f} ) T"
         )
@@ -310,11 +326,13 @@ class InteractiveASD:
         """Do a simulation using S-mode."""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="S", temperature=self.asd.inputdata.temp)
-        currmom = self.asd.moments[:, :, 0].T
-        currcol = self.asd.moments[2, :, 0].T
-        vecz = numpy_support.numpy_to_vtk(currmom)
-        colz = numpy_support.numpy_to_vtk(currcol)
+        moments = self.asd.relax(mode="S", temperature=self.asd.inputdata.temp)
+        # Use returned moments directly instead of re-fetching from Fortran
+        # This avoids accessing potentially stale data
+        currmom = np.array(moments[:, :, 0].T, copy=True)
+        currcol = np.array(moments[2, :, 0].T, copy=True)
+        vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
+        colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
         # Update enegrgy
@@ -329,11 +347,13 @@ class InteractiveASD:
         """Do a simulation using Metropolis MC"""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="M", temperature=self.asd.inputdata.temp)
-        currmom = self.asd.moments[:, :, 0].T
-        currcol = self.asd.moments[2, :, 0].T
-        vecz = numpy_support.numpy_to_vtk(currmom)
-        colz = numpy_support.numpy_to_vtk(currcol)
+        moments = self.asd.relax(mode="M", temperature=self.asd.inputdata.temp)
+        # Use returned moments directly instead of re-fetching from Fortran
+        # This avoids accessing potentially stale data
+        currmom = np.array(moments[:, :, 0].T, copy=True)
+        currcol = np.array(moments[2, :, 0].T, copy=True)
+        vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
+        colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
         # Update enegrgy
@@ -348,11 +368,13 @@ class InteractiveASD:
         """Do a simulation using Heat-bath MC"""
         if not hasattr(self, "asd"):
             return
-        self.asd.relax(mode="H", temperature=self.asd.inputdata.temp + 1.0e-6)
-        currmom = self.asd.moments[:, :, 0].T
-        currcol = self.asd.moments[2, :, 0].T
-        vecz = numpy_support.numpy_to_vtk(currmom)
-        colz = numpy_support.numpy_to_vtk(currcol)
+        moments = self.asd.relax(mode="H", temperature=self.asd.inputdata.temp + 1.0e-6)
+        # Use returned moments directly instead of re-fetching from Fortran
+        # This avoids accessing potentially stale data
+        currmom = np.array(moments[:, :, 0].T, copy=True)
+        currcol = np.array(moments[2, :, 0].T, copy=True)
+        vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
+        colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
         # Update enegrgy
@@ -368,8 +390,8 @@ class InteractiveASD:
         if not hasattr(self, "asd"):
             return
         self.asd.put_moments(self.initmom.T)
-        vecz = numpy_support.numpy_to_vtk(self.initmom)
-        colz = numpy_support.numpy_to_vtk(self.initcol)
+        vecz = numpy_support.numpy_to_vtk(np.array(self.initmom, copy=True), deep=True)
+        colz = numpy_support.numpy_to_vtk(np.array(self.initcol, copy=True), deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
         self.Datatest.GetPointData().SetScalars(colz)
         self.renWin.Render()
@@ -389,10 +411,10 @@ class InteractiveASD:
                 moments = np.loadtxt(mag_file)[:, 4:]
                 print("Moments read:", moments.shape)
                 self.asd.put_moments(moments.T)
-                self.currmom = moments
-                self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=False)
-                self.currcol = moments[:, 2]
-                self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=False)
+                self.currmom = np.array(moments, copy=True)
+                self.vecz = numpy_support.numpy_to_vtk(self.currmom, deep=True)
+                self.currcol = np.array(moments[:, 2], copy=True)
+                self.colz = numpy_support.numpy_to_vtk(self.currcol, deep=True)
                 self.Datatest.GetPointData().SetVectors(self.vecz)
                 self.Datatest.GetPointData().SetScalars(self.colz)
                 self.renWin.Render()

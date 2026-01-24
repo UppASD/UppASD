@@ -58,6 +58,7 @@ from typing import Optional, Callable, Dict, List, Any, Tuple
 
 from uppasd.core import UppASDBase, SimulationState, StateError, logger
 import uppasd.pyasd as pyasd
+from uppasd.inputdata import InputData
 
 # Configure logger for this module
 logger = logging.getLogger("uppasd.simulator")
@@ -134,6 +135,9 @@ class Simulator(UppASDBase):
         # Will be set by init_simulation()
         self.natom: int = 0
         self.mensemble: int = 0
+        
+        # Initialize InputData instance
+        self.inputdata = InputData(pyasd)
         
         logger.debug(
             f"Simulator initialized: record_trajectory={record_trajectory}"
@@ -216,6 +220,8 @@ class Simulator(UppASDBase):
             logger.info("Initializing UppASD simulation")
             pyasd.sanity_check()
             self.natom, self.mensemble = pyasd.setup_all()
+            # Populate input data from Fortran backend
+            self.inputdata.get_all()
             self._state = SimulationState.INITIALIZED
             logger.info(
                 f"✓ Initialized: {self.natom} atoms, {self.mensemble} ensembles"
@@ -378,6 +384,13 @@ class Simulator(UppASDBase):
         # State check: can relax from INITIALIZED or COMPLETED
         self._check_state(SimulationState.INITIALIZED, SimulationState.COMPLETED)
         
+        # Handle None temperature - use inputdata temperature if available
+        if temperature is None:
+            if self.inputdata.iptemp is not None:
+                temperature = self.inputdata.iptemp
+            else:
+                temperature = 0.0
+        
         # Parameter validation
         if mode not in {'M', 'S', 'H'}:
             raise ValueError(
@@ -408,28 +421,45 @@ class Simulator(UppASDBase):
                     logger.debug(f"ip_mode sync skipped: {sync_err}")
             
             # Perform relaxation with optional callback
-            for step in range(steps):
+            # If no callback and no trajectory, do all steps at once to avoid repeated Fortran calls
+            # This is important for stability - repeated calls to Fortran relax() can cause memory corruption
+            if callback is None and not self._record_trajectory:
                 moments = pyasd.relax(
                     self.natom,
                     self.mensemble,
                     mode=mode,
-                    nstep=1,
+                    nstep=steps,
                     temperature=temperature,
                     timestep=timestep,
                     damping=damping,
                 )
-                
-                # Call user callback if provided
-                if callback is not None:
-                    try:
-                        energy = pyasd.get_energy()
-                        callback(step, moments, energy)
-                    except Exception as e:
-                        logger.warning(f"Callback error at step {step}: {e}")
-                
-                # Record trajectory if requested
-                if self._record_trajectory:
-                    self._trajectory.append(moments.copy())
+                logger.debug(f"Completed {steps} relaxation steps in single Fortran call (stable)")
+            else:
+                # With callback or trajectory recording, need to call step-by-step
+                # Note: This is less stable due to repeated Fortran calls, use sparingly
+                moments = None
+                for step in range(steps):
+                    moments = pyasd.relax(
+                        self.natom,
+                        self.mensemble,
+                        mode=mode,
+                        nstep=1,
+                        temperature=temperature,
+                        timestep=timestep,
+                        damping=damping,
+                    )
+                    
+                    # Call user callback if provided
+                    if callback is not None:
+                        try:
+                            energy = pyasd.get_energy()
+                            callback(step, moments, energy)
+                        except Exception as e:
+                            logger.warning(f"Callback error at step {step}: {e}")
+                    
+                    # Record trajectory if requested
+                    if self._record_trajectory:
+                        self._trajectory.append(moments.copy())
             
             self._state = SimulationState.COMPLETED
             logger.info(f"✓ Relaxation completed ({steps} steps)")
@@ -488,6 +518,29 @@ class Simulator(UppASDBase):
         pyasd.set_moments(value, self.natom, self.mensemble)
     
     @property
+    def coords(self) -> np.ndarray:
+        """
+        Get atomic coordinates.
+        
+        Returns
+        -------
+        coords : ndarray
+            Atomic position vectors. Shape: (3, natom)
+        
+        Examples
+        --------
+        >>> with Simulator() as sim:
+        ...     coords = sim.coords
+        ...     print(coords.shape)
+        """
+        self._check_state(
+            SimulationState.INITIALIZED,
+            SimulationState.RUNNING,
+            SimulationState.COMPLETED,
+        )
+        return pyasd.get_coords(self.natom)
+    
+    @property
     def field(self) -> np.ndarray:
         """
         Get effective magnetic field.
@@ -532,6 +585,33 @@ class Simulator(UppASDBase):
             SimulationState.RUNNING,
             SimulationState.COMPLETED,
         )
+        return pyasd.get_energy()
+    
+    def calculate_energy(self) -> float:
+        """
+        Calculate and update the total system energy.
+        
+        Computes energy from current moments and interactions.
+        The computed energy is stored and can be accessed via the energy property.
+        
+        Returns
+        -------
+        energy : float
+            Total energy in meV (or units set in UppASD)
+        
+        Examples
+        --------
+        >>> with Simulator() as sim:
+        ...     sim.relax(steps=100)
+        ...     energy = sim.calculate_energy()
+        ...     print(f"Energy: {energy:.4f} meV")
+        """
+        self._check_state(
+            SimulationState.INITIALIZED,
+            SimulationState.RUNNING,
+            SimulationState.COMPLETED,
+        )
+        # Return current energy (Fortran backend updates it internally)
         return pyasd.get_energy()
     
     @property
