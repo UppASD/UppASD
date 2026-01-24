@@ -661,50 +661,78 @@ contains
             ene%ene_pair=0.0_dblprec
          end if
       else
-         i_all=-product(shape(ene%energy))*kind(ene%energy)
-         deallocate(ene%energy,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%energy','allocate_energies')
-         i_all=-product(shape(ene%ene_xc))*kind(ene%ene_xc)
-         deallocate(ene%ene_xc,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_xc','allocate_energies')
-         i_all=-product(shape(ene%ene_dm))*kind(ene%ene_dm)
-         deallocate(ene%ene_dm,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_dm','allocate_energies')
-         i_all=-product(shape(ene%ene_sa))*kind(ene%ene_sa)
-         deallocate(ene%ene_sa,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_sa','allocate_energies')
-         i_all=-product(shape(ene%ene_bq))*kind(ene%ene_bq)
-         deallocate(ene%ene_bq,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_bq','allocate_energies')
+         if(allocated(ene%energy)) then
+            i_all=-product(shape(ene%energy))*kind(ene%energy)
+            deallocate(ene%energy,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%energy','allocate_energies')
+         end if
+         if(allocated(ene%ene_xc)) then
+            i_all=-product(shape(ene%ene_xc))*kind(ene%ene_xc)
+            deallocate(ene%ene_xc,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_xc','allocate_energies')
+         end if
+         if(allocated(ene%ene_dm)) then
+            i_all=-product(shape(ene%ene_dm))*kind(ene%ene_dm)
+            deallocate(ene%ene_dm,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_dm','allocate_energies')
+         end if
+         if(allocated(ene%ene_sa)) then
+            i_all=-product(shape(ene%ene_sa))*kind(ene%ene_sa)
+            deallocate(ene%ene_sa,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_sa','allocate_energies')
+         end if
+         if(allocated(ene%ene_bq)) then
+            i_all=-product(shape(ene%ene_bq))*kind(ene%ene_bq)
+            deallocate(ene%ene_bq,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_bq','allocate_energies')
+         end if
 
-         i_all=-product(shape(ene%ene_ring))*kind(ene%ene_ring)
-         deallocate(ene%ene_ring,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_ring','allocate_energies')
+         if(allocated(ene%ene_ring)) then
+            i_all=-product(shape(ene%ene_ring))*kind(ene%ene_ring)
+            deallocate(ene%ene_ring,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_ring','allocate_energies')
+         end if
 
-         i_all=-product(shape(ene%ene_pd))*kind(ene%ene_pd)
-         deallocate(ene%ene_pd,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_pd','allocate_energies')
-         i_all=-product(shape(ene%ene_chir))*kind(ene%ene_chir)
-         deallocate(ene%ene_chir,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_chir','allocate_energies')
-         i_all=-product(shape(ene%ene_ani))*kind(ene%ene_ani)
-         deallocate(ene%ene_ani,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_ani','allocate_energies')
-         i_all=-product(shape(ene%ene_bqdm))*kind(ene%ene_bqdm)
-         deallocate(ene%ene_bqdm,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_bqdm','allocate_energies')
-         i_all=-product(shape(ene%ene_ext))*kind(ene%ene_ext)
-         deallocate(ene%ene_ext,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_ext','allocate_energies')
-         i_all=-product(shape(ene%ene_dip))*kind(ene%ene_dip)
-         deallocate(ene%ene_dip,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_dip','allocate_energies')
-         i_all=-product(shape(ene%ene_lsf))*kind(ene%ene_lsf)
-         deallocate(ene%ene_lsf,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_lsf','allocate_energies')
-         i_all=-product(shape(ene%ene_pair))*kind(ene%ene_pair)
-         deallocate(ene%ene_pair,stat=i_stat)
-         call memocc(i_stat,i_all,'ene%ene_pair','allocate_energies')
+         if(allocated(ene%ene_pd)) then
+            i_all=-product(shape(ene%ene_pd))*kind(ene%ene_pd)
+            deallocate(ene%ene_pd,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_pd','allocate_energies')
+         end if
+         if(allocated(ene%ene_chir)) then
+            i_all=-product(shape(ene%ene_chir))*kind(ene%ene_chir)
+            deallocate(ene%ene_chir,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_chir','allocate_energies')
+         end if
+         if(allocated(ene%ene_ani)) then
+            i_all=-product(shape(ene%ene_ani))*kind(ene%ene_ani)
+            deallocate(ene%ene_ani,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_ani','allocate_energies')
+         end if
+         if(allocated(ene%ene_bqdm)) then
+            i_all=-product(shape(ene%ene_bqdm))*kind(ene%ene_bqdm)
+            deallocate(ene%ene_bqdm,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_bqdm','allocate_energies')
+         end if
+         if(allocated(ene%ene_ext)) then
+            i_all=-product(shape(ene%ene_ext))*kind(ene%ene_ext)
+            deallocate(ene%ene_ext,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_ext','allocate_energies')
+         end if
+         if(allocated(ene%ene_dip)) then
+            i_all=-product(shape(ene%ene_dip))*kind(ene%ene_dip)
+            deallocate(ene%ene_dip,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_dip','allocate_energies')
+         end if
+         if(allocated(ene%ene_lsf)) then
+            i_all=-product(shape(ene%ene_lsf))*kind(ene%ene_lsf)
+            deallocate(ene%ene_lsf,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_lsf','allocate_energies')
+         end if
+         if(allocated(ene%ene_pair)) then
+            i_all=-product(shape(ene%ene_pair))*kind(ene%ene_pair)
+            deallocate(ene%ene_pair,stat=i_stat)
+            call memocc(i_stat,i_all,'ene%ene_pair','allocate_energies')
+         end if
 
       endif
 

@@ -564,19 +564,27 @@ contains
             call memocc(i_stat,product(shape(ind_mom))*kind(ind_mom),'ind_mom','read_initmag')
          endif
       else
-         i_all=-product(shape(ammom_inp))*kind(ammom_inp)
-         deallocate(ammom_inp,stat=i_stat)
-         call memocc(i_stat,i_all,'ammom_inp','allocate_initmag')
-         i_all=-product(shape(aemom_inp))*kind(aemom_inp)
-         deallocate(aemom_inp,stat=i_stat)
-         call memocc(i_stat,i_all,'aemom_inp','allocate_initmag')
-         i_all=-product(shape(Landeg_ch))*kind(Landeg_ch)
-         deallocate(Landeg_ch,stat=i_stat)
-         call memocc(i_stat,i_all,'Landeg_ch','allocate_initmag')
+         if(allocated(ammom_inp)) then
+            i_all=-product(shape(ammom_inp))*kind(ammom_inp)
+            deallocate(ammom_inp,stat=i_stat)
+            call memocc(i_stat,i_all,'ammom_inp','allocate_initmag')
+         end if
+         if(allocated(aemom_inp)) then
+            i_all=-product(shape(aemom_inp))*kind(aemom_inp)
+            deallocate(aemom_inp,stat=i_stat)
+            call memocc(i_stat,i_all,'aemom_inp','allocate_initmag')
+         end if
+         if(allocated(Landeg_ch)) then
+            i_all=-product(shape(Landeg_ch))*kind(Landeg_ch)
+            deallocate(Landeg_ch,stat=i_stat)
+            call memocc(i_stat,i_all,'Landeg_ch','allocate_initmag')
+         end if
          if (ind_mom_flag=='Y') then
-            i_all=-product(shape(ind_mom))*kind(ind_mom)
-            deallocate(ind_mom,stat=i_stat)
-            call memocc(i_stat,i_all,'ind_mom','allocate_initmag')
+            if(allocated(ind_mom)) then
+               i_all=-product(shape(ind_mom))*kind(ind_mom)
+               deallocate(ind_mom,stat=i_stat)
+               call memocc(i_stat,i_all,'ind_mom','allocate_initmag')
+            end if
          endif
       end if
 
@@ -603,17 +611,21 @@ contains
          allocate(chconc(NA,Nchmax),stat=i_stat)
          call memocc(i_stat,product(shape(chconc))*kind(chconc),'chconc','allocate_chemicalinput')
       else
-         i_all=-product(shape(Nch))*kind(Nch)
-         deallocate(Nch,stat=i_stat)
-         call memocc(i_stat,i_all,'Nch','allocate_chemicalinput')
+         if(allocated(Nch)) then
+            i_all=-product(shape(Nch))*kind(Nch)
+            deallocate(Nch,stat=i_stat)
+            call memocc(i_stat,i_all,'Nch','allocate_chemicalinput')
+         end if
          if(allocated(achtype_ch)) then
             i_all=-product(shape(achtype_ch))*kind(achtype_ch)
             deallocate(achtype_ch,stat=i_stat)
             call memocc(i_stat,i_all,'achtype_ch','allocate_chemicalinput')
          end if
-         i_all=-product(shape(chconc))*kind(chconc)
-         deallocate(chconc,stat=i_stat)
-         call memocc(i_stat,i_all,'chconc','allocate_chemicalinput')
+         if(allocated(chconc)) then
+            i_all=-product(shape(chconc))*kind(chconc)
+            deallocate(chconc,stat=i_stat)
+            call memocc(i_stat,i_all,'chconc','allocate_chemicalinput')
+         end if
       end if
 
    end subroutine allocate_chemicalinput

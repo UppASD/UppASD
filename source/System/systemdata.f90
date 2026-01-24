@@ -37,15 +37,21 @@ contains
          allocate(Landeg(Natom),stat=i_stat)
          call memocc(i_stat,product(shape(Landeg))*kind(Landeg),'Landeg','read_input1')
       else
-         i_all=-product(shape(anumb))*kind(anumb)
-         deallocate(anumb,stat=i_stat)
-         call memocc(i_stat,i_all,'anumb','allocate_systemdata')
-         i_all=-product(shape(atype))*kind(atype)
-         deallocate(atype,stat=i_stat)
-         call memocc(i_stat,i_all,'atype','allocate_systemdata')
-         i_all=-product(shape(Landeg))*kind(Landeg)
-         deallocate(Landeg,stat=i_stat)
-         call memocc(i_stat,i_all,'Landeg','allocate_systemdata')
+         if(allocated(anumb)) then
+            i_all=-product(shape(anumb))*kind(anumb)
+            deallocate(anumb,stat=i_stat)
+            call memocc(i_stat,i_all,'anumb','allocate_systemdata')
+         end if
+         if(allocated(atype)) then
+            i_all=-product(shape(atype))*kind(atype)
+            deallocate(atype,stat=i_stat)
+            call memocc(i_stat,i_all,'atype','allocate_systemdata')
+         end if
+         if(allocated(Landeg)) then
+            i_all=-product(shape(Landeg))*kind(Landeg)
+            deallocate(Landeg,stat=i_stat)
+            call memocc(i_stat,i_all,'Landeg','allocate_systemdata')
+         end if
       end if
 
    end subroutine allocate_systemdata

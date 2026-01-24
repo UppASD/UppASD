@@ -42,18 +42,26 @@ contains
          allocate(mmomi(Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(mmomi))*kind(mmomi),'mmomi','allocate_mmoms')
       else
-         i_all=-product(shape(mmom))*kind(mmom)
-         deallocate(mmom,stat=i_stat)
-         call memocc(i_stat,i_all,'mmom','allocate_moms')
-         i_all=-product(shape(mmom0))*kind(mmom0)
-         deallocate(mmom0,stat=i_stat)
-         call memocc(i_stat,i_all,'mmom0','allocate_moms')
-         i_all=-product(shape(mmom2))*kind(mmom2)
-         deallocate(mmom2,stat=i_stat)
-         call memocc(i_stat,i_all,'mmom2','allocate_moms')
-         i_all=-product(shape(mmomi))*kind(mmomi)
-         deallocate(mmomi,stat=i_stat)
-         call memocc(i_stat,i_all,'mmomi','allocate_moms')
+         if(allocated(mmom)) then
+            i_all=-product(shape(mmom))*kind(mmom)
+            deallocate(mmom,stat=i_stat)
+            call memocc(i_stat,i_all,'mmom','allocate_moms')
+         end if
+         if(allocated(mmom0)) then
+            i_all=-product(shape(mmom0))*kind(mmom0)
+            deallocate(mmom0,stat=i_stat)
+            call memocc(i_stat,i_all,'mmom0','allocate_moms')
+         end if
+         if(allocated(mmom2)) then
+            i_all=-product(shape(mmom2))*kind(mmom2)
+            deallocate(mmom2,stat=i_stat)
+            call memocc(i_stat,i_all,'mmom2','allocate_moms')
+         end if
+         if(allocated(mmomi)) then
+            i_all=-product(shape(mmomi))*kind(mmomi)
+            deallocate(mmomi,stat=i_stat)
+            call memocc(i_stat,i_all,'mmomi','allocate_moms')
+         end if
       end if
 
    end subroutine allocate_mmoms
@@ -78,15 +86,21 @@ contains
          allocate(emomM(3,Natom,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(emomM))*kind(emomM),'emomM','allocate_emoms')
       else
-         i_all=-product(shape(emom))*kind(emom)
-         deallocate(emom,stat=i_stat)
-         call memocc(i_stat,i_all,'emom','allocate_eoms')
-         i_all=-product(shape(emomM))*kind(emomM)
-         deallocate(emomM,stat=i_stat)
-         call memocc(i_stat,i_all,'emomM','allocate_eoms')
-         i_all=-product(shape(emom2))*kind(emom2)
-         deallocate(emom2,stat=i_stat)
-         call memocc(i_stat,i_all,'emom2','allocate_eoms')
+         if(allocated(emom)) then
+            i_all=-product(shape(emom))*kind(emom)
+            deallocate(emom,stat=i_stat)
+            call memocc(i_stat,i_all,'emom','allocate_eoms')
+         end if
+         if(allocated(emomM)) then
+            i_all=-product(shape(emomM))*kind(emomM)
+            deallocate(emomM,stat=i_stat)
+            call memocc(i_stat,i_all,'emomM','allocate_eoms')
+         end if
+         if(allocated(emom2)) then
+            i_all=-product(shape(emom2))*kind(emom2)
+            deallocate(emom2,stat=i_stat)
+            call memocc(i_stat,i_all,'emom2','allocate_eoms')
+         end if
       end if
    end subroutine allocate_emoms
 

@@ -42,17 +42,23 @@ contains
          call memocc(i_stat,i_all,'simp','deallocate_rest')
       end if
 
-      i_all=-product(shape(coord))*kind(coord)
-      deallocate(coord,stat=i_stat)
-      call memocc(i_stat,i_all,'coord','deallocate_rest')
+      if(allocated(coord)) then
+         i_all=-product(shape(coord))*kind(coord)
+         deallocate(coord,stat=i_stat)
+         call memocc(i_stat,i_all,'coord','deallocate_rest')
+      end if
 
-      i_all=-product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord)
-      deallocate(ham_inp%redcoord,stat=i_stat)
-      call memocc(i_stat,i_all,'redcoord','deallocate_rest')
+      if(allocated(ham_inp%redcoord)) then
+         i_all=-product(shape(ham_inp%redcoord))*kind(ham_inp%redcoord)
+         deallocate(ham_inp%redcoord,stat=i_stat)
+         call memocc(i_stat,i_all,'redcoord','deallocate_rest')
+      end if
 
-      i_all=-product(shape(bas))*kind(bas)
-      deallocate(bas,stat=i_stat)
-      call memocc(i_stat,i_all,'bas','deallocate_rest')
+      if(allocated(bas)) then
+         i_all=-product(shape(bas))*kind(bas)
+         deallocate(bas,stat=i_stat)
+         call memocc(i_stat,i_all,'bas','deallocate_rest')
+      end if
       !
       if(ntraj>0) then
          i_all=-product(shape(traj_atom))*kind(traj_atom)
@@ -65,17 +71,23 @@ contains
          deallocate(traj_buff,stat=i_stat)
          call memocc(i_stat,i_all,'traj_buff','allocate_measurements')
       end if
-      i_all=-product(shape(emomM))*kind(emomM)
-      deallocate(emomM,stat=i_stat)
-      call memocc(i_stat,i_all,'emomM','deallocate_rest')
+      if(allocated(emomM)) then
+         i_all=-product(shape(emomM))*kind(emomM)
+         deallocate(emomM,stat=i_stat)
+         call memocc(i_stat,i_all,'emomM','deallocate_rest')
+      end if
       !
-      i_all=-product(shape(emom2))*kind(emom2)
-      deallocate(emom2,stat=i_stat)
-      call memocc(i_stat,i_all,'emom2','deallocate_rest')
+      if(allocated(emom2)) then
+         i_all=-product(shape(emom2))*kind(emom2)
+         deallocate(emom2,stat=i_stat)
+         call memocc(i_stat,i_all,'emom2','deallocate_rest')
+      end if
       !
-      i_all=-product(shape(emom))*kind(emom)
-      deallocate(emom,stat=i_stat)
-      call memocc(i_stat,i_all,'emom','deallocate_rest')
+      if(allocated(emom)) then
+         i_all=-product(shape(emom))*kind(emom)
+         deallocate(emom,stat=i_stat)
+         call memocc(i_stat,i_all,'emom','deallocate_rest')
+      end if
       !
       if(allocated(spinwait)) then
          i_all=-product(shape(spinwait))*kind(spinwait)

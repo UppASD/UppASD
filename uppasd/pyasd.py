@@ -176,7 +176,12 @@ def num_procs() -> int:
     """
     try:
         logger.debug("Fetching processor count")
-        nprocs = _uppasd.numprocs()
+        numprocs_fn = getattr(_uppasd, "numprocs", None)
+        if numprocs_fn is None:
+            logger.warning("numprocs not available in _uppasd; assuming 1")
+            return 1
+
+        nprocs = numprocs_fn()
         if not isinstance(nprocs, (int, np.integer)):
             logger.warning(f"numprocs returned unexpected type: {type(nprocs)}")
         return int(nprocs)
@@ -612,6 +617,13 @@ def relax(
             f"{nstep} steps, T={temperature}K, "
             f"dt={timestep}s, α={damping}"
         )
+
+        # Keep ip_mode aligned with explicit relaxation mode when possible
+        if hasattr(_uppasd, "put_ipmode"):
+            try:
+                set_ipmode(mode)
+            except Exception as sync_err:
+                logger.debug(f"ip_mode sync skipped: {sync_err}")
         
         moments = _uppasd.relax(
             natom, mensemble, mode, nstep, temperature, timestep, damping
@@ -899,6 +911,81 @@ def get_nstep() -> int:
     except Exception as e:
         logger.error(f"Failed to get step number: {e}")
         raise RuntimeError(f"Cannot retrieve step number: {e}") from e
+
+
+# ============================================================================
+# Data Access: Input Mode
+# ============================================================================
+
+def get_ipmode() -> str:
+    """
+    Get current initial-phase mode (``ip_mode``).
+
+    Returns
+    -------
+    mode : str
+        Two-character mode specifier (e.g., ``S``, ``M``, ``H``, ``SX``, ``Q``).
+
+    Raises
+    ------
+    RuntimeError
+        If the underlying extension lacks ip_mode support or retrieval fails.
+    """
+    if not hasattr(_uppasd, "get_ipmode"):
+        raise RuntimeError(
+            "_uppasd.build missing get_ipmode(); rebuild UppASD to enable ip_mode access"
+        )
+
+    try:
+        raw_mode = _uppasd.get_ipmode()
+        arr = np.asarray(raw_mode, dtype="U1")
+        mode = "".join(arr.tolist()).strip().upper()
+        return mode
+    except Exception as e:
+        logger.error(f"Failed to get ip_mode: {e}")
+        raise RuntimeError(f"Cannot retrieve ip_mode: {e}") from e
+
+
+def set_ipmode(mode: str) -> None:
+    """
+    Set initial-phase mode (``ip_mode``).
+
+    Parameters
+    ----------
+    mode : str
+        One- or two-character mode specifier (e.g., ``S``, ``M``, ``H``, ``SX``, ``Q``, ``Y``).
+
+    Raises
+    ------
+    ValueError
+        If ``mode`` is empty or longer than two characters.
+    RuntimeError
+        If the underlying extension lacks ip_mode support or update fails.
+    """
+    if not hasattr(_uppasd, "put_ipmode"):
+        raise RuntimeError(
+            "_uppasd.build missing put_ipmode(); rebuild UppASD to enable ip_mode updates"
+        )
+
+    if not isinstance(mode, str) or len(mode.strip()) == 0:
+        raise ValueError("ip_mode must be a non-empty string")
+
+    normalized = mode.strip().upper()
+    if len(normalized) > 2:
+        raise ValueError(f"ip_mode must be 1-2 characters, got '{mode}'")
+
+    padded = normalized.ljust(2)
+    payload = np.frombuffer(padded.encode("ascii"), dtype="S1")
+
+    try:
+        _uppasd.put_ipmode(payload)
+    except Exception as e:
+        logger.error(f"Failed to set ip_mode to '{normalized}': {e}")
+        raise RuntimeError(f"Cannot set ip_mode: {e}") from e
+
+
+# Backward compatibility alias
+put_ipmode = set_ipmode
 
 
 # ============================================================================

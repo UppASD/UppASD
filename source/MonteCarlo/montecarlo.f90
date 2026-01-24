@@ -905,9 +905,11 @@ contains
                call memocc(i_stat,product(shape(iflip_a))*kind(iflip_a),'iflip_a','allocate_mcdata')
             end if
          else
-            i_all=-product(shape(iflip_a))*kind(iflip_a)
-            deallocate(iflip_a,stat=i_stat)
-            call memocc(i_stat,i_all,'iflip_a','allocate_mcdata')
+            if(allocated(iflip_a)) then
+               i_all=-product(shape(iflip_a))*kind(iflip_a)
+               deallocate(iflip_a,stat=i_stat)
+               call memocc(i_stat,i_all,'iflip_a','allocate_mcdata')
+            end if
          endif
       end subroutine allocate_mcdata
 

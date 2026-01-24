@@ -630,6 +630,15 @@ def main():
         """
         global number_of_screenshots
         key = obj.GetKeySym()
+
+        def set_mode_for_relax(mode_char):
+            """Keep ip_mode and relax mode in sync when supported."""
+            if hasattr(asd.inputdata, "update_ipmode"):
+                try:
+                    asd.inputdata.update_ipmode(mode_char)
+                except Exception:
+                    pass
+
         if key == "P":
             Screenshot(renWin)
             print("Screenshot taken")
@@ -642,6 +651,7 @@ def main():
             Datatest.GetPointData().SetScalars(colz)
         if key == "M" or key == "m":
             print("Running UppASD")
+            set_mode_for_relax("M")
             asd.relax(mode="M", temperature=asd.inputdata.iptemp)
             asd.get_moments()
             print("Updating graphics")
@@ -656,6 +666,7 @@ def main():
                 Screenshot(renWin)
         if key == "H" or key == "h":
             print("Running UppASD")
+            set_mode_for_relax("H")
             asd.relax(mode="H", temperature=asd.inputdata.iptemp + 1.0e-6)
             asd.get_moments()
             print("Updating graphics")
@@ -670,6 +681,7 @@ def main():
                 Screenshot(renWin)
         if key == "S" or key == "s":
             print("Running UppASD")
+            set_mode_for_relax("S")
             asd.relax(mode="S", temperature=asd.inputdata.iptemp)
             asd.get_moments()
             print("Updating graphics")

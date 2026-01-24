@@ -90,13 +90,17 @@ contains
             end if
          end if
       else
-         i_all=-product(shape(ranv))*kind(ranv)
-         deallocate(ranv,stat=i_stat)
-         call memocc(i_stat,i_all,'ranv','allocate_systemdata')
+         if(allocated(ranv)) then
+            i_all=-product(shape(ranv))*kind(ranv)
+            deallocate(ranv,stat=i_stat)
+            call memocc(i_stat,i_all,'ranv','allocate_systemdata')
+         end if
          if(do_ld == 'Y') then
-            i_all=-product(shape(lattranv))*kind(lattranv)
-            deallocate(lattranv,stat=i_stat)
-            call memocc(i_stat,i_all,'lattranv','allocate_systemdata')
+            if(allocated(lattranv)) then
+               i_all=-product(shape(lattranv))*kind(lattranv)
+               deallocate(lattranv,stat=i_stat)
+               call memocc(i_stat,i_all,'lattranv','allocate_systemdata')
+            end if
          end if
       end if
    end subroutine allocate_randomwork

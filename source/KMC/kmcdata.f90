@@ -127,42 +127,66 @@ contains
          ivisit_kmc=0
 
       else
-         i_all=-product(shape(nlistsize_barriers))*kind(nlistsize_barriers)
-         deallocate(nlistsize_barriers,stat=i_stat)
-         call memocc(i_stat,i_all,'nlistsize_barriers','allocate_kmc')
-         i_all=-product(shape(nlist_barriers))*kind(nlist_barriers)
-         deallocate(nlist_barriers,stat=i_stat)
-         call memocc(i_stat,i_all,'nlist_barriers','allocate_kmc')
-         i_all=-product(shape(ncoup_barriers))*kind(ncoup_barriers)
-         deallocate(ncoup_barriers,stat=i_stat)
-         call memocc(i_stat,i_all,'ncoup_barriers','allocate_kmc')
-         i_all=-product(shape(Rate))*kind(Rate)
-         deallocate(Rate,stat=i_stat)
-         call memocc(i_stat,i_all,'Rate','allocate_kmc')
-         i_all=-product(shape(kmc_time_steps))*kind(kmc_time_steps)
-         deallocate(kmc_time_steps,stat=i_stat)
-         call memocc(i_stat,i_all,'kmc_time_steps','allocate_kmc')
-         i_all=-product(shape(Bas_KMC))*kind(Bas_KMC)
-         deallocate(Bas_KMC,stat=i_stat)
-         call memocc(i_stat,i_all,'Bas_KMC','kmc_part_init')
-         i_all=-product(shape(atype_inp_KMC))*kind(atype_inp_KMC)
-         deallocate(atype_inp_KMC,stat=i_stat)
-         call memocc(i_stat,i_all,'atype_inp_KMC','kmc_part_init')
-         i_all=-product(shape(achem_ch_KMC))*kind(achem_ch_KMC)
-         deallocate(achem_ch_KMC,stat=i_stat)
-         call memocc(i_stat,i_all,'achem_ch_KMC','kmc_part_init')
-         i_all=-product(shape(kmc_index_prv))*kind(kmc_index_prv)
-         deallocate(kmc_index_prv,stat=i_stat)
-         call memocc(i_stat,i_all,'kmc_index_prv','kmc_part_init')
-         i_all=-product(shape(kmc_index_aft))*kind(kmc_index_aft)
-         deallocate(kmc_index_aft,stat=i_stat)
-         call memocc(i_stat,i_all,'kmc_index_aft','kmc_part_init')
-         i_all=-product(shape(kmc_part_shuffle))*kind(kmc_part_shuffle)
-         deallocate(kmc_part_shuffle,stat=i_stat)
-         call memocc(i_stat,i_all,'kmc_part_shuffle','kmc_part_init')
-         i_all=-product(shape(ivisit_kmc))*kind(ivisit_kmc)
-         deallocate(ivisit_kmc,stat=i_stat)
-         call memocc(i_stat,i_all,'ivisit_kmc','kmc_part_init')
+         if(allocated(nlistsize_barriers)) then
+            i_all=-product(shape(nlistsize_barriers))*kind(nlistsize_barriers)
+            deallocate(nlistsize_barriers,stat=i_stat)
+            call memocc(i_stat,i_all,'nlistsize_barriers','allocate_kmc')
+         end if
+         if(allocated(nlist_barriers)) then
+            i_all=-product(shape(nlist_barriers))*kind(nlist_barriers)
+            deallocate(nlist_barriers,stat=i_stat)
+            call memocc(i_stat,i_all,'nlist_barriers','allocate_kmc')
+         end if
+         if(allocated(ncoup_barriers)) then
+            i_all=-product(shape(ncoup_barriers))*kind(ncoup_barriers)
+            deallocate(ncoup_barriers,stat=i_stat)
+            call memocc(i_stat,i_all,'ncoup_barriers','allocate_kmc')
+         end if
+         if(allocated(Rate)) then
+            i_all=-product(shape(Rate))*kind(Rate)
+            deallocate(Rate,stat=i_stat)
+            call memocc(i_stat,i_all,'Rate','allocate_kmc')
+         end if
+         if(allocated(kmc_time_steps)) then
+            i_all=-product(shape(kmc_time_steps))*kind(kmc_time_steps)
+            deallocate(kmc_time_steps,stat=i_stat)
+            call memocc(i_stat,i_all,'kmc_time_steps','allocate_kmc')
+         end if
+         if(allocated(Bas_KMC)) then
+            i_all=-product(shape(Bas_KMC))*kind(Bas_KMC)
+            deallocate(Bas_KMC,stat=i_stat)
+            call memocc(i_stat,i_all,'Bas_KMC','kmc_part_init')
+         end if
+         if(allocated(atype_inp_KMC)) then
+            i_all=-product(shape(atype_inp_KMC))*kind(atype_inp_KMC)
+            deallocate(atype_inp_KMC,stat=i_stat)
+            call memocc(i_stat,i_all,'atype_inp_KMC','kmc_part_init')
+         end if
+         if(allocated(achem_ch_KMC)) then
+            i_all=-product(shape(achem_ch_KMC))*kind(achem_ch_KMC)
+            deallocate(achem_ch_KMC,stat=i_stat)
+            call memocc(i_stat,i_all,'achem_ch_KMC','kmc_part_init')
+         end if
+         if(allocated(kmc_index_prv)) then
+            i_all=-product(shape(kmc_index_prv))*kind(kmc_index_prv)
+            deallocate(kmc_index_prv,stat=i_stat)
+            call memocc(i_stat,i_all,'kmc_index_prv','kmc_part_init')
+         end if
+         if(allocated(kmc_index_aft)) then
+            i_all=-product(shape(kmc_index_aft))*kind(kmc_index_aft)
+            deallocate(kmc_index_aft,stat=i_stat)
+            call memocc(i_stat,i_all,'kmc_index_aft','kmc_part_init')
+         end if
+         if(allocated(kmc_part_shuffle)) then
+            i_all=-product(shape(kmc_part_shuffle))*kind(kmc_part_shuffle)
+            deallocate(kmc_part_shuffle,stat=i_stat)
+            call memocc(i_stat,i_all,'kmc_part_shuffle','kmc_part_init')
+         end if
+         if(allocated(ivisit_kmc)) then
+            i_all=-product(shape(ivisit_kmc))*kind(ivisit_kmc)
+            deallocate(ivisit_kmc,stat=i_stat)
+            call memocc(i_stat,i_all,'ivisit_kmc','kmc_part_init')
+         end if
       end if
 
    end subroutine allocate_kmc

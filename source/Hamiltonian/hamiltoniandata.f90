@@ -140,39 +140,57 @@ contains
             ham%j_tens=0.0_dblprec
          end if
       else
-         i_all=-product(shape(ham%nlistsize))*kind(ham%nlistsize)
-         deallocate(ham%nlistsize,stat=i_stat)
-         call memocc(i_stat,i_all,'nlistsize','allocate_hamiltoniandata')
-         i_all=-product(shape(ham%nlist))*kind(ham%nlist)
-         deallocate(ham%nlist,stat=i_stat)
-         call memocc(i_stat,i_all,'nlist','allocate_hamiltoniandata')
-         i_all=-product(shape(ham%aHam))*kind(ham%aHam)
-         deallocate(ham%aHam,stat=i_stat)
-         call memocc(i_stat,i_all,'aHam','allocate_hamiltoniandata')
+         if(allocated(ham%nlistsize)) then
+            i_all=-product(shape(ham%nlistsize))*kind(ham%nlistsize)
+            deallocate(ham%nlistsize,stat=i_stat)
+            call memocc(i_stat,i_all,'nlistsize','allocate_hamiltoniandata')
+         end if
+         if(allocated(ham%nlist)) then
+            i_all=-product(shape(ham%nlist))*kind(ham%nlist)
+            deallocate(ham%nlist,stat=i_stat)
+            call memocc(i_stat,i_all,'nlist','allocate_hamiltoniandata')
+         end if
+         if(allocated(ham%aHam)) then
+            i_all=-product(shape(ham%aHam))*kind(ham%aHam)
+            deallocate(ham%aHam,stat=i_stat)
+            call memocc(i_stat,i_all,'aHam','allocate_hamiltoniandata')
+         end if
          if(do_lsf=='Y' .and. lsf_field=='L') then
-            i_all=-product(shape(ham%fs_nlistsize))*kind(ham%fs_nlistsize)
-            deallocate(ham%fs_nlistsize,stat=i_stat)
-            call memocc(i_stat,i_all,'fs_nlistsize','allocate_hamiltoniandata')
-            i_all=-product(shape(ham%fs_nlist))*kind(ham%fs_nlist)
-            deallocate(ham%fs_nlist,stat=i_stat)
-            call memocc(i_stat,i_all,'fs_nlist','allocate_hamiltoniandata')
-            i_all=-product(shape(ham%nind))*kind(ham%nind)
-            deallocate(ham%nind,stat=i_stat)
-            call memocc(i_stat,i_all,'nind','allocate_hamiltoniandata')
+            if(allocated(ham%fs_nlistsize)) then
+               i_all=-product(shape(ham%fs_nlistsize))*kind(ham%fs_nlistsize)
+               deallocate(ham%fs_nlistsize,stat=i_stat)
+               call memocc(i_stat,i_all,'fs_nlistsize','allocate_hamiltoniandata')
+            end if
+            if(allocated(ham%fs_nlist)) then
+               i_all=-product(shape(ham%fs_nlist))*kind(ham%fs_nlist)
+               deallocate(ham%fs_nlist,stat=i_stat)
+               call memocc(i_stat,i_all,'fs_nlist','allocate_hamiltoniandata')
+            end if
+            if(allocated(ham%nind)) then
+               i_all=-product(shape(ham%nind))*kind(ham%nind)
+               deallocate(ham%nind,stat=i_stat)
+               call memocc(i_stat,i_all,'nind','allocate_hamiltoniandata')
+            end if
          end if
          if (do_jtensor/=1) then
-            i_all=-product(shape(ham%ncoup))*kind(ham%ncoup)
-            deallocate(ham%ncoup,stat=i_stat)
-            call memocc(i_stat,i_all,'ncoup','allocate_hamiltoniandata')
+            if(allocated(ham%ncoup)) then
+               i_all=-product(shape(ham%ncoup))*kind(ham%ncoup)
+               deallocate(ham%ncoup,stat=i_stat)
+               call memocc(i_stat,i_all,'ncoup','allocate_hamiltoniandata')
+            end if
             if (exc_inter=='Y') then
-               i_all=-product(shape(ham%ncoupD))*kind(ham%ncoupD)
-               deallocate(ham%ncoupD,stat=i_stat)
-               call memocc(i_stat,i_all,'ncoupD','allocate_hamiltoniandata')
+               if(allocated(ham%ncoupD)) then
+                  i_all=-product(shape(ham%ncoupD))*kind(ham%ncoupD)
+                  deallocate(ham%ncoupD,stat=i_stat)
+                  call memocc(i_stat,i_all,'ncoupD','allocate_hamiltoniandata')
+               end if
             endif
          else
-            i_all=-product(shape(ham%j_tens))*kind(ham%j_tens)
-            deallocate(ham%j_tens,stat=i_stat)
-            call memocc(i_stat,i_all,'j_tens','allocate_hamiltoniandata')
+            if(allocated(ham%j_tens)) then
+               i_all=-product(shape(ham%j_tens))*kind(ham%j_tens)
+               deallocate(ham%j_tens,stat=i_stat)
+               call memocc(i_stat,i_all,'j_tens','allocate_hamiltoniandata')
+            end if
          end if
       end if
 

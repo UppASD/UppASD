@@ -299,6 +299,7 @@ class Simulator(UppASDBase):
     def relax(
         self,
         mode: str = "M",
+        ip_mode: Optional[str] = None,
         temperature: float = 0.0,
         steps: int = 100,
         timestep: float = 1.0e-16,
@@ -319,6 +320,9 @@ class Simulator(UppASDBase):
             - "S": Landau-Lifshitz-Gilbert / Spin dynamics
             - "H": Heat Bath
             Default: "M"
+        ip_mode : str, optional
+            Initial-phase mode to set prior to relaxation. If omitted, uses
+            ``mode`` for synchronization when available.
         temperature : float, optional
             Temperature in Kelvin. Default: 0.0 (ground state)
         steps : int, optional
@@ -394,6 +398,14 @@ class Simulator(UppASDBase):
                 f"T={temperature}K, {steps} steps"
             )
             self._state = SimulationState.RUNNING
+
+            # Sync ip_mode for downstream Fortran logic when available
+            ipm = ip_mode if ip_mode is not None else mode
+            if ipm is not None and hasattr(pyasd, "set_ipmode"):
+                try:
+                    pyasd.set_ipmode(ipm)
+                except Exception as sync_err:
+                    logger.debug(f"ip_mode sync skipped: {sync_err}")
             
             # Perform relaxation with optional callback
             for step in range(steps):
@@ -574,6 +586,24 @@ class Simulator(UppASDBase):
             Timestep in seconds
         """
         return pyasd.get_timestep()
+
+    @property
+    def ip_mode(self) -> str:
+        """
+        Get current initial-phase mode (ip_mode).
+        """
+        if not hasattr(pyasd, "get_ipmode"):
+            raise RuntimeError("ip_mode access not built into _uppasd; rebuild required")
+        return pyasd.get_ipmode()
+
+    @ip_mode.setter
+    def ip_mode(self, value: str) -> None:
+        """
+        Set initial-phase mode (ip_mode).
+        """
+        if not hasattr(pyasd, "set_ipmode"):
+            raise RuntimeError("ip_mode updates not built into _uppasd; rebuild required")
+        pyasd.set_ipmode(value)
     
     @property
     def nstep(self) -> int:

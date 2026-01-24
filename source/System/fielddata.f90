@@ -65,30 +65,46 @@ contains
          thermal_field=0.0_dblprec
       else
          ! Otherwise deallocate arrays
-         i_all=-product(shape(beff))*kind(beff)
-         deallocate(beff,stat=i_stat)
-         call memocc(i_stat,i_all,'beff','allocate_fields')
-         i_all=-product(shape(beff1))*kind(beff1)
-         deallocate(beff1,stat=i_stat)
-         call memocc(i_stat,i_all,'beff1','allocate_fields')
-         i_all=-product(shape(beff2))*kind(beff2)
-         deallocate(beff2,stat=i_stat)
-         call memocc(i_stat,i_all,'beff2','allocate_fields')
-         i_all=-product(shape(beff3))*kind(beff3)
-         deallocate(beff3,stat=i_stat)
-         call memocc(i_stat,i_all,'beff3','allocate_fields')
-         i_all=-product(shape(b2eff))*kind(b2eff)
-         deallocate(b2eff,stat=i_stat)
-         call memocc(i_stat,i_all,'b2eff','allocate_fields')
-         i_all=-product(shape(external_field))*kind(external_field)
-         deallocate(external_field,stat=i_stat)
-         call memocc(i_stat,i_all,'external_field','allocate_fields')
-         i_all=-product(shape(field1))*kind(field1)
-         deallocate(field1,stat=i_stat)
-         call memocc(i_stat,i_all,'field1','allocate_fields')
-         i_all=-product(shape(field2))*kind(field2)
-         deallocate(field2,stat=i_stat)
-         call memocc(i_stat,i_all,'field2','allocate_fields')
+         if(allocated(beff)) then
+            i_all=-product(shape(beff))*kind(beff)
+            deallocate(beff,stat=i_stat)
+            call memocc(i_stat,i_all,'beff','allocate_fields')
+         end if
+         if(allocated(beff1)) then
+            i_all=-product(shape(beff1))*kind(beff1)
+            deallocate(beff1,stat=i_stat)
+            call memocc(i_stat,i_all,'beff1','allocate_fields')
+         end if
+         if(allocated(beff2)) then
+            i_all=-product(shape(beff2))*kind(beff2)
+            deallocate(beff2,stat=i_stat)
+            call memocc(i_stat,i_all,'beff2','allocate_fields')
+         end if
+         if(allocated(beff3)) then
+            i_all=-product(shape(beff3))*kind(beff3)
+            deallocate(beff3,stat=i_stat)
+            call memocc(i_stat,i_all,'beff3','allocate_fields')
+         end if
+         if(allocated(b2eff)) then
+            i_all=-product(shape(b2eff))*kind(b2eff)
+            deallocate(b2eff,stat=i_stat)
+            call memocc(i_stat,i_all,'b2eff','allocate_fields')
+         end if
+         if(allocated(external_field)) then
+            i_all=-product(shape(external_field))*kind(external_field)
+            deallocate(external_field,stat=i_stat)
+            call memocc(i_stat,i_all,'external_field','allocate_fields')
+         end if
+         if(allocated(field1)) then
+            i_all=-product(shape(field1))*kind(field1)
+            deallocate(field1,stat=i_stat)
+            call memocc(i_stat,i_all,'field1','allocate_fields')
+         end if
+         if(allocated(field2)) then
+            i_all=-product(shape(field2))*kind(field2)
+            deallocate(field2,stat=i_stat)
+            call memocc(i_stat,i_all,'field2','allocate_fields')
+         end if
          !
          if (allocated(time_external_field)) then
             i_all=-product(shape(time_external_field))*kind(time_external_field)

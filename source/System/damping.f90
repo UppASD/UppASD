@@ -60,21 +60,29 @@ contains
          end if
       else
          ! Deallocating the damping parameter for the measurement phase
-         i_all=-product(shape(lambda1_array))*kind(lambda1_array)
-         deallocate(lambda1_array,stat=i_stat)
-         call memocc(i_stat,i_all,'lambda1_array','allocate_damping')
-         i_all=-product(shape(lambda2_array))*kind(lambda2_array)
-         deallocate(lambda2_array,stat=i_stat)
-         call memocc(i_stat,i_all,'lambda2_array','allocate_damping')
+         if(allocated(lambda1_array)) then
+            i_all=-product(shape(lambda1_array))*kind(lambda1_array)
+            deallocate(lambda1_array,stat=i_stat)
+            call memocc(i_stat,i_all,'lambda1_array','allocate_damping')
+         end if
+         if(allocated(lambda2_array)) then
+            i_all=-product(shape(lambda2_array))*kind(lambda2_array)
+            deallocate(lambda2_array,stat=i_stat)
+            call memocc(i_stat,i_all,'lambda2_array','allocate_damping')
+         end if
 
          ! Allocating the site dependent damping for the initial phase
          if(ipnphase>0) then
-            i_all=-product(shape(iplambda1_array))*kind(iplambda1_array)
-            deallocate(iplambda1_array,stat=i_stat)
-            call memocc(i_stat,i_all,'iplambda1_array','allocate_damping')
-            i_all=-product(shape(iplambda2_array))*kind(iplambda2_array)
-            deallocate(iplambda2_array,stat=i_stat)
-            call memocc(i_stat,i_all,'iplambda2_array','allocate_damping')
+            if(allocated(iplambda1_array)) then
+               i_all=-product(shape(iplambda1_array))*kind(iplambda1_array)
+               deallocate(iplambda1_array,stat=i_stat)
+               call memocc(i_stat,i_all,'iplambda1_array','allocate_damping')
+            end if
+            if(allocated(iplambda2_array)) then
+               i_all=-product(shape(iplambda2_array))*kind(iplambda2_array)
+               deallocate(iplambda2_array,stat=i_stat)
+               call memocc(i_stat,i_all,'iplambda2_array','allocate_damping')
+            end if
 
          end if
       endif

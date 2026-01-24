@@ -281,9 +281,11 @@ contains
 
       integer :: i_stat,i_all
 
-      i_all=-product(shape(temp_array))*kind(temp_array)
-      deallocate(temp_array,stat=i_stat)
-      call memocc(i_stat,i_all,'temp_array','deallocate_temp')
+      if(allocated(temp_array)) then
+         i_all=-product(shape(temp_array))*kind(temp_array)
+         deallocate(temp_array,stat=i_stat)
+         call memocc(i_stat,i_all,'temp_array','deallocate_temp')
+      end if
       if(allocated(iptemp_array)) then
          i_all=-product(shape(iptemp_array))*kind(iptemp_array)
          deallocate(iptemp_array,stat=i_stat)

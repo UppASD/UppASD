@@ -29,9 +29,11 @@ contains
          call memocc(i_stat,product(shape(atype_meta))*kind(atype_meta),'atype_meta','allocate_metatype')
       else
          ! Otherwise deallocate arrays
-         i_all=-product(shape(atype_meta))*kind(atype_meta)
-         deallocate(atype_meta,stat=i_stat)
-         call memocc(i_stat,i_all,'atype_meta','allocate_metatype')
+         if(allocated(atype_meta)) then
+            i_all=-product(shape(atype_meta))*kind(atype_meta)
+            deallocate(atype_meta,stat=i_stat)
+            call memocc(i_stat,i_all,'atype_meta','allocate_metatype')
+         end if
       end if
 
    end subroutine allocate_metatype
@@ -53,12 +55,16 @@ contains
          call memocc(i_stat,product(shape(NA_metalist))*kind(NA_metalist),'NA_metalist','allocate_metanumb')
       else
          ! Otherwise deallocate arrays
-         i_all=-product(shape(anumb_meta))*kind(anumb_meta)
-         deallocate(anumb_meta,stat=i_stat)
-         call memocc(i_stat,i_all,'anumb_meta','allocate_metanumb')
-         i_all=-product(shape(NA_metalist))*kind(NA_metalist)
-         deallocate(NA_metalist,stat=i_stat)
-         call memocc(i_stat,i_all,'NA_metalist','allocate_metanumb')
+         if(allocated(anumb_meta)) then
+            i_all=-product(shape(anumb_meta))*kind(anumb_meta)
+            deallocate(anumb_meta,stat=i_stat)
+            call memocc(i_stat,i_all,'anumb_meta','allocate_metanumb')
+         end if
+         if(allocated(NA_metalist)) then
+            i_all=-product(shape(NA_metalist))*kind(NA_metalist)
+            deallocate(NA_metalist,stat=i_stat)
+            call memocc(i_stat,i_all,'NA_metalist','allocate_metanumb')
+         end if
       end if
 
    end subroutine allocate_metanumb

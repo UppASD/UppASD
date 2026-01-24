@@ -437,6 +437,29 @@
     end subroutine put_iphfield
 
 
+      subroutine get_ipmode(mode) bind(c, name='get_ipmode_')
+         use iso_c_binding
+             use InputData, only : ipmode
+          implicit none
+          !f2py intent(out) mode
+          character(kind=c_char), dimension(2), intent(out) :: mode
+
+          mode(1) = ipmode(1:1)
+          mode(2) = ipmode(2:2)
+      end subroutine get_ipmode
+
+
+      subroutine put_ipmode(mode) bind(c, name='put_ipmode_')
+         use iso_c_binding
+             use InputData, only : ipmode
+          implicit none
+          !f2py intent(in) mode
+          character(kind=c_char), dimension(2), intent(in) :: mode
+
+          ipmode = mode(1)//mode(2)
+      end subroutine put_ipmode
+
+
     subroutine get_mcnstep(nstep) bind(c, name='get_mcnstep_')
       use iso_c_binding
          use InputData, only : mcnstep

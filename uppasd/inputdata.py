@@ -20,6 +20,7 @@ class InputData:
         self.hfield = None
         self.iptemp = None
         self.iphfield = None
+        self.ipmode = None
 
     def get_nstep(self):
         """
@@ -90,6 +91,17 @@ class InputData:
         """
         self.iphfield = self.driver.get_iphfield()
         return self.iphfield
+
+    def get_ipmode(self):
+        """
+        Retrieves the value of ipmode from the _uppasd module.
+
+        Returns:
+            str: The value of ipmode.
+        """
+        if hasattr(self.driver, "get_ipmode"):
+            self.ipmode = self.driver.get_ipmode()
+        return self.ipmode
 
     def update_nstep(self, value=None):
         """
@@ -175,6 +187,19 @@ class InputData:
             self.iphfield = value
         self.driver.put_iphfield(self.iphfield)
 
+    def update_ipmode(self, value=None):
+        """
+        Sets the value of ipmode in the _uppasd module using the class variable value.
+        If value is given, updates the original value.
+
+        Args:
+            value (str, optional): The new value of ipmode. Defaults to None.
+        """
+        if value is not None:
+            self.ipmode = value
+        if hasattr(self.driver, "put_ipmode"):
+            self.driver.put_ipmode(self.ipmode)
+
     def get_all(self):
         """
         Calls all the get_* functions to update the class variables.
@@ -186,3 +211,4 @@ class InputData:
         self.get_hfield()
         self.get_iptemp()
         self.get_iphfield()
+        self.get_ipmode()
