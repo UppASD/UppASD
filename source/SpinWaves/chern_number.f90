@@ -8,7 +8,6 @@
 !> GNU Public License
 !------------------------------------------------------------------------------------
 module Chern_number
-   use, intrinsic :: ieee_arithmetic,  only : ieee_is_nan
    use InputData,  only : Temp
    use Parameters
    use Constants
@@ -442,7 +441,8 @@ contains
        ! Sum in band index
        therm_conduc=-(k_bolt**2)*Temp/((2*pi)**2*hbar)*sum(therm_conduc_band(1:NA),dim=1)
        !Avoid precision error at very low temperatures
-       if (ieee_is_nan(therm_conduc)) then
+       !Check for NaN: NaN != NaN
+       if (therm_conduc /= therm_conduc) then
        therm_conduc=0.0_dblprec
        end if
  
