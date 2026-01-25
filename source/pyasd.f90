@@ -278,20 +278,47 @@
       real(c_double), intent(in) :: itimestep
       !f2py intent(in) :: idamping
       real(c_double), intent(in) :: idamping
+      
+      ! Temporary array to ensure proper memory layout
+      real(c_double), dimension(:,:,:), allocatable :: temp_moments
 
       call timing(0,'Initial       ','ON')
+      write(6,*) "[FORTRAN] Relax starting, mode=", imode, " steps=", instep
+      write(6,*) "[FORTRAN] Input: natom=", natom, " mensemble=", mensemble
+      flush(6)
       
       if(imode == 'M' .or. imode == 'H') then
+         write(6,*) "[FORTRAN] Calling mc_minimal..."
+         flush(6)
          call mc_minimal(emomM, emom, mmom, instep, imode//" ", itemperature)
+         write(6,*) "[FORTRAN] mc_minimal returned"
+         flush(6)
       else
+         write(6,*) "[FORTRAN] Calling sd_minimal..."
+         flush(6)
          damping1 = idamping
          call sd_minimal(emomM, emom, mmom, instep, 1, itemperature)
+         write(6,*) "[FORTRAN] sd_minimal returned"
+         flush(6)
       end if
       call timing(0,'Initial       ','OF')
-
-      ! Copy data directly to output array
-      ! F2PY allocates moments, we just fill it
-      moments = emomM
+      
+      write(6,*) "[FORTRAN] Allocating temporary array..."
+      allocate(temp_moments(3, natom, mensemble))
+      write(6,*) "[FORTRAN] Copying to temporary..."
+      flush(6)
+      
+      ! Use temporary array to ensure clean memory transfer to Python
+      temp_moments(1:3, 1:natom, 1:mensemble) = emomM(1:3, 1:natom, 1:mensemble)
+      
+      write(6,*) "[FORTRAN] Copying to output moments..."
+      moments = temp_moments
+      
+      write(6,*) "[FORTRAN] Deallocating temporary..."
+      deallocate(temp_moments)
+      
+      write(6,*) "[FORTRAN] Relax complete"
+      flush(6)
 
       return
       

@@ -329,8 +329,15 @@ class InteractiveASD:
         moments = self.asd.relax(mode="S", temperature=self.asd.inputdata.temp)
         # Use returned moments directly instead of re-fetching from Fortran
         # This avoids accessing potentially stale data
-        currmom = np.array(moments[:, :, 0].T, copy=True)
-        currcol = np.array(moments[2, :, 0].T, copy=True)
+        # Fortran returns column-major arrays, explicitly create row-major C arrays
+        natom = moments.shape[1]
+        currmom = np.zeros((natom, 3), dtype=np.float64, order='C')
+        currcol = np.zeros(natom, dtype=np.float64, order='C')
+        for i in range(natom):
+            currmom[i, 0] = moments[0, i, 0]
+            currmom[i, 1] = moments[1, i, 0]
+            currmom[i, 2] = moments[2, i, 0]
+            currcol[i] = moments[2, i, 0]
         vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
         colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
@@ -350,8 +357,15 @@ class InteractiveASD:
         moments = self.asd.relax(mode="M", temperature=self.asd.inputdata.temp)
         # Use returned moments directly instead of re-fetching from Fortran
         # This avoids accessing potentially stale data
-        currmom = np.array(moments[:, :, 0].T, copy=True)
-        currcol = np.array(moments[2, :, 0].T, copy=True)
+        # Fortran returns column-major arrays, explicitly create row-major C arrays
+        natom = moments.shape[1]
+        currmom = np.zeros((natom, 3), dtype=np.float64, order='C')
+        currcol = np.zeros(natom, dtype=np.float64, order='C')
+        for i in range(natom):
+            currmom[i, 0] = moments[0, i, 0]
+            currmom[i, 1] = moments[1, i, 0]
+            currmom[i, 2] = moments[2, i, 0]
+            currcol[i] = moments[2, i, 0]
         vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
         colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
@@ -371,8 +385,15 @@ class InteractiveASD:
         moments = self.asd.relax(mode="H", temperature=self.asd.inputdata.temp + 1.0e-6)
         # Use returned moments directly instead of re-fetching from Fortran
         # This avoids accessing potentially stale data
-        currmom = np.array(moments[:, :, 0].T, copy=True)
-        currcol = np.array(moments[2, :, 0].T, copy=True)
+        # Fortran returns column-major arrays, explicitly create row-major C arrays
+        natom = moments.shape[1]
+        currmom = np.zeros((natom, 3), dtype=np.float64, order='C')
+        currcol = np.zeros(natom, dtype=np.float64, order='C')
+        for i in range(natom):
+            currmom[i, 0] = moments[0, i, 0]
+            currmom[i, 1] = moments[1, i, 0]
+            currmom[i, 2] = moments[2, i, 0]
+            currcol[i] = moments[2, i, 0]
         vecz = numpy_support.numpy_to_vtk(currmom, deep=True)
         colz = numpy_support.numpy_to_vtk(currcol, deep=True)
         self.Datatest.GetPointData().SetVectors(vecz)
