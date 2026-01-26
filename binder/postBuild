@@ -28,9 +28,9 @@ make -j2
 
 cd ..
 
-# Install Python interface
+# Install Python interface (non-editable so Binder/Colab imports work reliably)
 echo "Installing Python interface..."
-pip install -e . --no-deps --no-build-isolation
+pip install . --no-deps --no-build-isolation --quiet
 
 # Verify installation
 echo ""

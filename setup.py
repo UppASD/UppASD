@@ -52,7 +52,7 @@ class cmake_build_ext(build_ext):
             fc_env = os.environ.get("FC")
             if fc_env:
                 cmake_args.append(f"-DCMAKE_Fortran_COMPILER={fc_env}")
-            ]
+            
 
             # Select a generator robustly: prefer Ninja if available, otherwise let CMake default
             cmake_generator = os.environ.get("CMAKE_GENERATOR")
