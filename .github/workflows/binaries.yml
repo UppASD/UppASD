@@ -31,7 +31,9 @@ jobs:
       - name: Provide ninja on Linux ${{ matrix.icon}}
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev
+          sudo apt-get -y update
+          sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev \
+            gfortran libgfortran-dev libquadmath-dev libgomp1
 
       - name: Provide gfortran on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
@@ -67,8 +69,8 @@ jobs:
         run: |
              FC=gfortran-14 cmake -S . -G Ninja -B build \
                -DCMAKE_BUILD_TYPE=Release \
-               -DBUNDLE_LIBRARIES=ON \
-               -DUSE_STATIC_LIBGFORTRAN=OFF
+               -DBUNDLE_LIBRARIES=OFF \
+               -DFORCE_STATIC_FORTRAN=ON
              cmake --build build --parallel 
              mkdir ./dist
              # echo "./bin directory:"
@@ -95,7 +97,7 @@ jobs:
       - name: Build binaries ${{ matrix.icon}} on ${{ matrix.os }}
         if: runner.os != 'macOS'
         run: |
-             cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+             cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DFORCE_STATIC_FORTRAN=ON
              cmake --build build --parallel 
              mkdir ./dist
              cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe

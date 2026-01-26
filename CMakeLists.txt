@@ -880,9 +880,18 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # On Windows, use static linking for portable executables
     set(UppASD_links "-static")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # On Linux, use selective static linking - only static link runtime libs if available
-    # Don't use full -static as it conflicts with dynamic system libraries
-    set(UppASD_links "-static-libgfortran -static-libgcc")
+   # On Linux: do NOT force static linking of gfortran/libgcc by default.
+   # Many Linux build environments (especially i686 cibuildwheel) do not
+   # provide static Fortran runtime libraries and forcing these flags
+   # causes linker failures (cannot find -lgfortran). To preserve the
+   # previous ability to request static runtime linking, allow an environment
+   # override via `-DFORCE_STATIC_FORTRAN=ON` when the static libs are known
+   # to be available.
+   if(DEFINED FORCE_STATIC_FORTRAN AND FORCE_STATIC_FORTRAN)
+      set(UppASD_links "-static-libgfortran -static-libgcc")
+   else()
+      unset(UppASD_links)
+   endif()
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     if(BUNDLE_LIBRARIES)
         # When bundling on macOS, don't statically link runtime libraries as we want to bundle them

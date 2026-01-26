@@ -108,6 +108,21 @@ jobs:
           CC: gcc-14
           # CIBW_BUILD_VERBOSITY: 3
 
+      - name: Repair Linux wheels with auditwheel
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install auditwheel
+          mkdir -p wheelhouse-repaired
+          for whl in wheelhouse/*.whl; do
+            echo "Repairing $whl"
+            auditwheel repair "$whl" -w wheelhouse-repaired/ || echo "auditwheel failed for $whl"
+          done
+          # Move repaired wheels back into wheelhouse (if any), otherwise keep original wheels
+          if [ -n "$(ls -A wheelhouse-repaired 2>/dev/null)" ]; then
+            mv wheelhouse-repaired/* wheelhouse/ || true
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: uppasd.${{matrix.os}}
