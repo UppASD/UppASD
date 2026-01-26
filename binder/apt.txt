@@ -1,0 +1,5 @@
+# System packages needed for UppASD
+gfortran
+cmake
+build-essential
+pkg-config

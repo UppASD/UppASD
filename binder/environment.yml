@@ -1,0 +1,23 @@
+name: uppasd-notebooks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy>=1.20
+  - scipy>=1.7
+  - matplotlib>=3.5
+  - jupyter
+  - notebook
+  - ipywidgets
+  - ipykernel
+  # Fortran compiler and build tools
+  - gfortran_linux-64
+  - cmake>=3.18
+  - make
+  - pip
+  - pip:
+    - ase>=3.22
+    # Note: pyvista requires additional system libraries
+    # Uncomment if needed, but may increase build time
+    # - pyvista>=0.38

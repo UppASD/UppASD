@@ -1,0 +1,47 @@
+#!/bin/bash
+# Binder postBuild script - runs after environment creation
+# This script compiles and installs UppASD
+
+set -e  # Exit on any error
+
+echo "========================================"
+echo "Building UppASD for Binder"
+echo "========================================"
+
+# Create build directory
+mkdir -p build
+cd build
+
+# Configure with CMake
+echo "Configuring with CMake..."
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_Fortran_COMPILER=gfortran
+
+# Build with 2 cores (Binder limitation)
+echo "Building UppASD (this may take a few minutes)..."
+make -j2
+
+cd ..
+
+# Install Python interface
+echo "Installing Python interface..."
+pip install -e . --no-deps --no-build-isolation
+
+# Verify installation
+echo ""
+echo "Verifying installation..."
+python -c "from uppasd import Simulator; print('✅ UppASD Simulator imported successfully')" || echo "⚠️ Simulator import failed (may need Fortran backend)"
+python -c "from uppasd import notebook; print('✅ UppASD notebook helpers available')"
+
+echo ""
+echo "========================================"
+echo "✅ UppASD installation complete!"
+echo "========================================"
+echo ""
+echo "Available notebooks:"
+echo "  - magnetic_structure_visualization.ipynb"
+echo "  - multi_species_interactive_setup.ipynb"
+echo "  - interactive_setup_notebook.ipynb"
+echo "  - UppASD_Simulation_Notebook.ipynb"
+echo ""
