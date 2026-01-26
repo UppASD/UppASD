@@ -1,11 +1,12 @@
 [build-system]
 requires = [
-    "setuptools",
-   "setuptools-git-versioning",
+    "setuptools>=77.0.0",
+    "setuptools-git-versioning",
     "wheel",
     "numpy>1.19",
-   "ninja",
-   "cmake"]
+    "ninja",
+    "cmake"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -17,6 +18,7 @@ authors = [
     { name = "UppASD group", email = "uppasd@physics.uu.se" }
 ]
 urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
+# Use SPDX short string to satisfy modern setuptools and include license files.
 license = "GPL-3.0-only"
 license-files = ["LICENSE", "AUTHORS"]
 dependencies = [

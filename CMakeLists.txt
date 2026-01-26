@@ -419,6 +419,25 @@ else()
 endif()
 #find_package(BLAS REQUIRED)
 #find_package(LAPACK REQUIRED)
+
+# Post-detection: Check if BLAS/LAPACK resolved to MKL libraries
+# This handles cases where FindMKL fails but FindBLAS finds MKL (e.g., system-wide MKL on Colab)
+if(NOT MKL_FOUND AND BLAS_FOUND)
+   string(TOLOWER "${BLAS_LIBRARIES}" blas_libs_lower)
+   if(blas_libs_lower MATCHES "mkl")
+      message(STATUS "Detected MKL libraries via FindBLAS/FindLAPACK (MKL_FOUND was false)")
+      set(MKL_FOUND TRUE)
+      set(USE_MKL ON CACHE BOOL "MKL detected via BLAS/LAPACK" FORCE)
+      # MKL libraries are already in BLAS_LIBRARIES, so linking will work
+      # Set MKL_LIBRARIES for compatibility but don't create MKL::MKL target
+      set(MKL_LIBRARIES ${BLAS_LIBRARIES})
+      # Set a flag to indicate we're using MKL via BLAS discovery
+      set(MKL_VIA_BLAS TRUE)
+      message(STATUS "Setting USE_MKL=ON and MKL_LIBRARIES=${MKL_LIBRARIES}")
+      message(STATUS "Note: MKL detected via BLAS, not via FindMKL (MKL::MKL target unavailable)")
+   endif()
+endif()
+
 message(STATUS "Math libs: 
  BLAS:    ${BLAS_FOUND}, ${BLAS_LIBRARIES},  ${BLAS_LINKER_FLAGS}
  LAPACK:  ${LAPACK_FOUND}, ${LAPACK_LIBRARIES},  ${LAPACK_LINKER_FLAGS}
@@ -509,7 +528,11 @@ ENDIF(USE_OVF)
 ##############################################################################################
 if(USE_MKL)
    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
-      target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
+      if(MKL_INCLUDE)
+         target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
+      else()
+         message(STATUS "MKL detected via BLAS but MKL_INCLUDE not available")
+      endif()
    endif()
    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
 
@@ -886,11 +909,20 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
          ${OpenMP_Fortran_LIBRARIES} 
       )
       if(MKL_FOUND AND USE_MKL)
-         TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+         if(TARGET MKL::MKL)
+            TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+         else()
+            # MKL detected via BLAS; libraries already linked via BLAS_LIBRARIES
+            message(STATUS "MKL detected via BLAS - using BLAS_LIBRARIES for linking")
+         endif()
       endif(MKL_FOUND AND USE_MKL)
-      if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
-         TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
-      endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      if(USE_VSL OR USE_MKL_FFT)
+         if(TARGET MKL::MKL)
+            TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC $<LINK_ONLY:MKL::MKL>)
+         else()
+            message(WARNING "USE_VSL or USE_MKL_FFT requested but MKL::MKL target not available")
+         endif()
+      endif(USE_VSL OR USE_MKL_FFT)
    
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE ${UppASD_LIB} ${UppASD_links})

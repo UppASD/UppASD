@@ -62,17 +62,12 @@ class cmake_build_ext(build_ext):
                 mac_deploy_target = os.environ.get("CMAKE_OSX_DEPLOYMENT_TARGET", "12")
                 cmake_args.append(f"-DCMAKE_OSX_DEPLOYMENT_TARGET={mac_deploy_target}")
 
-            # BLAS/LAPACK vendor selection: allow override via env, else choose per-platform
+            # BLAS/LAPACK vendor selection: allow override via env; don't force a default
             bla_vendor = os.environ.get("BLA_VENDOR")
             if bla_vendor:
                 cmake_args.append(f"-DBLA_VENDOR={bla_vendor}")
-            else:
-                if platform.system() == "Linux":
-                    # Prefer OpenBLAS on Linux to avoid accidental MKL
-                    cmake_args.append("-DBLA_VENDOR=OpenBLAS")
-                elif platform.system() == "Darwin":
-                    # Use Apple's Accelerate (vecLib) on macOS when OpenBLAS may be missing
-                    cmake_args.append("-DBLA_VENDOR=Apple")
+            # Otherwise, rely on CMake's FindBLAS/FindLAPACK to resolve the
+            # available implementation (conda libblas on Binder/Colab, Accelerate on macOS, etc.).
 
             if not os.path.exists(self.build_temp):
                 os.makedirs(self.build_temp)
