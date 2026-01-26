@@ -58,10 +58,9 @@ class cmake_build_ext(build_ext):
             cmake_generator = os.environ.get("CMAKE_GENERATOR")
             if cmake_generator:
                 cmake_args.append(f"-G{cmake_generator}")
-            else:
-                if shutil.which("ninja"):
-                    cmake_args.append("-GNinja")
-                # else: rely on CMake default (Unix Makefiles on Linux)
+            # Do not auto-select Ninja; build isolation during pip installs
+            # may lack Ninja even if it's available on the host. Let CMake
+            # pick the default generator unless `CMAKE_GENERATOR` is set.
 
             # Only set macOS deployment target on macOS
             if platform.system() == "Darwin":
