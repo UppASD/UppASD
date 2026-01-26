@@ -3,3 +3,6 @@ gfortran
 cmake
 build-essential
 pkg-config
+libosmesa6
+libgl1-mesa-dri
+libegl1-mesa

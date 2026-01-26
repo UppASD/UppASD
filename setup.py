@@ -43,8 +43,15 @@ class cmake_build_ext(build_ext):
                 "-DPython3_FIND_STRATEGY=LOCATION",
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
-                # Ensure gfortran is used rather than f95 alias when available
-                "-DCMAKE_Fortran_COMPILER=gfortran",
+                # Allow explicit Fortran compiler override via the FC environment
+                # variable (e.g. gfortran-12 on macOS). If `FC` is not set,
+                # let CMake pick the default Fortran compiler available in
+                # the build environment.
+            ]
+
+            fc_env = os.environ.get("FC")
+            if fc_env:
+                cmake_args.append(f"-DCMAKE_Fortran_COMPILER={fc_env}")
             ]
 
             # Select a generator robustly: prefer Ninja if available, otherwise let CMake default

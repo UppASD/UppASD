@@ -12,6 +12,10 @@ echo "========================================"
 mkdir -p build
 cd build
 
+# Configure PyVista for off-screen rendering in Binder
+export PYVISTA_OFF_SCREEN=1
+export PV_OFF_SCREEN=1
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake .. \
