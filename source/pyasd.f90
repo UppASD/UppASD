@@ -571,6 +571,16 @@
        timestep = delta_t
     end subroutine get_delta_t
 
+      subroutine get_na(na_out) bind(c, name='get_na_')
+         use iso_c_binding
+         use InputData, only : NA_inp => NA
+         implicit none
+         !f2py intent(out) :: na_out
+         integer(c_int), intent(out) :: na_out
+
+         na_out = NA_inp
+      end subroutine get_na
+
     subroutine put_delta_t(timestep) bind(c, name='put_delta_t_')
       use iso_c_binding
          use InputData, only : delta_t
@@ -596,5 +606,95 @@
    
    end subroutine get_energy
 !!! 
+!!! 
+   ! =========================================================================
+   ! Magnon/LSWT wrapper functions (expose diamag functionality to Python)
+   ! =========================================================================
+   
+   subroutine magnon_setup_tensor_hamiltonian(na, natom, mensemble, simid, emomm, mmom, nq, q_vect, flag)
+      use Constants
+      use diamag, only: setup_tensor_hamiltonian
+      implicit none
 
+      !f2py intent(in) :: na, natom, mensemble, simid, emomm, mmom, nq, q_vect, flag
+      integer, intent(in) :: na, natom, mensemble, nq, flag
+      character(len=8), intent(in) :: simid
+      real(dblprec), dimension(natom, mensemble), intent(in) :: mmom
+      real(dblprec), dimension(3, natom, mensemble), intent(in) :: emomm
+      real(dblprec), dimension(3, nq), intent(in) :: q_vect
+
+      call setup_tensor_hamiltonian(na, natom, mensemble, simid, emomm, mmom, q_vect, nq, flag)
+   end subroutine magnon_setup_tensor_hamiltonian
+   
+   subroutine magnon_get_eigenvalues_q(hdim, nq_ext, eigenvalues) &
+      bind(c, name='magnon_get_eigenvalues_q_')
+      use iso_c_binding
+      use diamag, only: nc_eval_q
+      implicit none
+      
+      !f2py intent(in) :: hdim, nq_ext
+      !f2py intent(out) :: eigenvalues
+      integer(c_int), intent(in) :: hdim, nq_ext
+      real(c_double), dimension(hdim, nq_ext), intent(out) :: eigenvalues
+      
+      if (allocated(nc_eval_q)) then
+         eigenvalues = nc_eval_q
+      else
+         eigenvalues = 0.0_c_double
+      end if
+   end subroutine magnon_get_eigenvalues_q
+   
+   subroutine magnon_get_eigenvectors_q(hdim, nq_ext, eigenvectors) &
+      bind(c, name='magnon_get_eigenvectors_q_')
+      use iso_c_binding
+      use diamag, only: nc_evec_q
+      implicit none
+      
+      !f2py intent(in) :: hdim, nq_ext
+      !f2py intent(out) :: eigenvectors
+      integer(c_int), intent(in) :: hdim, nq_ext
+      complex(c_double_complex), dimension(hdim, hdim, nq_ext), intent(out) :: eigenvectors
+      
+      if (allocated(nc_evec_q)) then
+         eigenvectors = nc_evec_q
+      else
+         eigenvectors = (0.0_c_double, 0.0_c_double)
+      end if
+   end subroutine magnon_get_eigenvectors_q
+   
+   subroutine magnon_get_eigenvalues_qchern(hdim, nq_ext, eigenvalues) &
+      bind(c, name='magnon_get_eigenvalues_qchern_')
+      use iso_c_binding
+      use diamag, only: nc_eval_qchern
+      implicit none
+      
+      !f2py intent(in) :: hdim, nq_ext
+      !f2py intent(out) :: eigenvalues
+      integer(c_int), intent(in) :: hdim, nq_ext
+      real(c_double), dimension(hdim, nq_ext), intent(out) :: eigenvalues
+      
+      if (allocated(nc_eval_qchern)) then
+         eigenvalues = nc_eval_qchern
+      else
+         eigenvalues = 0.0_c_double
+      end if
+   end subroutine magnon_get_eigenvalues_qchern
+   
+   subroutine magnon_get_eigenvectors_qchern(hdim, nq_ext, eigenvectors) &
+      bind(c, name='magnon_get_eigenvectors_qchern_')
+      use iso_c_binding
+      use diamag, only: nc_evec_qchern
+      implicit none
+      
+      !f2py intent(in) :: hdim, nq_ext
+      !f2py intent(out) :: eigenvectors
+      integer(c_int), intent(in) :: hdim, nq_ext
+      complex(c_double_complex), dimension(hdim, hdim, nq_ext), intent(out) :: eigenvectors
+      
+      if (allocated(nc_evec_qchern)) then
+         eigenvectors = nc_evec_qchern
+      else
+         eigenvectors = (0.0_c_double, 0.0_c_double)
+      end if
+   end subroutine magnon_get_eigenvectors_qchern
 !!! end module pyasd

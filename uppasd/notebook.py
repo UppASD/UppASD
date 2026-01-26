@@ -12,6 +12,8 @@ lightweight helpers for notebooks:
 - read_generic_output_file: parse text outputs and headers
 - find_output_file: locate output files by simid/pattern
 - print_system_info: pretty-print parsed input parameters
+- setup_magnon_q_mesh: create q-point meshes for magnon calculations (wraps magnons module)
+- compute_magnon_dispersion: run LSWT magnon calculation in notebook
 
 Dependencies are kept minimal (numpy, glob, logging) to avoid heavy
 plotting requirements inside the package.
@@ -26,6 +28,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from uppasd.simulator import Simulator
+
+# Type alias for q-point tuples
+Qpoint = Tuple[float, float, float]
 
 logger = logging.getLogger(__name__)
 
@@ -384,3 +389,84 @@ def load_simulation_results(simid: Optional[str] = None, config: Optional[Dict] 
     results = load_outputs(target_simid)
     logger.info("Loaded results for simid=%s", target_simid)
     return results
+
+
+def setup_magnon_q_mesh_path(
+    path_points: List[Tuple[float, float, float]],
+    points_per_segment: int = 50,
+) -> np.ndarray:
+    """
+    Convenience wrapper for magnons.setup_q_mesh_path.
+    
+    Create a q-point mesh along a high-symmetry path in reciprocal space
+    for magnon calculations.
+    
+    Parameters
+    ----------
+    path_points : list of tuple
+        List of (qx, qy, qz) points defining path segments.
+        Example: [(0, 0, 0), (0.5, 0, 0), (0.5, 0.5, 0)] for Gamma->X->M.
+    points_per_segment : int
+        Number of points per segment. Default: 50.
+    
+    Returns
+    -------
+    q_mesh : ndarray (nq, 3)
+        Q-points in reciprocal lattice coordinates.
+    """
+    from uppasd.magnons import setup_q_mesh_path
+    return setup_q_mesh_path(path_points, points_per_segment)
+
+
+def setup_magnon_q_mesh_grid(
+    nq1: int = 10,
+    nq2: int = 10,
+    nq3: int = 1,
+) -> np.ndarray:
+    """
+    Convenience wrapper for magnons.setup_q_mesh_grid.
+    
+    Create a regular q-point mesh in reciprocal space.
+    
+    Parameters
+    ----------
+    nq1, nq2, nq3 : int
+        Number of q-points per direction. Default: (10, 10, 1).
+    
+    Returns
+    -------
+    q_mesh : ndarray (nq, 3)
+        Q-points in fractional coordinates.
+    """
+    from uppasd.magnons import setup_q_mesh_grid
+    return setup_q_mesh_grid(nq1, nq2, nq3)
+
+
+def compute_magnon_dispersion(
+    simulator,
+    q_mesh: np.ndarray,
+) -> Dict:
+    """
+    Convenience wrapper for magnons.compute_magnons in notebooks.
+    
+    Compute magnon dispersion relation using LSWT.
+    
+    Parameters
+    ----------
+    simulator : Simulator
+        Initialized Simulator with Hamiltonian mounted.
+    q_mesh : ndarray (nq, 3)
+        Q-points in reciprocal lattice coordinates.
+    
+    Returns
+    -------
+    dict
+        Magnon eigenvalues, eigenvectors, and metadata.
+    """
+    from uppasd.magnons import compute_magnons, get_magnon_dispersion
+    magnons = compute_magnons(simulator, q_mesh)
+    q_dist, energies = get_magnon_dispersion(magnons)
+    magnons['q_distances'] = q_dist
+    magnons['energies'] = energies
+    logger.info("Magnon calculation complete: %d q-points, %d bands", magnons['nq'], energies.shape[1])
+    return magnons

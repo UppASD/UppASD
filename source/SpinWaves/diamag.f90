@@ -44,7 +44,7 @@ module diamag
    public :: do_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
              find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
    public :: setup_tensor_hamiltonian, nc_evec_qchern, nc_eval_qchern
-   public :: diamag_qvect
+   public :: diamag_qvect, nc_eval_q, nc_evec_q
 
 contains
 
@@ -1826,3 +1826,4 @@ subroutine setup_Jtens2_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
 end subroutine setup_Jtens2_q
 
 end module diamag
+

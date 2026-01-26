@@ -621,6 +621,7 @@ if(BUILD_PYTHON)
       set(F2PY_sources 
          ${SRC}/pyasd.f90
       #   ${SRC}/f90wrap/f90wrap_pyasd.f90
+      #   ${SRC}/f90wrap/f90wrap_diamag.f90
       #   #${SRC}/f90wrap/f90wrap_uppasd.f90
       #   #${SRC}/f90wrap/f90wrap_inputdatatype.f90
       #   #${SRC}/f90wrap/f90wrap_inputdata.f90

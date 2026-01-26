@@ -91,6 +91,12 @@ def __getattr__(name):
     elif name == "InputData":
         from uppasd.inputdata import InputData
         return InputData
+    elif name == "magnons":
+        import uppasd.magnons as magnons
+        return magnons
+    elif name == "notebook":
+        import uppasd.notebook as notebook
+        return notebook
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Public API - what should be imported with `from uppasd import *`
@@ -105,6 +111,8 @@ __all__ = [
     "logger",                   # Module logger for customization
     "pyasd",                    # Low-level API (advanced)
     "InputData",                # Parameter management
+    "magnons",                  # Magnon/LSWT calculations
+    "notebook",                 # Notebook helpers
 ]
 
 

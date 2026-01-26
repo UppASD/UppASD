@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 """
 Low-level Python wrapper for UppASD Fortran C extension (_uppasd).
 
@@ -8,27 +10,27 @@ routines exposed via F2PY.
 Functions are organized into three categories:
 
 1. **Simulation Control**
-   - `run_uppasd()`: Execute full simulation
-   - `sanity_check()`: Validate configuration
-   - `setup_all()`: Initialize all data structures
-   - `initial_phase()`: Run initialization phase
-   - `measure()`: Perform measurement
-   - `cleanup()`: Deallocate resources
+    - `run_uppasd()`: Execute full simulation
+    - `sanity_check()`: Validate configuration
+    - `setup_all()`: Initialize all data structures
+    - `initial_phase()`: Run initialization phase
+    - `measure()`: Perform measurement
+    - `cleanup()`: Deallocate resources
 
 2. **Relaxation Methods**
-   - `relax_montecarlo()`: MC relaxation
-   - `relax_metropolis()`: Metropolis relaxation
-   - `relax_heatbath()`: Heat bath relaxation
-   - `relax_llg()`: LLG relaxation
-   - `relax()`: General relaxation dispatcher
+    - `relax_montecarlo()`: MC relaxation
+    - `relax_metropolis()`: Metropolis relaxation
+    - `relax_heatbath()`: Heat bath relaxation
+    - `relax_llg()`: LLG relaxation
+    - `relax()`: General relaxation dispatcher
 
 3. **Data Access**
-   - Magnetic moments: `get_moments()`, `set_moments()`
-   - Fields: `get_field()`, `set_field()`
-   - Energy: `get_energy()`
-   - Temperature: `get_temperature()`, `set_temperature()`
-   - Timestep: `get_timestep()`
-   - Step counters: `get_nstep()`, `get_mc_nstep()`
+    - Magnetic moments: `get_moments()`, `set_moments()`
+    - Fields: `get_field()`, `set_field()`
+    - Energy: `get_energy()`
+    - Temperature: `get_temperature()`, `set_temperature()`
+    - Timestep: `get_timestep()`
+    - Step counters: `get_nstep()`, `get_mc_nstep()`
 
 All functions include comprehensive error handling, logging, and NaN detection.
 
@@ -49,8 +51,6 @@ Legacy function names (snake_case aliases) are provided for backward compatibili
 - etc.
 """
 
-from __future__ import absolute_import, division, print_function
-
 import logging
 from typing import Tuple, Optional
 
@@ -61,6 +61,15 @@ import _uppasd
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+
+
+def get_na() -> int:
+     """Return number of atoms in one unit cell (InputData.NA)."""
+     try:
+          return int(_uppasd.get_na())
+     except Exception as e:
+          logger.error(f"Failed to get NA: {e}")
+          raise
 
 
 def _check_nan(value: float, name: str = "value") -> None:
@@ -1434,3 +1443,238 @@ def set_timestep(timestep: float) -> None:
 get_delta_t = get_timestep
 set_delta_t = set_timestep
 put_delta_t = set_timestep
+
+# ============================================================================
+# Magnon/LSWT Calculations (diamag module)
+# ============================================================================
+
+def setup_tensor_hamiltonian(
+    na: int,
+    natom: int,
+    mensemble: int,
+    simid: str,
+    emomm: np.ndarray,
+    mmom: np.ndarray,
+    q_vect: np.ndarray,
+    nq: int,
+    flag: int = 0,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    Compute magnon Hamiltonian and eigenvalues/eigenvectors using LSWT.
+    
+    Wraps the Fortran diamag.setup_tensor_hamiltonian() subroutine to compute
+    magnon eigenvalues and eigenvectors for a given set of q-points.
+    
+    Parameters
+    ----------
+    na : int
+        Number of atoms in one unit cell
+    natom : int
+        Total number of atoms in system
+    mensemble : int
+        Number of magnetic ensembles
+    simid : str
+        Simulation ID (max 8 characters)
+    emomm : ndarray of shape (3, natom, mensemble)
+        Magnetic moment vectors (in any units)
+    mmom : ndarray of shape (natom, mensemble)
+        Magnetic moment magnitudes
+    q_vect : ndarray of shape (3, nq)
+        Q-vectors in reciprocal lattice coordinates
+    nq : int
+        Number of q-points
+    flag : int, optional
+        Calculation type:
+        - 0: Non-collinear AMS (default)
+        - 1: Chern number calculation
+    
+    Returns
+    -------
+    tuple
+        (eigenvalues, eigenvectors, nq_ext)
+        - eigenvalues: ndarray (2*na, nq_ext) - magnon energies
+        - eigenvectors: ndarray (2*na, 2*na, nq_ext, complex) - magnon modes
+        - nq_ext: int - number of q-points after extension (typically 6*nq)
+    
+    Raises
+    ------
+    ValueError
+        If inputs invalid or inconsistent
+    RuntimeError
+        When Fortran function call fails
+    """
+    # Input validation
+    na = int(na)
+    natom = int(natom)
+    mensemble = int(mensemble)
+    nq = int(nq)
+    flag = int(flag)
+    
+    if na <= 0 or natom <= 0 or mensemble <= 0 or nq <= 0:
+        raise ValueError(f"Dimensions must be positive: na={na}, natom={natom}, mensemble={mensemble}, nq={nq}")
+    
+    if natom % na != 0:
+        logger.warning(f"natom ({natom}) may not be evenly divisible by na ({na})")
+    
+    emomm = np.asarray(emomm, dtype=np.float64)
+    mmom = np.asarray(mmom, dtype=np.float64)
+    q_vect = np.asarray(q_vect, dtype=np.float64)
+    simid = str(simid)[:8].ljust(8)
+    
+    # Check shapes
+    if emomm.shape != (3, natom, mensemble):
+        raise ValueError(f"emomm shape {emomm.shape} != (3, {natom}, {mensemble})")
+    if mmom.shape != (natom, mensemble):
+        raise ValueError(f"mmom shape {mmom.shape} != ({natom}, {mensemble})")
+    if q_vect.shape != (3, nq):
+        raise ValueError(f"q_vect shape {q_vect.shape} != (3, {nq})")
+    
+    if flag not in (0, 1):
+        raise ValueError(f"flag must be 0 or 1, got {flag}")
+    
+    # Check for NaN
+    _check_array_nan(emomm, "emomm")
+    _check_array_nan(mmom, "mmom")
+    _check_array_nan(q_vect, "q_vect")
+    
+    logger.info(
+        f"Computing magnons: na={na}, natom={natom}, mensemble={mensemble}, "
+        f"nq={nq}, flag={flag}"
+    )
+    
+    try:
+        # Call Fortran wrapper to setup tensor Hamiltonian
+        # This will allocate and populate nc_eval_q, nc_evec_q (or Chern variants)
+        # F2PY signature order: na, simid, emomm, mmom, q_vect, flag, [natom, mensemble, nq]
+        _uppasd.magnon_setup_tensor_hamiltonian(na, simid, emomm, mmom, q_vect, flag, natom, mensemble, nq)
+        
+        # Extended q-mesh (typically 6x)
+        nq_ext = 6 * nq
+        hdim = 2 * na
+        
+        # Retrieve results from Fortran module globals
+        if flag == 0:
+            evals = _get_magnon_eigenvalues_q(hdim, nq_ext)
+            evecs = _get_magnon_eigenvectors_q(hdim, nq_ext)
+        else:
+            evals = _get_magnon_eigenvalues_qchern(hdim, nq_ext)
+            evecs = _get_magnon_eigenvectors_qchern(hdim, nq_ext)
+        
+        # Fortran returns (hdim, nq_ext) and (hdim, hdim, nq_ext);
+        # transpose to Python-friendly (nq_ext, hdim[, hdim])
+        evals_py = np.ascontiguousarray(evals.T)
+        evecs_py = np.ascontiguousarray(np.transpose(evecs, (2, 0, 1)))
+
+        logger.info(
+            f"✓ Magnon calculation complete: eigenvalues shape {evals_py.shape}, "
+            f"eigenvectors shape {evecs_py.shape}"
+        )
+        return evals_py, evecs_py, nq_ext
+        
+    except Exception as e:
+        logger.error(f"Magnon calculation failed: {e}")
+        raise RuntimeError(f"setup_tensor_hamiltonian failed: {e}") from e
+
+
+def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
+    """
+    Internal helper to retrieve magnon eigenvalues from Fortran module.
+    
+    Parameters
+    ----------
+    hdim : int
+        Hamiltonian dimension (2*na)
+    nq_ext : int
+        Extended number of q-points
+    
+    Returns
+    -------
+    ndarray (hdim, nq_ext)
+        Magnon eigenvalues
+    """
+    try:
+        evals = _uppasd.magnon_get_eigenvalues_q(hdim, nq_ext)
+        evals = np.array(evals, dtype=np.float64, copy=True)  # copy to own Python memory
+        _check_array_nan(evals, "magnon_eigenvalues_q")
+        return evals
+    except Exception as e:
+        logger.error(f"Failed to retrieve magnon eigenvalues: {e}")
+        raise RuntimeError(f"Cannot retrieve magnon eigenvalues: {e}") from e
+
+
+def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
+    """
+    Internal helper to retrieve magnon eigenvectors from Fortran module.
+    
+    Parameters
+    ----------
+    hdim : int
+        Hamiltonian dimension (2*na)
+    nq_ext : int
+        Extended number of q-points
+    
+    Returns
+    -------
+    ndarray (hdim, hdim, nq_ext, complex)
+        Magnon eigenvectors
+    """
+    try:
+        evecs = _uppasd.magnon_get_eigenvectors_q(hdim, nq_ext)
+        evecs = np.array(evecs, dtype=np.complex128, copy=True)  # copy to own Python memory
+        _check_array_nan(evecs, "magnon_eigenvectors_q")
+        return evecs
+    except Exception as e:
+        logger.error(f"Failed to retrieve magnon eigenvectors: {e}")
+        raise RuntimeError(f"Cannot retrieve magnon eigenvectors: {e}") from e
+
+
+def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
+    """
+    Internal helper to retrieve magnon eigenvalues from Fortran module (Chern calculation).
+    
+    Parameters
+    ----------
+    hdim : int
+        Hamiltonian dimension (2*na)
+    nq_ext : int
+        Extended number of q-points
+    
+    Returns
+    -------
+    ndarray (hdim, nq_ext)
+        Magnon eigenvalues for Chern calculation
+    """
+    try:
+        evals = np.zeros((hdim, nq_ext), dtype=np.float64)
+        _uppasd.magnon_get_eigenvalues_qchern(hdim, nq_ext, evals)
+        _check_array_nan(evals, "magnon_eigenvalues_qchern")
+        return evals
+    except Exception as e:
+        logger.error(f"Failed to retrieve magnon eigenvalues (Chern): {e}")
+        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvalues: {e}") from e
+
+
+def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
+    """
+    Internal helper to retrieve magnon eigenvectors from Fortran module (Chern calculation).
+    
+    Parameters
+    ----------
+    hdim : int
+        Hamiltonian dimension (2*na)
+    nq_ext : int
+        Extended number of q-points
+    
+    Returns
+    -------
+    ndarray (hdim, hdim, nq_ext, complex)
+        Magnon eigenvectors for Chern calculation
+    """
+    try:
+        evecs = np.zeros((hdim, hdim, nq_ext), dtype=np.complex128)
+        _uppasd.magnon_get_eigenvectors_qchern(hdim, nq_ext, evecs)
+        _check_array_nan(evecs, "magnon_eigenvectors_qchern")
+        return evecs
+    except Exception as e:
+        logger.error(f"Failed to retrieve magnon eigenvectors (Chern): {e}")
+        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvectors: {e}") from e
