@@ -1,5 +1,7 @@
 import os
 import sys
+import platform
+import shutil
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 import sysconfig
@@ -34,27 +36,43 @@ class cmake_build_ext(build_ext):
 
             cmake_args = [
                 "-DCMAKE_BUILD_TYPE=%s" % cfg,
-                # Ask CMake to place the resulting library in the directory
-                # containing the extension
+                # Place resulting library in the extension directory
                 "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}".format(cfg.upper(), extdir),
-                # Other intermediate static libraries are placed in a
-                # temporary build directory instead
-                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), extdir),
-                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), self.build_temp),
-                # Hint CMake to use the same Python executable that
-                # is launching the build, prevents possible mismatching if
-                # multiple versions of Python are installed
+                # Use the current Python
                 "-DPython3_ROOT_DIR={}".format(sys.exec_prefix),
                 "-DPython3_FIND_STRATEGY=LOCATION",
                 "-DBUILD_PYTHON=ON",
                 "-DUSE_MKL=OFF",
-                "-GNinja",
-                "-DCMAKE_OSX_DEPLOYMENT_TARGET=12",
-                # '-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
-                # '-DPYTHON_LIBRARY={}'.format(python_lib_dir),
-                # '-DMKL_INTERFACE_FULL=gf_lp64',
-                # '-DMKL_THREADING=gnu_thread',
+                # Ensure gfortran is used rather than f95 alias when available
+                "-DCMAKE_Fortran_COMPILER=gfortran",
             ]
+
+            # Select a generator robustly: prefer Ninja if available, otherwise let CMake default
+            cmake_generator = os.environ.get("CMAKE_GENERATOR")
+            if cmake_generator:
+                cmake_args.append(f"-G{cmake_generator}")
+            else:
+                if shutil.which("ninja"):
+                    cmake_args.append("-GNinja")
+                # else: rely on CMake default (Unix Makefiles on Linux)
+
+            # Only set macOS deployment target on macOS
+            if platform.system() == "Darwin":
+                # Default to macOS 12 if not specified via env
+                mac_deploy_target = os.environ.get("CMAKE_OSX_DEPLOYMENT_TARGET", "12")
+                cmake_args.append(f"-DCMAKE_OSX_DEPLOYMENT_TARGET={mac_deploy_target}")
+
+            # BLAS/LAPACK vendor selection: allow override via env, else choose per-platform
+            bla_vendor = os.environ.get("BLA_VENDOR")
+            if bla_vendor:
+                cmake_args.append(f"-DBLA_VENDOR={bla_vendor}")
+            else:
+                if platform.system() == "Linux":
+                    # Prefer OpenBLAS on Linux to avoid accidental MKL
+                    cmake_args.append("-DBLA_VENDOR=OpenBLAS")
+                elif platform.system() == "Darwin":
+                    # Use Apple's Accelerate (vecLib) on macOS when OpenBLAS may be missing
+                    cmake_args.append("-DBLA_VENDOR=Apple")
 
             if not os.path.exists(self.build_temp):
                 os.makedirs(self.build_temp)

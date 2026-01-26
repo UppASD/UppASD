@@ -17,7 +17,8 @@ authors = [
     { name = "UppASD group", email = "uppasd@physics.uu.se" }
 ]
 urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
-license = { text = "GPLv2" }
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "AUTHORS"]
 dependencies = [
     "numpy>1.19" ,"pyyaml"
 ]
