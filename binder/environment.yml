@@ -18,6 +18,9 @@ dependencies:
   - pip
   - pip:
     - ase>=3.22
-    # Note: pyvista requires additional system libraries
-    # Uncomment if needed, but may increase build time
-    # - pyvista>=0.38
+    # Install PyVista (and its dependencies) for 3D visualization in Binder.
+    # PyVista may require additional system libraries; conda-forge provides
+    # compatible builds so we install via conda instead of pip when possible.
+    - pyvista>=0.38
+    - pyvistaqt>=0.5
+    - vtk>=9.0
