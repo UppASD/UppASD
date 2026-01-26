@@ -425,16 +425,17 @@ endif()
 if(NOT MKL_FOUND AND BLAS_FOUND)
    string(TOLOWER "${BLAS_LIBRARIES}" blas_libs_lower)
    if(blas_libs_lower MATCHES "mkl")
-      message(STATUS "Detected MKL libraries via FindBLAS/FindLAPACK (MKL_FOUND was false)")
-      set(MKL_FOUND TRUE)
-      set(USE_MKL ON CACHE BOOL "MKL detected via BLAS/LAPACK" FORCE)
-      # MKL libraries are already in BLAS_LIBRARIES, so linking will work
-      # Set MKL_LIBRARIES for compatibility but don't create MKL::MKL target
+      message(STATUS "Detected MKL libraries via FindBLAS/FindLAPACK (FindMKL did not succeed)")
+      # Do NOT force USE_MKL or add MKL compile flags when MKL wasn't found via
+      # the dedicated FindMKL/CONFIG module. For some system installs the BLAS
+      # discovery returns MKL static archives but the CMake MKL config (and the
+      # MKL::MKL target) is not present; attempting to force MKL in that case
+      # leads to missing symbol/linker errors as seen on Colab.
+      # Record the libraries and set a soft flag so the user can inspect them.
       set(MKL_LIBRARIES ${BLAS_LIBRARIES})
-      # Set a flag to indicate we're using MKL via BLAS discovery
       set(MKL_VIA_BLAS TRUE)
-      message(STATUS "Setting USE_MKL=ON and MKL_LIBRARIES=${MKL_LIBRARIES}")
-      message(STATUS "Note: MKL detected via BLAS, not via FindMKL (MKL::MKL target unavailable)")
+      message(STATUS "MKL libraries detected via BLAS: ${MKL_LIBRARIES}")
+      message(STATUS "Note: Not enabling USE_MKL. To prefer OpenBLAS on this system, set BLA_VENDOR=OpenBLAS before configuring.")
    endif()
 endif()
 
