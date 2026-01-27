@@ -59,6 +59,15 @@ jobs:
             site_build/index.html
 
       # ------------------------------------------------------------
+      # Clean previous deployment for this branch
+      # ------------------------------------------------------------
+      - name: Remove previous deployment for this branch
+        run: |
+          git fetch origin gh-pages || true
+          git checkout gh-pages || git checkout --orphan gh-pages
+          rm -rf ${{ steps.branch.outputs.branch }}
+
+      # ------------------------------------------------------------
       # Deploy to gh-pages under branch-specific path
       # ------------------------------------------------------------
       - name: Deploy to gh-pages
