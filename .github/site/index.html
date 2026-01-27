@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>UppASD — Atomistic Spin Dynamics</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Sans-serif only -->
+    <link href="https://fonts.googleapis.com/css?family=Work+Sans:400,600&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --uu-red: #990000;
+        --uu-gray: #CCCCCC;
+        --text-dark: #111;
+        --text-muted: #555;
+        --bg-light: #f9f9f9;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Work Sans', system-ui, sans-serif;
+        color: var(--text-dark);
+        background: #fff;
+        line-height: 1.6;
+      }
+
+      a {
+        color: var(--text-dark);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      header {
+        position: relative;
+        padding: 3rem 1.5rem 2.5rem;
+        border-bottom: 2px solid var(--uu-gray);
+        text-align: center;
+        overflow: hidden;
+      }
+
+      header::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url('images/header.png');
+        background-size: cover;
+        background-position: center;
+        opacity: 0.2;
+        pointer-events: none;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 2.6rem;
+        font-weight: 600;
+        color: var(--uu-red);
+        position: relative;
+        z-index: 1;
+      }
+
+      header p {
+        margin-top: 0.6rem;
+        font-size: 1.1rem;
+        color: var(--text-dark);
+        position: relative;
+        z-index: 1;
+      }
+
+      .container {
+        max-width: 1050px;
+        margin: auto;
+        padding: 2.5rem 1.5rem;
+      }
+
+      /* README panel */
+      .readme {
+        background: var(--bg-light);
+        border: 1px solid var(--uu-gray);
+        border-radius: 8px;
+        padding: 2rem;
+        margin-bottom: 3rem;
+      }
+
+      .readme h2,
+      .readme h3 {
+        margin-top: 1.6rem;
+      }
+
+      .readme h2:first-child {
+        margin-top: 0;
+      }
+
+      /* Highlights */
+      .highlights {
+        margin: 3rem 0;
+      }
+
+      .highlights h2 {
+        font-size: 1.8rem;
+        color: var(--uu-red);
+        margin-bottom: 1.5rem;
+      }
+
+      .highlight-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .highlight-card {
+        position: relative;
+        min-height: 250px;
+        height: auto;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--uu-gray);
+        background-size: cover;
+        background-position: center;
+      }
+
+      .highlight-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          to top,
+          rgba(0,0,0,0.85),
+          rgba(0,0,0,0.15),
+          rgba(0,0,0,0.05)
+        );
+      }
+
+      .highlight-content {
+        position: absolute;
+        bottom: 0;
+        padding: 1.2rem;
+        color: #fff;
+      }
+
+      .highlight-content h3 {
+        margin: 0 0 0.3rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .highlight-content p {
+        margin: 0;
+        font-size: 0.9rem;
+        opacity: 0.95;
+      }
+
+      .highlight-content a {
+        color: #fff;
+        text-decoration: underline;
+      }
+
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.5rem;
+        margin-top: 3rem;
+      }
+
+      .card {
+        border: 1px solid var(--uu-gray);
+        border-radius: 8px;
+        padding: 1.25rem;
+        background: #fff;
+      }
+
+      pre {
+        background: #f4f4f4;
+        border: 1px solid var(--uu-gray);
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 0.9rem;
+        overflow-x: auto;
+      }
+
+      footer {
+        margin-top: 3rem;
+        padding: 2rem 1.5rem;
+        text-align: center;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        border-top: 1px solid var(--uu-gray);
+      }
+
+      @media (max-width: 600px) {
+        header::before {
+          opacity: 0.3;
+        }
+      
+        header h1 {
+          font-size: 2.1rem;
+        }
+      
+        header p {
+          font-size: 1rem;
+        }
+      }
+      
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>UppASD</h1>
+      <p>Atomistic spin dynamics and Monte-Carlo simulations of magnetic materials</p>
+    </header>
+
+    <div class="container">
+      <section class="readme">
+        <div class="readme-content">
+          <h2>About UppASD</h2>
+
+          <p>
+            The <strong>UppASD</strong> (Uppsala Atomistic Spin Dynamics) software package
+            is a simulation suite to study magnetization dynamics by means of the
+            atomistic version of the Landau–Lifshitz–Gilbert (LLG) equation.
+          </p>
+          <p>
+            Detailed information about the method can be found in<br>
+            <a href="https://global.oup.com/academic/product/atomistic-spin-dynamics-9780198788669">
+              <strong>Atomistic Spin Dynamics: Foundations and Applications</strong>,
+              O.&nbsp;Eriksson <em>et&nbsp;al.</em>, Oxford University Press (2017)
+            </a>.
+          </p>
+
+          <h3>Applications</h3>
+          <ul>
+            <li>
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.93.214439">Critical temperature</a>
+              determination
+            </li>
+            <li>
+              <a href="http://iopscience.iop.org/article/10.1088/0953-8984/27/24/243202/meta">Magnon spectra</a>
+              simulations
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.214424">Micromagnetic exchange and DMI stiffness</a>
+              calculations
+            </li>
+            <li>
+              <a href="https://www.nature.com/articles/srep25685">Current</a>,
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.86.224401">field</a>,
+              and
+              <a href="https://www.nature.com/articles/ncomms12430">temperature-driven</a>
+              dynamics
+            </li>
+            <li>
+              <a href="http://iopscience.iop.org/article/10.1088/0953-8984/27/24/243202/meta">Linear spin-wave theory</a>
+            </li>
+          </ul>
+
+          <h3>Features</h3>
+          <ul>
+            <li>
+              <a href="http://iopscience.iop.org/article/10.1088/0953-8984/20/31/315203">LLG</a>, Metropolis, and Heat-bath algorithms
+            </li>
+            <li>
+              Generalized Hamiltonian including:
+              <ul>
+                <li>
+                  bilinear and
+                  <a href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.111.127204">biquadratic Heisenberg exchange</a>
+                </li>
+                <li>
+                  <a href="https://www.nature.com/articles/ncomms5815">Dzyaloshinskii–Moriya exchange</a>
+                </li>
+                <li>magnetocrystalline anisotropies</li>
+              </ul>
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.99.104302">Spin-lattice simulations</a>
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.2.013092">Multiscale functionalities</a>
+            </li>
+            <li>
+              Support for
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.92.094411">arbitrary crystal structures</a>
+              and
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.94.214410">random alloys</a>
+            </li>
+            <li>
+              <a href="https://www.nature.com/articles/srep25685">Spin-transfer</a> and spin-orbit torques
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.106.174407">
+                Temperature models
+              </a>
+              for ultrafast demagnetization simulations
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.90.014434">Temperature gradients</a>
+            </li>
+            <li>
+              <a href="https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.2.013802">Quantum statistics</a>
+            </li>
+          </ul>
+
+
+        </div>
+      </section>
+
+      <!-- Highlights -->
+      <section class="highlights">
+        <h2>Scientific highlights</h2>
+        <!-- Place-holder for automatically parsed highlights below.-->
+
+        <!-- BEGIN HIGHLIGHTS -->
+        <!-- END HIGHLIGHTS -->
+      </section>
+
+      <!-- Utility panels -->
+      <section class="highlights">
+        <h2>Resources</h2>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Installation</h3>
+
+            <p>
+              Precompiled binaries are available from the
+              <a href="https://github.com/UppASD/UppASD/releases"><strong>Release</strong></a> page. <br>
+              For production use, building from source, using <code>cmake</code>, is recommended.
+            </p>
+
+            <pre><code>cmake -S . -B build
+cmake --build build</code></pre>
+
+          </div>
+
+          <div class="card">
+            <h3>Documentation</h3>
+            <ul>
+              <li><a href="https://uppasd.github.io/UppASD-manual/"><strong>User manual</strong></a> — installation instructions, theory, and full reference.</li>
+              <li><a href="https://uppasd.github.io/UppASD-tutorial/"><strong>Tutorials</strong></a> — hands-on walkthroughs and ready-to-run examples.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>Source code and community</h3>
+            <p>The source code is hosted on <a href="https://github.com/UppASD/UppASD"><strong>github.com/UppASD/UppASD</strong></a>.<br><br>
+              For bug reports and feature requests use the GitHub <a href="https://github.com/UppASD/UppASD/issues"><strong>Issues</strong> </a> page. User discussions are encouraged on the GitHub <a href="https://github.com/UppASD/UppASD/discussions"><strong>Discussions</strong></a> page.</p>
+          </div>
+
+          <div class="card">
+            <h3>Graphical User Interface</h3>
+            <p>
+              A Python-based Qt GUI (<code>asd_gui</code>) is included, providing VTK-based
+              visualization and plotting via Matplotlib.
+            </p>
+
+            <pre><code>pip install asd_gui</code></pre>
+            <br>
+            <p>
+              UppASD outputs can also be visualized using <a href="https://github.com/mxjk851/spinview"><strong>SpinView</strong></a>,
+              a standalone application for graphical analysis of magnetic simulations.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Python package</h3>
+            <p>UppASD is also available as a Python package for embedding in workflows and notebooks. The Python interface is in a preliminary stage and is not feature complete.</p>
+            <pre><code>pip install --index-url https://test.pypi.org/simple/ \
+--extra-index-url https://pypi.org/simple uppasd</code></pre>
+          </div>
+
+          <div class="card">
+            <h3>See also</h3>
+            <ul>
+              <li><a href="https://aphys-midb.pdc.kth.se/"><strong>MIBD</strong></a> — Database for magnetic interactions from first principles.</li>
+              <li><a href="https://www.uu.se/en/department/physics-and-astronomy/research/materials-theory"><strong>UU Materials Theory</strong></a> — developing UppASD and DFT codes RSPt, RS-LMTO-ASA, and elk at Uppsala University.</li>
+              <li><a href="https://www.aphys.kth.se/lamp/research/mnp/research/mat"><strong>KTH Materials Theory</strong></a> — developing UppASD, MIDB, and SpinView at KTH Royal Institute of Technology.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      © UppASD developers · GPL-3.0 · <a href="https://www.uu.se">Uppsala University</a>
+    </footer>
+  </body>
+</html>
+

@@ -1,0 +1,71 @@
+name: Deploy gh-pages (branch-aware)
+
+on:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout UppASD repository
+      # ------------------------------------------------------------
+      - name: Checkout UppASD
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # Determine a URL-safe branch name
+      # (feature/foo -> feature-foo)
+      # ------------------------------------------------------------
+      - name: Determine branch name
+        id: branch
+        run: |
+          BRANCH_NAME="${GITHUB_REF_NAME}"
+          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '/' '-')
+          echo "branch=$SAFE_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      # ------------------------------------------------------------
+      # Clone private UppASD-highlights repository
+      # Uses classic PAT stored as HIGHLIGHTS_REPO_TOKEN
+      # ------------------------------------------------------------
+      - name: Clone UppASD-highlights (private)
+        run: |
+          git clone \
+            https://x-access-token:${{ secrets.HIGHLIGHTS_REPO_TOKEN }}@github.com/UppASD/UppASD-highlights.git \
+            highlights
+
+      # ------------------------------------------------------------
+      # Prepare site build directory
+      # ------------------------------------------------------------
+      - name: Prepare site build
+        run: |
+          cp -r .github/site site_build
+          mkdir -p site_build/images
+          cp -r highlights/images/* site_build/images/ || true
+
+      # ------------------------------------------------------------
+      # Render highlights into index.html
+      # ------------------------------------------------------------
+      - name: Render highlights
+        run: |
+          python .github/scripts/render_highlights.py \
+            highlights/highlights.yaml \
+            site_build/index.html
+
+      # ------------------------------------------------------------
+      # Deploy to gh-pages under branch-specific path
+      # ------------------------------------------------------------
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: site_build
+          destination_dir: ${{ steps.branch.outputs.branch }}
+          keep_files: true

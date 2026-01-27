@@ -5,7 +5,6 @@ temp.*
 spin.*
 *.o
 *.mod
-*.html
 *.js
 *.out
 *.aux
