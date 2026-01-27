@@ -94,6 +94,7 @@ jobs:
 
       - name: Build wheels on Linux and macOS ${{ matrix.icon}}
         uses: pypa/cibuildwheel@v3.3.1
+        if: runner.os != 'Windows'
         with:
           output-dir: wheelhouse
         env:
