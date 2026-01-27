@@ -95,7 +95,8 @@ class UppASDReader:
         """Initialize UppASD file reader."""
         self.workdir = Path(workdir) if workdir else Path.cwd()
         self.timestep = timestep
-        self.simid = simid
+        # Normalize simid to Fortran-side constraint (max 8 characters)
+        self.simid = self._sanitize_simid(simid)
         
         # Try to auto-detect simid and timestep from YAML if not provided
         if not self.simid:
@@ -118,13 +119,41 @@ class UppASDReader:
             data = yaml.safe_load(f)
         
         if data and 'simid' in data:
-            self.simid = data['simid']
+            # Sanitize simid loaded from YAML to meet Fortran filename length limits
+            self.simid = self._sanitize_simid(data['simid'])
         
         if data and 'siminfo' in data and 'timestep' in data['siminfo']:
             self.timestep = float(data['siminfo']['timestep'])
         
         logger.debug(f"Loaded from YAML: simid={self.simid}, "
                     f"timestep={self.timestep}s")
+
+    def _sanitize_simid(self, simid: Optional[str]) -> Optional[str]:
+        """Return a sanitized simulation id suitable for Fortran filenames.
+
+        Rules:
+        - Convert to string and strip whitespace
+        - Replace spaces with underscores
+        - Allow only alphanumeric, underscore and hyphen
+        - Truncate to maximum 8 characters (Fortran side constraint)
+        - Return None if resulting string is empty or None
+        """
+        if simid is None:
+            return None
+        s = str(simid).strip()
+        if not s:
+            return None
+        # Replace whitespace with underscore
+        s = "_".join(s.split())
+        # Keep only allowed characters
+        allowed = set("abcdefghijklmnopqrstuvwxyz"
+                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                      "0123456789_-")
+        s_clean = ''.join(ch for ch in s if ch in allowed)
+        if not s_clean:
+            return None
+        # Truncate to 8 characters to match Fortran simid limitation
+        return s_clean[:8]
     
     def available_files(self) -> Dict[str, List[str]]:
         """
