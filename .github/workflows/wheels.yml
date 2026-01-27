@@ -84,7 +84,7 @@ jobs:
         #   CIBW_SOME_OPTION: value
         env:
           CIBW_ENVIRONMENT_WINDOWS: >
-           CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ 
+           CMAKE_PREFIX_PATH="\msys64\mingw64" CC=gcc CXX=g++ FC=gfortran CMAKE_GENERATOR=Ninja 
 
       - name: Set macOS environment variables ${{ matrix.icon}}
         if: runner.os == 'macOS'
