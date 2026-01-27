@@ -1,0 +1,34 @@
+name: Cleanup gh-pages for deleted branches
+
+on:
+  delete:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Remove gh-pages directory for deleted branch
+        run: |
+          BRANCH_NAME="${{ github.event.ref }}"
+          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '/' '-')
+
+          echo "Deleting gh-pages directory: $SAFE_BRANCH_NAME"
+
+          rm -rf "$SAFE_BRANCH_NAME"
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "Cleanup gh-pages for deleted branch: $BRANCH_NAME" || echo "Nothing to clean"
+          git push
