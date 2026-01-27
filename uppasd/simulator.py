@@ -311,6 +311,7 @@ class Simulator(UppASDBase):
         timestep: float = 1.0e-16,
         damping: float = 0.5,
         callback: Optional[Callable[[int, np.ndarray, float], None]] = None,
+        callback_mode: str = "end",
     ) -> np.ndarray:
         """
         Perform spin relaxation using specified algorithm.
@@ -338,10 +339,16 @@ class Simulator(UppASDBase):
         damping : float, optional
             LLG damping parameter (0 to 1). Default: 0.5
         callback : callable, optional
-            Function called after each step with signature:
+            Function called during relaxation with signature:
             ``callback(step: int, moments: ndarray, energy: float)``
-            Useful for real-time monitoring in notebooks.
-            Default: None
+            Useful for real-time monitoring and visualization.
+            Default: None (no callback)
+        callback_mode : {"end", "per-step"}, optional
+            When to invoke callback:
+            - "end" (default): Called once after relaxation finishes
+            - "per-step": Called after every integration step (more overhead)
+            Ignored if callback is None.
+            Default: "end"
         
         Returns
         -------
@@ -365,15 +372,25 @@ class Simulator(UppASDBase):
         >>> with Simulator() as sim:
         ...     moments = sim.relax(mode='M', temperature=100, steps=1000)
         
-        **With callback for monitoring:**
+        **With end-of-run callback (default):**
         
-        >>> def monitor(step, moments, energy):
-        ...     if step % 100 == 0:
-        ...         m = np.linalg.norm(np.mean(moments, axis=1))
-        ...         print(f"Step {step}: |M| = {m:.3f}, E = {energy:.3f}")
+        >>> def report_final(step, moments, energy):
+        ...     m = np.linalg.norm(np.mean(moments, axis=1))
+        ...     print(f"Final state: step {step}, |M| = {m:.3f}, E = {energy:.3f}")
         >>> 
         >>> with Simulator() as sim:
-        ...     sim.relax(mode='M', steps=1000, callback=monitor)
+        ...     sim.relax(mode='M', steps=1000, callback=report_final)
+        
+        **With per-step callback (interactive visualization):**
+        
+        >>> def visualize(step, moments, energy):
+        ...     m = np.linalg.norm(np.mean(moments, axis=1))
+        ...     if step % 100 == 0:
+        ...         print(f"Step {step}: |M| = {m:.3f}")
+        >>> 
+        >>> with Simulator() as sim:
+        ...     sim.relax(mode='M', steps=1000, callback=visualize,
+        ...               callback_mode='per-step')
         
         **Ground state search (T=0):**
         
@@ -398,6 +415,12 @@ class Simulator(UppASDBase):
                 f"'S' (spin dynamics), or 'H' (heat bath)"
             )
         
+        if callback_mode not in {'end', 'per-step'}:
+            raise ValueError(
+                f"Invalid callback_mode '{callback_mode}'. "
+                f"Must be 'end' (default, end-of-run) or 'per-step' (every step)"
+            )
+        
         if temperature < 0:
             raise ValueError(f"Temperature must be >= 0, got {temperature}")
         
@@ -420,10 +443,10 @@ class Simulator(UppASDBase):
                 except Exception as sync_err:
                     logger.debug(f"ip_mode sync skipped: {sync_err}")
             
-            # Perform relaxation with optional callback
-            # If no callback and no trajectory, do all steps at once to avoid repeated Fortran calls
-            # This is important for stability - repeated calls to Fortran relax() can cause memory corruption
-            if callback is None and not self._record_trajectory:
+            # Perform relaxation with optional callback.
+            # If no callback, use single Fortran call (most efficient).
+            # If callback is provided, use per-step or end-only mode as specified.
+            if callback is None:
                 moments = pyasd.relax(
                     self.natom,
                     self.mensemble,
@@ -433,12 +456,11 @@ class Simulator(UppASDBase):
                     timestep=timestep,
                     damping=damping,
                 )
-                logger.debug(f"Completed {steps} relaxation steps in single Fortran call (stable)")
-            else:
-                # With callback or trajectory recording, need to call step-by-step
-                # Note: This is less stable due to repeated Fortran calls, use sparingly
+                logger.debug(f"Completed {steps} steps in single Fortran call (optimal)")
+            elif callback_mode == "per-step":
+                # Per-step callback: call Fortran once per step and invoke callback each time
                 moments = None
-                for step in range(steps):
+                for step in range(1, steps + 1):
                     moments = pyasd.relax(
                         self.natom,
                         self.mensemble,
@@ -448,18 +470,29 @@ class Simulator(UppASDBase):
                         timestep=timestep,
                         damping=damping,
                     )
-                    
-                    # Call user callback if provided
-                    if callback is not None:
-                        try:
-                            energy = pyasd.get_energy()
-                            callback(step, moments, energy)
-                        except Exception as e:
-                            logger.warning(f"Callback error at step {step}: {e}")
-                    
-                    # Record trajectory if requested
-                    if self._record_trajectory:
-                        self._trajectory.append(moments.copy())
+                    try:
+                        energy = pyasd.get_energy()
+                        callback(step, moments, energy)
+                    except Exception as e:
+                        logger.warning(f"Callback error at step {step}: {e}")
+                logger.debug(f"Completed {steps} steps with per-step callbacks")
+            else:  # callback_mode == "end"
+                # End-only callback: run all steps, then call callback once
+                moments = pyasd.relax(
+                    self.natom,
+                    self.mensemble,
+                    mode=mode,
+                    nstep=steps,
+                    temperature=temperature,
+                    timestep=timestep,
+                    damping=damping,
+                )
+                try:
+                    energy = pyasd.get_energy()
+                    callback(steps, moments, energy)
+                except Exception as e:
+                    logger.warning(f"Callback error at end (step {steps}): {e}")
+                logger.debug(f"Completed {steps} steps with end-of-run callback")
             
             self._state = SimulationState.COMPLETED
             logger.info(f"✓ Relaxation completed ({steps} steps)")
@@ -468,6 +501,100 @@ class Simulator(UppASDBase):
         except Exception as e:
             logger.error(f"Relaxation failed: {e}")
             raise RuntimeError(f"Relaxation failed: {e}") from e
+    
+    def measure(self) -> Dict[str, str]:
+        """
+        Run the Fortran measurement phase and write observable files.
+        
+        Executes ``run_measurement_phase()`` from Fortran, which samples and records
+        observables according to input file settings (``avrg_step``, ``ene_step``,
+        ``cumu_step``, ``sc_step``, etc.). Writes standard UppASD output files:
+        
+        - ``averages.{simid}.out``: Magnetization, energy, and other averages
+        - ``totenergy.{simid}.out``: Total energy per sampling step
+        - ``trajectory.{simid}.*.out``: Single-atom moment trajectories (if enabled)
+        - ``moments.{simid}.out``: Final moment snapshots
+        - And other files depending on measurement configuration
+        
+        **Important:** Call this AFTER ``relax()`` to measure the relaxed state.
+        The measurement phase uses the ``mode`` setting from the input file
+        (controlled by ``nstep``, ``avrg_step``, etc. keywords in ``inpsd.dat``).
+        
+        Returns
+        -------
+        files : dict
+            Dictionary mapping output file categories to file names, e.g.:
+            {
+                'averages': 'averages.mysim.out',
+                'totenergy': 'totenergy.mysim.out',
+                'trajectory': ['trajectory.mysim.1.out', 'trajectory.mysim.2.out'],
+                'moments': 'moments.mysim.out',
+                ...
+            }
+            Actual keys depend on which measurements were enabled in input file.
+        
+        Raises
+        ------
+        StateError
+            If not initialized
+        RuntimeError
+            If measurement fails
+        
+        Examples
+        --------
+        **Relax then measure:**
+        
+        >>> with Simulator() as sim:
+        ...     sim.relax(mode='M', steps=1000)  # Initial relaxation
+        ...     files = sim.measure()             # Record observables
+        ...     print(f"Wrote: {files['averages']}")
+        
+        **With interactive visualization during relax:**
+        
+        >>> def visualize(step, moments, energy):
+        ...     print(f"Step {step}: |M| = {np.linalg.norm(np.mean(moments, axis=1)):.3f}")
+        >>> 
+        >>> with Simulator() as sim:
+        ...     sim.relax(steps=500, callback=visualize, callback_mode='per-step')
+        ...     files = sim.measure()
+        
+        **Note:** Input file controls measurement parameters:
+        
+        >>> # inpsd.dat excerpt:
+        >>> # avrg_step  100           ! Record averages every 100 steps
+        >>> # ene_step   10            ! Record energy every 10 steps
+        >>> # cumu_step  1             ! Cumulative statistics every step
+        >>> # sc_step    50            ! Structure factor sampling step
+        """
+        self._check_state(
+            SimulationState.INITIALIZED,
+            SimulationState.RUNNING,
+            SimulationState.COMPLETED,
+        )
+        
+        try:
+            logger.info("Running measurement phase")
+            pyasd.measure()
+            
+            # Try to determine output file names from input configuration
+            # If YAML metadata is available, use simid from there
+            output_files = {}
+            try:
+                if hasattr(self.inputdata, 'simid') and self.inputdata.simid:
+                    simid = self.inputdata.simid
+                    output_files['averages'] = f"averages.{simid}.out"
+                    output_files['totenergy'] = f"totenergy.{simid}.out"
+                    output_files['moments'] = f"moments.{simid}.out"
+                    logger.debug(f"Expected output files for simid={simid}")
+            except Exception:
+                logger.debug("Could not determine simid from inputdata")
+            
+            logger.info("✓ Measurement phase complete")
+            return output_files
+            
+        except Exception as e:
+            logger.error(f"Measurement failed: {e}")
+            raise RuntimeError(f"Measurement failed: {e}") from e
     
     # =========================================================================
     # Properties: Magnetic Data

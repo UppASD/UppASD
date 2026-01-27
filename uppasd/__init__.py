@@ -97,6 +97,9 @@ def __getattr__(name):
     elif name == "notebook":
         import uppasd.notebook as notebook
         return notebook
+    elif name == "fileio":
+        import uppasd.fileio as fileio
+        return fileio
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Public API - what should be imported with `from uppasd import *`
@@ -113,6 +116,7 @@ __all__ = [
     "InputData",                # Parameter management
     "magnons",                  # Magnon/LSWT calculations
     "notebook",                 # Notebook helpers
+    "fileio",                   # File I/O utilities for output reading
 ]
 
 
