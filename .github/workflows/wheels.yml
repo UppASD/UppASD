@@ -191,3 +191,69 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://test.pypi.org/legacy/
+
+  publish-wheels-to-gh-pages:
+    name: Publish wheels to gh-pages
+    needs:
+      - build_wheels
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      # ------------------------------------------------------------
+      # Download wheel artifacts from all platforms
+      # ------------------------------------------------------------
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # ------------------------------------------------------------
+      # Checkout gh-pages branch
+      # ------------------------------------------------------------
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      # ------------------------------------------------------------
+      # Ensure wheels directory exists
+      # ------------------------------------------------------------
+      - name: Ensure wheels directory
+        run: |
+          mkdir -p wheels
+
+      # ------------------------------------------------------------
+      # Extract wheels directly into gh-pages/wheels
+      # ------------------------------------------------------------
+      - name: Extract wheels
+        run: |
+          for z in artifacts/*.zip; do
+            echo "Extracting wheels from $z"
+            unzip -o "$z" '*.whl' -d wheels || true
+          done
+
+          echo "Current wheels:"
+          ls -lh wheels
+
+      # ------------------------------------------------------------
+      # Cleanup old dev wheels
+      # ------------------------------------------------------------
+      - name: Cleanup old dev wheels
+        run: |
+          python .github/scripts/cleanup_wheels.py
+
+      # ------------------------------------------------------------
+      # Commit and push updated wheels
+      # ------------------------------------------------------------
+      - name: Commit updated wheels
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add wheels
+          git commit -m "Update wheels (add new, prune old dev builds)" || echo "No changes"
+          git push
