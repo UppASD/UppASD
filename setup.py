@@ -49,8 +49,11 @@ class cmake_build_ext(build_ext):
                 # the build environment.
             ]
 
+            # On Windows, let CMake find gfortran automatically via PATH instead of
+            # explicitly setting it, as CMake may fail to locate a bare compiler name.
+            # On macOS/Linux, respect the FC environment variable if set.
             fc_env = os.environ.get("FC")
-            if fc_env:
+            if fc_env and platform.system() != "Windows":
                 cmake_args.append(f"-DCMAKE_Fortran_COMPILER={fc_env}")
             
 

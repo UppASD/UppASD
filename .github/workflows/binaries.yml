@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get -y update
           sudo apt-get -y install ninja-build meson libopenblas-dev liblapack-dev \
-            gfortran libgfortran-dev libquadmath-dev libgomp1
+            gfortran libgomp1 libfftw3-dev
 
       - name: Provide gfortran on Windows ${{ matrix.icon}}
         if: runner.os == 'Windows'
