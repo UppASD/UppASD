@@ -225,6 +225,12 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Inspect downloaded artifacts
+        run: |
+          echo "Artifact tree:"
+          find artifacts -maxdepth 3 -type f
+
+
       ### - name: Download wheel artifacts
       ###   uses: actions/download-artifact@v4
       ###   with:
@@ -259,17 +265,34 @@ jobs:
           mkdir -p wheels
 
       # ------------------------------------------------------------
-      # Extract wheels directly into gh-pages/wheels
+      # Collect wheels and source distributions from artifacts
       # ------------------------------------------------------------
-      - name: Extract wheels
+      - name: Collect wheels and source distributions
         run: |
-          for z in artifacts/*.zip; do
-            echo "Extracting wheels from $z"
-            unzip -o "$z" '*.whl' -d wheels || true
-          done
+          echo "Initial contents of artifacts/:"
+          ls -lh artifacts
 
-          echo "Current wheels:"
+          echo "Collecting wheel files (*.whl)"
+          find artifacts -type f -name "*.whl" -exec cp -v {} wheels/ \;
+      
+          echo "Collecting source distributions (*.tar.gz)"
+          find artifacts -type f -name "*.tar.gz" -exec cp -v {} wheels/ \;
+      
+          echo "Final contents of wheels/:"
           ls -lh wheels
+
+      # # ------------------------------------------------------------
+      # # Extract wheels directly into gh-pages/wheels
+      # # ------------------------------------------------------------
+      # - name: Extract wheels
+      #     run: |
+      #       for z in artifacts/*.zip; do
+      #         echo "Extracting wheels from $z"
+      #         unzip -o "$z" '*.whl' -d wheels || true
+      #       done
+      #   
+      #       echo "Current wheels:"
+      #       ls -lh wheels
 
       # ------------------------------------------------------------
       # Cleanup old dev wheels
