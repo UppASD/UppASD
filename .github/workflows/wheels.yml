@@ -207,6 +207,7 @@ jobs:
     name: Publish wheels to gh-pages
     needs:
       - build_wheels
+      - build_sdist
     runs-on: ubuntu-latest
 
     permissions:
@@ -214,102 +215,70 @@ jobs:
 
     steps:
       # ------------------------------------------------------------
-      # Download wheel artifacts from all platforms
+      # Checkout MAIN branch (for scripts) into subdir
       # ------------------------------------------------------------
-      - name: Checkout repository
+      - name: Checkout main (for scripts)
         uses: actions/checkout@v4
-
-      - name: Download wheel artifacts
-        uses: actions/download-artifact@v4
         with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Inspect downloaded artifacts
-        run: |
-          echo "Artifact tree:"
-          find artifacts -maxdepth 3 -type f
-
-
-      ### - name: Download wheel artifacts
-      ###   uses: actions/download-artifact@v4
-      ###   with:
-      ###     path: artifacts
-      ###     merge-multiple: true
-
-      ### - name: Checkout repository
-      ###   uses: actions/checkout@v4
+          ref: ${{ github.ref_name }}
+          path: repo-main
 
       # ------------------------------------------------------------
-      # Copy cleanup script for later use
-      # ------------------------------------------------------------
-      - name: Copy cleanup script for later use
-        run: |
-          mkdir -p /tmp/gh-pages-tools
-          cp .github/scripts/cleanup_wheels.py /tmp/gh-pages-tools/
-          cp .github/scripts/generate_wheels_index.py /tmp/gh-pages-tools/
-
-      # ------------------------------------------------------------
-      # Checkout gh-pages branch
+      # Checkout gh-pages into ROOT (this is what we commit to)
       # ------------------------------------------------------------
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         with:
           ref: gh-pages
+          path: .
+
+      # ------------------------------------------------------------
+      # Download artifacts (wheels + sdist)
+      # ------------------------------------------------------------
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Inspect artifacts
+        run: |
+          echo "Artifacts:"
+          find artifacts -type f
 
       # ------------------------------------------------------------
       # Ensure wheels directory exists
       # ------------------------------------------------------------
       - name: Ensure wheels directory
-        run: |
-          mkdir -p wheels
+        run: mkdir -p wheels
 
       # ------------------------------------------------------------
-      # Collect wheels and source distributions from artifacts
+      # Collect wheels and source distributions
       # ------------------------------------------------------------
-      - name: Collect wheels and source distributions
+      - name: Collect wheels and sdists
         run: |
-          echo "Initial contents of artifacts/:"
-          ls -lh artifacts
-
-          echo "Collecting wheel files (*.whl)"
           find artifacts -type f -name "*.whl" -exec cp -v {} wheels/ \;
-      
-          echo "Collecting source distributions (*.tar.gz)"
           find artifacts -type f -name "*.tar.gz" -exec cp -v {} wheels/ \;
-      
-          echo "Final contents of wheels/:"
+
+          echo "Final wheels:"
           ls -lh wheels
 
-      # # ------------------------------------------------------------
-      # # Extract wheels directly into gh-pages/wheels
-      # # ------------------------------------------------------------
-      # - name: Extract wheels
-      #     run: |
-      #       for z in artifacts/*.zip; do
-      #         echo "Extracting wheels from $z"
-      #         unzip -o "$z" '*.whl' -d wheels || true
-      #       done
-      #   
-      #       echo "Current wheels:"
-      #       ls -lh wheels
-
       # ------------------------------------------------------------
-      # Cleanup old dev wheels
+      # Cleanup old dev wheels (script from main)
       # ------------------------------------------------------------
       - name: Cleanup old dev wheels
         run: |
-          python /tmp/gh-pages-tools/cleanup_wheels.py
+          python repo-main/.github/scripts/cleanup_wheels.py
 
       # ------------------------------------------------------------
-      # Generate wheels index
+      # Generate wheels index.html
       # ------------------------------------------------------------
       - name: Generate wheels index
         run: |
-          python /tmp/gh-pages-tools/generate_wheels_index.py
+          python repo-main/.github/scripts/generate_wheels_index.py
 
       # ------------------------------------------------------------
-      # Commit and push updated wheels
+      # Commit and push
       # ------------------------------------------------------------
       - name: Commit updated wheels
         run: |
@@ -317,5 +286,5 @@ jobs:
           git config user.email "github-actions@github.com"
 
           git add wheels
-          git commit -m "Update wheels (add new, prune old dev builds)" || echo "No changes"
+          git commit -m "Update wheels (auto)" || echo "No changes"
           git push
