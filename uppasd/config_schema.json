@@ -1,0 +1,404 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UppASD Configuration Schema",
+  "description": "Validation schema for measurement and simulation configuration overrides. Only parameters explicitly set by user are defined here. Fortran provides sensible defaults for all other parameters.",
+  "type": "object",
+  
+  "definitions": {
+    "measurement_output": {
+      "type": "object",
+      "description": "Measurement output selection parameters",
+      "properties": {
+        "plotenergy": {
+          "type": "integer",
+          "enum": [0, 1],
+          "description": "Calculate and plot energy (0=no, 1=yes)"
+        },
+        "do_avrg": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Print averages (Y/N)"
+        },
+        "avrg_step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Steps between average measurements"
+        },
+        "avrg_buff": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "Buffer size for averages"
+        },
+        "do_proj_avrg": {
+          "type": "string",
+          "enum": ["Y", "N", "A"],
+          "description": "Projected averages (Y=by type, A=by site, N=no)"
+        },
+        "do_projch_avrg": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Chemical projected averages"
+        },
+        "do_cumu": {
+          "type": "string",
+          "enum": ["Y", "N", "A"],
+          "description": "Binder cumulant (Y=ferro, A=antiferro, N=no)"
+        },
+        "cumu_step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Steps between cumulant measurements"
+        },
+        "cumu_buff": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "Buffer size for cumulants"
+        },
+        "do_cumu_proj": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Projected cumulants by atom type"
+        },
+        "do_autocorr": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Autocorrelation measurements"
+        },
+        "ac_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Steps between autocorrelation measurements"
+        },
+        "ac_buff": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Buffer size for autocorrelation"
+        },
+        "do_tottraj": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Print total trajectory"
+        },
+        "tottraj_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Steps between trajectory snapshots"
+        },
+        "tottraj_buff": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Buffer size for trajectories"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "spectroscopy": {
+      "type": "object",
+      "description": "Spectroscopy measurement parameters",
+      "properties": {
+        "do_ams": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Magnon spectroscopy (Y/N)"
+        },
+        "ams_nstep": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of AMS frequency steps"
+        },
+        "ams_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "AMS measurement steps"
+        },
+        "ams_emax": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Max energy (meV) for AMS"
+        },
+        "ams_eres": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Energy resolution (meV) for AMS"
+        },
+        "ams_window_fun": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "Window function for AMS (1=Hann, 2=Hamming, 3=Blackman)"
+        },
+        "do_ams_local_axis": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Use local spin axes for AMS"
+        },
+        "do_magdos": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Magnetic DOS (Y/N)"
+        },
+        "magdos_freq": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Frequency step for MAGDOS (meV)"
+        },
+        "magdos_sigma": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Broadening sigma for MAGDOS (meV)"
+        },
+        "do_sc": {
+          "type": "string",
+          "enum": ["Y", "N", "Q"],
+          "description": "Structure factor (Y/N/Q=Q-resolved)"
+        },
+        "sc_nstep": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of structure factor frequency steps"
+        },
+        "sc_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Steps between structure factor measurements"
+        },
+        "sc_emax": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Max energy for structure factor"
+        },
+        "sc_eres": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Energy resolution for structure factor"
+        },
+        "sc_window_fun": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "Window function for structure factor"
+        },
+        "do_sc_local_axis": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Use local axes for structure factor"
+        },
+        "do_sc_tens": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Tensor components for structure factor"
+        },
+        "qpoints": {
+          "type": "string",
+          "enum": ["D", "F"],
+          "description": "Q-point mesh (D=dense, F=full Brillouin zone)"
+        },
+        "qfile": {
+          "type": "string",
+          "description": "Path to Q-point file (required if qpoints specified)"
+        },
+        "nc_qvect": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of Q-vectors"
+        },
+        "do_bls": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Brillouin light scattering (Y/N)"
+        },
+        "bls_nstep": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of BLS frequency steps"
+        },
+        "bls_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Steps between BLS measurements"
+        },
+        "bls_emax": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Max energy for BLS"
+        },
+        "bls_eres": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Energy resolution for BLS"
+        },
+        "bls_window_fun": {
+          "type": "integer",
+          "enum": [1, 2, 3],
+          "description": "Window function for BLS"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "protocol": {
+      "type": "object",
+      "description": "Protocol modification parameters (modify simulation behavior)",
+      "properties": {
+        "do_tempexp": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Temperature exponential sweep (Y/N)"
+        },
+        "tempexp_start": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Starting temperature (K) for tempexp"
+        },
+        "tempexp_end": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Ending temperature (K) for tempexp"
+        },
+        "tempexp_tau": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Time constant for tempexp (in MD units)"
+        },
+        "tempexp_step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Frequency of tempexp updates"
+        },
+        "do_3tm": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Three-temperature model (Y/N)"
+        },
+        "do_spinice": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Spin ice constraint (Y/N)"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "field": {
+      "type": "object",
+      "description": "External field and interaction parameters",
+      "properties": {
+        "do_mwf": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Microwave field driving (Y/N)"
+        },
+        "mwf_freq": {
+          "type": "number",
+          "minimum": 0.0,
+          "description": "Microwave frequency (GHz)"
+        },
+        "do_stt": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Spin transfer torque (Y/N)"
+        },
+        "jvec": {
+          "type": "number",
+          "description": "Current density for STT"
+        },
+        "adibeta": {
+          "type": "number",
+          "description": "Adiabatic contribution factor for STT"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "analysis": {
+      "type": "object",
+      "description": "Advanced analysis parameters",
+      "properties": {
+        "do_wl": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Wang-Landau density of states (Y/N)"
+        },
+        "do_chern_number": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Chern number calculation (Y/N)"
+        }
+      },
+      "additionalProperties": false
+    },
+    
+    "coupling": {
+      "type": "object",
+      "description": "Coupled physics parameters",
+      "properties": {
+        "do_sld": {
+          "type": "string",
+          "enum": ["Y", "N"],
+          "description": "Spin-lattice dynamics (Y/N)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  
+  "properties": {
+    "measurement": {"$ref": "#/definitions/measurement_output"},
+    "spectroscopy": {"$ref": "#/definitions/spectroscopy"},
+    "protocol": {"$ref": "#/definitions/protocol"},
+    "field": {"$ref": "#/definitions/field"},
+    "analysis": {"$ref": "#/definitions/analysis"},
+    "coupling": {"$ref": "#/definitions/coupling"}
+  },
+  
+  "additionalProperties": false,
+  
+  "allOf": [
+    {
+      "description": "If do_sc is enabled, qvectors information should be available",
+      "not": {
+        "required": ["spectroscopy"],
+        "properties": {
+          "spectroscopy": {
+            "required": ["do_sc"],
+            "properties": {
+              "do_sc": {"const": "Q"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Cannot have both do_tempexp and do_3tm enabled",
+      "not": {
+        "allOf": [
+          {
+            "properties": {
+              "protocol": {
+                "properties": {
+                  "do_tempexp": {"const": "Y"}
+                },
+                "required": ["do_tempexp"]
+              }
+            },
+            "required": ["protocol"]
+          },
+          {
+            "properties": {
+              "protocol": {
+                "properties": {
+                  "do_3tm": {"const": "Y"}
+                },
+                "required": ["do_3tm"]
+              }
+            },
+            "required": ["protocol"]
+          }
+        ]
+      }
+    }
+  ]
+}

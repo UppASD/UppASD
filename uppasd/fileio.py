@@ -263,6 +263,14 @@ class UppASDReader:
             # Add any additional columns beyond the standard ones
             for col_idx in range(6, raw_data.shape[1]):
                 data[f'column_{col_idx}'] = raw_data[:, col_idx]
+
+            # Backwards compatibility aliases
+            # Some older notebooks expect 'magnetization' key (total magnitude)
+            if 'magnetization_total' in data and 'magnetization' not in data:
+                data['magnetization'] = data['magnetization_total']
+            # alias for time (some code expects 'avg_time')
+            if 'time' in data and 'avg_time' not in data:
+                data['avg_time'] = data['time']
             
             logger.debug(f"Read averages from {filename}: {len(data)} columns, {raw_data.shape[0]} rows")
             return data

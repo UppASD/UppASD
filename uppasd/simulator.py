@@ -502,13 +502,12 @@ class Simulator(UppASDBase):
             logger.error(f"Relaxation failed: {e}")
             raise RuntimeError(f"Relaxation failed: {e}") from e
     
-    def measure(self) -> Dict[str, str]:
+    def measure(self, **kwargs) -> Dict[str, str]:
         """
-        Run the Fortran measurement phase and write observable files.
+        Run the Fortran measurement phase with configurable observables.
         
         Executes ``run_measurement_phase()`` from Fortran, which samples and records
-        observables according to input file settings (``avrg_step``, ``ene_step``,
-        ``cumu_step``, ``sc_step``, etc.). Writes standard UppASD output files:
+        observables according to input file settings. Writes standard UppASD output files:
         
         - ``averages.{simid}.out``: Magnetization, energy, and other averages
         - ``totenergy.{simid}.out``: Total energy per sampling step
@@ -517,21 +516,119 @@ class Simulator(UppASDBase):
         - And other files depending on measurement configuration
         
         **Important:** Call this AFTER ``relax()`` to measure the relaxed state.
-        The measurement phase uses the ``mode`` setting from the input file
-        (controlled by ``nstep``, ``avrg_step``, etc. keywords in ``inpsd.dat``).
+        
+        Parameters
+        ----------
+        **kwargs : dict
+            Measurement configuration keywords. Supported categories:
+            
+            **Energy & Averages:**
+            
+            - plotenergy : int
+                Enable energy output (0/1)
+            - do_avrg : str
+                Measure averages ('Y'/'N')
+            - avrg_step : int
+                Average measurement interval (steps)
+            
+            **Statistics:**
+            
+            - do_cumu : str
+                Enable cumulative measurements ('Y'/'N')
+            - cumu_step : int
+                Cumulative averaging step
+            - cumu_buff : int
+                Cumulative buffer size
+            
+            **Trajectories:**
+            
+            - do_tottraj : str
+                Measure moment trajectories ('Y'/'N')
+            - tottraj_step : int
+                Trajectory measurement interval
+            - do_proj_avrg : str
+                Project averages ('Y'/'N')
+            
+            **Spectroscopy:**
+            
+            - do_sc : str
+                Structure factor ('C'/'Q'/'F'/'N')
+            - sc_step : int
+                Structure factor step
+            - sc_nstep : int
+                Number of structure factor steps
+            - sc_emax : float
+                Energy cutoff (meV)
+            - sc_eres : float
+                Energy resolution (meV)
+            - sc_window_fun : int
+                Window function (1=rect, 2=Hanning)
+            - sc_average : str
+                Averaging mode ('T'/'E'/'F')
+            - do_sc_local_axis : str
+                Use local spin axis ('Y'/'N')
+            - do_sc_tens : str
+                Calculate tensor structure factor ('Y'/'N')
+            - qpoints : str
+                Q-point mode ('C'/'D'/'F')
+            - qfile : str
+                Path to Q-point file
+            - nc_qvect : list or str
+                Non-collinear Q-vector correction
+            
+            **Magnetic Properties:**
+            
+            - do_ams : str
+                Atom Magnet Susceptibility ('Y'/'N')
+            - do_diamag : str
+                Diamagnetic susceptibility ('Y'/'N')
+            - do_magdos : str
+                Magnetic DOS ('Y'/'N')
+            - magdos_freq : int
+                DOS frequency points
+            - magdos_sigma : float
+                Broadening (meV)
+            
+            **Spin Stiffness:**
+            
+            - do_stiffness : str
+                Calculate spin stiffness ('Y'/'N')
+            - eta_max : int
+                Maximum q-index
+            - eta_min : int
+                Minimum q-index
+            - alat : float
+                Lattice constant (m)
+            
+            **Special Physics:**
+            
+            - do_tempexp : str
+                Temperature exponential ('Y'/'N')
+            - tempexp_start : float
+                Starting temperature (K)
+            - tempexp_end : float
+                Ending temperature (K)
+            - tempexp_tau : float
+                Time constant (s)
+            - tempexp_step : int
+                Temperature update step
+            - gradient : str
+                Temperature gradient ('Y'/'N')
+            - temperature : str
+                Temperature profile file
+            - skyno : str
+                Skyrmion number ('T'/'F')
+            - do_spintemp : str
+                Spin temperature ('Y'/'N')
+            - do_reduced : str
+                Use reduced q-space ('Y'/'N')
+            - use_vsl : str
+                Use VSL RNG ('T'/'F')
         
         Returns
         -------
         files : dict
-            Dictionary mapping output file categories to file names, e.g.:
-            {
-                'averages': 'averages.mysim.out',
-                'totenergy': 'totenergy.mysim.out',
-                'trajectory': ['trajectory.mysim.1.out', 'trajectory.mysim.2.out'],
-                'moments': 'moments.mysim.out',
-                ...
-            }
-            Actual keys depend on which measurements were enabled in input file.
+            Dictionary mapping output file categories to file names
         
         Raises
         ------
@@ -539,32 +636,59 @@ class Simulator(UppASDBase):
             If not initialized
         RuntimeError
             If measurement fails
+        ValueError
+            If unknown measurement flags provided
         
         Examples
         --------
-        **Relax then measure:**
+        **Basic measurement (energy + averages):**
         
         >>> with Simulator() as sim:
-        ...     sim.relax(mode='M', steps=1000)  # Initial relaxation
-        ...     files = sim.measure()             # Record observables
+        ...     sim.relax(mode='M', steps=1000)
+        ...     files = sim.measure(
+        ...         plotenergy=1,
+        ...         do_avrg='Y',
+        ...         avrg_step=100
+        ...     )
         ...     print(f"Wrote: {files['averages']}")
         
-        **With interactive visualization during relax:**
+        **With statistics tracking:**
         
-        >>> def visualize(step, moments, energy):
-        ...     print(f"Step {step}: |M| = {np.linalg.norm(np.mean(moments, axis=1)):.3f}")
-        >>> 
-        >>> with Simulator() as sim:
-        ...     sim.relax(steps=500, callback=visualize, callback_mode='per-step')
-        ...     files = sim.measure()
+        >>> files = sim.measure(
+        ...     plotenergy=1,
+        ...     do_avrg='Y',
+        ...     avrg_step=50,
+        ...     do_cumu='Y',
+        ...     cumu_step=50
+        ... )
         
-        **Note:** Input file controls measurement parameters:
+        **With spectroscopy (advanced):**
         
-        >>> # inpsd.dat excerpt:
-        >>> # avrg_step  100           ! Record averages every 100 steps
-        >>> # ene_step   10            ! Record energy every 10 steps
-        >>> # cumu_step  1             ! Cumulative statistics every step
-        >>> # sc_step    50            ! Structure factor sampling step
+        >>> files = sim.measure(
+        ...     plotenergy=1,
+        ...     do_avrg='Y',
+        ...     do_sc='Q',           # From snapshots
+        ...     sc_nstep=500,
+        ...     sc_step=100,
+        ...     qpoints='D',
+        ...     qfile='./qfile',
+        ...     do_ams='Y',          # Susceptibility
+        ...     do_magdos='Y'        # Magnetic DOS
+        ... )
+        
+        **Full measurement suite (expensive!):**
+        
+        >>> files = sim.measure(
+        ...     plotenergy=1,
+        ...     do_avrg='Y',
+        ...     avrg_step=50,
+        ...     do_cumu='Y',
+        ...     do_tottraj='Y',
+        ...     do_sc='Q',
+        ...     do_ams='Y',
+        ...     do_magdos='Y',
+        ...     do_stiffness='Y'
+        ... )
         """
         self._check_state(
             SimulationState.INITIALIZED,
@@ -572,12 +696,15 @@ class Simulator(UppASDBase):
             SimulationState.COMPLETED,
         )
         
+        # Apply measurement configuration if provided
+        if kwargs:
+            self._apply_measurement_config(kwargs)
+        
         try:
             logger.info("Running measurement phase")
             pyasd.measure()
             
             # Try to determine output file names from input configuration
-            # If YAML metadata is available, use simid from there
             output_files = {}
             try:
                 if hasattr(self.inputdata, 'simid') and self.inputdata.simid:
@@ -595,6 +722,113 @@ class Simulator(UppASDBase):
         except Exception as e:
             logger.error(f"Measurement failed: {e}")
             raise RuntimeError(f"Measurement failed: {e}") from e
+    
+    def _apply_measurement_config(self, config: Dict) -> None:
+        """
+        Apply measurement configuration to inputdata.
+        
+        Validates flags and merges them into the simulation configuration.
+        
+        Parameters
+        ----------
+        config : dict
+            Measurement configuration keywords
+        
+        Raises
+        ------
+        ValueError
+            If unknown flags provided
+        """
+        # Known measurement flags (validated set)
+        KNOWN_FLAGS = {
+            'plotenergy', 'do_avrg', 'avrg_step',
+            'do_cumu', 'cumu_step', 'cumu_buff',
+            'do_tottraj', 'tottraj_step', 'do_proj_avrg',
+            'do_sc', 'sc_step', 'sc_nstep', 'sc_emax', 'sc_eres',
+            'sc_window_fun', 'sc_average', 'do_sc_local_axis',
+            'do_sc_tens', 'qpoints', 'qfile', 'nc_qvect',
+            'do_ams', 'do_diamag', 'do_magdos', 'magdos_freq', 'magdos_sigma',
+            'do_stiffness', 'eta_max', 'eta_min', 'alat',
+            'do_tempexp', 'tempexp_start', 'tempexp_end', 'tempexp_tau', 'tempexp_step',
+            'gradient', 'temperature', 'skyno', 'stt', 'jvec', 'adibeta',
+            'do_spintemp', 'use_vsl', 'do_jtensor', 'calc_jtensor', 'do_reduced',
+        }
+        
+        # Check for unknown flags. For notebook convenience we ignore
+        # unknown keys (log a warning) rather than raising, so callers
+        # can pass a full config dict containing simulation parameters.
+        unknown = set(config.keys()) - KNOWN_FLAGS
+        if unknown:
+            logger.warning(
+                "Ignoring unknown measurement flags: %s. Valid flags: %s",
+                sorted(unknown),
+                sorted(KNOWN_FLAGS),
+            )
+            # Remove unknown keys so downstream code only sees valid flags
+            for k in list(unknown):
+                config.pop(k, None)
+        
+        # Validate flag dependencies
+        self._validate_measurement_dependencies(config)
+        
+        # Merge into inputdata config
+        if hasattr(self.inputdata, 'update'):
+            self.inputdata.update(config)
+        elif isinstance(self.inputdata, dict):
+            self.inputdata.update(config)
+        else:
+            # For YAML/structured configs, set attributes
+            for key, value in config.items():
+                setattr(self.inputdata, key, value)
+        
+        logger.debug(f"Applied measurement config: {list(config.keys())}")
+    
+    def _validate_measurement_dependencies(self, config: Dict) -> None:
+        """
+        Validate that measurement flags have required dependencies.
+        
+        Parameters
+        ----------
+        config : dict
+            Measurement configuration to validate
+        
+        Warns
+        -----
+        UserWarning
+            If recommended parameters not provided
+        """
+        # Structure factor requires q-points
+        if config.get('do_sc') in ['Q', 'F', 'C']:
+            if 'qpoints' not in config and not hasattr(self.inputdata, 'qpoints'):
+                logger.warning(
+                    "do_sc enabled but 'qpoints' not specified. "
+                    "Will use default or existing value."
+                )
+            if config.get('qpoints') == 'D' and 'qfile' not in config:
+                if not hasattr(self.inputdata, 'qfile'):
+                    logger.warning(
+                        "do_sc with qpoints='D' requires 'qfile' path. "
+                        "Ensure qfile is in input configuration."
+                    )
+        
+        # Spin stiffness requires lattice parameters
+        if config.get('do_stiffness') == 'Y':
+            if 'alat' not in config and not hasattr(self.inputdata, 'alat'):
+                logger.warning(
+                    "do_stiffness enabled but 'alat' not specified. "
+                    "Will use default or existing value."
+                )
+        
+        # Temperature exponential requires temperature parameters
+        if config.get('do_tempexp') == 'Y':
+            required = {'tempexp_start', 'tempexp_end'}
+            provided = set(config.keys())
+            if not required.issubset(provided):
+                missing = required - provided
+                logger.warning(
+                    f"do_tempexp requires {missing} in config. "
+                    f"Will use defaults if not in input file."
+                )
     
     # =========================================================================
     # Properties: Magnetic Data

@@ -926,20 +926,149 @@ def write_jfile(
     logger.info("Wrote jfile: %s (%d interactions)", filepath, len(exchange_list))
 
 
+def _get_inpsd_parameter_map() -> Dict[str, Dict]:
+    """
+    Get schema-driven parameter mapping for inpsd.dat output.
+    
+    Comprehensive mapping covering all parameters from config_schema.json:
+    - Measurement output (14 params): energy, averages, cumulants, autocorr, trajectory
+    - Spectroscopy (28 params): AMS, MAGDOS, structure factor, BLS, Q-vectors
+    - Protocol (6 params): temperature sweep, 3TM, spin ice
+    - Field/Driving (5 params): microwave, STT
+    - Analysis (2 params): Wang-Landau, Chern number
+    - Coupling (1 param): spin-lattice dynamics
+    
+    Maps config_key → {'keyword': inpsd_keyword, 'format': format_spec, 'skip_if'/'skip_zero': condition}
+    
+    Returns
+    -------
+    dict
+        Mapping of 56+ parameters with write rules
+    """
+    return {
+        # =====================================================================
+        # MEASUREMENT OUTPUT (14 parameters)
+        # =====================================================================
+        'plotenergy': {'keyword': 'plotenergy', 'format': '{:d}', 'skip_zero': True},
+        'do_avrg': {'keyword': 'do_avrg', 'format': '{}', 'skip_if': 'N'},
+        'avrg_step': {'keyword': 'avrg_step', 'format': '{:d}', 'skip_if': None},
+        'avrg_buff': {'keyword': 'avrg_buff', 'format': '{:d}', 'skip_if': None},
+        'do_proj_avrg': {'keyword': 'do_proj_avrg', 'format': '{}', 'skip_if': 'N'},
+        'do_projch_avrg': {'keyword': 'do_projch_avrg', 'format': '{}', 'skip_if': 'N'},
+        'do_cumu': {'keyword': 'do_cumu', 'format': '{}', 'skip_if': 'N'},
+        'cumu_step': {'keyword': 'cumu_step', 'format': '{:d}', 'skip_if': None},
+        'cumu_buff': {'keyword': 'cumu_buff', 'format': '{:d}', 'skip_if': None},
+        'do_cumu_proj': {'keyword': 'do_cumu_proj', 'format': '{}', 'skip_if': 'N'},
+        'do_autocorr': {'keyword': 'do_autocorr', 'format': '{}', 'skip_if': 'N'},
+        'ac_step': {'keyword': 'ac_step', 'format': '{:d}', 'skip_if': None},
+        'ac_buff': {'keyword': 'ac_buff', 'format': '{:d}', 'skip_if': None},
+        'do_tottraj': {'keyword': 'do_tottraj', 'format': '{}', 'skip_if': 'N'},
+        'tottraj_step': {'keyword': 'tottraj_step', 'format': '{:d}', 'skip_if': None},
+        'tottraj_buff': {'keyword': 'tottraj_buff', 'format': '{:d}', 'skip_if': None},
+        
+        # =====================================================================
+        # SPECTROSCOPY (28 parameters)
+        # =====================================================================
+        # Magnon spectroscopy (7 params)
+        'do_ams': {'keyword': 'do_ams', 'format': '{}', 'skip_if': 'N'},
+        'ams_nstep': {'keyword': 'ams_nstep', 'format': '{:d}', 'skip_if': None},
+        'ams_step': {'keyword': 'ams_step', 'format': '{:d}', 'skip_if': None},
+        'ams_emax': {'keyword': 'ams_emax', 'format': '{:.6f}', 'skip_if': None},
+        'ams_eres': {'keyword': 'ams_eres', 'format': '{:.6f}', 'skip_if': None},
+        'ams_window_fun': {'keyword': 'ams_window_fun', 'format': '{:d}', 'skip_if': None},
+        'do_ams_local_axis': {'keyword': 'do_ams_local_axis', 'format': '{}', 'skip_if': 'N'},
+        
+        # MAGDOS (3 params)
+        'do_magdos': {'keyword': 'do_magdos', 'format': '{}', 'skip_if': 'N'},
+        'magdos_freq': {'keyword': 'magdos_freq', 'format': '{:.6f}', 'skip_if': None},
+        'magdos_sigma': {'keyword': 'magdos_sigma', 'format': '{:.6f}', 'skip_if': None},
+        
+        # Structure factor (10 params)
+        'do_sc': {'keyword': 'do_sc', 'format': '{}', 'skip_if': 'N'},
+        'sc_nstep': {'keyword': 'sc_nstep', 'format': '{:d}', 'skip_if': None},
+        'sc_step': {'keyword': 'sc_step', 'format': '{:d}', 'skip_if': None},
+        'sc_emax': {'keyword': 'sc_emax', 'format': '{:.6f}', 'skip_if': None},
+        'sc_eres': {'keyword': 'sc_eres', 'format': '{:.6f}', 'skip_if': None},
+        'sc_window_fun': {'keyword': 'sc_window_fun', 'format': '{:d}', 'skip_if': None},
+        'do_sc_local_axis': {'keyword': 'do_sc_local_axis', 'format': '{}', 'skip_if': 'N'},
+        'do_sc_tens': {'keyword': 'do_sc_tens', 'format': '{}', 'skip_if': 'N'},
+        'qpoints': {'keyword': 'qpoints', 'format': '{}', 'skip_if': None},
+        'qfile': {'keyword': 'qfile', 'format': '{}', 'skip_if': None},
+        'nc_qvect': {'keyword': 'nc_qvect', 'format': '{:d}', 'skip_if': None},
+        
+        # Brillouin light scattering (6 params)
+        'do_bls': {'keyword': 'do_bls', 'format': '{}', 'skip_if': 'N'},
+        'bls_nstep': {'keyword': 'bls_nstep', 'format': '{:d}', 'skip_if': None},
+        'bls_step': {'keyword': 'bls_step', 'format': '{:d}', 'skip_if': None},
+        'bls_emax': {'keyword': 'bls_emax', 'format': '{:.6f}', 'skip_if': None},
+        'bls_eres': {'keyword': 'bls_eres', 'format': '{:.6f}', 'skip_if': None},
+        'bls_window_fun': {'keyword': 'bls_window_fun', 'format': '{:d}', 'skip_if': None},
+        
+        # =====================================================================
+        # PROTOCOL (6 parameters)
+        # =====================================================================
+        'do_tempexp': {'keyword': 'do_tempexp', 'format': '{}', 'skip_if': 'N'},
+        'tempexp_start': {'keyword': 'tempexp_start', 'format': '{:.6f}', 'skip_if': None},
+        'tempexp_end': {'keyword': 'tempexp_end', 'format': '{:.6f}', 'skip_if': None},
+        'tempexp_tau': {'keyword': 'tempexp_tau', 'format': '{:.6f}', 'skip_if': None},
+        'tempexp_step': {'keyword': 'tempexp_step', 'format': '{:d}', 'skip_if': None},
+        'do_3tm': {'keyword': 'do_3tm', 'format': '{}', 'skip_if': 'N'},
+        'do_spinice': {'keyword': 'do_spinice', 'format': '{}', 'skip_if': 'N'},
+        
+        # =====================================================================
+        # FIELD / DRIVING (5 parameters)
+        # =====================================================================
+        'do_mwf': {'keyword': 'do_mwf', 'format': '{}', 'skip_if': 'N'},
+        'mwf_freq': {'keyword': 'mwf_freq', 'format': '{:.6f}', 'skip_if': None},
+        'do_stt': {'keyword': 'do_stt', 'format': '{}', 'skip_if': 'N'},
+        'jvec': {'keyword': 'jvec', 'format': '{:.6f}', 'skip_if': None},
+        'adibeta': {'keyword': 'adibeta', 'format': '{:.6f}', 'skip_if': None},
+        
+        # =====================================================================
+        # ANALYSIS (2 parameters)
+        # =====================================================================
+        'do_wl': {'keyword': 'do_wl', 'format': '{}', 'skip_if': 'N'},
+        'do_chern_number': {'keyword': 'do_chern_number', 'format': '{}', 'skip_if': 'N'},
+        
+        # =====================================================================
+        # COUPLING (1 parameter)
+        # =====================================================================
+        'do_sld': {'keyword': 'do_sld', 'format': '{}', 'skip_if': 'N'},
+    }
+
+
 def write_inpsd_file(
     filepath: str,
     config: Dict,
 ) -> None:
     """
     Write inpsd.dat from configuration dictionary.
+    
+    Uses schema-driven approach: automatically writes all supported parameters
+    from config without manual code for each parameter. Comprehensive support for:
+    
+    - **Structural**: simid, ncell, BC, cell, alat, posfile, momfile, exchange
+    - **Simulation**: mode, temp, nstep, timestep, damping, Mensemble, Initmag
+    - **Measurement Output** (16 params): plotenergy, do_avrg, avrg_step, avrg_buff,
+      do_proj_avrg, do_projch_avrg, do_cumu, cumu_step, cumu_buff, do_cumu_proj,
+      do_autocorr, ac_step, ac_buff, do_tottraj, tottraj_step, tottraj_buff
+    - **Spectroscopy** (28 params): AMS (ams_*), MAGDOS (magdos_*), 
+      Structure Factor (do_sc, sc_*), BLS (bls_*), Q-vectors (qpoints, qfile, nc_qvect)
+    - **Protocol** (7 params): do_tempexp, tempexp_start/end/tau/step, do_3tm, do_spinice
+    - **Field/Driving** (5 params): do_mwf, mwf_freq, do_stt, jvec, adibeta
+    - **Analysis** (2 params): do_wl, do_chern_number
+    - **Coupling** (1 param): do_sld
+    
+    New parameters can be added by updating _get_inpsd_parameter_map() only.
 
     Parameters
     ----------
     filepath : str
         Output file path
     config : dict
-        Configuration with keys: simid, ncell, cell, alat, posfile, momfile,
-        exchange, mode, temp, nstep, timestep, damping, ip_mode, ip_mcanneal, etc.
+        Configuration dictionary. Supports all keys from config_schema.json.
+        Structured/simulation parameters written directly; measurement/advanced
+        parameters automatically handled through schema mapping (56+ params total).
 
     Example
     -------
@@ -956,6 +1085,14 @@ def write_inpsd_file(
     ...     'nstep': 5000,
     ...     'timestep': 1e-16,
     ...     'damping': 0.05,
+    ...     # Measurement parameters (auto-written via schema map)
+    ...     'plotenergy': 1,
+    ...     'do_avrg': 'Y',
+    ...     'avrg_step': 100,
+    ...     # Spectroscopy (auto-written via schema map)
+    ...     'do_sc': 'Q',
+    ...     'sc_nstep': 1000,
+    ...     'qfile': './qfile',
     ... }
     >>> write_inpsd_file('inpsd.dat', config)
     """
@@ -963,71 +1100,151 @@ def write_inpsd_file(
     
     # Simulation ID
     lines.append(f"simid  {config.get('simid', 'simulation')}")
+    written_keys = set()
+    written_keys.add('simid')
     
     # Supercell
     ncell = config.get('ncell', [1, 1, 1])
     lines.append(f"ncell  {ncell[0]}  {ncell[1]}  {ncell[2]}")
+    written_keys.add('ncell')
     
     # Boundary conditions
     bc = config.get('BC', 'P  P  P')
+    if isinstance(bc, (list, tuple)):
+        bc = '  '.join(str(x) for x in bc)
     lines.append(f"BC  {bc}")
+    written_keys.add('BC')
     
     # Cell
     lines.append("cell")
     cell = config.get('cell', np.eye(3))
     for row in cell:
         lines.append(f"{row[0]:.6f}  {row[1]:.6f}  {row[2]:.6f}")
+    written_keys.add('cell')
     
     # Symmetry and lattice constant
     lines.append(f"Sym  {config.get('Sym', 0)}")
+    written_keys.add('Sym')
     lines.append(f"alat  {config.get('alat', 1.0):.6f}")
+    written_keys.add('alat')
     lines.append("")
     
     # Input files
     lines.append(f"posfile  {config.get('posfile', './posfile.dat')}")
+    written_keys.add('posfile')
     lines.append(f"momfile  {config.get('momfile', './momfile.dat')}")
+    written_keys.add('momfile')
     if 'exchange' in config:
         lines.append(f"exchange  {config['exchange']}")
+        written_keys.add('exchange')
     lines.append("")
     
     # Structure output
     if config.get('do_prnstruct', 1):
         lines.append("do_prnstruct  1")
+        written_keys.add('do_prnstruct')
         lines.append("")
     
     # Ensemble
     lines.append(f"Mensemble  {config.get('Mensemble', 1)}")
+    written_keys.add('Mensemble')
     lines.append(f"Initmag  {config.get('Initmag', 3)}")
+    written_keys.add('Initmag')
     lines.append("")
     
     # Initial phase
     if 'ip_mode' in config:
         lines.append(f"ip_mode  {config['ip_mode']}")
+        written_keys.add('ip_mode')
         if 'ip_mcanneal' in config and config['ip_mcanneal']:
             lines.append("ip_mcanneal  1")
+            written_keys.add('ip_mcanneal')
             anneal_params = config.get('ip_mcanneal_params', [1000, 300])
             lines.append(f"{anneal_params[0]} {anneal_params[1]}")
+            written_keys.add('ip_mcanneal_params')
         lines.append("")
     
     # Main simulation
     lines.append(f"mode  {config.get('mode', 'S')}")
+    written_keys.add('mode')
     lines.append(f"temp  {config.get('temp', 100)}")
+    written_keys.add('temp')
     if 'damping' in config:
         lines.append(f"damping  {config['damping']:.6f}")
+        written_keys.add('damping')
     if 'timestep' in config:
         lines.append(f"timestep  {config['timestep']:.2e}")
+        written_keys.add('timestep')
     lines.append(f"nstep  {config.get('nstep', 1000)}")
+    written_keys.add('nstep')
     lines.append("")
     
-    # Measurements
-    if config.get('do_avrg', 'Y') == 'Y':
-        lines.append("do_avrg  Y")
-        lines.append(f"avrg_step  {config.get('avrg_step', 100)}")
+    # Measurements - SCHEMA-DRIVEN
+    # Write all parameters from config that are in the parameter map
+    param_map = _get_inpsd_parameter_map()
+    measurement_params = []
+    
+    for config_key, rule in param_map.items():
+        if config_key not in config:
+            continue
+        
+        value = config[config_key]
+        
+        # Skip if value matches skip condition
+        if 'skip_if' in rule and value == rule['skip_if']:
+            continue
+        if rule.get('skip_zero') and value == 0:
+            continue
+        
+        # Format the value
+        try:
+            formatted_value = rule['format'].format(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Could not format {config_key}={value} with format {rule['format']}")
+            continue
+        
+        keyword = rule['keyword']
+        measurement_params.append(f"{keyword}  {formatted_value}")
+        # mark this param as written
+        written_keys.add(config_key)
+    
+    if measurement_params:
+        lines.extend(measurement_params)
+    
+    # Write any remaining config keys not already written and not covered by param_map
+    def _format_generic(val):
+        if val is None:
+            return None
+        if isinstance(val, bool):
+            return '1' if val else '0'
+        if isinstance(val, (list, tuple)):
+            parts = []
+            for x in val:
+                if isinstance(x, float):
+                    parts.append(f"{x:.6f}")
+                else:
+                    parts.append(str(x))
+            return '  '.join(parts)
+        if isinstance(val, int):
+            return str(val)
+        if isinstance(val, float):
+            return f"{val:.6f}"
+        return str(val)
+
+    for key in list(config.keys()):
+        print('ABC', key, config[key])
+        if key in written_keys or key in param_map:
+            continue
+        formatted = _format_generic(config[key])
+        if formatted is None:
+            continue
+        lines.append(f"{key}  {formatted}")
     
     with open(filepath, 'w') as f:
         f.write('\n'.join(lines))
     
-    logger.info("Wrote inpsd: %s (mode=%s, nstep=%d)", filepath, config.get('mode'), config.get('nstep'))
+    logger.info("Wrote inpsd: %s (mode=%s, nstep=%s, %d measurement params)", 
+                filepath, config.get('mode'), config.get('nstep'), len(measurement_params))
 
 
 # =============================================================================
@@ -1882,3 +2099,398 @@ def count_interaction_vectors(
               f"{count} vectors")
     
     return dict(interaction_counts)
+
+
+# ============================================================================
+# Phase 2: Configuration Presets (Helper Functions)
+# ============================================================================
+# These functions provide convenient ways to build simulation configurations
+# using the ConfigurationManager infrastructure. Each function returns a dict
+# of parameter overrides to pass to sim.measure(**kwargs).
+
+
+def measurement_basic(
+    plotenergy: int = 1,
+    do_avrg: str = "Y",
+    avrg_step: int = 100,
+    **kwargs,
+) -> Dict:
+    """Basic energy and averages measurement preset.
+
+    Measures total energy and magnetic moments at regular intervals.
+
+    Parameters
+    ----------
+    plotenergy : int, default=1
+        Energy measurement interval (iterations)
+    do_avrg : str, default='Y'
+        Enable average magnetization ('Y' or 'N')
+    avrg_step : int, default=100
+        Averaging interval (iterations)
+    **kwargs
+        Additional measurement parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = {
+        "measurement": {
+            "plotenergy": plotenergy,
+            "do_avrg": do_avrg,
+            "avrg_step": avrg_step,
+        }
+    }
+    if kwargs:
+        from uppasd.configuration_manager import ConfigurationManager
+        mgr = ConfigurationManager(config)
+        mgr.merge(kwargs)
+        return mgr.config
+    return config
+
+
+def measurement_thermal(
+    do_cumu: str = "Y",
+    cumu_step: int = 100,
+    cumu_buff: int = 10,
+    **kwargs,
+) -> Dict:
+    """Thermal properties measurement preset.
+
+    Measures energy cumulants for histogram reweighting analysis.
+
+    Parameters
+    ----------
+    do_cumu : str, default='Y'
+        Enable cumulant calculation ('Y' or 'N')
+    cumu_step : int, default=100
+        Cumulant calculation interval (iterations)
+    cumu_buff : int, default=10
+        Cumulant buffer size
+    **kwargs
+        Additional measurement parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["measurement"].update({
+        "do_cumu": do_cumu,
+        "cumu_step": cumu_step,
+        "cumu_buff": cumu_buff,
+    })
+    return config
+
+
+def measurement_spectroscopy(
+    do_ams: str = "Y",
+    do_magdos: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Dynamical and spectroscopic properties measurement preset.
+
+    Measures magnon spectral functions and density of states.
+
+    Parameters
+    ----------
+    do_ams : str, default='Y'
+        Enable AMS (adaptive magnon spectrum) ('Y' or 'N')
+    do_magdos : str, default='Y'
+        Enable magnon DOS calculation ('Y' or 'N')
+    **kwargs
+        Additional measurement parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["spectroscopy"] = {
+        "do_ams": do_ams,
+        "do_magdos": do_magdos,
+    }
+    return config
+
+
+def measurement_correlations(
+    do_sc: str = "Q",
+    qvectors: Optional[str] = None,
+    do_bls: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Correlation and structure measurement preset.
+
+    Measures spatial correlations and structure factor.
+
+    Parameters
+    ----------
+    do_sc : str, default='Q'
+        Structure calculation mode ('Q' for structure factor, 'Y' for correlations)
+    qvectors : str, optional
+        Q-point specification (required if do_sc='Q')
+    do_bls : str, default='Y'
+        Enable BLS (Brillouin light scattering) ('Y' or 'N')
+    **kwargs
+        Additional measurement parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["measurement"]["do_sc"] = do_sc
+    if qvectors is not None:
+        config["measurement"]["qvectors"] = qvectors
+    config["measurement"]["do_bls"] = do_bls
+    return config
+
+
+def protocol_temperature_sweep(
+    tempexp_start: float = 300.0,
+    tempexp_end: float = 50.0,
+    tempexp_tau: float = 10000.0,
+    tempexp_step: int = 1,
+    do_tempexp: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Exponential temperature sweep protocol.
+
+    Temperature decreases exponentially: T(t) = T_end + (T_start - T_end) * exp(-t/tau)
+
+    Parameters
+    ----------
+    tempexp_start : float, default=300.0
+        Starting temperature (K)
+    tempexp_end : float, default=50.0
+        Final temperature (K)
+    tempexp_tau : float, default=10000.0
+        Relaxation time constant (iterations)
+    tempexp_step : int, default=1
+        Update interval (iterations)
+    do_tempexp : str, default='Y'
+        Enable exponential cooling ('Y' or 'N')
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["protocol"] = {
+        "do_tempexp": do_tempexp,
+        "tempexp_start": tempexp_start,
+        "tempexp_end": tempexp_end,
+        "tempexp_tau": tempexp_tau,
+        "tempexp_step": tempexp_step,
+    }
+    return config
+
+
+def protocol_3temperature(
+    do_3tm: str = "Y",
+    hbar: float = 0.0557,
+    **kwargs,
+) -> Dict:
+    """Three-temperature model protocol.
+
+    Simulates separate baths for electrons, lattice, and spins.
+
+    Parameters
+    ----------
+    do_3tm : str, default='Y'
+        Enable 3TM ('Y' or 'N')
+    hbar : float, default=0.0557
+        Planck constant (eV*fs, UppASD units)
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["protocol"] = {
+        "do_3tm": do_3tm,
+        "hbar": hbar,
+    }
+    return config
+
+
+def protocol_spinice(
+    do_spinice: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Spin ice constraint protocol.
+
+    Enforces ice-rule constraints on local moments.
+
+    Parameters
+    ----------
+    do_spinice : str, default='Y'
+        Enable spin ice constraint ('Y' or 'N')
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["protocol"] = {
+        "do_spinice": do_spinice,
+    }
+    return config
+
+
+def field_microwave(
+    mwf_freq: float = 15.0,
+    mwf_amp: float = 0.1,
+    do_mwf: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Microwave field driving protocol.
+
+    Applies oscillating magnetic field at specified frequency.
+
+    Parameters
+    ----------
+    mwf_freq : float, default=15.0
+        Microwave frequency (THz)
+    mwf_amp : float, default=0.1
+        Field amplitude (T)
+    do_mwf : str, default='Y'
+        Enable microwave field ('Y' or 'N')
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["field"] = {
+        "do_mwf": do_mwf,
+        "mwf_freq": mwf_freq,
+        "mwf_amp": mwf_amp,
+    }
+    return config
+
+
+def interaction_stt(
+    jvec: Optional[List[float]] = None,
+    jvec_pol: float = 1.0,
+    adibeta: float = 0.0,
+    do_stt: str = "Y",
+    **kwargs,
+) -> Dict:
+    """Spin transfer torque (STT) interaction.
+
+    Enables current-driven spin dynamics.
+
+    Parameters
+    ----------
+    jvec : list[float], optional
+        Current polarization vector [jx, jy, jz]
+    jvec_pol : float, default=1.0
+        Polarization magnitude
+    adibeta : float, default=0.0
+        Adiabatic beta parameter
+    do_stt : str, default='Y'
+        Enable STT ('Y' or 'N')
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["interaction"] = {
+        "do_stt": do_stt,
+        "jvec_pol": jvec_pol,
+        "adibeta": adibeta,
+    }
+    if jvec is not None:
+        config["interaction"]["jvec"] = jvec
+    return config
+
+
+def analysis_wang_landau(
+    do_wl: str = "Y",
+    wl_nstep: int = 100,
+    wl_flatness: float = 0.8,
+    **kwargs,
+) -> Dict:
+    """Wang-Landau density-of-states sampling.
+
+    Implements flatness-criterion adaptive bias.
+
+    Parameters
+    ----------
+    do_wl : str, default='Y'
+        Enable Wang-Landau ('Y' or 'N')
+    wl_nstep : int, default=100
+        Steps per flatness check
+    wl_flatness : float, default=0.8
+        Histogram flatness criterion (0-1)
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["analysis"] = {
+        "do_wl": do_wl,
+        "wl_nstep": wl_nstep,
+        "wl_flatness": wl_flatness,
+    }
+    return config
+
+
+def coupling_spinlattice(
+    do_sld: str = "Y",
+    sld_T_eq: float = 0.0,
+    sld_T_lc: float = 0.0,
+    **kwargs,
+) -> Dict:
+    """Spin-lattice dynamics coupling.
+
+    Couples spin dynamics to lattice vibrations.
+
+    Parameters
+    ----------
+    do_sld : str, default='Y'
+        Enable spin-lattice coupling ('Y' or 'N')
+    sld_T_eq : float, default=0.0
+        Spin-phonon equilibration temperature
+    sld_T_lc : float, default=0.0
+        Lattice coupling temperature
+    **kwargs
+        Additional parameters to override
+
+    Returns
+    -------
+    dict
+        Configuration dict for sim.measure()
+    """
+    config = measurement_basic(**kwargs)
+    config["coupling"] = {
+        "do_sld": do_sld,
+        "sld_T_eq": sld_T_eq,
+        "sld_T_lc": sld_T_lc,
+    }
+    return config

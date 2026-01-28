@@ -1,0 +1,115 @@
+{
+  "measurement_basic": {
+    "measurement": {
+      "plotenergy": 1,
+      "do_avrg": "Y",
+      "avrg_step": 100
+    },
+    "description": "Basic measurement: energy tracking + magnetization averages"
+  },
+  
+  "measurement_thermal": {
+    "measurement": {
+      "plotenergy": 1,
+      "do_avrg": "Y",
+      "avrg_step": 100,
+      "do_cumu": "Y",
+      "cumu_step": 50,
+      "cumu_buff": 10
+    },
+    "description": "Thermal analysis: add Binder cumulant, susceptibility, specific heat"
+  },
+  
+  "measurement_spectroscopy": {
+    "spectroscopy": {
+      "do_ams": "Y",
+      "ams_nstep": 500,
+      "ams_step": 100,
+      "ams_emax": 2.0,
+      "ams_eres": 0.1,
+      "do_magdos": "Y",
+      "magdos_freq": 0.001,
+      "magdos_sigma": 0.05
+    },
+    "measurement": {
+      "plotenergy": 1,
+      "do_avrg": "Y"
+    },
+    "description": "Magnon spectroscopy: AMS time-resolved + magnetic DOS"
+  },
+  
+  "measurement_correlations": {
+    "spectroscopy": {
+      "do_sc": "Q",
+      "sc_nstep": 500,
+      "sc_step": 100,
+      "sc_emax": 1.0,
+      "sc_eres": 0.05,
+      "qpoints": "D",
+      "do_bls": "Y",
+      "bls_nstep": 500,
+      "bls_step": 100
+    },
+    "measurement": {
+      "plotenergy": 1,
+      "do_avrg": "Y"
+    },
+    "description": "Spatial correlations: structure factor (Q-resolved) + Brillouin light scattering"
+  },
+  
+  "protocol_temperature_sweep": {
+    "protocol": {
+      "do_tempexp": "Y",
+      "tempexp_start": 100,
+      "tempexp_end": 400,
+      "tempexp_tau": 0.1,
+      "tempexp_step": 10
+    },
+    "description": "Temperature exponential sweep: useful for studying phase transitions"
+  },
+  
+  "protocol_3temperature": {
+    "protocol": {
+      "do_3tm": "Y"
+    },
+    "description": "Three-temperature model: electrons, phonons, spins treated separately"
+  },
+  
+  "protocol_spinice": {
+    "protocol": {
+      "do_spinice": "Y"
+    },
+    "description": "Spin ice constraint: enforces ice rule on magnetic configurations"
+  },
+  
+  "field_microwave": {
+    "field": {
+      "do_mwf": "Y",
+      "mwf_freq": 10.0
+    },
+    "description": "Microwave field driving: 10 GHz AC field excitation"
+  },
+  
+  "interaction_stt": {
+    "field": {
+      "do_stt": "Y",
+      "jvec": 1e6,
+      "adibeta": 0.5
+    },
+    "description": "Spin transfer torque: current-driven magnetization dynamics"
+  },
+  
+  "analysis_wang_landau": {
+    "analysis": {
+      "do_wl": "Y"
+    },
+    "description": "Wang-Landau density of states sampling: advanced Monte Carlo technique"
+  },
+  
+  "coupling_spinlattice": {
+    "coupling": {
+      "do_sld": "Y"
+    },
+    "description": "Spin-lattice dynamics: magnetic moments coupled to atomic vibrations"
+  }
+}
