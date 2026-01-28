@@ -47,7 +47,9 @@ def main():
             print(f"Skipping unparseable wheel: {whl.name} ({e})")
             continue
 
-        version = Version(version_str)
+        # version = Version(version_str)
+        version = version_str
+
 
         # A wheel may have multiple tags; treat each independently
         for tag in tags:
