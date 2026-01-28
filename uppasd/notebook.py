@@ -1186,6 +1186,7 @@ def relaxation_protocol_mc_sd(
     sd_temp: float = 50,
     damping: float = 0.1,
     timestep: float = 1e-16,
+    **kwargs
 ) -> Dict:
     """
     Monte Carlo annealing followed by Spin Dynamics relaxation.
@@ -1206,13 +1207,15 @@ def relaxation_protocol_mc_sd(
         LLG damping parameter
     timestep : float
         Integration timestep (s)
+    **kwargs : dict
+        Additional UppASD parameters (plotenergy, do_cumu, ene_step, cumu_step, etc.)
 
     Returns
     -------
     config : dict
         Configuration ready for write_inpsd_file
     """
-    return {
+    config = {
         'ip_mode': 'M',
         'ip_mcanneal': True,
         'ip_mcanneal_params': [mc_steps, mc_temp],
@@ -1224,6 +1227,9 @@ def relaxation_protocol_mc_sd(
         'do_avrg': 'Y',
         'avrg_step': max(100, sd_steps // 20),
     }
+    # Add any additional UppASD parameters from kwargs
+    config.update(kwargs)
+    return config
 
 
 def relaxation_protocol_thermal_anneal(
@@ -1232,6 +1238,7 @@ def relaxation_protocol_thermal_anneal(
     temp_end: float = 10,
     n_temps: int = 10,
     mode: str = 'M',
+    **kwargs
 ) -> List[Dict]:
     """
     Gradual temperature reduction protocol.
@@ -1250,6 +1257,8 @@ def relaxation_protocol_thermal_anneal(
         Number of temperature steps
     mode : str
         'M' (Monte Carlo) or 'S' (Spin Dynamics)
+    **kwargs : dict
+        Additional UppASD parameters to apply to all configs
 
     Returns
     -------
@@ -1270,6 +1279,8 @@ def relaxation_protocol_thermal_anneal(
         if mode == 'S':
             config['damping'] = 0.5
             config['timestep'] = 1e-16
+        # Add any additional parameters
+        config.update(kwargs)
         configs.append(config)
     
     logger.info("Created thermal anneal protocol: %d temps, %.1f->%.1f K", n_temps, temp_start, temp_end)
@@ -1283,6 +1294,7 @@ def relaxation_protocol_quench(
     temp_low: float = 10,
     damping: float = 0.5,
     timestep: float = 1e-16,
+    **kwargs
 ) -> Dict:
     """
     Rapid quench from high temperature.
@@ -1301,13 +1313,15 @@ def relaxation_protocol_quench(
         LLG damping (higher = faster quench)
     timestep : float
         Integration timestep (s)
+    **kwargs : dict
+        Additional UppASD parameters
 
     Returns
     -------
     config : dict
         Configuration for quench protocol
     """
-    return {
+    config = {
         'ip_mode': 'M',
         'ip_mcanneal': True,
         'ip_mcanneal_params': [mc_steps, temp_high],
@@ -1319,11 +1333,17 @@ def relaxation_protocol_quench(
         'do_avrg': 'Y',
         'avrg_step': max(100, sd_steps // 20),
     }
+    # Add any additional UppASD parameters from kwargs
+    config.update(kwargs)
+    return config
 
 
 def create_relaxation_protocol(protocol_type: str = 'mc_sd', **kwargs) -> Dict | List[Dict]:
     """
     Generate inpsd configuration dict for common relaxation protocols.
+
+    All protocol types support additional UppASD keyword arguments that are automatically
+    merged into the configuration dictionary.
 
     Parameters
     ----------
@@ -1334,7 +1354,14 @@ def create_relaxation_protocol(protocol_type: str = 'mc_sd', **kwargs) -> Dict |
         'thermal_anneal': Temperature ramp (returns list)
         'quench': Fast quench from high T
 
-    **kwargs : additional parameters passed to specific protocol functions
+    **kwargs : dict
+        Protocol-specific and additional UppASD parameters. Examples:
+        - mc_sd: mc_steps=2000, mc_temp=300, sd_steps=5000, sd_temp=50, damping=0.1
+        - mc_only: steps=5000, temp=100
+        - sd_only: steps=5000, temp=50, damping=0.1, timestep=1e-16
+        - thermal_anneal: n_temps=10, temp_start=300, temp_end=10
+        - quench: mc_steps=1000, sd_steps=5000, temp_low=10
+        - Any UppASD keyword: plotenergy=1, do_cumu='Y', ene_step=10, cumu_step=10, etc.
 
     Returns
     -------
@@ -1343,8 +1370,17 @@ def create_relaxation_protocol(protocol_type: str = 'mc_sd', **kwargs) -> Dict |
 
     Examples
     --------
+    Basic protocols:
     >>> config = create_relaxation_protocol('mc_sd', mc_steps=2000, sd_temp=50)
     >>> configs = create_relaxation_protocol('thermal_anneal', n_temps=10)
+
+    With additional UppASD keywords:
+    >>> config = create_relaxation_protocol(
+    ...     'mc_sd',
+    ...     mc_steps=1000, mc_temp=300,
+    ...     sd_steps=5000, sd_temp=100, damping=0.05,
+    ...     plotenergy=1, do_cumu='Y', ene_step=10, cumu_step=10
+    ... )
     """
     if protocol_type == 'mc_sd':
         return relaxation_protocol_mc_sd(**kwargs)
@@ -1353,21 +1389,24 @@ def create_relaxation_protocol(protocol_type: str = 'mc_sd', **kwargs) -> Dict |
     elif protocol_type == 'quench':
         return relaxation_protocol_quench(**kwargs)
     elif protocol_type == 'mc_only':
-        steps = kwargs.get('steps', 10000)
-        temp = kwargs.get('temp', 100)
-        return {
+        steps = kwargs.pop('steps', 10000)
+        temp = kwargs.pop('temp', 100)
+        config = {
             'mode': 'M',
             'temp': temp,
             'nstep': steps,
             'do_avrg': 'Y',
             'avrg_step': max(100, steps // 20),
         }
+        # Add any additional UppASD parameters from kwargs
+        config.update(kwargs)
+        return config
     elif protocol_type == 'sd_only':
-        steps = kwargs.get('steps', 5000)
-        temp = kwargs.get('temp', 50)
-        damping = kwargs.get('damping', 0.1)
-        timestep = kwargs.get('timestep', 1e-16)
-        return {
+        steps = kwargs.pop('steps', 5000)
+        temp = kwargs.pop('temp', 50)
+        damping = kwargs.pop('damping', 0.1)
+        timestep = kwargs.pop('timestep', 1e-16)
+        config = {
             'mode': 'S',
             'temp': temp,
             'damping': damping,
@@ -1376,6 +1415,9 @@ def create_relaxation_protocol(protocol_type: str = 'mc_sd', **kwargs) -> Dict |
             'do_avrg': 'Y',
             'avrg_step': max(100, steps // 20),
         }
+        # Add any additional UppASD parameters from kwargs
+        config.update(kwargs)
+        return config
     else:
         raise ValueError(f"Unknown protocol type: {protocol_type}")
 
@@ -1614,3 +1656,229 @@ def plot_moment_distribution(
     plt.tight_layout()
     
     return fig, ax
+
+def build_exchange_list(
+    lattice_vectors: np.ndarray,
+    basis_positions: np.ndarray,
+    basis_types: np.ndarray,
+    exchange_matrix: Dict[Tuple, float],
+    distance_shells: Dict[int, Tuple[float, float]],
+    cutoff: float = 4.0,
+    scale: float = 1.0
+) -> List[Tuple]:
+    """
+    Build UppASD exchange list from exchange matrix using ASE neighbor finder.
+    
+    Automatically generates ALL symmetry-equivalent exchange vectors by finding
+    neighbors within cutoff and assigning them to shells based on distance.
+    
+    Parameters
+    ----------
+    lattice_vectors : ndarray (3, 3)
+        Normalized lattice vectors (will be scaled by 'scale')
+    basis_positions : ndarray (n_basis, 3)
+        Fractional coordinates of basis atoms
+    basis_types : ndarray (n_basis,)
+        Atom type for each basis atom
+    exchange_matrix : dict
+        Exchange parameters J_ij for each (type_i, type_j, shell) tuple in mRy
+        Format: {(itype, jtype, shell_index): J_value}
+    distance_shells : dict
+        Distance ranges for each shell: {shell: (min_dist, max_dist)}
+        Distances in units of 'scale' (alat)
+    cutoff : float, default 4.0
+        Neighbor search cutoff distance in Angstroms
+    scale : float, default 1.0
+        Lattice constant (alat) to scale lattice vectors
+        
+    Returns
+    -------
+    exchange_list : list of tuples
+        Each tuple: (type_i, type_j, r_ij_x, r_ij_y, r_ij_z, J_ij)
+        r_ij in fractional coordinates (units of alat)
+    """
+    try:
+        from ase import Atoms
+        from ase.neighborlist import neighbor_list
+    except ImportError:
+        logger.error("ASE not available. Install with: pip install ase")
+        return []
+    
+    # Create ASE Atoms object for unit cell
+    cell_scaled = lattice_vectors * scale
+    atoms = Atoms(
+        numbers=basis_types,
+        positions=basis_positions @ cell_scaled,
+        cell=cell_scaled,
+        pbc=True
+    )
+    
+    # Find all neighbors within cutoff
+    i_indices, j_indices, offsets = neighbor_list('ijS', atoms, cutoff)
+    
+    # Build exchange list with unique displacement vectors
+    exchange_dict = {}  # key: (type_i, type_j, r_ij_tuple), value: J_ij
+    
+    for idx in range(len(i_indices)):
+        i = i_indices[idx]
+        j = j_indices[idx]
+        offset = offsets[idx]
+        
+        # Get atom types
+        type_i = basis_types[i]
+        type_j = basis_types[j]
+        
+        # Calculate displacement vector in Cartesian
+        r_i = atoms.positions[i]
+        r_j = atoms.positions[j] + offset @ cell_scaled
+        r_ij_cart = r_j - r_i
+        
+        # Convert to fractional coordinates (in units of alat)
+        r_ij_frac = r_ij_cart / scale
+        
+        # Calculate distance in units of alat
+        dist = np.linalg.norm(r_ij_frac)
+        
+        # Skip self-interaction
+        if dist < 1e-6:
+            continue
+        
+        # Determine which shell this distance belongs to
+        shell = None
+        for s, (d_min, d_max) in distance_shells.items():
+            if d_min < dist <= d_max:
+                shell = s
+                break
+        
+        if shell is None:
+            continue  # Distance not in any defined shell
+        
+        # Check if this type pair + shell has defined exchange
+        if (type_i, type_j, shell) not in exchange_matrix:
+            continue
+        
+        J_ij = exchange_matrix[(type_i, type_j, shell)]
+        
+        # Round to avoid floating point issues
+        r_ij_tuple = tuple(np.round(r_ij_frac, decimals=6))
+        
+        # Store unique vectors
+        key = (type_i, type_j, r_ij_tuple)
+        if key not in exchange_dict:
+            exchange_dict[key] = J_ij
+    
+    # Convert to list format for jfile
+    exchange_list = []
+    for (type_i, type_j, r_ij_tuple), J_ij in sorted(exchange_dict.items()):
+        exchange_list.append((
+            type_i, type_j,
+            r_ij_tuple[0], r_ij_tuple[1], r_ij_tuple[2],
+            J_ij
+        ))
+    
+    logger.info(f"Built exchange list: {len(exchange_list)} unique interactions")
+    return exchange_list
+
+
+def print_exchange_matrix(
+    exchange_matrix: Dict[Tuple, float],
+    distance_shells: Optional[Dict[int, Tuple[float, float]]] = None,
+    type_labels: Optional[Dict[int, str]] = None,
+    shell_labels: Optional[Dict[int, str]] = None
+) -> None:
+    """
+    Pretty-print exchange matrix in table format.
+    
+    Parameters
+    ----------
+    exchange_matrix : dict
+        Exchange parameters {(type_i, type_j, shell): J_value}
+    distance_shells : dict, optional
+        Distance ranges for shells
+    type_labels : dict, optional
+        Type labels {1: 'Fe', 2: 'Co', ...}. If None, uses numeric labels.
+    shell_labels : dict, optional
+        Shell labels {1: 'NN', 2: 'NNN', ...}. If None, uses numeric labels.
+    """
+    if type_labels is None:
+        type_labels = {i: f"Type{i}" for i in range(1, 4)}
+    if shell_labels is None:
+        shell_labels = {1: 'NN', 2: 'NNN', 3: 'NNNN'}
+    
+    # Group by shell
+    shells = {}
+    for (ti, tj, shell), J in exchange_matrix.items():
+        if shell not in shells:
+            shells[shell] = {}
+        shells[shell][(ti, tj)] = J
+    
+    # Print each shell
+    for shell in sorted(shells.keys()):
+        shell_label = shell_labels.get(shell, f"S{shell}")
+        dist_str = ""
+        if distance_shells and shell in distance_shells:
+            d_min, d_max = distance_shells[shell]
+            dist_str = f" ({d_min:.1f}-{d_max:.1f})"
+        print(f"\n{shell_label}{dist_str}:")
+        print("     " + "  ".join([f"{type_labels[i]:>6}" for i in sorted(type_labels.keys())]))
+        
+        for i in sorted(type_labels.keys()):
+            row = []
+            for j in sorted(type_labels.keys()):
+                J_val = shells[shell].get((i, j), 0.0)
+                row.append(f"{J_val:6.3f}")
+            print(f"{type_labels[i]:>3}  " + "  ".join(row))
+
+
+def count_interaction_vectors(
+    exchange_list: List[Tuple],
+    distance_shells: Dict[int, Tuple[float, float]],
+    type_labels: Optional[Dict[int, str]] = None,
+    shell_labels: Optional[Dict[int, str]] = None
+) -> Dict[Tuple, int]:
+    """
+    Count unique exchange vectors by type pair and shell.
+    
+    Parameters
+    ----------
+    exchange_list : list of tuples
+        Exchange vectors from build_exchange_list
+    distance_shells : dict
+        Distance ranges for shells
+    type_labels : dict, optional
+        Type labels for printing
+    shell_labels : dict, optional
+        Shell labels for printing
+        
+    Returns
+    -------
+    interaction_counts : dict
+        Count of vectors for each (type_i, type_j, shell) combination
+    """
+    from collections import defaultdict
+    
+    if type_labels is None:
+        type_labels = {i: f"Type{i}" for i in range(1, 4)}
+    if shell_labels is None:
+        shell_labels = {1: 'NN', 2: 'NNN', 3: 'NNNN'}
+    
+    interaction_counts = defaultdict(int)
+    
+    for (ti, tj, rx, ry, rz, J) in exchange_list:
+        dist = np.sqrt(rx**2 + ry**2 + rz**2)
+        shell = None
+        for s, (d_min, d_max) in distance_shells.items():
+            if d_min < dist <= d_max:
+                shell = s
+                break
+        if shell is not None:
+            interaction_counts[(ti, tj, shell)] += 1
+    
+    # Print summary
+    print("\nInteraction vector summary:")
+    for (ti, tj, shell), count in sorted(interaction_counts.items()):
+        shell_label = shell_labels.get(shell, f"S{shell}")
+        print(f"  {type_labels[ti]}-{type_labels[tj]} {shell_label}: "
+              f"{count} vectors")
+    
+    return dict(interaction_counts)

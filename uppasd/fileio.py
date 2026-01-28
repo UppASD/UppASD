@@ -232,30 +232,39 @@ class UppASDReader:
             raise FileNotFoundError(f"Averages file not found: {filename}")
         
         try:
-            data_df = pd.read_csv(filename, header=0, delim_whitespace=True, 
-                                 escapechar="#")
+            # Read file with genfromtxt, skipping comment lines
+            raw_data = np.genfromtxt(filename, comments='#', dtype=float)
+            
+            # Handle single row case (reshape to 2D)
+            if raw_data.ndim == 1:
+                raw_data = raw_data.reshape(1, -1)
+            
             data = {}
             
             # Convert time column (first column, iterations) to time in seconds
-            iterations = data_df.iloc[:, 0].values
+            iterations = raw_data[:, 0]
             data['time'] = iterations * self.timestep
             data['iterations'] = iterations
             
-            # Map standard column names
+            # Map column names based on position (standard UppASD format)
+            # Columns: Iter, <M>_x, <M>_y, <M>_z, <M>, M_stdv, ...
             col_mapping = {
-                'M_x': 'magnetization_x',
-                'M_y': 'magnetization_y',
-                'M_z': 'magnetization_z',
-                'M_abs': 'magnetization_total',
-                'E_tot': 'energy_total',
+                1: 'magnetization_x',      # <M>_x
+                2: 'magnetization_y',      # <M>_y
+                3: 'magnetization_z',      # <M>_z
+                4: 'magnetization_total',  # <M>
+                5: 'magnetization_stdv',   # M_{stdv}
             }
             
-            for col in data_df.columns[1:]:
-                col_clean = col.strip()
-                key = col_mapping.get(col_clean, col_clean)
-                data[key] = data_df[col_clean].values
+            for col_idx, col_name in col_mapping.items():
+                if col_idx < raw_data.shape[1]:
+                    data[col_name] = raw_data[:, col_idx]
             
-            logger.debug(f"Read averages from {filename}: {len(data)} columns")
+            # Add any additional columns beyond the standard ones
+            for col_idx in range(6, raw_data.shape[1]):
+                data[f'column_{col_idx}'] = raw_data[:, col_idx]
+            
+            logger.debug(f"Read averages from {filename}: {len(data)} columns, {raw_data.shape[0]} rows")
             return data
             
         except Exception as e:
@@ -294,20 +303,22 @@ class UppASDReader:
             raise FileNotFoundError(f"Energy file not found: {filename}")
         
         try:
-            data_df = pd.read_csv(filename, header=0, delim_whitespace=True,
-                                 escapechar="#")
+            # Read file with genfromtxt, skipping comment lines
+            raw_data = np.genfromtxt(filename, comments='#', dtype=float)
+            
+            # Handle single row case (reshape to 2D)
+            if raw_data.ndim == 1:
+                raw_data = raw_data.reshape(1, -1)
+            
             data = {}
             
-            iterations = data_df.iloc[:, 0].values
+            # Convert time column (first column, iterations) to time in seconds
+            iterations = raw_data[:, 0]
             data['time'] = iterations * self.timestep
             data['iterations'] = iterations
             
-            # Standard energy column
-            if 'E_tot' in data_df.columns:
-                data['energy'] = data_df['E_tot'].values
-            else:
-                # Fallback: use second column
-                data['energy'] = data_df.iloc[:, 1].values
+            # Standard energy is second column (E_tot)
+            data['energy'] = raw_data[:, 1]
             
             logger.debug(f"Read energy from {filename}: {len(data['energy'])} points")
             return data
@@ -374,7 +385,7 @@ class UppASDReader:
                     atom_id = len(trajectories) + 1
                 
                 # Read trajectory data (columns: time/iteration, m_x, m_y, m_z)
-                data = pd.read_csv(traj_file, header=None, delim_whitespace=True,
+                data = pd.read_csv(traj_file, header=None, sep='\s+',
                                   usecols=[0, 2, 3, 4])
                 
                 iterations = data.iloc[:, 0].values
