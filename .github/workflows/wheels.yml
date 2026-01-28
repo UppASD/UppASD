@@ -241,6 +241,8 @@ jobs:
         run: |
           mkdir -p /tmp/gh-pages-tools
           cp .github/scripts/cleanup_wheels.py /tmp/gh-pages-tools/
+          cp .github/scripts/generate_wheels_index.py /tmp/gh-pages-tools/
+
       # ------------------------------------------------------------
       # Checkout gh-pages branch
       # ------------------------------------------------------------
@@ -276,30 +278,12 @@ jobs:
         run: |
           python /tmp/gh-pages-tools/cleanup_wheels.py
 
+      # ------------------------------------------------------------
+      # Generate wheels index
+      # ------------------------------------------------------------
       - name: Generate wheels index
         run: |
-          cat > wheels/index.html <<'EOF'
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <title>UppASD wheels</title>
-            </head>
-            <body>
-              <h1>UppASD wheels</h1>
-              <ul>
-          EOF
-            
-          for whl in wheels/*.whl; do
-            fname=$(basename "$whl")
-            echo "  <li><a href=\"$fname\">$fname</a></li>" >> wheels/index.html
-          done
-            
-          cat >> wheels/index.html <<'EOF'
-              </ul>
-            </body>
-          </html>
-          EOF
+          python /tmp/gh-pages-tools/generate_wheels_index.py
 
       # ------------------------------------------------------------
       # Commit and push updated wheels
