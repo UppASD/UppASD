@@ -40,11 +40,15 @@ class SpinSystem:
         positions: Sequence[Sequence[float]],
         species: Sequence[str],
         moments: Sequence[Sequence[float]],
+        ncell: Sequence[int] = None,
+        bc: str = None,
     ):
         self.cell = np.asarray(cell, dtype=float)
         self.positions = np.asarray(positions, dtype=float)
         self.moments = np.asarray(moments, dtype=float)
         self.species = list(species)
+        self.ncell = ncell
+        self.bc = bc
 
         self._validate()
 
@@ -78,6 +82,44 @@ class SpinSystem:
     def natom(self) -> int:
         """Number of atoms."""
         return self.positions.shape[0]
+
+    # ------------------------------------------------------------------
+    # Input block for inpsd.dat assembly
+    # ------------------------------------------------------------------
+
+    def input_block(self) -> dict:
+        """
+        Generate system block for inpsd.dat.
+        
+        Returns dict with keys in order: ncell, BC, cell, posfile, momfile.
+        
+        Note: ncell and BC have defaults (1 1 1 and P P P respectively)
+        because Fortran requires them and they are fundamental structural parameters.
+        """
+        # Use ordered dict-like insertion to control key order
+        block = {}
+        
+        # ncell: default to 1 1 1
+        if self.ncell is not None:
+            block["ncell"] = self.ncell
+        else:
+            block["ncell"] = [1, 1, 1]
+        
+        # BC: default to P P P (periodic in all directions)
+        if self.bc is not None:
+            block["BC"] = self.bc
+        else:
+            block["BC"] = "P P P"
+        
+        # cell
+        if self.cell is not None:
+            block["cell"] = self.cell
+        
+        # Files
+        block["posfile"] = "./posfile"
+        block["momfile"] = "./momfile"
+        
+        return block
 
     # ------------------------------------------------------------------
     # Writing UppASD input files

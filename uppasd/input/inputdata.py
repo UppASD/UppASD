@@ -94,21 +94,65 @@ class InputBlock:
     def write(self, fh):
         """
         Write this block to an open file handle.
+        Format: key value (space-separated, no equals sign)
+        
+        Multi-row values (2D arrays like cell) are written with:
+        - First row: "key row1"
+        - Subsequent rows: whitespace-padded to align
         """
         for key, value in self._data.items():
-            fh.write(f"{key} = {self._format_value(value)}\n")
+            formatted = self._format_value(value)
+            if isinstance(formatted, list):
+                # Multi-line values (e.g., cell matrix rows)
+                # Write key only on first line, subsequent lines indented
+                key_width = len(key)
+                for i, line in enumerate(formatted):
+                    if i == 0:
+                        fh.write(f"{key} {line}\n")
+                    else:
+                        # Indent subsequent rows to align with first row data
+                        fh.write(f"{' ' * (key_width + 1)}{line}\n")
+            else:
+                fh.write(f"{key} {formatted}\n")
 
     @staticmethod
     def _format_value(value):
         """
         Format values in a conservative UppASD-compatible way.
+        
+        Returns:
+            - For 2D arrays (cell): list of space-separated row strings
+            - For 1D arrays/lists: space-separated string
+            - For scalars: the value as-is or formatted string
         """
         if isinstance(value, bool):
             return "T" if value else "F"
         if isinstance(value, (int, float)):
-            return value
+            return str(value)
+        
+        # Handle NumPy arrays
+        if hasattr(value, "shape"):
+            # 2D array (e.g., cell matrix)
+            if len(value.shape) == 2:
+                lines = []
+                for row in value:
+                    lines.append(" ".join(str(v) for v in row))
+                return lines
+            # 1D array
+            elif len(value.shape) == 1:
+                return " ".join(str(v) for v in value)
+        
+        # Handle Python lists/tuples
         if isinstance(value, (list, tuple)):
+            # Check if it's a list of lists (2D)
+            if value and isinstance(value[0], (list, tuple)):
+                lines = []
+                for row in value:
+                    lines.append(" ".join(str(v) for v in row))
+                return lines
+            # 1D list
             return " ".join(str(v) for v in value)
+        
         return str(value)
 
 

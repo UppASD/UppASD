@@ -63,11 +63,52 @@ class ASDWorkspace:
         if dmi is not None:
             dmi.write_dmfile(self.path / "dmfile")
 
-    def write_input(self, inp: ASDInput):
+    def write_input(
+        self,
+        system: SpinSystem,
+        inp: ASDInput,
+        exchange: ExchangeShellTable = None,
+        dmi: DMIShellTable = None,
+    ):
         """
-        Write inpsd.dat.
+        Write inpsd.dat by merging system, interactions, initialization, and user input.
+        
+        Order:
+        1. System block (geometry, files)
+        2. Interactions block (exchange/DMI file references)
+        3. Initialization block (with initmag default)
+        4. User blocks (simulation, measurement, other keywords)
         """
-        inp.write(self.path / "inpsd.dat")
+        full = ASDInput()
+
+        # System block: geometry and file references
+        full.block("system").set(**system.input_block())
+
+        # Interactions block: file references only
+        if exchange is not None:
+            full.block("interactions").set(exchange="./jfile")
+        if dmi is not None:
+            full.block("interactions").set(dm="./dmfile")
+
+        # Initialization block: default initmag 3
+        full.block("initialization").set(initmag=3)
+
+        # User-provided blocks (simulation, measurement, interactions keywords, etc.)
+        for name, block in inp.blocks.items():
+            if name == "system":
+                # Merge with system block if user provided system keys
+                full.block("system").set(**block.as_dict())
+            elif name == "interactions":
+                # Merge with interactions block if user provided interaction keys
+                full.block("interactions").set(**block.as_dict())
+            elif name == "initialization":
+                # Merge with initialization block, user can override initmag
+                full.block("initialization").set(**block.as_dict())
+            else:
+                # Other blocks (simulation, measurement, etc.) pass through
+                full.add_block(name, block)
+
+        full.write(self.path / "inpsd.dat")
 
     # ------------------------------------------------------------------
 
@@ -83,7 +124,7 @@ class ASDWorkspace:
         """
         self.write_system(system)
         self.write_interactions(exchange, dmi)
-        self.write_input(inp)
+        self.write_input(system, inp, exchange, dmi)
 
 
 # ======================================================================
@@ -146,11 +187,17 @@ class UppASDSimulator:
     # ------------------------------------------------------------------
     def relax(self):
         with self._in_workspace():
-            pyasd.relax_llg()
+            if self.natom is None or self.mensemble is None:
+                raise RuntimeError("Simulator not initialized")
+
+            pyasd.relax_llg(self.natom, self.mensemble)
 
     def relax_mc(self):
         with self._in_workspace():
-            pyasd.relax_mc()
+            if self.natom is None or self.mensemble is None:
+                raise RuntimeError("Simulator not initialized")
+
+            pyasd.relax_mc(self.natom, self.mensemble)
 
     def measure(self):
         with self._in_workspace():
