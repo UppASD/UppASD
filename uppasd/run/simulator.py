@@ -203,6 +203,10 @@ class UppASDSimulator:
         with self._in_workspace():
             pyasd.measure()
 
+    def run_init_phase(self):
+        with self._in_workspace():
+            pyasd.initial_phase()
+
     def finalize(self):
         with self._in_workspace():
             pyasd.cleanup()

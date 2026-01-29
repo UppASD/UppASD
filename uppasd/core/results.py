@@ -6,15 +6,14 @@ Lightweight container for UppASD simulation results.
 Design principles:
 - One canonical internal storage: self._tables
 - Zero intelligence: no physics, no assumptions
-- Explicit named accessors for each result type
-- Introspection-friendly (__repr__, available)
+- Explicit named accessors for common result types
+- Introspection-friendly (__repr__, available, summary, describe)
 """
 
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from .output import read_all_outputs
-
 
 
 class ASDResults:
@@ -42,7 +41,7 @@ class ASDResults:
         self.simid = simid
 
     # ------------------------------------------------------------------
-    # Introspection
+    # Introspection basics
     # ------------------------------------------------------------------
 
     @property
@@ -58,6 +57,30 @@ class ASDResults:
             f"<ASDResults(workdir='{self.workdir}', "
             f"simid='{self.simid}', tables=[{tables}])>"
         )
+
+    # ------------------------------------------------------------------
+    # Dict-style access
+    # ------------------------------------------------------------------
+
+    def get(self, key):
+        """
+        Retrieve a parsed observable table by name.
+
+        Returns None if not present.
+        """
+        return self._tables.get(key)
+
+    def __getitem__(self, key):
+        """
+        Dict-style access: results["totenergy"]
+        """
+        try:
+            return self._tables[key]
+        except KeyError:
+            raise KeyError(
+                f"Observable '{key}' not found. "
+                f"Available: {tuple(self._tables.keys())}"
+            )
 
     # ------------------------------------------------------------------
     # Averaged / global observables
@@ -103,7 +126,7 @@ class ASDResults:
         return self._tables.get("coord")
 
     # ------------------------------------------------------------------
-    # Scalar convenience accessors (optional but useful)
+    # Scalar convenience accessors (safe, optional)
     # ------------------------------------------------------------------
 
     @property
@@ -113,7 +136,11 @@ class ASDResults:
         """
         if self.totenergy is None:
             return None
-        return self.totenergy["Tot"][-1]
+        # tolerate different column naming conventions
+        for key in ("Tot", "tot"):
+            if key in self.totenergy:
+                return self.totenergy[key][-1]
+        return None
 
     @property
     def final_magnitude(self):
@@ -122,10 +149,77 @@ class ASDResults:
         """
         if self.averages is None:
             return None
-        return self.averages["<M>"][-1]
+        for key in ("<M>", "m", "M"):
+            if key in self.averages:
+                return self.averages[key][-1]
+        return None
 
     # ------------------------------------------------------------------
-    # Reloading (useful for interactive / long runs)
+    # Didactic / user-facing inspection helpers
+    # ------------------------------------------------------------------
+
+    def summary(self):
+        """
+        Print a concise, didactic overview of available results.
+        """
+        print("UppASD results summary")
+        print("-" * 32)
+        print(f"Workdir : {self.workdir}")
+        print(f"SimID   : {self.simid}")
+        print()
+
+        for key in self.available:
+            table = self._tables[key]
+            shape = self._infer_shape(table)
+            print(f"• {key:<15} {shape}")
+
+    def describe(self, verbose: bool = False):
+        """
+        Describe all available observables in more detail.
+
+        Parameters
+        ----------
+        verbose : bool
+            If True, also prints shapes of individual fields.
+        """
+        print("UppASD results description")
+        print("-" * 36)
+
+        for key in self.available:
+            self.help(key, verbose=verbose)
+            print()
+
+    def help(self, key: str, verbose: bool = False):
+        """
+        Describe a single observable table.
+
+        Parameters
+        ----------
+        key : str
+            Observable name
+        verbose : bool
+            If True, print detailed field shapes
+        """
+        table = self[key]
+
+        print(f"{key}")
+        print("-" * len(key))
+
+        kind = "dict" if isinstance(table, dict) else "array"
+        print(f"Type  : {kind}")
+        print(f"Shape : {self._infer_shape(table)}")
+
+        if isinstance(table, dict):
+            fields = list(table.keys())
+            print(f"Fields: {fields}")
+
+            if verbose:
+                for name, val in table.items():
+                    if hasattr(val, "shape"):
+                        print(f"  {name:<10} shape={val.shape}")
+
+    # ------------------------------------------------------------------
+    # Reloading (interactive / long runs)
     # ------------------------------------------------------------------
 
     def reload(self):
@@ -137,22 +231,31 @@ class ASDResults:
         self._tables.update(tables)
         self.simid = simid
 
-    def get(self, key):
-        """
-        Retrieve a parsed observable table by name.
+    # ------------------------------------------------------------------
+    # Internals
+    # ------------------------------------------------------------------
 
-        Returns None if not present.
+    @staticmethod
+    def _infer_shape(table):
         """
-        return self._tables.get(key)
+        Infer a human-readable shape description.
+        """
+        if table is None:
+            return "(none)"
 
-    def __getitem__(self, key):
-        """
-        Dict-style access: results["totenergy"]
-        """
-        try:
-            return self._tables[key]
-        except KeyError:
-            raise KeyError(
-                f"Observable '{key}' not found. "
-                f"Available: {tuple(self._tables.keys())}"
-            )
+        if isinstance(table, dict):
+            # common UppASD conventions
+            if {"mx", "my", "mz"} <= table.keys():
+                return "(Nt × Natom × 3)"
+            if {"bx", "by", "bz"} <= table.keys():
+                return "(Nt × Natom × 3)"
+            if {"rx", "ry"} <= table.keys():
+                return "(Nt × 2)"
+            if {"iter"} <= table.keys():
+                return "(Nt, …)"
+            return "(table)"
+
+        if hasattr(table, "shape"):
+            return str(table.shape)
+
+        return "(unknown)"

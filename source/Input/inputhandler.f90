@@ -642,13 +642,18 @@ contains
             ! START OF VARIABLES FOR TEMPERATURES
             !------------------------------------------------------------------------
 
-            case('temperature')
+            !case('temperature')
+            case('tempfile')
                read(ifile,'(a)',iostat=i_err) cache
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
                tempfile=adjustl(trim(cache))
 
             case('gradient')
                read(ifile,*,iostat=i_err) grad
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('temperature') ! Duplicate flag since "temp" is less logical but legacy
+               read(ifile,*,iostat=i_err) temp
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('temp')
@@ -1092,6 +1097,11 @@ contains
                read(ifile,*,iostat=i_err) heisout
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_ene') ! Duplicate flag of plotenergy to keep do_xxx naming convention
+               read(ifile,*,iostat=i_err) opt
+               if (opt == 'Y') plotenergy = 1
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('plotenergy')
                read(ifile,*,iostat=i_err) plotenergy
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
@@ -1275,6 +1285,10 @@ contains
             !------------------------------------------------------------------------
             ! START OF VARIABLES FOR SKYRMION NUMBER
             !------------------------------------------------------------------------
+
+            case('do_skyno') ! Duplicate flag to keep do_xxxx logic
+               read(ifile,*,iostat=i_err) skyno
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('skyno')
                read(ifile,*,iostat=i_err) skyno
