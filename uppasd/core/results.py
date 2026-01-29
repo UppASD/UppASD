@@ -1,101 +1,158 @@
 """
 results.py
 
-Thin container for UppASD simulation results.
+Lightweight container for UppASD simulation results.
 
-Design goals:
-- Zero intelligence
-- Zero assumptions
-- Explicit access to parsed outputs
-- Convenience properties for common observables
+Design principles:
+- One canonical internal storage: self._tables
+- Zero intelligence: no physics, no assumptions
+- Explicit named accessors for each result type
+- Introspection-friendly (__repr__, available)
 """
 
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
-from .output import read_outputs
+from .output import read_all_outputs
+
 
 
 class ASDResults:
     """
-    Lightweight results container.
+    Container for parsed UppASD output files.
 
     Parameters
     ----------
     workdir : str or Path
-        UppASD run directory
+        Directory containing UppASD output files.
     """
 
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
     def __init__(self, workdir):
-        self.workdir: Path = Path(workdir)
-        self.outputs: Dict[str, Optional[dict]] = {}
-        self.reload()
+        self.workdir = Path(workdir)
+
+        # Canonical internal storage for all parsed tables
+        self._tables: Dict[str, Any] = {}
+
+        tables, simid = read_all_outputs(self.workdir)
+        self._tables.update(tables)
+        self.simid = simid
 
     # ------------------------------------------------------------------
-    # Magnetization convenience
-    # ------------------------------------------------------------------
-
-    @property
-    def magnetization(self) -> Optional[dict]:
-        return self.outputs.get("magnetization")
-
-    @property
-    def step(self):
-        m = self.magnetization
-        return None if m is None else m["step"]
-
-    @property
-    def mx(self):
-        m = self.magnetization
-        return None if m is None else m["mx"]
-
-    @property
-    def my(self):
-        m = self.magnetization
-        return None if m is None else m["my"]
-
-    @property
-    def mz(self):
-        m = self.magnetization
-        return None if m is None else m["mz"]
-
-    @property
-    def m(self):
-        m = self.magnetization
-        return None if m is None else m["m"]
-
-    # ------------------------------------------------------------------
-    # Energy convenience
-    # ------------------------------------------------------------------
-
-    @property
-    def energy(self) -> Optional[dict]:
-        return self.outputs.get("energy")
-
-    @property
-    def total_energy(self):
-        e = self.energy
-        return None if e is None else e["energy"]
-
-    # ------------------------------------------------------------------
-    # Metadata / helpers
+    # Introspection
     # ------------------------------------------------------------------
 
     @property
     def available(self):
-        """List available output blocks."""
-        return [k for k, v in self.outputs.items() if v is not None]
+        """
+        Names of available result tables.
+        """
+        return tuple(self._tables.keys())
+
+    def __repr__(self):
+        tables = ", ".join(self.available) if self.available else "none"
+        return (
+            f"<ASDResults(workdir='{self.workdir}', "
+            f"simid='{self.simid}', tables=[{tables}])>"
+        )
 
     # ------------------------------------------------------------------
-    # Refresh (useful for interactive runs)
+    # Averaged / global observables
+    # ------------------------------------------------------------------
+
+    @property
+    def averages(self) -> Optional[dict]:
+        """Time-averaged magnetization and statistics."""
+        return self._tables.get("averages")
+
+    @property
+    def cumulants(self) -> Optional[dict]:
+        """Binder cumulants, susceptibility, heat capacity, etc."""
+        return self._tables.get("cumulants")
+
+    @property
+    def totenergy(self) -> Optional[dict]:
+        """Total and decomposed energies vs iteration."""
+        return self._tables.get("totenergy")
+
+    # ------------------------------------------------------------------
+    # Local / snapshot observables
+    # ------------------------------------------------------------------
+
+    @property
+    def moment(self) -> Optional[dict]:
+        """Local magnetic moments (multiple snapshots)."""
+        return self._tables.get("moment")
+
+    @property
+    def befftot(self) -> Optional[dict]:
+        """Local effective magnetic fields."""
+        return self._tables.get("befftot")
+
+    @property
+    def restart(self) -> Optional[dict]:
+        """Final spin configuration."""
+        return self._tables.get("restart")
+
+    @property
+    def coord(self) -> Optional[dict]:
+        """Expanded coordinates of the replicated system."""
+        return self._tables.get("coord")
+
+    # ------------------------------------------------------------------
+    # Scalar convenience accessors (optional but useful)
+    # ------------------------------------------------------------------
+
+    @property
+    def final_energy(self):
+        """
+        Final total energy (last sampled step).
+        """
+        if self.totenergy is None:
+            return None
+        return self.totenergy["Tot"][-1]
+
+    @property
+    def final_magnitude(self):
+        """
+        Final average magnetization magnitude.
+        """
+        if self.averages is None:
+            return None
+        return self.averages["<M>"][-1]
+
+    # ------------------------------------------------------------------
+    # Reloading (useful for interactive / long runs)
     # ------------------------------------------------------------------
 
     def reload(self):
-        """Re-read output files from disk."""
-        self.outputs = read_outputs(self.workdir)
+        """
+        Re-read output files from disk.
+        """
+        self._tables.clear()
+        tables, simid = read_all_outputs(self.workdir)
+        self._tables.update(tables)
+        self.simid = simid
 
-    # ------------------------------------------------------------------
+    def get(self, key):
+        """
+        Retrieve a parsed observable table by name.
 
-    def __repr__(self):
-        avail = ", ".join(self.available) or "none"
-        return f"ASDResults(workdir='{self.workdir}', outputs=[{avail}])"
+        Returns None if not present.
+        """
+        return self._tables.get(key)
+
+    def __getitem__(self, key):
+        """
+        Dict-style access: results["totenergy"]
+        """
+        try:
+            return self._tables[key]
+        except KeyError:
+            raise KeyError(
+                f"Observable '{key}' not found. "
+                f"Available: {tuple(self._tables.keys())}"
+            )

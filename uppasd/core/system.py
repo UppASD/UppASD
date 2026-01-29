@@ -21,6 +21,8 @@ import numpy as np
 class SpinSystem:
     """
     Container for an atomistic spin system.
+    Represents the UppASD *unit cell*.
+
 
     Parameters
     ----------
