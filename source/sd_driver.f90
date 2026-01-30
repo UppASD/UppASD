@@ -1171,6 +1171,16 @@ contains
       !   stop "Invalid do_gpu"
       !endif
       call timing(0,'Measurement   ','OF')
+
+            ! Print final polarization, chirality and local polarization
+      if (do_pol=='Y') then
+         call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,-1)
+      end if
+
+      if (do_spintemp=='Y') then
+         call spintemperature(Natom,Mensemble,mstep,1,simid,emomM,beff,2)
+      endif
+      
    end subroutine sd_mphaseGPU
 
    !---------------------------------------------------------------------------------
