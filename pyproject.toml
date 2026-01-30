@@ -31,7 +31,7 @@ uppasd = "uppasd"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["uppasd"]
+include = ["uppasd","uppasd.*"]
 #where = ["uppasd"]
 
 [tool.setuptools-git-versioning]
