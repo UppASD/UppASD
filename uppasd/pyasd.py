@@ -64,18 +64,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_na() -> int:
-     """Return number of atoms in one unit cell (InputData.NA)."""
-     try:
-          return int(_uppasd.get_na())
-     except Exception as e:
-          logger.error(f"Failed to get NA: {e}")
-          raise
+    """Return number of atoms in one unit cell (InputData.NA)."""
+    try:
+        return int(_uppasd.get_na())
+    except Exception as e:
+        logger.error(f"Failed to get NA: {e}")
+        raise
 
 
 def _check_nan(value: float, name: str = "value") -> None:
     """
     Check if a scalar value is NaN and log warning if so.
-    
+
     Parameters
     ----------
     value : float
@@ -90,7 +90,7 @@ def _check_nan(value: float, name: str = "value") -> None:
 def _check_array_nan(array: np.ndarray, name: str = "array") -> None:
     """
     Check if an array contains NaN values and log warning if so.
-    
+
     Parameters
     ----------
     array : ndarray
@@ -107,18 +107,19 @@ def _check_array_nan(array: np.ndarray, name: str = "array") -> None:
 # Simulation Control Routines
 # ============================================================================
 
+
 def run_uppasd() -> None:
     """
     Execute the UppASD simulation.
-    
+
     Runs the main simulation loop with parameters configured via setup_all()
     and initial_phase().
-    
+
     Raises
     ------
     RuntimeError
         If Fortran routine fails
-    
+
     Examples
     --------
     >>> sanity_check()
@@ -143,15 +144,15 @@ runuppasd = run_uppasd
 def sanity_check() -> None:
     """
     Perform a sanity check on the UppASD configuration.
-    
+
     Validates that all required parameters are set and consistent.
     Should be called before setup_all().
-    
+
     Raises
     ------
     RuntimeError
         If configuration is invalid
-    
+
     Examples
     --------
     >>> sanity_check()  # Returns silently if OK, raises if not
@@ -172,12 +173,12 @@ sanitycheck = sanity_check
 def num_procs() -> int:
     """
     Get the number of active OpenMP processors.
-    
+
     Returns
     -------
     nprocs : int
         Number of processors used by UppASD
-    
+
     Examples
     --------
     >>> n = num_procs()
@@ -206,9 +207,9 @@ numprocs = num_procs
 def print_logo() -> None:
     """
     Print UppASD logo and version information.
-    
+
     Calls Fortran routine to display startup banner.
-    
+
     Examples
     --------
     >>> print_logo()
@@ -228,23 +229,23 @@ printlogo = print_logo
 def setup_all() -> Tuple[int, int]:
     """
     Initialize all UppASD data structures.
-    
+
     Allocates and initializes arrays for atoms, moments, fields, etc.
     Must be called once before any measurements or relaxations.
     Should be called after reading input files.
-    
+
     Returns
     -------
     natom : int
         Number of atoms in the system
     mensemble : int
         Number of independent ensembles (usually 1)
-    
+
     Raises
     ------
     RuntimeError
         If initialization fails
-    
+
     Examples
     --------
     >>> sanity_check()
@@ -270,15 +271,15 @@ setupall = setup_all
 def initial_phase() -> None:
     """
     Perform the initial phase of the UppASD simulation.
-    
+
     Runs initialization including thermalization and initial measurements.
     Must be called after setup_all() and before run_uppasd().
-    
+
     Raises
     ------
     RuntimeError
         If initialization fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -301,15 +302,15 @@ initialphase = initial_phase
 def measure() -> None:
     """
     Perform measurement step of the UppASD simulation.
-    
+
     Records observables (magnetization, energy, etc.) at current timestep.
     Typically called after each integration step.
-    
+
     Raises
     ------
     RuntimeError
         If measurement fails
-    
+
     Examples
     --------
     >>> initial_phase()
@@ -328,11 +329,11 @@ def measure() -> None:
 def cleanup() -> None:
     """
     Clean up UppASD resources.
-    
+
     Deallocates all arrays and closes output files.
     Should be called at end of simulation.
     Safe to call multiple times.
-    
+
     Examples
     --------
     >>> try:
@@ -355,30 +356,31 @@ def cleanup() -> None:
 # Relaxation Methods
 # ============================================================================
 
+
 def relax_montecarlo(natom: int, mensemble: int) -> np.ndarray:
     """
     Perform Monte Carlo relaxation.
-    
+
     Relaxes spin system using Monte Carlo dynamics toward ground state
     or thermal equilibrium.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     moments : ndarray
         Final spin moments. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     RuntimeError
         If relaxation fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -404,27 +406,27 @@ relaxmontecarlo = relax_montecarlo
 def relax_metropolis(natom: int, mensemble: int) -> np.ndarray:
     """
     Perform Metropolis relaxation.
-    
+
     Relaxes spin system using Metropolis algorithm with single-spin
     flip dynamics.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     moments : ndarray
         Final spin moments. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     RuntimeError
         If relaxation fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -450,26 +452,26 @@ relaxmetropolis = relax_metropolis
 def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
     """
     Perform heat bath relaxation.
-    
+
     Relaxes spin system using heat bath dynamics.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     moments : ndarray
         Final spin moments. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     RuntimeError
         If relaxation fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -481,7 +483,7 @@ def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
         moments = _uppasd.relaxheatbath(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Heat bath moments")
-        logger.debug(f"✓ Heat bath relaxation complete")
+        logger.debug("✓ Heat bath relaxation complete")
         return moments
     except Exception as e:
         logger.error(f"Heat bath relaxation failed: {e}")
@@ -495,27 +497,27 @@ relaxheatbath = relax_heatbath
 def relax_llg(natom: int, mensemble: int) -> np.ndarray:
     """
     Perform LLG (Landau-Lifshitz-Gilbert) relaxation.
-    
+
     Relaxes spin system using micromagnetic Landau-Lifshitz-Gilbert
     equation with damping.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     moments : ndarray
         Final spin moments. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     RuntimeError
         If relaxation fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -527,7 +529,7 @@ def relax_llg(natom: int, mensemble: int) -> np.ndarray:
         moments = _uppasd.relaxllg(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "LLG relaxation moments")
-        logger.debug(f"✓ LLG relaxation complete")
+        logger.debug("✓ LLG relaxation complete")
         return moments
     except Exception as e:
         logger.error(f"LLG relaxation failed: {e}")
@@ -549,10 +551,10 @@ def relax(
 ) -> np.ndarray:
     """
     Perform relaxation with specified method and parameters.
-    
+
     General-purpose relaxation dispatcher that routes to the appropriate
     method based on ``mode`` parameter.
-    
+
     Parameters
     ----------
     natom : int
@@ -573,23 +575,23 @@ def relax(
         Integration timestep in seconds. Default: 1.0e-16
     damping : float, optional
         Damping factor (0 to 1). Default: 0.5
-    
+
     Returns
     -------
     moments : ndarray
         Final spin moments. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     ValueError
         If mode is invalid
     RuntimeError
         If relaxation fails or returns invalid data
-    
+
     Examples
     --------
     **LLG relaxation (spin dynamics):**
-    
+
     >>> natom, mensemble = setup_all()
     >>> initial_phase()
     >>> moments = relax(
@@ -600,26 +602,25 @@ def relax(
     ...     timestep=1e-15,
     ...     damping=0.1
     ... )
-    
+
     **Metropolis relaxation (MC):**
-    
+
     >>> moments = relax(natom, mensemble, mode='M', temperature=300)
-    
+
     **Heat bath:**
-    
+
     >>> moments = relax(natom, mensemble, mode='H', temperature=100)
     """
     # Validate mode
-    valid_modes = {'S', 'M', 'H'}
+    valid_modes = {"S", "M", "H"}
     if mode not in valid_modes:
         raise ValueError(
-            f"Invalid relaxation mode '{mode}'. "
-            f"Must be one of {valid_modes}"
+            f"Invalid relaxation mode '{mode}'. " f"Must be one of {valid_modes}"
         )
-    
-    method_names = {'S': 'LLG', 'M': 'Metropolis', 'H': 'Heat Bath'}
+
+    method_names = {"S": "LLG", "M": "Metropolis", "H": "Heat Bath"}
     method = method_names[mode]
-    
+
     try:
         logger.debug(
             f"Starting {method} relaxation: "
@@ -633,7 +634,7 @@ def relax(
                 set_ipmode(mode)
             except Exception as sync_err:
                 logger.debug(f"ip_mode sync skipped: {sync_err}")
-        
+
         moments = _uppasd.relax(
             natom, mensemble, mode, nstep, temperature, timestep, damping
         )
@@ -643,29 +644,31 @@ def relax(
         _check_array_nan(moments, f"{method} relaxation moments")
         logger.debug(f"✓ {method} relaxation complete")
         return moments
-        
+
     except Exception as e:
         logger.error(f"{method} relaxation failed: {e}")
         raise RuntimeError(f"Relaxation failed ({method}): {e}") from e
+
 
 # ============================================================================
 # Data Access: Magnetic Moments
 # ============================================================================
 
+
 def get_coords(natom: int) -> np.ndarray:
     """
     Get atomic coordinates.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
-    
+
     Returns
     -------
     coords : ndarray
         Atomic coordinates. Shape: (3, natom)
-    
+
     Examples
     --------
     >>> natom, _ = setup_all()
@@ -687,27 +690,27 @@ def get_coords(natom: int) -> np.ndarray:
 def get_moments(natom: int, mensemble: int) -> np.ndarray:
     """
     Get effective magnetic moments.
-    
+
     Retrieves the magnetic moment vectors for all atoms and ensembles.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     moments : ndarray
         Magnetic moments. Shape: (3, natom, mensemble)
         Each moment is a unit vector.
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -736,9 +739,9 @@ get_emom = get_moments
 def set_moments(moments: np.ndarray, natom: int, mensemble: int) -> None:
     """
     Set effective magnetic moments.
-    
+
     Sets the magnetic moment vectors for all atoms and ensembles.
-    
+
     Parameters
     ----------
     moments : ndarray
@@ -747,12 +750,12 @@ def set_moments(moments: np.ndarray, natom: int, mensemble: int) -> None:
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Raises
     ------
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -777,29 +780,30 @@ put_emom = set_moments
 # Data Access: Fields
 # ============================================================================
 
+
 def get_field(natom: int, mensemble: int) -> np.ndarray:
     """
     Get effective magnetic field.
-    
+
     Retrieves the effective field (sum of all interactions) for all atoms.
-    
+
     Parameters
     ----------
     natom : int
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Returns
     -------
     field : ndarray
         Effective field. Shape: (3, natom, mensemble)
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails or returns invalid data
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -824,9 +828,9 @@ get_beff = get_field
 def set_field(field: np.ndarray, natom: int, mensemble: int) -> None:
     """
     Set effective magnetic field.
-    
+
     Sets the external magnetic field applied to the system.
-    
+
     Parameters
     ----------
     field : ndarray
@@ -835,12 +839,12 @@ def set_field(field: np.ndarray, natom: int, mensemble: int) -> None:
         Number of atoms
     mensemble : int
         Number of ensembles
-    
+
     Raises
     ------
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> natom, mensemble = setup_all()
@@ -864,19 +868,19 @@ put_beff = set_field
 def get_hfield() -> np.ndarray:
     """
     Get external magnetic field.
-    
+
     Retrieves the applied external magnetic field.
-    
+
     Returns
     -------
     hfield : ndarray
         External field. Shape: (3,) representing (Bx, By, Bz) in Tesla
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -897,21 +901,21 @@ def get_hfield() -> np.ndarray:
 def set_hfield(hfield: np.ndarray) -> None:
     """
     Set external magnetic field.
-    
+
     Updates the applied external magnetic field.
-    
+
     Parameters
     ----------
     hfield : ndarray
         External field. Shape: (3,) representing (Bx, By, Bz) in Tesla
-    
+
     Raises
     ------
     ValueError
         If hfield has wrong shape or contains NaN
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -936,19 +940,19 @@ put_hfield = set_hfield
 def get_iphfield() -> np.ndarray:
     """
     Get initial-phase external magnetic field.
-    
+
     Retrieves the applied external magnetic field for the initial phase.
-    
+
     Returns
     -------
     iphfield : ndarray
         Initial-phase external field. Shape: (3,) representing (Bx, By, Bz) in Tesla
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -969,21 +973,21 @@ def get_iphfield() -> np.ndarray:
 def set_iphfield(iphfield: np.ndarray) -> None:
     """
     Set initial-phase external magnetic field.
-    
+
     Updates the applied external magnetic field for the initial phase.
-    
+
     Parameters
     ----------
     iphfield : ndarray
         Initial-phase external field. Shape: (3,) representing (Bx, By, Bz) in Tesla
-    
+
     Raises
     ------
     ValueError
         If iphfield has wrong shape or contains NaN
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1009,23 +1013,24 @@ put_iphfield = set_iphfield
 # Data Access: Energy and Observables
 # ============================================================================
 
+
 def get_energy() -> float:
     """
     Get total system energy.
-    
+
     Returns the sum of all interaction energies (exchange, anisotropy,
     external field, etc.).
-    
+
     Returns
     -------
     energy : float
         Total energy in units of meV (as set in UppASD)
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1047,14 +1052,14 @@ def get_energy() -> float:
 def get_nstep() -> int:
     """
     Get current simulation step number.
-    
+
     Returns the number of completed integration steps since initialization.
-    
+
     Returns
     -------
     nstep : int
         Current step number
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1074,21 +1079,21 @@ def get_nstep() -> int:
 def set_nstep(nstep: int) -> None:
     """
     Set simulation step number.
-    
+
     Updates the internal step counter to the specified value.
-    
+
     Parameters
     ----------
     nstep : int
         The new step number
-    
+
     Raises
     ------
     ValueError
         If nstep is negative
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1096,16 +1101,18 @@ def set_nstep(nstep: int) -> None:
     """
     if not isinstance(nstep, int):
         nstep = int(nstep)
-    
+
     if nstep < 0:
         raise ValueError(f"nstep must be non-negative, got {nstep}")
-    
+
     try:
         if hasattr(_uppasd, "put_nstep"):
             logger.debug(f"Setting step number to {nstep}")
             _uppasd.put_nstep(nstep)
         else:
-            logger.warning("put_nstep not available in _uppasd; step number not updated")
+            logger.warning(
+                "put_nstep not available in _uppasd; step number not updated"
+            )
     except Exception as e:
         logger.error(f"Failed to set step number: {e}")
         raise RuntimeError(f"Cannot set step number: {e}") from e
@@ -1118,19 +1125,19 @@ put_nstep = set_nstep
 def get_mcnstep() -> int:
     """
     Get current Monte Carlo step number.
-    
+
     Returns the number of completed Monte Carlo steps since initialization.
-    
+
     Returns
     -------
     mcnstep : int
         Current MC step number
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1150,21 +1157,21 @@ def get_mcnstep() -> int:
 def set_mcnstep(mcnstep: int) -> None:
     """
     Set Monte Carlo step number.
-    
+
     Updates the internal Monte Carlo step counter.
-    
+
     Parameters
     ----------
     mcnstep : int
         The new MC step number
-    
+
     Raises
     ------
     ValueError
         If mcnstep is negative
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1172,16 +1179,18 @@ def set_mcnstep(mcnstep: int) -> None:
     """
     if not isinstance(mcnstep, int):
         mcnstep = int(mcnstep)
-    
+
     if mcnstep < 0:
         raise ValueError(f"mcnstep must be non-negative, got {mcnstep}")
-    
+
     try:
         if hasattr(_uppasd, "put_mcnstep"):
             logger.debug(f"Setting MC step number to {mcnstep}")
             _uppasd.put_mcnstep(mcnstep)
         else:
-            logger.warning("put_mcnstep not available in _uppasd; MC step number not updated")
+            logger.warning(
+                "put_mcnstep not available in _uppasd; MC step number not updated"
+            )
     except Exception as e:
         logger.error(f"Failed to set MC step number: {e}")
         raise RuntimeError(f"Cannot set MC step number: {e}") from e
@@ -1194,6 +1203,7 @@ put_mcnstep = set_mcnstep
 # ============================================================================
 # Data Access: Input Mode
 # ============================================================================
+
 
 def get_ipmode() -> str:
     """
@@ -1270,15 +1280,16 @@ put_ipmode = set_ipmode
 # Data Access: Temperature
 # ============================================================================
 
+
 def get_temperature() -> float:
     """
     Get current simulation temperature.
-    
+
     Returns
     -------
     temperature : float
         Temperature in Kelvin
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1299,19 +1310,19 @@ def get_temperature() -> float:
 def set_temperature(temperature: float) -> None:
     """
     Set simulation temperature.
-    
+
     Parameters
     ----------
     temperature : float
         Temperature in Kelvin (must be >= 0)
-    
+
     Raises
     ------
     ValueError
         If temperature is negative
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1319,7 +1330,7 @@ def set_temperature(temperature: float) -> None:
     """
     if temperature < 0:
         raise ValueError(f"Temperature must be non-negative, got {temperature}")
-    
+
     try:
         logger.debug(f"Setting temperature to {temperature} K")
         _uppasd.put_temperature(temperature)
@@ -1335,17 +1346,17 @@ put_temperature = set_temperature
 def get_iptemperature() -> float:
     """
     Get initial-phase temperature.
-    
+
     Returns
     -------
     temperature : float
         Initial-phase temperature in Kelvin
-    
+
     Raises
     ------
     RuntimeError
         If retrieval fails or if get_iptemperature not available in Fortran
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1354,9 +1365,9 @@ def get_iptemperature() -> float:
     """
     if not hasattr(_uppasd, "get_iptemperature"):
         raise RuntimeError(
-            "_uppasd.build missing get_iptemperature(); rebuild UppASD to enable iptemperature retrieval"
+            "_uppasd.build missing get_iptemperature(); rebuild to enable iptemperature retrieval"
         )
-    
+
     try:
         logger.debug("Fetching initial-phase temperature")
         temperature = _uppasd.get_iptemperature()
@@ -1371,21 +1382,21 @@ def get_iptemperature() -> float:
 def put_iptemperature(temperature: float) -> None:
     """
     Set initial-phase temperature.
-    
+
     Updates the temperature for the initial phase relaxation.
-    
+
     Parameters
     ----------
     temperature : float
         Temperature in Kelvin (must be >= 0)
-    
+
     Raises
     ------
     ValueError
         If temperature is negative
     RuntimeError
         If setting fails or if put_iptemperature not available
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1393,12 +1404,12 @@ def put_iptemperature(temperature: float) -> None:
     """
     if temperature < 0:
         raise ValueError(f"Temperature must be non-negative, got {temperature}")
-    
+
     if not hasattr(_uppasd, "put_iptemperature"):
         raise RuntimeError(
-            "_uppasd.build missing put_iptemperature(); rebuild UppASD to enable iptemperature updates"
+            "_uppasd.build missing put_iptemperature(); rebuild to enable iptemperature updates"
         )
-    
+
     try:
         logger.debug(f"Setting initial-phase temperature to {temperature} K")
         _uppasd.put_iptemperature(temperature)
@@ -1414,12 +1425,12 @@ def put_iptemperature(temperature: float) -> None:
 def get_timestep() -> float:
     """
     Get current integration timestep.
-    
+
     Returns
     -------
     timestep : float
         Integration timestep in seconds
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1440,19 +1451,19 @@ def get_timestep() -> float:
 def set_timestep(timestep: float) -> None:
     """
     Set integration timestep.
-    
+
     Parameters
     ----------
     timestep : float
         Integration timestep in seconds
-    
+
     Raises
     ------
     ValueError
         If timestep is non-positive or NaN
     RuntimeError
         If setting fails
-    
+
     Examples
     --------
     >>> setup_all()
@@ -1460,10 +1471,10 @@ def set_timestep(timestep: float) -> None:
     """
     timestep = float(timestep)
     _check_nan(timestep, "timestep")
-    
+
     if timestep <= 0.0:
         raise ValueError(f"timestep must be positive, got {timestep}")
-    
+
     try:
         if hasattr(_uppasd, "put_delta_t"):
             logger.debug(f"Setting timestep to {timestep:.2e}")
@@ -1484,6 +1495,7 @@ put_delta_t = set_timestep
 # Magnon/LSWT Calculations (diamag module)
 # ============================================================================
 
+
 def setup_tensor_hamiltonian(
     na: int,
     natom: int,
@@ -1497,10 +1509,10 @@ def setup_tensor_hamiltonian(
 ) -> Tuple[np.ndarray, np.ndarray, int]:
     """
     Compute magnon Hamiltonian and eigenvalues/eigenvectors using LSWT.
-    
+
     Wraps the Fortran diamag.setup_tensor_hamiltonian() subroutine to compute
     magnon eigenvalues and eigenvectors for a given set of q-points.
-    
+
     Parameters
     ----------
     na : int
@@ -1523,7 +1535,7 @@ def setup_tensor_hamiltonian(
         Calculation type:
         - 0: Non-collinear AMS (default)
         - 1: Chern number calculation
-    
+
     Returns
     -------
     tuple
@@ -1531,7 +1543,7 @@ def setup_tensor_hamiltonian(
         - eigenvalues: ndarray (2*na, nq_ext) - magnon energies
         - eigenvectors: ndarray (2*na, 2*na, nq_ext, complex) - magnon modes
         - nq_ext: int - number of q-points after extension (typically 6*nq)
-    
+
     Raises
     ------
     ValueError
@@ -1545,18 +1557,20 @@ def setup_tensor_hamiltonian(
     mensemble = int(mensemble)
     nq = int(nq)
     flag = int(flag)
-    
+
     if na <= 0 or natom <= 0 or mensemble <= 0 or nq <= 0:
-        raise ValueError(f"Dimensions must be positive: na={na}, natom={natom}, mensemble={mensemble}, nq={nq}")
-    
+        raise ValueError(
+            f"Dimensions must be positive: na={na}, natom={natom}, mensemble={mensemble}, nq={nq}"
+        )
+
     if natom % na != 0:
         logger.warning(f"natom ({natom}) may not be evenly divisible by na ({na})")
-    
+
     emomm = np.asarray(emomm, dtype=np.float64)
     mmom = np.asarray(mmom, dtype=np.float64)
     q_vect = np.asarray(q_vect, dtype=np.float64)
     simid = str(simid)[:8].ljust(8)
-    
+
     # Check shapes
     if emomm.shape != (3, natom, mensemble):
         raise ValueError(f"emomm shape {emomm.shape} != (3, {natom}, {mensemble})")
@@ -1564,30 +1578,32 @@ def setup_tensor_hamiltonian(
         raise ValueError(f"mmom shape {mmom.shape} != ({natom}, {mensemble})")
     if q_vect.shape != (3, nq):
         raise ValueError(f"q_vect shape {q_vect.shape} != (3, {nq})")
-    
+
     if flag not in (0, 1):
         raise ValueError(f"flag must be 0 or 1, got {flag}")
-    
+
     # Check for NaN
     _check_array_nan(emomm, "emomm")
     _check_array_nan(mmom, "mmom")
     _check_array_nan(q_vect, "q_vect")
-    
+
     logger.debug(
         f"Computing magnons: na={na}, natom={natom}, mensemble={mensemble}, "
         f"nq={nq}, flag={flag}"
     )
-    
+
     try:
         # Call Fortran wrapper to setup tensor Hamiltonian
         # This will allocate and populate nc_eval_q, nc_evec_q (or Chern variants)
         # F2PY signature order: na, simid, emomm, mmom, q_vect, flag, [natom, mensemble, nq]
-        _uppasd.magnon_setup_tensor_hamiltonian(na, simid, emomm, mmom, q_vect, flag, natom, mensemble, nq)
-        
+        _uppasd.magnon_setup_tensor_hamiltonian(
+            na, simid, emomm, mmom, q_vect, flag, natom, mensemble, nq
+        )
+
         # Extended q-mesh (typically 6x)
         nq_ext = 6 * nq
         hdim = 2 * na
-        
+
         # Retrieve results from Fortran module globals
         if flag == 0:
             evals = _get_magnon_eigenvalues_q(hdim, nq_ext)
@@ -1595,7 +1611,7 @@ def setup_tensor_hamiltonian(
         else:
             evals = _get_magnon_eigenvalues_qchern(hdim, nq_ext)
             evecs = _get_magnon_eigenvectors_qchern(hdim, nq_ext)
-        
+
         # Fortran returns (hdim, nq_ext) and (hdim, hdim, nq_ext);
         # transpose to Python-friendly (nq_ext, hdim[, hdim])
         evals_py = np.ascontiguousarray(evals.T)
@@ -1606,7 +1622,7 @@ def setup_tensor_hamiltonian(
             f"eigenvectors shape {evecs_py.shape}"
         )
         return evals_py, evecs_py, nq_ext
-        
+
     except Exception as e:
         logger.error(f"Magnon calculation failed: {e}")
         raise RuntimeError(f"setup_tensor_hamiltonian failed: {e}") from e
@@ -1615,14 +1631,14 @@ def setup_tensor_hamiltonian(
 def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
     """
     Internal helper to retrieve magnon eigenvalues from Fortran module.
-    
+
     Parameters
     ----------
     hdim : int
         Hamiltonian dimension (2*na)
     nq_ext : int
         Extended number of q-points
-    
+
     Returns
     -------
     ndarray (hdim, nq_ext)
@@ -1630,7 +1646,9 @@ def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
     """
     try:
         evals = _uppasd.magnon_get_eigenvalues_q(hdim, nq_ext)
-        evals = np.array(evals, dtype=np.float64, copy=True)  # copy to own Python memory
+        evals = np.array(
+            evals, dtype=np.float64, copy=True
+        )  # copy to own Python memory
         _check_array_nan(evals, "magnon_eigenvalues_q")
         return evals
     except Exception as e:
@@ -1641,14 +1659,14 @@ def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
 def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
     """
     Internal helper to retrieve magnon eigenvectors from Fortran module.
-    
+
     Parameters
     ----------
     hdim : int
         Hamiltonian dimension (2*na)
     nq_ext : int
         Extended number of q-points
-    
+
     Returns
     -------
     ndarray (hdim, hdim, nq_ext, complex)
@@ -1656,7 +1674,9 @@ def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
     """
     try:
         evecs = _uppasd.magnon_get_eigenvectors_q(hdim, nq_ext)
-        evecs = np.array(evecs, dtype=np.complex128, copy=True)  # copy to own Python memory
+        evecs = np.array(
+            evecs, dtype=np.complex128, copy=True
+        )  # copy to own Python memory
         _check_array_nan(evecs, "magnon_eigenvectors_q")
         return evecs
     except Exception as e:
@@ -1667,14 +1687,14 @@ def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
 def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
     """
     Internal helper to retrieve magnon eigenvalues from Fortran module (Chern calculation).
-    
+
     Parameters
     ----------
     hdim : int
         Hamiltonian dimension (2*na)
     nq_ext : int
         Extended number of q-points
-    
+
     Returns
     -------
     ndarray (hdim, nq_ext)
@@ -1693,14 +1713,14 @@ def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
 def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
     """
     Internal helper to retrieve magnon eigenvectors from Fortran module (Chern calculation).
-    
+
     Parameters
     ----------
     hdim : int
         Hamiltonian dimension (2*na)
     nq_ext : int
         Extended number of q-points
-    
+
     Returns
     -------
     ndarray (hdim, hdim, nq_ext, complex)

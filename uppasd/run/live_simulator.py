@@ -15,11 +15,12 @@ Author: UppASD
 
 from __future__ import annotations
 
-from typing import Optional
-import numpy as np
-import os
 import io
-from contextlib import contextmanager, redirect_stdout, redirect_stderr
+import os
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from typing import Optional
+
+import numpy as np
 
 from uppasd import pyasd
 from uppasd.run.simulator import ASDWorkspace, UppASDSimulator
@@ -140,10 +141,11 @@ class LiveSimulator:
         # Default temperature to current state
         if temperature is None:
             temperature = pyasd.get_iptemperature()
-            
+
         # Safeguard against zero temperature in Heat Bath MC
-        if mode=="H" and temperature<1e-6:
-            temperature=1e-6
+        if mode == "H" and temperature < 1e-6:
+            temperature = 1e-6
+
         # IMPORTANT:
         # pyasd.relax handles:
         # - ipmode

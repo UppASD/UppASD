@@ -237,6 +237,7 @@ def read_coord(workdir, simid: Optional[str] = None) -> Dict:
         "raw": data,
     }
 
+
 def read_site_scalar(workdir, simid, prefix):
     """
     Read site-resolved scalar observable.
@@ -247,9 +248,6 @@ def read_site_scalar(workdir, simid, prefix):
     Example:
         dens_skynum.<simid>.out
     """
-    import numpy as np
-    from pathlib import Path
-
     filename = f"{prefix}.{simid}.out"
     path = Path(workdir) / filename
 
@@ -267,7 +265,8 @@ def read_site_scalar(workdir, simid, prefix):
         "value": data[:, 2],
         "raw": data,
     }
-    
+
+
 def read_cmass_skynum(workdir, simid):
     path = Path(workdir) / f"cmass_skynum.{simid}.out"
     data = np.loadtxt(path, comments="#")
@@ -279,7 +278,8 @@ def read_cmass_skynum(workdir, simid):
         "rz": data[:, 3],
         "raw": data,
     }
-    
+
+
 def read_trajectories(workdir, simid):
     """
     Read all trajectory.<simid>.<ispin>.<iens>.out files.
@@ -294,7 +294,7 @@ def read_trajectories(workdir, simid):
     for path in Path(workdir).glob(pattern):
         parts = path.name.split(".")
         ispin = int(parts[-3])
-        iens  = int(parts[-2])
+        iens = int(parts[-2])
 
         data = np.loadtxt(path, comments="#")
 
@@ -303,12 +303,11 @@ def read_trajectories(workdir, simid):
             "mx": data[:, 2],
             "my": data[:, 3],
             "mz": data[:, 4],
-            "m":  data[:, 5],
+            "m": data[:, 5],
             "raw": data,
         }
 
     return traj
-
 
 
 def read_all_outputs(workdir):
@@ -396,10 +395,10 @@ def read_all_outputs(workdir):
         tables["cmass_skynum"] = read_cmass_skynum(workdir, simid)
     except FileNotFoundError:
         pass
-    
+
     # trajectories
     traj = read_trajectories(workdir, simid)
     if traj:
         tables["trajectory"] = traj
-    
+
     return tables, simid

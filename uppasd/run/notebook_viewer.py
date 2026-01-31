@@ -16,18 +16,16 @@ Author: Anders Bergman + ChatGPT
 
 from __future__ import annotations
 
-import numpy as np
-import matplotlib.pyplot as plt
+import io
 import os
 import sys
-import io
-from contextlib import contextmanager, redirect_stdout, redirect_stderr
-
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from typing import Optional
 
 import ipywidgets as widgets
-from IPython.display import display, clear_output
+import matplotlib.pyplot as plt
+from IPython.display import clear_output, display
 
 # ----------------------------------------------------------------------
 # Helper dataclass for visualization settings

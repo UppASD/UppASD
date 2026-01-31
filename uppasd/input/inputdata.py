@@ -95,7 +95,7 @@ class InputBlock:
         """
         Write this block to an open file handle.
         Format: key value (space-separated, no equals sign)
-        
+
         Multi-row values (2D arrays like cell) are written with:
         - First row: "key row1"
         - Subsequent rows: whitespace-padded to align
@@ -119,7 +119,7 @@ class InputBlock:
     def _format_value(value):
         """
         Format values in a conservative UppASD-compatible way.
-        
+
         Returns:
             - For 2D arrays (cell): list of space-separated row strings
             - For 1D arrays/lists: space-separated string
@@ -129,7 +129,7 @@ class InputBlock:
             return "T" if value else "F"
         if isinstance(value, (int, float)):
             return str(value)
-        
+
         # Handle NumPy arrays
         if hasattr(value, "shape"):
             # 2D array (e.g., cell matrix)
@@ -141,7 +141,7 @@ class InputBlock:
             # 1D array
             elif len(value.shape) == 1:
                 return " ".join(str(v) for v in value)
-        
+
         # Handle Python lists/tuples
         if isinstance(value, (list, tuple)):
             # Check if it's a list of lists (2D)
@@ -152,7 +152,7 @@ class InputBlock:
                 return lines
             # 1D list
             return " ".join(str(v) for v in value)
-        
+
         return str(value)
 
 
