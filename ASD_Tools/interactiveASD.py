@@ -10,6 +10,7 @@ The script also includes functions for creating a lookup table for coloring the 
 cycling through different color schemes, and taking screenshots of the visualization.
 
 Author: Anders Bergman
+Updated: Use new UppASD Python interface
 """
 
 import glob
@@ -24,19 +25,9 @@ from scipy.ndimage import gaussian_filter
 from vtk.util import numpy_support
 from vtkmodules.vtkCommonColor import vtkColorSeries
 
-import uppasd.pyasd as pyasd
-import uppasd.simulator as sim
-
-
-import glob
-from copy import copy, deepcopy
-from math import acos, atan2
-
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-import numpy as np
-import vtk
-from scipy.ndimage import gaussian_filter
+from uppasd.run.simulator import ASDWorkspace, UppASDSimulator
+from uppasd.core.results import ASDResults
+from uppasd import pyasd
 from vtk.util import numpy_support
 from vtkmodules.vtkCommonColor import vtkColorSeries
 
@@ -278,9 +269,14 @@ def CheckAbort(obj, event):
 
 
 def main():
-    # Instantiate the ASD simulation object
-    asd = sim.Simulator()
-    asd.init_simulation()
+    # Initialize workspace and simulator using new interface
+    workspace = ASDWorkspace(".", clean=False)
+    simulator = UppASDSimulator(workspace)
+    simulator.initialize()
+    
+    # Get system information
+    natom = simulator.natom
+    mensemble = simulator.mensemble
 
     renWin = vtk.vtkRenderWindow()
     ren = vtk.vtkOpenGLRenderer()
@@ -304,16 +300,17 @@ def main():
     number_of_screenshots = 1
 
     # ASD STUFF
-    # Load moments and coordinates from Fortran
-    initmom = asd.moments[:, :, 0]
-    currmom = asd.moments[:, :, 0].T
+    # Load moments and coordinates from Fortran using new interface
+    # Get initial moments from pyasd
+    initmom = pyasd.get_emom(natom, mensemble)  # Returns (3, natom, mensemble)
+    currmom = initmom[:, :, 0].T  # Transpose to (natom, 3)
     vecz = numpy_support.numpy_to_vtk(currmom, deep=False)
 
-    initcol = asd.moments[2, :, 0]
-    currcol = asd.moments[2, :, 0].T
+    initcol = initmom[2, :, 0]  # z-component
+    currcol = initmom[2, :, 0].T
     colz = numpy_support.numpy_to_vtk(currcol, deep=False)
 
-    # vecz,colz=(readVectorsData(directionsFile,0,nrAtoms,Nmax))
+    # vecz,colz=(readVectorsData(directionsFile,0,natom,Nmax))
 
     # Size of system
     Nmax = 1000000
@@ -333,10 +330,10 @@ def main():
 
     # Read atom positions
     atomPoints = vtk.vtkPoints()
-    coords = pyasd.get_coords(asd.natom)
+    coords = pyasd.get_coords(natom)  # Returns (3, natom)
     atomData = numpy_support.numpy_to_vtk(coords.T, deep=False)
     atomPoints.SetData(atomData)
-    nrAtoms = asd.natom
+    nrAtoms = natom
     # atomData, nrAtoms = self.readAtoms(atomsFile)
     print("Number of atoms: ", nrAtoms)
     Datatest.SetPoints(atomPoints)
@@ -524,8 +521,7 @@ def main():
     # Text
     # create a text actor for Temperature
     temptxt = vtk.vtkTextActor()
-    # temp='{:4.3f}'.format(asd.inputdata.iptemp[0])
-    temp = "{:4.3f}".format(0)
+    temp = "{:4.3f}".format(pyasd.get_iptemperature())
     temptxt.SetInput("T = " + temp + " K")
     temptxtprop = temptxt.GetTextProperty()
     temptxtprop.SetFontFamilyToArial()
@@ -536,8 +532,8 @@ def main():
 
     # create a text actor for Field
     fieldtxt = vtk.vtkTextActor()
-    bz = "{:4.1f}".format(0)
-    # bz='{:4.1f}'.format(asd.inputdata.iphfield[2])
+    iphfield = pyasd.get_iphfield()
+    bz = "{:4.1f}".format(iphfield[2])
     fieldtxt.SetInput("Bz = " + bz + " T")
     fieldtxtprop = fieldtxt.GetTextProperty()
     fieldtxtprop.SetFontFamilyToArial()
@@ -627,34 +623,35 @@ def main():
         Returns:
         None
         """
+        def log_simulation_state(relax_type):
+            """Log current simulation parameters before relaxation."""
+            temp = pyasd.get_iptemperature()
+            iphfield = pyasd.get_iphfield()
+            print(f"\n{'='*60}")
+            print(f"Starting {relax_type} relaxation (10 steps)")
+            print(f"  Initial-phase Temperature: {temp:.6f} K")
+            print(f"  Initial-phase Magnetic field: Bx={iphfield[0]:.4f}, By={iphfield[1]:.4f}, Bz={iphfield[2]:.4f} T")
+            print(f"{'='*60}\n")
+        
         global number_of_screenshots
         key = obj.GetKeySym()
-
-        def set_mode_for_relax(mode_char):
-            """Keep ip_mode and relax mode in sync when supported."""
-            if hasattr(asd.inputdata, "update_ipmode"):
-                try:
-                    asd.inputdata.update_ipmode(mode_char)
-                except Exception:
-                    pass
 
         if key == "P":
             Screenshot(renWin)
             print("Screenshot taken")
         if key == "0":
             print("Resetting UppASD")
-            asd.put_moments(initmom[:, :])
-            vecz = numpy_support.numpy_to_vtk(initmom[:, :].T)
+            pyasd.put_emom(initmom, natom, mensemble)
+            vecz = numpy_support.numpy_to_vtk(initmom[:, :, 0].T)
             colz = numpy_support.numpy_to_vtk(initcol)
             Datatest.GetPointData().SetVectors(vecz)
             Datatest.GetPointData().SetScalars(colz)
         if key == "M" or key == "m":
-            print("Running UppASD")
-            set_mode_for_relax("M")
-            asd.relax(mode="M", temperature=asd.inputdata.iptemp)
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
+            # log_simulation_state("Metropolis MC")
+            simulator.relax(mode='M', nstep=50, temperature=pyasd.get_iptemperature())
+            moments = pyasd.get_emom(natom, mensemble)
+            currmom = moments[:, :, 0].T
+            currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
             colz = numpy_support.numpy_to_vtk(currcol)
             Datatest.GetPointData().SetVectors(vecz)
@@ -663,13 +660,11 @@ def main():
             if key == "M":
                 Screenshot(renWin)
         if key == "H" or key == "h":
-            print("Running UppASD")
-            set_mode_for_relax("H")
-            safe_temp = max(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 1.0e-8)
-            asd.relax(mode="H", temperature=safe_temp + 1.0e-6)
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
+            # log_simulation_state("Heat Bath MC")
+            simulator.relax(mode='H', nstep=50, temperature=pyasd.get_iptemperature()+1.0e-6)
+            moments = pyasd.get_emom(natom, mensemble)
+            currmom = moments[:, :, 0].T
+            currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
             colz = numpy_support.numpy_to_vtk(currcol)
             Datatest.GetPointData().SetVectors(vecz)
@@ -678,12 +673,11 @@ def main():
             if key == "H":
                 Screenshot(renWin)
         if key == "S" or key == "s":
-            print("Running UppASD")
-            set_mode_for_relax("S")
-            asd.relax(mode="S", temperature=asd.inputdata.iptemp)
-            print("Updating graphics")
-            currmom = asd.moments[:, :, 0].T
-            currcol = asd.moments[2, :, 0].T
+            # log_simulation_state("LLG relaxation")
+            simulator.relax(mode='S', nstep=50, temperature=pyasd.get_iptemperature())
+            moments = pyasd.get_emom(natom, mensemble)
+            currmom = moments[:, :, 0].T
+            currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
             colz = numpy_support.numpy_to_vtk(currcol)
             Datatest.GetPointData().SetVectors(vecz)
@@ -691,79 +685,53 @@ def main():
             renWin.Render()
             if key == "S":
                 Screenshot(renWin)
+        if key == "B":
+            pyasd.set_iphfield(pyasd.get_iphfield() + np.array([0.0, 0.0, 1.0]))
+            iphfield = pyasd.get_iphfield()
+            bz = "{:4.1f}".format(iphfield[2])
+            fieldtxt.SetInput("Bz = " + bz + " T")
+        if key == "b":
+            pyasd.set_iphfield(pyasd.get_iphfield() - np.array([0.0, 0.0, 1.0]))
+            iphfield = pyasd.get_iphfield()
+            bz = "{:4.1f}".format(iphfield[2])
+            fieldtxt.SetInput("Bz = " + bz + " T")
+        if key == "N":
+            pyasd.set_iphfield(pyasd.get_iphfield() + np.array([0.0, 0.0, 10.0]))
+            iphfield = pyasd.get_iphfield()
+            bz = "{:4.1f}".format(iphfield[2])
+            fieldtxt.SetInput("Bz = " + bz + " T")
+        if key == "n":
+            pyasd.set_iphfield(pyasd.get_iphfield() - np.array([0.0, 0.0, 10.0]))
+            iphfield = pyasd.get_iphfield()
+            bz = "{:4.1f}".format(iphfield[2])
+            fieldtxt.SetInput("Bz = " + bz + " T")
+        if key == "T":
+            temp = pyasd.get_iptemperature() + 1.0
+            pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+        if key == "t":
+            temp = max(pyasd.get_iptemperature() - 1.0, 1.0e-5)
+            pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+        if key == "Y":
+            temp = pyasd.get_iptemperature() + 10.0
+            pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+        if key == "y":
+            temp = max(pyasd.get_iptemperature() - 10.0, 1.0e-5)
+            pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
         if key == "c" or key == "C":
             cycleColorScheme(lut, colorSeries, backwards=(key == "c"))
             lut.Build()
-        # if key == "C":
-        #   asd.inputdata.ipmode='Q'
-        #   asd.pyasd.initialphase()
-        #   currmom=asd.momentdata.emom[:,:,0].T
-        #   currcol=asd.momentdata.emom[2,:,0].T
-        #   vecz=numpy_support.numpy_to_vtk(currmom)
-        #   colz=numpy_support.numpy_to_vtk(currcol)
-        #   Datatest.GetPointData().SetVectors(vecz)
-        #   Datatest.GetPointData().SetScalars(colz)
-        # if key == "X":
-        #   asd.inputdata.ipmode='Y'
-        #   asd.pyasd.initialphase()
-        #   currmom=asd.momentdata.emom[:,:,0].T
-        #   currcol=asd.momentdata.emom[2,:,0].T
-        #   vecz=numpy_support.numpy_to_vtk(currmom)
-        #   colz=numpy_support.numpy_to_vtk(currcol)
-        #   Datatest.GetPointData().SetVectors(vecz)
-        #   Datatest.GetPointData().SetScalars(colz)
-        if key == "B":
-            asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 1.0
-            asd.inputdata.update_iphfield()
-            bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-            fieldtxt.SetInput("Bz = " + bz + " T")
-        if key == "b":
-            asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] - 1.0
-            asd.inputdata.update_iphfield()
-            bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-            fieldtxt.SetInput("Bz = " + bz + " T")
-        if key == "N":
-            asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] + 10.0
-            asd.inputdata.update_iphfield()
-            bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-            fieldtxt.SetInput("Bz = " + bz + " T")
-        if key == "n":
-            asd.inputdata.iphfield[2] = asd.inputdata.iphfield[2] - 10.0
-            asd.inputdata.update_iphfield()
-            bz = "{:4.1f}".format(asd.inputdata.iphfield[2])
-            fieldtxt.SetInput("Bz = " + bz + " T")
-        if key == "T":
-            asd.inputdata.iptemp = asd.inputdata.iptemp + 1.0
-            asd.inputdata.update_ipmax(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 0.0) + 1.0
-            asd.inputdata.update_iptemp()
-            temp = "{:4.3f}".format(asd.inputdata.iptemp)
-            temptxt.SetInput("T = " + temp + " K")
-        if key == "t":
-            asd.inputdata.iptemp = max((asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0) - 1.0, 1.0e-5)
-            asd.inputdata.update_iptemp()
-            temp = "{:4.3f}".format(asd.inputdata.iptemp)
-            temptxt.SetInput("T = " + temp + " K")
-        if key == "Y":
-            asd.inputdata.iptemp = max(asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0, 0.0) + 10.0
-            asd.inputdata.update_iptemp()
-            temp = "{:4.3f}".format(asd.inputdata.iptemp)
-            temptxt.SetInput("T = " + temp + " K")
-        if key == "y":
-            asd.inputdata.iptemp = max((asd.inputdata.iptemp if asd.inputdata.iptemp is not None else 0.0) - 10.0, 1.0e-5)
-            asd.inputdata.update_iptemp()
-            temp = "{:4.3f}".format(asd.inputdata.iptemp)
-            temptxt.SetInput("T = " + temp + " K")
         if key == "g":
             vector.GetProperty().SetInterpolationToGouraud()
         if key == "p":
             vector.GetProperty().SetInterpolationToPBR()
-        # if key == "m":
-        #   vector.SetVisibility(abs(1-vector.GetVisibility()))
         if key == "i" or key == "I":
-            # print('-....-')
-            # cdata = asd.momentdata.emom[2, :, 0].T
-            asd.get_moments()
-            cdata = asd.moments[2, :, 0].T
+            # Get moments and compute FFT
+            moments = pyasd.get_emom(natom, mensemble)
+            cdata = moments[2, :, 0]
             xdim = int(np.sqrt(cdata.shape)[0])
             cmat = cdata.reshape((xdim, xdim))
             fmat = np.abs(np.fft.fft2(cmat.T))
@@ -771,19 +739,21 @@ def main():
             fsgau = gaussian_filter(fmat, sigma=1.0)
             fsmat = np.fft.fftshift(fsgau)
             fsmat = np.log(fsmat + 1.0)
-
-            # Call the function
             plot_static_correlation(fsmat, do_log=(key == "i"))
 
         if key == "a":
             atom.SetVisibility(abs(1 - atom.GetVisibility()))
 
         if key == "v":
-            vector.SetVisibility(abs(1 - atom.GetVisibility()))
+            vector.SetVisibility(abs(1 - vector.GetVisibility()))
 
-        asd.calculate_energy()
-        ene = "{:6.4f}".format(asd.energy)
-        enetxt.SetInput("E= " + ene + " mRy/atom")
+        # Load and display results
+        results = ASDResults(workspace.path)
+        if results.final_energy is not None:
+            ene = "{:6.4f}".format(results.final_energy)
+        else:
+            ene = "{:6.4f}".format(0.0)
+        enetxt.SetInput("E = " + ene + " mRy/atom")
         renWin.Render()
 
     # Render scene

@@ -18,6 +18,10 @@ from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import sys
+import io
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from dataclasses import dataclass
 from typing import Optional
@@ -35,6 +39,37 @@ class ViewerConfig:
     stride: int = 1
     cmap: str = "coolwarm"
     figsize: tuple = (6, 6)
+
+
+@contextmanager
+def _suppress_output():
+    """Context manager that suppresses stdout and stderr at the OS level.
+
+    This redirects file descriptors 1 and 2 to os.devnull so external
+    libraries (Fortran/C) writing to stdout/stderr do not print to the
+    notebook output cell.
+    """
+    devnull = os.open(os.devnull, os.O_RDWR)
+    # Save original file descriptors
+    old_stdout_fd = os.dup(1)
+    old_stderr_fd = os.dup(2)
+    try:
+        # Redirect low-level fds
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+
+        # Also suppress Python-level sys.stdout/sys.stderr
+        sio_out = io.StringIO()
+        sio_err = io.StringIO()
+        with redirect_stdout(sio_out), redirect_stderr(sio_err):
+            yield
+    finally:
+        # Restore original fds
+        os.dup2(old_stdout_fd, 1)
+        os.dup2(old_stderr_fd, 2)
+        os.close(devnull)
+        os.close(old_stdout_fd)
+        os.close(old_stderr_fd)
 
 
 # ----------------------------------------------------------------------
@@ -66,6 +101,10 @@ class NotebookLiveViewer:
         self.sim = sim
         self.config = config or ViewerConfig()
 
+        # Cache temperature and field for step calls
+        self.temperature = self.sim.get_temperature()
+        self.b_z = self.sim.get_field()[2]
+
         # Create figure upfront in non-interactive mode to prevent auto-display
         plt.ioff()
         self._fig, self._ax = plt.subplots(figsize=self.config.figsize)
@@ -84,7 +123,9 @@ class NotebookLiveViewer:
 
     def step(self, mode: str, nstep: int):
         """Perform simulation step and update plot."""
-        self.sim.step(mode, nstep)
+        # Suppress Fortran / underlying library stdout/stderr while stepping
+        with _suppress_output():
+            self.sim.step(mode, temperature=self.temperature, nstep=nstep)
         self.update_plot()
 
     def reset(self):
@@ -115,8 +156,8 @@ class NotebookLiveViewer:
         )
 
         self.slider_Bz = widgets.FloatSlider(
-            value=self.sim.get_ipfield()[2],
-            min=-50.0, max=50.0, step=0.5,
+            value=self.sim.get_field()[2],
+            min=-500.0, max=500.0, step=10,
             description="Bz (T)"
         )
 
@@ -155,13 +196,15 @@ class NotebookLiveViewer:
         self.step(mode, nstep)
 
     def _on_temperature_change(self, change):
-        self.sim.set_temperature(change["new"])
+        self.temperature = change["new"]
+        self.sim.set_temperature(self.temperature)
         self._update_status()
 
     def _on_field_change(self, change):
-        B = self.sim.get_ipfield().copy()
-        B[2] = change["new"]
-        self.sim.set_ipfield(B)
+        self.b_z = change["new"]
+        B = self.sim.get_field().copy()
+        B[2] = self.b_z
+        self.sim.set_field(B)
         self._update_status()
 
     # ------------------------------------------------------------------
@@ -203,7 +246,7 @@ class NotebookLiveViewer:
     def _update_status(self):
         E = self.sim.calculate_energy()
         T = self.sim.get_temperature()
-        B = self.sim.get_ipfield()
+        B = self.sim.get_field()
 
         self.status.value = f"""
         <b>Status</b><br>

@@ -17,9 +17,39 @@ from __future__ import annotations
 
 from typing import Optional
 import numpy as np
+import os
+import io
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from uppasd import pyasd
 from uppasd.run.simulator import ASDWorkspace, UppASDSimulator
+
+
+@contextmanager
+def _suppress_output():
+    """Suppress OS-level and Python-level stdout/stderr for external libs.
+
+    Redirects file descriptors 1 and 2 to /dev/null and also redirects
+    Python's sys.stdout/sys.stderr so that both low-level and Python
+    printed text are silenced inside the context.
+    """
+    devnull = os.open(os.devnull, os.O_RDWR)
+    old_stdout_fd = os.dup(1)
+    old_stderr_fd = os.dup(2)
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+
+        sio_out = io.StringIO()
+        sio_err = io.StringIO()
+        with redirect_stdout(sio_out), redirect_stderr(sio_err):
+            yield
+    finally:
+        os.dup2(old_stdout_fd, 1)
+        os.dup2(old_stderr_fd, 2)
+        os.close(devnull)
+        os.close(old_stdout_fd)
+        os.close(old_stderr_fd)
 
 
 class LiveSimulator:
@@ -60,16 +90,18 @@ class LiveSimulator:
         if self._initialized:
             return
 
-        self._sim = UppASDSimulator(self.workspace)
-        self._sim.initialize()
+        # Suppress stdout/stderr from underlying Fortran/Python initialization
+        with _suppress_output():
+            self._sim = UppASDSimulator(self.workspace)
+            self._sim.initialize()
 
-        self.natom = self._sim.natom
-        self.mensemble = self._sim.mensemble
+            self.natom = self._sim.natom
+            self.mensemble = self._sim.mensemble
 
-        # Cache initial moments for reset
-        self._emom0 = pyasd.get_emom(self.natom, self.mensemble).copy()
+            # Cache initial moments for reset
+            self._emom0 = pyasd.get_emom(self.natom, self.mensemble).copy()
 
-        self._initialized = True
+            self._initialized = True
 
     # ------------------------------------------------------------------
     # Internal guard
@@ -105,9 +137,13 @@ class LiveSimulator:
         if nstep <= 0:
             return
 
+        # Default temperature to current state
         if temperature is None:
             temperature = pyasd.get_iptemperature()
             
+        # Safeguard against zero temperature in Heat Bath MC
+        if mode=="H" and temperature<1e-6:
+            temperature=1e-6
         # IMPORTANT:
         # pyasd.relax handles:
         # - ipmode
