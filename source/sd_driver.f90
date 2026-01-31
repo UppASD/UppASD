@@ -1233,7 +1233,7 @@ contains
       endif
 
       ! Calculate external fields
-      call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,&
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field,&
          do_bpulse,sitefld,sitenatomfld)
 
       ! Main initial loop

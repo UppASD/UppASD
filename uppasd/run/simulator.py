@@ -185,19 +185,55 @@ class UppASDSimulator:
             setter(value)
 
     # ------------------------------------------------------------------
-    def relax(self):
+
+    def relax(self, mode='S', nstep=10, temperature=None, timestep=None, damping=None):
+        """
+        Run a relaxation with specified method and parameters.
+        
+        Parameters
+        ----------
+        mode : {'S', 'M', 'H'}, optional
+            Relaxation method:
+            - 'S': Spin-dynamics (LLG, default)
+            - 'M': Metropolis (single-spin flip MC)
+            - 'H': Heat bath
+            Default: 'S'
+        nstep : int, optional
+            Number of relaxation steps. Default: 10
+        temperature : float, optional
+            Temperature in Kelvin. If None, uses current Fortran state.
+            Default: None
+        timestep : float, optional
+            Integration timestep in seconds. If None, uses current Fortran state.
+            Default: None
+        damping : float, optional
+            Damping factor (0 to 1). If None, uses current Fortran state.
+            Default: None
+        """
         with self._in_workspace():
             if self.natom is None or self.mensemble is None:
                 raise RuntimeError("Simulator not initialized")
 
-            pyasd.relax_llg(self.natom, self.mensemble)
+            # Build kwargs with only provided parameters
+            relax_kwargs = {
+                'mode': mode,
+                'nstep': nstep,
+            }
+            if temperature is not None:
+                relax_kwargs['temperature'] = temperature
+            if timestep is not None:
+                relax_kwargs['timestep'] = timestep
+            if damping is not None:
+                relax_kwargs['damping'] = damping
 
-    def relax_mc(self):
+            pyasd.relax(self.natom, self.mensemble, **relax_kwargs)
+
+    def relax_mc(self, **kwargs):
         with self._in_workspace():
             if self.natom is None or self.mensemble is None:
                 raise RuntimeError("Simulator not initialized")
 
-            pyasd.relax_mc(self.natom, self.mensemble)
+            pyasd.relax(self.natom, self.mensemble, **kwargs)
 
     def measure(self):
         with self._in_workspace():

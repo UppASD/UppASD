@@ -128,7 +128,7 @@ def run_uppasd() -> None:
     >>> measure()
     """
     try:
-        logger.info("Starting UppASD simulation")
+        logger.debug("Starting UppASD simulation")
         _uppasd.runuppasd()
         logger.debug("✓ Simulation completed")
     except Exception as e:
@@ -252,11 +252,11 @@ def setup_all() -> Tuple[int, int]:
     >>> print(f"System: {natom} atoms, {mensemble} ensembles")
     """
     try:
-        logger.info("Setting up all UppASD data structures")
+        logger.debug("Setting up all UppASD data structures")
         natom, mensemble = _uppasd.setupall()
         natom = int(natom)
         mensemble = int(mensemble)
-        logger.info(f"✓ Setup complete: {natom} atoms, {mensemble} ensembles")
+        logger.debug(f"✓ Setup complete: {natom} atoms, {mensemble} ensembles")
         return natom, mensemble
     except Exception as e:
         logger.error(f"Failed to setup simulation: {e}")
@@ -286,7 +286,7 @@ def initial_phase() -> None:
     >>> run_uppasd()
     """
     try:
-        logger.info("Running initial phase")
+        logger.debug("Running initial phase")
         _uppasd.initialphase()
         logger.debug("✓ Initial phase completed")
     except Exception as e:
@@ -386,7 +386,7 @@ def relax_montecarlo(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_montecarlo(natom, mensemble)
     """
     try:
-        logger.info(f"Starting MC relaxation ({natom} atoms, {mensemble} ens.)")
+        logger.debug(f"Starting MC relaxation ({natom} atoms, {mensemble} ens.)")
         moments = _uppasd.relaxmontecarlo(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "MC relaxation moments")
@@ -432,7 +432,7 @@ def relax_metropolis(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_metropolis(natom, mensemble)
     """
     try:
-        logger.info(f"Starting Metropolis relaxation ({natom} atoms)")
+        logger.debug(f"Starting Metropolis relaxation ({natom} atoms)")
         moments = _uppasd.relaxmetropolis(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Metropolis relaxation moments")
@@ -477,7 +477,7 @@ def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_heatbath(natom, mensemble)
     """
     try:
-        logger.info(f"Starting heat bath relaxation ({natom} atoms)")
+        logger.debug(f"Starting heat bath relaxation ({natom} atoms)")
         moments = _uppasd.relaxheatbath(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Heat bath moments")
@@ -523,7 +523,7 @@ def relax_llg(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_llg(natom, mensemble)
     """
     try:
-        logger.info(f"Starting LLG relaxation ({natom} atoms)")
+        logger.debug(f"Starting LLG relaxation ({natom} atoms)")
         moments = _uppasd.relaxllg(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "LLG relaxation moments")
@@ -621,7 +621,7 @@ def relax(
     method = method_names[mode]
     
     try:
-        logger.info(
+        logger.debug(
             f"Starting {method} relaxation: "
             f"{nstep} steps, T={temperature}K, "
             f"dt={timestep}s, α={damping}"
@@ -641,7 +641,7 @@ def relax(
         # F2PY allocates this array, we just reference it
         moments = np.asarray(moments, dtype=np.float64)
         _check_array_nan(moments, f"{method} relaxation moments")
-        logger.info(f"✓ {method} relaxation complete")
+        logger.debug(f"✓ {method} relaxation complete")
         return moments
         
     except Exception as e:
@@ -1321,7 +1321,7 @@ def set_temperature(temperature: float) -> None:
         raise ValueError(f"Temperature must be non-negative, got {temperature}")
     
     try:
-        logger.info(f"Setting temperature to {temperature} K")
+        logger.debug(f"Setting temperature to {temperature} K")
         _uppasd.put_temperature(temperature)
     except Exception as e:
         logger.error(f"Failed to set temperature: {e}")
@@ -1332,7 +1332,43 @@ def set_temperature(temperature: float) -> None:
 put_temperature = set_temperature
 
 
-def set_iptemperature(temperature: float) -> None:
+def get_iptemperature() -> float:
+    """
+    Get initial-phase temperature.
+    
+    Returns
+    -------
+    temperature : float
+        Initial-phase temperature in Kelvin
+    
+    Raises
+    ------
+    RuntimeError
+        If retrieval fails or if get_iptemperature not available in Fortran
+    
+    Examples
+    --------
+    >>> setup_all()
+    >>> iptemp = get_iptemperature()
+    >>> print(f"Initial-phase temperature: {iptemp} K")
+    """
+    if not hasattr(_uppasd, "get_iptemperature"):
+        raise RuntimeError(
+            "_uppasd.build missing get_iptemperature(); rebuild UppASD to enable iptemperature retrieval"
+        )
+    
+    try:
+        logger.debug("Fetching initial-phase temperature")
+        temperature = _uppasd.get_iptemperature()
+        temperature = float(temperature)
+        _check_nan(temperature, "iptemperature")
+        return temperature
+    except Exception as e:
+        logger.error(f"Failed to get initial-phase temperature: {e}")
+        raise RuntimeError(f"Cannot retrieve initial-phase temperature: {e}") from e
+
+
+def put_iptemperature(temperature: float) -> None:
     """
     Set initial-phase temperature.
     
@@ -1353,7 +1389,7 @@ def set_iptemperature(temperature: float) -> None:
     Examples
     --------
     >>> setup_all()
-    >>> set_iptemperature(100)  # Set initial phase to 100K
+    >>> put_iptemperature(100)  # Set initial phase to 100K
     """
     if temperature < 0:
         raise ValueError(f"Temperature must be non-negative, got {temperature}")
@@ -1372,7 +1408,7 @@ def set_iptemperature(temperature: float) -> None:
 
 
 # Backward compatibility alias
-put_iptemperature = set_iptemperature
+# set_iptemperature = put_iptemperature
 
 
 def get_timestep() -> float:
@@ -1537,7 +1573,7 @@ def setup_tensor_hamiltonian(
     _check_array_nan(mmom, "mmom")
     _check_array_nan(q_vect, "q_vect")
     
-    logger.info(
+    logger.debug(
         f"Computing magnons: na={na}, natom={natom}, mensemble={mensemble}, "
         f"nq={nq}, flag={flag}"
     )
@@ -1565,7 +1601,7 @@ def setup_tensor_hamiltonian(
         evals_py = np.ascontiguousarray(evals.T)
         evecs_py = np.ascontiguousarray(np.transpose(evecs, (2, 0, 1)))
 
-        logger.info(
+        logger.debug(
             f"✓ Magnon calculation complete: eigenvalues shape {evals_py.shape}, "
             f"eigenvectors shape {evecs_py.shape}"
         )
