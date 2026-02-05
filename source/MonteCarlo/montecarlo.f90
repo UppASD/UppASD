@@ -58,7 +58,7 @@ contains
       use OptimizationRoutines
       use AdaptiveTimeStepping
       use HamiltonianActions, only : effective_field
-      use InputData, only : NA, N1, N2, N3, demag, ham_inp
+      use InputData, only : NA, N1, N2, N3, demag, ham_inp, para_rng
       use DemagField
       use DipoleManager, only : dipole_field_calculation
 
@@ -169,8 +169,13 @@ contains
                mmom_macro,emom_macro,emomM_macro,ham%Qdip_macro,do_anisotropy)
          else
             if (mode=='M'.or.mode=='H'.or.mode=='D') then
-               call rng_uniformP(flipprob_m(:,:,:),3*natom*mensemble)
-               call rng_gaussianP(flipprob_g(:,:,:),3*natom*mensemble,1.0_dblprec)
+               if (para_rng) then
+                  call rng_uniformP(flipprob_m(:,:,:),3*natom*mensemble)
+                  call rng_gaussianP(flipprob_g(:,:,:),3*natom*mensemble,1.0_dblprec)
+               else
+                  call rng_uniform(flipprob_m(:,:,:),3*natom*mensemble)
+                  call rng_gaussian(flipprob_g(:,:,:),3*natom*mensemble,1.0_dblprec)
+               end if
 
                if(use_vsl) then
 #ifdef VSL
@@ -193,7 +198,13 @@ contains
                      enddo
                   enddo
                end if
-               if(mode=='H') call rng_uniformP(mflip(:,:),natom*mensemble)
+               if(mode=='H') then
+                  if (para_rng) then
+                     call rng_uniformP(mflip(:,:),natom*mensemble)
+                  else
+                     call rng_uniform(mflip(:,:),natom*mensemble)
+                  end if
+               end if
             else if (mode=='I') then
                ! First Ising random atom
                !$omp parallel do default(shared),private(i,k,newmom),schedule(auto),collapse(2)
@@ -206,7 +217,11 @@ contains
                !$omp end parallel do
             endif
 
-            call rng_uniformP(flipprob_a(:,:),natom*mensemble)
+            if (para_rng) then
+               call rng_uniformP(flipprob_a(:,:),natom*mensemble)
+            else
+               call rng_uniform(flipprob_a(:,:),natom*mensemble)
+            end if
 
             loc_demag_fld = 0.0_dblprec
             ! Wrapper for the calculation of the dipole-dipole interaction field

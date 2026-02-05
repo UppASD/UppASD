@@ -77,4 +77,5 @@ jobs:
           publish_branch: gh-pages
           publish_dir: site_build
           destination_dir: ${{ steps.branch.outputs.branch }}
-          keep_files: true
+          keep_files: false
+          force_orphan: true

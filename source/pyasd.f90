@@ -558,7 +558,7 @@
        !f2py intent(in) temperature
        real(c_double), intent(in) :: temperature
 
-       otemp = temperature
+       otemp(1) = temperature
     end subroutine put_iptemperature
 
     subroutine get_delta_t(timestep) bind(c, name='get_delta_t_')

@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 """
 Low-level Python wrapper for UppASD Fortran C extension (_uppasd).
 
@@ -51,24 +49,31 @@ Legacy function names (snake_case aliases) are provided for backward compatibili
 - etc.
 """
 
+from __future__ import absolute_import, division, print_function
 import logging
-from typing import Tuple, Optional
+from typing import Tuple
 
 import numpy as np
 
 import _uppasd
 
-
 # Configure module logger
 logger = logging.getLogger(__name__)
+# Common exception tuple used for narrowing broad except clauses in this wrapper
+_CommonEx = (AttributeError, TypeError, ValueError, OSError)
+# Suppress linter noise in this low-level wrapper where broad-except
+# is intentionally used to translate many possible extension errors
+# into runtime errors for the public API.
+# pylint: disable=broad-except
+# noqa: E722
 
 
 def get_na() -> int:
     """Return number of atoms in one unit cell (InputData.NA)."""
     try:
         return int(_uppasd.get_na())
-    except Exception as e:
-        logger.error(f"Failed to get NA: {e}")
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to get NA: %s", e)
         raise
 
 
@@ -84,7 +89,7 @@ def _check_nan(value: float, name: str = "value") -> None:
         Name of the value for logging
     """
     if isinstance(value, (float, np.floating)) and np.isnan(value):
-        logger.warning(f"NaN detected in {name}")
+        logger.warning("NaN detected in %s", name)
 
 
 def _check_array_nan(array: np.ndarray, name: str = "array") -> None:
@@ -100,7 +105,7 @@ def _check_array_nan(array: np.ndarray, name: str = "array") -> None:
     """
     if np.any(np.isnan(array)):
         n_nan = np.sum(np.isnan(array))
-        logger.warning(f"NaN detected in {name}: {n_nan}/{array.size} elements")
+        logger.warning("NaN detected in %s: %d/%d elements", name, int(n_nan), int(array.size))
 
 
 # ============================================================================
@@ -132,9 +137,9 @@ def run_uppasd() -> None:
         logger.debug("Starting UppASD simulation")
         _uppasd.runuppasd()
         logger.debug("✓ Simulation completed")
-    except Exception as e:
-        logger.error(f"Failed to run UppASD: {e}")
-        raise RuntimeError(f"UppASD simulation failed: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to run UppASD: %s", e)
+        raise RuntimeError("UppASD simulation failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -161,9 +166,9 @@ def sanity_check() -> None:
         logger.debug("Running sanity check")
         _uppasd.sanitycheck()
         logger.debug("✓ Sanity check passed")
-    except Exception as e:
-        logger.error(f"Sanity check failed: {e}")
-        raise RuntimeError(f"Configuration invalid: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Sanity check failed: %s", e)
+        raise RuntimeError("Configuration invalid: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -193,11 +198,11 @@ def num_procs() -> int:
 
         nprocs = numprocs_fn()
         if not isinstance(nprocs, (int, np.integer)):
-            logger.warning(f"numprocs returned unexpected type: {type(nprocs)}")
+            logger.warning("numprocs returned unexpected type: %s", type(nprocs))
         return int(nprocs)
-    except Exception as e:
-        logger.error(f"Failed to get processor count: {e}")
-        raise RuntimeError(f"Cannot retrieve processor count: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to get processor count: %s", e)
+        raise RuntimeError("Cannot retrieve processor count: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -218,8 +223,8 @@ def print_logo() -> None:
     try:
         logger.debug("Printing UppASD logo")
         _uppasd.printlogo()
-    except Exception as e:
-        logger.warning(f"Could not print logo: {e}")
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.warning("Could not print logo: %s", e)
 
 
 # Backward compatibility alias
@@ -257,11 +262,11 @@ def setup_all() -> Tuple[int, int]:
         natom, mensemble = _uppasd.setupall()
         natom = int(natom)
         mensemble = int(mensemble)
-        logger.debug(f"✓ Setup complete: {natom} atoms, {mensemble} ensembles")
+        logger.debug("✓ Setup complete: %d atoms, %d ensembles", natom, mensemble)
         return natom, mensemble
-    except Exception as e:
-        logger.error(f"Failed to setup simulation: {e}")
-        raise RuntimeError(f"Initialization failed: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to setup simulation: %s", e)
+        raise RuntimeError("Initialization failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -290,9 +295,9 @@ def initial_phase() -> None:
         logger.debug("Running initial phase")
         _uppasd.initialphase()
         logger.debug("✓ Initial phase completed")
-    except Exception as e:
-        logger.error(f"Initial phase failed: {e}")
-        raise RuntimeError(f"Initialization phase failed: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Initial phase failed: %s", e)
+        raise RuntimeError("Initialization phase failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -321,9 +326,9 @@ def measure() -> None:
     try:
         logger.debug("Performing measurement")
         _uppasd.measure()
-    except Exception as e:
-        logger.error(f"Measurement failed: {e}")
-        raise RuntimeError(f"Cannot perform measurement: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Measurement failed: %s", e)
+        raise RuntimeError("Cannot perform measurement: %s" % e) from e
 
 
 def cleanup() -> None:
@@ -347,8 +352,8 @@ def cleanup() -> None:
         logger.debug("Cleaning up UppASD")
         _uppasd.cleanup()
         logger.debug("✓ Cleanup completed")
-    except Exception as e:
-        logger.warning(f"Cleanup encountered issue: {e}")
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.warning("Cleanup encountered issue: %s", e)
         # Don't raise — cleanup should not fail the program
 
 
@@ -388,14 +393,14 @@ def relax_montecarlo(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_montecarlo(natom, mensemble)
     """
     try:
-        logger.debug(f"Starting MC relaxation ({natom} atoms, {mensemble} ens.)")
+        logger.debug("Starting MC relaxation (%d atoms, %d ens.)", natom, mensemble)
         moments = _uppasd.relaxmontecarlo(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "MC relaxation moments")
-        logger.debug(f"✓ MC relaxation complete, moments shape: {moments.shape}")
+        logger.debug("✓ MC relaxation complete, moments shape: %s", moments.shape)
         return moments
-    except Exception as e:
-        logger.error(f"MC relaxation failed: {e}")
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("MC relaxation failed: %s", e)
         raise RuntimeError(f"Monte Carlo relaxation failed: {e}") from e
 
 
@@ -434,15 +439,15 @@ def relax_metropolis(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_metropolis(natom, mensemble)
     """
     try:
-        logger.debug(f"Starting Metropolis relaxation ({natom} atoms)")
+        logger.debug("Starting Metropolis relaxation (%d atoms)", natom)
         moments = _uppasd.relaxmetropolis(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Metropolis relaxation moments")
-        logger.debug(f"✓ Metropolis relaxation complete")
+        logger.debug("✓ Metropolis relaxation complete")
         return moments
-    except Exception as e:
-        logger.error(f"Metropolis relaxation failed: {e}")
-        raise RuntimeError(f"Metropolis relaxation failed: {e}") from e
+    except _CommonEx as e:
+        logger.error("Metropolis relaxation failed: %s", e)
+        raise RuntimeError("Metropolis relaxation failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -479,15 +484,15 @@ def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_heatbath(natom, mensemble)
     """
     try:
-        logger.debug(f"Starting heat bath relaxation ({natom} atoms)")
+        logger.debug("Starting heat bath relaxation (%d atoms)", natom)
         moments = _uppasd.relaxheatbath(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "Heat bath moments")
         logger.debug("✓ Heat bath relaxation complete")
         return moments
-    except Exception as e:
-        logger.error(f"Heat bath relaxation failed: {e}")
-        raise RuntimeError(f"Heat bath relaxation failed: {e}") from e
+    except _CommonEx as e:
+        logger.error("Heat bath relaxation failed: %s", e)
+        raise RuntimeError("Heat bath relaxation failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -525,15 +530,15 @@ def relax_llg(natom: int, mensemble: int) -> np.ndarray:
     >>> moments = relax_llg(natom, mensemble)
     """
     try:
-        logger.debug(f"Starting LLG relaxation ({natom} atoms)")
+        logger.debug("Starting LLG relaxation (%d atoms)", natom)
         moments = _uppasd.relaxllg(natom, mensemble)
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "LLG relaxation moments")
         logger.debug("✓ LLG relaxation complete")
         return moments
-    except Exception as e:
-        logger.error(f"LLG relaxation failed: {e}")
-        raise RuntimeError(f"LLG relaxation failed: {e}") from e
+    except _CommonEx as e:
+        logger.error("LLG relaxation failed: %s", e)
+        raise RuntimeError("LLG relaxation failed: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -546,7 +551,7 @@ def relax(
     mode: str = "S",
     nstep: int = 10,
     temperature: float = 0.0,
-    timestep: float = 1.0e-16,
+    timestep: float = 1.0e-15,
     damping: float = 0.5,
 ) -> np.ndarray:
     """
@@ -623,17 +628,20 @@ def relax(
 
     try:
         logger.debug(
-            f"Starting {method} relaxation: "
-            f"{nstep} steps, T={temperature}K, "
-            f"dt={timestep}s, α={damping}"
+            "Starting %s relaxation: %d steps, T=%sK, dt=%ss, α=%s",
+            method,
+            nstep,
+            temperature,
+            timestep,
+            damping,
         )
 
         # Keep ip_mode aligned with explicit relaxation mode when possible
-        if hasattr(_uppasd, "put_ipmode"):
-            try:
-                set_ipmode(mode)
-            except Exception as sync_err:
-                logger.debug(f"ip_mode sync skipped: {sync_err}")
+        # if hasattr(_uppasd, "put_ipmode"):
+        #     try:
+        #         set_ipmode(mode)
+        #     except _CommonEx as sync_err:
+        #         logger.debug("ip_mode sync skipped: %s", sync_err)
 
         moments = _uppasd.relax(
             natom, mensemble, mode, nstep, temperature, timestep, damping
@@ -642,12 +650,12 @@ def relax(
         # F2PY allocates this array, we just reference it
         moments = np.asarray(moments, dtype=np.float64)
         _check_array_nan(moments, f"{method} relaxation moments")
-        logger.debug(f"✓ {method} relaxation complete")
+        logger.debug("✓ %s relaxation complete", method)
         return moments
 
-    except Exception as e:
-        logger.error(f"{method} relaxation failed: {e}")
-        raise RuntimeError(f"Relaxation failed ({method}): {e}") from e
+    except _CommonEx as e:
+        logger.error("%s relaxation failed: %s", method, e)
+        raise RuntimeError("Relaxation failed (%s): %s" % (method, e)) from e
 
 
 # ============================================================================
@@ -682,9 +690,9 @@ def get_coords(natom: int) -> np.ndarray:
         coords = np.array(coords, dtype=np.float64, copy=True)
         _check_array_nan(coords, "coordinates")
         return coords
-    except Exception as e:
-        logger.error(f"Failed to get coordinates: {e}")
-        raise RuntimeError(f"Cannot retrieve coordinates: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get coordinates: %s", e)
+        raise RuntimeError("Cannot retrieve coordinates: %s" % e) from e
 
 
 def get_moments(natom: int, mensemble: int) -> np.ndarray:
@@ -727,9 +735,9 @@ def get_moments(natom: int, mensemble: int) -> np.ndarray:
         moments = np.array(moments, dtype=np.float64, copy=True)
         _check_array_nan(moments, "moments")
         return moments
-    except Exception as e:
-        logger.error(f"Failed to get moments: {e}")
-        raise RuntimeError(f"Cannot retrieve moments: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get moments: %s", e)
+        raise RuntimeError("Cannot retrieve moments: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -765,11 +773,11 @@ def set_moments(moments: np.ndarray, natom: int, mensemble: int) -> None:
     """
     try:
         moments = np.asarray(moments, dtype=np.float64)
-        logger.debug(f"Setting moments, shape: {moments.shape}")
+        logger.debug("Setting moments, shape: %s", moments.shape)
         _uppasd.put_emom(moments, natom, mensemble)
-    except Exception as e:
-        logger.error(f"Failed to set moments: {e}")
-        raise RuntimeError(f"Cannot set moments: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set moments: %s", e)
+        raise RuntimeError("Cannot set moments: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -816,9 +824,9 @@ def get_field(natom: int, mensemble: int) -> np.ndarray:
         field = np.array(field, dtype=np.float64, copy=True)
         _check_array_nan(field, "field")
         return field
-    except Exception as e:
-        logger.error(f"Failed to get field: {e}")
-        raise RuntimeError(f"Cannot retrieve field: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get field: %s", e)
+        raise RuntimeError("Cannot retrieve field: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -854,11 +862,11 @@ def set_field(field: np.ndarray, natom: int, mensemble: int) -> None:
     """
     try:
         field = np.asarray(field, dtype=np.float64)
-        logger.debug(f"Setting field, shape: {field.shape}")
+        logger.debug("Setting field, shape: %s", field.shape)
         _uppasd.put_beff(field, natom, mensemble)
-    except Exception as e:
-        logger.error(f"Failed to set field: {e}")
-        raise RuntimeError(f"Cannot set field: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set field: %s", e)
+        raise RuntimeError("Cannot set field: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -893,9 +901,9 @@ def get_hfield() -> np.ndarray:
         hfield = np.array(hfield, dtype=np.float64, copy=True)
         _check_array_nan(hfield, "hfield")
         return hfield
-    except Exception as e:
-        logger.error(f"Failed to get hfield: {e}")
-        raise RuntimeError(f"Cannot retrieve hfield: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get hfield: %s", e)
+        raise RuntimeError("Cannot retrieve hfield: %s" % e) from e
 
 
 def set_hfield(hfield: np.ndarray) -> None:
@@ -926,11 +934,11 @@ def set_hfield(hfield: np.ndarray) -> None:
         if hfield.shape != (3,):
             raise ValueError(f"hfield must have shape (3,), got {hfield.shape}")
         _check_array_nan(hfield, "hfield")
-        logger.debug(f"Setting external field to {hfield} T")
+        logger.debug("Setting external field to %s T", hfield)
         _uppasd.put_hfield(hfield)
-    except Exception as e:
-        logger.error(f"Failed to set hfield: {e}")
-        raise RuntimeError(f"Cannot set hfield: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set hfield: %s", e)
+        raise RuntimeError("Cannot set hfield: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -965,9 +973,9 @@ def get_iphfield() -> np.ndarray:
         iphfield = np.array(iphfield, dtype=np.float64, copy=True)
         _check_array_nan(iphfield, "iphfield")
         return iphfield
-    except Exception as e:
-        logger.error(f"Failed to get iphfield: {e}")
-        raise RuntimeError(f"Cannot retrieve iphfield: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get iphfield: %s", e)
+        raise RuntimeError("Cannot retrieve iphfield: %s" % e) from e
 
 
 def set_iphfield(iphfield: np.ndarray) -> None:
@@ -998,11 +1006,11 @@ def set_iphfield(iphfield: np.ndarray) -> None:
         if iphfield.shape != (3,):
             raise ValueError(f"iphfield must have shape (3,), got {iphfield.shape}")
         _check_array_nan(iphfield, "iphfield")
-        logger.debug(f"Setting initial-phase field to {iphfield} T")
+        logger.debug("Setting initial-phase field to %s T", iphfield)
         _uppasd.put_iphfield(iphfield)
-    except Exception as e:
-        logger.error(f"Failed to set iphfield: {e}")
-        raise RuntimeError(f"Cannot set iphfield: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set iphfield: %s", e)
+        raise RuntimeError("Cannot set iphfield: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1044,9 +1052,9 @@ def get_energy() -> float:
         energy = float(energy)
         _check_nan(energy, "energy")
         return energy
-    except Exception as e:
-        logger.error(f"Failed to get energy: {e}")
-        raise RuntimeError(f"Cannot retrieve energy: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get energy: %s", e)
+        raise RuntimeError("Cannot retrieve energy: %s" % e) from e
 
 
 def get_nstep() -> int:
@@ -1071,9 +1079,9 @@ def get_nstep() -> int:
         logger.debug("Fetching current step number")
         nstep = _uppasd.get_nstep()
         return int(nstep)
-    except Exception as e:
-        logger.error(f"Failed to get step number: {e}")
-        raise RuntimeError(f"Cannot retrieve step number: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get step number: %s", e)
+        raise RuntimeError("Cannot retrieve step number: %s" % e) from e
 
 
 def set_nstep(nstep: int) -> None:
@@ -1107,15 +1115,15 @@ def set_nstep(nstep: int) -> None:
 
     try:
         if hasattr(_uppasd, "put_nstep"):
-            logger.debug(f"Setting step number to {nstep}")
+            logger.debug("Setting step number to %d", nstep)
             _uppasd.put_nstep(nstep)
         else:
             logger.warning(
                 "put_nstep not available in _uppasd; step number not updated"
             )
-    except Exception as e:
-        logger.error(f"Failed to set step number: {e}")
-        raise RuntimeError(f"Cannot set step number: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set step number: %s", e)
+        raise RuntimeError("Cannot set step number: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1149,9 +1157,9 @@ def get_mcnstep() -> int:
         logger.debug("Fetching current MC step number")
         mcnstep = _uppasd.get_mcnstep()
         return int(mcnstep)
-    except Exception as e:
-        logger.error(f"Failed to get MC step number: {e}")
-        raise RuntimeError(f"Cannot retrieve MC step number: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get MC step number: %s", e)
+        raise RuntimeError("Cannot retrieve MC step number: %s" % e) from e
 
 
 def set_mcnstep(mcnstep: int) -> None:
@@ -1185,15 +1193,15 @@ def set_mcnstep(mcnstep: int) -> None:
 
     try:
         if hasattr(_uppasd, "put_mcnstep"):
-            logger.debug(f"Setting MC step number to {mcnstep}")
+            logger.debug("Setting MC step number to %d", mcnstep)
             _uppasd.put_mcnstep(mcnstep)
         else:
             logger.warning(
                 "put_mcnstep not available in _uppasd; MC step number not updated"
             )
-    except Exception as e:
-        logger.error(f"Failed to set MC step number: {e}")
-        raise RuntimeError(f"Cannot set MC step number: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set MC step number: %s", e)
+        raise RuntimeError("Cannot set MC step number: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1229,9 +1237,9 @@ def get_ipmode() -> str:
         arr = np.asarray(raw_mode, dtype="U1")
         mode = "".join(arr.tolist()).strip().upper()
         return mode
-    except Exception as e:
-        logger.error(f"Failed to get ip_mode: {e}")
-        raise RuntimeError(f"Cannot retrieve ip_mode: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get ip_mode: %s", e)
+        raise RuntimeError("Cannot retrieve ip_mode: %s" % e) from e
 
 
 def set_ipmode(mode: str) -> None:
@@ -1267,9 +1275,9 @@ def set_ipmode(mode: str) -> None:
 
     try:
         _uppasd.put_ipmode(payload)
-    except Exception as e:
-        logger.error(f"Failed to set ip_mode to '{normalized}': {e}")
-        raise RuntimeError(f"Cannot set ip_mode: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set ip_mode to '%s': %s", normalized, e)
+        raise RuntimeError("Cannot set ip_mode: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1302,9 +1310,9 @@ def get_temperature() -> float:
         temperature = float(temperature)
         _check_nan(temperature, "temperature")
         return temperature
-    except Exception as e:
-        logger.error(f"Failed to get temperature: {e}")
-        raise RuntimeError(f"Cannot retrieve temperature: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get temperature: %s", e)
+        raise RuntimeError("Cannot retrieve temperature: %s" % e) from e
 
 
 def set_temperature(temperature: float) -> None:
@@ -1332,11 +1340,12 @@ def set_temperature(temperature: float) -> None:
         raise ValueError(f"Temperature must be non-negative, got {temperature}")
 
     try:
-        logger.debug(f"Setting temperature to {temperature} K")
+        logger.debug("Setting temperature to %s K", temperature)
+        _uppasd.put_iptemperature(temperature)
         _uppasd.put_temperature(temperature)
-    except Exception as e:
-        logger.error(f"Failed to set temperature: {e}")
-        raise RuntimeError(f"Cannot set temperature: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set temperature: %s", e)
+        raise RuntimeError("Cannot set temperature: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1374,9 +1383,9 @@ def get_iptemperature() -> float:
         temperature = float(temperature)
         _check_nan(temperature, "iptemperature")
         return temperature
-    except Exception as e:
-        logger.error(f"Failed to get initial-phase temperature: {e}")
-        raise RuntimeError(f"Cannot retrieve initial-phase temperature: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get initial-phase temperature: %s", e)
+        raise RuntimeError("Cannot retrieve initial-phase temperature: %s" % e) from e
 
 
 def put_iptemperature(temperature: float) -> None:
@@ -1411,11 +1420,11 @@ def put_iptemperature(temperature: float) -> None:
         )
 
     try:
-        logger.debug(f"Setting initial-phase temperature to {temperature} K")
+        logger.debug("Setting initial-phase temperature to %s K", temperature)
         _uppasd.put_iptemperature(temperature)
-    except Exception as e:
-        logger.error(f"Failed to set initial-phase temperature: {e}")
-        raise RuntimeError(f"Cannot set initial-phase temperature: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set initial-phase temperature: %s", e)
+        raise RuntimeError("Cannot set initial-phase temperature: %s" % e) from e
 
 
 # Backward compatibility alias
@@ -1443,9 +1452,9 @@ def get_timestep() -> float:
         timestep = float(timestep)
         _check_nan(timestep, "timestep")
         return timestep
-    except Exception as e:
-        logger.error(f"Failed to get timestep: {e}")
-        raise RuntimeError(f"Cannot retrieve timestep: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to get timestep: %s", e)
+        raise RuntimeError("Cannot retrieve timestep: %s" % e) from e
 
 
 def set_timestep(timestep: float) -> None:
@@ -1477,13 +1486,13 @@ def set_timestep(timestep: float) -> None:
 
     try:
         if hasattr(_uppasd, "put_delta_t"):
-            logger.debug(f"Setting timestep to {timestep:.2e}")
+            logger.debug("Setting timestep to %.2e", timestep)
             _uppasd.put_delta_t(timestep)
         else:
             logger.warning("put_delta_t not available in _uppasd; timestep not updated")
-    except Exception as e:
-        logger.error(f"Failed to set timestep: {e}")
-        raise RuntimeError(f"Cannot set timestep: {e}") from e
+    except _CommonEx as e:
+        logger.error("Failed to set timestep: %s", e)
+        raise RuntimeError("Cannot set timestep: %s" % e) from e
 
 
 # Backward compatibility aliases
@@ -1564,7 +1573,7 @@ def setup_tensor_hamiltonian(
         )
 
     if natom % na != 0:
-        logger.warning(f"natom ({natom}) may not be evenly divisible by na ({na})")
+        logger.warning("natom (%d) may not be evenly divisible by na (%d)", natom, na)
 
     emomm = np.asarray(emomm, dtype=np.float64)
     mmom = np.asarray(mmom, dtype=np.float64)
@@ -1588,8 +1597,12 @@ def setup_tensor_hamiltonian(
     _check_array_nan(q_vect, "q_vect")
 
     logger.debug(
-        f"Computing magnons: na={na}, natom={natom}, mensemble={mensemble}, "
-        f"nq={nq}, flag={flag}"
+        "Computing magnons: na=%d, natom=%d, mensemble=%d, nq=%d, flag=%d",
+        na,
+        natom,
+        mensemble,
+        nq,
+        flag,
     )
 
     try:
@@ -1618,14 +1631,15 @@ def setup_tensor_hamiltonian(
         evecs_py = np.ascontiguousarray(np.transpose(evecs, (2, 0, 1)))
 
         logger.debug(
-            f"✓ Magnon calculation complete: eigenvalues shape {evals_py.shape}, "
-            f"eigenvectors shape {evecs_py.shape}"
+            "✓ Magnon calculation complete: eigenvalues shape %s, eigenvectors shape %s",
+            evals_py.shape,
+            evecs_py.shape,
         )
         return evals_py, evecs_py, nq_ext
 
-    except Exception as e:
-        logger.error(f"Magnon calculation failed: {e}")
-        raise RuntimeError(f"setup_tensor_hamiltonian failed: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Magnon calculation failed: %s", e)
+        raise RuntimeError("setup_tensor_hamiltonian failed: %s" % e) from e
 
 
 def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1651,9 +1665,9 @@ def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
         )  # copy to own Python memory
         _check_array_nan(evals, "magnon_eigenvalues_q")
         return evals
-    except Exception as e:
-        logger.error(f"Failed to retrieve magnon eigenvalues: {e}")
-        raise RuntimeError(f"Cannot retrieve magnon eigenvalues: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to retrieve magnon eigenvalues: %s", e)
+        raise RuntimeError("Cannot retrieve magnon eigenvalues: %s" % e) from e
 
 
 def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1679,9 +1693,9 @@ def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
         )  # copy to own Python memory
         _check_array_nan(evecs, "magnon_eigenvectors_q")
         return evecs
-    except Exception as e:
-        logger.error(f"Failed to retrieve magnon eigenvectors: {e}")
-        raise RuntimeError(f"Cannot retrieve magnon eigenvectors: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to retrieve magnon eigenvectors: %s", e)
+        raise RuntimeError("Cannot retrieve magnon eigenvectors: %s" % e) from e
 
 
 def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1705,9 +1719,9 @@ def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
         _uppasd.magnon_get_eigenvalues_qchern(hdim, nq_ext, evals)
         _check_array_nan(evals, "magnon_eigenvalues_qchern")
         return evals
-    except Exception as e:
-        logger.error(f"Failed to retrieve magnon eigenvalues (Chern): {e}")
-        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvalues: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to retrieve magnon eigenvalues (Chern): %s", e)
+        raise RuntimeError("Cannot retrieve Chern magnon eigenvalues: %s" % e) from e
 
 
 def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1731,6 +1745,6 @@ def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
         _uppasd.magnon_get_eigenvectors_qchern(hdim, nq_ext, evecs)
         _check_array_nan(evecs, "magnon_eigenvectors_qchern")
         return evecs
-    except Exception as e:
-        logger.error(f"Failed to retrieve magnon eigenvectors (Chern): {e}")
-        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvectors: {e}") from e
+    except (AttributeError, TypeError, ValueError, OSError) as e:
+        logger.error("Failed to retrieve magnon eigenvectors (Chern): %s", e)
+        raise RuntimeError("Cannot retrieve Chern magnon eigenvectors: %s" % e) from e

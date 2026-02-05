@@ -53,6 +53,7 @@ contains
       !
       use Constants, only : k_bolt, gama, mub
       use RandomNumbers, only : rng_gaussian, rng_gaussianP
+      use InputData, only : para_rng
 
       implicit none
       !
@@ -130,7 +131,11 @@ contains
          sot_fac=0.0_dblprec
       end if
 
-      call rng_gaussianP(btherm,3*Natom*Mensemble,1.0_dblprec)
+      if (para_rng) then
+         call rng_gaussianP(btherm,3*Natom*Mensemble,1.0_dblprec)
+      else
+         call rng_gaussian(btherm,3*Natom*Mensemble,1.0_dblprec)
+      end if
 
       ! Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
       !$omp parallel do default(shared) private(ired,i,k,Dp,sigma,Bnorm,hx,hy,hz,v,lldamp,cosv,sinv,u)  schedule(static) collapse(2)

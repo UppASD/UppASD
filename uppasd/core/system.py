@@ -148,7 +148,7 @@ class SpinSystem:
         cell_inv = np.linalg.inv(self.cell).T
         fractional_positions = self.positions @ cell_inv
 
-        with path.open("w") as f:
+        with path.open("w", encoding="utf-8") as f:
             # Atomic positions in fractional coordinates
             for i_atom, (frac_pos, sp) in enumerate(
                 zip(fractional_positions, self.species), start=1
@@ -169,7 +169,7 @@ class SpinSystem:
         """
         path = Path(filename)
 
-        with path.open("w") as f:
+        with path.open("w", encoding="utf-8") as f:
             for i_atom, m in enumerate(self.moments, start=1):
                 m_mag = np.linalg.norm(m)
                 f.write(f"{i_atom} 1 {m_mag:.8f} {m[0]:.8f} {m[1]:.8f} {m[2]:.8f}\n")

@@ -478,12 +478,15 @@ contains
 
       integer :: ipmcstep, ia,ik
       real(dblprec) :: energy,temprescale,temprescalegrad, dummy
-      real(dblprec) :: mavg
+      real(dblprec) :: mavg, org_temp
 
+      org_temp = temp
+      temp = mctemp
       ! Copy inmoments to working array
       do ik=1,Mensemble
          do ia=1,Natom
             emom(:,ia,ik)=emom_io(:,ia,ik)
+            emom2(:,ia,ik)=emom_io(:,ia,ik)
             mmom(ia,ik)=mmom_io(ia,ik)
             emomM(:,ia,ik)=emomM_io(:,ia,ik)
             mmomi(ia,ik) = 1.0_dblprec/mmom(ia,ik)
@@ -501,9 +504,9 @@ contains
       if (do_qhb=='Q' .or. do_qhb=='R' .or. do_qhb=='P' .or. do_qhb=='T') then
          if(qhb_mode=='MT') then
             call calc_mavrg(Natom,Mensemble,emomM,mavg)
-            call qhb_rescale(iptemp(1),temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
+            call qhb_rescale(mctemp,temprescale,temprescalegrad,do_qhb,qhb_mode,mavg)
          else
-            call qhb_rescale(iptemp(1),temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
+            call qhb_rescale(mctemp,temprescale,temprescalegrad,do_qhb,qhb_mode,dummy)
          endif
       endif
 
@@ -536,6 +539,8 @@ contains
             emomM_io(:,ia,ik)=emomM(:,ia,ik)
          end do
       end do
+
+      temp = org_temp
 
       !
    end subroutine mc_minimal

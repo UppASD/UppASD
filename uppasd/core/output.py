@@ -12,8 +12,8 @@ Design principles:
 """
 
 from pathlib import Path
-import numpy as np
 from typing import Optional, Dict
+import numpy as np
 
 
 # ======================================================================
@@ -268,6 +268,10 @@ def read_site_scalar(workdir, simid, prefix):
 
 
 def read_cmass_skynum(workdir, simid):
+    """
+    Read cmass_skynum.<simid>.out
+    (center of mass coordinates for skyrmions)
+    """
     path = Path(workdir) / f"cmass_skynum.{simid}.out"
     data = np.loadtxt(path, comments="#")
 

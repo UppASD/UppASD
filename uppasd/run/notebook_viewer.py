@@ -2,92 +2,99 @@
 NotebookLiveViewer
 ==================
 
-Jupyter-native interactive viewer for UppASD LiveSimulator.
+Notebook-oriented interactive viewer for UppASD LiveSimulator.
 
-Design goals:
-- NO VTK interactor loops
-- NO physics logic
-- Works in standard Jupyter / Colab / Binder
-- Uses LiveSimulator stepping contract
-- Safe repeated stepping (LLG / MC / future modes)
+DESIGN CONTRACT (NON-NEGOTIABLE)
+--------------------------------
+- Viewer NEVER touches pyasd directly
+- Viewer NEVER owns or mutates physics state
+- Viewer NEVER stores magnetic moments
+- All stepping goes through LiveSimulator.step(...)
+- All visualization pulls fresh data from LiveSimulator
+- Reset is simulator-owned, not viewer-owned
+
+This file is intentionally conservative.
+If something seems "missing", it is probably forbidden by design.
 
 Author: Anders Bergman + ChatGPT
 """
 
 from __future__ import annotations
 
-import io
-import os
-import sys
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from typing import Optional
 
-import ipywidgets as widgets
+import numpy as np
 import matplotlib.pyplot as plt
-from IPython.display import clear_output, display
+import ipywidgets as widgets
+from IPython.display import display, clear_output
 
-# ----------------------------------------------------------------------
-# Helper dataclass for visualization settings
-# ----------------------------------------------------------------------
+from .live_simulator import LiveSimulator
+
+
+# ======================================================================
+# Step control (pure UI intent, no physics)
+# ======================================================================
+
+@dataclass
+class StepControl:
+    """
+    Control parameters for simulation stepping.
+
+    This object represents *intent*, not state.
+    """
+    mode: str = "S"   # 'S' = LLG, 'M' = Metropolis, 'H' = Heatbath
+    nstep: int = 10
+
+
+# ======================================================================
+# Viewer configuration (pure visualization)
+# ======================================================================
 
 @dataclass
 class ViewerConfig:
-    scale: float = 1.0
+    """
+    Visualization-only configuration.
+
+    MUST NOT contain:
+    - temperature
+    - field
+    - moments
+    - any physics-related parameter
+    """
+    scale: float = 20.0
     stride: int = 1
     cmap: str = "coolwarm"
     figsize: tuple = (6, 6)
 
 
-@contextmanager
-def _suppress_output():
-    """Context manager that suppresses stdout and stderr at the OS level.
-
-    This redirects file descriptors 1 and 2 to os.devnull so external
-    libraries (Fortran/C) writing to stdout/stderr do not print to the
-    notebook output cell.
-    """
-    devnull = os.open(os.devnull, os.O_RDWR)
-    # Save original file descriptors
-    old_stdout_fd = os.dup(1)
-    old_stderr_fd = os.dup(2)
-    try:
-        # Redirect low-level fds
-        os.dup2(devnull, 1)
-        os.dup2(devnull, 2)
-
-        # Also suppress Python-level sys.stdout/sys.stderr
-        sio_out = io.StringIO()
-        sio_err = io.StringIO()
-        with redirect_stdout(sio_out), redirect_stderr(sio_err):
-            yield
-    finally:
-        # Restore original fds
-        os.dup2(old_stdout_fd, 1)
-        os.dup2(old_stderr_fd, 2)
-        os.close(devnull)
-        os.close(old_stdout_fd)
-        os.close(old_stderr_fd)
-
-
-# ----------------------------------------------------------------------
+# ======================================================================
 # NotebookLiveViewer
-# ----------------------------------------------------------------------
+# ======================================================================
 
 class NotebookLiveViewer:
     """
     Jupyter-based live viewer for UppASD LiveSimulator.
 
     Responsibilities:
+    -----------------
     - UI controls (widgets)
     - Visualization
     - Delegating stepping to LiveSimulator
 
-    NO physics logic here.
+    Explicitly NOT responsible for:
+    --------------------------------
+    - Physics state
+    - Moment storage
+    - Temperature persistence inside UppASD
     """
 
     # ------------------------------------------------------------------
-    def __init__(self, sim, config: Optional[ViewerConfig] = None):
+    def __init__(
+        self,
+        sim: LiveSimulator,
+        config: Optional[ViewerConfig] = None,
+    ):
         """
         Parameters
         ----------
@@ -96,14 +103,20 @@ class NotebookLiveViewer:
         config : ViewerConfig, optional
             Visualization configuration.
         """
+        if not getattr(sim, "initialized", False):
+            raise RuntimeError(
+                "LiveSimulator must be initialized before creating viewer"
+            )
+
         self.sim = sim
         self.config = config or ViewerConfig()
+        self.control = StepControl()
 
-        # Cache temperature and field for step calls
+        # Local UI-side parameters (NOT physics state)
         self.temperature = self.sim.get_temperature()
-        self.b_z = self.sim.get_field()[2]
+        self.field = self.sim.get_field().copy()
 
-        # Create figure upfront in non-interactive mode to prevent auto-display
+        # Persistent matplotlib figure (important for notebooks)
         plt.ioff()
         self._fig, self._ax = plt.subplots(figsize=self.config.figsize)
         plt.ion()
@@ -115,72 +128,107 @@ class NotebookLiveViewer:
     # ------------------------------------------------------------------
 
     def show(self):
-        """Display the full widget UI."""
+        """Display widget UI and initial visualization."""
         display(self.ui)
-        self.update_plot()
+        self.render()
 
-    def step(self, mode: str, nstep: int):
-        """Perform simulation step and update plot."""
-        # Suppress Fortran / underlying library stdout/stderr while stepping
-        with _suppress_output():
-            self.sim.step(mode, temperature=self.temperature, nstep=nstep)
-        self.update_plot()
+    def step(self):
+        """
+        Perform a simulation step via LiveSimulator.
+
+        IMPORTANT:
+        - No moment storage
+        - No return value is cached
+        """
+        self.sim.step(
+            mode=self.control.mode,
+            nstep=self.control.nstep,
+            temperature=self.temperature,
+        )
+        self.render()
 
     def reset(self):
-        """Reset moments to initial state."""
-        self.sim.reset_moments()
-        self.update_plot()
+        """
+        Reset magnetic moments via LiveSimulator.
+
+        Viewer does NOT attempt to restore moments itself.
+        """
+        self.sim.reset()
+        self.render()
 
     # ------------------------------------------------------------------
-    # Widget construction
+    # UI construction
     # ------------------------------------------------------------------
 
     def _build_widgets(self):
+        # --- Mode selection ---
+        self.mode_select = widgets.Dropdown(
+            options=[
+                ("LLG", "S"),
+                ("Metropolis MC", "M"),
+                ("Heatbath MC", "H"),
+            ],
+            value="S",
+            description="Mode:",
+        )
+
+        # --- Step count ---
+        self.step_input = widgets.IntText(
+            value=10,
+            description="Steps:",
+            layout=widgets.Layout(width="140px"),
+        )
+
         # --- Buttons ---
-        self.btn_llg = widgets.Button(description="LLG step")
-        self.btn_metropolis = widgets.Button(description="Metropolis MC")
-        self.btn_heatbath = widgets.Button(description="Heatbath MC")
-        self.btn_reset = widgets.Button(description="Reset moments")
-
-        # --- Sliders ---
-        self.slider_nstep = widgets.IntSlider(
-            value=10, min=1, max=500, step=1, description="Steps"
+        self.step_button = widgets.Button(
+            description="Step",
+            button_style="primary",
         )
 
+        self.reset_button = widgets.Button(
+            description="Reset",
+            button_style="warning",
+        )
+
+        # --- Temperature ---
         self.slider_T = widgets.FloatSlider(
-            value=self.sim.get_temperature(),
-            min=0.0, max=1000.0, step=1.0,
-            description="T (K)"
+            value=self.temperature,
+            min=0.0,
+            max=1000.0,
+            step=1.0,
+            description="T (K)",
         )
 
+        # --- Field ---
         self.slider_Bz = widgets.FloatSlider(
-            value=self.sim.get_field()[2],
-            min=-500.0, max=500.0, step=10,
-            description="Bz (T)"
+            value=self.field[2],
+            min=-500.0,
+            max=500.0,
+            step=10.0,
+            description="Bz (T)",
         )
 
-        # --- Status ---
+        # --- Output ---
+        self.output = widgets.Output()
         self.status = widgets.HTML()
 
-        # --- Output area ---
-        self.output = widgets.Output()
-
-        # --- Wire callbacks ---
-        self.btn_llg.on_click(lambda _: self._on_step("S"))
-        self.btn_metropolis.on_click(lambda _: self._on_step("M"))
-        self.btn_heatbath.on_click(lambda _: self._on_step("H"))
-        self.btn_reset.on_click(lambda _: self.reset())
-
+        # --- Callbacks ---
+        self.step_button.on_click(self._on_step)
+        self.reset_button.on_click(self._on_reset)
         self.slider_T.observe(self._on_temperature_change, names="value")
         self.slider_Bz.observe(self._on_field_change, names="value")
 
         # --- Layout ---
         controls = widgets.VBox([
-            widgets.HBox([self.btn_llg, self.btn_metropolis, self.btn_heatbath]),
-            self.slider_nstep,
-            widgets.HBox([self.slider_T, self.slider_Bz]),
-            self.btn_reset,
-            self.status
+            widgets.HBox([
+                self.mode_select,
+                self.step_input,
+                self.step_button,
+                self.reset_button,
+            ]),
+            self.slider_T,
+            self.slider_Bz,
+            self.status,
         ])
 
         self.ui = widgets.HBox([controls, self.output])
@@ -189,66 +237,85 @@ class NotebookLiveViewer:
     # Callbacks
     # ------------------------------------------------------------------
 
-    def _on_step(self, mode):
-        nstep = self.slider_nstep.value
-        self.step(mode, nstep)
+    def _on_step(self, _):
+        self.control.mode = self.mode_select.value
+        self.control.nstep = self.step_input.value
+        self.step()
+
+    def _on_reset(self, _):
+        self.reset()
 
     def _on_temperature_change(self, change):
+        # Viewer-local value only; passed explicitly during step()
         self.temperature = change["new"]
-        self.sim.set_temperature(self.temperature)
         self._update_status()
 
     def _on_field_change(self, change):
-        self.b_z = change["new"]
-        B = self.sim.get_field().copy()
-        B[2] = self.b_z
-        self.sim.set_field(B)
+        self.field[2] = change["new"]
+        self.sim.set_field(self.field)
         self._update_status()
 
     # ------------------------------------------------------------------
-    # Plotting
+    # Rendering
     # ------------------------------------------------------------------
 
-    def update_plot(self):
+    def render(self):
+        """Render current simulation state."""
         with self.output:
             clear_output(wait=True)
-
-            emom = self.sim.get_emom()[:, :, 0]   # (3, N)
-            coords = self.sim.get_coords()        # (3, N)
-
-            self._draw_quiver(coords, emom)
+            self._plot_spins()
             self._update_status()
 
-    def _draw_quiver(self, coords, emom):
+    # ------------------------------------------------------------------
+    # Visualization
+    # ------------------------------------------------------------------
+
+    def _plot_spins(self):
+        """
+        Geometry-aware quiver plot.
+
+        - Arrow direction: (m_x, m_y)
+        - Arrow color: m_z
+        - Coordinates from real-space geometry
+        """
+        emom = self.sim.get_emom()[:, :, 0].copy()
+        coords = self.sim.get_coords().copy()
+
         stride = self.config.stride
-        x, y = coords[0, ::stride], coords[1, ::stride]
-        u, v = emom[0, ::stride], emom[1, ::stride]
+
+        x = coords[0, ::stride]
+        y = coords[1, ::stride]
+        u = emom[0, ::stride]
+        v = emom[1, ::stride]
+        mz = emom[2, ::stride]
 
         self._ax.clear()
         self._ax.set_aspect("equal")
 
         self._ax.quiver(
-            x, y, u, v,
-            emom[2, ::stride],
+            x, y, u, v, mz,
             scale=self.config.scale,
-            cmap=self.config.cmap
+            cmap=self.config.cmap,
         )
 
         self._ax.set_title("Spin configuration")
+        self._ax.set_xlabel("x")
+        self._ax.set_ylabel("y")
+
         display(self._fig)
 
     # ------------------------------------------------------------------
-    # Status display
+    # Status output
     # ------------------------------------------------------------------
 
     def _update_status(self):
-        E = self.sim.calculate_energy()
-        T = self.sim.get_temperature()
+        energy = self.sim.calculate_energy()
+        T = self.temperature
         B = self.sim.get_field()
 
         self.status.value = f"""
         <b>Status</b><br>
-        Energy: {E:.6f} mRy/atom<br>
+        Energy: {energy:.6f} mRy/atom<br>
         Temperature: {T:.2f} K<br>
         Field: ({B[0]:.2f}, {B[1]:.2f}, {B[2]:.2f}) T
         """
