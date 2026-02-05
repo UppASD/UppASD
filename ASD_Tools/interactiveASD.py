@@ -46,6 +46,31 @@ def close_window(iren):
     iren.TerminateApp()
 
 
+def print_controls():
+    """Print a didactic summary of keyboard controls for the interactive viewer."""
+    controls = [
+        ("S / s", "LLG step (snapshot)"),
+        ("M / m", "Metropolis MC step (snapshot)"),
+        ("H / h", "Heat-bath MC step (snapshot)"),
+        ("0", "Reset moments to initial configuration"),
+        ("B / b", "+/- 1 T on Bz"),
+        ("N / n", "+/- 10 T on Bz"),
+        ("T / t", "+/- 1 K temperature"),
+        ("Y / y", "+/- 10 K temperature"),
+        ("a", "Toggle atoms visibility"),
+        ("v", "Toggle vectors visibility"),
+        ("c / C", "Cycle colormap"),
+        ("g / p", "Gouraud / PBR shading"),
+        ("i / I", "Static structure factor (S(q))"),
+        ("P", "Take screenshot"),
+    ]
+
+    print("\nInteractive Controls — keyboard bindings:")
+    for key, desc in controls:
+        print(f"  {key:10} - {desc}")
+    print("\nTip: use lowercase for small adjustments, uppercase for snapshots/large steps.\n")
+
+
 # Read Location of Atoms
 def readAtoms(file, Nmax):
     """
@@ -262,6 +287,20 @@ class vtkTimerCallback:
 
 # For the interactive control. Set up a check for aborting rendering.
 def CheckAbort(obj, event):
+    """Observer callback that requests abort when render events are pending.
+
+    This function is intended to be added to `renWin` as an observer for the
+    "AbortCheckEvent". It checks whether VTK has pending events and, if so,
+    sets the abort flag on the render window to avoid blocking or long
+    synchronous renders.
+
+    Args:
+        obj: The VTK object emitting the event (typically a `vtkRenderWindow`).
+        event: The event name (ignored).
+
+    Returns:
+        None
+    """
     # obj will be the object generating the event.  In this case it
     # is renWin.
     if obj.GetEventPending() != 0:
@@ -269,10 +308,38 @@ def CheckAbort(obj, event):
 
 
 def main():
+    """Create and run an interactive VTK viewer for static ASD snapshots.
+
+    This `main` routine wires together the UppASD Python interface with a
+    VTK rendering pipeline. It performs the following high-level tasks:
+
+    - Initializes an `ASDWorkspace` and `UppASDSimulator` and queries initial
+        moment and coordinate data from the Fortran-backed interface.
+    - Builds VTK data structures (points, glyph mappers) and configures
+        rendering properties for atoms and vectors.
+    - Registers keyboard callbacks that allow the user to advance the
+        simulation, toggle visibility, change temperature/field, cycle
+        colormaps, and save screenshots.
+
+    The function mutates module-level variables such as `temperature` to
+    provide a simple interactive experience. It does not return a value and
+    enters the VTK interactor loop which blocks until the window is closed.
+
+    Returns:
+            None
+    """
+
+    global temperature
+
     # Initialize workspace and simulator using new interface
     workspace = ASDWorkspace(".", clean=False)
     simulator = UppASDSimulator(workspace)
     simulator.initialize()
+    
+    # Get initial temperature from ip_phase
+    temperature = pyasd.get_iptemperature()
+    # Print available keyboard controls for the interactive viewer
+    print_controls()
     
     # Get system information
     natom = simulator.natom
@@ -521,7 +588,9 @@ def main():
     # Text
     # create a text actor for Temperature
     temptxt = vtk.vtkTextActor()
-    temp = "{:4.3f}".format(pyasd.get_iptemperature())
+    # temp = "{:4.3f}".format(pyasd.get_iptemperature())
+    # temptxt.SetInput("T = " + temp + " K")
+    temp = "{:4.3f}".format(temperature)
     temptxt.SetInput("T = " + temp + " K")
     temptxtprop = temptxt.GetTextProperty()
     temptxtprop.SetFontFamilyToArial()
@@ -613,18 +682,45 @@ def main():
 
     # a minimal keyboard interface
     def Keypress(obj, event):
-        """
-        Handle keypress events.
+        """Keyboard event handler for driving simulation and visualization.
 
-        Parameters:
-        - obj: The object that triggered the event.
-        - event: The keypress event.
+        The handler interprets a predefined set of key bindings and maps them
+        to simulator operations (LLG/MC steps), visualization updates
+        (toggle visibility, shading, colormap), and diagnostics
+        (static structure factor). It updates text overlays and triggers
+        re-renders and optional screenshots.
+
+        Args:
+            obj: The VTK interactor object emitting the event (provides
+                `GetKeySym()` to query the pressed key).
+            event: The event name (ignored).
+
+        Side effects:
+            - Calls `simulator.relax()` to advance the simulation state.
+            - Updates VTK data arrays on `Datatest` and triggers window
+              re-renders.
+            - Modifies module-level `temperature` and writes to Fortran via
+              `pyasd` where appropriate.
 
         Returns:
-        None
+            None
         """
+        global temperature
         def log_simulation_state(relax_type):
-            """Log current simulation parameters before relaxation."""
+            """Emit a concise log block describing the current simulation state.
+
+            This nested helper prints the active initial-phase temperature and
+            field vector immediately prior to performing a relaxation. It is
+            used for informative console output when launching snapshot
+            relaxations.
+
+            Args:
+                relax_type (str): Short label for the relaxation type (e.g.
+                    'Metropolis MC', 'LLG relaxation').
+
+            Returns:
+                None
+            """
             temp = pyasd.get_iptemperature()
             iphfield = pyasd.get_iphfield()
             print(f"\n{'='*60}")
@@ -641,15 +737,17 @@ def main():
             print("Screenshot taken")
         if key == "0":
             print("Resetting UppASD")
-            pyasd.put_emom(initmom, natom, mensemble)
-            vecz = numpy_support.numpy_to_vtk(initmom[:, :, 0].T)
+            moments = initmom
+            pyasd.put_emom(moments, natom, mensemble)
+            vecz = numpy_support.numpy_to_vtk(moments[:, :, 0].T)
             colz = numpy_support.numpy_to_vtk(initcol)
             Datatest.GetPointData().SetVectors(vecz)
             Datatest.GetPointData().SetScalars(colz)
         if key == "M" or key == "m":
             # log_simulation_state("Metropolis MC")
-            simulator.relax(mode='M', nstep=50, temperature=pyasd.get_iptemperature())
-            moments = pyasd.get_emom(natom, mensemble)
+            moments = simulator.relax(mode='M', nstep=50, temperature=temperature)
+            # simulator.relax(mode='M', nstep=50, temperature=pyasd.get_iptemperature())
+            # moments = pyasd.get_emom(natom, mensemble)
             currmom = moments[:, :, 0].T
             currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
@@ -661,8 +759,9 @@ def main():
                 Screenshot(renWin)
         if key == "H" or key == "h":
             # log_simulation_state("Heat Bath MC")
-            simulator.relax(mode='H', nstep=50, temperature=pyasd.get_iptemperature()+1.0e-6)
-            moments = pyasd.get_emom(natom, mensemble)
+            moments = simulator.relax(mode='H', nstep=50, temperature=temperature+1.0e-6)
+            # simulator.relax(mode='H', nstep=50, temperature=pyasd.get_iptemperature()+1.0e-6)
+            # moments = pyasd.get_emom(natom, mensemble)
             currmom = moments[:, :, 0].T
             currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
@@ -674,8 +773,10 @@ def main():
                 Screenshot(renWin)
         if key == "S" or key == "s":
             # log_simulation_state("LLG relaxation")
-            simulator.relax(mode='S', nstep=50, temperature=pyasd.get_iptemperature())
-            moments = pyasd.get_emom(natom, mensemble)
+            moments = simulator.relax(mode='S', nstep=50, temperature=temperature)
+            # simulator.relax(mode='S', nstep=50, temperature=temperature)
+            # # simulator.relax(mode='S', nstep=50, temperature=pyasd.get_iptemperature())
+            # moments = pyasd.get_emom(natom, mensemble)
             currmom = moments[:, :, 0].T
             currcol = moments[2, :, 0].T
             vecz = numpy_support.numpy_to_vtk(currmom)
@@ -706,21 +807,25 @@ def main():
             bz = "{:4.1f}".format(iphfield[2])
             fieldtxt.SetInput("Bz = " + bz + " T")
         if key == "T":
-            temp = pyasd.get_iptemperature() + 1.0
-            pyasd.put_iptemperature(temp)
-            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+            temperature += 1.0
+            # temp = pyasd.get_iptemperature() + 1.0
+            # pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temperature) + " K")
         if key == "t":
-            temp = max(pyasd.get_iptemperature() - 1.0, 1.0e-5)
-            pyasd.put_iptemperature(temp)
-            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+            temperature -= 1.0
+            # temp = max(pyasd.get_iptemperature() - 1.0, 1.0e-5)
+            # pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temperature) + " K")
         if key == "Y":
-            temp = pyasd.get_iptemperature() + 10.0
-            pyasd.put_iptemperature(temp)
-            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+            temperature += 10.0
+            # temp = pyasd.get_iptemperature() + 10.0
+            # pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temperature) + " K")
         if key == "y":
-            temp = max(pyasd.get_iptemperature() - 10.0, 1.0e-5)
-            pyasd.put_iptemperature(temp)
-            temptxt.SetInput("T = " + "{:4.3f}".format(temp) + " K")
+            temperature -= 10.0
+            # temp = max(pyasd.get_iptemperature() - 10.0, 1.0e-5)
+            # pyasd.put_iptemperature(temp)
+            temptxt.SetInput("T = " + "{:4.3f}".format(temperature) + " K")
         if key == "c" or key == "C":
             cycleColorScheme(lut, colorSeries, backwards=(key == "c"))
             lut.Build()

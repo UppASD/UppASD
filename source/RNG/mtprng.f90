@@ -109,7 +109,7 @@ module mtprng
    ! types
    type mtprng_state
       integer(INT32)                   :: mti = -1
-      integer(INT64), dimension(0:N-1) :: mt = 0
+      integer(INT64), dimension(0:N-1) :: mt = 1
       ! Note: mt is set to 0 to avoid uninitialized instances in 
       ! thread-jumping contexts (ipywidgets) but will be overwritten in
       !       initialization routines.

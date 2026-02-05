@@ -264,9 +264,9 @@ class UppASDSimulator:
         cwd = os.getcwd()
         os.chdir(self.workspace.path)
         try:
-            # with _suppress_output():
-            pyasd.sanity_check()
-            self.natom, self.mensemble = pyasd.setup_all()
+            with _suppress_output():
+                pyasd.sanity_check()
+                self.natom, self.mensemble = pyasd.setup_all()
         finally:
             os.chdir(cwd)
 
@@ -335,9 +335,9 @@ class UppASDSimulator:
             if damping is not None:
                 relax_kwargs['damping'] = damping
 
-            # with _suppress_output():
-            #     pyasd.relax(self.natom, self.mensemble, **relax_kwargs)
-            moments = pyasd.relax(self.natom, self.mensemble, **relax_kwargs)
+            with _suppress_output():
+                #     pyasd.relax(self.natom, self.mensemble, **relax_kwargs)
+                moments = pyasd.relax(self.natom, self.mensemble, **relax_kwargs)
 
         return moments
 
@@ -363,8 +363,8 @@ class UppASDSimulator:
             if self.natom is None or self.mensemble is None:
                 raise RuntimeError("Simulator not initialized")
 
-            # with _suppress_output():
-            moments = pyasd.relax(self.natom, self.mensemble, **kwargs)
+            with _suppress_output():
+                moments = pyasd.relax(self.natom, self.mensemble, **kwargs)
 
         return moments
 
@@ -376,8 +376,8 @@ class UppASDSimulator:
         """
 
         with self._in_workspace():
-            # with _suppress_output():
-            pyasd.measure()
+            with _suppress_output():
+                pyasd.measure()
 
     def run_init_phase(self):
         """Run the initialization phase (compute fields, prepare state).
@@ -388,8 +388,8 @@ class UppASDSimulator:
         """
 
         with self._in_workspace():
-            # with _suppress_output():
-            pyasd.initial_phase()
+            with _suppress_output():
+                pyasd.initial_phase()
 
     def finalize(self):
         """Perform simulator cleanup and release Fortran-side resources.
@@ -400,8 +400,8 @@ class UppASDSimulator:
         """
 
         with self._in_workspace():
-            # with _suppress_output():
-            pyasd.cleanup()
+            with _suppress_output():
+                pyasd.cleanup()
 
     def run_all(self):
         """
@@ -437,21 +437,21 @@ class UppASDSimulator:
         """
         with self._in_workspace():
             try:
-                # with _suppress_output():
-                # Step 1: Initialization
-                pyasd.sanity_check()
-                self.natom, self.mensemble = pyasd.setup_all()
+                with _suppress_output():
+                    # Step 1: Initialization
+                    pyasd.sanity_check()
+                    self.natom, self.mensemble = pyasd.setup_all()
 
-                # Step 2: Initial phase (compute fields, etc.)
-                pyasd.initial_phase()
+                    # Step 2: Initial phase (compute fields, etc.)
+                    pyasd.initial_phase()
 
-                # Step 4: Measurement output
-                pyasd.measure()
+                    # Step 4: Measurement output
+                    pyasd.measure()
 
             finally:
                 # Step 5: Cleanup (always runs, even if error occurs)
-                # with _suppress_output():
-                pyasd.cleanup()
+                with _suppress_output():
+                    pyasd.cleanup()
 
 
 # ======================================================================

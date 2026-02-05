@@ -146,7 +146,7 @@ class LiveSimulator:
             ValueError: If `mode` is not one of ``"S"``, ``"M"``, ``"H"``.
         """
         self._check_initialized()
-        print('Step initialized with mode:', mode, 'and temperature:', temperature)
+        # print('Step initialized with mode:', mode, 'and temperature:', temperature)
 
         mode = mode.upper()
         if mode not in ("S", "M", "H"):
@@ -170,7 +170,7 @@ class LiveSimulator:
         # - initial phase
         # - correct MC/LLG kernels
         # - state continuity
-        print(f"Stepping {nstep} steps via mode '{mode}'")
+        # print(f"Stepping {nstep} steps via mode '{mode}'")
         # before calling pyasd.relax
         # pyasd.put_emom(self.get_emom(), self.natom, self.mensemble)
 
