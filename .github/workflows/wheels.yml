@@ -203,89 +203,89 @@ jobs:
       with:
         repository-url: https://test.pypi.org/legacy/
 
-  publish-wheels-to-gh-pages:
-    name: Publish wheels to gh-pages
-    needs:
-      - build_wheels
-      - build_sdist
-    runs-on: ubuntu-latest
+  # publish-wheels-to-gh-pages:
+  #   name: Publish wheels to gh-pages
+  #   needs:
+  #     - build_wheels
+  #     - build_sdist
+  #   runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
+  #   permissions:
+  #     contents: write
 
-    steps:
-      # ------------------------------------------------------------
-      # Checkout MAIN branch (for scripts) into subdir
-      # ------------------------------------------------------------
-      - name: Checkout main (for scripts)
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-          path: repo-main
+  #   steps:
+  #     # ------------------------------------------------------------
+  #     # Checkout MAIN branch (for scripts) into subdir
+  #     # ------------------------------------------------------------
+  #     - name: Checkout main (for scripts)
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ github.ref_name }}
+  #         path: repo-main
 
-      # ------------------------------------------------------------
-      # Checkout gh-pages into ROOT (this is what we commit to)
-      # ------------------------------------------------------------
-      - name: Checkout gh-pages
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: repo-pages
+  #     # ------------------------------------------------------------
+  #     # Checkout gh-pages into ROOT (this is what we commit to)
+  #     # ------------------------------------------------------------
+  #     - name: Checkout gh-pages
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: gh-pages
+  #         path: repo-pages
 
-      # ------------------------------------------------------------
-      # Download artifacts (wheels + sdist)
-      # ------------------------------------------------------------
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
+  #     # ------------------------------------------------------------
+  #     # Download artifacts (wheels + sdist)
+  #     # ------------------------------------------------------------
+  #     - name: Download artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: artifacts
+  #         merge-multiple: true
 
-      - name: Inspect artifacts
-        run: |
-          echo "Artifacts:"
-          find artifacts -type f
+  #     - name: Inspect artifacts
+  #       run: |
+  #         echo "Artifacts:"
+  #         find artifacts -type f
 
-      # ------------------------------------------------------------
-      # Ensure wheels directory exists
-      # ------------------------------------------------------------
-      - name: Ensure wheels directory
-        run: mkdir -p repo-pages/wheels
+  #     # ------------------------------------------------------------
+  #     # Ensure wheels directory exists
+  #     # ------------------------------------------------------------
+  #     - name: Ensure wheels directory
+  #       run: mkdir -p repo-pages/wheels
 
-      # ------------------------------------------------------------
-      # Collect wheels and source distributions
-      # ------------------------------------------------------------
-      - name: Collect wheels and sdists
-        run: |
-          find artifacts -type f -name "*.whl" -exec cp -v {} repo-pages/wheels/ \;
-          find artifacts -type f -name "*.tar.gz" -exec cp -v {} repo-pages/wheels/ \;
+  #     # ------------------------------------------------------------
+  #     # Collect wheels and source distributions
+  #     # ------------------------------------------------------------
+  #     - name: Collect wheels and sdists
+  #       run: |
+  #         find artifacts -type f -name "*.whl" -exec cp -v {} repo-pages/wheels/ \;
+  #         find artifacts -type f -name "*.tar.gz" -exec cp -v {} repo-pages/wheels/ \;
 
-          echo "Final wheels:"
-          ls -lh repo-pages/wheels/
+  #         echo "Final wheels:"
+  #         ls -lh repo-pages/wheels/
 
-      # ------------------------------------------------------------
-      # Cleanup old dev wheels (script from main)
-      # ------------------------------------------------------------
-      - name: Cleanup old dev wheels
-        run: |
-          python repo-main/.github/scripts/cleanup_wheels.py --wheels-dir repo-pages/wheels
+  #     # ------------------------------------------------------------
+  #     # Cleanup old dev wheels (script from main)
+  #     # ------------------------------------------------------------
+  #     - name: Cleanup old dev wheels
+  #       run: |
+  #         python repo-main/.github/scripts/cleanup_wheels.py --wheels-dir repo-pages/wheels
 
-      # ------------------------------------------------------------
-      # Generate wheels index.html
-      # ------------------------------------------------------------
-      - name: Generate wheels index
-        run: |
-          python repo-main/.github/scripts/generate_wheels_index.py --wheels-dir repo-pages/wheels
+  #     # ------------------------------------------------------------
+  #     # Generate wheels index.html
+  #     # ------------------------------------------------------------
+  #     - name: Generate wheels index
+  #       run: |
+  #         python repo-main/.github/scripts/generate_wheels_index.py --wheels-dir repo-pages/wheels
 
-      # ------------------------------------------------------------
-      # Commit and push
-      # ------------------------------------------------------------
-      - name: Commit updated wheels
-        working-directory: repo-pages
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+  #     # ------------------------------------------------------------
+  #     # Commit and push
+  #     # ------------------------------------------------------------
+  #     - name: Commit updated wheels
+  #       working-directory: repo-pages
+  #       run: |
+  #         git config user.name "github-actions"
+  #         git config user.email "github-actions@github.com"
 
-          git add wheels
-          git commit -m "Update wheels (auto)" || echo "No changes"
-          git push
+  #         git add wheels
+  #         git commit -m "Update wheels (auto)" || echo "No changes"
+  #         git push

@@ -34,7 +34,7 @@ class LiveSimulator:
         sim.step("S", nstep=10)
         emom = sim.get_emom()
     """
-    
+
     # The LiveSimulator encapsulates a short-lived `UppASDSimulator` instance
     # and exposes a thin, convenient API useful for interactive tools and
     # notebooks. Methods are intentionally lightweight wrappers around the
@@ -98,10 +98,11 @@ class LiveSimulator:
 
         # Cache initial moments for reset
         self._emom0 = pyasd.get_emom(self.natom, self.mensemble).copy()
-        pyasd.put_emom(pyasd.get_emom(self.natom, self.mensemble), self.natom, self.mensemble)
+        pyasd.put_emom(
+            pyasd.get_emom(self.natom, self.mensemble), self.natom, self.mensemble
+        )
         self._hfield0 = pyasd.get_iphfield().copy()
         self._iptemperature0 = pyasd.get_iptemperature()
-        
 
         self._initialized = True
 
@@ -181,7 +182,7 @@ class LiveSimulator:
             temperature=temperature,
             nstep=nstep,
         )[:, :, 0].astype(np.float64)
-        
+
         return moments
 
     # ------------------------------------------------------------------
@@ -255,7 +256,7 @@ class LiveSimulator:
         Returns:
             None
         """
-        #pyasd.put_iptemperature(float(T))
+        # pyasd.put_iptemperature(float(T))
         pyasd.set_temperature(float(T))
 
     def get_field(self) -> np.ndarray:
