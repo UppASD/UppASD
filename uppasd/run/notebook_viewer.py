@@ -35,6 +35,7 @@ from .live_simulator import LiveSimulator
 # Step control (pure UI intent, no physics)
 # ======================================================================
 
+
 @dataclass
 class StepControl:
     """
@@ -42,13 +43,15 @@ class StepControl:
 
     This object represents *intent*, not state.
     """
-    mode: str = "S"   # 'S' = LLG, 'M' = Metropolis, 'H' = Heatbath
+
+    mode: str = "S"  # 'S' = LLG, 'M' = Metropolis, 'H' = Heatbath
     nstep: int = 10
 
 
 # ======================================================================
 # Viewer configuration (pure visualization)
 # ======================================================================
+
 
 @dataclass
 class ViewerConfig:
@@ -61,8 +64,9 @@ class ViewerConfig:
     - moments
     - any physics-related parameter
     """
+
     scale: float = 30.0
-    stride: int = 1
+
     cmap: str = "coolwarm"
     figsize: tuple = (7, 5)
 
@@ -70,6 +74,7 @@ class ViewerConfig:
 # ======================================================================
 # NotebookLiveViewer
 # ======================================================================
+
 
 class NotebookLiveViewer:
     """
@@ -161,11 +166,11 @@ class NotebookLiveViewer:
                 nstep=self.control.nstep,
                 temperature=self.temperature,
             )
-        except Exception as e:
+        except (ValueError, RuntimeError, AttributeError) as e:
             # Log and re-render status
             try:
                 self.log_area.value += f"Step Error: {e}\n"
-            except Exception:
+            except AttributeError:
                 pass
         finally:
             self.render()
@@ -180,10 +185,10 @@ class NotebookLiveViewer:
             # LiveSimulator exposes `reset_moments()`; call that explicitly.
             self.sim.reset_moments()
             self.log_area.value += "Moments reset to initial state.\n"
-        except Exception as e:
+        except (AttributeError, RuntimeError, ValueError) as e:
             try:
                 self.log_area.value += f"Reset Error: {e}\n"
-            except Exception:
+            except AttributeError:
                 pass
         finally:
             self.render()
@@ -202,8 +207,8 @@ class NotebookLiveViewer:
             ],
             value="S",
             description="Mode:",
-            layout=widgets.Layout(width='95%'),
-            style={'description_width': '110px'},
+            layout=widgets.Layout(width="95%"),
+            style={"description_width": "110px"},
         )
 
         # --- Step count ---
@@ -213,8 +218,8 @@ class NotebookLiveViewer:
             max=500,
             step=1,
             description="Steps:",
-            layout=widgets.Layout(width='95%'),
-            style={'description_width': '110px'},
+            layout=widgets.Layout(width="95%"),
+            style={"description_width": "110px"},
         )
 
         # --- Buttons ---
@@ -235,8 +240,8 @@ class NotebookLiveViewer:
             max=1000.0,
             step=1.0,
             description="T (K)",
-            layout=widgets.Layout(width='95%'),
-            style={'description_width': '110px'},
+            layout=widgets.Layout(width="95%"),
+            style={"description_width": "110px"},
         )
 
         # --- Field ---
@@ -246,18 +251,18 @@ class NotebookLiveViewer:
             max=500.0,
             step=10.0,
             description="Bz (T)",
-            layout=widgets.Layout(width='95%'),
-            style={'description_width': '110px'},
+            layout=widgets.Layout(width="95%"),
+            style={"description_width": "110px"},
         )
 
         # --- Output ---
-        self.output = widgets.Output(layout=widgets.Layout(width='65%'))
-        self.status = widgets.HTML(layout=widgets.Layout(width='95%'))
+        self.output = widgets.Output(layout=widgets.Layout(width="65%"))
+        self.status = widgets.HTML(layout=widgets.Layout(width="95%"))
         self.log_area = widgets.Textarea(
-            value='',
-            placeholder='Simulation logs will appear here...',
-            description='',
-            layout=widgets.Layout(height='120px', width='95%')
+            value="",
+            placeholder="Simulation logs will appear here...",
+            description="",
+            layout=widgets.Layout(height="120px", width="95%"),
         )
 
         # --- Callbacks ---
@@ -269,17 +274,25 @@ class NotebookLiveViewer:
         # --- Layout ---
         # Left controls column (stacked) and right plot column
         # Arrange controls: Mode, Temp, Field, Steps, Status, [buttons], Log
-        controls = widgets.VBox([
-            self.mode_select,
-            self.slider_T,
-            self.slider_Bz,
-            self.step_input,
-            self.status,
-            widgets.HBox([self.step_button, self.reset_button], layout=widgets.Layout(justify_content='flex-start', width='95%')),
-            self.log_area,
-        ], layout=widgets.Layout(width='35%', align_items='stretch'))
+        controls = widgets.VBox(
+            [
+                self.mode_select,
+                self.slider_T,
+                self.slider_Bz,
+                self.step_input,
+                self.status,
+                widgets.HBox(
+                    [self.step_button, self.reset_button],
+                    layout=widgets.Layout(justify_content="flex-start", width="95%"),
+                ),
+                self.log_area,
+            ],
+            layout=widgets.Layout(width="35%", align_items="stretch"),
+        )
 
-        self.ui = widgets.HBox([controls, self.output], layout=widgets.Layout(width='100%'))
+        self.ui = widgets.HBox(
+            [controls, self.output], layout=widgets.Layout(width="100%")
+        )
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -339,16 +352,18 @@ class NotebookLiveViewer:
 
         # Keep axis limits stable and update aspect.
         self._ax.set_aspect("equal")
-        self._ax.set_xlim(*getattr(self, '_xlim', (None, None)))
-        self._ax.set_ylim(*getattr(self, '_ylim', (None, None)))
+        self._ax.set_xlim(*getattr(self, "_xlim", (None, None)))
+        self._ax.set_ylim(*getattr(self, "_ylim", (None, None)))
 
         # If we haven't created the quiver yet, create it and a colorbar.
         # Compute a dynamic scale so arrows are large but fit the axes. The
         # scale is computed so that the median arrow length is roughly
         # `arrow_frac` of the minimal axis extent.
         try:
-            min_extent = min(self._xlim[1] - self._xlim[0], self._ylim[1] - self._ylim[0])
-        except Exception:
+            min_extent = min(
+                self._xlim[1] - self._xlim[0], self._ylim[1] - self._ylim[0]
+            )
+        except (IndexError, TypeError, ValueError):
             min_extent = None
         meanlen = np.mean(np.hypot(u, v)) if u.size > 0 else 0.0
         arrow_frac = 0.04
@@ -361,11 +376,15 @@ class NotebookLiveViewer:
 
         if self._quiver is None:
             self._quiver = self._ax.quiver(
-                x, y, u, v, mz,
+                x,
+                y,
+                u,
+                v,
+                mz,
                 scale=scale_val,
-                scale_units='xy',
+                scale_units="xy",
                 cmap=self.config.cmap,
-                pivot='mid',
+                pivot="mid",
             )
             # Create a dedicated colorbar axis matching the height of the main ax
             try:
@@ -375,11 +394,15 @@ class NotebookLiveViewer:
                 if self._cax is not None:
                     try:
                         self._cax.remove()
-                    except Exception:
+                    except (AttributeError, RuntimeError):
                         pass
-                self._cax = self._fig.add_axes((axpos.x1 + pad, axpos.y0, cbar_width, axpos.height))
-                self._cbar = self._fig.colorbar(self._quiver, cax=self._cax, label='$m_z$')
-            except Exception:
+                self._cax = self._fig.add_axes(
+                    (axpos.x1 + pad, axpos.y0, cbar_width, axpos.height)
+                )
+                self._cbar = self._fig.colorbar(
+                    self._quiver, cax=self._cax, label="$m_z$"
+                )
+            except (ValueError, RuntimeError, AttributeError):
                 self._cax = None
                 self._cbar = None
         else:
@@ -390,45 +413,60 @@ class NotebookLiveViewer:
                 self._quiver.set_UVC(u, v, mz)
                 self._quiver.set_array(mz)
                 # Update colorbar mappable and reposition cax to match ax height
-                if self._cbar is not None and hasattr(self._cbar, 'mappable'):
+                if self._cbar is not None and hasattr(self._cbar, "mappable"):
                     try:
                         self._cbar.mappable.set_array(mz)
-                    except Exception:
+                    except (AttributeError, ValueError):
                         pass
                 if self._cax is not None:
                     try:
                         axpos = self._ax.get_position()
                         pad = 0.01
                         cbar_width = 0.03
-                        self._cax.set_position((axpos.x1 + pad, axpos.y0, cbar_width, axpos.height))
-                    except Exception:
+                        self._cax.set_position(
+                            (axpos.x1 + pad, axpos.y0, cbar_width, axpos.height)
+                        )
+                    except (AttributeError, ValueError, RuntimeError):
                         pass
-            except Exception:
+            except (AttributeError, ValueError, RuntimeError):
                 # Fallback: recreate quiver if in-place update fails
                 try:
                     if self._quiver is not None:
                         self._quiver.remove()
-                except Exception:
+                except (AttributeError, RuntimeError):
                     pass
-                self._quiver = self._ax.quiver(x, y, u, v, mz, scale=self.config.scale, cmap=self.config.cmap, pivot='mid')
-                try:
-                    if self._cbar is not None:
-                        try:
-                            self._cbar.remove()
-                        except Exception:
-                            pass
-                    if self._cax is not None:
-                        try:
-                            self._cax.remove()
-                        except Exception:
-                            pass
-                    axpos = self._ax.get_position()
-                    pad = 0.01
-                    cbar_width = 0.03
-                    self._cax = self._fig.add_axes((axpos.x1 + pad, axpos.y0, cbar_width, axpos.height))
-                    self._cbar = self._fig.colorbar(self._quiver, cax=self._cax, label='$m_z$')
-                except Exception:
-                    self._cbar = None
+            self._quiver = self._ax.quiver(
+                x,
+                y,
+                u,
+                v,
+                mz,
+                scale=self.config.scale,
+                cmap=self.config.cmap,
+                pivot="mid",
+            )
+            try:
+                if self._cbar is not None:
+                    try:
+                        self._cbar.remove()
+                    except (AttributeError, RuntimeError):
+                        pass
+                if self._cax is not None:
+                    try:
+                        self._cax.remove()
+                    except (AttributeError, RuntimeError):
+                        pass
+                axpos = self._ax.get_position()
+                pad = 0.01
+                cbar_width = 0.03
+                self._cax = self._fig.add_axes(
+                    (axpos.x1 + pad, axpos.y0, cbar_width, axpos.height)
+                )
+                self._cbar = self._fig.colorbar(
+                    self._quiver, cax=self._cax, label="$m_z$"
+                )
+            except (ValueError, RuntimeError, AttributeError):
+                self._cbar = None
 
         self._ax.set_title("Spin configuration")
         self._ax.set_xlabel("x")

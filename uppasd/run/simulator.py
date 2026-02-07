@@ -22,6 +22,7 @@ from uppasd.core.exchange import ExchangeShellTable, DMIShellTable
 from uppasd.core.system import SpinSystem
 from uppasd import pyasd
 
+
 @contextmanager
 def _suppress_output():
     """Suppress OS-level and Python-level stdout/stderr for external libs.

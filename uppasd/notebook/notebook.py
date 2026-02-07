@@ -27,11 +27,9 @@ from simulator import run_relaxation, run_measurement
 
 # Optional dependencies (lazy import!)
 try:
-    import ase
-    from ase import Atoms
     from ase.neighborlist import NeighborList
     _HAVE_ASE = True
-except Exception:
+except ImportError:
     _HAVE_ASE = False
 
 

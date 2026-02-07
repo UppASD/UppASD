@@ -139,7 +139,7 @@ def run_uppasd() -> None:
         logger.debug("✓ Simulation completed")
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to run UppASD: %s", e)
-        raise RuntimeError("UppASD simulation failed: %s" % e) from e
+        raise RuntimeError(f"UppASD simulation failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -168,7 +168,7 @@ def sanity_check() -> None:
         logger.debug("✓ Sanity check passed")
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Sanity check failed: %s", e)
-        raise RuntimeError("Configuration invalid: %s" % e) from e
+        raise RuntimeError(f"Configuration invalid: {e}") from e
 
 
 # Backward compatibility alias
@@ -202,7 +202,7 @@ def num_procs() -> int:
         return int(nprocs)
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to get processor count: %s", e)
-        raise RuntimeError("Cannot retrieve processor count: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve processor count: {e}") from e
 
 
 # Backward compatibility alias
@@ -266,7 +266,7 @@ def setup_all() -> Tuple[int, int]:
         return natom, mensemble
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to setup simulation: %s", e)
-        raise RuntimeError("Initialization failed: %s" % e) from e
+        raise RuntimeError(f"Initialization failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -297,7 +297,7 @@ def initial_phase() -> None:
         logger.debug("✓ Initial phase completed")
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Initial phase failed: %s", e)
-        raise RuntimeError("Initialization phase failed: %s" % e) from e
+        raise RuntimeError(f"Initialization phase failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -328,7 +328,7 @@ def measure() -> None:
         _uppasd.measure()
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Measurement failed: %s", e)
-        raise RuntimeError("Cannot perform measurement: %s" % e) from e
+        raise RuntimeError(f"Cannot perform measurement: {e}") from e
 
 
 def cleanup() -> None:
@@ -447,7 +447,7 @@ def relax_metropolis(natom: int, mensemble: int) -> np.ndarray:
         return moments
     except _CommonEx as e:
         logger.error("Metropolis relaxation failed: %s", e)
-        raise RuntimeError("Metropolis relaxation failed: %s" % e) from e
+        raise RuntimeError(f"Metropolis relaxation failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -492,7 +492,7 @@ def relax_heatbath(natom: int, mensemble: int) -> np.ndarray:
         return moments
     except _CommonEx as e:
         logger.error("Heat bath relaxation failed: %s", e)
-        raise RuntimeError("Heat bath relaxation failed: %s" % e) from e
+        raise RuntimeError(f"Heat bath relaxation failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -538,7 +538,7 @@ def relax_llg(natom: int, mensemble: int) -> np.ndarray:
         return moments
     except _CommonEx as e:
         logger.error("LLG relaxation failed: %s", e)
-        raise RuntimeError("LLG relaxation failed: %s" % e) from e
+        raise RuntimeError(f"LLG relaxation failed: {e}") from e
 
 
 # Backward compatibility alias
@@ -655,7 +655,7 @@ def relax(
 
     except _CommonEx as e:
         logger.error("%s relaxation failed: %s", method, e)
-        raise RuntimeError("Relaxation failed (%s): %s" % (method, e)) from e
+        raise RuntimeError(f"Relaxation failed ({method}): {e}") from e
 
 
 # ============================================================================
@@ -692,7 +692,7 @@ def get_coords(natom: int) -> np.ndarray:
         return coords
     except _CommonEx as e:
         logger.error("Failed to get coordinates: %s", e)
-        raise RuntimeError("Cannot retrieve coordinates: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve coordinates: {e}") from e
 
 
 def get_moments(natom: int, mensemble: int) -> np.ndarray:
@@ -737,7 +737,7 @@ def get_moments(natom: int, mensemble: int) -> np.ndarray:
         return moments
     except _CommonEx as e:
         logger.error("Failed to get moments: %s", e)
-        raise RuntimeError("Cannot retrieve moments: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve moments: {e}") from e
 
 
 # Backward compatibility alias
@@ -777,7 +777,7 @@ def set_moments(moments: np.ndarray, natom: int, mensemble: int) -> None:
         _uppasd.put_emom(moments, natom, mensemble)
     except _CommonEx as e:
         logger.error("Failed to set moments: %s", e)
-        raise RuntimeError("Cannot set moments: %s" % e) from e
+        raise RuntimeError(f"Cannot set moments: {e}") from e
 
 
 # Backward compatibility alias
@@ -826,7 +826,7 @@ def get_field(natom: int, mensemble: int) -> np.ndarray:
         return field
     except _CommonEx as e:
         logger.error("Failed to get field: %s", e)
-        raise RuntimeError("Cannot retrieve field: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve field: {e}") from e
 
 
 # Backward compatibility alias
@@ -866,7 +866,7 @@ def set_field(field: np.ndarray, natom: int, mensemble: int) -> None:
         _uppasd.put_beff(field, natom, mensemble)
     except _CommonEx as e:
         logger.error("Failed to set field: %s", e)
-        raise RuntimeError("Cannot set field: %s" % e) from e
+        raise RuntimeError(f"Cannot set field: {e}") from e
 
 
 # Backward compatibility alias
@@ -903,7 +903,7 @@ def get_hfield() -> np.ndarray:
         return hfield
     except _CommonEx as e:
         logger.error("Failed to get hfield: %s", e)
-        raise RuntimeError("Cannot retrieve hfield: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve hfield: {e}") from e
 
 
 def set_hfield(hfield: np.ndarray) -> None:
@@ -938,7 +938,7 @@ def set_hfield(hfield: np.ndarray) -> None:
         _uppasd.put_hfield(hfield)
     except _CommonEx as e:
         logger.error("Failed to set hfield: %s", e)
-        raise RuntimeError("Cannot set hfield: %s" % e) from e
+        raise RuntimeError(f"Cannot set hfield: {e}") from e
 
 
 # Backward compatibility alias
@@ -975,7 +975,7 @@ def get_iphfield() -> np.ndarray:
         return iphfield
     except _CommonEx as e:
         logger.error("Failed to get iphfield: %s", e)
-        raise RuntimeError("Cannot retrieve iphfield: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve iphfield: {e}") from e
 
 
 def set_iphfield(iphfield: np.ndarray) -> None:
@@ -1010,7 +1010,7 @@ def set_iphfield(iphfield: np.ndarray) -> None:
         _uppasd.put_iphfield(iphfield)
     except _CommonEx as e:
         logger.error("Failed to set iphfield: %s", e)
-        raise RuntimeError("Cannot set iphfield: %s" % e) from e
+        raise RuntimeError(f"Cannot set iphfield: {e}") from e
 
 
 # Backward compatibility alias
@@ -1054,7 +1054,7 @@ def get_energy() -> float:
         return energy
     except _CommonEx as e:
         logger.error("Failed to get energy: %s", e)
-        raise RuntimeError("Cannot retrieve energy: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve energy: {e}") from e
 
 
 def get_nstep() -> int:
@@ -1081,7 +1081,7 @@ def get_nstep() -> int:
         return int(nstep)
     except _CommonEx as e:
         logger.error("Failed to get step number: %s", e)
-        raise RuntimeError("Cannot retrieve step number: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve step number: {e}") from e
 
 
 def set_nstep(nstep: int) -> None:
@@ -1123,7 +1123,7 @@ def set_nstep(nstep: int) -> None:
             )
     except _CommonEx as e:
         logger.error("Failed to set step number: %s", e)
-        raise RuntimeError("Cannot set step number: %s" % e) from e
+        raise RuntimeError(f"Cannot set step number: {e}") from e
 
 
 # Backward compatibility alias
@@ -1159,7 +1159,7 @@ def get_mcnstep() -> int:
         return int(mcnstep)
     except _CommonEx as e:
         logger.error("Failed to get MC step number: %s", e)
-        raise RuntimeError("Cannot retrieve MC step number: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve MC step number: {e}") from e
 
 
 def set_mcnstep(mcnstep: int) -> None:
@@ -1201,7 +1201,7 @@ def set_mcnstep(mcnstep: int) -> None:
             )
     except _CommonEx as e:
         logger.error("Failed to set MC step number: %s", e)
-        raise RuntimeError("Cannot set MC step number: %s" % e) from e
+        raise RuntimeError(f"Cannot set MC step number: {e}") from e
 
 
 # Backward compatibility alias
@@ -1239,7 +1239,7 @@ def get_ipmode() -> str:
         return mode
     except _CommonEx as e:
         logger.error("Failed to get ip_mode: %s", e)
-        raise RuntimeError("Cannot retrieve ip_mode: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve ip_mode: {e}") from e
 
 
 def set_ipmode(mode: str) -> None:
@@ -1277,7 +1277,7 @@ def set_ipmode(mode: str) -> None:
         _uppasd.put_ipmode(payload)
     except _CommonEx as e:
         logger.error("Failed to set ip_mode to '%s': %s", normalized, e)
-        raise RuntimeError("Cannot set ip_mode: %s" % e) from e
+        raise RuntimeError(f"Cannot set ip_mode: {e}") from e
 
 
 # Backward compatibility alias
@@ -1312,7 +1312,7 @@ def get_temperature() -> float:
         return temperature
     except _CommonEx as e:
         logger.error("Failed to get temperature: %s", e)
-        raise RuntimeError("Cannot retrieve temperature: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve temperature: {e}") from e
 
 
 def set_temperature(temperature: float) -> None:
@@ -1345,7 +1345,7 @@ def set_temperature(temperature: float) -> None:
         _uppasd.put_temperature(temperature)
     except _CommonEx as e:
         logger.error("Failed to set temperature: %s", e)
-        raise RuntimeError("Cannot set temperature: %s" % e) from e
+        raise RuntimeError(f"Cannot set temperature: {e}") from e
 
 
 # Backward compatibility alias
@@ -1385,7 +1385,7 @@ def get_iptemperature() -> float:
         return temperature
     except _CommonEx as e:
         logger.error("Failed to get initial-phase temperature: %s", e)
-        raise RuntimeError("Cannot retrieve initial-phase temperature: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve initial-phase temperature: {e}") from e
 
 
 def put_iptemperature(temperature: float) -> None:
@@ -1424,7 +1424,7 @@ def put_iptemperature(temperature: float) -> None:
         _uppasd.put_iptemperature(temperature)
     except _CommonEx as e:
         logger.error("Failed to set initial-phase temperature: %s", e)
-        raise RuntimeError("Cannot set initial-phase temperature: %s" % e) from e
+        raise RuntimeError(f"Cannot set initial-phase temperature: {e}") from e
 
 
 # Backward compatibility alias
@@ -1454,7 +1454,7 @@ def get_timestep() -> float:
         return timestep
     except _CommonEx as e:
         logger.error("Failed to get timestep: %s", e)
-        raise RuntimeError("Cannot retrieve timestep: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve timestep: {e}") from e
 
 
 def set_timestep(timestep: float) -> None:
@@ -1492,7 +1492,7 @@ def set_timestep(timestep: float) -> None:
             logger.warning("put_delta_t not available in _uppasd; timestep not updated")
     except _CommonEx as e:
         logger.error("Failed to set timestep: %s", e)
-        raise RuntimeError("Cannot set timestep: %s" % e) from e
+        raise RuntimeError(f"Cannot set timestep: {e}") from e
 
 
 # Backward compatibility aliases
@@ -1639,7 +1639,7 @@ def setup_tensor_hamiltonian(
 
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Magnon calculation failed: %s", e)
-        raise RuntimeError("setup_tensor_hamiltonian failed: %s" % e) from e
+        raise RuntimeError(f"setup_tensor_hamiltonian failed: {e}") from e
 
 
 def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1667,7 +1667,7 @@ def _get_magnon_eigenvalues_q(hdim: int, nq_ext: int) -> np.ndarray:
         return evals
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to retrieve magnon eigenvalues: %s", e)
-        raise RuntimeError("Cannot retrieve magnon eigenvalues: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve magnon eigenvalues: {e}") from e
 
 
 def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1695,7 +1695,7 @@ def _get_magnon_eigenvectors_q(hdim: int, nq_ext: int) -> np.ndarray:
         return evecs
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to retrieve magnon eigenvectors: %s", e)
-        raise RuntimeError("Cannot retrieve magnon eigenvectors: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve magnon eigenvectors: {e}") from e
 
 
 def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1721,7 +1721,7 @@ def _get_magnon_eigenvalues_qchern(hdim: int, nq_ext: int) -> np.ndarray:
         return evals
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to retrieve magnon eigenvalues (Chern): %s", e)
-        raise RuntimeError("Cannot retrieve Chern magnon eigenvalues: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvalues: {e}") from e
 
 
 def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
@@ -1747,4 +1747,4 @@ def _get_magnon_eigenvectors_qchern(hdim: int, nq_ext: int) -> np.ndarray:
         return evecs
     except (AttributeError, TypeError, ValueError, OSError) as e:
         logger.error("Failed to retrieve magnon eigenvectors (Chern): %s", e)
-        raise RuntimeError("Cannot retrieve Chern magnon eigenvectors: %s" % e) from e
+        raise RuntimeError(f"Cannot retrieve Chern magnon eigenvectors: {e}") from e
