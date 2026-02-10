@@ -3,7 +3,7 @@
 !*                                                                *
 !*               Uppsala Atomic Spin Dynamics                     *
 !*                                                                *
-!*                   Version 5.0 Mar 2017                         *
+!*                   Version 6.0 Mar 2023                         *
 !*                                                                *
 !*       Anders Bergman                                           *
 !*       Johan Hellsvik             Lars Bergqvist                *
@@ -159,6 +159,20 @@
       call allocate_mcdata(1,-1)
       call allocate_randomwork(1,1,-1,'N')
    end subroutine CleanUp
+
+   !==============================================================!
+   ! RNG seed wrapper
+   !--------------------------------------------------------------!
+   subroutine RngSeed(seed) bind(c, name='rng_init_')
+      use iso_c_binding
+      use RandomNumbers, only : rng_init
+      implicit none
+      integer(c_int), intent(in) :: seed
+
+      ! Call the RandomNumbers rng_init wrapper which initializes the
+      ! module-level RNG state used throughout UppASD.
+      call rng_init(seed)
+   end subroutine RngSeed
 
 
 !!!    !==============================================================!
