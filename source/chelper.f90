@@ -6,6 +6,7 @@
 !> Helper for c code
 !--------------------------------!
 module Chelper
+   use iso_c_binding
    use InputData
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
@@ -52,6 +53,20 @@ module Chelper
    use prn_cudameasurements,   only :  print_observable, print_trajectory
 
    implicit none
+
+   interface
+      subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt) &
+           bind(C, name="fortrandata_setcorrelations_")
+         import :: c_double
+         real(c_double)    :: q(*)
+         real(c_double)    :: r_mid(*)
+         real(c_double)    :: coord(*)
+         real(c_double)    :: w(*)
+         complex(c_double) :: m_k(*)
+         complex(c_double) :: m_kw(*)
+         complex(c_double) :: m_kt(*)
+      end subroutine FortranData_setCorrelations
+   end interface
 
 
    private

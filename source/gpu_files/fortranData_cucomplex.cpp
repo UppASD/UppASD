@@ -2,7 +2,8 @@
 #include "fortranData.hpp"
 
 #include "real_type.h"
-#include <thrust/complex.h>
+//#include <thrust/complex.h>
+#include <complex>
 
 
 // Constants
@@ -31,9 +32,9 @@ real* FortranData::r_mid;
 real* FortranData::q;
 real* FortranData::coord;
 real* FortranData::w;
-thrust::complex<real>* FortranData::m_k = nullptr;
-thrust::complex<real>* FortranData::m_kw = nullptr;
-thrust::complex<real>* FortranData::m_kt = nullptr;
+std::complex<real>* FortranData::m_k;
+std::complex<real>* FortranData::m_kw;
+std::complex<real>* FortranData::m_kt;
 
 real* FortranData::delta_t;
 real* FortranData::gamma;
@@ -263,23 +264,23 @@ void FortranData::setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, r
 
 }
 
-void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  void* p_m_k, 
-                                        void* p_m_kw, void* p_m_kt){
+void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  std::complex<real>* p_m_k, 
+                                        std::complex<real>* p_m_kw, std::complex<real>* p_m_kt){
 
 
    q = p_q;
    r_mid = p_r_mid;
    coord = p_coord;
    w = p_w;
-    m_k  = reinterpret_cast<thrust::complex<real>*>(p_m_k);
-    m_kw = reinterpret_cast<thrust::complex<real>*>(p_m_kw);
-    m_kt = reinterpret_cast<thrust::complex<real>*>(p_m_kt);
+   m_k = p_m_k;
+   m_kw = p_m_kw;
+   m_kt = p_m_kt;
 
 }
 /*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
                                       unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                       real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
-                                      unsigned int* p17, unsigned int* p18, unsigned int* p19,
+           cuDoubleComplex                           unsigned int* p17, unsigned int* p18, unsigned int* p19,
                                       unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep,
                                       unsigned int * p_ipnphase) {
    stt = p1;
@@ -295,7 +296,7 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
    delta_t = p8;
    gamma = p9;
    k_bolt = p10;
-   mub = p11;
+   mub = p1cuDoubleComplex1;
    damping = p12;
 
    binderc = p13;
@@ -415,8 +416,8 @@ FortranData::setMeasurablePointers(
    p_spinwait, p_autocorr_buff, p_indxb_ac, p_traj_step, p_traj_buff, p_traj_atom,p_mmomb, p_mmomb_traj, p_emomb, p_emomb_traj);
 }
 
-extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
-                                             void* p_m_kw, void* p_m_kt) {
+extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, std::complex<real>* p_m_k, 
+                                             std::complex<real>* p_m_kw, std::complex<real>* p_m_kt) {
 FortranData::setCorrelationPointers(
    p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt);
 }

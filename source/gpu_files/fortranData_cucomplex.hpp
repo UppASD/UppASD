@@ -2,7 +2,8 @@
 
 #include "c_headers.hpp"
 #include "real_type.h"
-#include <thrust/complex.h>
+//#include <thrust/complex.h>
+#include <complex>
 
 
 // NAME         TYPE     DIMENSION   DESCRIPTION
@@ -70,9 +71,9 @@ public:
    static real* q;
    static real* coord;
    static real* w;
-   static thrust::complex<real>* m_k;
-   static thrust::complex<real>* m_kw;
-   static thrust::complex<real>* m_kt;
+   static std::complex<real> * m_k;
+   static std::complex<real>* m_kw;
+   static std::complex<real>* m_kt;
 
 
    //delta_t;
@@ -205,8 +206,8 @@ public:
                                        real* p_traj_step, real* p_traj_buff, real* p_traj_atom,
                                        real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj);
    
-   static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
-                                       void* p_m_kw, void* p_m_kt);
+   static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, std::complex<real>* p_m_k, 
+                                       std::complex<real>* p_m_kw, std::complex<real>* p_m_kt);
 
     
    
