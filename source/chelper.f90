@@ -318,6 +318,7 @@ contains
          call find_rmid(r_mid,coord,Natom)
       endif
 
+
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
            do_gpu_measurements, skyno, do_sc, do_gpu_correlations)
@@ -338,6 +339,9 @@ contains
 
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
+
+      print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
+      !print *, 'FORTRAN EMOOOOM', size(emomM), size(emomM,1), size(emomM,2)
 
       call FortranData_setMeasurables( &
            mavg_buff, mavg2_buff, mavg4_buff, &

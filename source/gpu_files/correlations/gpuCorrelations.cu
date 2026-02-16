@@ -585,6 +585,7 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
         sc_block_gpu.Allocate(static_cast <long int>(3 * numBlocksX_q), static_cast <long int>(nq));
         if ((do_sc == 'C') || (do_sc == 'Y')) {
             sc_q_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
+            sc_q_cpu.AllocateHost(static_cast <long int>(3), static_cast <long int>(nq));
             bl = (3 * nq + numThreads - 1) / numThreads;
             setZero<2> << <bl, numThreads >> > (sc_q_gpu, 3 * nq);
 
@@ -632,6 +633,7 @@ void GpuCorrelations::release() {
         sc_block_gpu.Free();
         if ((do_sc == 'C') || (do_sc == 'Y')) {
             sc_q_gpu.Free();
+            sc_q_cpu.FreeHost();
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
             sc_qt_gpu.Free();
@@ -720,7 +722,11 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
         GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
-        //TODO cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        //cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        sc_q_cpu.copy_sync(sc_q_gpu);
+        //cpuCorrelations.m_k.copy_sync(sc_q_cpu);
+        printf("Tensor dims: %lld %lld %lld\n", cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        printf("CudaTensor dims: %lld %lld %lld\n", sc_q_gpu.extent(0), sc_q_gpu.extent(1));
         break;
 
     case 'Q':

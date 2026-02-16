@@ -64,6 +64,7 @@ private:
     GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
+    Tensor<thrust::complex<real>, 2> sc_q_cpu;
 
 
     // Buffer variables 

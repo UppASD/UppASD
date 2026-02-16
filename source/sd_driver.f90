@@ -1129,11 +1129,12 @@ contains
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
       integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
-      integer ::cgk_flag, ntmp
+      integer ::cgk_flag, ntmp, dummy_mstep
       !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
       whichsim = 0
       whichphase = 1
       cgk_flag = 0
+      dummy_mstep = 0
 
       if (do_spintemp=='Y') then
          ntmp=nstep/spintemp_step
@@ -1144,7 +1145,7 @@ contains
          call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
       end if
 
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,  &
+      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
          NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
