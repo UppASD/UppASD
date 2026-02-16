@@ -273,9 +273,10 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
     if (wid == 0) mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
 
     if (tid_in_block == 0) {
-            scsum(0, t_cur, qInd) += mySum[0];
-            scsum(1, t_cur, qInd) += mySum[1];
-            scsum(2, t_cur, qInd) += mySum[2];
+            // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
+            scsum(0, qInd, t_cur) += mySum[0];
+            scsum(1, qInd, t_cur) += mySum[1];
+            scsum(2, qInd, t_cur) += mySum[2];
         
         //printf("qInd = %i, t_cur = %i, Re = %.3lf, Im = %.3lf\n", qInd, t_cur, mySum[2].real(), mySum[2].imag());
 
@@ -340,9 +341,10 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
 
     if (tid_in_block == 0) {
         if ((both_flag == 1) || (both_flag == 2)) {
-            scsum_qt(0, t_cur, qInd) += mySum[0];
-            scsum_qt(1, t_cur, qInd) += mySum[1];
-            scsum_qt(2, t_cur, qInd) += mySum[2];
+            // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
+            scsum_qt(0, qInd, t_cur) += mySum[0];
+            scsum_qt(1, qInd, t_cur) += mySum[1];
+            scsum_qt(2, qInd, t_cur) += mySum[2];
         }
 
         if ((both_flag == 0) || (both_flag == 2)) {
@@ -593,8 +595,8 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
 
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
-            sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
-            //sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(sc_max_nstep), static_cast <long int>(nq));
+            // CRITICAL: Match Fortran memory layout: (component, q, time) NOT (component, time, q)
+            sc_qt_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(sc_max_nstep));
             sc_qw_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(nw));
             sc_block_w_gpu.Allocate(static_cast <long int>(3 * numBlocksX_w), static_cast <long int>(nq), static_cast <long int>(nw));
             dt.Allocate(static_cast <long int>(sc_max_nstep));
@@ -645,6 +647,7 @@ void GpuCorrelations::release() {
             w.Free();
             dt.Free();
             dt_cpu.FreeHost();
+            sc_step_arr_cpu.FreeHost();
         }
         isallocated = 0;
     }
@@ -665,37 +668,73 @@ void GpuCorrelations::measure(std::size_t mstep) {
         break;
 
     case 'Q':
-        if ((curstep % sc_step) == 0) {
+        if ((curstep % sc_step) == 0 && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
+            printf("[GPU-SAMPLE Q] mstep=%zu, curstep=%zu, condition: (curstep %% sc_step)==0, t_cur=%u (max=%u)\n", 
+                   mstep, curstep, t_cur, sc_max_nstep);
+            
+            // Record metadata BEFORE kernel call (mirrors Fortran: increment then record)
+            if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
+                dt_cpu(int(t_cur)) = delta_t * sc_step;  // Record time step at current index
+                printf("[GPU-DEBUG] Case Q: Recorded dt_cpu[%u] = %.6e (delta_t=%.6e, sc_step=%zu)\n",
+                       t_cur, dt_cpu(int(t_cur)), delta_t, sc_step);
+            }
+            if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
+                sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);  // Record step width
+                printf("[GPU-DEBUG] Case Q: Recorded sc_step_arr_cpu[%u] = %.6e\n", t_cur, sc_step_arr_cpu(int(t_cur)));
+            }
+            
+            // Kernel writes to m_kt(:,:,t_cur)
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_dyn << <nq, 1024 >> > (sc_block_gpu, sc_qt_gpu, numBlocksX_q, t_cur);
             cudaDeviceSynchronize();
-            dt_cpu[t_cur] = delta_t * sc_step;
-            t_cur++;
-
-        }   
+            printf("[GPU-KERNEL Q] Kernel wrote to sc_qt_gpu slice t_cur=%u\n", t_cur);
+            t_cur++;  // Increment AFTER writing to that time slice
+        } else {
+            if ((curstep % sc_step) == 0) {
+                printf("[GPU-SKIP Q] mstep=%zu, curstep=%zu: SKIPPED (t_cur=%u >= sc_max_nstep=%u)\n", 
+                       mstep, curstep, t_cur, sc_max_nstep);
+            }
+        }
         break;
 
     case 'Y':
-        if (((curstep % sc_step) == 0) && ((curstep % sc_sep) == 0)) {
+        if (((curstep % sc_step) == 0) && ((curstep % sc_sep) == 0) && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
             both_flag = 2;
+            printf("[GPU-DEBUG] Case Y (both_flag=2, t_cur=%u): Recording metadata and sampling S(q), S(q,t)\n", t_cur);
+            // Record metadata for time-domain sample
+            if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
+                dt_cpu(int(t_cur)) = delta_t * sc_step;
+            }
+            if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
+                sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
+            }
+            
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
-            dt_cpu[t_cur] = delta_t * sc_step;
             t_cur++;
             n_samples++;
 
         }
-        else if ((curstep % sc_step) == 0) {
+        else if ((curstep % sc_step) == 0 && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
             both_flag = 1;
+            printf("[GPU-DEBUG] Case Y (both_flag=1, t_cur=%u): Recording metadata and sampling S(q,t) only\n", t_cur);
+            // Record metadata for time-domain sample
+            if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
+                dt_cpu(int(t_cur)) = delta_t * sc_step;
+            }
+            if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
+                sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
+            }
+            
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
-            dt_cpu[t_cur] = delta_t * sc_step;
             t_cur++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
+            printf("[GPU-DEBUG] Case Y (both_flag=0, n_samples before=%zu): Sampling S(q) only\n", n_samples);
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
@@ -713,6 +752,16 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     
     printf("[GPU-DEBUG] flushCorrelations: do_sc=%c, n_samples=%zu, t_cur=%u, nq=%zu\n", 
            do_sc, n_samples, t_cur, nq);
+    
+    // DEBUG: Print tensor dimensions BEFORE any operations
+    printf("[GPU-DEBUG] GPU tensor dimensions:\n");
+    printf("  sc_q_gpu: (%zu, %zu)\n", sc_q_gpu.extent(0), sc_q_gpu.extent(1));
+    printf("  sc_qt_gpu: (%zu, %zu, %zu)\n", sc_qt_gpu.extent(0), sc_qt_gpu.extent(1), sc_qt_gpu.extent(2));
+    printf("  sc_qw_gpu: (%zu, %zu, %zu)\n", sc_qw_gpu.extent(0), sc_qw_gpu.extent(1), sc_qw_gpu.extent(2));
+    printf("[GPU-DEBUG] Host tensor dimensions:\n");
+    printf("  m_k: (%zu, %zu)\n", cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+    printf("  m_kt: (%zu, %zu, %zu)\n", cpuCorrelations.m_kt.extent(0), cpuCorrelations.m_kt.extent(1), cpuCorrelations.m_kt.extent(2));
+    printf("  m_kw: (%zu, %zu, %zu)\n", cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
     
        /* for (int k = 0; k < nq; k++) {
             for (int i = 0; i < sc_max_nstep; i++) {
@@ -763,47 +812,34 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         break;
     }
 
-    case 'Q': {
-        printf("[GPU-DEBUG] Case Q: Computing S(q,ω) for t_cur=%u samples\n", t_cur);
-        dt.copy_sync(dt_cpu);
-        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <nw * nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
-        cudaDeviceSynchronize();
-        
-        // TODO: Transfer m_kt for Fortran - skipping for now due to dim mismatch issues
-        printf("[GPU-DEBUG] Case Q: Skipping m_kt transfer (needs dimension verification)\n");
-        break;
-    }
-
-    case 'Y': {
-        printf("[GPU-DEBUG] Case Y: Computing both S(q) and S(q,ω)\n");
-        dt.copy_sync(dt_cpu);
+    case 'Q':
+    case 'Y':
+        // Both Q and Y: Transfer S(q,t), leave S(q,ω) as zeros for now
+        printf("[GPU-DEBUG] Case %c: S(q,t) transfer (S(q,ω) deferred)\n", do_sc);
+    default: {
+        // Default = Case C: S(q) only, proven working
+        printf("[GPU-DEBUG] flushCorrelations: do_sc=%c, will transfer m_k\n", do_sc);
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
-        
-        // Average for S(q)
-        GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
-        
-        // FT for S(q,ω)
-        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <nw*nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
         cudaDeviceSynchronize();
         
-        // Transfer m_k (S(q) averaged)
-        try {
-            cpuCorrelations.m_k.copy_sync(sc_q_gpu);
-            printf("[GPU-DEBUG] Transferred m_k (shape %zu×%zu)\n",
-                   cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
-        } catch (const std::exception& e) {
-            printf("[GPU-ERROR] Failed to transfer m_k: %s\n", e.what());
-        }
+        // Transfer to cpuCorrelations for Fortran using copy_sync (proven reliable)
+        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Copied sc_q_gpu → cpuCorrelations.m_k (shape %zu×%zu)\n",
+               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
         
-        // TODO: Transfer m_kt and m_kw - skipping for now due to potential dim mismatch
-        printf("[GPU-DEBUG] Case Y: Skipping m_kt and m_kw transfers (needs dimension verification)\n");
+        // For Cases Q and Y: also transfer m_kt using copy_sync
+        if ((do_sc == 'Q') || (do_sc == 'Y')) {
+            printf("[GPU-DEBUG] Case %c: also transferring m_kt via copy_sync (shape %zu×%zu×%zu, t_cur=%u)\n",
+                   do_sc, cpuCorrelations.m_kt.extent(0), cpuCorrelations.m_kt.extent(1), cpuCorrelations.m_kt.extent(2), t_cur);
+            cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
+            printf("[GPU-DEBUG] Transferred m_kt via copy_sync\n");
+        }
         break;
-    }
-
-    }
+    }  // end default case
+    }  // end switch
+    
     cudaDeviceSynchronize();
     
     // Publish sampling info to Fortran (CRITICAL: updates sc_nsamp and sc_tidx)
