@@ -147,7 +147,7 @@ contains
       integer, intent(in) :: ext_mstep
 
       integer :: cgk_flag
-      cgk_flag=1
+      cgk_flag=0
 
       ! Spin correlation
       ! Sample magnetic moments for correlation functions
