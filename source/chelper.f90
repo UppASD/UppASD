@@ -55,9 +55,9 @@ module Chelper
    implicit none
 
    interface
-      subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt) &
-           bind(C, name="fortrandata_setcorrelations_")
-         import :: c_double
+         subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx) &
+                bind(C, name="fortrandata_setcorrelations_")
+         import :: c_double, c_int
          real(c_double)    :: q(*)
          real(c_double)    :: r_mid(*)
          real(c_double)    :: coord(*)
@@ -65,6 +65,10 @@ module Chelper
          complex(c_double) :: m_k(*)
          complex(c_double) :: m_kw(*)
          complex(c_double) :: m_kt(*)
+             real(c_double)    :: deltat_corr(*)
+             real(c_double)    :: scstep_arr(*)
+         integer(c_int), intent(inout) :: sc_nsamp
+         integer(c_int), intent(inout) :: sc_tidx
       end subroutine FortranData_setCorrelations
    end interface
 
@@ -308,6 +312,7 @@ contains
       character(len=1), intent(in) :: STT !< Treat spi p_sc_max_nstn transfer torque? (Y/N)
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
+      integer :: zeroflag = 0
 
       if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
          print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"
@@ -340,7 +345,32 @@ contains
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
 
+      print *,'AB first test, do_sc = ', do_sc
+      if (do_sc=='Y' .or. do_sc=='C') then
+         ! Initializing Fortran-side correlation arrays. Here for static correlation function
+          cc%gk_flag=2
+          allocate(cc%m_k(3,nq))
+          cc%m_k=0.0_dblprec
+          call find_rmid(r_mid,coord,Natom)
+         ! Possible alternative: Call the Fortran routine with init flag = 0
+         ! zeroflag = 0
+         ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
+      end if
+      if (do_sc=='Y' .or. do_sc=='Q') then
+         ! Initializing Fortran-side correlation arrays. Here for dynamic correlation function
+         cc%gkt_flag=2
+         allocate(cc%m_kt(3,nq,cc%sc_max_nstep))
+         cc%m_kt=0.0_dblprec
+         ! Possible alternative: Call the Fortran routine with init flag = 0
+         ! zeroflag = 0
+         ! cc%gkt_flag=0
+         ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
+         call allocate_deltatcorr(.true.,cc)
+      end if
       print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
+      print *,' AB shape of m_k', shape(cc%m_k)
+      print *,' AB allocated?', allocated(cc%m_k)
+
       !print *, 'FORTRAN EMOOOOM', size(emomM), size(emomM,1), size(emomM,2)
 
       call FortranData_setMeasurables( &
@@ -353,7 +383,7 @@ contains
            mmomb, mmomb_traj, emomb, emomb_traj &
            )
 
-      call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt)
+      call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx)
 
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)

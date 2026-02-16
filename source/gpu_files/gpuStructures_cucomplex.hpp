@@ -132,6 +132,10 @@ struct hostCorrelations {
    Tensor<std::complex<real>, 2> m_k;
    Tensor<std::complex<real>, 3> m_kt;
    Tensor<std::complex<real>, 3> m_kw;
+   Tensor<real, 1> deltat_corr;
+   Tensor<real, 1> scstep_arr;
+   int sc_nsamp;  // Number of samples from GPU correlations
+   int sc_tidx;   // Number of time steps accumulated in GPU correlations
 };
    
 struct deviceHamiltonian {

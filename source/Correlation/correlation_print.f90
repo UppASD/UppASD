@@ -55,9 +55,21 @@ contains
       call memocc(i_stat,product(shape(c_kw))*kind(c_kw),'c_kw','print_gkw')
       c_kw=0.0_dblprec
 
+      ! DEBUG: Check if m_kt and m_kw have data from GPU
+      print *, '[SQW-DEBUG] print_gkw entry: cc%sc_tidx=', cc%sc_tidx, ' dc%sc_tidx=', dc%sc_tidx
+      print *, '[SQW-DEBUG] m_kt shape:', shape(cc%m_kt), ' first q-point (t=1):', cc%m_kt(:,1,1)
+      print *, '[SQW-DEBUG] m_kw shape:', shape(cc%m_kw), ' first q-point (w=1):', cc%m_kw(:,1,1)
+      print *, '[SQW-DEBUG] m_kt first element sum (real):', real(sum(cc%m_kt(:,1:min(3,nq),1:min(3,cc%sc_max_nstep))))
+
       call combine_corr_scalar(nq, 3, cc%nw, cc%m_kw, dc%m_kw, c_kw)
 
+      print *, '[SQW-DEBUG] After combine_corr_scalar: first element of c_kw:', c_kw(:,1,1)
+      print *, '[SQW-DEBUG] Divisor = (0.5*(cc%sc_tidx-1)) * (0.5*(dc%sc_tidx-1)) = ', &
+               (0.5_dblprec*(cc%sc_tidx-1)) * (0.5_dblprec*(dc%sc_tidx-1))
+
       c_kw = c_kw / (0.5_dblprec*(cc%sc_tidx-1))  / (0.5_dblprec*(dc%sc_tidx-1))
+
+      print *, '[SQW-DEBUG] After normalization: first element of c_kw:', c_kw(:,1,1)
 
       if(cc%do_proj=='Q'.or.cc%do_proj=='Y') then
 
@@ -391,6 +403,14 @@ contains
 
       i=(0.0_dblprec,1.0_dblprec)
 
+      ! DEBUG: Print cc%m_k at entry to print_gk
+      write(*,*) '[FORTRAN-DEBUG] print_gk ENTRY: cc%sc_nsamp=', cc%sc_nsamp
+      write(*,*) '[FORTRAN-DEBUG] First 3 q-points from cc%m_k at entry:'
+      do iq=1,min(3,nq)
+         write(*,'(A,I3,A,ES13.6,A,ES13.6,A,ES13.6,A)') '[FORTRAN-DEBUG] cc%m_k(:,', iq, ') = [', &
+            real(cc%m_k(1,iq)),', ', real(cc%m_k(2,iq)),', ', real(cc%m_k(3,iq)),' ]'
+      enddo
+      !
       ! Allocate arrays
 
       allocate(c_k(3,nq),stat=i_stat)
@@ -399,12 +419,34 @@ contains
 
       ! AB here
       call combine_corr_scalar(nq, 3, 1, cc%m_k, dc%m_k, c_k)
-      c_k = c_k / cc%sc_nsamp / dc%sc_nsamp
+      
+      ! Debug: print m_k values before normalization
+      write(*,*) '[FORTRAN-DEBUG] print_gk: After combine_corr_scalar, first 3 q-points:'
+      do iq=1,min(3,nq)
+         write(*,'(A,I3,A,ES13.6,A,ES13.6,A,ES13.6,A)') '[FORTRAN-DEBUG] c_k(:,', iq, ') = [', &
+            real(c_k(1,iq)),', ', real(c_k(2,iq)),', ', real(c_k(3,iq)),' ]'
+      enddo
+      write(*,'(A,I4,A,I4)') '[FORTRAN-DEBUG] cc%sc_nsamp=', cc%sc_nsamp, ', dc%sc_nsamp=', dc%sc_nsamp
+      
+      ! Guard against division by zero when using GPU correlations
+      if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
+         write(*,*) 'WARNING: sc_nsamp invalid in print_gk: cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+         write(*,*) 'Setting c_k to zero to avoid NaN'
+         c_k = (0.0_dblprec, 0.0_dblprec)
+      else
+         c_k = c_k / cc%sc_nsamp / dc%sc_nsamp
+      end if
+      
+      ! Debug: print after normalization
+      write(*,*) '[FORTRAN-DEBUG] print_gk: After normalization:'
+      do iq=1,min(3,nq)
+         write(*,'(A,I3,A,ES13.6,A,ES13.6,A,ES13.6,A)') '[FORTRAN-DEBUG] c_k_norm(:,', iq, ') = [', &
+            real(c_k(1,iq)),', ', real(c_k(2,iq)),', ', real(c_k(3,iq)),' ]'
+      enddo
 
       ! Write S(q)
       write (filn,'(a,''q.'',a,''.out'')') trim(label),trim(simid)
       call corr_write_signcorr(nq,1,3,filn,c_k)
-
       ! Write S(q,w) decomposed in real and imaginary parts
       if(cc%do_sc_complex=='Y') then
          write (filn,'(''c'',a,''q.'',a,''.out'')') trim(label),trim(simid)
@@ -419,7 +461,13 @@ contains
          c_k_proj=0.0_dblprec
 
          call combine_corr_proj_scalar(nt, nq, 3, 1, cc%m_k_proj, cc%m_k_proj, c_k_proj)
-         c_k_proj = c_k_proj / cc%sc_nsamp / dc%sc_nsamp
+         
+         if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
+            write(*,*) 'WARNING: sc_nsamp invalid in print_gk (proj): cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+            c_k_proj = (0.0_dblprec, 0.0_dblprec)
+         else
+            c_k_proj = c_k_proj / cc%sc_nsamp / dc%sc_nsamp
+         end if
 
          ! Write S(q)
          do it=1,nt
@@ -447,7 +495,13 @@ contains
          c_k_projch=0.0_dblprec
 
          call combine_corr_proj_scalar(Nchmax, nq, 3, 1, dc%m_k_projch, dc%m_k_projch, c_k_projch)
-         c_k_projch = c_k_projch / cc%sc_nsamp / dc%sc_nsamp
+         
+         if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
+            write(*,*) 'WARNING: sc_nsamp invalid in print_gk (projch): cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+            c_k_projch = (0.0_dblprec, 0.0_dblprec)
+         else
+            c_k_projch = c_k_projch / cc%sc_nsamp / dc%sc_nsamp
+         end if
 
          ! Write S(q,w)
          do it=1,nchmax

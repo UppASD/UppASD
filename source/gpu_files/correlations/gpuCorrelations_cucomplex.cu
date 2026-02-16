@@ -515,9 +515,9 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
 __global__ void GPUSqAvrg(GpuTensor<thrust::complex<real>, 2> sc, int n_steps, int tasks, int M) {
     auto grid = cg::this_grid();
     int tid = grid.thread_rank();
-    if (tid < tasks) {
-        sc[tid] = sc[tid] / (n_steps*M);
-    }
+    // Note: Do NOT normalize here - let Fortran handle the averaging
+    // This keeps it consistent with CPU code that accumulates but doesn't normalize until print
+    // Fortran's print_gk will divide by cc%sc_nsamp and dc%sc_nsamp
 }
 // Constructor
 GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations)
@@ -716,6 +716,10 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         }
     }*/
     int tasks; int bl;
+    
+    // Transfer sample count to CPU structure  
+    cpuCorrelations.sc_nsamp = static_cast<int>(n_samples);
+    
     switch (do_sc) {
     case 'C':
         tasks = 3 * nq;
@@ -728,7 +732,13 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         dt.copy_sync(dt_cpu);
         //GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);//TODO
         //GPUSwFinalSum << <nw * nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
-        //TODO cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+        // Transfer time-domain correlations so Fortran can compute m_kw via calc_gkw
+        if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
+            sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
+            sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
+            cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
+            cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
+        }
         break;
 
     case 'Y':
@@ -736,10 +746,14 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
         //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
-         //TODO cpuCorrelations.m_k.copy_sync(sc_q_gpu); //TODO: async
-        //GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);//TODO
-        //GPUSwFinalSum << <nw*nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);//TODO blocks
-        //TODO cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+        // Transfer both static and time-domain dynamic correlations
+        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
+            sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
+            sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
+            cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
+            cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
+        }
         break;
 
     }

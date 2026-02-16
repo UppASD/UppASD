@@ -5,6 +5,7 @@
 #include "real_type.h"
 #include "gpuStructures.hpp"
 #include "gpuCorrelations.cuh"
+#include "fortranData.hpp"
 #include <numeric>
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -515,7 +516,8 @@ __global__ void GPUSqAvrg(GpuTensor<thrust::complex<real>, 2> sc, int n_steps, i
     auto grid = cg::this_grid();
     int tid = grid.thread_rank();
     if (tid < tasks) {
-        sc[tid] = sc[tid] / (n_steps*M);
+        // Do NOT normalize here - let Fortran handle normalization
+        // sc[tid] = sc[tid] / (n_steps*M);
     }
 }
 // Constructor
@@ -597,6 +599,7 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
             sc_block_w_gpu.Allocate(static_cast <long int>(3 * numBlocksX_w), static_cast <long int>(nq), static_cast <long int>(nw));
             dt.Allocate(static_cast <long int>(sc_max_nstep));
             dt_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
+            sc_step_arr_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
             w.Allocate(static_cast <long int>(nw));
             //dt.copy_sync(cpuCorrelations.dt);const deviceLattice& gpuLattice, const int curstep
             w.copy_sync(cpuCorrelations.w);
@@ -708,6 +711,9 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     //TODO cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
     thrust::complex<real> sc_cur;
     
+    printf("[GPU-DEBUG] flushCorrelations: do_sc=%c, n_samples=%zu, t_cur=%u, nq=%zu\n", 
+           do_sc, n_samples, t_cur, nq);
+    
        /* for (int k = 0; k < nq; k++) {
             for (int i = 0; i < sc_max_nstep; i++) {
                 for (int j = 0; j < 3; j++) {
@@ -718,39 +724,141 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     }*/
     int tasks; int bl;
     switch (do_sc) {
-    case 'C':
+    case 'C': {
+        printf("[GPU-DEBUG] Case C: Averaging sc_q_gpu (n_samples=%zu, tasks=%d*nq)\n", n_samples, 3);
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
         GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
-        //cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        cudaDeviceSynchronize();
+        
+        // Debug: check GPU data
+        thrust::complex<real> gpu_sample[3];
+        if (nq > 0) {
+            cudaMemcpy(gpu_sample, sc_q_gpu.data(), 3 * sizeof(thrust::complex<real>), cudaMemcpyDeviceToHost);
+            printf("[GPU-DEBUG] After GPUSqAvrg: sc_q_gpu[0..2] (first q):\n");
+            printf("  [0]=(%.6e, %.6e), [1]=(%.6e, %.6e), [2]=(%.6e, %.6e)\n",
+                   gpu_sample[0].real(), gpu_sample[0].imag(),
+                   gpu_sample[1].real(), gpu_sample[1].imag(),
+                   gpu_sample[2].real(), gpu_sample[2].imag());
+        }
+        
+        // Transfer to host CPU tensor first
         sc_q_cpu.copy_sync(sc_q_gpu);
-        //cpuCorrelations.m_k.copy_sync(sc_q_cpu);
-        printf("Tensor dims: %lld %lld %lld\n", cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
-        printf("CudaTensor dims: %lld %lld %lld\n", sc_q_gpu.extent(0), sc_q_gpu.extent(1));
+        printf("[GPU-DEBUG] Copied sc_q_gpu → sc_q_cpu (shape %zu×%zu)\n", 
+               sc_q_gpu.extent(0), sc_q_gpu.extent(1));
+        
+        // Transfer to cpuCorrelations for Fortran
+        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Copied sc_q_gpu → cpuCorrelations.m_k (shape %zu×%zu)\n",
+               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        
+        // Verify copy
+        printf("[GPU-DEBUG] After transfer to hostCorrelations.m_k:\n");
+        for (int k = 0; k < std::min(3, int(nq)); k++) {
+            printf("  m_k(:,%d) = (%.6e,%.6e), (%.6e,%.6e), (%.6e,%.6e)\n", k,
+                   cpuCorrelations.m_k(0,k).real(), cpuCorrelations.m_k(0,k).imag(),
+                   cpuCorrelations.m_k(1,k).real(), cpuCorrelations.m_k(1,k).imag(),
+                   cpuCorrelations.m_k(2,k).real(), cpuCorrelations.m_k(2,k).imag());
+        }
         break;
+    }
 
-    case 'Q':
+    case 'Q': {
+        printf("[GPU-DEBUG] Case Q: Computing S(q,ω) for t_cur=%u samples\n", t_cur);
         dt.copy_sync(dt_cpu);
-        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);//TODO
+        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
         GPUSwFinalSum << <nw * nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
-        //TODO cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+        cudaDeviceSynchronize();
+        
+        // TODO: Transfer m_kt for Fortran - skipping for now due to dim mismatch issues
+        printf("[GPU-DEBUG] Case Q: Skipping m_kt transfer (needs dimension verification)\n");
         break;
+    }
 
-    case 'Y':
+    case 'Y': {
+        printf("[GPU-DEBUG] Case Y: Computing both S(q) and S(q,ω)\n");
         dt.copy_sync(dt_cpu);
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
+        
+        // Average for S(q)
         GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
-         //TODO cpuCorrelations.m_k.copy_sync(sc_q_gpu); //TODO: async
-        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);//TODO
-        GPUSwFinalSum << <nw*nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);//TODO blocks
-        //TODO cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+        
+        // FT for S(q,ω)
+        GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwFinalSum << <nw*nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        cudaDeviceSynchronize();
+        
+        // Transfer m_k (S(q) averaged)
+        try {
+            cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+            printf("[GPU-DEBUG] Transferred m_k (shape %zu×%zu)\n",
+                   cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        } catch (const std::exception& e) {
+            printf("[GPU-ERROR] Failed to transfer m_k: %s\n", e.what());
+        }
+        
+        // TODO: Transfer m_kt and m_kw - skipping for now due to potential dim mismatch
+        printf("[GPU-DEBUG] Case Y: Skipping m_kt and m_kw transfers (needs dimension verification)\n");
         break;
+    }
 
     }
     cudaDeviceSynchronize();
+    
+    // Publish sampling info to Fortran (CRITICAL: updates sc_nsamp and sc_tidx)
+    publishSamplingInfo(cpuCorrelations);
+    printf("[GPU-DEBUG] flushCorrelations complete: sc_nsamp=%d, sc_tidx=%d\n",
+           cpuCorrelations.sc_nsamp, cpuCorrelations.sc_tidx);
 
 }
+
+void GpuCorrelations::recordSample() {
+    // Record current time and step size when a sample is taken
+    if (n_samples < static_cast<std::size_t>(dt_cpu.extent(0))) {
+        dt_cpu(int(n_samples)) = delta_t;
+    }
+    // Track which step this sample corresponds to
+    if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
+        sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
+    }
+    t_cur++;
+    n_samples++;
+}
+
+void GpuCorrelations::publishSamplingInfo(hostCorrelations& cpuCorrelations) {
+    // Copy the recorded delta_t values back to Fortran's deltat_corr array
+    if (FortranData::deltat_corr != nullptr && dt_cpu.extent(0) > 0) {
+        std::size_t n_copy = std::min(static_cast<std::size_t>(dt_cpu.extent(0)), n_samples);
+        for (std::size_t i = 0; i < n_copy; i++) {
+            FortranData::deltat_corr[i] = dt_cpu(int(i));
+        }
+    }
+    
+    // Copy the recorded sc_step values back to Fortran's scstep_arr array
+    if (FortranData::scstep_arr != nullptr && sc_step_arr_cpu.extent(0) > 0) {
+        std::size_t n_copy = std::min(static_cast<std::size_t>(sc_step_arr_cpu.extent(0)), n_samples);
+        for (std::size_t i = 0; i < n_copy; i++) {
+            FortranData::scstep_arr[i] = sc_step_arr_cpu(int(i));
+        }
+    }
+    
+    // Update cpuCorrelations with the sample count and time index
+    // GPU does NOT normalize - Fortran will handle normalization using sc_nsamp
+    cpuCorrelations.sc_nsamp = static_cast<int>(n_samples);
+    cpuCorrelations.sc_tidx = static_cast<int>(t_cur);
+    
+    // Write sample count and time index back to Fortran through FortranData pointers
+    if (FortranData::sc_nsamp_ptr != nullptr) {
+        *FortranData::sc_nsamp_ptr = static_cast<int>(n_samples);
+        printf("[GPU-DEBUG] publishSamplingInfo: Set FortranData::sc_nsamp_ptr to %d (Fortran will normalize)\n", *FortranData::sc_nsamp_ptr);
+    }
+    if (FortranData::sc_tidx_ptr != nullptr) {
+        *FortranData::sc_tidx_ptr = static_cast<int>(t_cur);
+        printf("[GPU-DEBUG] publishSamplingInfo: Set FortranData::sc_tidx_ptr to %d\n", *FortranData::sc_tidx_ptr);
+    }
+}
+
 
 
 

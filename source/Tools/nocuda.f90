@@ -48,10 +48,11 @@ contains
       return
    end subroutine gpusim_initiatematrices
 
-   subroutine gpusim_gpurunsimulation(whichsim, whichphase)
+   subroutine gpusim_gpurunsimulation(whichsim, whichphase, gpu_mc_bf)
       implicit none
       integer, intent(in) :: whichsim, whichphase
       character(len=1), intent(in) :: gpu_mc_bf
+      !character(len=1) :: gpu_mc_bf
       return
   end subroutine gpusim_gpurunsimulation
 

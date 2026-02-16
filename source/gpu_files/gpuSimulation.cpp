@@ -174,8 +174,10 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuCorrelations.w.set(FortranData::w, nw);
         cpuCorrelations.coord.set(FortranData::coord, static_cast <long int>(3), N);
         cpuCorrelations.m_k.set(FortranData::m_k, static_cast <long int>(3), nq);
-        //cpuCorrelations.m_kt.set(FortranData::m_kt, static_cast <long int>(3), nt, nq, sc_max_nstep);
+        cpuCorrelations.m_kt.set(FortranData::m_kt, static_cast <long int>(3), static_cast <long int>(SimParam.sc_max_nstep), static_cast <long int>(nq));
         cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
+            cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
+            cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
 
     }
   // printf("HERE - 2\n");

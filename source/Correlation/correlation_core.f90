@@ -60,9 +60,11 @@ contains
 
       i=(0.0_dblprec,1.0_dblprec)
 
+      print *,'AB Check ', cc%gk_flag
       if(cc%gk_flag==0) then
 
          ! First call, allocate and clear arrays
+         print *,'SCALAAAAAR', nq
          allocate(cc%m_k(3,nq),stat=i_stat)
          call memocc(i_stat,product(shape(cc%m_k))*kind(cc%m_k),'m_k','calc_gk2')
          cc%m_k=0.0_dblprec
@@ -348,6 +350,11 @@ subroutine calc_gkw(NT, Nchmax, cc)
          call memocc(i_stat,product(shape(cc%m_kw))*kind(cc%m_kw),'cc%m_kw','calc_gkw')
          cc%m_kw=0.0_dblprec
 
+         if(.not.allocated(cc%m_kt)) then
+            allocate(cc%m_kt(3,nq,cc%sc_max_nstep),stat=i_stat)
+            call memocc(i_stat,product(shape(cc%m_kt))*kind(cc%m_kt),'cc%m_kt','calc_gkw')
+            cc%m_kt=0.0_dblprec
+         end if
          allocate(cc%dt(cc%sc_max_nstep),stat=i_stat)
          call memocc(i_stat,product(shape(cc%dt))*kind(cc%dt),'cc%dt','calc_gkw')
 

@@ -35,6 +35,10 @@ real* FortranData::w;
 std::complex<real>* FortranData::m_k;
 std::complex<real>* FortranData::m_kw;
 std::complex<real>* FortranData::m_kt;
+real* FortranData::deltat_corr = nullptr;
+real* FortranData::scstep_arr = nullptr;
+int* FortranData::sc_nsamp_ptr = nullptr;
+int* FortranData::sc_tidx_ptr = nullptr;
 
 real* FortranData::delta_t;
 real* FortranData::gamma;
@@ -264,17 +268,21 @@ void FortranData::setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, r
 
 }
 
-void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  std::complex<real>* p_m_k, 
-                                        std::complex<real>* p_m_kw, std::complex<real>* p_m_kt){
+void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  void* p_m_k, 
+                                        void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx){
 
 
    q = p_q;
    r_mid = p_r_mid;
    coord = p_coord;
    w = p_w;
-   m_k = p_m_k;
-   m_kw = p_m_kw;
-   m_kt = p_m_kt;
+   m_k = reinterpret_cast<std::complex<real>*>(p_m_k);
+   m_kw = reinterpret_cast<std::complex<real>*>(p_m_kw);
+   m_kt = reinterpret_cast<std::complex<real>*>(p_m_kt);
+   deltat_corr = p_deltat_corr;
+   scstep_arr = p_scstep_arr;
+   sc_nsamp_ptr = p_sc_nsamp;
+   sc_tidx_ptr = p_sc_tidx;
 
 }
 /*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
@@ -416,10 +424,10 @@ FortranData::setMeasurablePointers(
    p_spinwait, p_autocorr_buff, p_indxb_ac, p_traj_step, p_traj_buff, p_traj_atom,p_mmomb, p_mmomb_traj, p_emomb, p_emomb_traj);
 }
 
-extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, std::complex<real>* p_m_k, 
-                                             std::complex<real>* p_m_kw, std::complex<real>* p_m_kt) {
+extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
+                                             void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx) {
 FortranData::setCorrelationPointers(
-   p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt);
+   p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt, p_deltat_corr, p_scstep_arr, p_sc_nsamp, p_sc_tidx);
 }
 /*extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, unsigned int* p4,
                                           unsigned int* p5, unsigned int* p6, unsigned int* p7, real* p8,
