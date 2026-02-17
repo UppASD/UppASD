@@ -25,7 +25,13 @@ public:
             return std::make_unique<GpuMeasurement>(
                 gpuLattice.emomM,
                 gpuLattice.emom,
-                gpuLattice.mmom
+                gpuLattice.mmom,
+                gpuLattice.beff,
+                cpuLattice.emomM,
+                cpuLattice.emom,
+                cpuLattice.mmom,
+                cpuLattice.beff,
+                mq
             );
         }
         else

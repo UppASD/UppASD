@@ -12,6 +12,8 @@
 #include "measurementData.h"
 #include "kernels.hpp"
 #include "gpu_wrappers.h"
+#include "measurementQueue.hpp"
+#include "cpuRestMeasurement.hpp"
 
 
 class GpuMeasurement : public Measurable
@@ -20,6 +22,12 @@ public:
     GpuMeasurement(const GpuTensor<real, 3>& emomM,
                     const GpuTensor<real, 3>& emom,
                     const GpuTensor<real, 2>& mmom,
+                    const GpuTensor<real, 3>& beff,
+                    Tensor<real, 3>& f_emomM, 
+                    Tensor<real, 3>& f_emom,
+                    Tensor<real, 2>& f_mmom,
+                    Tensor<real, 3>& f_beff,
+                    MeasurementQueue& mq,
                     bool alwaysCopy = false);
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
@@ -35,6 +43,8 @@ private:
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
     void release();
+    MeasurementQueue& mqueue;
+    CpuRestMeasurement cpuMeas;
     
 private:
     const GpuTensor<real, 3>& emomM;

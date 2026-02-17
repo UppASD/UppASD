@@ -9,22 +9,31 @@
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
 #endif
+#include "measurementQueue.hpp"
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
 GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
                                  const GpuTensor<real, 3>& emom,
                                  const GpuTensor<real, 2>& mmom,
+                                 const GpuTensor<real, 3>& beff,
+                                 Tensor<real, 3>& f_emomM, 
+                                 Tensor<real, 3>& f_emom,
+                                 Tensor<real, 2>& f_mmom,
+                                 Tensor<real, 3>& f_beff,
+                                 MeasurementQueue& mq,
                                  bool alwaysCopy)
 : emomM(emomM)
 , emom(emom)
 , mmom(mmom)
+, mqueue(mq)
 , N(emomM.extent(1))
 , M(emomM.extent(2))
 , NX(128) // TODO: dont hardcode these values, needs to be imported from Fortran
 , NY(128)
 , NZ(1)
 , NT(1)
+, cpuMeas(emomM, emom, mmom, beff,f_emomM, f_emom, f_mmom, f_beff, mq)
 , workStream( ParallelizationHelperInstance.getWorkStream())
 , stopwatch(GlobalStopwatchPool::get("Gpu measurement"))
 , do_avrg(*FortranData::do_avrg == 'Y')
@@ -54,6 +63,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
                 }
         }(do_skyno))
 {
+    
     isAllocated = false;
     if (do_avrg)
     {
@@ -234,6 +244,8 @@ void GpuMeasurement::measure(std::size_t mstep)
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
     }
+    
+    cpuMeas.measure(mstep);
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();   
@@ -244,6 +256,8 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
+    cpuMeas.measure(mstep);  
+
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     if (do_avrg || do_cumu)
@@ -272,6 +286,8 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         stopwatch.add("skyrmion number");
         saveToFile(MeasurementType::SkyrmionNumber);
     }
+
+    cpuMeas.flushMeasurements(mstep + 1); 
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
     {
