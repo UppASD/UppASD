@@ -262,7 +262,7 @@ contains
       use SystemData
       use LatticeData
       use Correlation
-      use Correlation_print, only: print_gkw, print_gkt
+      use Correlation_print, only: print_gk, print_gkw, print_gkt
       use ChemicalData
       use SimulationData
       use HamiltonianData
@@ -363,6 +363,10 @@ contains
 
       if (do_gpu == 'Y' .or. do_gpu_correlations == 'Y') then !HIP or CUDA
          print *, "Running correlation calculations on GPU"
+            if(do_sc=='C'.or.do_sc=='Y')  then
+               call print_gk(NT, Nchmax, sc, sc, simid, sc%label)
+            end if
+
             if(do_sc=='Q'.or.do_sc=='Y')  then
                call print_gkw(NT, Nchmax, sc, sc, simid, sc%label)
             end if
