@@ -361,11 +361,13 @@ contains
          cc%gkt_flag=2
          allocate(cc%m_kt(3,nq,cc%sc_max_nstep))
          cc%m_kt=0.0_dblprec
+         call allocate_deltatcorr(.true.,cc)
+         allocate(cc%m_kw(3,nq,cc%nw))
+         cc%m_kw=0.0_dblprec
          ! Possible alternative: Call the Fortran routine with init flag = 0
          ! zeroflag = 0
          ! cc%gkt_flag=0
          ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
-         call allocate_deltatcorr(.true.,cc)
       end if
       print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
       print *,' AB shape of m_k', shape(cc%m_k)

@@ -669,30 +669,30 @@ void GpuCorrelations::measure(std::size_t mstep) {
 
     case 'Q':
         if ((curstep % sc_step) == 0 && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
-            printf("[GPU-SAMPLE Q] mstep=%zu, curstep=%zu, condition: (curstep %% sc_step)==0, t_cur=%u (max=%u)\n", 
-                   mstep, curstep, t_cur, sc_max_nstep);
+            // printf("[GPU-SAMPLE Q] mstep=%zu, curstep=%zu, condition: (curstep %% sc_step)==0, t_cur=%u (max=%u)\n", 
+            //        mstep, curstep, t_cur, sc_max_nstep);
             
             // Record metadata BEFORE kernel call (mirrors Fortran: increment then record)
             if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
                 dt_cpu(int(t_cur)) = delta_t * sc_step;  // Record time step at current index
-                printf("[GPU-DEBUG] Case Q: Recorded dt_cpu[%u] = %.6e (delta_t=%.6e, sc_step=%zu)\n",
-                       t_cur, dt_cpu(int(t_cur)), delta_t, sc_step);
+                // printf("[GPU-DEBUG] Case Q: Recorded dt_cpu[%u] = %.6e (delta_t=%.6e, sc_step=%zu)\n",
+                //        t_cur, dt_cpu(int(t_cur)), delta_t, sc_step);
             }
             if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);  // Record step width
-                printf("[GPU-DEBUG] Case Q: Recorded sc_step_arr_cpu[%u] = %.6e\n", t_cur, sc_step_arr_cpu(int(t_cur)));
+                // printf("[GPU-DEBUG] Case Q: Recorded sc_step_arr_cpu[%u] = %.6e\n", t_cur, sc_step_arr_cpu(int(t_cur)));
             }
             
             // Kernel writes to m_kt(:,:,t_cur)
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_dyn << <nq, 1024 >> > (sc_block_gpu, sc_qt_gpu, numBlocksX_q, t_cur);
             cudaDeviceSynchronize();
-            printf("[GPU-KERNEL Q] Kernel wrote to sc_qt_gpu slice t_cur=%u\n", t_cur);
+            // printf("[GPU-KERNEL Q] Kernel wrote to sc_qt_gpu slice t_cur=%u\n", t_cur);
             t_cur++;  // Increment AFTER writing to that time slice
         } else {
             if ((curstep % sc_step) == 0) {
-                printf("[GPU-SKIP Q] mstep=%zu, curstep=%zu: SKIPPED (t_cur=%u >= sc_max_nstep=%u)\n", 
-                       mstep, curstep, t_cur, sc_max_nstep);
+                // printf("[GPU-SKIP Q] mstep=%zu, curstep=%zu: SKIPPED (t_cur=%u >= sc_max_nstep=%u)\n", 
+                //        mstep, curstep, t_cur, sc_max_nstep);
             }
         }
         break;
@@ -700,7 +700,7 @@ void GpuCorrelations::measure(std::size_t mstep) {
     case 'Y':
         if (((curstep % sc_step) == 0) && ((curstep % sc_sep) == 0) && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
             both_flag = 2;
-            printf("[GPU-DEBUG] Case Y (both_flag=2, t_cur=%u): Recording metadata and sampling S(q), S(q,t)\n", t_cur);
+            // printf("[GPU-DEBUG] Case Y (both_flag=2, t_cur=%u): Recording metadata and sampling S(q), S(q,t)\n", t_cur);
             // Record metadata for time-domain sample
             if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
                 dt_cpu(int(t_cur)) = delta_t * sc_step;
@@ -718,7 +718,7 @@ void GpuCorrelations::measure(std::size_t mstep) {
         }
         else if ((curstep % sc_step) == 0 && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
             both_flag = 1;
-            printf("[GPU-DEBUG] Case Y (both_flag=1, t_cur=%u): Recording metadata and sampling S(q,t) only\n", t_cur);
+            // printf("[GPU-DEBUG] Case Y (both_flag=1, t_cur=%u): Recording metadata and sampling S(q,t) only\n", t_cur);
             // Record metadata for time-domain sample
             if (t_cur < static_cast<unsigned int>(dt_cpu.extent(0))) {
                 dt_cpu(int(t_cur)) = delta_t * sc_step;
@@ -734,7 +734,7 @@ void GpuCorrelations::measure(std::size_t mstep) {
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
-            printf("[GPU-DEBUG] Case Y (both_flag=0, n_samples before=%zu): Sampling S(q) only\n", n_samples);
+            // printf("[GPU-DEBUG] Case Y (both_flag=0, n_samples before=%zu): Sampling S(q) only\n", n_samples);
             GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
             GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
