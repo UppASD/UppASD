@@ -18,56 +18,41 @@ namespace cg = cooperative_groups;
 #define M_PI (3.14159265358979323846)
 #endif
 
+// Optimized register-based warp reduction for raw real/imaginary components
+// Modifies sum_re and sum_im in-place, avoiding complex object overhead
 __inline__ __device__
-thrust::complex<real> warpReduceSum(thrust::complex<real> val) {
-    // Pull components into registers once
-    real vr = val.real();
-    real vi = val.imag();
-
-    // Use a full mask for all active threads in the warp
+void warpReduceSum(real &sum_re, real &sum_im) {
     const unsigned int FULL_MASK = 0xffffffff;
-
+    
     #pragma unroll
     for (int offset = warpSize / 2; offset > 0; offset /= 2) {
 #if CUDA_VERSION < 9000
-        // Older CUDA: simple shuffle
-        vr += __shfl_down(vr, offset);
-        vi += __shfl_down(vi, offset);
+        real shfl_re = __shfl_down(sum_re, offset);
+        real shfl_im = __shfl_down(sum_im, offset);
 #else
-        // Modern CUDA: Synchronous shuffle for stability and speed
-        vr += __shfl_down_sync(FULL_MASK, vr, offset);
-        vi += __shfl_down_sync(FULL_MASK, vi, offset);
+        real shfl_re = __shfl_down_sync(FULL_MASK, sum_re, offset);
+        real shfl_im = __shfl_down_sync(FULL_MASK, sum_im, offset);
 #endif
+        sum_re += shfl_re;
+        sum_im += shfl_im;
     }
-
-    // Reconstruct the complex object only once at the end
-    return thrust::complex<real>(vr, vi);
 }
 
-// __inline__ __device__
-// thrust::complex<real> warpReduceSum(thrust::complex<real> val) {
-//     // Optimized: inline shuffles directly in complex accumulation
-// #if CUDA_VERSION < 9000
-//     for (int offset = warpSize / 2; offset > 0; offset /= 2) {
-//         thrust::complex<real> shfl_val;
-//         shfl_val = thrust::complex<real>(
-//             __shfl_down(val.real(), offset),
-//             __shfl_down(val.imag(), offset)
-//         );
-//         val += shfl_val;
-//     }
-// #else
-//     for (int offset = warpSize / 2; offset > 0; offset /= 2) {
-//         thrust::complex<real> shfl_val;
-//         shfl_val = thrust::complex<real>(
-//             __shfl_down_sync(0xffffffff, val.real(), offset),
-//             __shfl_down_sync(0xffffffff, val.imag(), offset)
-//         );
-//         val += shfl_val;
-//     }
-// #endif
-//     return val;
-// }
+// Complex multiply-accumulate: accumulate (a + bi) * (c + di) into (sum_re + sum_im*i)
+// Result: sum_re' = a*c - b*d + sum_re, sum_im' = a*d + b*c + sum_im
+__inline__ __device__
+void complexMulAdd(real &sum_re, real &sum_im, real a_re, real a_im, real b_re, real b_im) {
+    sum_re += a_re * b_re - a_im * b_im;
+    sum_im += a_re * b_im + a_im * b_re;
+}
+
+// Complex scalar multiply-accumulate (for when imaginary part is zero)
+// Accumulate (a + 0*i) * (c + d*i) = a*c + a*d*i
+__inline__ __device__
+void complexScalarMulAdd(real &sum_re, real &sum_im, real a, real c, real d) {
+    sum_re += a * c;
+    sum_im += a * d;
+}
 
 
 __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep) {
@@ -121,17 +106,17 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     int tid_in_block = block.thread_rank();
 
     int qInd = grid.block_index().y;
-    //int offsetM = mInd * tasks;
     int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
     int stride = grid.dim_blocks().x * block.num_threads();
 
-    thrust::complex<real>iqfac = thrust::complex<real>(0, 2 * M_PI);
+    // Register-based accumulation: store real and imaginary parts separately (reduced register pressure)
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
     unsigned int rInd, mInd, cInd, ii;
-    real qdr;
-    thrust::complex<real> mySum[3] = {thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    real inv_N = 1.0 / N;
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     // Main computation loop over tasks (unroll for better performance)
     #pragma unroll 4
@@ -140,21 +125,19 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
         cInd = id % 3;
         rInd = ii % N;
         mInd = ii / N; 
-    
+
         // Calculate phase: 2 * PI * q · (r - r_mid)
-        // (Ensure iqfac is correctly scaled; usually 2*PI is included in the q-vector or here)
         real phase = 2.0 * M_PI * (q(0, qInd) * (coord(0, rInd) - r_mid(0)) + 
                                    q(1, qInd) * (coord(1, rInd) - r_mid(1)) + 
                                    q(2, qInd) * (coord(2, rInd) - r_mid(2)));
-    
+
         real s, c;
         sincos(phase, &s, &c);
-    
-        real spin_val = spin(cInd, rInd, mInd);
-    
-        // Accumulate Real and Imaginary parts manually
-        mySum[cInd].real(mySum[cInd].real() + (spin_val * c) / N);
-        mySum[cInd].imag(mySum[cInd].imag() + (spin_val * s) / N);
+
+        real spin_val = spin(cInd, rInd, mInd) * inv_N;
+
+        // Accumulate using optimized scalar multiply: (spin_val + 0i) * (c + si)
+        complexScalarMulAdd(sum_re[cInd], sum_im[cInd], spin_val, c, s);
     }
     // #pragma unroll 4
     // for (int id = tid_in_X; id < tasks; id += stride) {
@@ -174,35 +157,43 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     // }
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]);
-    mySum[1] = warpReduceSum(mySum[1]);
-    mySum[2] = warpReduceSum(mySum[2]);
+    // Warp-level reduction using register-based functions
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
+    // Store warp results to shared memory
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
     __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
+    
+    // Load results from shared memory for final warp reduction
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
 
+    // Final reduction in first warp
     if (wid == 0) {
-        mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-        mySum[1] = warpReduceSum(mySum[1]);
-        mySum[2] = warpReduceSum(mySum[2]);
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
     }
-   // printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
 
+    // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd) = mySum[0];
-        scblock(3 * block.group_index().x + 1, qInd) = mySum[1];
-        scblock(3 * block.group_index().x + 2, qInd) = mySum[2];
-       // printf("qInd = %i, sInd = %i, Re = %.3lf, Im = %.3lf, q = %.3lf\n", qInd, block.group_index().x,  mySum[1].real(), mySum[1].imag(), q(1, qInd));
-        // printf("mInd = %i, bid = %i, mblock0 = %.3f\n", mInd, block.group_index().x, mblock(block.group_index().x, mInd));
-         //printf("tid = %i, mInd = %i, mblock0 = %lf, mblock1 = %lf, mblock2 = %lf\n", tid, mInd, mblock(block.group_index().x, mInd), mblock(block.group_index().x + grid.group_dim().x, mInd), mblock(block.group_index().x + 2 * grid.group_dim().x, mInd));
+        scblock(3 * block.group_index().x + 0, qInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
     }
 }
 __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, GpuTensor<thrust::complex<real>, 2> scsum, int numBlocks)
@@ -220,47 +211,57 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, 
     int tid_in_block = block.thread_rank();
 
     int qInd = grid.block_index().x;
-    //int offsetM = mInd * numBlocks;
     int tid_in_Q = tid_in_block;
-    //printf("numblocks = %i\n", numBlocks);
 
-    thrust::complex<real> mySum[3] = {thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    // Register-based accumulators
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
-
-        mySum[0] += scblock(3 * tid_in_Q + 0, qInd);
-        mySum[1] += scblock(3 * tid_in_Q + 1, qInd);
-        mySum[2] += scblock(3 * tid_in_Q + 2, qInd);
-        //printf("tid_in_m = %i, mInd = %i, mblock = %.3f\n", tid_in_M, mInd, mblock(tid_in_M, mInd));
+        for (int k = 0; k < 3; k++) {
+            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += val.real();
+            sum_im[k] += val.imag();
+        }
     }
 
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    // Warp-level reduction
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
-    __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
-    if (wid == 0) mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    if (wid == 0) mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    if (wid == 0) mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    __syncthreads();
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
+    
+    if (wid == 0) {
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
+    }
 
     if (tid_in_block == 0) {
-        scsum(0, qInd) += mySum[0];
-        scsum(1, qInd) += mySum[1];
-        scsum(2, qInd) += mySum[2];
+        scsum(0, qInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
+        scsum(1, qInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
+        scsum(2, qInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
 
         /*mblock_gpu[block.group_index().x] += mySum[0];
         mblock_gpu[block.group_index().x + grid.group_dim().x] += mySum[1];
@@ -284,48 +285,58 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
     int tid_in_block = block.thread_rank();
 
     int qInd = grid.block_index().x;
-    //int offsetM = mInd * numBlocks;
     int tid_in_Q = tid_in_block;
-    //printf("numblocks = %i\n", numBlocks);
 
-    thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    // Register-based accumulators
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
-
-        mySum[0] += scblock(3 * tid_in_Q + 0, qInd);
-        mySum[1] += scblock(3 * tid_in_Q + 1, qInd);
-        mySum[2] += scblock(3 * tid_in_Q + 2, qInd);
-        //printf("tid_in_m = %i, mInd = %i, mblock = %.3f\n", tid_in_M, mInd, mblock(tid_in_M, mInd));
+        for (int k = 0; k < 3; k++) {
+            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += val.real();
+            sum_im[k] += val.imag();
+        }
     }
 
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    // Warp-level reduction
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
-    __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
-    if (wid == 0) mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    if (wid == 0) mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    if (wid == 0) mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    __syncthreads();
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
+    
+    if (wid == 0) {
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
+    }
 
     if (tid_in_block == 0) {
             // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
-            scsum(0, qInd, t_cur) += mySum[0];
-            scsum(1, qInd, t_cur) += mySum[1];
-            scsum(2, qInd, t_cur) += mySum[2];
+            scsum(0, qInd, t_cur) += thrust::complex<real>(sum_re[0], sum_im[0]);
+            scsum(1, qInd, t_cur) += thrust::complex<real>(sum_re[1], sum_im[1]);
+            scsum(2, qInd, t_cur) += thrust::complex<real>(sum_re[2], sum_im[2]);
         
         //printf("qInd = %i, t_cur = %i, Re = %.3lf, Im = %.3lf\n", qInd, t_cur, mySum[2].real(), mySum[2].imag());
 
@@ -351,55 +362,64 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
     int tid_in_block = block.thread_rank();
 
     int qInd = grid.block_index().x;
-    //int offsetM = mInd * numBlocks;
     int tid_in_Q = tid_in_block;
-    //printf("numblocks = %i\n", numBlocks);
 
-    thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    // Register-based accumulators
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
-
-        mySum[0] += scblock(3 * tid_in_Q + 0, qInd);
-        mySum[1] += scblock(3 * tid_in_Q + 1, qInd);
-        mySum[2] += scblock(3 * tid_in_Q + 2, qInd);
-        //printf("tid_in_m = %i, mInd = %i, mblock = %.3f\n", tid_in_M, mInd, mblock(tid_in_M, mInd));
+        for (int k = 0; k < 3; k++) {
+            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += val.real();
+            sum_im[k] += val.imag();
+        }
     }
 
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    // Warp-level reduction
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
-    __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
-    if (wid == 0) mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    if (wid == 0) mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    if (wid == 0) mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    __syncthreads();
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
+    
+    if (wid == 0) {
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
+    }
 
     if (tid_in_block == 0) {
         if ((both_flag == 1) || (both_flag == 2)) {
-            // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
-            scsum_qt(0, qInd, t_cur) += mySum[0];
-            scsum_qt(1, qInd, t_cur) += mySum[1];
-            scsum_qt(2, qInd, t_cur) += mySum[2];
+            scsum_qt(0, qInd, t_cur) += thrust::complex<real>(sum_re[0], sum_im[0]);
+            scsum_qt(1, qInd, t_cur) += thrust::complex<real>(sum_re[1], sum_im[1]);
+            scsum_qt(2, qInd, t_cur) += thrust::complex<real>(sum_re[2], sum_im[2]);
         }
 
         if ((both_flag == 0) || (both_flag == 2)) {
-            scsum_q(0, qInd) += mySum[0];
-            scsum_q(1, qInd) += mySum[1];
-            scsum_q(2, qInd) += mySum[2];
+            scsum_q(0, qInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
+            scsum_q(1, qInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
+            scsum_q(2, qInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
         }
 
         //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
@@ -423,44 +443,44 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y%nq;//TODO
-    int wInd = grid.block_index().y/nq;//TODO
+    int qInd = grid.block_index().y%nq;
+    int wInd = grid.block_index().y/nq;
 
     int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
     int stride = grid.dim_blocks().x * block.num_threads();
 
-   // thrust::complex<real>iqfac = thrust::complex<real>(0, 2 * M_PI);
+    // Register-based accumulation: store real and imaginary parts separately
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
     unsigned int tInd, cInd, ii;
-    thrust::complex<real> tw;
-    thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
-    // Reduce block results: unroll reduction loop
+    // Fourier transform loop: unroll for performance
     #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
         tInd = id / 3;
         cInd = id % 3;
 
-        // 1. Calculate the real-valued phase
-        // Phase = t * dt(t) * w(w)
+        // 1. Calculate the real-valued phase: Phase = t * dt(t) * w(w)
         real phase = (real)tInd * dt(tInd) * w(wInd);
 
         // 2. Hardware-accelerated sine and cosine
         real s, c;
         sincos(phase, &s, &c);
 
-        // 3. Manual Complex Multiply-Accumulate
-        // epowwt = complex(c, s)
-        // sq_val = sq(cInd, qInd, tInd)
-        // window = sc_window_fac(...)
+        // 3. Extract S(q,t) values
         thrust::complex<real> sq_val = sq(cInd, qInd, tInd);
+        real sq_re = sq_val.real();
+        real sq_im = sq_val.imag();
+        
+        // 4. Windowing function
         real win = sc_window_fac(sc_window_fun, (tInd - 1), sc_max_nstep);
 
-        // Result = (sq.real * c - sq.imag * s) + i*(sq.real * s + sq.imag * c)
-        mySum[cInd].real(mySum[cInd].real() + (sq_val.real() * c - sq_val.imag() * s) * win);
-        mySum[cInd].imag(mySum[cInd].imag() + (sq_val.real() * s + sq_val.imag() * c) * win);
+        // 5. Complex multiply-accumulate: (sq_re + sq_im*i) * (c + s*i) * win
+        // Result = ((sq_re*c - sq_im*s) + i*(sq_re*s + sq_im*c)) * win
+        complexMulAdd(sum_re[cInd], sum_im[cInd], sq_re, sq_im, c*win, s*win);
     }
     // #pragma unroll 2
     // for (int id = tid_in_X; id < tasks; id += stride) {
@@ -483,37 +503,43 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
     // }
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]);
-    mySum[1] = warpReduceSum(mySum[1]);
-    mySum[2] = warpReduceSum(mySum[2]);
+    // Warp-level reduction using register-based functions
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
+    // Store warp results to shared memory
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
     __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
+    
+    // Load results from shared memory for final warp reduction
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
 
+    // Final reduction in first warp
     if (wid == 0) {
-        mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-        mySum[1] = warpReduceSum(mySum[1]);
-        mySum[2] = warpReduceSum(mySum[2]);
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
     }
-    // printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
 
+    // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd, wInd) = mySum[0];
-        scblock(3 * block.group_index().x + 1, qInd, wInd) = mySum[1];
-        scblock(3 * block.group_index().x + 2, qInd, wInd) = mySum[2];
-    //    printf("wInd = %i, qInd = %i, Re = %.3lf, Im = %.3lf\n", wInd, qInd, mySum[2].real(), mySum[2].imag());
-
-        // printf("qInd = %i, sInd = %i, Re = %.3lf, Im = %.3lf, q = %.3lf\n", qInd, block.group_index().x,  mySum[1].real(), mySum[1].imag(), q(1, qInd));
-         // printf("mInd = %i, bid = %i, mblock0 = %.3f\n", mInd, block.group_index().x, mblock(block.group_index().x, mInd));
-          //printf("tid = %i, mInd = %i, mblock0 = %lf, mblock1 = %lf, mblock2 = %lf\n", tid, mInd, mblock(block.group_index().x, mInd), mblock(block.group_index().x + grid.group_dim().x, mInd), mblock(block.group_index().x + 2 * grid.group_dim().x, mInd));
+        scblock(3 * block.group_index().x + 0, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
     }
 }
 
@@ -531,58 +557,65 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = (grid.block_index().x) % nq;//TODO
-    int wInd = (grid.block_index().x) / nq;//TODO
-    //int offsetM = mInd * numBlocks;
+    int qInd = (grid.block_index().x) % nq;
+    int wInd = (grid.block_index().x) / nq;
     int tid_in_Q = tid_in_block;
-    //printf("numblocks = %i\n", numBlocks);
-     //   printf("wInd = %i, qInd = %i\n", wInd, qInd);
 
-    thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    __shared__ thrust::complex<real> shared0[32];
-    __shared__ thrust::complex<real> shared1[32];
-    __shared__ thrust::complex<real> shared2[32];
+    // Register-based accumulators for intermediate block results
+    real sum_re[3] = {0.0, 0.0, 0.0};
+    real sum_im[3] = {0.0, 0.0, 0.0};
+    
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
-
-        mySum[0] += scblock(3 * tid_in_Q + 0, qInd, wInd);
-        mySum[1] += scblock(3 * tid_in_Q + 1, qInd, wInd);
-        mySum[2] += scblock(3 * tid_in_Q + 2, qInd, wInd);
-        //printf("tid_in_m = %i, mInd = %i, mblock = %.3f\n", tid_in_M, mInd, mblock(tid_in_M, mInd));
+        // Load and sum block results
+        for (int k = 0; k < 3; k++) {
+            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd, wInd);
+            sum_re[k] += val.real();
+            sum_im[k] += val.imag();
+        }
     }
 
     warp.sync();
 
-    mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    // Warp-level reduction using register-based functions
+    warpReduceSum(sum_re[0], sum_im[0]);
+    warpReduceSum(sum_re[1], sum_im[1]);
+    warpReduceSum(sum_re[2], sum_im[2]);
 
+    // Store warp results to shared memory
     if (lane == 0) {
-        shared0[wid] = mySum[0];
-        shared1[wid] = mySum[1];
-        shared2[wid] = mySum[2];
+        shared_re[0][wid] = sum_re[0];
+        shared_im[0][wid] = sum_im[0];
+        shared_re[1][wid] = sum_re[1];
+        shared_im[1][wid] = sum_im[1];
+        shared_re[2][wid] = sum_re[2];
+        shared_im[2][wid] = sum_im[2];
     }
 
     __syncthreads();              // Wait for all partial reductions
-    mySum[0] = (tid_in_block < wNum) ? shared0[lane] : 0;
-    mySum[1] = (tid_in_block < wNum) ? shared1[lane] : 0;
-    mySum[2] = (tid_in_block < wNum) ? shared2[lane] : 0;
-    if (wid == 0) mySum[0] = warpReduceSum(mySum[0]); //Final reduce within first warp
-    if (wid == 0) mySum[1] = warpReduceSum(mySum[1]); //Final reduce within first warp
-    if (wid == 0) mySum[2] = warpReduceSum(mySum[2]); //Final reduce within first warp
+    
+    // Load results from shared memory for final warp reduction
+    sum_re[0] = (tid_in_block < wNum) ? shared_re[0][lane] : 0;
+    sum_im[0] = (tid_in_block < wNum) ? shared_im[0][lane] : 0;
+    sum_re[1] = (tid_in_block < wNum) ? shared_re[1][lane] : 0;
+    sum_im[1] = (tid_in_block < wNum) ? shared_im[1][lane] : 0;
+    sum_re[2] = (tid_in_block < wNum) ? shared_re[2][lane] : 0;
+    sum_im[2] = (tid_in_block < wNum) ? shared_im[2][lane] : 0;
 
+    // Final reduction in first warp
+    if (wid == 0) {
+        warpReduceSum(sum_re[0], sum_im[0]);
+        warpReduceSum(sum_re[1], sum_im[1]);
+        warpReduceSum(sum_re[2], sum_im[2]);
+    }
+
+    // Accumulate results (reconstruct complex only at final write)
     if (tid_in_block == 0) {
-        scsum(0, qInd, wInd) += mySum[0];
-        scsum(1, qInd, wInd) += mySum[1];
-        scsum(2, qInd, wInd) += mySum[2];
-
-
-        //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
-
-        /*mblock_gpu[block.group_index().x] += mySum[0];
-        mblock_gpu[block.group_index().x + grid.group_dim().x] += mySum[1];
-        mblock_gpu[block.group_index().x + 2 * grid.group_dim().x] += mySum[2];*/
-        // printf("qInd = %i, mblock0 = %lf, mblock1 = %lf, mblock2 = %lf\n", mInd, msum(0, curstep, mInd), msum(1, curstep, mInd), msum(2, curstep, mInd));
+        scsum(0, qInd, wInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
+        scsum(1, qInd, wInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
+        scsum(2, qInd, wInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
     }
 }
 __global__ void GPUSqAvrg(GpuTensor<thrust::complex<real>, 2> sc, int n_steps, int tasks, int M) {
