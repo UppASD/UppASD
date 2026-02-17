@@ -100,9 +100,9 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     unsigned int rInd, mInd, cInd, ii;
     real qdr;
     thrust::complex<real> mySum[3] = {thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
    // qdr = q(1, iq) * (coord(1, r) - r_mid(1)) + q(2, iq) * (coord(2, r) - r_mid(2)) + q(3, iq) * (coord(3, r) - r_mid(3))
    // epowqr = exp(iqfac * qdr) * nainv!*sc_window_fac(sc_window_fun, iq, nq)
@@ -175,9 +175,9 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, 
     //printf("numblocks = %i\n", numBlocks);
 
     thrust::complex<real> mySum[3] = {thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
     if (tid_in_Q < numBlocks) {
 
@@ -240,9 +240,9 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
     //printf("numblocks = %i\n", numBlocks);
 
     thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
     if (tid_in_Q < numBlocks) {
 
@@ -306,9 +306,9 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
     //printf("numblocks = %i\n", numBlocks);
 
     thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
     if (tid_in_Q < numBlocks) {
 
@@ -382,9 +382,9 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
     unsigned int tInd, cInd, ii;
     thrust::complex<real> tw;
     thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
     // qdr = q(1, iq) * (coord(1, r) - r_mid(1)) + q(2, iq) * (coord(2, r) - r_mid(2)) + q(3, iq) * (coord(3, r) - r_mid(3))
     // epowqr = exp(iqfac * qdr) * nainv!*sc_window_fac(sc_window_fun, iq, nq)
@@ -465,9 +465,9 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
      //   printf("wInd = %i, qInd = %i\n", wInd, qInd);
 
     thrust::complex<real> mySum[3] = { thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0), thrust::complex < real>(0.0, 0.0) };
-    static __shared__ thrust::complex<real> shared0[32];
-    static __shared__ thrust::complex<real> shared1[32];
-    static __shared__ thrust::complex<real> shared2[32];
+    __shared__ thrust::complex<real> shared0[32];
+    __shared__ thrust::complex<real> shared1[32];
+    __shared__ thrust::complex<real> shared2[32];
 
     if (tid_in_Q < numBlocks) {
 

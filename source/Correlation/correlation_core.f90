@@ -63,7 +63,6 @@ contains
       if(cc%gk_flag==0) then
 
          ! First call, allocate and clear arrays
-         print *,'SCALAAAAAR', nq
          allocate(cc%m_k(3,nq),stat=i_stat)
          call memocc(i_stat,product(shape(cc%m_k))*kind(cc%m_k),'m_k','calc_gk2')
          cc%m_k=0.0_dblprec
