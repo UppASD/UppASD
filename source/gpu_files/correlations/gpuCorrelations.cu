@@ -104,9 +104,8 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     static __shared__ thrust::complex<real> shared1[32];
     static __shared__ thrust::complex<real> shared2[32];
 
-   // qdr = q(1, iq) * (coord(1, r) - r_mid(1)) + q(2, iq) * (coord(2, r) - r_mid(2)) + q(3, iq) * (coord(3, r) - r_mid(3))
-   // epowqr = exp(iqfac * qdr) * nainv!*sc_window_fac(sc_window_fun, iq, nq)
-   // wA = wA + epowqr * SA(:, r, l)
+    // Main computation loop over tasks (unroll for better performance)
+    #pragma unroll 4
     for (int id = tid_in_X; id < tasks; id += stride) {
         ii = id / 3;
         cInd = id % 3;
@@ -388,9 +387,8 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
     static __shared__ thrust::complex<real> shared1[32];
     static __shared__ thrust::complex<real> shared2[32];
 
-    // qdr = q(1, iq) * (coord(1, r) - r_mid(1)) + q(2, iq) * (coord(2, r) - r_mid(2)) + q(3, iq) * (coord(3, r) - r_mid(3))
-    // epowqr = exp(iqfac * qdr) * nainv!*sc_window_fac(sc_window_fun, iq, nq)
-    // wA = wA + epowqr * SA(:, r, l)
+    // Reduce block results: unroll reduction loop
+    #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
         tInd = id / 3;
         cInd = id % 3;
@@ -503,7 +501,6 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
         scsum(0, qInd, wInd) += mySum[0];
         scsum(1, qInd, wInd) += mySum[1];
         scsum(2, qInd, wInd) += mySum[2];
-        printf("wInd = %i, qInd = %i, Re = %.3lf, Im = %.3lf\n", wInd, qInd, mySum[2].real(), mySum[2].imag());
 
 
         //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());

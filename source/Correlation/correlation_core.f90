@@ -60,7 +60,6 @@ contains
 
       i=(0.0_dblprec,1.0_dblprec)
 
-      print *,'AB Check ', cc%gk_flag
       if(cc%gk_flag==0) then
 
          ! First call, allocate and clear arrays
