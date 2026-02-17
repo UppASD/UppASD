@@ -402,7 +402,7 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
         //tt = i * wfac * (step - 1) * dt(step)            
         //epowwt = exp(cc % w(iw) * tt) * sc_window_fac(sc_window_fun, step, tidx)
         tw = thrust::complex<real>(0, 1) * tInd * dt(tInd)*w(wInd);
-        mySum[cInd] += thrust::exp(tw) * sc_window_fac(sc_window_fun, (tInd-1), sc_max_nstep)*sq(cInd, tInd, qInd);
+        mySum[cInd] += thrust::exp(tw) * sc_window_fac(sc_window_fun, (tInd-1), sc_max_nstep)*sq(cInd, qInd, tInd);
         //mySum[cInd] += thrust::complex<real>(spin(cInd, rInd, mInd), 0) * thrust::exp(iqfac * thrust::complex<real>(qdr, 0)) / N;
         //printf("qInd = %i, Re = %.3lf, Im = %.3lf,qdr = %.3lf\n", qInd, thrust::complex<real>(qdr, 0).real(), thrust::complex<real>(qdr, 0).imag(), qdr);
         //printf("0:rmid = %i, q = %.3lf, Im = %.3lf,qdr = %.3lf\n", qInd, thrust::complex<real>(qdr, 0).real(), thrust::complex<real>(qdr, 0).imag(), qdr);
@@ -812,32 +812,155 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         break;
     }
 
-    case 'Q':
-    case 'Y':
-        // Both Q and Y: Transfer S(q,t), leave S(q,ω) as zeros for now
-        printf("[GPU-DEBUG] Case %c: S(q,t) transfer (S(q,ω) deferred)\n", do_sc);
-    default: {
-        // Default = Case C: S(q) only, proven working
-        printf("[GPU-DEBUG] flushCorrelations: do_sc=%c, will transfer m_k\n", do_sc);
-        tasks = 3 * nq;
-        bl = (tasks + maxThreads - 1) / maxThreads;
-        GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
+    case 'Q': {
+        printf("[GPU-DEBUG] Case Q: Computing S(q,ω) from S(q,t) via FFT on GPU\n");
+        // Copy time step data to GPU
+        dt.copy_sync(dt_cpu);
+        
+        // Zero intermediate and output buffers
+        int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
         cudaDeviceSynchronize();
         
-        // Transfer to cpuCorrelations for Fortran using copy_sync (proven reliable)
-        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
-        printf("[GPU-DEBUG] Copied sc_q_gpu → cpuCorrelations.m_k (shape %zu×%zu)\n",
-               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        // Compute partial S(q,ω) from S(q,t) using Fourier transform
+        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        cudaDeviceSynchronize();
         
-        // For Cases Q and Y: also transfer m_kt using copy_sync
-        if ((do_sc == 'Q') || (do_sc == 'Y')) {
-            printf("[GPU-DEBUG] Case %c: also transferring m_kt via copy_sync (shape %zu×%zu×%zu, t_cur=%u)\n",
-                   do_sc, cpuCorrelations.m_kt.extent(0), cpuCorrelations.m_kt.extent(1), cpuCorrelations.m_kt.extent(2), t_cur);
+        // Reduce block results to final S(q,ω)
+        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        cudaDeviceSynchronize();
+        
+        printf("[GPU-DEBUG] Case Q: S(q,ω) computed, transferring results to CPU\n");
+        
+        // Transfer time-domain correlations for Fortran reference
+        printf("[GPU-DEBUG] Case Q m_kt transfer:\n");
+        printf("  sc_qt_gpu extents: (%zu, %zu, %zu)\n", sc_qt_gpu.extent(0), sc_qt_gpu.extent(1), sc_qt_gpu.extent(2));
+        printf("  m_kt extents:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kt.extent(0), cpuCorrelations.m_kt.extent(1), cpuCorrelations.m_kt.extent(2));
+        if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
+            sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
+            sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
+            printf("[GPU-DEBUG] Dimensions match for m_kt, copying...\n");
             cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
-            printf("[GPU-DEBUG] Transferred m_kt via copy_sync\n");
+            cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
+            printf("[GPU-DEBUG] Successfully copied m_kt\n");
+        } else {
+            printf("[GPU-DEBUG] WARNING: Dimension mismatch for m_kt! Skipping copy.\n");
+        }
+        
+        // Transfer frequency-domain correlations (m_kw)
+        printf("[GPU-DEBUG] Case Q m_kw transfer:\n");
+        printf("  sc_qw_gpu extents: (%zu, %zu, %zu)\n", sc_qw_gpu.extent(0), sc_qw_gpu.extent(1), sc_qw_gpu.extent(2));
+        printf("  m_kw extents:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        printf("  nq=%zu, nw=%zu\n", nq, nw);
+        
+        bool m_kw_dims_match = (sc_qw_gpu.extent(0) == cpuCorrelations.m_kw.extent(0) &&
+                                sc_qw_gpu.extent(1) == cpuCorrelations.m_kw.extent(1) &&
+                                sc_qw_gpu.extent(2) == cpuCorrelations.m_kw.extent(2));
+        printf("[GPU-DEBUG] Dimension check result: %s\n", m_kw_dims_match ? "MATCH" : "MISMATCH");
+        
+        if (m_kw_dims_match) {
+            printf("[GPU-DEBUG] Dimensions match for m_kw, copying...\n");
+            cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+            printf("[GPU-DEBUG] Successfully copied S(q,ω) to m_kw (shape %zu×%zu×%zu)\n",
+                   cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        } else {
+            printf("[GPU-DEBUG] WARNING: Dimension mismatch for m_kw! NOT copying to avoid crash.\n");
+            printf("  Expected m_kw: (3, %zu, %zu)\n", nq, nw);
+            printf("  Got m_kw:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
         }
         break;
-    }  // end default case
+    }
+
+    case 'Y': {
+        printf("[GPU-DEBUG] Case Y: Computing both S(q) and S(q,ω)\n");
+        // Copy time step data to GPU
+        dt.copy_sync(dt_cpu);
+        
+        // Zero intermediate and output FFT buffers
+        int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
+        cudaDeviceSynchronize();
+        
+        // Average static S(q) correlations
+        tasks = 3 * nq;
+        bl = (tasks + maxThreads - 1) / maxThreads;
+        GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
+        cudaDeviceSynchronize();
+        
+        // Compute partial S(q,ω) from S(q,t) using Fourier transform
+        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        cudaDeviceSynchronize();
+        
+        // Reduce block results to final S(q,ω)
+        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        cudaDeviceSynchronize();
+        
+        printf("[GPU-DEBUG] Case Y: Both S(q) and S(q,ω) computed, transferring to CPU\n");
+        
+        // Transfer static S(q)
+        printf("[GPU-DEBUG] Case Y m_k transfer:\n");
+        printf("  sc_q_gpu extents: (%zu, %zu)\n", sc_q_gpu.extent(0), sc_q_gpu.extent(1));
+        printf("  m_k extents:      (%zu, %zu)\n", cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Successfully copied S(q) to m_k\n");
+        
+        // Transfer time-domain S(q,t)
+        printf("[GPU-DEBUG] Case Y m_kt transfer:\n");
+        printf("  sc_qt_gpu extents: (%zu, %zu, %zu)\n", sc_qt_gpu.extent(0), sc_qt_gpu.extent(1), sc_qt_gpu.extent(2));
+        printf("  m_kt extents:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kt.extent(0), cpuCorrelations.m_kt.extent(1), cpuCorrelations.m_kt.extent(2));
+        if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
+            sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
+            sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
+            printf("[GPU-DEBUG] Dimensions match for m_kt, copying...\n");
+            cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
+            cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
+            printf("[GPU-DEBUG] Successfully copied m_kt\n");
+        } else {
+            printf("[GPU-DEBUG] WARNING: Dimension mismatch for m_kt! Skipping copy.\n");
+        }
+        
+        // Transfer frequency-domain S(q,ω)
+        printf("[GPU-DEBUG] Case Y m_kw transfer:\n");
+        printf("  sc_qw_gpu extents: (%zu, %zu, %zu)\n", sc_qw_gpu.extent(0), sc_qw_gpu.extent(1), sc_qw_gpu.extent(2));
+        printf("  m_kw extents:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        printf("  nq=%zu, nw=%zu\n", nq, nw);
+        
+        bool m_kw_dims_match = (sc_qw_gpu.extent(0) == cpuCorrelations.m_kw.extent(0) &&
+                                sc_qw_gpu.extent(1) == cpuCorrelations.m_kw.extent(1) &&
+                                sc_qw_gpu.extent(2) == cpuCorrelations.m_kw.extent(2));
+        printf("[GPU-DEBUG] Dimension check result: %s\n", m_kw_dims_match ? "MATCH" : "MISMATCH");
+        
+        if (m_kw_dims_match) {
+            printf("[GPU-DEBUG] Dimensions match for m_kw, copying...\n");
+            cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+            printf("[GPU-DEBUG] Successfully copied S(q,ω) to m_kw (shape %zu×%zu×%zu)\n",
+                   cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        } else {
+            printf("[GPU-DEBUG] WARNING: Dimension mismatch for m_kw! NOT copying to avoid crash.\n");
+            printf("  Expected m_kw: (3, %zu, %zu)\n", nq, nw);
+            printf("  Got m_kw:      (%zu, %zu, %zu)\n", cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        }
+        break;
+    }
+    
+    default: {
+        // Case C: S(q) static correlations only
+        printf("[GPU-DEBUG] Case C: Averaging S(q) static correlations\n");
+        tasks = 3 * nq;
+        bl = (tasks + maxThreads - 1) / maxThreads;
+        GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
+        cudaDeviceSynchronize();
+        
+        // Transfer to cpuCorrelations for Fortran
+        cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Copied S(q) to m_k (shape %zu×%zu)\n",
+               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        break;
+    }
     }  // end switch
     
     cudaDeviceSynchronize();

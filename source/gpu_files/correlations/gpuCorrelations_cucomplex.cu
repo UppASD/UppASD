@@ -400,7 +400,7 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
         //tt = i * wfac * (step - 1) * dt(step)            
         //epowwt = exp(cc % w(iw) * tt) * sc_window_fac(sc_window_fun, step, tidx)
         tw = thrust::complex<real>(0, 1) * tInd * dt(tInd)*w(wInd);
-        mySum[cInd] += thrust::exp(tw) * sc_window_fac(sc_window_fun, (tInd-1), sc_max_nstep)*sq(cInd, tInd, qInd);
+        mySum[cInd] += thrust::exp(tw) * sc_window_fac(sc_window_fun, (tInd-1), sc_max_nstep)*sq(cInd, qInd, tInd);
         //mySum[cInd] += thrust::complex<real>(spin(cInd, rInd, mInd), 0) * thrust::exp(iqfac * thrust::complex<real>(qdr, 0)) / N;
         //printf("qInd = %i, Re = %.3lf, Im = %.3lf,qdr = %.3lf\n", qInd, thrust::complex<real>(qdr, 0).real(), thrust::complex<real>(qdr, 0).imag(), qdr);
         //printf("0:rmid = %i, q = %.3lf, Im = %.3lf,qdr = %.3lf\n", qInd, thrust::complex<real>(qdr, 0).real(), thrust::complex<real>(qdr, 0).imag(), qdr);
@@ -721,40 +721,100 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     cpuCorrelations.sc_nsamp = static_cast<int>(n_samples);
     
     switch (do_sc) {
-    case 'C':
+    case 'C': {
+        printf("[GPU-DEBUG] Case C: Averaging S(q) static correlations\n");
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
-        //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
         cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Transferred S(q) to m_k (shape %zu×%zu)\n",
+               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
         break;
+    }
 
-    case 'Q':
+    case 'Q': {
+        printf("[GPU-DEBUG] Case Q: Computing S(q,w) from S(q,t) via FFT on GPU\n");
         dt.copy_sync(dt_cpu);
-        //GPUSwSum << <blocks_w, maxThreads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);//TODO
-        //GPUSwFinalSum << <nw * nq, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
-        // Transfer time-domain correlations so Fortran can compute m_kw via calc_gkw
+        
+        // Zero intermediate and output FFT buffers before kernel
+        int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
+        cudaDeviceSynchronize();
+        
+        // Compute partial S(q,w) from S(q,t) using Fourier transform
+        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        cudaDeviceSynchronize();
+        
+        // Reduce block results to final S(q,w)
+        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        cudaDeviceSynchronize();
+        
+        printf("[GPU-DEBUG] Case Q: S(q,w) computed, transferring S(q,t) and S(q,w) to CPU\n");
+        // Transfer time-domain correlations
         if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
             sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
             sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
             cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
             cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
         }
+        // Transfer frequency-domain correlations (m_kw) if available
+        if (sc_qw_gpu.extent(0) == cpuCorrelations.m_kw.extent(0) &&
+            sc_qw_gpu.extent(1) == cpuCorrelations.m_kw.extent(1) &&
+            sc_qw_gpu.extent(2) == cpuCorrelations.m_kw.extent(2)) {
+            cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+            printf("[GPU-DEBUG] Transferred S(q,w) to m_kw (shape %zu×%zu×%zu)\n",
+                   cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        }
         break;
+    }
 
-    case 'Y':
+    case 'Y': {
+        printf("[GPU-DEBUG] Case Y: Computing both S(q) and S(q,w)\n");
         dt.copy_sync(dt_cpu);
+        
+        // Zero intermediate and output FFT buffers
+        int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
+        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
+        cudaDeviceSynchronize();
+        
+        // Average static S(q) correlations
         tasks = 3 * nq;
         bl = (tasks + maxThreads - 1) / maxThreads;
-        //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
+        
+        // Compute partial S(q,w) from S(q,t) using Fourier transform
+        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        cudaDeviceSynchronize();
+        
+        // Reduce block results to final S(q,w)
+        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        cudaDeviceSynchronize();
+        
+        printf("[GPU-DEBUG] Case Y: Both S(q) and S(q,w) computed, transferring all to CPU\n");
         // Transfer both static and time-domain dynamic correlations
         cpuCorrelations.m_k.copy_sync(sc_q_gpu);
+        printf("[GPU-DEBUG] Transferred S(q) to m_k (shape %zu×%zu)\n",
+               cpuCorrelations.m_k.extent(0), cpuCorrelations.m_k.extent(1));
+        
         if (sc_qt_gpu.extent(0) == cpuCorrelations.m_kt.extent(0) &&
             sc_qt_gpu.extent(1) == cpuCorrelations.m_kt.extent(1) &&
             sc_qt_gpu.extent(2) == cpuCorrelations.m_kt.extent(2)) {
             cpuCorrelations.m_kt.copy_sync(sc_qt_gpu);
             cpuCorrelations.sc_tidx = static_cast<int>(sc_qt_gpu.extent(2));
         }
+        
+        // Transfer frequency-domain correlations
+        if (sc_qw_gpu.extent(0) == cpuCorrelations.m_kw.extent(0) &&
+            sc_qw_gpu.extent(1) == cpuCorrelations.m_kw.extent(1) &&
+            sc_qw_gpu.extent(2) == cpuCorrelations.m_kw.extent(2)) {
+            cpuCorrelations.m_kw.copy_sync(sc_qw_gpu);
+            printf("[GPU-DEBUG] Transferred S(q,w) to m_kw (shape %zu×%zu×%zu)\n",
+                   cpuCorrelations.m_kw.extent(0), cpuCorrelations.m_kw.extent(1), cpuCorrelations.m_kw.extent(2));
+        }
         break;
+    }
 
     }
     cudaDeviceSynchronize();
