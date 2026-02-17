@@ -8,8 +8,8 @@ ${GPU_TOOLS}
 correlation.hpp
 fortranCorrelation.hpp
 fortranCorrelation.cpp
-correlationQueue.hpp
-correlationQueue.cpp
+#correlationQueue.hpp
+#correlationQueue.cpp
 correlationFactory.hpp
 
 #kernels.hpp

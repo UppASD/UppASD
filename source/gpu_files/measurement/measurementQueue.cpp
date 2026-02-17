@@ -96,6 +96,9 @@ void MeasurementQueue::processMeasurements() {
             case MeasurementType::Rest:
                processRestMeasurement(m);
                break;
+            case MeasurementType::Correlations:
+               processCorrelationsMeasurement(m);
+               break;
          }
 
          // Get data pointers
@@ -159,6 +162,14 @@ void MeasurementQueue::processRestMeasurement(Measurement* m)
    fortran_measure_rest(emomM, emom, mmom, beff, m->step);
 }
 
+void MeasurementQueue::processCorrelationsMeasurement(Measurement* m)
+{
+   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+
+   fortran_measure_correlations(emomM, emom, mmom, m->step);
+}
 
 void MeasurementQueue::startProcessThread() {
    if(!processThreadStarted) {

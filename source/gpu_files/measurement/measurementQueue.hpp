@@ -20,7 +20,8 @@ public:
    enum class MeasurementType {
       Moment,
       Rest,
-      Correlations
+      Correlations,
+      All//TODO add all option on fortran side 
    };
 
    // Measurement class
@@ -54,6 +55,8 @@ public:
    void finishProcessThread();
    void processMomentMeasurement(Measurement* m);
    void processRestMeasurement(Measurement* m);
+   void processCorrelationsMeasurement(Measurement* m);
+
 
 public:
    // Constructor / destructor
