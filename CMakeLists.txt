@@ -166,6 +166,7 @@ OPTION(USE_HIP "Compile with HIP support" OFF)
 if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
+CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
