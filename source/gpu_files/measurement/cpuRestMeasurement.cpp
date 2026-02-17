@@ -29,7 +29,7 @@ using ParallelizationHelper = GpuParallelizationHelper;
 // Constructor
 CpuRestMeasurement::CpuRestMeasurement(const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_emom,
                                  const GpuTensor<real, 2>& p_mmom, const GpuTensor<real, 3>& p_beff, Tensor<real, 3>& p_femomM, 
-                                 Tensor<real, 3>& p_femom, Tensor<real, 2>& p_fmmom, Tensor<real, 3>& p_fbeff, bool p7, bool p8)
+                                 Tensor<real, 3>& p_femom, Tensor<real, 2>& p_fmmom, Tensor<real, 3>& p_fbeff, MeasurementQueue &mq, bool p7, bool p8)
     : emomM(p_emomM),
       emom(p_emom),
       mmom(p_mmom),
@@ -38,6 +38,7 @@ CpuRestMeasurement::CpuRestMeasurement(const GpuTensor<real, 3>& p_emomM, const 
       fortran_emom(p_femom),
       fortran_mmom(p_fmmom),
       fortran_beff(p_fbeff),
+      measurementQueue(mq),
       fastCopy(p7),
       alwaysCopy(p8),
       stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
@@ -193,7 +194,7 @@ void CpuRestMeasurement::flushMeasurements(std::size_t mstep) {
    GPU_STREAM_SYNC(parallel.getWorkStream());
 
    // Flush internal queue
-   measurementQueue.finish();
+   //measurementQueue.finish();
 
    // Print remaining measurements
    fortran_flush_measurements(mstep);

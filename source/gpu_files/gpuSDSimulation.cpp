@@ -18,6 +18,8 @@
 #include "gpuParallelizationHelper.hpp"
 #include "measurementFactory.hpp"
 #include "correlationFactory.hpp"
+#include "measurementQueue.hpp"
+#include "cpuRestMeasurement.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -199,10 +201,16 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
+   //Queue
+   MeasurementQueue mqueue;
    // Measurement
-   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+   //CPU residing measurements
+   CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom, 
+                   gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
+                   gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
-   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations);
+   //const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
@@ -241,7 +249,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
       measurement->measure(mstep);
-      correlation->measure(mstep);
+      cpuMeas.measure(mstep);
+    //  correlation->measure(mstep);
 
       stopwatch.add("measurement");
 
@@ -259,6 +268,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Apply Hamiltonian to obtain effective field
       hamCalc.heisge(gpuSim.gpuLattice);
       stopwatch.add("hamiltonian");
+  
 
       // Perform second (corrector) step of SDE solver
       integrator.evolveSecond(gpuSim.gpuLattice);
@@ -278,14 +288,19 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure and print remaining measurements to file
-   measurement->measure(rstep + nstep + 1);  // TODO
-   correlation->measure(rstep + nstep + 1);  // TODO
+   measurement->measure(rstep + nstep + 1);  
+   cpuMeas.measure(rstep + nstep + 1);  
+   //correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
+   mqueue.finish();
+
    // Print remaining measurements
-   measurement->flushMeasurements(rstep + nstep + 1);  // TODO
-   correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
+   measurement->flushMeasurements(rstep + nstep + 1);  
+   cpuMeas.flushMeasurements(rstep + nstep + 1); 
+   //correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
    stopwatch.add("flush measurement");
+
 
    // Synchronize with device
    GPU_DEVICE_SYNCHRONIZE();

@@ -14,7 +14,7 @@
 #elif defined(CUDA_V)
 #include "gpuCorrelations.cuh"
 #endif
-
+#include "measurementQueue.hpp"
 #include <iostream>
 
 class CorrelationFactory
@@ -22,7 +22,8 @@ class CorrelationFactory
 public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
-    static std::unique_ptr<Correlation> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations)
+    static std::unique_ptr<Correlation> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, const Flag Flags, 
+                                            const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations, MeasurementQueue& mq)
     {
         if (*FortranData::do_gpu_correlations == 'Y')
         {
@@ -38,7 +39,8 @@ public:
                 gpuLattice.mmom,
                 cpuLattice.emomM,
                 cpuLattice.emom,
-                cpuLattice.mmom
+                cpuLattice.mmom,
+                mq
             );
         }
     }

@@ -66,7 +66,7 @@ class CpuRestMeasurement {
    GpuEventPool eventPool;
 
    // Measure queue
-   MeasurementQueue measurementQueue;
+   MeasurementQueue &measurementQueue;
 
    // Timer
    StopwatchDeviceSync stopwatch;
@@ -87,7 +87,7 @@ public:
    // TODO add flag for fast_copy
    CpuRestMeasurement(const GpuTensor<real, 3>& emomM, const GpuTensor<real, 3>& emom,
                    const GpuTensor<real, 2>& mmom, const GpuTensor<real, 3>& beff, Tensor<real, 3>& f_emomM, Tensor<real, 3>& f_emom,
-                   Tensor<real, 2>& f_mmom, Tensor<real, 3>& f_beff, bool fastCopy = DEFAULT_FAST_COPY,
+                   Tensor<real, 2>& f_mmom, Tensor<real, 3>& f_beff, MeasurementQueue& mq, bool fastCopy = DEFAULT_FAST_COPY,
                    bool alwaysCopy = false);
    ~CpuRestMeasurement(); 
 

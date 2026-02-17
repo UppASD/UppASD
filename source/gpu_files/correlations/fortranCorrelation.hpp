@@ -61,7 +61,7 @@ class FortranCorrelation : public Correlation {
    GpuEventPool eventPool;
 
    // Measure queue
-   MeasurementQueue correlationQueue;
+   MeasurementQueue& correlationQueue;
 
    // Timer
    StopwatchDeviceSync stopwatch;
@@ -82,7 +82,7 @@ public:
    // TODO add flag for fast_copy
    FortranCorrelation(const GpuTensor<real, 3>& emomM, const GpuTensor<real, 3>& emom,
                    const GpuTensor<real, 2>& mmom, Tensor<real, 3>& f_emomM, Tensor<real, 3>& f_emom,
-                   Tensor<real, 2>& f_mmom, bool fastCopy = DEFAULT_FAST_COPY,
+                   Tensor<real, 2>& f_mmom, MeasurementQueue &mq, bool fastCopy = DEFAULT_FAST_COPY,
                    bool alwaysCopy = false);
    ~FortranCorrelation() override;
 

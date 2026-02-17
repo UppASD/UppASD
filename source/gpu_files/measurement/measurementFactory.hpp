@@ -8,6 +8,7 @@
 #include "measurable.hpp"
 #include "gpuMeasurement.hpp"
 #include "fortranMeasurement.hpp"
+#include "measurementQueue.hpp"
 
 #include <iostream>
 
@@ -16,7 +17,7 @@ class MeasurementFactory
 public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
-    static std::unique_ptr<Measurable> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice)
+    static std::unique_ptr<Measurable> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, MeasurementQueue& mq)
     {
         if (*FortranData::do_cuda_measurements == 'Y')
         {
@@ -36,7 +37,8 @@ public:
                 gpuLattice.mmom,
                 cpuLattice.emomM,
                 cpuLattice.emom,
-                cpuLattice.mmom
+                cpuLattice.mmom,
+                mq
             );
         }
     }

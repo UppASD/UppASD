@@ -26,13 +26,14 @@ using ParallelizationHelper = GpuParallelizationHelper;
 // Constructor
 FortranCorrelation::FortranCorrelation(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
                                  const GpuTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
-                                 Tensor<real, 2>& p6, bool p7, bool p8)
+                                 Tensor<real, 2>& p6, MeasurementQueue &mq, bool p7, bool p8)
     : emomM(p1),
       emom(p2),
       mmom(p3),
       fortran_emomM(p4),
       fortran_emom(p5),
       fortran_mmom(p6),
+      correlationQueue(mq),
       fastCopy(p7),
       alwaysCopy(p8),
       stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
@@ -179,7 +180,7 @@ void FortranCorrelation::flushCorrelations(hostCorrelations& cpuCorrelations, st
    GPU_STREAM_SYNC(parallel.getWorkStream());
 
    // Flush internal queue
-  correlationQueue.finish();
+  //correlationQueue.finish();
 
    // Print remaining measurements
    //TODO
