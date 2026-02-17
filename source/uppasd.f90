@@ -361,7 +361,7 @@ contains
       cflag = 2 
 
 
-      if (do_gpu == 'Y' .or. do_gpu_correlations == 'Y') then !HIP or CUDA
+      if (do_gpu == 'Y' .and. do_gpu_correlations == 'Y') then !HIP or CUDA
          print *, "Running correlation calculations on GPU"
             if(do_sc=='C'.or.do_sc=='Y')  then
                call print_gk(NT, Nchmax, sc, sc, simid, sc%label)

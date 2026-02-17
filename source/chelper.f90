@@ -319,7 +319,8 @@ contains
          return  
       end if
 
-      if(do_gpu_correlations=='Y') then
+      if(do_gpu_correlations=='Y'.and.do_sc=='Y') then
+           ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
          call find_rmid(r_mid,coord,Natom)
       endif
 
