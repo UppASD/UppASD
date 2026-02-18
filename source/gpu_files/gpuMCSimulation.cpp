@@ -15,6 +15,8 @@
 #include "stopwatchPool.hpp"
 #include "tensor.hpp"
 #include "measurementFactory.hpp"
+#include "measurementQueue.hpp"
+#include "cpuRestMeasurement.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -201,8 +203,11 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       return;
    }
 
+   //Queue
+   MeasurementQueue mqueue;
+
  // Measurement
-   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -252,6 +257,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    // Final measure
    measurement->measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
+
+   mqueue.finish();
 
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
@@ -392,9 +399,11 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuMCSimulation_bf: Hamiltonian failed to initiate!\n");
       return;
    }
+//Queue
+   MeasurementQueue mqueue;
 
  // Measurement
-const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice);
+const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -447,6 +456,7 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
    measurement->measure(mcnstep + 1);
    stopwatch.add("measurement");
 
+   mqueue.finish();
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
    stopwatch.add("flush measurement");

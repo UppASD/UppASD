@@ -21,18 +21,19 @@ using ParallelizationHelper = GpuParallelizationHelper;
 #include <nvToolsExtCuda.h>
 #endif
 
-#include "correlationQueue.hpp"
+#include "measurementQueue.hpp"
 
 // Constructor
 FortranCorrelation::FortranCorrelation(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
                                  const GpuTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
-                                 Tensor<real, 2>& p6, bool p7, bool p8)
+                                 Tensor<real, 2>& p6, MeasurementQueue &mq, bool p7, bool p8)
     : emomM(p1),
       emom(p2),
       mmom(p3),
       fortran_emomM(p4),
       fortran_emom(p5),
       fortran_mmom(p6),
+      correlationQueue(mq),
       fastCopy(p7),
       alwaysCopy(p8),
       stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
@@ -91,7 +92,7 @@ void FortranCorrelation::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 
 // Callback method
 void FortranCorrelation::queueCorrelation(std::size_t mstep) {
-   correlationQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), mmom.size());
+   correlationQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), nullptr, mmom.size(), MeasurementQueue::MeasurementType::Correlations);
 }
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
@@ -151,7 +152,7 @@ void FortranCorrelation::copyQueueSlow(std::size_t mstep) {
    stopwatch.add("slow - D2H copy");
 
    // Queue measurement
-   correlationQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
+   correlationQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), nullptr, mmom.size(),  MeasurementQueue::MeasurementType::Correlations);
 }
 
 void FortranCorrelation::measure(std::size_t mstep) {
@@ -179,7 +180,7 @@ void FortranCorrelation::flushCorrelations(hostCorrelations& cpuCorrelations, st
    GPU_STREAM_SYNC(parallel.getWorkStream());
 
    // Flush internal queue
-  correlationQueue.finish();
+  //correlationQueue.finish();
 
    // Print remaining measurements
    //TODO

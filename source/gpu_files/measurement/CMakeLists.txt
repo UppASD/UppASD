@@ -1,5 +1,7 @@
 target_sources(${UppASD_LIB} PRIVATE
         measurable.hpp
+        cpuRestMeasurement.hpp
+        cpuRestMeasurement.cpp
         fortranMeasurement.hpp
         fortranMeasurement.cpp
         measurementQueue.hpp
