@@ -210,7 +210,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
     //               gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
-   //const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
@@ -250,7 +250,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Measure
       measurement->measure(mstep);
       //cpuMeas.measure(mstep);
-    //  correlation->measure(mstep);
+      correlation->measure(mstep);
 
       stopwatch.add("measurement");
 
@@ -290,7 +290,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Final measure and print remaining measurements to file
    measurement->measure(rstep + nstep + 1);  
    //cpuMeas.measure(rstep + nstep + 1);  
-   //correlation->measure(rstep + nstep + 1);  // TODO
+   correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
    mqueue.finish();

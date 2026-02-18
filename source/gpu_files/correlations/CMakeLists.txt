@@ -17,6 +17,9 @@ fortranCorrelation.cpp
 #correlationQueue.hpp
 #correlationQueue.cpp
 correlationFactory.hpp
+correlation_kernels.cuh
+correlation_kernels.cu
+
 
 #kernels.hpp
 #kernels.cpp
