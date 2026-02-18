@@ -348,6 +348,11 @@ subroutine calc_gkw(NT, Nchmax, cc)
          call memocc(i_stat,product(shape(cc%m_kw))*kind(cc%m_kw),'cc%m_kw','calc_gkw')
          cc%m_kw=0.0_dblprec
 
+         if(.not.allocated(cc%m_kt)) then
+            allocate(cc%m_kt(3,nq,cc%sc_max_nstep),stat=i_stat)
+            call memocc(i_stat,product(shape(cc%m_kt))*kind(cc%m_kt),'cc%m_kt','calc_gkw')
+            cc%m_kt=0.0_dblprec
+         end if
          allocate(cc%dt(cc%sc_max_nstep),stat=i_stat)
          call memocc(i_stat,product(shape(cc%dt))*kind(cc%dt),'cc%dt','calc_gkw')
 

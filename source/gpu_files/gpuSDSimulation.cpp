@@ -296,9 +296,19 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    mqueue.finish();
 
    // Print remaining measurements
-   measurement->flushMeasurements(rstep + nstep + 1);  
-   //cpuMeas.flushMeasurements(rstep + nstep + 1); 
-   //correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
+   measurement->flushMeasurements(rstep + nstep + 1);  // TODO
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
+   
+   // Transfer GPU sample count back to Fortran for averaging
+   if (FortranData::sc_nsamp_ptr != nullptr) {
+       *FortranData::sc_nsamp_ptr = gpuSim.cpuCorrelations.sc_nsamp;
+       printf("[GPU-DEBUG] Updated FortranData sc_nsamp_ptr: sc_nsamp=%d\n", *FortranData::sc_nsamp_ptr);
+   }
+      if (FortranData::sc_tidx_ptr != nullptr) {
+         *FortranData::sc_tidx_ptr = gpuSim.cpuCorrelations.sc_tidx;
+         printf("[GPU-DEBUG] Updated FortranData sc_tidx_ptr: sc_tidx=%d\n", *FortranData::sc_tidx_ptr);
+      }
+   
    stopwatch.add("flush measurement");
 
 

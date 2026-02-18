@@ -71,6 +71,10 @@ private:
     GpuTensor<real, 1> dt;
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
+    Tensor<real, 1> sc_delta_t_cpu;
+    Tensor<real, 1> sc_step_arr_cpu;
+    void recordSample();
+    void publishSamplingInfo(hostCorrelations& cpuCorrelations);
 
 public:
     // Constructor

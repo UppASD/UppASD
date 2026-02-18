@@ -73,6 +73,10 @@ public:
    static thrust::complex<real>* m_k;
    static thrust::complex<real>* m_kw;
    static thrust::complex<real>* m_kt;
+   static real* deltat_corr;
+   static real* scstep_arr;
+   static int* sc_nsamp_ptr;  // Pointer to GPU-computed sample count
+   static int* sc_tidx_ptr;   // Pointer to GPU-computed time step index
 
 
    //delta_t;
@@ -206,7 +210,7 @@ public:
                                        real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj);
    
    static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
-                                       void* p_m_kw, void* p_m_kt);
+                                       void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx);
 
     
    

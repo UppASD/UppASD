@@ -262,7 +262,7 @@ contains
       use SystemData
       use LatticeData
       use Correlation
-      use Correlation_print, only: print_gkw, print_gkt
+      use Correlation_print, only: print_gk, print_gkw, print_gkt
       use ChemicalData
       use SimulationData
       use HamiltonianData
@@ -361,21 +361,35 @@ contains
       cflag = 2 
 
 
-      ! Spin-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
-         atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
+      if (do_gpu == 'Y' .and. do_gpu_correlations == 'Y') then !HIP or CUDA
+         print *, "Running correlation calculations on GPU"
+            if(do_sc=='C'.or.do_sc=='Y')  then
+               call print_gk(NT, Nchmax, sc, sc, simid, sc%label)
+            end if
 
-      ! Lattice-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
+            if(do_sc=='Q'.or.do_sc=='Y')  then
+               call print_gkw(NT, Nchmax, sc, sc, simid, sc%label)
+            end if
 
-      ! Velocity-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
+            if(do_sc=='T'.or.do_sc=='Y')  then
+               call print_gkt(NT, Nchmax, sc, sc, simid, sc%label)
+            end if
+      else
+         ! Spin-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
+            atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
 
-      ! Angular momentum-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
+         ! Lattice-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
+
+         ! Velocity-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
+
+         ! Angular momentum-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
 
       if (do_suc=='Y'.and.(do_sc=='Y'.or.do_sc=='Q').and.(do_uc=='Y'.or.do_uc=='Q')) then
          call print_gkw(NT, Nchmax, sc, uc, simid, 'su')
@@ -417,6 +431,7 @@ contains
 
       !call lattcorrelation_wrapper(Natom,Mensemble,coord,simid,uvec,vvec,mstep,     &
       !   delta_t,NT,atype,Nchmax,achtype,cflag,cflag_p)
+      end if
 
       ! Brillouin Light scattering function.
       cflag = 2 ; 
