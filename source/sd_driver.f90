@@ -1136,17 +1136,21 @@ contains
       cgk_flag = 0
       dummy_mstep = 0
 
-      if (do_spintemp=='Y') then
-         ntmp=nstep/spintemp_step
-         call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+      if (do_gpu_measurements =='Y') then
+         if (do_spintemp=='Y') then
+            ntmp=nstep/spintemp_step
+            call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+         end if
+
+         if (do_pol=='Y') then
+            call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
+         end if
       end if
 
-      if (do_pol=='Y') then
-         call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
-      end if
-
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
-         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      if (do_gpu_correlations=='Y') then
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
+            NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      endif
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT

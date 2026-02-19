@@ -319,10 +319,41 @@ contains
          return  
       end if
 
-      if(do_gpu_correlations=='Y'.and.do_sc=='Y') then
-           ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
-         call find_rmid(r_mid,coord,Natom)
-      endif
+      if(do_gpu_correlations=='Y') then
+         ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
+            call find_rmid(r_mid,coord,Natom)
+
+            print *,'AB first test, do_sc = ', do_sc
+         if (do_sc=='Y' .or. do_sc=='C') then
+            ! Initializing Fortran-side correlation arrays. Here for static correlation function
+            cc%gk_flag=2
+            allocate(cc%m_k(3,nq))
+            cc%m_k=0.0_dblprec
+            call find_rmid(r_mid,coord,Natom)
+            ! Possible alternative: Call the Fortran routine with init flag = 0
+            ! zeroflag = 0
+            ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
+         end if
+         if (do_sc=='Y' .or. do_sc=='Q') then
+            ! Initializing Fortran-side correlation arrays. Here for dynamic correlation function
+            cc%gkt_flag=2
+            allocate(cc%m_kt(3,nq,cc%sc_max_nstep))
+            cc%m_kt=0.0_dblprec
+            call allocate_deltatcorr(.true.,cc)
+            allocate(cc%m_kw(3,nq,cc%nw))
+            cc%m_kw=0.0_dblprec
+            ! Possible alternative: Call the Fortran routine with init flag = 0
+            ! zeroflag = 0
+            ! cc%gkt_flag=0
+            ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
+         end if
+      end if
+      print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
+      print *,' AB shape of m_k', shape(cc%m_k)
+      print *,' AB allocated?', allocated(cc%m_k)
+
+      !print *, 'FORTRAN EMOOOOM', size(emomM), size(emomM,1), size(emomM,2)
+
 
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
@@ -346,35 +377,6 @@ contains
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
 
-      print *,'AB first test, do_sc = ', do_sc
-      if (do_sc=='Y' .or. do_sc=='C') then
-         ! Initializing Fortran-side correlation arrays. Here for static correlation function
-          cc%gk_flag=2
-          allocate(cc%m_k(3,nq))
-          cc%m_k=0.0_dblprec
-          call find_rmid(r_mid,coord,Natom)
-         ! Possible alternative: Call the Fortran routine with init flag = 0
-         ! zeroflag = 0
-         ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
-      end if
-      if (do_sc=='Y' .or. do_sc=='Q') then
-         ! Initializing Fortran-side correlation arrays. Here for dynamic correlation function
-         cc%gkt_flag=2
-         allocate(cc%m_kt(3,nq,cc%sc_max_nstep))
-         cc%m_kt=0.0_dblprec
-         call allocate_deltatcorr(.true.,cc)
-         allocate(cc%m_kw(3,nq,cc%nw))
-         cc%m_kw=0.0_dblprec
-         ! Possible alternative: Call the Fortran routine with init flag = 0
-         ! zeroflag = 0
-         ! cc%gkt_flag=0
-         ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
-      end if
-      print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
-      print *,' AB shape of m_k', shape(cc%m_k)
-      print *,' AB allocated?', allocated(cc%m_k)
-
-      !print *, 'FORTRAN EMOOOOM', size(emomM), size(emomM,1), size(emomM,2)
 
       call FortranData_setMeasurables( &
            mavg_buff, mavg2_buff, mavg4_buff, &
