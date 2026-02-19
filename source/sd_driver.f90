@@ -1066,7 +1066,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'I')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -1154,7 +1154,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'M')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement

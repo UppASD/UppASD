@@ -306,10 +306,11 @@ contains
 
    ! Initiate pointers for C/C++ implementation
    !> Calls functions in fortrandata.cpp
-   subroutine FortranData_Initiate(stt,btorque,cc)
+   subroutine FortranData_Initiate(stt,btorque,cc, phase)
       
       implicit none
       character(len=1), intent(in) :: STT !< Treat spi p_sc_max_nstn transfer torque? (Y/N)
+      character(len=1), intent(in) :: phase !< initial or measurement (I/M)
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
@@ -319,7 +320,7 @@ contains
          return  
       end if
 
-      if(do_gpu_correlations=='Y') then
+      if(do_gpu_correlations=='Y'.and.phase=='M') then
          ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
 
             print *,'AB first test, do_sc = ', do_sc
