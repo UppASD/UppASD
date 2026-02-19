@@ -4,9 +4,20 @@
 #include "tensor.hpp"
 #include "real_type.h"
 
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+#include <cuComplex.h>
+#else
 #include <thrust/complex.h>
+#endif
 
 #include "gpu_wrappers.h"
+
+// Type alias for correlation complex numbers
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+using complex_type = cuDoubleComplex;
+#else
+using complex_type = thrust::complex<real>;
+#endif
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
@@ -128,9 +139,9 @@ struct hostCorrelations {
    Tensor<real, 1> r_mid;
    Tensor<real, 2> q;
    Tensor<real, 1> w;
-   Tensor<thrust::complex<real>, 2> m_k;
-   Tensor<thrust::complex<real>, 3> m_kt;
-   Tensor<thrust::complex<real>, 3> m_kw;
+   Tensor<complex_type, 2> m_k;
+   Tensor<complex_type, 3> m_kt;
+   Tensor<complex_type, 3> m_kw;
    Tensor<real, 1> deltat_corr;  // Per-sample delta_t timing array
    Tensor<real, 1> scstep_arr;   // Per-sample sc_step array
    int sc_nsamp;  // Number of samples from GPU correlations

@@ -6,10 +6,57 @@
 #include <numeric>
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+#include <cuComplex.h>
+#else
 #include <thrust/complex.h>
+#endif
 #include <curand.h>
 #include <cuda.h>
 #include <correlation_kernels.cuh>
+
+// Type alias for correlation complex numbers (must match gpuStructures.hpp)
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+using complex_type = cuDoubleComplex;
+
+// Helper functions for cuDoubleComplex operations
+__inline__ __device__ complex_type make_complex(real re, real im) {
+    return make_cuDoubleComplex(re, im);
+}
+
+__inline__ __device__ real get_real(const complex_type& c) {
+    return cuCreal(c);
+}
+
+__inline__ __device__ real get_imag(const complex_type& c) {
+    return cuCimag(c);
+}
+
+__inline__ __device__ complex_type add_complex(const complex_type& a, const complex_type& b) {
+    return cuCadd(a, b);
+}
+
+#else
+using complex_type = thrust::complex<real>;
+
+// Helper functions for thrust::complex operations
+__inline__ __device__ complex_type make_complex(real re, real im) {
+    return thrust::complex<real>(re, im);
+}
+
+__inline__ __device__ real get_real(const complex_type& c) {
+    return c.real();
+}
+
+__inline__ __device__ real get_imag(const complex_type& c) {
+    return c.imag();
+}
+
+__inline__ __device__ complex_type add_complex(const complex_type& a, const complex_type& b) {
+    return a + b;
+}
+
+#endif
 
 namespace cg = cooperative_groups;
 #ifndef M_PI
@@ -47,7 +94,7 @@ __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int
     return dum;
 }
 
-__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<thrust::complex<real>, 2> scblock, int tasks, unsigned int N) {
+__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<complex_type, 2> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
     auto warp = cg::tiled_partition<32>(block);
@@ -145,12 +192,12 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, qInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, qInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
+        scblock(3 * block.group_index().x + 0, qInd) = make_complex(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd) = make_complex(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd) = make_complex(sum_re[2], sum_im[2]);
     }
 }
-__global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, GpuTensor<thrust::complex<real>, 2> scsum, int numBlocks)
+__global__ void GPUSqFinalSum_stat(GpuTensor<complex_type, 2> scblock, GpuTensor<complex_type, 2> scsum, int numBlocks)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -176,9 +223,9 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, 
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
-            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            complex_type val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += get_real(val);
+            sum_im[k] += get_imag(val);
         }
     }
 
@@ -213,9 +260,9 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, 
     }
 
     if (tid_in_block == 0) {
-        scsum(0, qInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
-        scsum(1, qInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
-        scsum(2, qInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
+        scsum(0, qInd) = add_complex(scsum(0, qInd), make_complex(sum_re[0], sum_im[0]));
+        scsum(1, qInd) = add_complex(scsum(1, qInd), make_complex(sum_re[1], sum_im[1]));
+        scsum(2, qInd) = add_complex(scsum(2, qInd), make_complex(sum_re[2], sum_im[2]));
 
         /*mblock_gpu[block.group_index().x] += mySum[0];
         mblock_gpu[block.group_index().x + grid.group_dim().x] += mySum[1];
@@ -224,7 +271,7 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<thrust::complex<real>, 2> scblock, 
     }
 }
 
-__global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, GpuTensor<thrust::complex<real>, 3> scsum, int numBlocks, unsigned int t_cur)
+__global__ void GPUSqFinalSum_dyn(GpuTensor<complex_type, 2> scblock, GpuTensor<complex_type, 3> scsum, int numBlocks, unsigned int t_cur)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -250,9 +297,9 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
-            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            complex_type val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += get_real(val);
+            sum_im[k] += get_imag(val);
         }
     }
 
@@ -288,9 +335,9 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
 
     if (tid_in_block == 0) {
             // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
-            scsum(0, qInd, t_cur) += thrust::complex<real>(sum_re[0], sum_im[0]);
-            scsum(1, qInd, t_cur) += thrust::complex<real>(sum_re[1], sum_im[1]);
-            scsum(2, qInd, t_cur) += thrust::complex<real>(sum_re[2], sum_im[2]);
+            scsum(0, qInd, t_cur) = add_complex(scsum(0, qInd, t_cur), make_complex(sum_re[0], sum_im[0]));
+            scsum(1, qInd, t_cur) = add_complex(scsum(1, qInd, t_cur), make_complex(sum_re[1], sum_im[1]));
+            scsum(2, qInd, t_cur) = add_complex(scsum(2, qInd, t_cur), make_complex(sum_re[2], sum_im[2]));
         
         //printf("qInd = %i, t_cur = %i, Re = %.3lf, Im = %.3lf\n", qInd, t_cur, mySum[2].real(), mySum[2].imag());
 
@@ -301,7 +348,7 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<thrust::complex<real>, 2> scblock, G
     }
 }
 
-__global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, GpuTensor<thrust::complex<real>, 2> scsum_q, GpuTensor<thrust::complex<real>, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag)
+__global__ void GPUSqFinalSum_both(GpuTensor<complex_type, 2> scblock, GpuTensor<complex_type, 2> scsum_q, GpuTensor<complex_type, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -327,9 +374,9 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
-            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            complex_type val = scblock(3 * tid_in_Q + k, qInd);
+            sum_re[k] += get_real(val);
+            sum_im[k] += get_imag(val);
         }
     }
 
@@ -365,15 +412,15 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
 
     if (tid_in_block == 0) {
         if ((both_flag == 1) || (both_flag == 2)) {
-            scsum_qt(0, qInd, t_cur) += thrust::complex<real>(sum_re[0], sum_im[0]);
-            scsum_qt(1, qInd, t_cur) += thrust::complex<real>(sum_re[1], sum_im[1]);
-            scsum_qt(2, qInd, t_cur) += thrust::complex<real>(sum_re[2], sum_im[2]);
+            scsum_qt(0, qInd, t_cur) = add_complex(scsum_qt(0, qInd, t_cur), make_complex(sum_re[0], sum_im[0]));
+            scsum_qt(1, qInd, t_cur) = add_complex(scsum_qt(1, qInd, t_cur), make_complex(sum_re[1], sum_im[1]));
+            scsum_qt(2, qInd, t_cur) = add_complex(scsum_qt(2, qInd, t_cur), make_complex(sum_re[2], sum_im[2]));
         }
 
         if ((both_flag == 0) || (both_flag == 2)) {
-            scsum_q(0, qInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
-            scsum_q(1, qInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
-            scsum_q(2, qInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
+            scsum_q(0, qInd) = add_complex(scsum_q(0, qInd), make_complex(sum_re[0], sum_im[0]));
+            scsum_q(1, qInd) = add_complex(scsum_q(1, qInd), make_complex(sum_re[1], sum_im[1]));
+            scsum_q(2, qInd) = add_complex(scsum_q(2, qInd), make_complex(sum_re[2], sum_im[2]));
         }
 
         //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
@@ -385,7 +432,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<thrust::complex<real>, 2> scblock, 
     }
 }
 
-__global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
+__global__ void GPUSwSum(const GpuTensor<complex_type, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<complex_type, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
     auto warp = cg::tiled_partition<32>(block);
@@ -425,9 +472,9 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
         sincos(phase, &s, &c);
 
         // 3. Extract S(q,t) values
-        thrust::complex<real> sq_val = sq(cInd, qInd, tInd);
-        real sq_re = sq_val.real();
-        real sq_im = sq_val.imag();
+        complex_type sq_val = sq(cInd, qInd, tInd);
+        real sq_re = get_real(sq_val);
+        real sq_im = get_imag(sq_val);
         
         // 4. Windowing function
         real win = sc_window_fac(sc_window_fun, (tInd - 1), sc_max_nstep);
@@ -491,13 +538,13 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
+        scblock(3 * block.group_index().x + 0, qInd, wInd) = make_complex(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd, wInd) = make_complex(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd, wInd) = make_complex(sum_re[2], sum_im[2]);
     }
 }
 
-__global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 3> scsum, int numBlocks, int nq)
+__global__ void GPUSwFinalSum(GpuTensor<complex_type, 3> scblock, GpuTensor<complex_type, 3> scsum, int numBlocks, int nq)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -525,9 +572,9 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
     if (tid_in_Q < numBlocks) {
         // Load and sum block results
         for (int k = 0; k < 3; k++) {
-            thrust::complex<real> val = scblock(3 * tid_in_Q + k, qInd, wInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            complex_type val = scblock(3 * tid_in_Q + k, qInd, wInd);
+            sum_re[k] += get_real(val);
+            sum_im[k] += get_imag(val);
         }
     }
 
@@ -567,8 +614,8 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
 
     // Accumulate results (reconstruct complex only at final write)
     if (tid_in_block == 0) {
-        scsum(0, qInd, wInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
-        scsum(1, qInd, wInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
-        scsum(2, qInd, wInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
+        scsum(0, qInd, wInd) = add_complex(scsum(0, qInd, wInd), make_complex(sum_re[0], sum_im[0]));
+        scsum(1, qInd, wInd) = add_complex(scsum(1, qInd, wInd), make_complex(sum_re[1], sum_im[1]));
+        scsum(2, qInd, wInd) = add_complex(scsum(2, qInd, wInd), make_complex(sum_re[2], sum_im[2]));
     }
 }

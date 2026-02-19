@@ -2,8 +2,18 @@
 
 #include "c_headers.hpp"
 #include "real_type.h"
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+#include <cuComplex.h>
+#else
 #include <thrust/complex.h>
+#endif
 
+// Type alias for correlation complex numbers (must match gpuStructures.hpp)
+#if defined(USE_CUCOMPLEX_CORRELATIONS)
+using complex_type = cuDoubleComplex;
+#else
+using complex_type = thrust::complex<real>;
+#endif
 
 // NAME         TYPE     DIMENSION   DESCRIPTION
 //
@@ -70,9 +80,9 @@ public:
    static real* q;
    static real* coord;
    static real* w;
-   static thrust::complex<real>* m_k;
-   static thrust::complex<real>* m_kw;
-   static thrust::complex<real>* m_kt;
+   static complex_type* m_k;
+   static complex_type* m_kw;
+   static complex_type* m_kt;
    static real* deltat_corr;
    static real* scstep_arr;
    static int* sc_nsamp_ptr;  // Pointer to GPU-computed sample count
