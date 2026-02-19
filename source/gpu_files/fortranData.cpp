@@ -31,9 +31,9 @@ real* FortranData::r_mid;
 real* FortranData::q;
 real* FortranData::coord;
 real* FortranData::w;
-thrust::complex<real>* FortranData::m_k = nullptr;
-thrust::complex<real>* FortranData::m_kw = nullptr;
-thrust::complex<real>* FortranData::m_kt = nullptr;
+cpu_complex* FortranData::m_k = nullptr;
+cpu_complex* FortranData::m_kw = nullptr;
+cpu_complex* FortranData::m_kt = nullptr;
 real* FortranData::deltat_corr = nullptr;
 real* FortranData::scstep_arr = nullptr;
 int* FortranData::sc_nsamp_ptr = nullptr;  // Pointer to GPU-computed sample count
@@ -276,9 +276,9 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
    r_mid = p_r_mid;
    coord = p_coord;
    w = p_w;
-    m_k  = reinterpret_cast<thrust::complex<real>*>(p_m_k);
-    m_kw = reinterpret_cast<thrust::complex<real>*>(p_m_kw);
-    m_kt = reinterpret_cast<thrust::complex<real>*>(p_m_kt);
+    m_k  = reinterpret_cast<cpu_complex*>(p_m_k);
+    m_kw = reinterpret_cast<cpu_complex*>(p_m_kw);
+    m_kt = reinterpret_cast<cpu_complex*>(p_m_kt);
       deltat_corr = p_deltat_corr;
       scstep_arr = p_scstep_arr;
     sc_nsamp_ptr = p_sc_nsamp;  // Store pointer to GPU sample count

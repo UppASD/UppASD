@@ -46,21 +46,21 @@ void complexScalarMulAdd(real &sum_re, real &sum_im, real a, real c, real d) {
 __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep);
 
 template <size_t dim>
-__global__ void setZero(GpuTensor<hipComplex_t, dim> sc, unsigned int size) {
+__global__ void setZero(GpuTensor<gpu_complex, dim> sc, unsigned int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
-        sc[idx] = hipComplex_t(0, 0);;
+        sc[idx] = gpu_complex(0, 0);;
     }
 }
 
-__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<hipComplex_t, 2> scblock, int tasks, unsigned int N); 
+__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N); 
 
-__global__ void GPUSqFinalSum_stat(GpuTensor<hipComplex_t, 2> scblock, GpuTensor<hipComplex_t, 2> scsum, int numBlocks);
+__global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 2> scsum, int numBlocks);
 
-__global__ void GPUSqFinalSum_dyn(GpuTensor<hipComplex_t, 2> scblock, GpuTensor<hipComplex_t, 3> scsum, int numBlocks, unsigned int t_cur);
+__global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks, unsigned int t_cur);
 
-__global__ void GPUSqFinalSum_both(GpuTensor<hipComplex_t, 2> scblock, GpuTensor<hipComplex_t, 2> scsum_q, GpuTensor<hipComplex_t, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag);
+__global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 2> scsum_q, GpuTensor<gpu_complex, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag);
 
-__global__ void GPUSwSum(const GpuTensor<hipComplex_t, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<hipComplex_t, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun);
+__global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun);
 
-__global__ void GPUSwFinalSum(GpuTensor<hipComplex_t, 3> scblock, GpuTensor<hipComplex_t, 3> scsum, int numBlocks, int nq);
+__global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks, int nq);

@@ -321,7 +321,6 @@ contains
 
       if(do_gpu_correlations=='Y') then
          ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
-            call find_rmid(r_mid,coord,Natom)
 
             print *,'AB first test, do_sc = ', do_sc
          if (do_sc=='Y' .or. do_sc=='C') then
@@ -329,7 +328,7 @@ contains
             cc%gk_flag=2
             allocate(cc%m_k(3,nq))
             cc%m_k=0.0_dblprec
-            call find_rmid(r_mid,coord,Natom)
+            ! call find_rmid(r_mid,coord,Natom)
             ! Possible alternative: Call the Fortran routine with init flag = 0
             ! zeroflag = 0
             ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
@@ -347,6 +346,8 @@ contains
             ! cc%gkt_flag=0
             ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
          end if
+         call find_rmid(r_mid,coord,Natom)
+
       end if
       print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
       print *,' AB shape of m_k', shape(cc%m_k)

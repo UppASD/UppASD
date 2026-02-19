@@ -70,9 +70,9 @@ public:
    static real* q;
    static real* coord;
    static real* w;
-   static thrust::complex<real>* m_k;
-   static thrust::complex<real>* m_kw;
-   static thrust::complex<real>* m_kt;
+   static cpu_complex * m_k;
+   static cpu_complex * m_kw;
+   static cpu_complex * m_kt;
    static real* deltat_corr;
    static real* scstep_arr;
    static int* sc_nsamp_ptr;  // Pointer to GPU-computed sample count
