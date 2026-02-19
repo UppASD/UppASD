@@ -1,5 +1,16 @@
+#if(USE_HIP)
+#set(GPU_TOOLS gpuCorrelations.hpp gpuCorrelation.hip.cpp)
+#elseif(USE_CUDA)
+#  if(USE_CUCOMPLEX_CORRELATIONS)
+#    set(GPU_TOOLS gpuCorrelations.cuh gpuCorrelations_cucomplex.cu)
+#    message(STATUS "GPU Correlations: Using native cuDoubleComplex kernels (gpuCorrelations_cucomplex.cu)")
+#  else()
+#    set(GPU_TOOLS gpuCorrelations.cuh gpuCorrelations.cu)
+#    message(STATUS "GPU Correlations: Using Thrust complex kernels (gpuCorrelations.cu)")
+#  endif()
+#endif()
 if(USE_HIP)
-set(GPU_TOOLS gpuCorrelations.hpp gpuCorrelation.hip.cpp)
+  set(GPU_TOOLS gpuCorrelations.hpp  correlation_kernels.hpp correlation_kernels.hip.cpp)
 elseif(USE_CUDA)
   set(GPU_TOOLS gpuCorrelations.cuh gpuCorrelations.cu)
   if(USE_CUCOMPLEX_CORRELATIONS)
@@ -17,8 +28,7 @@ fortranCorrelation.cpp
 #correlationQueue.hpp
 #correlationQueue.cpp
 correlationFactory.hpp
-correlation_kernels.cuh
-correlation_kernels.cu
+gpuCorrelations.cpp
 
 
 #kernels.hpp

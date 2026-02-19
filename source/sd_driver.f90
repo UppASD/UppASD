@@ -1066,7 +1066,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'I')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -1147,14 +1147,14 @@ contains
          end if
       end if
 
-      if (do_gpu_correlations=='Y') then
-         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
-            NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
-      endif
+      !if (do_gpu_correlations=='Y') then
+         !call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
+         !   NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      !endif
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'M')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement

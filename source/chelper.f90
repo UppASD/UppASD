@@ -306,10 +306,11 @@ contains
 
    ! Initiate pointers for C/C++ implementation
    !> Calls functions in fortrandata.cpp
-   subroutine FortranData_Initiate(stt,btorque,cc)
+   subroutine FortranData_Initiate(stt,btorque,cc, phase)
       
       implicit none
       character(len=1), intent(in) :: STT !< Treat spi p_sc_max_nstn transfer torque? (Y/N)
+      character(len=1), intent(in) :: phase !< initial or measurement (I/M)
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
@@ -319,9 +320,8 @@ contains
          return  
       end if
 
-      if(do_gpu_correlations=='Y') then
+      if(do_gpu_correlations=='Y'.and.phase=='M') then
          ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
-            call find_rmid(r_mid,coord,Natom)
 
             print *,'AB first test, do_sc = ', do_sc
          if (do_sc=='Y' .or. do_sc=='C') then
@@ -329,7 +329,7 @@ contains
             cc%gk_flag=2
             allocate(cc%m_k(3,nq))
             cc%m_k=0.0_dblprec
-            call find_rmid(r_mid,coord,Natom)
+            ! call find_rmid(r_mid,coord,Natom)
             ! Possible alternative: Call the Fortran routine with init flag = 0
             ! zeroflag = 0
             ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
@@ -347,6 +347,8 @@ contains
             ! cc%gkt_flag=0
             ! call calc_gkt(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, emomM, zeroflag)
          end if
+         call find_rmid(r_mid,coord,Natom)
+
       end if
       print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
       print *,' AB shape of m_k', shape(cc%m_k)

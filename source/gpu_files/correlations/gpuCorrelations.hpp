@@ -6,19 +6,20 @@
 #include "real_type.h"
 #include "gpuStructures.hpp"
 #include <numeric>
-//#include <cooperative_groups.h>
-//#include <cooperative_groups/reduce.h>
-//#include <thrust/complex.h>
-
-
-#include <hiprand/hiprand.h>
+#include <hip/hip_runtime.h>
+#include <hip/hip_complex.h>
+#include "correlation.hpp"
 
 
 //#include <complex>
 
-class GpuCorrelations {
+class GpuCorrelations : public Correlation{
 private:
     unsigned int isallocated;
+
+    const GpuTensor<real, 3>& emomM;
+    const GpuTensor<real, 3>& emom;
+    const GpuTensor<real, 2>& mmom;
 
     unsigned int numThreads;
     unsigned int numBlocksX_q;
@@ -55,12 +56,13 @@ private:
     //real nainv;
     //thrust::complex<real> iqfac;
 
-    //Block variables TODO
-    //GpuTensor<thrust::complex<real>, 2> sc_block_gpu;
-    //GpuTensor<thrust::complex<real>, 3> sc_block_w_gpu;
-    //GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
-    //GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
-    //GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
+    //Block variables
+    GpuTensor<gpu_complex, 2> sc_block_gpu;
+    GpuTensor<gpu_complex, 3> sc_block_w_gpu;
+    GpuTensor<gpu_complex, 2> sc_q_gpu;
+    GpuTensor<gpu_complex, 3> sc_qt_gpu;
+    GpuTensor<gpu_complex, 3> sc_qw_gpu;
+    Tensor<gpu_complex, 2> sc_q_cpu;
 
 
     // Buffer variables 
@@ -71,23 +73,22 @@ private:
     GpuTensor<real, 1> dt;
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
-    Tensor<real, 1> sc_delta_t_cpu;
-    Tensor<real, 1> sc_step_arr_cpu;
-    void recordSample();
-    void publishSamplingInfo(hostCorrelations& cpuCorrelations);
+    Tensor<real, 1> sc_step_arr_cpu;  // Host buffer for sc_step array bookkeeping
 
 public:
     // Constructor
-    GpuCorrelations();
+    GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations);
     // Destructor
-    ~GpuCorrelations();
+    ~GpuCorrelations() override;;
 
     // Initiator
     bool initiate(const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations);
     // Releaser
     void release();
     // Measurements
-    void runCorrelation_spin(const deviceLattice& gpuLattice, const int curstep);
-    void finalCorrelation(hostCorrelations& cpuCorrelations);
+    void measure(std::size_t mstep) override;
+    void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) override;
+    void recordSample();
+    void publishSamplingInfo(hostCorrelations& cpuCorrelations);
 };
 

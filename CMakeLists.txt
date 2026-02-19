@@ -351,7 +351,7 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
                                ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
                                ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp 
-                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp PROPERTIES LANGUAGE CUDA)
+                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
