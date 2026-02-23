@@ -66,6 +66,7 @@ class ViewerConfig:
     """
 
     scale: float = 30.0
+    stride: int = 1
 
     cmap: str = "coolwarm"
     figsize: tuple = (7, 5)
@@ -408,6 +409,7 @@ class NotebookLiveViewer:
         else:
             # Update vector components and color array in-place to avoid
             # changing axes/layout and to keep the colorbar intact.
+            need_recreate = False
             try:
                 # Update quiver data in-place; preserve colorbar axis position.
                 self._quiver.set_UVC(u, v, mz)
@@ -430,43 +432,45 @@ class NotebookLiveViewer:
                         pass
             except (AttributeError, ValueError, RuntimeError):
                 # Fallback: recreate quiver if in-place update fails
+                need_recreate = True
                 try:
                     if self._quiver is not None:
                         self._quiver.remove()
-                except (AttributeError, RuntimeError):
+                except (AttributeError, RuntimeError, KeyError):
                     pass
-            self._quiver = self._ax.quiver(
-                x,
-                y,
-                u,
-                v,
-                mz,
-                scale=self.config.scale,
-                cmap=self.config.cmap,
-                pivot="mid",
-            )
-            try:
-                if self._cbar is not None:
-                    try:
-                        self._cbar.remove()
-                    except (AttributeError, RuntimeError):
-                        pass
-                if self._cax is not None:
-                    try:
-                        self._cax.remove()
-                    except (AttributeError, RuntimeError):
-                        pass
-                axpos = self._ax.get_position()
-                pad = 0.01
-                cbar_width = 0.03
-                self._cax = self._fig.add_axes(
-                    (axpos.x1 + pad, axpos.y0, cbar_width, axpos.height)
+            if need_recreate:
+                self._quiver = self._ax.quiver(
+                    x,
+                    y,
+                    u,
+                    v,
+                    mz,
+                    scale=self.config.scale,
+                    cmap=self.config.cmap,
+                    pivot="mid",
                 )
-                self._cbar = self._fig.colorbar(
-                    self._quiver, cax=self._cax, label="$m_z$"
-                )
-            except (ValueError, RuntimeError, AttributeError):
-                self._cbar = None
+                try:
+                    if self._cbar is not None:
+                        try:
+                            self._cbar.remove()
+                        except (AttributeError, RuntimeError, KeyError):
+                            pass
+                    if self._cax is not None:
+                        try:
+                            self._cax.remove()
+                        except (AttributeError, RuntimeError, KeyError):
+                            pass
+                    axpos = self._ax.get_position()
+                    pad = 0.01
+                    cbar_width = 0.03
+                    self._cax = self._fig.add_axes(
+                        (axpos.x1 + pad, axpos.y0, cbar_width, axpos.height)
+                    )
+                    self._cbar = self._fig.colorbar(
+                        self._quiver, cax=self._cax, label="$m_z$"
+                    )
+                except (ValueError, RuntimeError, AttributeError, KeyError):
+                    self._cbar = None
 
         self._ax.set_title("Spin configuration")
         self._ax.set_xlabel("x")
