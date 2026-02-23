@@ -160,19 +160,19 @@
       call allocate_randomwork(1,1,-1,'N')
    end subroutine CleanUp
 
-   !==============================================================!
-   ! RNG seed wrapper
-   !--------------------------------------------------------------!
-   subroutine RngSeed(seed) bind(c, name='rng_init_')
-      use iso_c_binding
-      use RandomNumbers, only : rng_init
-      implicit none
-      integer(c_int), intent(in) :: seed
+   ! !==============================================================!
+   ! ! RNG seed wrapper
+   ! !--------------------------------------------------------------!
+   ! subroutine RngSeed(seed) bind(c, name='rng_init_')
+   !    use iso_c_binding
+   !    use RandomNumbers, only : rng_init
+   !    implicit none
+   !    integer(c_int), intent(in) :: seed
 
-      ! Call the RandomNumbers rng_init wrapper which initializes the
-      ! module-level RNG state used throughout UppASD.
-      call rng_init(seed)
-   end subroutine RngSeed
+   !    ! Call the RandomNumbers rng_init wrapper which initializes the
+   !    ! module-level RNG state used throughout UppASD.
+   !    call rng_init(seed)
+   ! end subroutine RngSeed
 
 
 !!!    !==============================================================!

@@ -1501,50 +1501,50 @@ set_delta_t = set_timestep
 put_delta_t = set_timestep
 
 
-def rng_init(seed: int) -> None:
-    """Seed the internal RNGs used by UppASD.
-
-    This is a thin wrapper around the Fortran-exposed routine that
-    initializes the module RNG state. The compiled extension may expose
-    the symbol under different names depending on wrapper tooling; the
-    function attempts a few likely attribute names before failing.
-
-    Parameters
-    ----------
-    seed : int
-        Integer seed to initialize the RNGs.
-
-    Raises
-    ------
-    RuntimeError
-        If the underlying extension does not expose an RNG initializer
-        or if the call to the extension fails.
-    """
-    try:
-        logger.debug("Seeding RNG with seed=%s", seed)
-        # Try a few likely symbol names that the extension might expose
-        if hasattr(_uppasd, "rng_init"):
-            _uppasd.rng_init(int(seed))
-            return
-        elif hasattr(_uppasd, "rng_seed"):
-            _uppasd.rng_seed(int(seed))
-            return
-        # Some build toolchains keep the trailing underscore name
-        elif hasattr(_uppasd, "rng_init_"):
-            _uppasd.rng_init_(int(seed))
-            return
-        elif hasattr(_uppasd, "rng_seed_"):
-            _uppasd.rng_seed_(int(seed))
-            return
-
-        raise RuntimeError("RNG initialization routine not available in _uppasd extension")
-    except _CommonEx as e:
-        logger.error("Failed to init RNG: %s", e)
-        raise RuntimeError(f"Cannot init RNG: {e}") from e
+# def rng_init(seed: int) -> None:
+#     """Seed the internal RNGs used by UppASD.
+# 
+#     This is a thin wrapper around the Fortran-exposed routine that
+#     initializes the module RNG state. The compiled extension may expose
+#     the symbol under different names depending on wrapper tooling; the
+#     function attempts a few likely attribute names before failing.
+# 
+#     Parameters
+#     ----------
+#     seed : int
+#         Integer seed to initialize the RNGs.
+# 
+#     Raises
+#     ------
+#     RuntimeError
+#         If the underlying extension does not expose an RNG initializer
+#         or if the call to the extension fails.
+#     """
+#     try:
+#         logger.debug("Seeding RNG with seed=%s", seed)
+#         # Try a few likely symbol names that the extension might expose
+#         if hasattr(_uppasd, "rng_init"):
+#             _uppasd.rng_init(int(seed))
+#             return
+#         elif hasattr(_uppasd, "rng_seed"):
+#             _uppasd.rng_seed(int(seed))
+#             return
+#         # Some build toolchains keep the trailing underscore name
+#         elif hasattr(_uppasd, "rng_init_"):
+#             _uppasd.rng_init_(int(seed))
+#             return
+#         elif hasattr(_uppasd, "rng_seed_"):
+#             _uppasd.rng_seed_(int(seed))
+#             return
+# 
+#         raise RuntimeError("RNG initialization routine not available in _uppasd extension")
+#     except _CommonEx as e:
+#         logger.error("Failed to init RNG: %s", e)
+#         raise RuntimeError(f"Cannot init RNG: {e}") from e
 
 
 # Backward compatibility alias
-rngseed = rng_init
+#rngseed = rng_init
 
 # ============================================================================
 # Magnon/LSWT Calculations (diamag module)
