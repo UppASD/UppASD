@@ -42,6 +42,7 @@ private:
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
+    void measureAutocorrelation(size_t mstep);
     void release();
     MeasurementQueue& mqueue;
     CpuRestMeasurement cpuMeas;
@@ -102,6 +103,26 @@ private:
     const uint nsimp;
     const dim3 skyno_kernel_threads;
     const dim3 skyno_kernel_blocks;
+
+    // Autocorrelations 
+    const bool do_autocorr;
+   // GpuVector<unsigned int> spinwaittable_gpu;
+    GpuTensor<real, 2> autocorr_buff;
+    GpuTensor<real, 4> spinwait_gpu;
+
+    Vector<unsigned int> spinwaittable_cpu;
+    //Tensor<real, 3> spinwait_cpu;
+
+    Vector<real> indxb_ac;
+
+    dim3 autocorr_threads;
+    dim3 autocorr_blocks;
+
+    unsigned int ac_count;
+    const unsigned int ac_buff;
+    const unsigned int ac_step;
+    const unsigned int nspinwait;
+    const unsigned int n0spinwait;
 
 };
 

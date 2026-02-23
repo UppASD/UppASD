@@ -44,6 +44,12 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 , cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
 , sumOverAtoms_kernel_threads(256, 1)
 , sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
+, do_autocorr(*FortranData::do_autocorr)
+, nspinwait(*FortranData::nspinwait)
+, n0spinwait(0)
+, ac_buff(*FortranData::ac_buff)
+, ac_step(*FortranData::ac_step)
+
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -155,6 +161,16 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
         mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
     }
 
+    if (do_autocorr){
+        indxb_ac.set(FortranData::indxb_ac, ac_buff);
+        //spinwait_cpu.set (FortranData::spinwait, 3, N, nspinwait);
+        spinwaittable_cpu.set(FortranData::spinwaittable, nspinwait);
+
+        spinwait_gpu.Allocate(3, N, M, nspinwait);
+        //spinwait_gpu.copy_sync(spinwait_cpu);       
+        
+    }
+
     isAllocated = true;
     stopwatch.add("constructor");
 }
@@ -202,6 +218,11 @@ void GpuMeasurement::release(){
             {
                 simp.Free();
             }
+        
+        if (do_autocorr)
+            {
+                spinwait_gpu.Free();
+            }
         isAllocated = false;
     }
 
@@ -220,6 +241,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     const bool avrg = timeToMeasure(MeasurementType::AverageMagnetization, mstep);
     const bool cumu = timeToMeasure(MeasurementType::BinderCumulant, mstep);
+    const bool autocorr = timeToMeasure(MeasurementType::Autocorrelation, mstep);
 
     if (avrg || cumu)
     {
@@ -243,6 +265,11 @@ void GpuMeasurement::measure(std::size_t mstep)
     {
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
+    }
+    if(autocorr){
+        measureAutocorrelation(mstep);
+        stopwatch.add("autocorelation");
+
     }
     
     cpuMeas.measure(mstep);
@@ -285,6 +312,13 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
         saveToFile(MeasurementType::SkyrmionNumber);
+    }
+
+        if (do_autocorr)
+    {
+        measureAutocorrelation(mstep);
+        stopwatch.add("autocorrelation");
+        //saveToFile(MeasurementType::BinderCumulant);
     }
 
     cpuMeas.flushMeasurements(mstep + 1); 
@@ -355,7 +389,6 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
 
 }
 
-
 void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 {
     if (do_skyno == SkyrmionMethod::BruteForce)
@@ -395,6 +428,31 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
     {
         saveToFile(MeasurementType::SkyrmionNumber);
     }
+}
+
+
+void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
+{
+ 
+    /*KERNELS TODO*/
+
+    if (*FortranData::real_time_measure=='Y') {
+        indxb_ac(ac_count++)=mstep*(*FortranData::delta_t);
+    }
+    else {
+        indxb_ac(ac_count++)=mstep;
+
+    }
+   
+    
+    //mavg_iter(mavg_count++) = mstep;
+
+
+    /*if (mavg_count >= *FortranData::avrg_buff)
+    {TOCORRELATION
+        saveToFile(MeasurementType::AverageMagnetization);
+
+    }*/
 }
 
 
@@ -479,6 +537,10 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
 
         case MeasurementType::SkyrmionNumber:
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
+        
+        case MeasurementType::Autocorrelation: {
+            return do_autocorr && ((mstep % *FortranData::ac_step) == 0);//TODO
+        }
 
         default:
             throw std::invalid_argument("Not yet implemented.");

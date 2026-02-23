@@ -109,6 +109,7 @@ public:
    static unsigned int* plotenergy;             // Calculate and plot energy (0/1)
    static char* do_skyno;
    static char* do_gpu_correlations;
+   static char* real_time_measure;
 
 
    // Matrices / vectors
@@ -150,7 +151,7 @@ public:
    static int* dxyz_atom;
    static int* dxyz_list;
 
-   // Input
+   // Inputindxb_ac, autocorr_buff
    static int* gpu_mode;
    static int* gpu_rng;
    static int* gpu_rng_seed;
@@ -160,6 +161,10 @@ public:
    static real* mavg4_buff;
    static real* eavg_buff;
    static real* eavg2_buff;
+   static real* autocorr_buff;
+   static real* spinwait;
+   static real* indxb_ac; //TODO: get rid of once printed on C
+   static unsigned int* spinwaittable;
 
 
    static unsigned int* avrg_step;
@@ -170,6 +175,9 @@ public:
    static unsigned int* eavrg_buff;
    static unsigned int* skyno_step;
    static unsigned int* skyno_buff;
+   static unsigned int* ac_step;
+   static unsigned int* ac_buff;
+   static unsigned int* nspinwait;
 
 
    // Initiators
@@ -177,7 +185,7 @@ public:
                                 char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                 unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
                                 unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
-                                char* p_do_gpu_correlations);
+                                char* p_do_gpu_correlations, char* p_real_time_measure);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
                                     unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
@@ -187,7 +195,8 @@ public:
                                     unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
                                     unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
                                     unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
-                                    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep);
+                                    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
+                                    unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
@@ -205,9 +214,9 @@ public:
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 
                                        real* p_binderc, real* p_avrgmcum, real* p_avrgm2cum, real* p_avrgm4cum, 
                                        real* p_eavg_buff, real* p_eavg2_buff, 
-                                       real* p_spinwait, real* p_autocorr_buff, real* p_indxb_ac, 
                                        real* p_traj_step, real* p_traj_buff, real* p_traj_atom,
-                                       real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj);
+                                       real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj,
+                                       unsigned int* p_spinwaitt, real* p_spinwait, real* p_indxb_ac, real* p_autocorr_buff);
    
    static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
                                        void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx);

@@ -6,7 +6,7 @@
 
 enum class MeasurementType : uint8_t
 {
-    AverageMagnetization, BinderCumulant, SkyrmionNumber
+    AverageMagnetization, BinderCumulant, SkyrmionNumber, Autocorrelation
 };
 
 enum class SkyrmionMethod : uint8_t
@@ -17,7 +17,7 @@ enum class SkyrmionMethod : uint8_t
 };
 
 
-//struct MeasurementConfig
+//struct MeasurementConfig            {
 //{
 //    // Average magnetization
 //    bool do_avrg{};
@@ -36,7 +36,7 @@ enum class SkyrmionMethod : uint8_t
 //
 //    // build this once from FortranData in a small helper
 //    static MeasurementConfig makeConfigFromFortran();
-//};
+//};          
 
 
 struct AverageMagnetizationData

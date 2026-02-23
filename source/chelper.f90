@@ -11,7 +11,7 @@ module Chelper
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
-   !use AutoCorrelation,  only : nspinwait, spinwait, autocorr_buff
+   !use AutoCorrelation
    use AutoCorrelation
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt
@@ -350,7 +350,7 @@ contains
          call find_rmid(r_mid,coord,Natom)
 
       end if
-      print *, 'FORTRAN TENSOOOOOOOOOOOR', nq, size(cc%m_k), size(cc%m_k,1), size(cc%m_k,2)
+     
       print *,' AB shape of m_k', shape(cc%m_k)
       print *,' AB allocated?', allocated(cc%m_k)
 
@@ -360,14 +360,14 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno, do_sc, do_gpu_correlations)
+           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
          avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
-         cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep)
+         cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
@@ -385,10 +385,10 @@ contains
            mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
            binderc, avrgmcum, avrgm2cum, avrgm4cum, &
            eavg_buff, eavg2_buff, &
-           spinwait, autocorr_buff, indxb_ac, &
            traj_step, traj_buff, traj_atom, &
-           mmomb, mmomb_traj, emomb, emomb_traj &
-           )
+           mmomb, mmomb_traj, emomb, emomb_traj, &
+           spinwaitt, spinwait, &
+           indxb_ac, autocorr_buff) !TODO: get rd of those once printed on CPU
 
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx)
 
