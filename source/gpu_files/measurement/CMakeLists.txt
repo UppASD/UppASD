@@ -17,6 +17,8 @@ target_sources(${UppASD_LIB} PRIVATE
         measurementData.h
         memoryMeasurement.h
         memoryMeasurement.cpp
+        autocorrelation_kernels.hpp
+        autocorrelation_kernels.cpp
 )
 
 target_include_directories(${UppASD_LIB}

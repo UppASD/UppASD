@@ -49,7 +49,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 , n0spinwait(0)
 , ac_buff(*FortranData::ac_buff)
 , ac_step(*FortranData::ac_step)
-
+, sw_next(0)
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -162,13 +162,19 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
     }
 
     if (do_autocorr){
+        sw_threads = 256;
+        sw_tasks = 3*N*M;
+        sw_blocks = (sw_tasks + sw_threads - 1)/sw_threads;
         indxb_ac.set(FortranData::indxb_ac, ac_buff);
         //spinwait_cpu.set (FortranData::spinwait, 3, N, nspinwait);
         spinwaittable_cpu.set(FortranData::spinwaittable, nspinwait);
-
         spinwait_gpu.Allocate(3, N, M, nspinwait);
-        //spinwait_gpu.copy_sync(spinwait_cpu);       
+        spinwait_gpu.zeros();
+        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, emom, sw_tasks, 0);
         
+        sw_curIdx = 0;
+        sw_next = spinwaittable_cpu(0);
+               
     }
 
     isAllocated = true;
@@ -314,7 +320,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         saveToFile(MeasurementType::SkyrmionNumber);
     }
 
-        if (do_autocorr)
+    if (do_autocorr)
     {
         measureAutocorrelation(mstep);
         stopwatch.add("autocorrelation");
@@ -435,6 +441,18 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 {
  
     /*KERNELS TODO*/
+    ac_threads = {256, 1, 1};
+    ac_blocks = {};
+
+    
+    
+    
+    
+    if(mstep == sw_next){
+        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, emom, sw_tasks, sw_curIdx);
+        sw_next = spinwaittable_cpu(++sw_curIdx); 
+
+    }
 
     if (*FortranData::real_time_measure=='Y') {
         indxb_ac(ac_count++)=mstep*(*FortranData::delta_t);
@@ -443,6 +461,7 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
         indxb_ac(ac_count++)=mstep;
 
     }
+   
    
     
     //mavg_iter(mavg_count++) = mstep;
@@ -539,7 +558,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
         case MeasurementType::Autocorrelation: {
-            return do_autocorr && ((mstep % *FortranData::ac_step) == 0);//TODO
+            return do_autocorr && (((mstep % ac_step) == 0)||(mstep == sw_next));//TODO
         }
 
         default:

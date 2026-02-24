@@ -14,6 +14,7 @@
 #include "gpu_wrappers.h"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
+#include "autocorrelation_kernels.hpp"
 
 
 class GpuMeasurement : public Measurable
@@ -115,14 +116,19 @@ private:
 
     Vector<real> indxb_ac;
 
-    dim3 autocorr_threads;
-    dim3 autocorr_blocks;
+    dim3 ac_threads;
+    dim3 ac_blocks;
 
     unsigned int ac_count;
+    unsigned int sw_next;
+    unsigned int sw_curIdx;
     const unsigned int ac_buff;
     const unsigned int ac_step;
     const unsigned int nspinwait;
     const unsigned int n0spinwait;
+    unsigned int sw_threads;
+    unsigned int sw_tasks;
+    unsigned int sw_blocks;
 
 };
 
