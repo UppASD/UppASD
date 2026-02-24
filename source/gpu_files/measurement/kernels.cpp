@@ -4,8 +4,10 @@
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
+
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
+
 #endif
 
 
@@ -18,6 +20,7 @@ namespace
     __device__ __forceinline__ real warp_reduce_sum(real v)
     {
         unsigned mask = 0xffffffffu;
+        //for(int i = 32; i > 0)
         v += __shfl_down_sync(mask, v, 16);
         v += __shfl_down_sync(mask, v, 8);
         v += __shfl_down_sync(mask, v, 4);

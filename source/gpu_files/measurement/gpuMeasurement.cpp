@@ -50,6 +50,8 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 , ac_buff(*FortranData::ac_buff)
 , ac_step(*FortranData::ac_step)
 , sw_next(0)
+, ac_maxThreads(512)
+, ac_maxBlocks(1024)
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -172,8 +174,18 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
         spinwait_gpu.zeros();
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, emom, sw_tasks, 0);
         
+
+
         sw_curIdx = 0;
         sw_next = spinwaittable_cpu(0);
+
+        ac_tasksX = 3 * N * M;
+        ac_threadsX = ac_maxThreads;
+        ac_blocksX =  std::min(((ac_tasksX + ac_threadsX - 1) / ac_threadsX), ac_maxBlocks);
+
+        ac_block_gpu.Allocate(ac_blocksX, nspinwait);
+        ac_block_gpu.zeros();
+
                
     }
 
@@ -228,6 +240,7 @@ void GpuMeasurement::release(){
         if (do_autocorr)
             {
                 spinwait_gpu.Free();
+                ac_block_gpu.Free();
             }
         isAllocated = false;
     }
@@ -441,10 +454,11 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 {
  
     /*KERNELS TODO*/
-    ac_threads = {256, 1, 1};
-    ac_blocks = {};
+    ac_blocks = {ac_blocksX, sw_curIdx, 1};
 
-    
+    calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, emom, ac_tasksX, sw_curIdx);
+    //calc_autocorr_final<<<sw_curIdx, 1024>>>(ac_block_gpu, ac,taskNum, ac_count);
+
     
     
     

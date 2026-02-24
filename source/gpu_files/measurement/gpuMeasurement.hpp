@@ -109,6 +109,7 @@ private:
     const bool do_autocorr;
    // GpuVector<unsigned int> spinwaittable_gpu;
     GpuTensor<real, 2> autocorr_buff;
+    GpuTensor<real, 2> ac_block_gpu;
     GpuTensor<real, 4> spinwait_gpu;
 
     Vector<unsigned int> spinwaittable_cpu;
@@ -118,6 +119,11 @@ private:
 
     dim3 ac_threads;
     dim3 ac_blocks;
+    unsigned int ac_threadsX;
+    unsigned int ac_tasksX;
+    unsigned int ac_blocksX;
+    const unsigned int ac_maxThreads;
+    const unsigned int ac_maxBlocks;
 
     unsigned int ac_count;
     unsigned int sw_next;
