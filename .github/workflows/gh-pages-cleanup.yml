@@ -20,7 +20,7 @@ jobs:
       - name: Remove gh-pages directory for deleted branch
         run: |
           BRANCH_NAME="${{ github.event.ref }}"
-          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '/' '-')
+          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed -E 's#[^A-Za-z0-9._/-]#-#g')
 
           echo "Deleting gh-pages directory: $SAFE_BRANCH_NAME"
 

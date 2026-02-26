@@ -53,6 +53,9 @@ jobs:
             git 
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
 
       - name: Fetch tags for versioning
         run: git fetch --prune --unshallow --tags --force
@@ -146,6 +149,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
 
       - name: Fetch tags for versioning
         run: git fetch --prune --unshallow --tags --force
@@ -197,6 +203,19 @@ jobs:
 
     - name: Confirm the wheels
       run: ls -lR dist/
+
+    - name: Validate artifact versions match tag
+      run: |
+        TAG="${GITHUB_REF#refs/tags/}"
+        echo "Expected version from tag: $TAG"
+        BAD_FILES=$(find dist -maxdepth 1 -type f -name 'uppasd-*' \
+          | grep -vE "/uppasd-${TAG}(-.*\.whl|\.tar\.gz)$" || true)
+        if [ -n "$BAD_FILES" ]; then
+          echo "ERROR: Found artifacts with version not matching tag ${TAG}:"
+          echo "$BAD_FILES"
+          exit 1
+        fi
+        echo "All artifacts match tag version ${TAG}."
 
     - name: Publish distribution 📦 to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1

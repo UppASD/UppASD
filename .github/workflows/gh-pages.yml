@@ -27,7 +27,7 @@ jobs:
         id: branch
         run: |
           BRANCH_NAME="${GITHUB_REF_NAME}"
-          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | tr '/' '-')
+          SAFE_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed -E 's#[^A-Za-z0-9._/-]#-#g')
           echo "branch=$SAFE_BRANCH_NAME" >> $GITHUB_OUTPUT
 
       # ------------------------------------------------------------
@@ -59,15 +59,6 @@ jobs:
             site_build/index.html
 
       # ------------------------------------------------------------
-      # Clean previous deployment for this branch
-      # ------------------------------------------------------------
-      - name: Remove previous deployment for this branch
-        run: |
-          git fetch origin gh-pages || true
-          git checkout gh-pages || git checkout --orphan gh-pages
-          rm -rf ${{ steps.branch.outputs.branch }}
-
-      # ------------------------------------------------------------
       # Deploy to gh-pages under branch-specific path
       # ------------------------------------------------------------
       - name: Deploy to gh-pages
@@ -77,5 +68,4 @@ jobs:
           publish_branch: gh-pages
           publish_dir: site_build
           destination_dir: ${{ steps.branch.outputs.branch }}
-          keep_files: false
-          force_orphan: true
+          keep_files: true
