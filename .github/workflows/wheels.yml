@@ -206,12 +206,13 @@ jobs:
 
     - name: Validate artifact versions match tag
       run: |
-        TAG="${GITHUB_REF#refs/tags/}"
-        echo "Expected version from tag: $TAG"
+        TAG_RAW="${GITHUB_REF#refs/tags/}"
+        TAG="${TAG_RAW#v}"
+        echo "Expected version from tag: $TAG (raw tag: $TAG_RAW)"
         BAD_FILES=$(find dist -maxdepth 1 -type f -name 'uppasd-*' \
           | grep -vE "/uppasd-${TAG}(-.*\.whl|\.tar\.gz)$" || true)
         if [ -n "$BAD_FILES" ]; then
-          echo "ERROR: Found artifacts with version not matching tag ${TAG}:"
+          echo "ERROR: Found artifacts with version not matching normalized tag ${TAG} (raw: ${TAG_RAW}):"
           echo "$BAD_FILES"
           exit 1
         fi
