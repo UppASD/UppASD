@@ -5,8 +5,11 @@
 #include "measurementData.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
+#define WARPSIZE 64
+
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
+#define WARPSIZE 32
 //#include "device_launch_parameters.h"
 #endif
 
@@ -95,7 +98,7 @@ namespace kernels::measurement
 
     inline uint nwarps(const dim3& threads)
     {
-        return ceil_div(threads.x * threads.y * threads.z, 32u);
+        return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
     }
 
 } // namespace kernels::measurement

@@ -8,6 +8,7 @@
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
 
+
 #endif
 
 
@@ -20,7 +21,7 @@ namespace
     __device__ __forceinline__ real warp_reduce_sum(real v)
     {
         unsigned mask = 0xffffffffu;
-        //for(int i = 32; i > 0)
+        for(int i = WARPSIZE/2; i > 0; i >>= 1)
         v += __shfl_down_sync(mask, v, 16);
         v += __shfl_down_sync(mask, v, 8);
         v += __shfl_down_sync(mask, v, 4);
@@ -33,9 +34,9 @@ namespace
     __device__ __forceinline__ real block_reduce_sum_1d(real v, real* shared)
     {
         v = warp_reduce_sum(v);
-        int lane  = threadIdx.x & 31;
-        int wid   = threadIdx.x >> 5;
-        int nwarp = (blockDim.x + 31) >> 5;
+        int lane  = threadIdx.x & (WARPSIZE - 1);       
+        int wid   = threadIdx.x >> (WARPSIZE == 32 ? 5 : 6); 
+        int nwarp = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
         if (lane == 0) shared[wid] = v;
         __syncthreads();
         real out = (threadIdx.x < nwarp) ? shared[threadIdx.x] : real(0);
