@@ -210,9 +210,9 @@ contains
 
          !.. Sum over moments
          do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
-            end do
+            !do k=1,Mensemble
+            !   m(:,k) = m(:,k) + emomM(:,i,k)
+            !end do
             !Autocorr only over sample 1
             do j=1, nspinwait
                autocorr(j) = autocorr(j)+spinwait(1,i,j)*emom(1,i,1)+&
@@ -220,11 +220,11 @@ contains
             end do
          end do
 
-         do i=1, Natom
-            do k=1,Mensemble
-               m(:,k) = m(:,k) + emomM(:,i,k)
-            end do
-         end do
+         !do i=1, Natom
+         !   do k=1,Mensemble
+         !      m(:,k) = m(:,k) + emomM(:,i,k)
+         !   end do
+         !end do
 
          do j=1, nspinwait
             autocorr_buff(j,bcount_ac,1) = autocorr(j)

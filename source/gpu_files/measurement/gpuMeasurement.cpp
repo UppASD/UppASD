@@ -268,6 +268,8 @@ GpuMeasurement::~GpuMeasurement()
 
 void GpuMeasurement::measure(std::size_t mstep)
 {
+    cpuMeas.measure(mstep);
+
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     const bool avrg = timeToMeasure(MeasurementType::AverageMagnetization, mstep);
@@ -303,7 +305,6 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     }
     
-   // cpuMeas.measure(mstep);
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();   
@@ -314,7 +315,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
-    //cpuMeas.measure(mstep);  
+    cpuMeas.measure(mstep);  
 
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
@@ -353,7 +354,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         saveToFile(MeasurementType::Autocorrelation);
     }
 
-    //cpuMeas.flushMeasurements(mstep + 1); 
+    cpuMeas.flushMeasurements(mstep + 1); 
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
     {

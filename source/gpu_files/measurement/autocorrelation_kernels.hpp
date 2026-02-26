@@ -7,11 +7,14 @@
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
 #include <hip/hip_cooperative_groups.h>
+#define WARPSIZE 64
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 #include <cuda.h>
+#define WARPSIZE 32
+
 #endif
 namespace cg = cooperative_groups;
 
