@@ -74,3 +74,8 @@ struct SkyrmionNumberData
     real skyno_stdv{};
 };
 
+struct AutocorrelationData
+{
+    const real* values{};
+    size_t size{};
+};

@@ -76,3 +76,22 @@ template<> struct MeasurementTraits<SkyrmionNumberData>
     }
 };
 
+template<>
+struct MeasurementTraits<AutocorrelationData>
+{
+    static constexpr std::string_view filebase = "autocorr";
+
+    static constexpr std::array<std::string_view, 1> columns = {};
+
+    static void print(const AutocorrelationData& a,
+                      std::ostream& out,
+                      int width)
+    {
+        for (size_t j = 0; j < a.size; ++j)
+        {
+            out << std::setw(width)
+                << a.values[j];
+        }
+    }
+};
+

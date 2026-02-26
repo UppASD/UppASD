@@ -52,6 +52,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 , sw_next(0)
 , ac_maxThreads(512)
 , ac_maxBlocks(1024)
+, ac_count(0)
 , do_skyno([](char c) -> SkyrmionMethod {
                 switch (c)
                 {
@@ -182,14 +183,19 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
         ac_tasksX = 3 * N * M;
         ac_threadsX = ac_maxThreads;
         ac_blocksX =  std::min(((ac_tasksX + ac_threadsX - 1) / ac_threadsX), ac_maxBlocks);
+        ac_threads = {ac_threadsX, 1, 1};
 
         ac_block_gpu.Allocate(ac_blocksX, nspinwait);
         ac_block_gpu.zeros();
 
-        autocorr_buff.Allocate(nspinwait, ac_buff);
-        autocorr_buff.zeros();
+        autocorr_buff_gpu.Allocate(nspinwait, ac_buff);
+        autocorr_buff_gpu.zeros();
 
-               
+        autocorr_buff_cpu.AllocateHost(nspinwait, ac_buff);
+        autocorr_buff_cpu.zeros(); 
+        
+        indxb_ac.AllocateHost(ac_buff);
+        indxb_ac.zeros();
     }
 
     isAllocated = true;
@@ -244,7 +250,9 @@ void GpuMeasurement::release(){
             {
                 spinwait_gpu.Free();
                 ac_block_gpu.Free();
-                autocorr_buff.Free();
+                autocorr_buff_gpu.Free();
+                autocorr_buff_cpu.FreeHost();
+                indxb_ac.FreeHost();
             }
         isAllocated = false;
     }
@@ -295,7 +303,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     }
     
-    cpuMeas.measure(mstep);
+   // cpuMeas.measure(mstep);
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();   
@@ -306,7 +314,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
-    cpuMeas.measure(mstep);  
+    //cpuMeas.measure(mstep);  
 
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
@@ -339,12 +347,13 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     if (do_autocorr)
     {
-        measureAutocorrelation(mstep);
+        //measureAutocorrelation(mstep);
+        ac_count++;
         stopwatch.add("autocorrelation");
-        //saveToFile(MeasurementType::BinderCumulant);
+        saveToFile(MeasurementType::Autocorrelation);
     }
 
-    cpuMeas.flushMeasurements(mstep + 1); 
+    //cpuMeas.flushMeasurements(mstep + 1); 
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
     {
@@ -458,11 +467,12 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 {
  
     /*KERNELS TODO*/
-    ac_blocks = {ac_blocksX, sw_curIdx, 1};
+    ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
     real norm = 1/(static_cast<real>(emom.extent(1)*emom.extent(2)));
+    //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
 
     calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, emom);
-    calc_autocorr_final<<<sw_curIdx, 1024>>>(ac_block_gpu, autocorr_buff, norm, ac_count, ac_blocksX);
+    calc_autocorr_final<<<(sw_curIdx + 1), 1024>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
    
     if(mstep == sw_next){
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, emom, sw_tasks, sw_curIdx);
@@ -475,20 +485,15 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
     }
     else {
         indxb_ac(ac_count++)=mstep;
+    }
+
+    if (ac_count >= *FortranData::ac_buff)
+    {
+        saveToFile(MeasurementType::Autocorrelation);
 
     }
-   
-   
-    
-    //mavg_iter(mavg_count++) = mstep;
-
-
-    /*if (mavg_count >= *FortranData::avrg_buff)
-    {TOCORRELATION
-        saveToFile(MeasurementType::AverageMagnetization);
-
-    }*/
 }
+   
 
 
 void GpuMeasurement::calculateEmomMSum()
@@ -554,8 +559,35 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
             skyno_count = 0;
         break;
 
+        case MeasurementType::Autocorrelation:
+            autocorr_buff_cpu.copy_sync(autocorr_buff_gpu);
+
+            for (size_t i = 0; i < ac_buff; ++i)
+            {
+                AutocorrelationData row{
+                    .values = autocorr_buff_cpu.data() + i * nspinwait,
+                    .size   = nspinwait
+                };
+                
+                if (*FortranData::real_time_measure == 'Y')
+                {
+                    measurementWriter.write(&indxb_ac[i], &row, 1);
+                }
+                else
+                {
+                    int iter_int = static_cast<int>(indxb_ac[i]);
+                    measurementWriter.write(&iter_int, &row, 1);
+                }
+            }
+            autocorr_buff_gpu.zeros();
+            autocorr_buff_cpu.zeros();
+            indxb_ac.zeros();
+            ac_count = 0;
+        break;
+
         default:
             throw std::invalid_argument("Not yet implemented.");
+
     }
 }
 

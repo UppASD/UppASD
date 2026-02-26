@@ -108,7 +108,8 @@ private:
     // Autocorrelations 
     const bool do_autocorr;
    // GpuVector<unsigned int> spinwaittable_gpu;
-    GpuTensor<real, 2> autocorr_buff;
+    GpuTensor<real, 2> autocorr_buff_gpu;
+    Tensor<real, 2> autocorr_buff_cpu;
     GpuTensor<real, 2> ac_block_gpu;
     GpuTensor<real, 4> spinwait_gpu;
 

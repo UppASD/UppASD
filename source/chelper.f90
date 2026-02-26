@@ -234,20 +234,20 @@ contains
       call print_pol(sstep,ext_mstep,Natom,Mensemble,ham%max_no_neigh,ham%nlist,ham%nlistsize,ext_emomM,&
          delta_t,simid,real_time_measure)
 
-      if (do_autocorr=='Y') then
-         if ( mod(sstep-1,ac_step)==0.or.any(spinwaitt==sstep-1)) then
-            call buffer_autocorr(Natom,Mensemble,do_autocorr,ext_mstep,nspinwait,spinwait,ext_emom,&
-               ext_emomM,bcount_ac,delta_t,real_time_measure)
-            if (bcount_ac==ac_buff) then
-               ! Write the autocorrelation buffer to file
-               call prn_autocorr(Natom,simid,do_autocorr,nspinwait,real_time_measure)
-               ! Reset statistics buffer
-               bcount_ac=1
-            else
-               bcount_ac=bcount_ac+1
-            endif
-         endif
-      end if
+      !if (do_autocorr=='Y') then
+      !   if ( mod(sstep-1,ac_step)==0.or.any(spinwaitt==sstep-1)) then
+      !      call buffer_autocorr(Natom,Mensemble,do_autocorr,ext_mstep,nspinwait,spinwait,ext_emom,&
+      !         ext_emomM,bcount_ac,delta_t,real_time_measure)
+      !      if (bcount_ac==ac_buff) then
+      !         ! Write the autocorrelation buffer to file
+      !         call prn_autocorr(Natom,simid,do_autocorr,nspinwait,real_time_measure)
+      !         ! Reset statistics buffer
+      !         bcount_ac=1
+      !      else
+      !         bcount_ac=bcount_ac+1
+      !      endif
+      !   endif
+      !end if
 
       !call print_fields(ext_mstep,sstep,Natom,Mensemble,simid,real_time_measure,delta_t,&
       !   ext_beff,thermal_field,beff1,beff3,ext_emom)
