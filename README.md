@@ -60,7 +60,7 @@ which results in a compiled binary `uppasd` locade in the `./bin/` directory.
 
 Python bindings for UppASD are available for installation using `pip` as follows
 ```python
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple uppasd
+python -m pip install --pre --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple uppasd
 ```
 The `pip` installation also provides the binary `uppasd`.
 
