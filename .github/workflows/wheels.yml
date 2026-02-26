@@ -58,7 +58,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Fetch tags for versioning
-        run: git fetch --prune --unshallow --tags --force
+        run: git fetch --prune --tags --force
 
       # Used to host cibuildwheel
       # - uses: actions/setup-python@v5
@@ -154,7 +154,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Fetch tags for versioning
-        run: git fetch --prune --unshallow --tags --force
+        run: git fetch --prune --tags --force
 
       - name: Setup Python
         uses: actions/setup-python@v5

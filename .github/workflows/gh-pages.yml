@@ -69,3 +69,8 @@ jobs:
           publish_dir: site_build
           destination_dir: ${{ steps.branch.outputs.branch }}
           keep_files: true
+
+      - name: Print preview URL
+        run: |
+          echo "Branch preview URL:" 
+          echo "https://uppasd.github.io/UppASD/${{ steps.branch.outputs.branch }}/"
