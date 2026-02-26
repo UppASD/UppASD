@@ -22,6 +22,7 @@ namespace kernels::measurement
     struct SumPart    { real s; };
 
     // ----------------------------- kernels: declarations ----------------------------
+    
 
     // Sum over atoms: out_tensor has shape (3, M).
     __global__ void sumOverAtoms_partial(const GpuTensor<real, 3> in_tensor,
