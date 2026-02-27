@@ -4,7 +4,7 @@ mkdir AMS
 cp Base/* AMS
 cd AMS
 mv inpsd.dat.ams inpsd.dat
-../../../../source/sd > out.log
+${SD_BINARY} > out.log
 cd ..
 
 echo "Performing temperature sweep"
@@ -16,7 +16,7 @@ do
     cd T$Temp/
     cp ../AMS/magdos.bccFe100.out magdos.bccFe.dat
     sed "s/TEMP/$Temp/g" inpsd.dat.mc > inpsd.dat
-    ../../../../source/sd > out.log
+    ${SD_BINARY} > out.log
     cp restart.bccFe100.out ../
     cd ..
 done
