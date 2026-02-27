@@ -76,7 +76,7 @@ contains
       call calc_mavrg(Natom, Mensemble, emomM, mavrg)
       if(do_cumu=='N') then
          call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,1.0_dblprec, &
-            0.0_dblprec,plotenergy,cumu_buff,.false.)
+            0.0_dblprec,plotenergy,cumu_buff,.false.,mstep-1)
       endif
    end subroutine fortran_calc_simulation_status_variables
 

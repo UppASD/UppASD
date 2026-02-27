@@ -502,7 +502,7 @@ contains
                ! If calculated elsewhere, display binderc will not be real binderc
                if(do_cumu=='N') then
                   call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,    &
-                     temprescale,temprescalegrad,plotenergy,cumu_buff,.false.)
+                     temprescale,temprescalegrad,plotenergy,cumu_buff,.false.,mstep-1)
                endif
                write(*,'(2x,a,i4,a,f10.6)',advance='no') &
                   "MP",mstep*100/(rstep+nstep),"% done. Mbar:",mavg
@@ -510,7 +510,7 @@ contains
                   write(*,'(a,f12.6)',advance='no') ". Ebar:", totene
                endif
                sstep = f_logstep(mstep,logsamp)
-               if(mod(sstep,cumu_step)==0)then
+               if(mod(sstep-1,cumu_step)==0)then
                   write(*,'(a,f8.5,a)',advance='no') ". U:",binderc,"."
                endif
                write(*,*) ''
@@ -678,6 +678,19 @@ contains
          ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,               &
          ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind,    &
          ham%sus_ind,do_mom_legacy,mode)
+
+      if(plotenergy>0) then
+         if (mod(mstep-1,avrg_step)==0) then
+            call calc_energy(nHam,mstep,Natom,Nchmax, &
+               conf_num,Mensemble,Natom,Num_macro,1,         &
+               plotenergy,Temp,delta_t,do_lsf,        &
+               lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
+               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
+               time_external_field,max_no_constellations,maxNoConstl,                   &
+               unitCellType,constlNCoup,constellations,OPT_flag,                        &
+               constellationsNeighType,totene,NA,N1,N2,N3)
+         end if
+      endif
 
       ! Print remaining measurements
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mstep,emom,mmom, &

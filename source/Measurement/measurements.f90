@@ -81,12 +81,12 @@ contains
 
       ! Binder cumulant, susceptibility, and specific heat
       if(do_cumu=='Y') then
-         if(mod(sstep,cumu_step)==0) then
+         if(mod(sstep-1,cumu_step)==0) then
             do_copy = 1
             return
          end if
       elseif(do_cumu=='A') then
-         if(mod(sstep,cumu_step)==0) then
+         if(mod(sstep-1,cumu_step)==0) then
             do_copy = 1
             return
          end if

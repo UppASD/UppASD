@@ -1181,7 +1181,7 @@ contains
                ! If calculated elsewhere, display binderc will not be real binderc
                if(do_cumu=='N') then
                   call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp_s,    &
-                  temprescale,temprescalegrad,plotenergy,cumu_buff,.false.)
+                  temprescale,temprescalegrad,plotenergy,cumu_buff,.false.,mstep-1)
                endif
                write(*,'(2x,a,i4,a,f10.6)',advance='no') &
                "MP",mstep*100/(rstep+nstep),"% done. Mbar:",mavg
@@ -1189,7 +1189,7 @@ contains
                   write(*,'(a,f12.6)',advance='no') ". Ebar:", totenergy
                endif
                sstep = f_logstep(mstep,logsamp)
-               if(mod(sstep,cumu_step)==0)then
+               if(mod(sstep-1,cumu_step)==0)then
                   write(*,'(a,f8.5,a)',advance='no') ". U:",binderc,"."
                endif
                write(*,*) ''
@@ -1802,7 +1802,7 @@ contains
                ! If calculated elsewhere, display binderc will not be real binderc
                if(do_cumu=='N') then
                   call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,    &
-                     temprescale,temprescalegrad,plotenergy,cumu_buff,.false.)
+                     temprescale,temprescalegrad,plotenergy,cumu_buff,.false.,mstep-1)
                endif
                write(*,'(2x,a,i4,a,f10.6)',advance='no')                            &
                   "MP",mstep*100/(rstep+nstep),"% done. Mbar:",mavg
@@ -1810,7 +1810,7 @@ contains
                   write(*,'(a,f12.6)',advance='no') ". Ebar:", totenergy
                endif
                sstep = f_logstep(mstep,logsamp)
-               if(mod(sstep,cumu_step)==0)then
+               if(mod(sstep-1,cumu_step)==0)then
                   write(*,'(a,f8.5,a)',advance='no') ". U:",binderc,"."
                endif
                write(*,*) ''

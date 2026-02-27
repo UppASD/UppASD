@@ -170,18 +170,18 @@ contains
          endif
       end if
       ! Binder cumulant, susceptibility, and specific heat
-      if(mod(sstep,cumu_step)==0) then
+      if(mod(sstep-1,cumu_step)==0) then
          if(do_cumu=='Y') then
             call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,          &
-               temprescale,temprescalegrad,plotenergy,cumu_buff,.true.)
+               temprescale,temprescalegrad,plotenergy,cumu_buff,.true.,mstep-1)
          elseif(do_cumu=='A') then
             call calc_and_print_afm_cumulant(Natom,Mensemble,emomM,simid,Temp,      &
-               temprescale,temprescalegrad,plotenergy,cumu_buff,NA,do_ralloy,Natom_full,asite_ch)
+               temprescale,temprescalegrad,plotenergy,cumu_buff,NA,do_ralloy,Natom_full,asite_ch,mstep-1)
          end if
 
          if(do_cumu_proj=='Y') then
             call calc_and_print_cumulant_proj(Natom,Mensemble,emomM,simid,Temp,     &
-               cumu_buff,NT,atype)
+               cumu_buff,NT,atype,mstep-1)
          end if
       endif
 
@@ -259,7 +259,7 @@ contains
       !Cumulants variables
       do_cumu        = 'N'
       do_cumu_proj   = 'N'
-      cumu_step      = 50
+      cumu_step      = 100
       cumu_buff      = 10
       !Autocorrelation variables
       ac_step        = 100
@@ -917,7 +917,7 @@ contains
    !> Calculate and print Binder cumulant, spin susceptibility, and specific heat
    !---------------------------------------------------------------------------------
    subroutine calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,temprescale, &
-      temprescalegrad,plotenergy,cumu_buff,do_prn_flag)
+      temprescalegrad,plotenergy,cumu_buff,do_prn_flag,iter_step)
       !
       use Constants
       use prn_topology
@@ -928,6 +928,7 @@ contains
       integer, intent(in) :: Natom        !< Number of atoms in system
       integer, intent(in) :: Mensemble    !< Number of ensembles
       integer, intent(in) :: cumu_buff    !< Buffer size for Binder cumulant
+      integer, intent(in) :: iter_step    !< Current simulation iteration index
       integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
       real(dblprec), intent(in) :: Temp   !< Temperature
       real(dblprec), intent(in) :: temprescale   !< Temperature rescaling if QHB
@@ -997,7 +998,7 @@ contains
             avrgent  = (avrgetcum*cumutotw+ene%ene_xc(k)*cumuw)/(cumutotw+cumuw)
             avrgenl  = (avrgelcum*cumutotw+ene%ene_lsf(k)*cumuw)/(cumutotw+cumuw)
 
-            cv  =  ( avrgen2  -avrgen**2  ) * mry**2 * Natom  / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 !* Natom   ! units of k_B
+            cv  =  ( avrgen2  -avrgen**2  ) * mry**2 / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 ! units of k_B/atom
             avrgecum    = avrgen
             avrge2cum   = avrgen2
             avrgetcum   = avrgent
@@ -1036,51 +1037,48 @@ contains
 
       ! Write output to file
       if(do_prn_flag .eqv. .true.) then
-         if(mod(Navrgcum/Mensemble-1,cumu_buff)==0) then
-            ! Open file
-            write (filn,'(''cumulants.'',a,''.out'')') trim(simid)
-            open(ofileno, file=filn, position="append")
+         ! Open file
+         write (filn,'(''cumulants.'',a,''.out'')') trim(simid)
+         open(ofileno, file=filn, position="append")
 
-            ! Write header the first time
-            if(Navrgcum/Mensemble==1) then
-               write(ofileno,10005)"#Iter","<M>","<M^2>","<M^4>","U_{Binder}",&
-                  "\chi","C_v(tot)","<E>","<E_{exc}>","<E_{lsf}>"
-            end if
-            !if (real_time_measure=='Y') then
-            !   write (ofileno,10014) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
-            !      cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
-            !else
-            write (ofileno,10004) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
-               cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
-            !end if
-            close(ofileno)
-
-            ! Open file
-            write (filn,'(''cumulants.'',a8,''.json'')') simid
-            open(ofileno, file=filn)
-
-            write(ofileno,'(a)') '{'
-            write(ofileno,'(a,f16.8,a)') '    "temperature"     : ', Temp,' ,'
-            write(ofileno,'(a,f16.8,a)') '    "magnetization"   : ', avrgmt,' ,'
-            write(ofileno,'(a,f16.8,a)') '    "binder_cumulant" : ', cumulant,' ,'
-            if (avrgen.ne.0.0_dblprec) then
-               write(ofileno,'(a,f16.8,a)') '    "energy"          : ', avrgen, ' ,'
-            else
-               write(ofileno,'(a)') '    "energy"          :  null ,'
-            end if
-            if (skyno=='T'.or.skyno=='Y') then
-               write(ofileno,'(a,f16.8,a)') '    "skyrmion_num"    : ', sk_avrg,' ,'
-               write(ofileno,'(a,f16.8,a)') '    "skyrmion_std"    : ', sqrt(sk_var),' ,'
-            else
-               write(ofileno,'(a)') '    "skyrmion_num"    :  null ,'
-               write(ofileno,'(a)') '    "skyrmion_std"    :  null ,'
-            end if
-            write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
-            write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv
-            write(ofileno,'(a)') '}'
-            close(ofileno)
-
+         ! Write header the first time
+         if(Navrgcum/Mensemble==1) then
+            write(ofileno,10005)"#Iter","<M>","<M^2>","<M^4>","U_{Binder}",&
+               "\chi","C_v","<E>","<E_{exc}>","<E_{lsf}>"
          end if
+         !if (real_time_measure=='Y') then
+         !   write (ofileno,10014) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
+         !      cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
+         !else
+         write (ofileno,10004) iter_step,avrgmt,avrgmt2,avrgmt4,        &
+            cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
+         !end if
+         close(ofileno)
+
+         ! Open file
+         write (filn,'(''cumulants.'',a8,''.json'')') simid
+         open(ofileno, file=filn)
+
+         write(ofileno,'(a)') '{'
+         write(ofileno,'(a,f16.8,a)') '    "temperature"     : ', Temp,' ,'
+         write(ofileno,'(a,f16.8,a)') '    "magnetization"   : ', avrgmt,' ,'
+         write(ofileno,'(a,f16.8,a)') '    "binder_cumulant" : ', cumulant,' ,'
+         if (avrgen.ne.0.0_dblprec) then
+            write(ofileno,'(a,f16.8,a)') '    "energy"          : ', avrgen, ' ,'
+         else
+            write(ofileno,'(a)') '    "energy"          :  null ,'
+         end if
+         if (skyno=='T'.or.skyno=='Y') then
+            write(ofileno,'(a,f16.8,a)') '    "skyrmion_num"    : ', sk_avrg,' ,'
+            write(ofileno,'(a,f16.8,a)') '    "skyrmion_std"    : ', sqrt(sk_var),' ,'
+         else
+            write(ofileno,'(a)') '    "skyrmion_num"    :  null ,'
+            write(ofileno,'(a)') '    "skyrmion_std"    :  null ,'
+         end if
+         write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
+         write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv
+         write(ofileno,'(a)') '}'
+         close(ofileno)
       end if
 
       binderc=cumulant
@@ -1100,7 +1098,7 @@ contains
    !! @todo Read AFM vector from file
    !---------------------------------------------------------------------------------
    subroutine calc_and_print_afm_cumulant(Natom,Mensemble,emomM,simid,Temp,temprescale,&
-      temprescalegrad,plotenergy, cumu_buff,NA, do_ralloy, Natom_full, asite_ch)
+      temprescalegrad,plotenergy, cumu_buff,NA, do_ralloy, Natom_full, asite_ch,iter_step)
       !
       use Constants
 
@@ -1110,6 +1108,7 @@ contains
       integer, intent(in) :: NA         !< Number of atoms in one cell
       integer, intent(in) :: Natom      !< Number of atoms in system
       integer, intent(in) :: cumu_buff  !< Buffer size for Binder cumulant
+      integer, intent(in) :: iter_step  !< Current simulation iteration index
       integer, intent(in) :: do_ralloy  !< Random alloy simulation (0/1)
       integer, intent(in) :: Mensemble  !< Number of ensembles
       integer, intent(in) :: Natom_full !< Number of atoms for full system (=Natom if not dilute)
@@ -1187,7 +1186,7 @@ contains
          if (plotenergy>0.and.Temp>0.0_dblprec) then
             avrgen = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
             avrgen2 = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            cv = ( avrgen2 -avrgen**2 ) * mry**2 * Natom / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 ! units of k_B
+            cv = ( avrgen2 -avrgen**2 ) * mry**2 / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 ! units of k_B/atom
             avrgecum = avrgen
             avrge2cum = avrgen2
          else if(plotenergy>0) then
@@ -1207,21 +1206,18 @@ contains
       end do
 
       ! Write output to file
-      if(mod(Navrgcum/Mensemble-1,cumu_buff)==0) then
+      ! Open file
+      write (filn,'(''afmcumulants.'',a,''.out'')') trim(simid)
+      open(ofileno, file=filn, position="append")
 
-         ! Open file
-         write (filn,'(''afmcumulants.'',a,''.out'')') trim(simid)
-         open(ofileno, file=filn, position="append")
-
-         ! Write header the first time
-         if(Navrgcum/Mensemble==1) then
-            write (ofileno,10005)"#Iter.","<L>","<L^2>","<L^4>","U_{Binder}^L",&
-               "Susc.","Cv"
-         end if
-         write (ofileno,10004) Navrgcum/Mensemble,avrglt,avrglt2,avrglt4,cumulant,  &
-            pmsusc,cv
-         close(ofileno)
+      ! Write header the first time
+      if(Navrgcum/Mensemble==1) then
+         write (ofileno,10005)"#Iter.","<L>","<L^2>","<L^4>","U_{Binder}^L",&
+            "Susc.","Cv"
       end if
+      write (ofileno,10004) iter_step,avrglt,avrglt2,avrglt4,cumulant,  &
+         pmsusc,cv
+      close(ofileno)
       binderc=cumulant
 
       return
@@ -1237,7 +1233,7 @@ contains
    !> Calculate and print Binder cumulant, spin susceptibility, and specific heat
    !---------------------------------------------------------------------------------
    subroutine calc_and_print_cumulant_proj(Natom,Mensemble,emomM,simid,T,cumu_buff, &
-      NT,atype)
+      NT,atype,iter_step)
       !
       use Constants
 
@@ -1248,6 +1244,7 @@ contains
       integer, intent(in) :: Natom        !< Number of atoms in system
       integer, intent(in) :: Mensemble    !< Number of ensembles
       integer, intent(in) :: cumu_buff    !< Buffer size for Binder cumulant
+      integer, intent(in) :: iter_step    !< Current simulation iteration index
       real(dblprec),intent(in) :: T       !< Temperature
       character(len=8), intent(in) :: simid !< Name of simulation
       integer, dimension(Natom), intent(in) :: atype !< Type of atom
@@ -1310,22 +1307,19 @@ contains
       enddo
 
       ! Write output to file
-      if(mod(Navrgcum_proj/Mensemble-1,cumu_buff)==0) then
+      ! Open file
+      write (filn,'(''projcumulants.'',a,''.out'')') trim(simid)
+      open(ofileno, file=filn, position="append")
 
-         ! Open file
-         write (filn,'(''projcumulants.'',a,''.out'')') trim(simid)
-         open(ofileno, file=filn, position="append")
-
-         ! Write header the first time
-         if(Navrgcum_proj/Mensemble==1) then
-            write (ofileno,10005) "# ter.","Type","<M>","<M^2>","<M^4>",     &
-               "U_{Binder}","\chi"
-         end if
-         do it=1,NT
-            write (ofileno,10004) Navrgcum_proj/Mensemble, it, avrgmt(it), avrgmt2(it), avrgmt4(it), cumulant(it), pmsusc(it)
-         enddo
-         close(ofileno)
+      ! Write header the first time
+      if(Navrgcum_proj/Mensemble==1) then
+         write (ofileno,10005) "# ter.","Type","<M>","<M^2>","<M^4>",     &
+            "U_{Binder}","\chi"
       end if
+      do it=1,NT
+         write (ofileno,10004) iter_step, it, avrgmt(it), avrgmt2(it), avrgmt4(it), cumulant(it), pmsusc(it)
+      enddo
+      close(ofileno)
 
       10004 format (i8,i6,5es16.8)
       10005 format (a8,a6,5a16)

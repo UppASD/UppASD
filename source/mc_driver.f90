@@ -432,6 +432,22 @@ contains
       call timing(0,'MonteCarlo    ','OF')
       call timing(0,'Measurement   ','ON')
 
+      if(plotenergy>0.and.mod(mcmstep-1,avrg_step)==0) then
+         call timing(0,'Measurement   ','OF')
+         call timing(0,'Energy        ','ON')
+         totene=0.0_dblprec
+
+         call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
+            conf_num,Mensemble,Natom,Num_macro,1, &
+            plotenergy,Temp,1.0_dblprec,do_lsf,    &
+            lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
+            emom,emomM,emomM_macro,external_field,time_external_field,               &
+            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
+            constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
+         call timing(0,'Energy        ','OF')
+         call timing(0,'Measurement   ','ON')
+      endif
+
       ! Print remaining measurements
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mcmstep,emom,    &
          mmom,Nchmax,atype,'N',mcnstep,ham%ind_list_full,do_mom_legacy,mode)
