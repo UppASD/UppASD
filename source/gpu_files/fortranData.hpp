@@ -65,18 +65,31 @@ public:
    static unsigned int* sc_max_nstep;
    static unsigned int* sc_window_fun;
    static unsigned int* nw;
+   static char* do_sc_proj;
+   static char* do_sc_projch;
+   static unsigned int* NT;
+   static unsigned int* Nchmax;
 
    static real* r_mid;
    static real* q;
    static real* coord;
    static real* w;
-   static cpu_complex * m_k;
-   static cpu_complex * m_kw;
-   static cpu_complex * m_kt;
+   static int* atype;
+   static int* achtype;
+
    static real* deltat_corr;
    static real* scstep_arr;
    static int* sc_nsamp_ptr;  // Pointer to GPU-computed sample count
    static int* sc_tidx_ptr;   // Pointer to GPU-computed time step index
+   static cpu_complex * m_k;
+   static cpu_complex * m_kw;
+   static cpu_complex * m_kt;
+   static cpu_complex* m_k_proj;
+   static cpu_complex* m_k_projch;
+   static cpu_complex* m_kt_proj;
+   static cpu_complex* m_kt_projch;   
+   static cpu_complex* m_kw_proj;
+   static cpu_complex* m_kw_projch;
 
 
    //delta_t;
@@ -185,7 +198,8 @@ public:
                                 char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                 unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
                                 unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
-                                char* p_do_gpu_correlations, char* p_real_time_measure);
+                                char* p_do_gpu_correlations, char* p_real_time_measure, 
+                                char* p_do_sc_proj, char* p_do_sc_projch);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
                                     unsigned int* p_Natom, unsigned int* p_Mensemble, unsigned int* p_max_no_neigh, 
@@ -196,7 +210,8 @@ public:
                                     unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
                                     unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
                                     unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
-                                    unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff);
+                                    unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
+                                    unsigned int* p_nt, unsigned int* p_Nchmax);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
@@ -219,7 +234,10 @@ public:
                                        unsigned int* p_spinwaitt, real* p_spinwait, real* p_indxb_ac, real* p_autocorr_buff);
    
    static void setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
-                                       void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx);
+                                       void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, 
+                                       int* p_sc_nsamp, int* p_sc_tidx, int* p_atype, int* p_achtype, void* p_m_k_proj, 
+                                       void* p_m_k_projch, void* p_m_kt_proj, void* p_m_kt_projch, void* p_m_kw_proj, 
+                                       void* p_m_kw_projch);
 
     
    

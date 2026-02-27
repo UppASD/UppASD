@@ -23,14 +23,20 @@ unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
 unsigned int* FortranData::sc_sep;
 char* FortranData::do_sc;
+char* FortranData::do_sc_proj;
+char* FortranData::do_sc_projch;
 unsigned int* FortranData::sc_max_nstep;
 unsigned int* FortranData::sc_window_fun;
 unsigned int* FortranData::nw;
+unsigned int* FortranData::NT;
+unsigned int* FortranData::Nchmax;
 
 real* FortranData::r_mid;
 real* FortranData::q;
 real* FortranData::coord;
 real* FortranData::w;
+int* FortranData::atype;
+int* FortranData::achtype;
 cpu_complex* FortranData::m_k = nullptr;
 cpu_complex* FortranData::m_kw = nullptr;
 cpu_complex* FortranData::m_kt = nullptr;
@@ -38,6 +44,13 @@ real* FortranData::deltat_corr = nullptr;
 real* FortranData::scstep_arr = nullptr;
 int* FortranData::sc_nsamp_ptr = nullptr;  // Pointer to GPU-computed sample count
 int* FortranData::sc_tidx_ptr = nullptr;   // Pointer to GPU-computed time step index
+cpu_complex* FortranData::m_k_proj = nullptr;
+cpu_complex* FortranData::m_k_projch = nullptr;
+cpu_complex* FortranData::m_kt_proj = nullptr;
+cpu_complex* FortranData::m_kt_projch = nullptr;
+cpu_complex* FortranData::m_kw_proj = nullptr;
+cpu_complex* FortranData::m_kw_projch = nullptr;
+
 
 real* FortranData::delta_t;
 real* FortranData::gamma;
@@ -133,7 +146,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
                                   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
                                   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
-                                  char* p_do_gpu_correlations, char* p_real_time_measure){
+                                  char* p_do_gpu_correlations, char* p_real_time_measure, char* p_do_sc_proj, char* p_do_sc_projch){
 
 
    do_dm = p_do_dm;
@@ -148,6 +161,9 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    do_gpu_correlations = p_do_gpu_correlations;
    do_sc = p_do_sc;
    real_time_measure = p_real_time_measure;
+   do_sc_proj = p_do_sc_proj;
+   do_sc_projch = p_do_sc_projch;
+   
 }
 
 void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -159,7 +175,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
                                       unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff,  unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
                                       unsigned int* p_skyno_step, unsigned int* p_skyno_buff, unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
                                       unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
-                                      unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff){
+                                      unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
+                                      unsigned int* p_nt, unsigned int* p_Nchmax){
 
    stt = p_stt;
    SDEalgh = p_SDEalgh;
@@ -209,6 +226,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    nspinwait = p_nspinwait;
    ac_step = p_ac_step;
    ac_buff = p_ac_buff;
+   NT = p_nt;
+   Nchmax = p_Nchmax;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -286,20 +305,30 @@ void FortranData::setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, r
 
 void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord, real* p_w,  void* p_m_k, 
                                         void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr,
-                                        int* p_sc_nsamp, int* p_sc_tidx){
+                                        int* p_sc_nsamp, int* p_sc_tidx, int* p_atype, int* p_achtype, void* p_m_k_proj, 
+                                        void* p_m_k_projch, void* p_m_kt_proj, void* p_m_kt_projch, void* p_m_kw_proj, 
+                                        void* p_m_kw_projch){
 
 
    q = p_q;
    r_mid = p_r_mid;
    coord = p_coord;
    w = p_w;
-    m_k  = reinterpret_cast<cpu_complex*>(p_m_k);
-    m_kw = reinterpret_cast<cpu_complex*>(p_m_kw);
-    m_kt = reinterpret_cast<cpu_complex*>(p_m_kt);
-      deltat_corr = p_deltat_corr;
-      scstep_arr = p_scstep_arr;
-    sc_nsamp_ptr = p_sc_nsamp;  // Store pointer to GPU sample count
+   m_k  = reinterpret_cast<cpu_complex*>(p_m_k);
+   m_kw = reinterpret_cast<cpu_complex*>(p_m_kw);
+   m_kt = reinterpret_cast<cpu_complex*>(p_m_kt);
+   deltat_corr = p_deltat_corr;
+   scstep_arr = p_scstep_arr;
+   sc_nsamp_ptr = p_sc_nsamp;  // Store pointer to GPU sample count
    sc_tidx_ptr = p_sc_tidx;    // Store pointer to GPU time index
+   atype = p_atype;
+   achtype = p_achtype;
+   m_k_proj = reinterpret_cast<cpu_complex*>(p_m_k_proj);
+   m_k_projch = reinterpret_cast<cpu_complex*>(p_m_k_projch);
+   m_kt_proj = reinterpret_cast<cpu_complex*>(p_m_kt_proj);
+   m_kt_projch = reinterpret_cast<cpu_complex*>(p_m_kt_projch);
+   m_kw_proj = reinterpret_cast<cpu_complex*>(p_m_kw_proj);
+   m_kw_projch = reinterpret_cast<cpu_complex*>(p_m_kw_projch);
 
 }
 /*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
@@ -344,7 +373,8 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
                                     real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
                                     real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
                                     unsigned int* p18, real* p19, real* p20, real* p21, unsigned int* p22,
-                                    real* p23, unsigned int* p24, real * p_ipTemp, unsigned int * p_ipmcnstep,
+                                    real* p23, unsigned int* p24, real * p_ipTem   m_k_proj = p_m_k_proj;
+   m_k_projch = p_m_k_projch;p, unsigned int * p_ipmcnstep,
                                     real * p_ipTemp_array, unsigned int* p_ipnstep) {
    ncoup = p1;
    nlist = p2;
@@ -387,11 +417,11 @@ extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_
    char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
    unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
    unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc, char* p_do_gpu_correlations,
-   char* p_real_time_measure) {
+   char* p_real_time_measure, char* p_do_sc_proj, char* p_do_sc_projch) {
 FortranData::setFlagPointers(
    p_do_dm, p_do_jtensor, p_do_anisotropy, p_do_avrg, p_do_proj_avrg, p_do_cumu,  p_plotenergy, 
    p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno, p_do_sc, p_do_gpu_correlations,
-   p_real_time_measure);
+   p_real_time_measure, p_do_sc_proj, p_do_sc_projch);
 }
 
 extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,
@@ -403,14 +433,14 @@ extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned 
    unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
    unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
-   unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff) {
+   unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff, unsigned int* p_nt, unsigned int* p_Nchmax) {
 FortranData::setConstantPointers(
    p_stt, p_SDEalgh, p_rstep, p_nstep, p_Natom, p_Mensemble, p_max_no_neigh, p_delta_t, p_gamma, 
    p_k_bolt, p_mub, p_mplambda1, p_binderc, p_mavg, p_mompar, p_initexc, p_max_no_dmneigh, p_nHam, 
    p_Temp, p_ipmcnphase, p_mcnstep, p_ipnphase,
    p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_eavrg_step, p_eavrg_buff, p_tottraj_step, p_tottraj_buff,
    p_skyno_step, p_skyno_buff, p_nq, p_sc_window_fun, p_nw, p_sc_sep, p_sc_step, p_sc_max_nstep,
-   p_nspinwait, p_ac_step, p_ac_buff);
+   p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -447,9 +477,13 @@ FortranData::setMeasurablePointers(
 }
 
 extern "C" void fortrandata_setcorrelations_(real* p_q, real* p_r_mid, real* p_coord, real* p_w, void* p_m_k, 
-                                             void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, int* p_sc_nsamp, int* p_sc_tidx) {
+                                             void* p_m_kw, void* p_m_kt, real* p_deltat_corr, real* p_scstep_arr, 
+                                             int* p_sc_nsamp, int* p_sc_tidx, int* p_atype, int* p_achtype, 
+                                             void* p_m_k_proj, void* p_m_k_projch, void* p_m_kt_proj, void* p_m_kt_projch,
+                                             void* p_m_kw_proj, void* p_m_kw_projch) {
 FortranData::setCorrelationPointers(
-   p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt, p_deltat_corr, p_scstep_arr, p_sc_nsamp, p_sc_tidx);
+   p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt, p_deltat_corr, p_scstep_arr, p_sc_nsamp, p_sc_tidx,
+   p_atype, p_achtype, p_m_k_proj, p_m_k_projch, p_m_kt_proj, p_m_kt_projch, p_m_kw_proj, p_m_kw_projch);
 }
 /*extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, unsigned int* p4,
                                           unsigned int* p5, unsigned int* p6, unsigned int* p7, real* p8,

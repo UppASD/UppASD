@@ -42,6 +42,8 @@ void GpuSimulation::initiateConstants() {
 
     Flags.do_sc = *FortranData::do_sc;
     Flags.do_gpu_correlations = static_cast<bool>(*FortranData::do_gpu_correlations);
+    Flags.do_sc_proj = *FortranData::do_sc_proj;
+    Flags.do_sc_projch = *FortranData::do_sc_projch;
     //Flags.do_avrg = static_cast<bool>(*FortranData::do_avrg);
     //Flags.do_cumu = static_cast<bool>(*FortranData::do_cumu);
 
@@ -79,6 +81,9 @@ void GpuSimulation::initiateConstants() {
     SimParam.nq = *FortranData::nq;
     SimParam.nw = *FortranData::nw;
     SimParam.sc_max_nstep = *FortranData::sc_max_nstep;
+    SimParam.NT = *FortranData::NT;
+    SimParam.Nchmax= *FortranData::Nchmax;
+
 
    // SimParam.avrg_step = *FortranData::avrg_step;  
    // SimParam.avrg_buff = *FortranData::avrg_buff; 
@@ -128,6 +133,9 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
     long int nq = static_cast <long int>( SimParam.nq);
     long int nw= static_cast <long int>( SimParam.nw);
+    long int NT= static_cast <long int>( SimParam.NT);
+    long int Nchmax= static_cast <long int>( SimParam.Nchmax);
+
 
     // Constants initiated?
     if(N == 0 || M == 0 || NH == 0) {
@@ -173,11 +181,22 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuCorrelations.q.set(FortranData::q, static_cast <long int>(3), nq);
         cpuCorrelations.w.set(FortranData::w, nw);
         cpuCorrelations.coord.set(FortranData::coord, static_cast <long int>(3), N);
+
         cpuCorrelations.m_k.set(FortranData::m_k, static_cast <long int>(3), nq);
         cpuCorrelations.m_kt.set(FortranData::m_kt, static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(SimParam.sc_max_nstep));
         cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
-            cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
-            cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
+        cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
+        cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
+        if(Flags.do_sc_proj){          
+        cpuCorrelations.m_k_proj.set(FortranData::m_k, static_cast <long int>(3), NT, nq);
+        cpuCorrelations.m_kt_proj.set(FortranData::m_kt, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
+        cpuCorrelations.m_kw_proj.set(FortranData::m_kw, static_cast <long int>(3), NT, nq, nw);
+        }
+        if(Flags.do_sc_projch){          
+        cpuCorrelations.m_k_projch.set(FortranData::m_k, static_cast <long int>(3), Nchmax, nq);
+        cpuCorrelations.m_kt_projch.set(FortranData::m_kt, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));
+        cpuCorrelations.m_kw_projch.set(FortranData::m_kw, static_cast <long int>(3), Nchmax, nq, nw);
+        }
 
     }
   // printf("HERE - 2\n");

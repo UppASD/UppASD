@@ -55,7 +55,8 @@ module Chelper
    implicit none
 
    interface
-         subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx) &
+         subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
+               atype, achtype, m_k_proj, m_k_projch, m_kt_proj, m_kt_projch, m_kw_proj, m_kw_projch) &
                 bind(C, name="fortrandata_setcorrelations_")
          import :: c_double, c_int
          real(c_double)    :: q(*)
@@ -65,10 +66,18 @@ module Chelper
          complex(c_double) :: m_k(*)
          complex(c_double) :: m_kw(*)
          complex(c_double) :: m_kt(*)
-             real(c_double)    :: deltat_corr(*)
-             real(c_double)    :: scstep_arr(*)
+         complex(c_double) :: m_k_proj(*)
+         complex(c_double) :: m_kw_proj(*)
+         complex(c_double) :: m_kt_proj(*)
+         complex(c_double) :: m_k_projch(*)
+         complex(c_double) :: m_kw_projch(*)
+         complex(c_double) :: m_kt_projch(*)
+         real(c_double)    :: deltat_corr(*)
+         real(c_double)    :: scstep_arr(*)
          integer(c_int), intent(inout) :: sc_nsamp
          integer(c_int), intent(inout) :: sc_tidx
+         integer(c_int), intent(inout) :: atype(*)
+         integer(c_int), intent(inout) :: achtype(*)
       end subroutine FortranData_setCorrelations
    end interface
 
@@ -360,14 +369,16 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure)
+           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure, &
+           cc%do_proj, cc%do_projch)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
          avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
-         cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff)
+         cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
+         NT, Nchmax)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
@@ -390,7 +401,9 @@ contains
            spinwaitt, spinwait, &
            indxb_ac, autocorr_buff) !TODO: get rd of those once printed on CPU
 
-      call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx)
+      call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
+          cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype, achtype, cc%m_k_proj, cc%m_k_projch, &
+          cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
 
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
