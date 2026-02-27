@@ -140,8 +140,10 @@ contains
       else
         allocate(nc_eval_qchern(hdim,nq_ext),stat=i_stat)
         call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','setup_tensor_hamiltonian')
-        allocate(nc_evec_qchern(hdim,hdim,nq_ext),stat=i_stat)
-        call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','setup_tensor_hamiltonian')
+        if (.not. allocated(nc_evec_qchern)) then
+          allocate(nc_evec_qchern(hdim,hdim,nq_ext),stat=i_stat)
+          call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','setup_tensor_hamiltonian')
+        end if
       end if
          !
       allocate(eig_vec(hdim,hdim),stat=i_stat)
@@ -261,6 +263,7 @@ contains
          if (flag==0) then
            nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
            nc_evec_q(:,:,iq)=abs(eig_vec)
+           nc_evec_qchern(:,:,iq)=eig_vec  ! Store complex eigenvectors for helicity
          else
            nc_eval_qchern(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
            nc_evec_qchern(:,:,iq)=eig_vec
@@ -295,6 +298,8 @@ contains
         !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
         !end if
 
+        ! Output band helicity (circular polarization) on the q-path
+        call diamag_write_helicity(NA, nq, q_vect, nc_evec_qchern, simid)
 
         call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
 
@@ -1824,6 +1829,77 @@ subroutine setup_Jtens2_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
    return
    !
 end subroutine setup_Jtens2_q
+
+   !> @brief
+   !> Write magnon band helicity (circular polarization) to file on q-path
+   !> χ_n(q) = Im(Σ_i u_i * conj(v_i)) / Σ_i (|u_i|^2 + |v_i|^2)
+   !> @author
+   !> Anders Bergman
+   subroutine diamag_write_helicity(NA, nq, q_vect, eig_vec_complex, simid)
+      implicit none
+      integer, intent(in) :: NA                                   !< Number of atoms in unit cell
+      integer, intent(in) :: nq                                   !< Number of q-points
+      real(dblprec), dimension(3, nq), intent(in) :: q_vect      !< Q-vectors
+      complex(dblprec), dimension(2*NA, 2*NA, 3*nq), intent(in) :: eig_vec_complex  !< Complex eigenvectors
+      character(len=8), intent(in) :: simid                       !< Simulation ID
+
+      integer :: ia, iq, iv, hdim
+      real(dblprec) :: norm_factor, u_norm_sq, v_norm_sq, uv_im_part
+      complex(dblprec) :: uv_product
+      character(LEN = 256) :: helicity_file
+      character(LEN = 256) :: fmt_str
+
+      hdim = 2*NA
+
+      ! Format string for output (NA columns of helicity values)
+      write(fmt_str, '(I10)') NA
+      fmt_str = '(3f15.8,'//trim(adjustl(fmt_str))//'f12.6)'
+
+      ! Open output file
+      helicity_file = 'diamag_helicity.'//trim(simid)//'.out'
+      open(unit=ofileno, file=helicity_file, status='replace')
+      write(ofileno, '(a,2000i12)') 'Band #          qx          qy          qz', (iv, iv=1,NA)
+
+      ! Compute and write helicity for each q-point
+      do iq = 1, nq
+         write(ofileno, '(3f15.8,100f12.6)') q_vect(1:3, iq), &
+            ((diamag_compute_helicity(NA, eig_vec_complex(:,:,iq), iv)), iv=1, NA)
+      end do
+
+      close(ofileno)
+
+   end subroutine diamag_write_helicity
+
+   !> Helper function to compute helicity for a single band
+   real(dblprec) function diamag_compute_helicity(NA, eig_vec, band_idx)
+      implicit none
+      integer, intent(in) :: NA
+      complex(dblprec), dimension(2*NA, 2*NA), intent(in) :: eig_vec
+      integer, intent(in) :: band_idx
+      integer :: ia
+      real(dblprec) :: u_norm_sq, v_norm_sq, uv_im_part, norm_factor
+      complex(dblprec) :: uv_product
+
+      uv_im_part = 0.0_dblprec
+      norm_factor = 0.0_dblprec
+
+      do ia = 1, NA
+         u_norm_sq = abs(eig_vec(ia, band_idx))**2
+         v_norm_sq = abs(eig_vec(ia+NA, band_idx))**2
+         uv_product = eig_vec(ia, band_idx) * conjg(eig_vec(ia+NA, band_idx))
+
+         uv_im_part = uv_im_part + aimag(uv_product)
+         norm_factor = norm_factor + u_norm_sq + v_norm_sq
+      end do
+
+      ! Normalize to avoid division by near-zero
+      if (norm_factor > 1.0d-12) then
+         diamag_compute_helicity = uv_im_part / norm_factor
+      else
+         diamag_compute_helicity = 0.0_dblprec
+      end if
+
+   end function diamag_compute_helicity
 
 end module diamag
 
