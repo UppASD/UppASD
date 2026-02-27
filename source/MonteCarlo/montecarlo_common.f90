@@ -367,6 +367,79 @@ contains
       endif
    end subroutine flip_g
 
+subroutine flip_h_new(Natom, Mensemble, emom, emomM, newmmom, mmom, iflip, temperature, &
+                     temprescale, k, flipprob, totfield, q)
+      use Constants
+      implicit none
+
+      integer, intent(in) :: Natom, Mensemble, iflip, k
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom, emomM
+      real(dblprec), intent(in) :: newmmom, flipprob, temperature, temprescale, q
+      real(dblprec), dimension(3), intent(in) :: totfield
+      real(dblprec), intent(out) :: mmom
+
+      real(dblprec) :: beta, zarg, ctheta, stheta, phi, r_xy, c_alpha, s_alpha
+      real(dblprec), dimension(3) :: stemp, h_hat, k_vec
+
+      mmom = newmmom
+      beta = 1.0_dblprec / (k_bolt * max(temprescale * temperature, 1.0d-8))
+      h_hat = beta * totfield * mub * mmom
+      zarg = sqrt(sum(h_hat**2))
+
+      ! 1. Sample sampled spin relative to the field axis (stemp)
+      if (zarg < 1.0d-10) then
+         ctheta = 2.0_dblprec * q - 1.0_dblprec
+      else
+         ctheta = 1.0_dblprec + (1.0_dblprec / zarg) * &
+                  log(q + (1.0_dblprec - q) * exp(-2.0_dblprec * zarg) + dbl_tolerance)
+      endif
+      
+      ctheta = max(-1.0_dblprec, min(1.0_dblprec, ctheta))
+      stheta = sqrt(max(0.0_dblprec, 1.0_dblprec - ctheta**2))
+      phi = 2.0_dblprec * pi * flipprob
+      
+      stemp = [stheta * cos(phi), stheta * sin(phi), ctheta]
+
+      ! 2. Rotate stemp to the global frame
+      if (zarg > 1.0d-10) then
+         h_hat = h_hat / zarg
+         r_xy = sqrt(h_hat(1)**2 + h_hat(2)**2)
+
+         if (r_xy < 1.0d-10) then ! Field is effectively +/- Z
+            emom(:, iflip, k) = [stemp(1), stemp(2), sign(1.0_dblprec, h_hat(3)) * stemp(3)]
+         else
+            ! Rodrigues' formula for rotating vector 'stemp' 
+            ! around axis k_vec = (z_axis x h_hat)
+            ! k_vec = [-h_hat(2), h_hat(1), 0] / r_xy
+            k_vec = [-h_hat(2)/r_xy, h_hat(1)/r_xy, 0.0_dblprec]
+            
+            ! cos(alpha) = h_hat(3), sin(alpha) = r_xy
+            c_alpha = h_hat(3)
+            s_alpha = r_xy
+            
+            ! emom = stemp*cos(alpha) + (k x stemp)*sin(alpha) + k*(k.stemp)*(1-cos(alpha))
+            emom(:, iflip, k) = stemp * c_alpha + &
+                [ -k_vec(2)*stemp(3), k_vec(1)*stemp(3), k_vec(1)*stemp(2) - k_vec(2)*stemp(1) ] * s_alpha + &
+                k_vec * (k_vec(1)*stemp(1) + k_vec(2)*stemp(2)) * (1.0_dblprec - c_alpha)
+         endif
+      else
+         emom(:, iflip, k) = stemp 
+      endif
+
+      ! Final sanity check for conservation (optional but recommended for MC)
+      ! Normalize emom with zero-check for safety
+      block
+         real(dblprec) :: norm_emom
+         norm_emom = sqrt(sum(emom(:, iflip, k)**2))
+         if (norm_emom > 0.0_dblprec) then
+            emom(:, iflip, k) = emom(:, iflip, k) / norm_emom
+         endif
+      end block
+      
+      emomM(:, iflip, k) = mmom * emom(:, iflip, k)
+
+   end subroutine flip_h_new
+
    !> Flip selected spin to the direction of heat bath
    subroutine flip_h(Natom, Mensemble, emom, emomM, newmmom, mmom, iflip,temperature,&
          temprescale,k,flipprob,totfield,q)
@@ -391,33 +464,59 @@ contains
       real(dblprec), intent(in):: q !< Random number for moment update
 
       integer :: k !< Current ensemble
-      real(dblprec) :: beta,zarg,zctheta,zstheta,zcphi,zsphi,ctheta,stheta,phi!,q(1)
-      real(dblprec),dimension(3) :: stemp,zfc
+      real(dblprec) :: beta,zarg,zctheta,zstheta,zcphi,zsphi,ctheta,stheta,phi,norm_emom!,q(1)
+      real(dblprec),dimension(3) :: stemp,zfc,field_direction
 
       mmom=newmmom
       beta=1.0_dblprec/k_bolt/(temprescale*Temperature)
       zfc=beta*totfield*mub*mmom
       zarg=sqrt(sum(zfc(:)*zfc(:)))
-      zctheta=zfc(3)/zarg
-      ! add tolerance so zstheta is never zero - that could result in NaNs because we divide by it later
-      zstheta=sqrt(1.0_dblprec-zctheta*zctheta)+dbl_tolerance
-      zcphi=zfc(1)/(zarg*zstheta)
-      zsphi=zfc(2)/(zarg*zstheta)
-      !ctheta=1.50_dblprec
-      !do while (abs(ctheta)>1.0_dblprec)
-      !   call rng_uniform(q,1)
-      !   ctheta=1.0_dblprec+1.0_dblprec/zarg*log(q(1))   ! Modified Direct Heat Bath
-      !enddo
+      
+      ! Compute the direction of the effective field
+      field_direction=zfc/zarg
+      zctheta=field_direction(3)
+      
+      ! Generate new spin in heat bath distribution
       ctheta=1.0_dblprec+(1.0_dblprec/zarg)*log((1.0_dblprec-exp(-2.0_dblprec*zarg))*q+exp(-2.0_dblprec*zarg)+dbl_tolerance)
       stheta=sqrt(1.0_dblprec-ctheta*ctheta)
       phi=pi*(2.0_dblprec*flipprob-1.0_dblprec)
       stemp(1)=stheta*cos(phi)              ! New spin in direction of the effective field
       stemp(2)=stheta*sin(phi)
       stemp(3)=ctheta
-      !--Euler rotation of spin from the Heff frame of ref. to cryst. axis-----
-      emom(1,iflip,k)=zcphi*zctheta*stemp(1)-zsphi*stemp(2)+zcphi*zstheta*stemp(3)
-      emom(2,iflip,k)=zsphi*zctheta*stemp(1)+zcphi*stemp(2)+zsphi*zstheta*stemp(3)
-      emom(3,iflip,k)=     -zstheta*stemp(1)                     +zctheta*stemp(3)
+      
+      ! Check for gimbal lock: if field is nearly aligned with z-axis, avoid Euler rotation singularity
+      zstheta=sqrt(1.0_dblprec-zctheta*zctheta)
+      
+      if (zstheta > 1.0d-4) then
+         ! Normal case: field not aligned with z-axis, use Euler rotation
+         zcphi=field_direction(1)/zstheta
+         zsphi=field_direction(2)/zstheta
+         !--Euler rotation of spin from the Heff frame of ref. to cryst. axis-----
+         emom(1,iflip,k)=zcphi*zctheta*stemp(1)-zsphi*stemp(2)+zcphi*zstheta*stemp(3)
+         emom(2,iflip,k)=zsphi*zctheta*stemp(1)+zcphi*stemp(2)+zsphi*zstheta*stemp(3)
+         emom(3,iflip,k)=-zstheta*stemp(1)+zctheta*stemp(3)
+      else
+         ! Singular case: field nearly aligned with z-axis, use direct parameterization
+         ! Field direction is [0, 0, sign(zctheta)] (either +z or -z)
+         if (zctheta >= 0.0_dblprec) then
+            ! Field along +z, new spin is just stemp
+            emom(1,iflip,k)=stemp(1)
+            emom(2,iflip,k)=stemp(2)
+            emom(3,iflip,k)=stemp(3)
+         else
+            ! Field along -z, new spin needs z-flip
+            emom(1,iflip,k)=stemp(1)
+            emom(2,iflip,k)=stemp(2)
+            emom(3,iflip,k)=-stemp(3)
+         endif
+      endif
+      
+      ! Normalize emom to ensure unit magnitude (moment conservation)
+      norm_emom=sqrt(emom(1,iflip,k)**2+emom(2,iflip,k)**2+emom(3,iflip,k)**2)
+      if (norm_emom > 0.0_dblprec) then
+         emom(:,iflip,k)=emom(:,iflip,k)/norm_emom
+      endif
+      
       emomM(:,iflip,k)=mmom*emom(:,iflip,k)
    end subroutine flip_h
 

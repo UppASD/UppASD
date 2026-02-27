@@ -247,6 +247,8 @@ contains
                   if (mode=='H') then
                      ! Heat bath algorithm
                      call effective_field(iflip_a(i), k, totfield)
+                     ! call calculate_efield(Natom, Mensemble, conf_num, do_dm, do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa, &
+                     !    emomM, emom, mult_axis, iflip_a(i), loc_mag_fld, do_lsf, k, totfield, exc_inter,do_anisotropy)
                      
                      call flip_h(Natom, Mensemble, emom, emomM, mmom(iflip_a(i),k), mmom(iflip_a(i),k), &
                         iflip_a(i),temperature,temprescale, k,flipprob_a(i,k),totfield, mflip(i,k))
