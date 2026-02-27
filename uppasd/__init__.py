@@ -17,7 +17,12 @@ from .core.units import (
 )
 
 # --- Input handling ---
-from .input.inputdata import ASDInput, InputBlock
+from .input.inputdata import (
+    ASDInput,
+    InputBlock,
+    set_temperature_token,
+    validate_temperature_token,
+)
 
 # --- Execution ---
 from .run.simulator import (
@@ -26,6 +31,7 @@ from .run.simulator import (
     run_relaxation,
     run_measurement,
 )
+from .run.sweep import run_temperature_sweep
 
 __all__ = [
     "SpinSystem",
@@ -34,6 +40,9 @@ __all__ = [
     "ASDResults",
     "ASDInput",
     "InputBlock",
+    "set_temperature_token",
+    "validate_temperature_token",
     "ASDWorkspace",
     "UppASDSimulator",
+    "run_temperature_sweep",
 ]

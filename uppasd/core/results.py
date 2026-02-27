@@ -93,8 +93,13 @@ class ASDResults:
 
     @property
     def cumulants(self) -> Optional[dict]:
-        """Binder cumulants, susceptibility, heat capacity, etc."""
+        """Cumulants time series parsed from cumulants.<simid>.out."""
         return self._tables.get("cumulants")
+
+    @property
+    def thermodynamics(self) -> Optional[dict]:
+        """Final thermodynamic summary parsed from cumulants.<simid>.json."""
+        return self._tables.get("thermodynamics")
 
     @property
     def totenergy(self) -> Optional[dict]:
@@ -152,6 +157,42 @@ class ASDResults:
         for key in ("<M>", "m", "M"):
             if key in self.averages:
                 return self.averages[key][-1]
+        return None
+
+    def final_thermo(self) -> Optional[dict]:
+        """
+        Return final thermodynamic observables as a compact dictionary.
+
+        Preference order:
+        1. ``thermodynamics`` table (from cumulants.<simid>.json)
+        2. Last row of ``cumulants`` table (from cumulants.<simid>.out)
+
+        Returns
+        -------
+        dict or None
+            Keys: ``m``, ``binder``, ``chi``, ``cv``, ``energy``.
+            Returns None if neither source is available.
+        """
+        if self.thermodynamics is not None:
+            thermo = self.thermodynamics
+            return {
+                "m": float(thermo["m"]),
+                "binder": float(thermo["binder"]),
+                "chi": float(thermo["chi"]),
+                "cv": float(thermo["cv"]),
+                "energy": float(thermo["energy"]),
+            }
+
+        if self.cumulants is not None:
+            cumulants = self.cumulants
+            return {
+                "m": float(cumulants["m"][-1]),
+                "binder": float(cumulants["binder"][-1]),
+                "chi": float(cumulants["chi"][-1]),
+                "cv": float(cumulants["cv"][-1]),
+                "energy": float(cumulants["energy"][-1]),
+            }
+
         return None
 
     # ------------------------------------------------------------------

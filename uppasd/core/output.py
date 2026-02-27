@@ -13,6 +13,7 @@ Design principles:
 
 from pathlib import Path
 from typing import Optional, Dict
+import json
 import numpy as np
 
 
@@ -130,6 +131,33 @@ def read_cumulants(workdir, simid: Optional[str] = None) -> Dict:
         "energy": data[:, 7],
         "energy_exc": data[:, 8],
         "energy_lsf": data[:, 9],
+        "raw": data,
+    }
+
+
+def read_thermodynamics(workdir, simid: Optional[str] = None) -> Dict:
+    """
+    Read cumulants.<simid>.json thermodynamic summary.
+
+    Expected keys in JSON:
+        magnetization, binder_cumulant, susceptibility,
+        specific_heat, energy
+    """
+    if simid is None:
+        simid = DEFAULT_SIMID
+
+    path = Path(workdir) / f"cumulants.{simid}.json"
+
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    return {
+        "m": float(data["magnetization"]),
+        "binder": float(data["binder_cumulant"]),
+        "chi": float(data["susceptibility"]),
+        "cv": float(data["specific_heat"]),
+        "energy": float(data["energy"]),
+        "temperature": float(data["temperature"]) if "temperature" in data else None,
         "raw": data,
     }
 
@@ -358,6 +386,11 @@ def read_all_outputs(workdir):
 
     try:
         tables["cumulants"] = read_cumulants(workdir, simid)
+    except FileNotFoundError:
+        pass
+
+    try:
+        tables["thermodynamics"] = read_thermodynamics(workdir, simid)
     except FileNotFoundError:
         pass
 

@@ -11,7 +11,7 @@ Key design principles:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Iterable
+from typing import Dict, Any, Optional
 import yaml
 
 
@@ -204,7 +204,7 @@ class ASDInput:
     # Convenience
     # ------------------------------------------------------------------
 
-    def apply_yaml(self, filename: str, block: str = None):
+    def apply_yaml(self, filename: str, block: Optional[str] = None):
         """
         Apply a YAML patch to a specific block or all blocks.
 
@@ -228,3 +228,126 @@ class ASDInput:
             if not isinstance(values, dict):
                 raise ValueError(f"Block '{blk}' must map to a dict")
             self.block(blk).set(**values)
+
+
+def _get_initial_block(inp: ASDInput) -> Optional[InputBlock]:
+    """Return initial-phase block if present (supports both common names)."""
+    if "initial" in inp.blocks:
+        return inp.blocks["initial"]
+    if "initialization" in inp.blocks:
+        return inp.blocks["initialization"]
+    return None
+
+
+def _updated_sequence_temperature(seq, temperature: float):
+    """Return seq with index 3 replaced by temperature, preserving container type."""
+    if not isinstance(seq, (list, tuple)):
+        raise TypeError("Initial-phase schedule must be list/tuple")
+    if len(seq) < 4:
+        raise ValueError("Initial-phase schedule must have at least 4 elements")
+
+    items = list(seq)
+    items[3] = float(temperature)
+    return tuple(items) if isinstance(seq, tuple) else items
+
+
+def set_temperature_token(inp: ASDInput, temperature: float):
+    """
+    Set temperature consistently for sweep workflows.
+
+    Updates:
+    - ``simulation.temperature``
+    - ``initial.ip_temp`` when using scalar initial-phase syntax
+    - ``initial.ip_nphase`` for schedule-based ``ip_mode='S'``
+    - ``initial.ip_mcanneal`` for schedule-based ``ip_mode in {'M', 'H'}``
+
+    Notes
+    -----
+    This helper does not invent missing initial-phase schedules.
+    It updates whichever syntax is explicitly present in the input.
+    """
+    initial = _get_initial_block(inp)
+    if initial is None:
+        raise ValueError("Missing initial block ('initial' or 'initialization')")
+
+    simulation = inp.block("simulation")
+    simulation.set(temperature=float(temperature))
+
+    data = initial.as_dict()
+    ip_mode = str(data.get("ip_mode", "S")).strip().upper()
+
+    if "ip_temp" in data:
+        initial.set(ip_temp=float(temperature))
+        return
+
+    if ip_mode == "S":
+        if "ip_nphase" not in data:
+            raise ValueError("ip_mode='S' requires explicit ip_nphase in initial block")
+        initial.set(ip_nphase=_updated_sequence_temperature(data["ip_nphase"], temperature))
+        return
+
+    if ip_mode in ("M", "H"):
+        if "ip_mcanneal" not in data:
+            raise ValueError("ip_mode='M'/'H' requires explicit ip_mcanneal in initial block")
+        initial.set(ip_mcanneal=_updated_sequence_temperature(data["ip_mcanneal"], temperature))
+        return
+
+    raise ValueError(f"Unsupported ip_mode '{ip_mode}'. Expected 'S', 'M', or 'H'.")
+
+
+def validate_temperature_token(inp: ASDInput) -> Dict[str, Any]:
+    """
+    Validate and report the active sweep temperature mapping.
+
+    Returns
+    -------
+    dict
+        ``{'ip_mode': ..., 'temperature_source': ..., 'initial_temperature': ..., 'simulation_temperature': ...}``
+    """
+    initial = _get_initial_block(inp)
+    if initial is None:
+        raise ValueError("Missing initial block ('initial' or 'initialization')")
+
+    simulation = inp.block("simulation").as_dict()
+    if "temperature" not in simulation:
+        raise ValueError("simulation.temperature is not set")
+
+    init_data = initial.as_dict()
+    ip_mode = str(init_data.get("ip_mode", "S")).strip().upper()
+
+    if "ip_temp" in init_data:
+        initial_temperature = float(init_data["ip_temp"])
+        temperature_source = "ip_temp"
+
+        if ip_mode == "S" and "ip_nstep" not in init_data:
+            raise ValueError("ip_mode='S' with ip_temp syntax requires explicit ip_nstep")
+        if ip_mode in ("M", "H") and "ip_mcnstep" not in init_data:
+            raise ValueError("ip_mode='M'/'H' with ip_temp syntax requires explicit ip_mcnstep")
+
+    elif ip_mode == "S":
+        if "ip_nphase" not in init_data:
+            raise ValueError("ip_mode='S' requires explicit ip_nphase or ip_temp in initial block")
+        initial_temperature = float(init_data["ip_nphase"][3])
+        temperature_source = "ip_nphase"
+
+    elif ip_mode in ("M", "H"):
+        if "ip_mcanneal" not in init_data:
+            raise ValueError("ip_mode='M'/'H' requires explicit ip_mcanneal or ip_temp in initial block")
+        initial_temperature = float(init_data["ip_mcanneal"][3])
+        temperature_source = "ip_mcanneal"
+    else:
+        raise ValueError(f"Unsupported ip_mode '{ip_mode}'. Expected 'S', 'M', or 'H'.")
+
+    simulation_temperature = float(simulation["temperature"])
+
+    if abs(initial_temperature - simulation_temperature) > 1e-12:
+        raise ValueError(
+            "Temperature token mismatch between initial-phase schedule and simulation.temperature"
+        )
+
+    return {
+        "ip_mode": ip_mode,
+        "temperature_source": temperature_source,
+        "initial_temperature": initial_temperature,
+        "simulation_temperature": simulation_temperature,
+    }
