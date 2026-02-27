@@ -578,19 +578,19 @@ if got_lswt_sqw_tens:
             stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
             ax.set_title(stitle)
 
-                        sqw_temp = self._apply_gaussian_filter(sqw_temp)
-                        plt.imshow(
-                            sqw_temp,
-                            cmap=cmap.gist_ncar_r,
-                            interpolation="nearest",
-                            origin="lower",
-                            extent=[axidx[0], axidx[-1], 0, emax_lswt],
-                            aspect="auto",
-                        )
-                        plt.xticks(axidx, axlab)
-                plt.tight_layout()
-                plt.savefig("ncsqw_tensor.png")
-                plt.close()
+            sqw_temp = self._apply_gaussian_filter(sqw_temp)
+            plt.imshow(
+                sqw_temp,
+                cmap=cmap.gist_ncar_r,
+                interpolation="nearest",
+                origin="lower",
+                extent=[axidx[0], axidx[-1], 0, emax_lswt],
+                aspect="auto",
+            )
+            plt.xticks(axidx, axlab)
+            plt.tight_layout()
+            plt.savefig("ncsqw_tensor.png")
+            plt.close()
 
     def run(self):
         """Execute the complete post-processing workflow."""
