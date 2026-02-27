@@ -677,9 +677,22 @@ contains
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('ip_damping2')
-               allocate(iplambda2(1),stat=i_stat)
-               call memocc(i_stat,product(shape(iplambda2))*kind(iplambda2),'iplambda2','read_parameters')
+               if (allocated(iplambda2)) then
+                  if (size(iplambda2)/=1) then
+                     i_all=-product(shape(iplambda2))*kind(iplambda2)
+                     deallocate(iplambda2,stat=i_stat)
+                     call memocc(i_stat,i_all,'iplambda2','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(iplambda2)) then
+                  allocate(iplambda2(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(iplambda2))*kind(iplambda2),'iplambda2','read_parameters')
+               end if
                read(ifile,*,iostat=i_err) iplambda2(1)
+               if(ipmode=='N') ipmode='S'
+               if(ipmode/='M'.and.ipmode/='H') then
+                  if(ipnphase==0) ipnphase=1
+               end if
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('do_site_damping')
@@ -729,9 +742,81 @@ contains
             !------------------------------------------------------------------------
 
             case('ip_temp')
-               allocate(ipTemp(1),stat=i_stat)
-               call memocc(i_stat,product(shape(ipTemp))*kind(ipTemp),'ipTemp','read_parameters')
+               if (allocated(ipTemp)) then
+                  if (size(ipTemp)/=1) then
+                     i_all=-product(shape(ipTemp))*kind(ipTemp)
+                     deallocate(ipTemp,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipTemp','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(ipTemp)) then
+                  allocate(ipTemp(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(ipTemp))*kind(ipTemp),'ipTemp','read_parameters')
+               end if
                read(ifile,*,iostat=i_err) ipTemp(1)
+               if(ipmode=='N') ipmode='S'
+               if(ipmode=='M'.or.ipmode=='H') then
+                  if(ipmcnphase==0) ipmcnphase=1
+               else
+                  if(ipnphase==0) ipnphase=1
+               end if
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('ip_nstep')
+               if (allocated(ipnstep)) then
+                  if (size(ipnstep)/=1) then
+                     i_all=-product(shape(ipnstep))*kind(ipnstep)
+                     deallocate(ipnstep,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipnstep','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(ipnstep)) then
+                  allocate(ipnstep(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(ipnstep))*kind(ipnstep),'ipnstep','read_parameters')
+               end if
+               read(ifile,*,iostat=i_err) ipnstep(1)
+               if(ipmode=='N') ipmode='S'
+               if(ipmode/='M'.and.ipmode/='H') then
+                  if(ipnphase==0) ipnphase=1
+               end if
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('ip_timestep')
+               if (allocated(ipdelta_t)) then
+                  if (size(ipdelta_t)/=1) then
+                     i_all=-product(shape(ipdelta_t))*kind(ipdelta_t)
+                     deallocate(ipdelta_t,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipdelta_t','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(ipdelta_t)) then
+                  allocate(ipdelta_t(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(ipdelta_t))*kind(ipdelta_t),'ipdelta_t','read_parameters')
+               end if
+               read(ifile,*,iostat=i_err) ipdelta_t(1)
+               if(ipmode=='N') ipmode='S'
+               if(ipmode/='M'.and.ipmode/='H') then
+                  if(ipnphase==0) ipnphase=1
+               end if
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('ip_damping')
+               if (allocated(iplambda1)) then
+                  if (size(iplambda1)/=1) then
+                     i_all=-product(shape(iplambda1))*kind(iplambda1)
+                     deallocate(iplambda1,stat=i_stat)
+                     call memocc(i_stat,i_all,'iplambda1','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(iplambda1)) then
+                  allocate(iplambda1(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(iplambda1))*kind(iplambda1),'iplambda1','read_parameters')
+               end if
+               read(ifile,*,iostat=i_err) iplambda1(1)
+               if(ipmode=='N') ipmode='S'
+               if(ipmode/='M'.and.ipmode/='H') then
+                  if(ipnphase==0) ipnphase=1
+               end if
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('ip_hfield')
@@ -798,6 +883,21 @@ contains
                      i_all=-product(shape(ipTemp))*kind(ipTemp)
                      deallocate(ipTemp,stat=i_stat)
                      call memocc(i_stat,i_all,'ipTemp','read_parameters')
+                  endif
+                  if (allocated(ipnstep)) then
+                     i_all=-product(shape(ipnstep))*kind(ipnstep)
+                     deallocate(ipnstep,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipnstep','read_parameters')
+                  endif
+                  if (allocated(ipdelta_t)) then
+                     i_all=-product(shape(ipdelta_t))*kind(ipdelta_t)
+                     deallocate(ipdelta_t,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipdelta_t','read_parameters')
+                  endif
+                  if (allocated(iplambda1)) then
+                     i_all=-product(shape(iplambda1))*kind(iplambda1)
+                     deallocate(iplambda1,stat=i_stat)
+                     call memocc(i_stat,i_all,'iplambda1','read_parameters')
                   endif
                   tmp=0.0_dblprec
                   if(allocated(iplambda2)) then
@@ -884,9 +984,20 @@ contains
                end if
 
             case('ip_mcnstep')
-               allocate(ipmcnstep(1),stat=i_stat)
-               call memocc(i_stat,product(shape(ipmcnstep))*kind(ipmcnstep),'ipmcnstep','read_parameters')
+               if (allocated(ipmcnstep)) then
+                  if (size(ipmcnstep)/=1) then
+                     i_all=-product(shape(ipmcnstep))*kind(ipmcnstep)
+                     deallocate(ipmcnstep,stat=i_stat)
+                     call memocc(i_stat,i_all,'ipmcnstep','read_parameters')
+                  end if
+               end if
+               if (.not.allocated(ipmcnstep)) then
+                  allocate(ipmcnstep(1),stat=i_stat)
+                  call memocc(i_stat,product(shape(ipmcnstep))*kind(ipmcnstep),'ipmcnstep','read_parameters')
+               end if
                read(ifile,*,iostat=i_err) ipmcnstep(1)
+               if(ipmode=='N') ipmode='M'
+               if(ipmcnphase==0) ipmcnphase=1
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('ip_mcanneal')
@@ -1687,6 +1798,51 @@ contains
       end do
 
       20  continue
+
+      if (ipnphase>0) then
+         if (ipmode/='M'.and.ipmode/='H') then
+            if (.not.allocated(ipTemp)) then
+               allocate(ipTemp(ipnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(ipTemp))*kind(ipTemp),'ipTemp','read_parameters')
+               ipTemp=Temp
+            end if
+            if (.not.allocated(ipnstep)) then
+               allocate(ipnstep(ipnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(ipnstep))*kind(ipnstep),'ipnstep','read_parameters')
+               ipnstep=nstep
+            end if
+            if (.not.allocated(ipdelta_t)) then
+               allocate(ipdelta_t(ipnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(ipdelta_t))*kind(ipdelta_t),'ipdelta_t','read_parameters')
+               ipdelta_t=delta_t
+            end if
+            if (.not.allocated(iplambda1)) then
+               allocate(iplambda1(ipnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(iplambda1))*kind(iplambda1),'iplambda1','read_parameters')
+               iplambda1=mplambda1
+            end if
+            if (.not.allocated(iplambda2)) then
+               allocate(iplambda2(ipnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(iplambda2))*kind(iplambda2),'iplambda2','read_parameters')
+               iplambda2=0.0_dblprec
+            end if
+         end if
+      end if
+
+      if (ipmode=='M'.or.ipmode=='H') then
+         if (ipmcnphase>0) then
+            if (.not.allocated(ipTemp)) then
+               allocate(ipTemp(ipmcnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(ipTemp))*kind(ipTemp),'ipTemp','read_parameters')
+               ipTemp=Temp
+            end if
+            if (.not.allocated(ipmcnstep)) then
+               allocate(ipmcnstep(ipmcnphase),stat=i_stat)
+               call memocc(i_stat,product(shape(ipmcnstep))*kind(ipmcnstep),'ipmcnstep','read_parameters')
+               ipmcnstep=mcnstep
+            end if
+         end if
+      end if
 
       return
    end subroutine read_parameters
