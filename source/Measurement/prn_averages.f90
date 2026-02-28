@@ -51,6 +51,7 @@ module prn_averages
    real(dblprec), dimension(:), allocatable :: avrgm4cum_proj !< Cumulated average of projected m^4
    real(dblprec), dimension(:), allocatable :: avrgm2cum_proj !< Cumulated average of projected m^2
    real(dblprec), dimension(:), allocatable :: avrgmcum_proj  !< Cumulated average of projected m
+   real(dblprec), dimension(:), allocatable :: avrgm_varacc_proj !< Welford second central moment accumulator for projected m
 
    integer :: bcount_avrg    !< Counter of buffer for averages
 
@@ -288,6 +289,13 @@ contains
       avrgelcum         = 0.0_dblprec
       avrge_varacc      = 0.0_dblprec
       totene            = 0.0_dblprec
+
+      if (do_cumu_proj=='Y') then
+         if (allocated(avrgmcum_proj)) avrgmcum_proj=0.0_dblprec
+         if (allocated(avrgm2cum_proj)) avrgm2cum_proj=0.0_dblprec
+         if (allocated(avrgm4cum_proj)) avrgm4cum_proj=0.0_dblprec
+         if (allocated(avrgm_varacc_proj)) avrgm_varacc_proj=0.0_dblprec
+      end if
    end subroutine zero_cumulant_counters
 
    !---------------------------------------------------------------------------------
@@ -390,6 +398,9 @@ contains
             allocate(avrgm4cum_proj(NT),stat=i_stat)
             call memocc(i_stat,product(shape(avrgm4cum_proj))*kind(avrgm4cum_proj),'avrgm4cum_proj','allocate_projcumulants')
             avrgm4cum_proj=0.0_dblprec
+            allocate(avrgm_varacc_proj(NT),stat=i_stat)
+            call memocc(i_stat,product(shape(avrgm_varacc_proj))*kind(avrgm_varacc_proj),'avrgm_varacc_proj','allocate_projcumulants')
+            avrgm_varacc_proj=0.0_dblprec
          else
             i_all=-product(shape(avrgmcum_proj))*kind(avrgmcum_proj)
             deallocate(avrgmcum_proj,stat=i_stat)
@@ -400,6 +411,9 @@ contains
             i_all=-product(shape(avrgm4cum_proj))*kind(avrgm4cum_proj)
             deallocate(avrgm4cum_proj,stat=i_stat)
             call memocc(i_stat,i_all,'avrgm4cum_proj','allocate_projcumulants')
+            i_all=-product(shape(avrgm_varacc_proj))*kind(avrgm_varacc_proj)
+            deallocate(avrgm_varacc_proj,stat=i_stat)
+            call memocc(i_stat,i_all,'avrgm_varacc_proj','allocate_projcumulants')
          end if
       end if
    end subroutine allocate_projcumulants
@@ -1321,6 +1335,7 @@ contains
       real(dblprec),dimension(NT) :: mx, my, mz
       real(dblprec),dimension(NT) :: avrgme, avrgm2, avrgm4
       real(dblprec),dimension(NT) :: cumulant, avrgmt, avrgmt2, avrgmt4,pmsusc
+      real(dblprec) :: delta_m, m_var_unb
 
       avrgme=0.0_dblprec;avrgm2=0.0_dblprec;avrgm4=0.0_dblprec
       mx=0.0_dblprec;my=0.0_dblprec;mz=0.0_dblprec
@@ -1350,8 +1365,12 @@ contains
             avrgm2(it) = avrgme(it)**2
             avrgm4(it) = avrgm2(it)**2
 
-            avrgmt(it) = (Navrgcum_proj*avrgmcum_proj(it)+avrgme(it))/(Navrgcum_proj+1)
-            avrgmt2(it) = (Navrgcum_proj*avrgm2cum_proj(it)+avrgm2(it))/(Navrgcum_proj+1)
+            delta_m = avrgme(it)-avrgmcum_proj(it)
+            avrgmcum_proj(it) = avrgmcum_proj(it) + delta_m/(Navrgcum_proj+1)
+            avrgm_varacc_proj(it) = avrgm_varacc_proj(it) + delta_m*(avrgme(it)-avrgmcum_proj(it))
+
+            avrgmt(it) = avrgmcum_proj(it)
+            avrgmt2(it) = avrgmt(it)**2 + avrgm_varacc_proj(it)/(Navrgcum_proj+1)
             avrgmt4(it) = (Navrgcum_proj*avrgm4cum_proj(it)+avrgm4(it))/(Navrgcum_proj+1)
 
             cumulant(it) = 1-(avrgmt4(it)/3/avrgmt2(it)**2)
@@ -1360,11 +1379,16 @@ contains
             avrgm4cum_proj(it) = avrgmt4(it)
 
             !Specific heat (cv) and susceptibility (pmsusc)
+            if(Navrgcum_proj>0) then
+               m_var_unb = avrgm_varacc_proj(it)/Navrgcum_proj
+            else
+               m_var_unb = 0.0_dblprec
+            end if
             if(T>0.0_dblprec) then
-               pmsusc(it) = (avrgmt2(it)-avrgmt(it)**2) * mub**2 * ncounter(it) / (k_bolt**2) / T     ! units of k_B
+               pmsusc(it) = m_var_unb * mub**2 * ncounter(it) / (k_bolt**2) / T     ! units of k_B
             else
                !For T=0, not the proper susceptibility
-               pmsusc(it) = (avrgmt2(it)-avrgmt(it)**2) * ncounter(it) * mub**2 / k_bolt
+               pmsusc(it) = m_var_unb * ncounter(it) * mub**2 / k_bolt
             end if
          end do
          Navrgcum_proj = Navrgcum_proj+1
