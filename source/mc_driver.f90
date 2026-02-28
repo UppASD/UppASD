@@ -45,6 +45,7 @@ contains
    subroutine mc_iphase()
 
       use InputData
+      use FieldData,       only : time_external_field, beff
       use SystemData
       use MonteCarlo
       use DemagField
@@ -75,6 +76,12 @@ contains
       call allocate_mcdata(Natom,1)
 
       iphfield0 = iphfield
+
+      if (allocated(time_external_field)) then
+         if (maxval(abs(time_external_field))>1.0e-20_dblprec) then
+            time_external_field=0.0_dblprec
+         endif
+      endif
 
       do i=1,ipmcnphase
 
@@ -211,6 +218,10 @@ contains
          call timing(0,'Initial       ','ON')
       enddo
 
+      ! Ensure no auxiliary field remnants are handed over from MC initial phase
+      ! to the subsequent measurement phase.
+      if (allocated(beff)) beff=0.0_dblprec
+
       ! Copy equillibrated moments for use in measurement phase
       emom2=emom
       mmom2=mmom
@@ -306,6 +317,16 @@ contains
       ! Calculate the static magnetic fields which will be calculated only once as they are not time dependent
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
+
+      ! Initialize auxiliary field storage once before MC measurement sweeps.
+      ! For do_dip==0 this should remain zero and must not carry previous-phase values.
+      if (allocated(beff)) beff=0.0_dblprec
+
+      if (allocated(time_external_field)) then
+         if (maxval(abs(time_external_field))>1.0e-20_dblprec) then
+            time_external_field=0.0_dblprec
+         endif
+      endif
 
       ! Perform MC sweeps
       do mcmstep=1,mcnstep

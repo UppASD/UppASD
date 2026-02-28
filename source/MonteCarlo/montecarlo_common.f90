@@ -452,10 +452,10 @@ subroutine flip_h_new(Natom, Mensemble, emom, emomM, newmmom, mmom, iflip, tempe
 
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom   !< Current unit moment vector
-      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom   !< Current unit moment vector
+      real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emomM  !< Current magnetic moment vector
       real(dblprec), intent(in) :: newmmom !< New trial magnitude of moment
-      real(dblprec), intent(out) :: mmom !< Magnitude of magnetic moments
+      real(dblprec), intent(inout) :: mmom !< Magnitude of magnetic moments
       integer, intent(in) :: iflip !< Atom to flip spin for
       real(dblprec),intent(in) :: flipprob !< Probability of flipping spin
       real(dblprec), intent(in):: temperature !< Temperature
@@ -464,28 +464,30 @@ subroutine flip_h_new(Natom, Mensemble, emom, emomM, newmmom, mmom, iflip, tempe
       real(dblprec), intent(in):: q !< Random number for moment update
 
       integer :: k !< Current ensemble
-      real(dblprec) :: beta,zarg,zctheta,zstheta,zcphi,zsphi,ctheta,stheta,phi,norm_emom!,q(1)
+      real(dblprec) :: beta,zarg,zarg_eps,zctheta,zstheta,zcphi,zsphi,ctheta,stheta,phi,norm_emom!,q(1)
       real(dblprec),dimension(3) :: stemp,zfc,field_direction
 
       mmom=newmmom
       beta=1.0_dblprec/k_bolt/(temprescale*Temperature)
       zfc=beta*totfield*mub*mmom
       zarg=sqrt(sum(zfc(:)*zfc(:)))
+      zarg_eps=zarg+1.0e-12_dblprec
       
       ! Compute the direction of the effective field
-      field_direction=zfc/zarg
+      field_direction=zfc/zarg_eps
       zctheta=field_direction(3)
       
       ! Generate new spin in heat bath distribution
-      ctheta=1.0_dblprec+(1.0_dblprec/zarg)*log((1.0_dblprec-exp(-2.0_dblprec*zarg))*q+exp(-2.0_dblprec*zarg)+dbl_tolerance)
-      stheta=sqrt(1.0_dblprec-ctheta*ctheta)
+      ctheta=1.0_dblprec+(1.0_dblprec/zarg_eps)*log((1.0_dblprec-exp(-2.0_dblprec*zarg_eps))*q+exp(-2.0_dblprec*zarg_eps)+dbl_tolerance)
+      ctheta=max(-1.0_dblprec,min(1.0_dblprec,ctheta))
+      stheta=sqrt(max(0.0_dblprec,1.0_dblprec-ctheta*ctheta))
       phi=pi*(2.0_dblprec*flipprob-1.0_dblprec)
       stemp(1)=stheta*cos(phi)              ! New spin in direction of the effective field
       stemp(2)=stheta*sin(phi)
       stemp(3)=ctheta
       
       ! Check for gimbal lock: if field is nearly aligned with z-axis, avoid Euler rotation singularity
-      zstheta=sqrt(1.0_dblprec-zctheta*zctheta)
+      zstheta=sqrt(max(0.0_dblprec,1.0_dblprec-zctheta*zctheta))
       
       if (zstheta > 1.0d-4) then
          ! Normal case: field not aligned with z-axis, use Euler rotation
