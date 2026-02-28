@@ -12,8 +12,6 @@ module Polarization
    implicit none
    !
    ! Variables from input
-   integer :: pol_buff                  !< Buffer size for the polarization
-   integer :: pol_step                  !< Interval for sampling the polarization
    character(len=1) :: do_pol           !< Do polarization
    character(len=1) :: do_chiral    !< Measure polarization vector locally
    character(len=1) :: do_loc_pol   !< Measure polarization vector locally
@@ -25,11 +23,20 @@ module Polarization
    integer, dimension(:), allocatable :: pollistsize              !< Size of neighbour list for polarization calculations
 
    ! Variables needed for printing
-   integer :: bcount_pol     !< Counter of buffer for for polarization
+   integer :: bcount_pol     !< Counter of buffer for polarization
    real(dblprec), dimension(:), allocatable :: indxb_pol          !< Step counter for polarization vector
    real(dblprec), dimension(:,:,:), allocatable :: spol_buff      !< Buffer data for polarization vector
+   integer :: pol_buff                  !< Buffer size for the polarization
+   integer :: pol_step                  !< Interval for sampling the polarization
+
+   integer :: bcount_chir    !< Counter of buffer for chirality measure
+   real(dblprec), dimension(:), allocatable :: indxb_chir          !< Step counter for chirality vector
+   real(dblprec), dimension(:,:,:), allocatable :: schir_buff      !< Buffer data for chirality vector
+   integer :: chir_buff                 !< Buffer size for the chirality measure
+   integer :: chir_step                 !< Interval for sampling the chirality measure
 
    private :: indxb_pol,spol_buff,bcount_pol
+   private :: indxb_chir,schir_buff,bcount_chir
 
 contains
 
@@ -77,7 +84,7 @@ contains
                dx=coord(1,j)-coord(1,i)
                dy=coord(2,j)-coord(2,i)
                dz=coord(3,j)-coord(3,i)
-               dnorm=sqrt(dx*dx+dy*dy+dz*dz)
+               dnorm=sqrt(dx*dx+dy*dy+dz*dz+1.0e-12_dblprec)
                eij(1,n,i)=dx/dnorm
                eij(2,n,i)=dy/dnorm
                eij(3,n,i)=dz/dnorm
@@ -119,27 +126,45 @@ contains
 
       if (flag>0) then
 
-         bcount_pol=1
-
-         if (do_pol=='Y') then
+          if (do_pol=='Y') then
+            bcount_pol=1
             allocate(spol_buff(3,pol_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(spol_buff))*kind(spol_buff),'spol_buff','allocate_prn_pol')
             spol_buff=0.0_dblprec
             allocate(indxb_pol(pol_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_pol))*kind(indxb_pol),'indxb_pol','allocate_prn_pol')
             indxb_pol=0
-         endif
+          endif
+
+          if (do_chiral=='Y') then
+            bcount_chir=1
+            allocate(schir_buff(3,chir_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(schir_buff))*kind(schir_buff),'schir_buff','allocate_prn_pol')
+            schir_buff=0.0_dblprec
+            allocate(indxb_chir(chir_buff),stat=i_stat)
+            call memocc(i_stat,product(shape(indxb_chir))*kind(indxb_chir),'indxb_chir','allocate_prn_pol')
+            indxb_chir=0
+          endif
 
       else
 
-         if (do_pol=='Y') then
+          if (do_pol=='Y') then
             i_all=-product(shape(spol_buff))*kind(spol_buff)
             deallocate(spol_buff,stat=i_stat)
             call memocc(i_stat,i_all,'spol_buff','allocate_prn_pol')
             i_all=-product(shape(indxb_pol))*kind(indxb_pol)
             deallocate(indxb_pol,stat=i_stat)
             call memocc(i_stat,i_all,'indxb_pol','allocate_prn_pol')
-         endif
+          endif
+
+          if (do_chiral=='Y') then
+            i_all=-product(shape(schir_buff))*kind(schir_buff)
+            deallocate(schir_buff,stat=i_stat)
+            call memocc(i_stat,i_all,'schir_buff','allocate_prn_pol')
+            i_all=-product(shape(indxb_chir))*kind(indxb_chir)
+            deallocate(indxb_chir,stat=i_stat)
+            call memocc(i_stat,i_all,'indxb_chir','allocate_prn_pol')
+          endif
 
       endif
 
@@ -158,6 +183,8 @@ contains
       pol_buff          = 10
       do_loc_pol        = 'N'
       do_chiral         = 'N'
+      chir_step          = 100
+      chir_buff          = 10
       max_pol_nn        =  6
 
    end subroutine prn_pol_init
@@ -183,6 +210,8 @@ contains
       integer, dimension(max_no_neigh,Natom), intent(in) :: nlist !< Neighbour list for Heisenberg exchange couplings
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: emomM   !< Current magnetic moment vector
 
+      !.. Local variables
+      real(dblprec), dimension(3) :: kappa
       ! Polarization
       if (do_pol=='Y') then
          if ( mod(sstep-1,pol_step)==0) then
@@ -195,6 +224,7 @@ contains
                call measure_local_pol(Natom,Mensemble,emomM,max_no_neigh,nlist,     &
                   nlistsize)
             endif
+            ! Old chirality measure
             if (do_chiral=='Y')  then 
                call measure_chirality(Natom,Mensemble,emomM,max_no_neigh,nlist,     &
                   nlistsize)
@@ -206,6 +236,7 @@ contains
                if (do_loc_pol=='Y') then 
                   call print_local_polarity_chirality(Natom,Mensemble,mstep,simid,'P')
                endif
+               ! Old local chirality
                if (do_chiral=='Y')  then 
                   call print_local_polarity_chirality(Natom,Mensemble,mstep,simid,'C')
                endif
@@ -217,6 +248,25 @@ contains
             endif
 
          endif
+      end if
+      if (do_chiral=='Y') then
+         if ( mod(sstep-1,chir_step)==0) then
+
+            ! Write step to buffer
+            call buffer_chir(Natom,Mensemble,mstep-1,emomM, delta_t,real_time_measure)
+
+            if (bcount_chir==chir_buff) then
+               ! Write buffer to file
+               call prn_chir(Natom, Mensemble, simid,real_time_measure)
+               bcount_chir=1
+            else
+               bcount_chir=bcount_chir+1
+            end if
+         end if
+         !kappa = chirality_tri(Natom,Mensemble,emomM)
+         ! print *, 'Kappa:', kappa(1), kappa(2), kappa(3)
+         ! print *, 'Chi_avg:', chi_avg
+
       end if
 
    end subroutine print_pol
@@ -247,11 +297,19 @@ contains
 
       endif
 
+      ! Chirality
+      if (do_chiral=='Y') then
+         ! Write buffer to file
+         bcount_chir=bcount_chir-1
+         call prn_chir(Natom, Mensemble, simid,real_time_measure)
+         bcount_chir=1
+      endif
+
    end subroutine flush_polarization
 
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: buffer_pol
-   !> @brief Buffer average magnetization
+   !> @brief Buffer average polarization 
    !---------------------------------------------------------------------------------
    subroutine buffer_pol(Natom,Mensemble,mstep,emomM,max_no_neigh,nlist,delta_t,    &
          real_time_measure)
@@ -309,6 +367,62 @@ contains
       endif
 
    end subroutine buffer_pol
+
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: buffer_chir
+   !> @brief Buffer average chirality
+   !---------------------------------------------------------------------------------
+   subroutine buffer_chir(Natom,Mensemble,mstep,emomM,delta_t,real_time_measure)
+      use Topology, only : chi_avg, chi_cavg, kappa_csum, n_chi_cavg, chirality_tri
+      !
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: mstep !< Current simulation step
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      real(dblprec), intent(in) :: delta_t !< Current time step
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+
+      !.. Scalar variables
+      integer :: i,j,k,n
+
+      !.. Local arrays
+      real(dblprec), dimension(Mensemble) ::  cx, cy, cz
+      real(dblprec), dimension(3) ::  kappa
+
+      !.. Executable statements
+      cx(:)=0.0_dblprec
+      cy(:)=0.0_dblprec
+      cz(:)=0.0_dblprec
+
+      !.. Sum over moments
+      do k=1,Mensemble
+         kappa = chirality_tri(Natom,1,emomM(:,:,k))
+         cx(k) = kappa(1)
+         cy(k) = kappa(2)
+         cz(k) = kappa(3)
+      end do
+
+      !.. Save in buffer
+      do k=1,Mensemble
+         schir_buff(1,bcount_chir,k) = cx(k)
+         schir_buff(2,bcount_chir,k) = cy(k)
+         schir_buff(3,bcount_chir,k) = cz(k)
+      end do
+
+      if (real_time_measure=='Y')  then
+         indxb_chir(bcount_chir)=mstep*delta_t
+      else
+         indxb_chir(bcount_chir)=mstep
+      endif
+
+      kappa_csum = kappa_csum + chirality_tri(Natom,Mensemble,emomM)
+      chi_cavg = chi_cavg + chi_avg
+      n_chi_cavg = n_chi_cavg + 1
+
+   end subroutine buffer_chir
 
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: measure_local_pol
@@ -481,6 +595,105 @@ contains
       10007 format (a16,6a16)
 
    end subroutine prn_pol
+   
+   !---------------------------------------------------------------------------------
+   ! SUBROUTINE: prn_chir
+   !> Print chirality vector
+   !---------------------------------------------------------------------------------
+   subroutine prn_chir(Natom, Mensemble, simid, real_time_measure)
+      use Constants
+
+      implicit none
+
+      integer, intent(in) :: Natom     !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      character(len=8), intent(in) :: simid !< Name of simulation
+      character(len=1), intent(in) :: real_time_measure !< Measurements displayed in real time
+
+      integer :: i, k
+      character(len=30) :: filn
+      real(dblprec), dimension(Mensemble) :: avrgchi
+      real(dblprec), dimension(Mensemble) :: avrgchix, avrgchiy, avrgchiz
+
+      real(dblprec) :: avrgchixm, avrgchiym, avrgchizm, avrgchim
+      real(dblprec) :: stdev_chi
+
+      ! Set the arrays to zero
+      avrgchi = 0.0_dblprec
+      avrgchix = 0.0_dblprec
+      avrgchiy = 0.0_dblprec
+      avrgchiz = 0.0_dblprec
+
+      ! Build output filename for chirality and open file
+      write(filn, '("chirality.", a, ".out")') trim(simid)
+      open(ofileno, file=filn, position="append")
+
+      ! Write header to output files for first iteration
+      if (abs(indxb_chir(1)) <= 0.0e0_dblprec) then
+         if (real_time_measure == 'Y') then
+            write(ofileno, 10007) "Time[s]", "<C>_x", "<C>_y", "<C>_z", "<C>"
+         else
+            write(ofileno, 10006) "#Iter", "<C>_x", "<C>_y", "<C>_z", "<C>"
+         endif
+      end if
+
+      do i = 1, bcount_chir
+         do k = 1, Mensemble
+            avrgchix(k) = schir_buff(1, i, k)
+            avrgchiy(k) = schir_buff(2, i, k)
+            avrgchiz(k) = schir_buff(3, i, k)
+         end do
+
+         do k = 1, Mensemble
+            avrgchi(k) = sqrt(avrgchix(k)**2 + avrgchiy(k)**2 + avrgchiz(k)**2)
+         end do
+
+         ! mean chirality components and magnitude
+         avrgchixm = 0_dblprec
+         avrgchiym = 0_dblprec
+         avrgchizm = 0_dblprec
+         avrgchim = 0_dblprec
+
+         ! stdev chirality
+         stdev_chi = 0_dblprec
+
+         do k = 1, Mensemble
+            avrgchixm = avrgchixm + avrgchix(k)
+            avrgchiym = avrgchiym + avrgchiy(k)
+            avrgchizm = avrgchizm + avrgchiz(k)
+            avrgchim = avrgchim + avrgchi(k)
+            stdev_chi = stdev_chi + avrgchi(k)**2
+         end do
+
+         avrgchixm = avrgchixm / Mensemble
+         avrgchiym = avrgchiym / Mensemble
+         avrgchizm = avrgchizm / Mensemble
+         avrgchim = avrgchim / Mensemble
+         stdev_chi = stdev_chi / Mensemble - avrgchim**2
+
+         if (real_time_measure == 'Y') then
+            write(ofileno, 10005) indxb_chir(i), avrgchixm, avrgchiym, avrgchizm, avrgchim, stdev_chi
+         else
+            write(ofileno, 10004) int(indxb_chir(i)), avrgchixm, avrgchiym, avrgchizm, avrgchim, stdev_chi
+            ! print *, 'Index', indxb_chir(i)
+            ! print *, 'Kappa:', avrgchixm, avrgchiym, avrgchizm
+            ! print *, 'Chi_avg:', avrgchim
+            ! print *, 'Chi_stdev:', stdev_chi
+         endif
+
+      end do
+
+      close(ofileno)
+      return
+
+      write(*,*) "Error writing the chirality file"
+
+      10004 format(i8, 6es16.8)
+      10005 format(es16.8, 6es16.8)
+      10006 format(a8, 6a16)
+      10007 format(a16, 6a16)
+
+   end subroutine prn_chir
 
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: print_local_polarity_chirality

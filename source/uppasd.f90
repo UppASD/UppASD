@@ -628,7 +628,8 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
-      
+      use ScaleHamiltonian
+
       implicit none
 
       integer :: i, i_stat,mconf
@@ -704,6 +705,8 @@ contains
       call wanglandau_init()
       ! Set q-sweep defaults
       call qminimizer_init()
+      ! Set j-scaling defaults
+      call jscaling_init()
 
       open(ifileno,file='inpsd.dat')
       call read_parameters(ifileno)
@@ -753,6 +756,8 @@ contains
       call read_parameters_qminimizer(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
+      rewind(ifileno)
+      call read_parameters_jscaling(ifileno)
       rewind(ifileno)
       call read_parameters_tempexp(ifileno)
       close(ifileno)
@@ -1281,9 +1286,16 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='T') then
+      if (skyno=='T'.or.do_chiral=='Y'.or.do_oam=='Y') then
          write(*,'(1x, a)') "Triangulating mesh"
-         call delaunay_tri_tri(n1,n2,n3, NA)
+         call delaunay_tri_tri(n1,n2,n3, NA, coord)
+         ! Print triangulation mesh to file for debugging/visualization
+         call print_triangulation_mesh('triangulation', coord, Natom, simid, C1, C2, C3, N1, N2, N3)
+      end if
+
+      if (do_oam=='Y') then
+         write(*,'(1x, a)') "Setup OAM mesh"
+         call calculate_oam(Natom,Mensemble,emom, 1, 0)
       end if
 
       if (mode=='W') then

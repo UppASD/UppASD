@@ -8,4 +8,5 @@ hamiltonianactions.f90
 hamiltonianactions_lite.f90
 hamiltonianinit.f90
 neighbourmap.f90
+scalehamiltonian.f90
 printhamiltonian.f90)

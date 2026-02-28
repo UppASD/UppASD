@@ -12,6 +12,7 @@ module Parameters
    real(dblprec) :: dbl_tolerance=1e-14 !!! Note this is used for both ne and eq as > or < comparisons
 
    integer, parameter :: ifileno = 55 !< File handle number for input files
+   integer, parameter :: ifileno2 = 56 !< File handle number for input files
    integer, parameter :: ofileno = 66 !< File handle number for output files
    integer, parameter :: mfileno = 77 !< File handle number for memory log file
 

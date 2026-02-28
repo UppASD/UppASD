@@ -460,12 +460,11 @@ contains
       logical :: unique
       real(dblprec):: j_tmp,j_tmpD,tmp,j_tmp_clus
       real(dblprec):: tol, norm
-      integer :: ifileno2,ifileno3
+      integer :: ifileno3
 
       ! Set tolerance for neighbour shells
       tol=1.0d-5
       !jc = 0.0_dblprec
-      ifileno2=ifileno+1
       ifileno3=ifileno+2
 
       do ii=1,conf_num
