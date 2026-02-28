@@ -1602,7 +1602,7 @@ contains
    subroutine randomize_exchange(NA,mdim,Natom,max_no_neigh,nlistsize,nlist,ncoup,aham,do_reduced,sigma, algorithm)
       
       use Constants
-      use RandomNumbers, only : rng_gaussian
+      use RandomNumbers, only : rng_gaussian, use_vsl, fill_rngarray
 
       implicit none
 
@@ -1639,7 +1639,20 @@ contains
       !!!    end do
       !!! else
       allocate(rng_arr(mdim,max_no_neigh,Natom))
-      call rng_gaussian(rng_arr,mdim*max_no_neigh*Natom,sigma)
+      rng_arr = 0.0_dblprec
+      ! print *, 'Randomizing exchange couplings with sigma=', sigma
+#ifdef VSL
+         if(use_vsl) then
+            call rng_gaussian(rng_arr,mdim*max_no_neigh*Natom,sigma)
+         else
+            call fill_rngarray(rng_arr,mdim*max_no_neigh*Natom)
+            rng_arr = rng_arr * sigma
+         end if
+#else
+         call fill_rngarray(rng_arr,mdim*max_no_neigh*Natom)
+         rng_arr = rng_arr * sigma
+#endif
+      !write (1000,'(f12.6)') rng_arr
 
 
       ! Set the sign for symmetry check: Jij = Jji but Dij = -Dji
@@ -1675,7 +1688,7 @@ contains
             do ineigh=1,nlistsize(iham)
                jatom=nlist(ineigh,iatom)
                do ielem=1,mdim
-                  ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)+rng_arr(ielem,ineigh,iham)
+                  ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)+rng_arr(ielem,ineigh,iham)*fc2
                enddo
                ! Ensure symmetry Jij=Jji
                jham=aham(jatom)
