@@ -199,7 +199,7 @@ contains
       
          ! Compute directional derivative using u_latt
          call differentiate_moments(Natom, Mensemble, emom, dmomdr, sitenatomjvec)
-      
+
          ! Apply the Zhang–Li algebra. dmomdr already includes the physical amplitude.
          !$omp parallel do default(shared) private(j,k)
          do j = 1, Natom
@@ -351,7 +351,7 @@ contains
             ! Prefactor involves density, physical constants, and area/length
             ! Here we need to divide with local moment
             ! Use canonical current magnitude (already in A/m^2)
-            stt_pfac = b_rt_fac*jmag_i*spin_pol/(1.0_dblprec+stt_asym*stt_dot)/mmom(iatom,k)
+            stt_pfac = b_rt_fac*jmag_i/(1.0_dblprec+stt_asym*stt_dot)/mmom(iatom,k)
             ! First add precessional contribution (B^S_P * (p - alpha m x p ))
             btorque(:,iatom,k) = btorque(:,iatom,k) + stt_pfac * adibeta * ( &
                sitenatom_stt_pol(:,iatom) &
@@ -388,28 +388,34 @@ contains
 
       ! ... Local variables
       integer :: iatom, k
-      real(dblprec) :: she_fact
+      real(dblprec) :: she_fact, jmag_i
 
       she_btorque=0.0_dblprec
-      ! Factor for the strenght of the spin hall torque
-      if (thick_ferro == 0.0_dblprec) then
-         write(*,*) 'ERROR: Thickness of ferromagnetic layer (thick_ferro) must be non-zero.'
-         stop
-      endif
-      ! Previous factor:
-      ! she_fact=she_angle/(spin_pol*thick_ferro)
-      ! New factor according to Meo 2023 below (see also set_curr_density)
+      ! Factor for the strength of the spin hall torque
+      ! sot_rt_fac is the SHE prefactor [T per (A/m^2)] computed in set_curr_density,
+      ! which includes hbar, SHE_angle, area_per_atom, and thick_ferro.
+      ! We compute site-local current magnitude and incorporate it here.
+
+      ! Note: The she_btorque array contains field contributions to the 
+      ! solver, not torques. Unit is in Tesla here.
 
       she_btorque = 0.0_dblprec
-      !$omp parallel do default(shared) private(iatom,k)
+      !$omp parallel do default(shared) private(iatom,k,jmag_i,she_fact)
       do k=1, Mensemble
          do iatom=1, Natom
-            she_fact = sot_rt_fac / mmom(iatom,k)
+            ! Compute site-local current magnitude
+            if (use_jdens_site) then
+               jmag_i = norm2(jdens_site(:,iatom))
+            else
+               jmag_i = norm2(jdens_cell)
+            endif
+            ! she_fact includes both the SHE prefactor and local current magnitude
+            she_fact = (sot_rt_fac * jmag_i) / mmom(iatom,k)
             ! Precession part (B^S_P * (p - alpha m x p ))
             she_btorque(:,iatom,k) = she_btorque(:,iatom,k) + she_fact * adibeta * ( &
                she_sigma_vec - lambda1_array(iatom) * f_cross_product(emom(:,iatom,k),she_sigma_vec) &
                )
-            ! Then add damping contribution (B^S_R * (m x p + alpha p))
+            ! Then add damping contribution (B^S_R * (m x p + alpha p)) (temporary change of sign)
             she_btorque(:,iatom,k) = she_btorque(:,iatom,k) + she_fact * ( &
                f_cross_product(emom(:,iatom,k),she_sigma_vec) + &
                lambda1_array(iatom) * she_sigma_vec )
@@ -417,7 +423,9 @@ contains
             ! she_btorque(2,iatom,k) =-she_fact*sitenatomjvec(2,iatom)*emom(3,iatom,k)+lambda1_array(iatom)*mmom(iatom,k)*sitenatomjvec(1,iatom)
             ! she_btorque(3,iatom,k) = she_fact*sitenatomjvec(2,iatom)*emom(2,iatom,k)+she_fact*sitenatomjvec(1,iatom)*emom(1,iatom,k)
             ! print '(g12.4, 3g12.4)', she_fact, she_btorque(:,iatom,k)
-            ! print '(g12.4, 3g12.4)', she_fact, she_sigma_vec
+            ! print '(g12.4, 3g12.4)', 0.0d0   , she_sigma_vec
+            ! For only damping torque: (with fixed strength 0.4 T)
+            !she_btorque(:,iatom,k) = 0.4 *  f_cross_product(emom(:,iatom,k),she_sigma_vec)
          enddo
       enddo
       !$omp end parallel do
@@ -487,7 +495,7 @@ contains
             !
             sot_btorque(2,iatom,ens)=-(sot_field-lambda1_array(iatom)*sot_damping)*sitenatom_sot_pol(2,iatom)&
             -(sot_damping+lambda1_array(iatom)*sot_field)*&
-            (emom(3,iatom,ens)*sitenatom_sot_pol(1,iatom)-emom(1,iatom,ens)*sitenatom_sot_pol(2,iatom))
+            (emom(3,iatom,ens)*sitenatom_sot_pol(1,iatom)-emom(1,iatom,ens)*sitenatom_sot_pol(3,iatom))
             !
             sot_btorque(3,iatom,ens)=-(sot_field-lambda1_array(iatom)*sot_damping)*sitenatom_sot_pol(3,iatom)&
             -(sot_damping+lambda1_array(iatom)*sot_field)*&
@@ -1090,12 +1098,15 @@ contains
       real(dblprec) :: V_at              ! [m^3] per atom in cell (magnetic atoms counted by NA)
       real(dblprec) :: total_mom         ! [mu_B] sum of moments in the reference cell
       real(dblprec) :: xy_area           ! [m^2]
+      real(dblprec) :: area_per_atom     ! [m^2] area per atom in the unit cell
+      real(dblprec) :: thickness_eff     ! [m] effective thickness for SHE calculation
       real(dblprec) :: jmag              ! [A/m^2]
       real(dblprec), dimension(3) :: jdir
       real(dblprec), dimension(3) :: n_norm, sigma_raw
       real(dblprec) :: detC              ! dimensionless determinant of C1,C2,C3
       real(dblprec) :: g_factor          ! dimensionless electron g-factor (derived)
       real(dblprec), parameter :: eps = 1.0e-15_dblprec
+      real(dblprec) :: t_layer            ! [m] thickness of one magnetic layer along n
 
       !-----------------------------------------------------------------------
       ! 0) Defaults / sanity
@@ -1143,6 +1154,33 @@ contains
       !    Downstream you typically multiply by |j| and divide by local mmom.
       !-----------------------------------------------------------------------
       b_rt_fac = hbar * spin_pol / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub
+
+      !-----------------------------------------------------------------------
+      ! 4.5) SHE prefactor with thickness scaling (REVISED):
+      !    sot_rt_fac = ħ * θ_SHE / (2e) * (A_per_atom) / t_f / μB
+      !    Units: [ħ][T] / [e][m^2][m][μB] = T per (A/m^2)
+      !    This is applied per unit current density; site-local |j| included in SHE_torque.
+      !    If thick_ferro <= 0, use N3 * norm(C3) * alat as effective thickness.
+      !-----------------------------------------------------------------------
+      area_per_atom = xy_area / real(NA, dblprec)
+
+      ! Thickness of one simulated magnetic layer along n (meters).
+      ! For your orthonormal square cell this is just alat.
+      t_layer = cell_vol / xy_area     ! robust even if C3 not unit length
+
+      ! Choose effective FM thickness (meters)
+      if (thick_ferro > 0.0_dblprec) then
+         thickness_eff = thick_ferro
+         write(*,'(1x,a,ES14.6,1x,a)') 'SHE thickness (thick_ferro):', thickness_eff, 'm'
+      else
+         thickness_eff = real(N3, dblprec) * t_layer
+         write(*,'(1x,a,ES14.6,1x,a)') 'SHE thickness (auto: N3 × t_layer):', thickness_eff, 'm'
+      endif
+
+      ! Base prefactor per current density (Tesla per A/m^2), monolayer-normalized:
+      ! B_SHE = (ħ θ / 2e) * (A_atom/μB) * (t_layer/thickness_eff) * j / mmom
+      sot_rt_fac = hbar * SHE_angle / (2.0_dblprec*ev) * area_per_atom / mub * (t_layer / thickness_eff)
+
 
       !-----------------------------------------------------------------------
       ! 5) Zhang–Li (Schieback / Zhang–Li) prefactor for lattice-unit gradients
@@ -1198,16 +1236,19 @@ contains
       write(*,'(1x,a,ES14.6,1x,a)') 'Interface area (C1xC2):', xy_area, 'm^2'
       write(*,'(1x,a,ES14.6)')      'Slonczewski prefactor (b_rt_fac):', b_rt_fac
       write(*,'(1x,a,ES14.6,1x,a)') 'Zhang–Li lattice prefactor (b_zhang_li_fac):', b_zhang_li_fac, 'm^2/C'
+      write(*,'(1x,a,ES14.6)')      'SHE prefactor (sot_rt_fac) [T per (A/m^2)]:', sot_rt_fac
       write(*,'(1x,a,3(ES14.6,1x),a,ES14.6)') 'jdens [A/m^2]:', jdens(1), jdens(2), jdens(3), ' |j|=', norm2(jdens)
+      if (do_she == 'Y' .and. norm2(jdens) > eps) then
+         write(*,'(1x,a,ES14.6)') 'Implied B_SHE = sot_rt_fac × |j| [T]:', sot_rt_fac * norm2(jdens)
+      endif
 
       !-----------------------------------------------------------------------
-      ! 8) SHE sigma determination (unchanged logic; uses physical jdens)
+      ! 8) SHE sigma determination (sigma direction only; magnitude in SHE_torque)
       !-----------------------------------------------------------------------
       jmag = norm2(jdens)
 
       if (jmag <= eps) then
          she_sigma_vec = 0.0_dblprec
-         sot_rt_fac    = 0.0_dblprec
          if (do_she == 'Y') write(*,'(1x,a)') 'WARNING: SHE enabled but |jdens| ~ 0; SHE torque will be zero'
       else
          jdir = jdens / jmag
@@ -1218,26 +1259,21 @@ contains
 
             if (norm2(sigma_raw) <= eps) then
                she_sigma_vec = 0.0_dblprec
-               sot_rt_fac    = 0.0_dblprec
                if (do_she == 'Y') write(*,'(1x,a)') 'WARNING: SHE: she_n_vec parallel to jdens; sigma undefined; torque disabled'
             else
                she_sigma_vec = sigma_raw / norm2(sigma_raw)
-               sot_rt_fac = hbar * SHE_angle / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub * jmag
                if (do_she == 'Y') then
                   write(*,'(1x,a)') 'SHE sigma mode: sigma = n × j'
                   write(*,'(1x,a,3(G14.6,1x))') '  n (normalized): ', n_norm
                   write(*,'(1x,a,3(G14.6,1x))') '  j direction:    ', jdir
                   write(*,'(1x,a,3(G14.6,1x))') '  sigma:          ', she_sigma_vec
-                  write(*,'(1x,a,ES14.6)') '  SHE strength (sot_rt_fac): ', sot_rt_fac
                endif
             endif
          else
             she_sigma_vec = jdir
-            sot_rt_fac = hbar * SHE_angle / (2.0_dblprec*ev) * xy_area / real(NA*N3, dblprec) / mub * jmag
             if (do_she == 'Y') then
                write(*,'(1x,a)') 'SHE sigma mode: sigma = jdir (no she_n_vec provided)'
                write(*,'(1x,a,3(G14.6,1x))') '  sigma (= j direction): ', she_sigma_vec
-               write(*,'(1x,a,ES14.6)') '  SHE strength (sot_rt_fac): ', sot_rt_fac
             endif
          endif
       endif
