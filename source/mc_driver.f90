@@ -253,6 +253,7 @@ contains
       use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use ChemicalData, only : achtype
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
+      use Math_functions, only : f_logstep
       !use InducedMoments,        only : renorm_ncoup_ind
       use macrocells
       use optimizationRoutines
@@ -261,7 +262,7 @@ contains
       !
       implicit none
       !
-      integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc, mcmstep
+      integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc, mcmstep, sstep
       real(dblprec) :: temprescale,temprescalegrad,dummy,totene
       real(dblprec), dimension(3) :: hfield0
 
@@ -317,6 +318,26 @@ contains
             call autocorr_sample(Natom, Mensemble, simid, mcmstep, emom)
          end if
 
+         ! Calculate total and term resolved energies
+         if(plotenergy>0) then
+            sstep = f_logstep(mcmstep,logsamp)
+            if (mod(mcmstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(sstep-1,cumu_step)==0)) then
+               call timing(0,'Measurement   ','OF')
+               call timing(0,'Energy        ','ON')
+               totene=0.0_dblprec
+
+               call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
+                  conf_num,Mensemble,Natom,Num_macro,1, &
+                  plotenergy,Temp,1.0_dblprec,do_lsf,    &
+                  lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
+                  emom,emomM,emomM_macro,external_field,time_external_field,               &
+                  max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
+                  constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
+               call timing(0,'Energy        ','OF')
+               call timing(0,'Measurement   ','ON')
+            end if
+         endif
+
          ! Measure averages and trajectories
          call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mcmstep,emom,emomM, &
             mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
@@ -326,22 +347,6 @@ contains
             ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
             ham%sus_ind,do_mom_legacy,mode)
          call timing(0,'Measurement   ','OF')
-
-         ! Calculate total and term resolved energies
-         if(plotenergy>0.and.mod(mcmstep-1,avrg_step)==0) then
-
-            call timing(0,'Energy        ','ON')
-            totene=0.0_dblprec
-
-            call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
-               conf_num,Mensemble,Natom,Num_macro,1, &
-               plotenergy,Temp,1.0_dblprec,do_lsf,    &
-               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
-               emom,emomM,emomM_macro,external_field,time_external_field,               &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
-               constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
-            call timing(0,'Energy        ','OF')
-         endif
 
          call timing(0,'SpinCorr      ','ON')
          ! Spin correlation
@@ -432,20 +437,23 @@ contains
       call timing(0,'MonteCarlo    ','OF')
       call timing(0,'Measurement   ','ON')
 
-      if(plotenergy>0.and.mod(mcmstep-1,avrg_step)==0) then
-         call timing(0,'Measurement   ','OF')
-         call timing(0,'Energy        ','ON')
-         totene=0.0_dblprec
+      if(plotenergy>0) then
+         sstep = f_logstep(mcmstep,logsamp)
+         if (mod(mcmstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(sstep-1,cumu_step)==0)) then
+            call timing(0,'Measurement   ','OF')
+            call timing(0,'Energy        ','ON')
+            totene=0.0_dblprec
 
-         call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
-            conf_num,Mensemble,Natom,Num_macro,1, &
-            plotenergy,Temp,1.0_dblprec,do_lsf,    &
-            lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
-            emom,emomM,emomM_macro,external_field,time_external_field,               &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
-            constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
-         call timing(0,'Energy        ','OF')
-         call timing(0,'Measurement   ','ON')
+            call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
+               conf_num,Mensemble,Natom,Num_macro,1, &
+               plotenergy,Temp,1.0_dblprec,do_lsf,    &
+               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
+               emom,emomM,emomM_macro,external_field,time_external_field,               &
+               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
+               constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
+            call timing(0,'Energy        ','OF')
+            call timing(0,'Measurement   ','ON')
+         end if
       endif
 
       ! Print remaining measurements

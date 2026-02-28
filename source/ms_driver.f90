@@ -452,20 +452,11 @@ contains
             time_external_field=0.0_dblprec
          endif
 
-         ! Measure averages and trajectories
-         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
-            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
-            Temp,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
-            ham%max_no_neigh,                                                       &
-            ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,    &
-            beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,          &
-            ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
-
          ! Calculate total and term resolved energies
          if(plotenergy>0) then
             call timing(0,'Measurement   ','OF')
             call timing(0,'Energy        ','ON')
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
                call calc_energy(nHam,mstep,Natom,Nchmax, &
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
@@ -479,6 +470,15 @@ contains
             call timing(0,'Measurement   ','ON')
 
          endif
+
+         ! Measure averages and trajectories
+         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
+            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
+            Temp,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
+            ham%max_no_neigh,                                                       &
+            ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,    &
+            beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,          &
+            ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
 
          call timing(0,'Measurement   ','OF')
          call timing(0,'SpinCorr      ','ON')
@@ -671,16 +671,8 @@ contains
 
       end do ! End loop over simulation steps
 
-      ! Measure averages and trajectories
-      call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,mmom, &
-         Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp,temprescale,&
-         temprescalegrad,real_time_measure,delta_t,logsamp,ham%max_no_neigh,ham%nlist,ham%ncoup,&
-         ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,               &
-         ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind,    &
-         ham%sus_ind,do_mom_legacy,mode)
-
       if(plotenergy>0) then
-         if (mod(mstep-1,avrg_step)==0) then
+         if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
             call calc_energy(nHam,mstep,Natom,Nchmax, &
                conf_num,Mensemble,Natom,Num_macro,1,         &
                plotenergy,Temp,delta_t,do_lsf,        &
@@ -691,6 +683,14 @@ contains
                constellationsNeighType,totene,NA,N1,N2,N3)
          end if
       endif
+
+            ! Measure averages and trajectories
+            call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,mmom, &
+               Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp,temprescale,&
+               temprescalegrad,real_time_measure,delta_t,logsamp,ham%max_no_neigh,ham%nlist,ham%ncoup,&
+               ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,               &
+               ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind,    &
+               ham%sus_ind,do_mom_legacy,mode)
 
       ! Print remaining measurements
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mstep,emom,mmom, &

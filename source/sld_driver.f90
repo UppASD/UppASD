@@ -161,7 +161,6 @@ contains
    !> Lattice Dynamics measurement phase
    !
    !> @author
-   !> Johan Hellsvik
    !---------------------------------------------------------------------------
    subroutine ld_mphase()
       !
@@ -1097,18 +1096,9 @@ contains
          !call timing(0,'Hamiltonian   ','OF')
          !call timing(0,'Measurement   ','ON')
 
-         ! Measure averages and trajectories (only spin part)
-         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
-            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
-            Temp_s,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
-            ham%max_no_neigh,ham%nlist,                                             &
-            ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,  &
-            ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
-            ham%sus_ind,do_mom_legacy,mode)
-
          ! Calculate total and term resolved spin energies
          if(plotenergy>0) then
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
                ! print *,'Energy!', mstep-1
                totenergy=0.0_dblprec
                call calc_energy(nHam,mstep,Natom,Nchmax,  &
@@ -1129,6 +1119,15 @@ contains
                   totpot_energy,sld_single_energy,mm_energy0,ammom_inp,aemom_inp,NA)
              end if
          endif
+
+             ! Measure averages and trajectories (only spin part)
+             call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
+               mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
+               Temp_s,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
+               ham%max_no_neigh,ham%nlist,                                             &
+               ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,  &
+               ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
+               ham%sus_ind,do_mom_legacy,mode)
 
          ! Calculate energies of the lattice and the spin-lattice Hamiltonians
          ! The energy of the magnetic system was calculated with the call to calc_energy
@@ -1419,6 +1418,21 @@ contains
       !!!   write(*,*) 'Fraction of spin correlation samples relative to input specification:', 100*sc_tidx/sc_nstep, '%'
       !!!end if
 
+      ! Calculate total and term resolved spin energies
+      if(plotenergy>0) then
+         if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
+            totenergy=0.0_dblprec
+            call calc_energy(nHam,mstep,Natom,Nchmax, &
+               conf_num,Mensemble,Natom,Num_macro,1,     &
+               plotenergy,Temp_s,delta_t,do_lsf,    &
+               lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
+               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
+               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
+               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
+               totenergy,NA,N1,N2,N3)
+         end if
+      endif
+
       ! Measure averages and trajectories
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,mmom, &
          Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp_s,       &
@@ -1432,21 +1446,6 @@ contains
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mstep,emom,mmom, &
          Nchmax,atype,real_time_measure,rstep+nstep,ham%ind_list_full,do_mom_legacy,&
          mode)
-
-      ! Calculate total and term resolved spin energies
-      if(plotenergy>0) then
-         if (mod(mstep-1,avrg_step)==0) then
-            totenergy=0.0_dblprec
-            call calc_energy(nHam,mstep,Natom,Nchmax, &
-               conf_num,Mensemble,Natom,Num_macro,1,     &
-               plotenergy,Temp_s,delta_t,do_lsf,    &
-               lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
-               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
-               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
-               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
-               totenergy,NA,N1,N2,N3)
-         end if
-      endif
 
       ! Apply lattice Hamiltonian to obtain effective field
       call effective_latticefield(Natom,Mensemble,1,Natom,do_ll,     &
@@ -1730,18 +1729,9 @@ contains
             do_ml,do_mml,mode,uvec,emomM,latt_external_field,               &
             latt_time_external_field,eeff,eeff1,eeff2,eeff3)
 
-         ! Measure averages and trajectories
-         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
-            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
-            Temp,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
-            ham%max_no_neigh,ham%nlist,&
-            ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,  &
-            ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
-            ham%sus_ind,do_mom_legacy,mode)
-
          ! Calculate total and term resolved spin energies
          if(plotenergy>0) then
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
                totenergy=0.0_dblprec
                call calc_energy(nHam,mstep,Natom,Nchmax,  &
                   conf_num,Mensemble,nHam,Num_macro,1,   &
@@ -1753,6 +1743,15 @@ contains
                   constellationsNeighType,totenergy,NA,N1,N2,N3)
             end if
          endif
+
+               ! Measure averages and trajectories
+               call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
+               mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
+               Temp,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
+               ham%max_no_neigh,ham%nlist,&
+               ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,beff3,coord,  &
+               ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,ham%max_no_neigh_ind, &
+               ham%sus_ind,do_mom_legacy,mode)
 
          ! Calculate energies of the lattice and the spin-lattice Hamiltonians
          ! The energy of the magnetic system was calculated with the call to calc_energy
@@ -1975,6 +1974,21 @@ contains
 
       end do ! End loop over simulation steps
 
+      ! Calculate total and term resolved spin energies
+      if(plotenergy>0) then
+         if (mod(mstep-1,avrg_step)==0 .or. (do_cumu/='N' .and. mod(f_logstep(mstep,logsamp)-1,cumu_step)==0)) then
+            totenergy=0.0_dblprec
+            call calc_energy(nHam,mstep,Natom,Nchmax, &
+               conf_num,Mensemble,nHam,Num_macro,1,      &
+               plotenergy,Temp,delta_t,do_lsf,    &
+               lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
+               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
+               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
+               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
+               totenergy,NA,N1,N2,N3)
+         end if
+      endif
+
       ! Measure averages and trajectories
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,mmom, &
          Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,Temp,temprescale,&
@@ -1987,21 +2001,6 @@ contains
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,mstep,emom,mmom, &
          Nchmax,atype,real_time_measure,rstep+nstep,ham%ind_list_full,do_mom_legacy,&
          mode)
-
-      ! Calculate total and term resolved spin energies
-      if(plotenergy>0) then
-         if (mod(mstep-1,avrg_step)==0) then
-            totenergy=0.0_dblprec
-            call calc_energy(nHam,mstep,Natom,Nchmax, &
-               conf_num,Mensemble,nHam,Num_macro,1,      &
-               plotenergy,Temp,delta_t,do_lsf,    &
-               lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
-               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
-               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
-               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
-               totenergy,NA,N1,N2,N3)
-         end if
-      endif
 
       ! Apply lattice Hamiltonian to obtain effective field
       call effective_latticefield(Natom,Mensemble,1,Natom,do_ll,     &

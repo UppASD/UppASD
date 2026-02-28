@@ -119,6 +119,7 @@ contains
       real(dblprec) :: energy_dip
       real(dblprec) :: ene_ext_m, ene_ext_s, fcinv,fc
       real(dblprec) :: exc,edm,ebq,ering,edip,eext,epair,ebqdm,epd,eani,echir, esa
+      real(dblprec) :: eterm
       real(dblprec) :: energy_m, energy_s, ene_ani_m, ene_ani_s, ene_xc_m, ene_xc_s,ene_lsf_m,ene_lsf_s
       real(dblprec) :: ene_dm_m, ene_dm_s, ene_pd_m, ene_pd_s, ene_bqdm_m, ene_bqdm_s, ene_chir_s, ene_sa_m, ene_sa_s
       real(dblprec) :: ene_bq_m, ene_bq_s, ene_ring_s, ene_ring_m, ene_dip_m, ene_dip_s, ene_pair_m,ene_pair_s, ene_chir_m
@@ -195,7 +196,7 @@ contains
 
 #if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)
             !$omp parallel do default(shared) schedule(static) &
-            !$omp& private(ii,beff_xc,beff_dm,beff_sa,beff_pd,beff_bq,beff_ext,beff_dip,beff_ani,beff_cani,beff_tani,beff_pair,beff_bqdm,beff_mdip) &
+            !$omp& private(ii,beff_xc,beff_dm,beff_sa,beff_pd,beff_bq,beff_ext,beff_dip,beff_ani,beff_cani,beff_tani,beff_pair,beff_bqdm,beff_mdip,eterm) &
             !$omp& reduction(+:exc,edm,epair,epd,ebqdm,ebq,edip,eani,eext,esa,beff_chir)
 #endif
             do ii=start_atom, stop_atom
@@ -221,65 +222,75 @@ contains
                   if(ham_inp%exc_inter=='N') then
                      call heisenberg_field(ii,kk,beff_xc,Natom,Mensemble,OPT_flag,&
                         beff1_constellations,unitCellType,emomM,max_no_constellations)
-                     exc=exc+update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
-                     if(plotenergy==2) site_energy(1,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     exc=exc+eterm
+                     if(plotenergy==2) site_energy(1,ii,kk)=eterm
                   else
                      call heisenberg_rescaling_field(ii,kk,beff_xc,Natom,Mensemble,mmom,emomM)
-                     exc=exc+update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
-                     if(plotenergy==2) site_energy(1,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
+                     exc=exc+eterm
+                     if(plotenergy==2) site_energy(1,ii,kk)=eterm
                   endif
                   ! Dzyaloshinskii-Moriya term
                   if(ham_inp%do_dm==1) then
                      call dzyaloshinskii_moriya_field(ii, kk, beff_dm,Natom,Mensemble,emomM)
-                     edm=edm+update_ene(emomM(1:3,ii,kk),beff_dm,0.5_dblprec)
-                     if(plotenergy==2) site_energy(2,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_dm,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_dm,0.5_dblprec)
+                     edm=edm+eterm
+                     if(plotenergy==2) site_energy(2,ii,kk)=eterm
                   endif
                   ! Symmetric anisotropic term
                   if(ham_inp%do_sa==1) then
                      call symmetric_anisotropic_field(ii, kk, beff_sa,Natom,Mensemble,emomM)
-                     esa=esa+update_ene(emomM(1:3,ii,kk),beff_sa,0.5_dblprec)
-                     if(plotenergy==2) site_energy(2,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_sa,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_sa,0.5_dblprec)
+                     esa=esa+eterm
+                     if(plotenergy==2) site_energy(2,ii,kk)=eterm
                   endif
                   beff_pair=beff_xc+beff_dm+beff_sa
                else
                   call tensor_field(ii, kk, beff_pair,Natom,Mensemble,emomM)
-                  epair=epair+update_ene(emomM(1:3,ii,kk),beff_pair,0.5_dblprec)
-                  if(plotenergy==2) site_energy(2,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_pair,0.5_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_pair,0.5_dblprec)
+                  epair=epair+eterm
+                  if(plotenergy==2) site_energy(2,ii,kk)=eterm
                end if
 
                ! Pseudo-Dipolar term
                if(ham_inp%do_pd==1) then
                   call pseudo_dipolar_field(ii, kk, beff_pd,Natom,Mensemble,emomM)
-                  epd=epd+update_ene(emomM(1:3,ii,kk),beff_pd,0.5_dblprec)
-                  if(plotenergy==2) site_energy(3,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_pd,0.5_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_pd,0.5_dblprec)
+                  epd=epd+eterm
+                  if(plotenergy==2) site_energy(3,ii,kk)=eterm
                endif
 
                ! BIQDM term
                if(ham_inp%do_biqdm==1) then
                   call dzyaloshinskii_moriya_bq_field(ii, kk, beff_bqdm,Natom,Mensemble,emomM)
-                  ebqdm=ebqdm+update_ene(emomM(1:3,ii,kk),beff_bqdm,0.5_dblprec)
-                  if(plotenergy==2) site_energy(4,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_bqdm,0.5_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_bqdm,0.5_dblprec)
+                  ebqdm=ebqdm+eterm
+                  if(plotenergy==2) site_energy(4,ii,kk)=eterm
                endif
 
                ! Biquadratic exchange term
                if(ham_inp%do_bq==1) then
                   call biquadratic_field(ii, kk, beff_bq,Natom,Mensemble,emomM)
-                  ebq=ebq+update_ene(emomM(1:3,ii,kk),beff_bq,0.25_dblprec)
-                  if(plotenergy==2) site_energy(5,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_bq,0.25_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_bq,0.25_dblprec)
+                  ebq=ebq+eterm
+                  if(plotenergy==2) site_energy(5,ii,kk)=eterm
                endif
 
                ! Four-spin ring exchange term
                if(ham_inp%do_ring==1) then
                   call ring_field(ii, kk, beff_ring,Natom,Mensemble,emomM)
-                  ering=ering+update_ene(emomM(1:3,ii,kk),beff_ring,0.25_dblprec)
-                  if(plotenergy==2) site_energy(11,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_ring,0.25_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_ring,0.25_dblprec)
+                  ering=ering+eterm
+                  if(plotenergy==2) site_energy(11,ii,kk)=eterm
                endif
 
                ! Biquadratic exchange term
                if(ham_inp%do_chir==1) then
                   call chirality_field(ii, kk, beff_chir,Natom,Mensemble,emomM)
-                  echir=echir+update_ene(emomM(1:3,ii,kk),beff_chir,0.50_dblprec)
-                  if(plotenergy==2) site_energy(10,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_chir,0.5_dblprec)
+                  eterm=update_ene(emomM(1:3,ii,kk),beff_chir,0.50_dblprec)
+                  echir=echir+eterm
+                  if(plotenergy==2) site_energy(10,ii,kk)=eterm
                endif
 
                ! Dipolar energy contribution
@@ -287,8 +298,9 @@ contains
                if (ham_inp%do_dip>0) then
                   ! Site-dependent methods
                   if (ham_inp%do_dip.ne.2) then
-                     edip=edip+update_ene(emomM(1:3,ii,kk),bfield_dip(1:3,ii,kk),0.5_dblprec)
-                     if(plotenergy==2) site_energy(6,ii,kk)=update_ene(emomM(1:3,ii,kk),bfield_dip(1:3,ii,kk),0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),bfield_dip(1:3,ii,kk),0.5_dblprec)
+                     edip=edip+eterm
+                     if(plotenergy==2) site_energy(6,ii,kk)=eterm
                   ! Macrocell method
                   else
                      call calc_macro_energy(ii,kk,bfield_dip(1:3,ii,kk),edip,Natom, &
@@ -301,26 +313,30 @@ contains
                   if (ham%taniso(ii)==1) then
                      ! Uniaxial anisotropy
                      call uniaxial_anisotropy_field(ii, kk, beff_tani,Natom,Mensemble,ham_inp%mult_axis,emomM)
-                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
-                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eani=eani+eterm
+                     if(plotenergy==2) site_energy(7,ii,kk)=eterm
                   elseif (ham%taniso(ii)==2) then
                      ! Cubic anisotropy
                      call cubic_anisotropy_field(ii, kk, beff_tani,Natom,Mensemble,ham_inp%mult_axis,emomM)
-                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
-                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eani=eani+eterm
+                     if(plotenergy==2) site_energy(7,ii,kk)=eterm
                   elseif (ham%taniso(ii)==7)then
                      ! Uniaxial and cubic anisotropy
                      call uniaxial_anisotropy_field(ii, kk, beff_ani,Natom,Mensemble,ham_inp%mult_axis,emomM)
                      call cubic_anisotropy_field(ii, kk, beff_cani,Natom,Mensemble,ham_inp%mult_axis,emomM)
                      beff_tani=beff_ani+beff_cani*ham%sb(ii)
-                     eani=eani+update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
-                     if(plotenergy==2) site_energy(7,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eterm=update_ene(emomM(1:3,ii,kk),beff_tani,0.5_dblprec)
+                     eani=eani+eterm
+                     if(plotenergy==2) site_energy(7,ii,kk)=eterm
                   endif
                endif
                ! Contribution of the external field to the energy
                beff_ext=time_external_field(1:3,ii,kk)+external_field(1:3,ii,kk)
-               eext=eext+update_ene(emomM(1:3,ii,kk),beff_ext,1.0_dblprec)
-               if(plotenergy==2) site_energy(8,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_ext,1.0_dblprec)
+               eterm=update_ene(emomM(1:3,ii,kk),beff_ext,1.0_dblprec)
+               eext=eext+eterm
+               if(plotenergy==2) site_energy(8,ii,kk)=eterm
             end do
 #if ((! defined  __PATHSCALE__) || (! defined __PGIF90__)) && (!_OPENMP < 201307)
          !$omp end parallel do

@@ -27,8 +27,7 @@ module prn_averages
 
    ! Local calculations for printing
    integer :: Navrgcum        !< Counter for number of cumulated averages
-   real(dblprec) :: cumuw     !< Weight for current sample to cumulant
-   real(dblprec) :: cumutotw  !< Sum of all cumulant weights 
+   integer :: Navrgecum       !< Counter for number of cumulated energy samples
    integer :: Navrgcum_proj   !< Counter for number of cumulated projected averages
    real(dblprec) :: mavg      !< Average magnetic moment
    real(dblprec) :: totene    !< Total energy
@@ -39,11 +38,10 @@ module prn_averages
    real(dblprec) :: avrgetcum !< Cumulated average of E_xc
    real(dblprec) :: avrgelcum !< Cumulated average of E_LSF
    real(dblprec) :: avrgm4cum !< Cumulated average of m^4
-   real(dblprec) :: avrgm2cum !< Cumulated average of m^2
+   real(dblprec) :: avrgm_varacc !< Welford second central moment accumulator for m
    real(dblprec) :: avrgl4cum !< Cumulated average of l^4
-   real(dblprec) :: avrgl2cum !< Cumulated average of l^2
-   real(dblprec) :: avrge2cum !< Cumulated average of E^2
-
+   real(dblprec) :: avrgl_varacc !< Welford second central moment accumulator for l
+   real(dblprec) :: avrge_varacc !< Welford second central moment accumulator for E
    real(dblprec), dimension(:), allocatable       :: indxb_avrg       !< Step counter for average magnetization
    real(dblprec), dimension(:,:,:), allocatable   :: mavg_buff        !< Buffer for average magnetizations
    real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff_proj  !< Buffer for squared projected averages
@@ -277,19 +275,18 @@ contains
       !
       implicit none
       Navrgcum          = 0
-      cumuw             = 0.0_dblprec
-      cumutotw          = 0.0_dblprec
+      Navrgecum         = 0
       Navrgcum_proj     = 0
       avrgmcum          = 0.0_dblprec
-      avrgm2cum         = 0.0_dblprec
+      avrgm_varacc      = 0.0_dblprec
       avrgm4cum         = 0.0_dblprec
       avrglcum          = 0.0_dblprec
-      avrgl2cum         = 0.0_dblprec
+      avrgl_varacc      = 0.0_dblprec
       avrgl4cum         = 0.0_dblprec
       avrgecum          = 0.0_dblprec
       avrgetcum         = 0.0_dblprec
       avrgelcum         = 0.0_dblprec
-      avrge2cum         = 0.0_dblprec
+      avrge_varacc      = 0.0_dblprec
       totene            = 0.0_dblprec
    end subroutine zero_cumulant_counters
 
@@ -940,13 +937,18 @@ contains
       !.. Scalar variables
       integer :: i,k
       character(len=30) :: filn
-      real(dblprec) :: avrgme, avrgm2, avrgm4
+      real(dblprec) :: avrgme, avrgm4
       real(dblprec) :: cumulant, avrgmt, avrgmt2, avrgmt4
-      real(dblprec) :: pmsusc, cv, avrgen, avrgen2, avrgent,avrgenl
+      real(dblprec) :: pmsusc, cv, avrgen, avrgent,avrgenl
+      real(dblprec) :: chi_err, cv_err
+      real(dblprec) :: delta_m, delta_e, m_var_unb, e_var_unb, m_var_se, e_var_se
+      real(dblprec) :: sample_m, sample_m4, sample_e, sample_exc, sample_elsf
+      logical :: sample_ready
       real(dblprec),dimension(3) :: m
 
       cumulant=0_dblprec;avrgmt=0_dblprec;avrgmt2=0_dblprec;avrgmt4=0_dblprec
-      pmsusc=0_dblprec;cv=0_dblprec
+      pmsusc=0_dblprec;cv=0_dblprec;chi_err=0_dblprec;cv_err=0_dblprec
+      sample_ready=.false.
 
       do k=1,Mensemble
          m=0.0_dblprec
@@ -961,82 +963,101 @@ contains
          !$omp end parallel do
 #endif
          avrgme = norm2(m)/Natom
-         avrgm2 = avrgme**2
-         avrgm4 = avrgm2**2
+         avrgm4 = avrgme**4
 
-         cumuw = cumuw + 1.0_dblprec
+         sample_m = avrgme
+         sample_m4 = avrgm4
+         if(plotenergy>0) then
+            sample_e = ene%energy(k)
+            sample_exc = ene%ene_xc(k)
+            sample_elsf = ene%ene_lsf(k)
+         end if
+         sample_ready=.true.
 
-         avrgmt  = (avrgmcum*cumutotw+avrgme*cumuw )/(cumutotw+cumuw)
-         avrgmt2 = (avrgm2cum*cumutotw+avrgm2*cumuw)/(cumutotw+cumuw)
-         avrgmt4 = (avrgm4cum*cumutotw+avrgm4*cumuw)/(cumutotw+cumuw)
+         Navrgcum = Navrgcum+1
+         delta_m = sample_m-avrgmcum
+         avrgmcum = avrgmcum + delta_m/Navrgcum
+         avrgm_varacc = avrgm_varacc + delta_m*(sample_m-avrgmcum)
+         avrgmt = avrgmcum
+         avrgmt2 = avrgmt**2 + avrgm_varacc/Navrgcum
+         avrgmt4 = ((Navrgcum-1)*avrgm4cum+sample_m4)/Navrgcum
 
-         !!!avrgmt = (Navrgcum*avrgmcum+avrgme)/(Navrgcum+1)
-         !!!avrgmt2 = (Navrgcum*avrgm2cum+avrgm2)/(Navrgcum+1)
-         !!!avrgmt4 = (Navrgcum*avrgm4cum+avrgm4)/(Navrgcum+1)
-
-         cumulant = 1-(avrgmt4/3/avrgmt2**2)
-         avrgmcum = avrgmt
-         avrgm2cum = avrgmt2
+         if(avrgmt2>0.0_dblprec) then
+            cumulant = 1-(avrgmt4/3/avrgmt2**2)
+         else
+            cumulant = 0.0_dblprec
+         end if
          avrgm4cum = avrgmt4
 
          !Specific heat (cv) and susceptibility (pmsusc)
+         if(Navrgcum>1) then
+            m_var_unb = avrgm_varacc/(Navrgcum-1)
+         else
+            m_var_unb = 0.0_dblprec
+         end if
+         if(Navrgcum>2) then
+            m_var_se = m_var_unb*sqrt(2.0_dblprec/(Navrgcum-1.0_dblprec))
+         else
+            m_var_se = 0.0_dblprec
+         end if
          if(Temp>0.0_dblprec) then
-            pmsusc = (avrgmt2-avrgmt**2) * mub**2 * Natom / (k_bolt**2) / Temp     ! units of k_B
+            pmsusc = m_var_unb * mub**2 * Natom / (k_bolt**2) / Temp     ! units of k_B
+            chi_err = m_var_se * mub**2 * Natom / (k_bolt**2) / Temp
          else
             !For T=0, not the proper susceptibility
-            pmsusc = (avrgmt2-avrgmt**2) * Natom * mub**2 / k_bolt
+            pmsusc = m_var_unb * Natom * mub**2 / k_bolt
+            chi_err = m_var_se * Natom * mub**2 / k_bolt
          end if
 
-         if (plotenergy>0.and.Temp>0.0_dblprec) then
-            !!! avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            !!! avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            !!! avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
-            !!! avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
+         if(plotenergy>0) then
+            Navrgecum = Navrgecum+1
+            delta_e = sample_e-avrgecum
+            avrgecum = avrgecum + delta_e/Navrgecum
+            avrge_varacc = avrge_varacc + delta_e*(sample_e-avrgecum)
 
-            avrgen   = (avrgecum*cumutotw+ene%energy(k)*cumuw)/(cumutotw+cumuw)
-            avrgen2  = (avrge2cum*cumutotw+ene%energy(k)**2*cumuw)/(cumutotw+cumuw)
-            avrgent  = (avrgetcum*cumutotw+ene%ene_xc(k)*cumuw)/(cumutotw+cumuw)
-            avrgenl  = (avrgelcum*cumutotw+ene%ene_lsf(k)*cumuw)/(cumutotw+cumuw)
+            delta_e = sample_exc-avrgetcum
+            avrgetcum = avrgetcum + delta_e/Navrgecum
 
-            cv  =  ( avrgen2  -avrgen**2  ) * mry**2 / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 ! units of k_B/atom
-            avrgecum    = avrgen
-            avrge2cum   = avrgen2
-            avrgetcum   = avrgent
-            avrgelcum   = avrgenl
+            delta_e = sample_elsf-avrgelcum
+            avrgelcum = avrgelcum + delta_e/Navrgecum
 
-         else if(plotenergy>0) then
-            !!! avrgen   = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            !!! avrgen2  = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            !!! avrgent  = (Navrgcum*avrgetcum+ene%ene_xc(k))/(Navrgcum+1)
-            !!! avrgenl  = (Navrgcum*avrgelcum+ene%ene_lsf(k))/(Navrgcum+1)
-            avrgen   = (avrgecum*cumutotw+ene%energy(k)*cumuw)/(cumutotw+cumuw)
-            avrgen2  = (avrge2cum*cumutotw+ene%energy(k)**2*cumuw)/(cumutotw+cumuw)
-            avrgent  = (avrgetcum*cumutotw+ene%ene_xc(k)*cumuw)/(cumutotw+cumuw)
-            avrgenl  = (avrgelcum*cumutotw+ene%ene_lsf(k)*cumuw)/(cumutotw+cumuw)
+            avrgen = avrgecum
+            avrgent = avrgetcum
+            avrgenl = avrgelcum
 
-            cv = 0.0_dblprec
-            avrgecum    = avrgen
-            avrge2cum   = avrgen2
-            avrgetcum   = avrgent
-            avrgelcum   = avrgenl
+            if(Temp>0.0_dblprec) then
+               if(Navrgecum>1) then
+                  e_var_unb = avrge_varacc/(Navrgecum-1)
+                  cv = e_var_unb * mry**2 * Natom / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2
+                  if(Navrgecum>2) then
+                     e_var_se = e_var_unb*sqrt(2.0_dblprec/(Navrgecum-1.0_dblprec))
+                     cv_err = e_var_se * mry**2 * Natom / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2
+                  else
+                     cv_err = 0.0_dblprec
+                  end if
+               else
+                  cv = 0.0_dblprec
+                  cv_err = 0.0_dblprec
+               end if
+            else
+               cv = 0.0_dblprec
+               cv_err = 0.0_dblprec
+            end if
          else
             cv = 0.0_dblprec
+            cv_err = 0.0_dblprec
             avrgen      = 0.0_dblprec
-            avrgen2     = 0.0_dblprec
             avrgent     = 0.0_dblprec
             avrgenl     = 0.0_dblprec
             avrgecum    = 0.0_dblprec
-            avrge2cum   = 0.0_dblprec
             avrgetcum   = 0.0_dblprec
             avrgelcum   = 0.0_dblprec
+            avrge_varacc= 0.0_dblprec
          end if
-
-         Navrgcum = Navrgcum+1
-         cumutotw = cumutotw + cumuw
       end do
 
       ! Write output to file
-      if(do_prn_flag .eqv. .true.) then
+      if(do_prn_flag .eqv. .true. .and. sample_ready) then
          ! Open file
          write (filn,'(''cumulants.'',a,''.out'')') trim(simid)
          open(ofileno, file=filn, position="append")
@@ -1044,14 +1065,14 @@ contains
          ! Write header the first time
          if(Navrgcum/Mensemble==1) then
             write(ofileno,10005)"#Iter","<M>","<M^2>","<M^4>","U_{Binder}",&
-               "\chi","C_v","<E>","<E_{exc}>","<E_{lsf}>"
+               "\chi","C_v","<E>","<E_{exc}>","<E_{lsf}>","d\chi","dC_v"
          end if
          !if (real_time_measure=='Y') then
          !   write (ofileno,10014) Navrgcum/Mensemble,avrgmt,avrgmt2,avrgmt4,        &
          !      cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
          !else
          write (ofileno,10004) iter_step,avrgmt,avrgmt2,avrgmt4,        &
-            cumulant,pmsusc,cv,avrgen,avrgent,avrgenl
+            cumulant,pmsusc,cv,avrgen,avrgent,avrgenl,chi_err,cv_err
          !end if
          close(ofileno)
 
@@ -1076,19 +1097,21 @@ contains
             write(ofileno,'(a)') '    "skyrmion_std"    :  null ,'
          end if
          write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
-         write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv
+         write(ofileno,'(a,f16.8,a)') '    "susceptibility_err"  : ', chi_err,' ,'
+         write(ofileno,'(a,f16.8,a)') '    "specific_heat"   : ', cv,' ,'
+         write(ofileno,'(a,f16.8,a)') '    "specific_heat_err"   : ', cv_err
          write(ofileno,'(a)') '}'
          close(ofileno)
       end if
 
-      binderc=cumulant
+      if(sample_ready) binderc=cumulant
 
       return
 
       write(*,*) 'Error writing the cumulant file'
-      10004 format (i8,10es16.8)
-      10005 format (a8,9a16)
-      10014 format (es16.8,10es16.8)
+      10004 format (i8,12es16.8)
+      10005 format (a8,12a16)
+      10014 format (es16.8,12es16.8)
 
    end subroutine calc_and_print_cumulant
 
@@ -1127,13 +1150,17 @@ contains
       !.. Scalar variables
       integer :: i,i_na,k
       character(len=30) :: filn
-      real(dblprec) :: avrgle, avrgl2, avrgl4
+      real(dblprec) :: avrgle, avrgl4
       real(dblprec) :: lx, ly, lz
       real(dblprec) :: cumulant, avrglt, avrglt2, avrglt4
-      real(dblprec) :: pmsusc, cv, avrgen, avrgen2
+      real(dblprec) :: pmsusc, cv, avrgen, chi_err, cv_err
+      real(dblprec) :: delta_l, delta_e, l_var_unb, e_var_unb, l_var_se, e_var_se
+      real(dblprec) :: sample_l, sample_l4, sample_e
+      logical :: sample_ready
 
       !.. Executable statements
       avg_mom=0.0_dblprec
+      sample_ready=.false.
       lvec(1) =  1
       lvec(2) =  1
       lvec(3) = -1
@@ -1163,47 +1190,84 @@ contains
             lz = lz + lvec(i)*avg_mom(3,i,k)
          end do
          avrgle = sqrt(lx**2+ly**2+lz**2)/Natom
-         avrgl2 = avrgle**2
-         avrgl4 = avrgl2**2
+         avrgl4 = avrgle**4
 
-         avrglt = (Navrgcum*avrglcum+avrgle)/(Navrgcum+1)
-         avrglt2 = (Navrgcum*avrgl2cum+avrgl2)/(Navrgcum+1)
-         avrglt4 = (Navrgcum*avrgl4cum+avrgl4)/(Navrgcum+1)
+         sample_l = avrgle
+         sample_l4 = avrgl4
+         if(plotenergy>0) sample_e = ene%energy(k)
+         sample_ready=.true.
 
-         cumulant = 1-(avrglt4/3/avrglt2**2)
-         avrglcum = avrglt
-         avrgl2cum = avrglt2
+         Navrgcum = Navrgcum+1
+         delta_l = sample_l-avrglcum
+         avrglcum = avrglcum + delta_l/Navrgcum
+         avrgl_varacc = avrgl_varacc + delta_l*(sample_l-avrglcum)
+         avrglt = avrglcum
+         avrglt2 = avrglt**2 + avrgl_varacc/Navrgcum
+         avrglt4 = ((Navrgcum-1)*avrgl4cum+sample_l4)/Navrgcum
+
+         if(avrglt2>0.0_dblprec) then
+            cumulant = 1-(avrglt4/3/avrglt2**2)
+         else
+            cumulant = 0.0_dblprec
+         end if
          avrgl4cum = avrglt4
 
          !Specific heat (cv) and susceptibility (pmsusc)
+         if(Navrgcum>1) then
+            l_var_unb = avrgl_varacc/(Navrgcum-1)
+         else
+            l_var_unb = 0.0_dblprec
+         end if
+         if(Navrgcum>2) then
+            l_var_se = l_var_unb*sqrt(2.0_dblprec/(Navrgcum-1.0_dblprec))
+         else
+            l_var_se = 0.0_dblprec
+         end if
          if(Temp>0.0_dblprec) then
-            pmsusc = (avrglt2-avrglt**2) * mub**2 * Natom / (k_bolt**2) / Temp       ! units of k_B
+            pmsusc = l_var_unb * mub**2 * Natom / (k_bolt**2) / Temp       ! units of k_B
+            chi_err = l_var_se * mub**2 * Natom / (k_bolt**2) / Temp
          else
             !For T=0, not the proper susceptibility
-            pmsusc = (avrglt2-avrglt**2) * Natom * mub**2 / k_bolt
+            pmsusc = l_var_unb * Natom * mub**2 / k_bolt
+            chi_err = l_var_se * Natom * mub**2 / k_bolt
          end if
 
-         if (plotenergy>0.and.Temp>0.0_dblprec) then
-            avrgen = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            avrgen2 = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            cv = ( avrgen2 -avrgen**2 ) * mry**2 / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2 ! units of k_B/atom
-            avrgecum = avrgen
-            avrge2cum = avrgen2
-         else if(plotenergy>0) then
-            avrgen = (Navrgcum*avrgecum+ene%energy(k))/(Navrgcum+1)
-            avrgen2 = (Navrgcum*avrge2cum+ene%energy(k)**2)/(Navrgcum+1)
-            cv = 0.0_dblprec
-            avrgecum = avrgen
-            avrge2cum = avrgen2
+         if(plotenergy>0) then
+            Navrgecum = Navrgecum+1
+            delta_e = sample_e-avrgecum
+            avrgecum = avrgecum + delta_e/Navrgecum
+            avrge_varacc = avrge_varacc + delta_e*(sample_e-avrgecum)
+
+            avrgen = avrgecum
+
+            if(Temp>0.0_dblprec) then
+               if(Navrgecum>1) then
+                  e_var_unb = avrge_varacc/(Navrgecum-1)
+                  cv = e_var_unb * mry**2 * Natom / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2
+                  if(Navrgecum>2) then
+                     e_var_se = e_var_unb*sqrt(2.0_dblprec/(Navrgecum-1.0_dblprec))
+                     cv_err = e_var_se * mry**2 * Natom / (k_bolt**2) / Temp**2 * (temprescalegrad*Temp+temprescale) / temprescale**2
+                  else
+                     cv_err = 0.0_dblprec
+                  end if
+               else
+                  cv = 0.0_dblprec
+                  cv_err = 0.0_dblprec
+               end if
+            else
+               cv = 0.0_dblprec
+               cv_err = 0.0_dblprec
+            end if
          else
             cv          = 0.0_dblprec
+            cv_err      = 0.0_dblprec
             avrgen      = 0.0_dblprec
-            avrgen2     = 0.0_dblprec
             avrgecum    = 0.0_dblprec
-            avrge2cum   = 0.0_dblprec
+            avrge_varacc= 0.0_dblprec
          end if
-         Navrgcum = Navrgcum+1
       end do
+
+      if(.not.sample_ready) return
 
       ! Write output to file
       ! Open file
@@ -1213,18 +1277,18 @@ contains
       ! Write header the first time
       if(Navrgcum/Mensemble==1) then
          write (ofileno,10005)"#Iter.","<L>","<L^2>","<L^4>","U_{Binder}^L",&
-            "Susc.","Cv"
+            "Susc.","dSusc.","Cv","dCv"
       end if
       write (ofileno,10004) iter_step,avrglt,avrglt2,avrglt4,cumulant,  &
-         pmsusc,cv
+         pmsusc,chi_err,cv,cv_err
       close(ofileno)
       binderc=cumulant
 
       return
 
       write(*,*) 'Error writing the AFM cumulant file'
-      10004 format (i8,6es16.8)
-      10005 format (a8,6a16)
+      10004 format (i8,8es16.8)
+      10005 format (a8,8a16)
 
    end subroutine calc_and_print_afm_cumulant
 
@@ -1343,7 +1407,7 @@ contains
       !
       ! ... Local Variables ...
       character(len=50) :: keyword
-      integer :: rd_len, i_err, i_errb
+      integer :: rd_len, i_err, i_errb, i_tmp
       logical :: comment
 
       do
