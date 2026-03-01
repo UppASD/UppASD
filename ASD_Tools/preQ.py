@@ -92,10 +92,11 @@ class PreProcessor:
             lattice = self.structure["lattice"]
             positions = self.structure["positions"]
             invlat = np.linalg.inv(lattice)
-            invpos = np.copy(positions)
-            for row in range(invpos.shape[0]):
-                invpos[row, :] = np.matmul(invlat.T, positions[row, :])
-            self.structure["positions"] = np.copy(invpos)
+            pos_arr = np.asarray(positions, dtype=float)
+            # Convert cartesian positions to fractional (direct) coordinates.
+            # fractional = inv(lattice) @ cartesian
+            invpos = (invlat @ pos_arr.T).T
+            self.structure["positions"] = invpos
 
     def analyze_structure(self):
         """Analyze crystal structure and determine space group."""
@@ -129,19 +130,20 @@ class PreProcessor:
         xpath = []
         lpath = []
         for vec, label in zip(mypath, mylabels):
-            xpath.append(np.array(np.float32(vec)))
-            lpath.append([float(vec[0]), float(vec[1]), float(vec[2]), str(label)])
+            xpath.append(np.asarray(vec, dtype=float))
+            # Ensure label is a safe string (handle None)
+            lab = "" if label is None else label
+            lpath.append([float(vec[0]), float(vec[1]), float(vec[2]), str(lab)])
 
         self.kpath_data["xpath"] = np.array(xpath)
         self.kpath_data["lpath"] = lpath
 
-        # Generate 2D k-path (z=0 plane)
+        # Generate 2D k-path (z=0 plane) using a tolerant float comparison
         xpath = self.kpath_data["xpath"]
         lpath = self.kpath_data["lpath"]
-        self.kpath_data["xpath2d"] = xpath[xpath[:, 2] == 0]
-        self.kpath_data["lpath2d"] = [
-            lpath[i] for i in range(len(xpath)) if xpath[i, 2] == 0
-        ]
+        zzero = np.isclose(xpath[:, 2], 0.0)
+        self.kpath_data["xpath2d"] = xpath[zzero]
+        self.kpath_data["lpath2d"] = [lpath[i] for i in range(len(xpath)) if zzero[i]]
 
     def generate_reduced_mesh(self):
         """Generate reduced k-point mesh using spglib."""
@@ -176,7 +178,7 @@ class PreProcessor:
 
         dictlist = []
         for key, value in sympoints.items():
-            str1 = " ".join(f"{e: 4.4f}" for e in value)
+            str1 = " ".join(f"{e:4.4f}" for e in value)
             temp = [key, str1]
             dictlist.append(temp)
 
@@ -186,6 +188,9 @@ class PreProcessor:
     def print_kpath_info(self):
         """Print k-path information."""
         kpath_obj = self.kpath_data["kpath_obj"]
+        if not kpath_obj:
+            print("No k-path data available.")
+            return
 
         klist = list(sum(kpath_obj["path"], ()))
         kpath = [" -> ".join(x) for x in zip(klist[0::2], klist[1::2])]

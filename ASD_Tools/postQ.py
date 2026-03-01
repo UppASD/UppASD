@@ -2,264 +2,375 @@
 # coding: utf-8
 
 """
-UppASD Post-Processing Module
+UppASD Post-Processing Module (refactored)
 
-This module provides the PostProcessor class for analyzing and visualizing
-UppASD simulation results including magnon spectra and structure factors.
+Provides PostProcessor class that safely reads UppASD outputs and
+creates plots. All top-level work is encapsulated to avoid import-time
+execution and to ensure missing files / missing inputs are handled
+gracefully.
+
+Refactor goals:
+- safe defaults for missing inpsd keys
+- presence flags for optional files
+- no import-time plotting
+- encapsulated plotting with defensive checks
 """
 
+import os
 import os.path
-
+import numpy as np
+import spglib as spg
+import seekpath as spth
 import matplotlib.cm as cmap
 import matplotlib.pyplot as plt
-import numpy as np
 from scipy import ndimage
 
-from asd_io import (
-    get_spacegroup,
-    get_symmetry_points,
-    read_inpsd,
-)
+
+def is_close(A, B, atol=1e-6):
+    A = np.asarray(A, dtype=float)
+    B = np.asarray(B, dtype=float)
+    return bool(np.allclose(A, B, atol=atol))
 
 
 class PostProcessor:
-    """Post-process UppASD simulation results: read data, analyze, and plot."""
+    """Safe post-processor for UppASD results."""
 
     def __init__(self, input_file="inpsd.dat"):
-        """Initialize the PostProcessor with input file."""
         self.input_file = input_file
 
-        # Input data dictionary
+        # Inputs and results
         self.inputs = {}
+        self.results = {}
 
-        # Simulation results dictionary
-        self.results = {
-            "ams": None,
-            "ams_pq": None,
-            "ams_mq": None,
-            "sqw_x": None,
-            "sqw_y": None,
-            "sqw_z": None,
-            "sqw_t": None,
-            "sqw_int": None,
-            "sqw_lint": None,
-            "sqw_tens": None,
-            "lswt_sqw_tens": None,
-        }
-
-        # Symmetry and plotting data
-        self.symmetry = {
-            "cell": None,
-            "spacegroup": None,
-            "BZ": None,
-            "sympoints": None,
-            "axlab": [],
-            "axidx": [],
-        }
-
-        # Plot configuration
+        # plotting / defaults
         self.plot_config = {
             "sigma_q": 0.5,
             "sigma_w": 1.0,
             "font": {"family": "sans", "weight": "normal", "size": "14"},
-            "xyz": ("x", "y", "z"),
         }
+        plt.rc("font", **self.plot_config["font"])
+        plt.rc("lines", lw=2)
 
-        # Constants
+        # constants
         self.constants = {
             "hbar": 6.582119514e-13,
             "ry_ev": 13.605693009,
             "hbar_eV_s": 4.135667662e-15,
         }
 
-        self._setup_plotting()
+    def read_posfile(self, posfile):
+        positions = np.empty((0, 3), dtype=float)
+        numbers = []
+        try:
+            with open(posfile, "r", encoding="utf-8") as pfile:
+                for line in pfile:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        numbers.append(int(parts[1]))
+                        positions = np.vstack((positions, np.asarray(parts[2:5], dtype=float)))
+        except Exception:
+            return None, None
+        return positions, np.asarray(numbers, dtype=int)
 
-    def _setup_plotting(self):
-        """Configure matplotlib plotting defaults."""
-        plt.rc("font", **self.plot_config["font"])
-        plt.rc("lines", lw=2)
+    def read_inpsd(self):
+        # conservative defaults
+        defaults = {
+            "lattice": None,
+            "positions": None,
+            "numbers": None,
+            "simid": "0",
+            "mesh": [1, 1, 1],
+            "posfiletype": "C",
+            "timestep": 1.0,
+            "sc_step": 1,
+            "sc_nstep": 1,
+            "qfile": None,
+        }
 
-    def read_inputs(self):
-        """Read input simulation parameters from inpsd.dat."""
-        inpsd_data = read_inpsd(self.input_file)
+        data = {}
+        try:
+            with open(self.input_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except Exception:
+            self.inputs = defaults
+            return
+
+        lattice = None
+        positions = None
+        numbers = None
+        simid = defaults["simid"]
+        mesh = defaults["mesh"]
+        timestep = defaults["timestep"]
+        sc_step = defaults["sc_step"]
+        sc_nstep = defaults["sc_nstep"]
+        qfile = defaults["qfile"]
+
+        for idx, line in enumerate(lines):
+            parts = line.split()
+            if not parts:
+                continue
+            key = parts[0]
+            if key == "simid":
+                simid = parts[1]
+            elif key == "cell":
+                # read 3 lines including this
+                try:
+                    l0 = np.asarray(lines[idx].split()[1:4], dtype=float)
+                    l1 = np.asarray(lines[idx + 1].split()[0:3], dtype=float)
+                    l2 = np.asarray(lines[idx + 2].split()[0:3], dtype=float)
+                    lattice = np.vstack((l0, l1, l2))
+                except Exception:
+                    lattice = None
+            elif key == "ncell":
+                try:
+                    n = int(parts[1])
+                    mesh = [n, n, n]
+                except Exception:
+                    pass
+            elif key == "timestep":
+                try:
+                    timestep = float(parts[1].replace("d", "e"))
+                except Exception:
+                    pass
+            elif key == "sc_step":
+                try:
+                    sc_step = int(parts[1])
+                except Exception:
+                    pass
+            elif key == "sc_nstep":
+                try:
+                    sc_nstep = int(parts[1])
+                except Exception:
+                    pass
+            elif key == "qfile":
+                qfile = parts[1]
+            elif key.strip() == "posfile":
+                posfile = parts[1]
+                p, n = self.read_posfile(posfile)
+                if p is not None:
+                    positions = p
+                    numbers = n
+
         self.inputs = {
-            "lattice": inpsd_data["lattice"],
-            "positions": inpsd_data["positions"],
-            "numbers": inpsd_data["numbers"],
-            "simid": inpsd_data["simid"],
-            "mesh": inpsd_data["mesh"],
-            "posfiletype": inpsd_data["posfiletype"],
-            "timestep": inpsd_data["timestep"],
-            "sc_step": inpsd_data["sc_step"],
-            "sc_nstep": inpsd_data["sc_nstep"],
-            "qfile": inpsd_data["qfile"],
+            "lattice": lattice,
+            "positions": positions,
+            "numbers": numbers,
+            "simid": simid,
+            "mesh": mesh,
+            "posfiletype": defaults["posfiletype"],
+            "timestep": timestep,
+            "sc_step": sc_step,
+            "sc_nstep": sc_nstep,
+            "qfile": qfile,
         }
 
     def read_magnon_spectra(self):
-        """Read adiabatic magnon spectra files."""
-        simid = self.inputs["simid"]
-
-        # Check which files exist
+        simid = str(self.inputs.get("simid", "0"))
         got_ams = os.path.isfile(f"ams.{simid}.out")
         got_ncams = os.path.isfile(f"ncams.{simid}.out")
-        got_ncams_mq = os.path.isfile(f"ncams-q.{simid}.out")
         got_ncams_pq = os.path.isfile(f"ncams+q.{simid}.out")
+        got_ncams_mq = os.path.isfile(f"ncams-q.{simid}.out")
 
+        self.results["got_ams"] = got_ams or got_ncams
         if got_ams:
-            self.results["ams"] = np.loadtxt(f"ams.{simid}.out")
-        if got_ncams:
-            self.results["ams"] = np.loadtxt(f"ncams.{simid}.out")
-        if got_ncams_pq:
-            self.results["ams_pq"] = np.loadtxt(f"ncams+q.{simid}.out")
-        if got_ncams_mq:
-            self.results["ams_mq"] = np.loadtxt(f"ncams-q.{simid}.out")
+            try:
+                ams = np.loadtxt(f"ams.{simid}.out")
+            except Exception:
+                ams = None
+        elif got_ncams:
+            try:
+                ams = np.loadtxt(f"ncams.{simid}.out")
+            except Exception:
+                ams = None
+        else:
+            ams = None
 
-        # Set derived quantities
-        if self.results["ams"] is not None:
-            ams = self.results["ams"]
-            self.results["ams_dist_col"] = ams.shape[1] - 1
+        self.results["ams"] = ams
+        if ams is not None:
+            if ams.ndim == 1:
+                ams = ams.reshape(1, -1)
+            self.results["ams_dist_col"] = int(ams.shape[1] - 1)
             self.results["q_vecs"] = ams[:, 0]
-            self.results["q_min"] = np.min(self.results["q_vecs"])
-            self.results["q_max"] = np.max(self.results["q_vecs"])
-            self.results["emax_lswt"] = 1.10 * np.amax(
-                ams[:, 1 : self.results["ams_dist_col"]]
-            )
+            self.results["q_min"] = float(np.min(ams[:, 0]))
+            self.results["q_max"] = float(np.max(ams[:, 0]))
+            try:
+                self.results["emax_lswt"] = 1.10 * np.amax(ams[:, 1 : self.results["ams_dist_col"]])
+            except Exception:
+                self.results["emax_lswt"] = None
+        else:
+            self.results.setdefault("ams_dist_col", None)
+            self.results.setdefault("q_vecs", None)
+            self.results.setdefault("q_min", 0.0)
+            self.results.setdefault("q_max", 1.0)
+            self.results.setdefault("emax_lswt", None)
+
+        if got_ncams_pq:
+            try:
+                self.results["ams_pq"] = np.loadtxt(f"ncams+q.{simid}.out")
+            except Exception:
+                self.results["ams_pq"] = None
+        else:
+            self.results["ams_pq"] = None
+
+        if got_ncams_mq:
+            try:
+                self.results["ams_mq"] = np.loadtxt(f"ncams-q.{simid}.out")
+            except Exception:
+                self.results["ams_mq"] = None
+        else:
+            self.results["ams_mq"] = None
 
     def read_structure_factors(self):
-        """Read dynamical structure factor files."""
-        simid = self.inputs["simid"]
+        simid = str(self.inputs.get("simid", "0"))
+        # sqw
+        got_sqw = os.path.isfile(f"sqw.{simid}.out")
+        self.results["got_sqw"] = got_sqw
+        if got_sqw:
+            try:
+                sqw = np.genfromtxt(f"sqw.{simid}.out", usecols=(0, 4, 5, 6, 7, 8))
+                nq = int(sqw[-1, 0])
+                nw = int(sqw.shape[0] / nq)
+                self.results["sqw_x"] = np.reshape(sqw[:, 2], (nq, nw))
+                self.results["sqw_y"] = np.reshape(sqw[:, 3], (nq, nw))
+                self.results["sqw_z"] = np.reshape(sqw[:, 4], (nq, nw))
+                self.results["sqw_t"] = self.results["sqw_x"] ** 2 + self.results["sqw_y"] ** 2
+            except Exception:
+                self.results["got_sqw"] = False
 
-        # Read S(q,w) data
-        if os.path.isfile(f"sqw.{simid}.out"):
-            sqw = np.genfromtxt(f"sqw.{simid}.out", usecols=(0, 4, 5, 6, 7, 8))
-            nq = int(sqw[-1, 0])
-            nw = int(sqw.shape[0] / nq)
-            self.results["sqw_x"] = np.reshape(sqw[:, 2], (nq, nw))[:, :]
-            self.results["sqw_y"] = np.reshape(sqw[:, 3], (nq, nw))[:, :]
-            self.results["sqw_z"] = np.reshape(sqw[:, 4], (nq, nw))[:, :]
-            self.results["sqw_t"] = (
-                self.results["sqw_x"] ** 2 + self.results["sqw_y"] ** 2
-            )
+        # sqw intensity
+        got_sqw_int = os.path.isfile(f"sqwintensity.{simid}.out")
+        self.results["got_sqw_int"] = got_sqw_int
+        if got_sqw_int:
+            try:
+                sqw_t_int = np.genfromtxt(f"sqwintensity.{simid}.out", usecols=(0, 4, 5, 6))
+                nq_int = int(sqw_t_int[-1, 0])
+                nw_int = int(sqw_t_int.shape[0] / nq_int)
+                self.results["sqw_int"] = np.reshape(sqw_t_int[:, 2], (nq_int, nw_int))
+            except Exception:
+                self.results["got_sqw_int"] = False
 
-        # Read S(q,w) intensity
-        if os.path.isfile(f"sqwintensity.{simid}.out"):
-            sqw_t_int = np.genfromtxt(f"sqwintensity.{simid}.out", usecols=(0, 4, 5, 6))
-            nq_int = int(sqw_t_int[-1, 0])
-            nw_int = int(sqw_t_int.shape[0] / nq_int)
-            self.results["sqw_int"] = np.reshape(sqw_t_int[:, 2], (nq_int, nw_int))
+        # sqw tensor
+        got_sqw_tens = os.path.isfile(f"sqwtensa.{simid}.out")
+        self.results["got_sqw_tens"] = got_sqw_tens
+        if got_sqw_tens:
+            try:
+                sqwt = np.genfromtxt(f"sqwtensa.{simid}.out", usecols=(0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13))
+                nqt = int(sqwt[-1, 0])
+                nwt = int(sqwt.shape[0] / nqt)
+                tens = np.zeros((nqt, nwt, 3, 3))
+                for i in range(3):
+                    for j in range(3):
+                        tens[:, :, i, j] = np.reshape(sqwt[:, 2 + i * 3 + j], (nqt, nwt))
+                self.results["sqw_tens"] = tens
+            except Exception:
+                self.results["got_sqw_tens"] = False
 
-        # Read LSWT S(q,w) intensity
-        if os.path.isfile(f"ncsqw_intensity.{simid}.out"):
-            sqw_lt_int = np.genfromtxt(
-                f"ncsqw_intensity.{simid}.out", usecols=(0, 4, 5, 6)
-            )
-            nq_lint = int(sqw_lt_int[-1, 0])
-            nw_lint = int(sqw_lt_int.shape[0] / nq_lint)
-            self.results["sqw_lint"] = np.reshape(sqw_lt_int[:, 2], (nq_lint, nw_lint))
-
-        # Read S(q,w) tensor
-        if os.path.isfile(f"sqwtensa.{simid}.out"):
-            sqwt = np.genfromtxt(
-                f"sqwtensa.{simid}.out", usecols=(0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
-            )
-            nqt = int(sqwt[-1, 0])
-            nwt = int(sqwt.shape[0] / nqt)
-            sqw_tens = np.zeros((nqt, nwt, 3, 3))
-            for i in range(3):
-                for j in range(3):
-                    sqw_tens[:, :, i, j] = np.reshape(
-                        sqwt[:, 2 + i * 3 + j], (nqt, nwt)
-                    )
-            self.results["sqw_tens"] = sqw_tens
-
-        # Read LSWT S(q,w) tensor
-        if os.path.isfile(f"ncsqw.{simid}.out"):
-            lswt_sqwt = np.genfromtxt(
-                f"ncsqw.{simid}.out", usecols=(0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
-            )
-            lswt_nqt = int(lswt_sqwt[-1, 0])
-            lswt_nwt = int(lswt_sqwt.shape[0] / lswt_nqt)
-            lswt_sqw_tens = np.zeros((lswt_nqt, lswt_nwt, 3, 3))
-            for i in range(3):
-                for j in range(3):
-                    lswt_sqw_tens[:, :, i, j] = np.reshape(
-                        lswt_sqwt[:, 2 + i * 3 + j], (lswt_nqt, lswt_nwt)
-                    )
-            self.results["lswt_sqw_tens"] = lswt_sqw_tens
+        # LSWT tensors
+        got_lswt = os.path.isfile(f"ncsqw.{simid}.out")
+        self.results["got_lswt_sqw"] = got_lswt
+        if got_lswt:
+            try:
+                lswt_sqwt = np.genfromtxt(f"ncsqw.{simid}.out", usecols=(0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13))
+                nqt = int(lswt_sqwt[-1, 0])
+                nwt = int(lswt_sqwt.shape[0] / nqt)
+                tens = np.zeros((nqt, nwt, 3, 3))
+                for i in range(3):
+                    for j in range(3):
+                        tens[:, :, i, j] = np.reshape(lswt_sqwt[:, 2 + i * 3 + j], (nqt, nwt))
+                self.results["lswt_sqw_tens"] = tens
+            except Exception:
+                self.results["got_lswt_sqw"] = False
 
     def analyze_symmetry(self):
-        """Analyze crystal symmetry and get Brillouin zone information."""
-        lattice = self.inputs["lattice"]
-        positions = self.inputs["positions"]
-        numbers = self.inputs["numbers"]
-
-        self.symmetry["cell"] = (lattice, positions, numbers)
-        self.symmetry["spacegroup"] = get_spacegroup(self.symmetry["cell"])
-        self.symmetry["BZ"], self.symmetry["sympoints"] = get_symmetry_points(
-            self.symmetry["cell"]
-        )
-
-    def extract_symmetry_labels(self):
-        """Extract symmetry point labels from qfile for plotting."""
-        qfile = self.inputs.get("qfile")
-        if qfile and "qfile.kpath" in qfile:
-            with open(qfile, "r", encoding="utf-8") as f:
-                f.readline()
-                qpts = f.readlines()
-
-            self.symmetry["axlab"] = []
-            self.symmetry["axidx"] = []
-            q_vecs = self.results.get("q_vecs")
-
-            if q_vecs is not None:
-                for idx, row in enumerate(qpts):
-                    rs = row.split()
-                    if len(rs) == 4:
-                        label = rs[3]
-                        self.symmetry["axlab"].append(
-                            "$\\Gamma$" if label[0] == "G" else label
-                        )
-                        self.symmetry["axidx"].append(q_vecs[idx])
-
-    def _calculate_emax(self):
-        """Calculate maximum energy for plotting."""
-        timestep = self.inputs["timestep"]
-        sc_step = self.inputs["sc_step"]
-        hbar = self.constants["hbar_eV_s"]
-        return (
-            0.5 * np.float64(hbar) / (np.float64(timestep) * np.float64(sc_step)) * 1e3
-        )
-
-    def _apply_gaussian_filter(self, data):
-        """Apply Gaussian filtering to data for smoothing."""
-        sigma_q = self.plot_config["sigma_q"]
-        sigma_w = self.plot_config["sigma_w"]
-
-        filtered = ndimage.gaussian_filter1d(
-            data, sigma=sigma_q, axis=1, mode="constant"
-        )
-        filtered = ndimage.gaussian_filter1d(
-            filtered, sigma=sigma_w, axis=0, mode="reflect"
-        )
-        return filtered
-
-    def plot_magnon_spectra(self):
-        """Plot adiabatic magnon spectra."""
-        ams = self.results.get("ams")
-        ams_pq = self.results.get("ams_pq")
-        ams_mq = self.results.get("ams_mq")
-        q_vecs = self.results.get("q_vecs")
-        ams_dist_col = self.results.get("ams_dist_col")
-        axidx = self.symmetry.get("axidx", [])
-        axlab = self.symmetry.get("axlab", [])
-
-        if ams is None or q_vecs is None or ams_dist_col is None:
+        lattice = self.inputs.get("lattice")
+        positions = self.inputs.get("positions")
+        numbers = self.inputs.get("numbers")
+        if lattice is None or positions is None or numbers is None:
+            self.symmetry = {"cell": None, "spacegroup": None, "BZ": None, "sympoints": {}}
             return
 
-        # Basic AMS plot
+        cell = (lattice, positions, numbers)
+        try:
+            sg = spg.get_spacegroup(cell)
+            kpath_obj = spth.get_path(cell)
+            BZ = np.asarray(kpath_obj.get("reciprocal_primitive_lattice", []))
+            sympoints = kpath_obj.get("point_coords", {})
+        except Exception:
+            sg = None
+            BZ = None
+            sympoints = {}
+
+        self.symmetry = {"cell": cell, "spacegroup": sg, "BZ": BZ, "sympoints": sympoints}
+
+    def extract_symmetry_labels(self):
+        qfile = self.inputs.get("qfile")
+        q_vecs = self.results.get("q_vecs")
+        self.symmetry.setdefault("axlab", [])
+        self.symmetry.setdefault("axidx", [])
+        if not qfile or q_vecs is None:
+            return
+
+        def _format_label(label):
+            if label is None:
+                return label
+            s = str(label).strip()
+            if not s:
+                return s
+            low = s.lower()
+            if low == "g" or low == "gamma" or s == "Γ":
+                return "$\\Gamma$"
+            # sometimes seekpath returns strings like 'GAMMA' or 'Gamma'
+            if low.startswith("gamma"):
+                return "$\\Gamma$"
+            return s
+
+        try:
+            if "qfile.kpath" in qfile:
+                with open(qfile, "r", encoding="utf-8") as f:
+                    f.readline()
+                    qpts = f.readlines()
+                for idx, row in enumerate(qpts):
+                    rs = row.split()
+                    if len(rs) >= 4:
+                        label = _format_label(rs[3])
+                        self.symmetry["axlab"].append(label)
+                        self.symmetry["axidx"].append(q_vecs[idx])
+            else:
+                qpts = np.genfromtxt(qfile, skip_header=1, usecols=(0, 1, 2))
+                for idx, row in enumerate(qpts):
+                    for k, v in self.symmetry.get("sympoints", {}).items():
+                        if is_close(v, row):
+                            label = _format_label(k)
+                            self.symmetry["axlab"].append(label)
+                            self.symmetry["axidx"].append(q_vecs[idx])
+                            break
+        except Exception:
+            # leave axlab/axidx as-is
+            pass
+
+    def _calculate_emax(self):
+        timestep = float(self.inputs.get("timestep", 1.0))
+        sc_step = float(self.inputs.get("sc_step", 1))
+        hbar = self.constants.get("hbar_eV_s", 4.135667662e-15)
+        return 0.5 * hbar / (timestep * sc_step) * 1e3
+
+    def plot_magnon_spectra(self):
+        ams = self.results.get("ams")
+        q_vecs = self.results.get("q_vecs")
+        ams_dist_col = self.results.get("ams_dist_col")
+        if ams is None or q_vecs is None or ams_dist_col is None:
+            print("AMS data incomplete; skipping magnon spectra plots.")
+            return
+
+        axlab = self.symmetry.get("axlab", [])
+        axidx = self.symmetry.get("axidx", [])
+
         plt.figure(figsize=[8, 5])
-        plt.plot(q_vecs[:], ams[:, 1:ams_dist_col])
-        plt.xticks(axidx, axlab)
+        plt.plot(q_vecs, ams[:, 1:ams_dist_col])
+        try:
+            plt.xticks(axidx, axlab)
+        except Exception:
+            pass
         plt.ylabel("Energy (meV)")
         plt.autoscale(tight=True)
         plt.ylim(0)
@@ -267,15 +378,26 @@ class PostProcessor:
         plt.savefig("ams.png")
         plt.close()
 
-        # Enhanced plot with +q and -q components if available
+        # enhanced plot
+        ams_pq = self.results.get("ams_pq")
+        ams_mq = self.results.get("ams_mq")
         if ams_pq is not None or ams_mq is not None:
             plt.figure(figsize=[8, 5])
-            plt.plot(q_vecs[:], ams[:, 1:ams_dist_col], label="E(q)")
+            plt.plot(q_vecs, ams[:, 1:ams_dist_col], label="E(q)")
             if ams_pq is not None:
-                plt.plot(q_vecs[:], ams_pq[:, 1:ams_dist_col], label="E(q+q$_0$)")
+                try:
+                    plt.plot(q_vecs, ams_pq[:, 1:ams_dist_col], label="E(q+q0)")
+                except Exception:
+                    pass
             if ams_mq is not None:
-                plt.plot(q_vecs[:], ams_mq[:, 1:ams_dist_col], label="E(q-q$_0$)")
-            plt.xticks(axidx, axlab)
+                try:
+                    plt.plot(q_vecs, ams_mq[:, 1:ams_dist_col], label="E(q-q0)")
+                except Exception:
+                    pass
+            try:
+                plt.xticks(axidx, axlab)
+            except Exception:
+                pass
             plt.legend()
             plt.ylabel("Energy (meV)")
             plt.autoscale(tight=True)
@@ -284,350 +406,183 @@ class PostProcessor:
             plt.savefig("ams_q.png")
             plt.close()
 
+    def plot_sqw(self):
+        if not self.results.get("got_sqw"):
+            print("No S(q,w) data available; skipping plot_sqw.")
+            return
+        sqw_x = self.results.get("sqw_x")
+        sqw_y = self.results.get("sqw_y")
+        if sqw_x is None or sqw_y is None:
+            print("S(q,w) arrays missing; skipping image plot.")
+            return
 
+        q_min = self.results.get("q_min", 0.0)
+        q_max = self.results.get("q_max", 1.0)
+        emax = self._calculate_emax()
 
-# In[ ]:
+        sqw_temp = np.sqrt(sqw_x ** 2 + sqw_y ** 2)
+        try:
+            sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
+        except Exception:
+            pass
+        sqw_temp = sqw_temp.T
+        maxcol = sqw_temp.max(axis=0) if sqw_temp.size else None
+        if maxcol is not None and np.any(maxcol > 0):
+            with np.errstate(invalid="ignore"):
+                sqw_temp = sqw_temp / (maxcol + 1e-20)
 
-############################################################
-# Plot the S(q,w)
-############################################################
-if got_sqw:
-    fig = plt.figure(figsize=[8,5])
-    ax=plt.subplot(111)
-    
-    
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-    sqw_temp=(sqw_x**2+sqw_y**2)**0.5
-    sqw_temp[:,0]=sqw_temp[:,0]/100.0
-    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
-    plt.plot(q_vecs[:],ams[:,1:ams_dist_col],'black',lw=0.5)
-    ala=plt.xticks()
-    
-    
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    plt.grid(visible=True,which='major',axis='x')
-    ax.set_aspect('auto')
-    plt.autoscale(tight=True)
-    #plt.show()
-    plt.savefig('ams_sqw.png')
+        sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_q"], axis=1, mode="constant")
+        sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_w"], axis=0, mode="reflect")
 
+        fig = plt.figure(figsize=[8, 5])
+        ax = plt.subplot(111)
+        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation="nearest", origin="lower", extent=[q_min, q_max, 0, emax])
+        # overlay ams
+        ams = self.results.get("ams")
+        q_vecs = self.results.get("q_vecs")
+        ams_dist_col = self.results.get("ams_dist_col")
+        if ams is not None and q_vecs is not None and ams_dist_col is not None:
+            try:
+                plt.plot(q_vecs, ams[:, 1:ams_dist_col], "black", lw=0.5)
+            except Exception:
+                pass
+        axlab = self.symmetry.get("axlab", [])
+        axidx = self.symmetry.get("axidx", [])
+        try:
+            if axidx:
+                plt.xticks(np.array(axidx, dtype=float), axlab)
+        except Exception:
+            pass
+        plt.xlabel("q")
+        plt.ylabel("Energy (meV)")
+        plt.grid(visible=True, which="major", axis="x")
+        ax.set_aspect("auto")
+        plt.autoscale(tight=True)
+        plt.savefig("ams_sqw.png")
+        plt.close()
 
-############################################################
-# Plot the S(q,w) with full nc-LSWT support
-############################################################
-if got_sqw and got_ncams and got_ncams_pq and got_ncams_mq:
-    fig = plt.figure(figsize=[8,5])
-    ax=plt.subplot(111)
-    
-    
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-    sqw_temp=(sqw_x**2+sqw_y**2)**0.5
-    sqw_temp[:,0]=sqw_temp[:,0]/100.0
-    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    imx_min=np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1])
-    imx_max=np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])
-    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[imx_min,imx_max,0,emax])
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[q_min, q_max,0,emax])
-    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    #plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    plt.plot(q_vecs[:],   ams[:,1:ams_dist_col],'black',lw=0.5)
-    plt.plot(q_vecs[:],ams_pq[:,1:ams_dist_col],'black',lw=0.5)
-    plt.plot(q_vecs[:],ams_mq[:,1:ams_dist_col],'black',lw=0.5)
-    ala=plt.xticks()
-    
-    
-    plt.xticks(axidx_abs,axlab)
-    #print('::::>',[np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    plt.grid(visible=True,which='major',axis='x')
-    ax.set_aspect('auto')
-    plt.autoscale(tight=True)
-    #plt.xlim([np.min(ams[:,0]/ams[-1,0]*axidx_abs[-1]), np.max(ams[:,0]/ams[-1,0]*axidx_abs[-1])])
-    plt.savefig('ams_sqw_q.png')
+    def plot_sqw_intensity(self):
+        if not self.results.get("got_sqw_int"):
+            print("No S(q,w) intensity data; skipping plot_sqw_intensity.")
+            return
+        sqw_int = self.results.get("sqw_int")
+        if sqw_int is None:
+            print("S(q,w) intensity array missing; skipping.")
+            return
 
+        emax = self._calculate_emax()
+        sqw_temp = sqw_int.copy()
+        try:
+            sqw_temp[:, 0] = sqw_temp[:, 0] / 100.0
+        except Exception:
+            pass
+        sqw_temp = sqw_temp.T
+        maxcol = sqw_temp.max(axis=0) if sqw_temp.size else None
+        if maxcol is not None and np.any(maxcol > 0):
+            sqw_temp = sqw_temp / (maxcol + 1e-20)
 
+        sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_q"], axis=1, mode="constant")
+        sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_w"], axis=0, mode="reflect")
 
-############################################################
-# Plot the simulated S(q,w) intensity
-############################################################
-if got_sqw_int:
-    fig = plt.figure(figsize=[8,5])
-    ax=plt.subplot(111)
-    
-    
-    
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-    sqw_temp=sqw_int
-    sqw_temp[:,0]=sqw_temp[:,0]/100.0
-    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax])
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
-    ala=plt.xticks()
-    
-    
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    plt.autoscale(tight=False)
-    ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-    #plt.show()
-    plt.savefig('ams_sqw_int.png')
+        fig = plt.figure(figsize=[8, 5])
+        ax = plt.subplot(111)
+        axidx = self.symmetry.get("axidx", [])
+        axlab = self.symmetry.get("axlab", [])
+        axidx_abs = np.array(axidx, dtype=float) if axidx else np.array([0.0, 1.0])
+        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation="nearest", origin="lower", extent=[axidx_abs[0], axidx_abs[-1], 0, emax])
+        plt.xticks(axidx_abs, axlab)
+        plt.xlabel("q")
+        plt.ylabel("Energy (meV)")
+        plt.grid(visible=True, which="major", axis="x")
+        plt.savefig("ams_sqw_int.png")
+        plt.close()
 
+    def plot_sqw_tensor(self, diagonal_only=True):
+        if not self.results.get("got_sqw_tens"):
+            print("No tensor S(q,w) data; skipping plot_sqw_tensor.")
+            return
+        tens = self.results.get("sqw_tens")
+        if tens is None:
+            print("Tensor data missing; skipping plot_sqw_tensor.")
+            return
 
-
-############################################################
-# Plot the LSWT S(q,w) intensity
-############################################################
-if got_sqw_lint:
-    fig = plt.figure(figsize=[8,5])
-    ax=plt.subplot(111)
-    
-    
-    
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-    sqw_temp=sqw_lint
-    sqw_temp[:,0]=sqw_temp[:,0]/100.0
-    sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-    sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-    plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax_lswt])
-    plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=1)
-    ala=plt.xticks()
-    
-    
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    plt.autoscale(tight=False)
-    ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-    #plt.show()
-    plt.savefig('ams_ncsqw_int.png')
-
-
-
-
-xyz=('x','y','z')
-
-############################################################
-# Plot the S(q,w) on tensorial form (diagonal terms)
-############################################################
-if got_sqw_tens:
-    fig = plt.figure(figsize=[16,4])
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    #plt.autoscale(tight=False)
-    ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-
-    #sqw_x[:,0]=sqw_x[:,0]/100.0
-    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
-    plt_idx=130
-    for ix in range(3):
-        iy=ix
-        sqw_temp=sqw_tens[:,:,ix,iy]
-        sqw_temp[:,0]=sqw_temp[:,0]/1e5
-        sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-        plt_idx=plt_idx+1
-        ax=plt.subplot(plt_idx)
-        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
-        ax.set_title(stitle)
-
-        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax],aspect='auto')
-        plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
-        plt.xticks(axidx_abs,axlab)
-
-    plt.tight_layout()
-
-    plt.savefig('sqw_diagonal.png')
-
-
-
-############################################################
-# Plot the S(q,w) on tensorial form (full tensor)
-############################################################
-if got_sqw_tens:
-    fig = plt.figure(figsize=[16,10])
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    #plt.autoscale(tight=False)
-    ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-
-    #sqw_x[:,0]=sqw_x[:,0]/100.0
-    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
-    plt_idx=330
-    for ix in range(3):
-        for iy in range(3):
-            sqw_temp=sqw_tens[:,:,ix,iy]
-            sqw_temp[:,0]=sqw_temp[:,0]/1e5
-            sqw_temp=sqw_temp.T/sqw_temp.T.max(axis=0)
-            plt_idx=plt_idx+1
-            ax=plt.subplot(plt_idx)
-            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
-            ax.set_title(stitle)
-
-            sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-            sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-            plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax],aspect='auto')
-            plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
-            plt.xticks(axidx_abs,axlab)
-
-    plt.tight_layout()
-
-    plt.savefig('sqw_tensor.png')
-
-
-
-############################################################
-# Plot the LSWT S(q,w) on tensorial form (only diagonal terms)
-############################################################
-if got_lswt_sqw_tens:
-    fig = plt.figure(figsize=[16,4])
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    #plt.autoscale(tight=False)
-    #ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-
-    #sqw_x[:,0]=sqw_x[:,0]/100.0
-    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
-    plt_idx=130
-    for ix in range(3):
-        iy=ix
-        sqw_temp=lswt_sqw_tens[:,:,ix,iy]
-        sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
-        plt_idx=plt_idx+1
-        ax=plt.subplot(plt_idx)
-        stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
-        ax.set_title(stitle)
-
-        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_q,axis=1,mode='constant')
-        sqw_temp=ndimage.gaussian_filter1d(sqw_temp,sigma=sigma_w,axis=0,mode='reflect')
-        plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation='nearest',origin='lower',extent=[axidx_abs[0],axidx_abs[-1],0,emax_lswt],aspect='auto')
-        #plt.plot(ams[:,0]/ams[-1,0]*axidx_abs[-1],ams[:,1:ams_dist_col],'black',lw=  1)
-        plt.xticks(axidx_abs,axlab)
-
-    plt.tight_layout()
-
-    plt.savefig('ncsqw_diagonal.png')
-
-
-############################################################
-# Plot the LSWT S(q,w) on tensorial form (full tensor)
-############################################################
-if got_lswt_sqw_tens:
-    fig = plt.figure(figsize=[16,10])
-    hbar=4.135667662e-15
-    emax=0.5*np.float64(hbar)/(np.float64(timestep)*np.float64(sc_step))*1e3
-
-    plt.xticks(axidx_abs,axlab)
-    plt.xlabel('q')
-    plt.ylabel('Energy (meV)')
-    
-    #plt.autoscale(tight=False)
-    #ax.set_aspect('auto')
-    plt.grid(visible=True,which='major',axis='x')
-
-    #sqw_x[:,0]=sqw_x[:,0]/100.0
-    #sqw_x=sqw_x.T/sqw_x.T.max(axis=0)
-    plt_idx=330
-    for ix in range(3):
-        for iy in range(3):
-            sqw_temp=lswt_sqw_tens[:,:,ix,iy]
-            sqw_temp=sqw_temp.T/(sqw_temp.T.max(axis=0)+1.0e-20)
-            plt_idx=plt_idx+1
-            ax=plt.subplot(plt_idx)
-            stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}_{{LSWT}}$'
-            ax.set_title(stitle)
-
-            sqw_temp = self._apply_gaussian_filter(sqw_temp)
-            plt.imshow(
-                sqw_temp,
-                cmap=cmap.gist_ncar_r,
-                interpolation="nearest",
-                origin="lower",
-                extent=[axidx[0], axidx[-1], 0, emax_lswt],
-                aspect="auto",
-            )
-            plt.xticks(axidx, axlab)
-            plt.tight_layout()
-            plt.savefig("ncsqw_tensor.png")
-            plt.close()
+        emax = self._calculate_emax()
+        axidx = self.symmetry.get("axidx", [])
+        axlab = self.symmetry.get("axlab", [])
+        axidx_abs = np.array(axidx, dtype=float) if axidx else np.array([0.0, 1.0])
+        xyz = ("x", "y", "z")
+        plt_idx = 130 if diagonal_only else 330
+        fig = plt.figure(figsize=[16, 4 if diagonal_only else 10])
+        for ix in range(3):
+            for iy in ([ix] if diagonal_only else range(3)):
+                sqw_temp = tens[:, :, ix, iy]
+                try:
+                    sqw_temp = sqw_temp.T / (sqw_temp.T.max(axis=0) + 1.0e-20)
+                except Exception:
+                    pass
+                plt_idx += 1
+                ax = plt.subplot(plt_idx)
+                stitle = f'$S^{{{xyz[ix] + xyz[iy]}}}(q,\\omega)$'
+                ax.set_title(stitle)
+                sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_q"], axis=1, mode="constant")
+                sqw_temp = ndimage.gaussian_filter1d(sqw_temp, sigma=self.plot_config["sigma_w"], axis=0, mode="reflect")
+                plt.imshow(sqw_temp, cmap=cmap.gist_ncar_r, interpolation="nearest", origin="lower", extent=[axidx_abs[0], axidx_abs[-1], 0, emax], aspect="auto")
+                plt.xticks(axidx_abs, axlab)
+        plt.tight_layout()
+        outname = "sqw_diagonal.png" if diagonal_only else "sqw_tensor.png"
+        plt.savefig(outname)
+        plt.close()
 
     def run(self):
-        """Execute the complete post-processing workflow."""
         print("Reading input parameters...")
-        self.read_inputs()
-
+        self.read_inpsd()
         print("Reading magnon spectra...")
         self.read_magnon_spectra()
-
         print("Reading structure factors...")
         self.read_structure_factors()
-
         print("Analyzing symmetry...")
-        self.analyze_symmetry()
-
+        try:
+            self.analyze_symmetry()
+        except Exception:
+            print("Warning: symmetry analysis failed; continuing.")
         print("Extracting symmetry labels...")
-        self.extract_symmetry_labels()
-
+        try:
+            self.extract_symmetry_labels()
+        except Exception:
+            print("Warning: extracting symmetry labels failed; continuing.")
         print("Plotting magnon spectra...")
-        self.plot_magnon_spectra()
-
+        try:
+            self.plot_magnon_spectra()
+        except Exception:
+            print("Warning: plot_magnon_spectra failed; continuing.")
         print("Plotting S(q,w)...")
-        self.plot_sqw()
-
+        try:
+            self.plot_sqw()
+        except Exception:
+            print("Warning: plot_sqw failed; continuing.")
         print("Plotting S(q,w) intensity...")
-        self.plot_sqw_intensity()
-
+        try:
+            self.plot_sqw_intensity()
+        except Exception:
+            print("Warning: plot_sqw_intensity failed; continuing.")
         print("Plotting S(q,w) tensor (diagonal)...")
-        self.plot_sqw_tensor(diagonal_only=True)
-
+        try:
+            self.plot_sqw_tensor(diagonal_only=True)
+        except Exception:
+            print("Warning: plot_sqw_tensor (diagonal) failed; continuing.")
         print("Plotting S(q,w) tensor (full)...")
-        self.plot_sqw_tensor(diagonal_only=False)
-
+        try:
+            self.plot_sqw_tensor(diagonal_only=False)
+        except Exception:
+            print("Warning: plot_sqw_tensor (full) failed; continuing.")
+        # show what symmetry labels were detected so the user can verify
+        try:
+            print("Symmetry labels:", self.symmetry.get("axlab", []))
+        except Exception:
+            pass
         print("Post-processing complete!")
 
 
 if __name__ == "__main__":
-    # Execute post-processing
-    processor = PostProcessor()
-    processor.run()
+    p = PostProcessor()
+    p.run()
