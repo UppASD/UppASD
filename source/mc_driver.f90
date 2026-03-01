@@ -506,6 +506,7 @@ contains
       use MonteCarlo
       use DemagField
       use MomentData
+      use FieldData, only : beff
       use HamiltonianData
       use Measurements, only : calc_mavrg
       !use InducedMoments,        only : renorm_ncoup_ind
@@ -524,6 +525,9 @@ contains
       integer :: ipmcstep, ia,ik
       real(dblprec) :: energy,temprescale,temprescalegrad, dummy
       real(dblprec) :: mavg, org_temp
+
+      ! Setting beff to zero to avoid any issues with uninitialized fields in the Monte Carlo driver, which does not use beff.
+      beff = 0.0
 
       org_temp = temp
       temp = mctemp
