@@ -166,7 +166,7 @@ def compute_magnons(
     flag : int, optional
         Calculation type:
         - 0: Non-collinear AMS (default, returns nc_eval_q, nc_evec_q)
-        - 1: Chern number calculation (returns nc_eval_qchern, nc_evec_qchern)
+        - 1: Chern number calculation (returns nc_eval_complex, nc_evec_complex)
     
     Returns
     -------

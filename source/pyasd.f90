@@ -679,7 +679,7 @@
    subroutine magnon_get_eigenvalues_qchern(hdim, nq_ext, eigenvalues) &
       bind(c, name='magnon_get_eigenvalues_qchern_')
       use iso_c_binding
-      use diamag, only: nc_eval_qchern
+      use diamag, only: nc_eval_complex
       implicit none
       
       !f2py intent(in) :: hdim, nq_ext
@@ -687,8 +687,8 @@
       integer(c_int), intent(in) :: hdim, nq_ext
       real(c_double), dimension(hdim, nq_ext), intent(out) :: eigenvalues
       
-      if (allocated(nc_eval_qchern)) then
-         eigenvalues = nc_eval_qchern
+      if (allocated(nc_eval_complex)) then
+         eigenvalues = nc_eval_complex
       else
          eigenvalues = 0.0_c_double
       end if
@@ -697,7 +697,7 @@
    subroutine magnon_get_eigenvectors_qchern(hdim, nq_ext, eigenvectors) &
       bind(c, name='magnon_get_eigenvectors_qchern_')
       use iso_c_binding
-      use diamag, only: nc_evec_qchern
+      use diamag, only: nc_evec_complex
       implicit none
       
       !f2py intent(in) :: hdim, nq_ext
@@ -705,8 +705,8 @@
       integer(c_int), intent(in) :: hdim, nq_ext
       complex(c_double_complex), dimension(hdim, hdim, nq_ext), intent(out) :: eigenvectors
       
-      if (allocated(nc_evec_qchern)) then
-         eigenvectors = nc_evec_qchern
+      if (allocated(nc_evec_complex)) then
+         eigenvectors = nc_evec_complex
       else
          eigenvectors = (0.0_c_double, 0.0_c_double)
       end if

@@ -15,9 +15,9 @@ module Chern_number
    use Profiling
    use Hamiltoniandata,    only : ham
    use InputData,   only : ham_inp
-   use Diamag ,     only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,&
-                            setup_jtens2_q,setup_jtens_q,sJs, setup_tensor_hamiltonian,&
-                            nc_eval_qchern,nc_evec_qchern
+  use Diamag ,     only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,&
+                   setup_jtens2_q,setup_jtens_q,sJs, setup_tensor_hamiltonian,&
+                   nc_eval_complex,nc_evec_complex
    !
    implicit none
    !
@@ -91,6 +91,7 @@ contains
 
       real(dblprec)                                   :: therm_conduc              !< Thermal conductivity
       integer                                         :: iq,i,j,k,l,m,i_stat,nqred,icount,jcount,kcount,counter,kx,ky,kz, nmx
+      ! silent NaN-cleanup before conductivity summation
       !
       print '(1x,a)', 'Calculating Chern numbers'
       !Defining variables kx,ky,kz
@@ -287,44 +288,44 @@ contains
           if ( indx(iq).eq.1 .and. indy(iq).eq.1 .and. indz(iq).eq.1 ) then
             j=j+1
             do i=1,NA !band index
-                u1(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
+                u1(i,j)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
               if (abs(u1(i,j))== 0.0_dblprec) then
-                u1norm(i,j)=0.0_dblprec
+                u1norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u1norm(i,j)=u1(i,j)/abs(u1(i,j))
               end if
 
-                u2(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
+                u2(i,j)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
               if (abs(u2(i,j))== 0.0_dblprec) then
-                u2norm(i,j)=0.0_dblprec
+                u2norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u2norm(i,j)=u2(i,j)/abs(u2(i,j))
               end if
 
-                u3(i,j)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+                u3(i,j)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j))== 0.0_dblprec) then
-                u3norm(i,j)=0.0_dblprec
+                u3norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j)=u3(i,j)/abs(u3(i,j))
               end if
 
-                u1inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+                u1inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j))== 0.0_dblprec) then
-                u1invnorm(i,j)=0.0_dblprec
+                u1invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u1invnorm(i,j)=u1inv(i,j)/abs(u1inv(i,j))
               end if
 
-                u2inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
+                u2inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j))== 0.0_dblprec) then
-                u2invnorm(i,j)=0.0_dblprec
+                u2invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u2invnorm(i,j)=u2inv(i,j)/abs(u2inv(i,j))
               end if
 
-                u3inv(i,j)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
+                u3inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
               if (abs(u3inv(i,j))== 0.0_dblprec) then
-                u3invnorm(i,j)=0.0_dblprec
+                u3invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u3invnorm(i,j)=u3inv(i,j)/abs(u3inv(i,j))
               end if
@@ -334,44 +335,44 @@ contains
           if ( indx(iq).eq.2 .and. indy(iq).eq.2 .and. indz(iq).eq.2 ) then
             k=k+1
             do i=1,NA !band index
-              u1(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
+              u1(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
               if (abs(u1(i,j+k))== 0.0_dblprec) then
-              u1norm(i,j+k)=0.0_dblprec
+              u1norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u1norm(i,j+k)=u1(i,j+k)/abs(u1(i,j+k))
               end if
 
-              u2(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
+              u2(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
               if (abs(u2(i,j+k))== 0.0_dblprec) then
-              u2norm(i,j+k)=0.0_dblprec
+              u2norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u2norm(i,j+k)=u2(i,j+k)/abs(u2(i,j+k))
               end if
 
-              u3(i,j+k)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j+k))== 0.0_dblprec) then
-                u3norm(i,j+k)=0.0_dblprec
+                u3norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j+k)=u3(i,j+k)/abs(u3(i,j+k))
               end if
 
-              u1inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j+k))== 0.0_dblprec) then
-              u1invnorm(i,j+k)=0.0_dblprec
+              u1invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u1invnorm(i,j+k)=u1inv(i,j+k)/abs(u1inv(i,j+k))
               end if
 
-              u2inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j+k))== 0.0_dblprec) then
-              u2invnorm(i,j+k)=0.0_dblprec
+              u2invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u2invnorm(i,j+k)=u2inv(i,j+k)/abs(u2inv(i,j+k))
               end if
 
-              u3inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
+              u3inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
               if (abs(u3inv(i,j+k))== 0.0_dblprec) then
-                u3invnorm(i,j+k)=0.0_dblprec
+                u3invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
                 u3invnorm(i,j+k)=u3inv(i,j+k)/abs(u3inv(i,j+k))
               end if
@@ -381,44 +382,44 @@ contains
           if ( indx(iq).eq.3 .and. indy(iq).eq.3 .and. indz(iq).eq.3 ) then
             l=l+1
             do i=1,NA !band index
-              u1(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+1))
+              u1(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
               if (abs(u1(i,j+k+l))== 0.0_dblprec) then
-              u1norm(i,j+k+l)=0.0_dblprec
+              u1norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u1norm(i,j+k+l)=u1(i,j+k+l)/abs(u1(i,j+k+l))
               end if
 
-              u2(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq+1),nc_evec_qchern(1:NA,i,iq+1+kx))
+              u2(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
               if (abs(u2(i,j+k+l))== 0.0_dblprec) then
-              u2norm(i,j+k+l)=0.0_dblprec
+              u2norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u2norm(i,j+k+l)=u2(i,j+k+l)/abs(u2(i,j+k+l))
               end if
 
-              u3(i,j+k+l)=dot_product(nc_evec_qchern(1:NA,i,iq+1+kx),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u3(i,j+k+l))== 0.0_dblprec) then
-                u3norm(i,j+k+l)=0.0_dblprec
+                u3norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j+k+l)=u3(i,j+k+l)/abs(u3(i,j+k+l))
               end if
 
-              u1inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kx+kz),nc_evec_qchern(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
               if (abs(u1inv(i,j+k+l))== 0.0_dblprec) then
-              u1invnorm(i,j+k+l)=0.0_dblprec
+              u1invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u1invnorm(i,j+k+l)=u1inv(i,j+k+l)/abs(u1inv(i,j+k+l))
               end if
 
-              u2inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq+kz),nc_evec_qchern(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
               if (abs(u2inv(i,j+k+l))== 0.0_dblprec) then
-              u2invnorm(i,j+k+l)=0.0_dblprec
+              u2invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u2invnorm(i,j+k+l)=u2inv(i,j+k+l)/abs(u2inv(i,j+k+l))
               end if
 
-              u3inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_qchern(1:NA,i,iq),nc_evec_qchern(1:NA,i,iq+kz))
+              u3inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
               if (abs(u3inv(i,j+k+l))== 0.0_dblprec) then
-                u3invnorm(i,j+k+l)=0.0_dblprec
+                u3invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
                 u3invnorm(i,j+k+l)=u3inv(i,j+k+l)/abs(u3inv(i,j+k+l))
               end if
@@ -454,16 +455,29 @@ contains
 
       ! Calculate the thermal magnon conductivity Kxy in units W/K
       ! Definiton of the Bose-Einstein distribution
-       rho=1/(exp(nc_eval_qchern/(k_bolt_ev*Temp))-1)
+      rho=1/(exp(nc_eval_complex/(k_bolt_ev*Temp))-1)
       ! Definition of the c2 function
        do i=1,2*NA
          do m=1,3*dimen
-           c2_func(i,j)=(1+rho(i,m))*(log((1+rho(i,m))/rho(i,m)))**2-(log(rho(i,m)))**2-2*dli2(-rho(i,m))
+           if (rho(i,m) <= 0.0_dblprec .or. rho(i,m) /= rho(i,m)) then
+             c2_func(i,m)=0.0_dblprec
+           else
+             c2_func(i,m)=(1.0_dblprec+rho(i,m))*(log((1.0_dblprec+rho(i,m))/rho(i,m)))**2 - (log(rho(i,m)))**2 - 2.0_dblprec*dli2(-rho(i,m))
+           end if
          end do
        end do
        ! Sum in k
-       nmx = min(nqred, dimen)
-       therm_conduc_band=sum(c2_func(1:NA,1:3*nmx)*aimag(Berry_cuv(1:NA,1:3*nmx)**2),dim=2)
+      nmx = min(nqred, dimen)
+      ! Silence any NaNs by zeroing affected entries (avoid noisy output)
+      do i = 1, NA
+        do m = 1, 3*nmx
+          if (c2_func(i,m) /= c2_func(i,m)) c2_func(i,m) = 0.0_dblprec
+          if (rho(i,m) /= rho(i,m)) rho(i,m) = 0.0_dblprec
+          if (Berry_cuv(i,m) /= Berry_cuv(i,m)) Berry_cuv(i,m) = (0.0_dblprec,0.0_dblprec)
+        end do
+      end do
+
+      therm_conduc_band = sum(c2_func(1:NA,1:3*nmx) * aimag(Berry_cuv(1:NA,1:3*nmx)**2), dim=2)
        ! Sum in band index
        therm_conduc=-(k_bolt**2)*Temp/((2*pi)**2*hbar)*sum(therm_conduc_band(1:NA),dim=1)
        !Avoid precision error at very low temperatures
@@ -575,10 +589,10 @@ contains
       call memocc(i_stat,product(shape(c2_func))*kind(c2_func),'c2_func','calculate_chern_number')
       deallocate(therm_conduc_band,stat=i_stat)
       call memocc(i_stat,product(shape(therm_conduc_band))*kind(therm_conduc_band),'therm_conduc_band','calculate_chern_number')
-      deallocate(nc_eval_qchern,stat=i_stat)
-      call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','calculate_chern_number')
-      deallocate(nc_evec_qchern,stat=i_stat)
-      call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','calculate_chern_number')
+      deallocate(nc_eval_complex,stat=i_stat)
+      call memocc(i_stat,product(shape(nc_eval_complex))*kind(nc_eval_complex),'nc_eval_complex','calculate_chern_number')
+      deallocate(nc_evec_complex,stat=i_stat)
+      call memocc(i_stat,product(shape(nc_evec_complex))*kind(nc_evec_complex),'nc_evec_complex','calculate_chern_number')
       ! OAM
       deallocate(Lz_k,stat=i_stat)
       call memocc(i_stat,product(shape(Lz_k))*kind(Lz_k),'Lz_k','calculate_chern_number')

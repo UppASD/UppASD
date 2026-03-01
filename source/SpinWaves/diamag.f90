@@ -23,11 +23,12 @@ module diamag
    complex(dblprec), dimension(:,:,:), allocatable :: ektij
    !
    real(dblprec), dimension(:,:), allocatable :: nc_eval_q   !< Eigenvalues from NC-AMS
-   real(dblprec), dimension(:,:), allocatable :: nc_eval_qchern   !< Eigenvalues from NC-AMS
-   complex(dblprec),  dimension(:,:,:), allocatable :: nc_evec_qchern   !< Eigenvalues from NC-AMS in Chern
-   real(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvalues from NC-AMS
+   real(dblprec), dimension(:,:), allocatable :: nc_eval_complex   !< Eigenvalues from NC-AMS (complex/for Chern)
+   complex(dblprec),  dimension(:,:,:), allocatable :: nc_evec_complex   !< Complex eigenvectors (for helicity/Chern)
+   real(dblprec), dimension(:,:,:), allocatable :: nc_evec_q   !< Eigenvectors magnitudes from NC-AMS
    !
    character(len=1) :: do_diamag       !< Perform frequency based spin-correlation sampling (Y/N/C)
+   character(len=1) :: do_helicity     !< Perform helicity/chern analysis (Y/N)
    real(dblprec)    :: diamag_mix      !< Separation between sampling steps
    real(dblprec)    :: diamag_thresh   !< Separation between sampling steps
    real(dblprec)    :: diamag_eps      !< Diagonal offset for positive definitive diagonalization
@@ -41,9 +42,9 @@ module diamag
 
    private
    ! public subroutines
-   public :: do_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
+   public :: do_diamag, do_helicity, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
              find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
-   public :: setup_tensor_hamiltonian, nc_evec_qchern, nc_eval_qchern
+   public :: setup_tensor_hamiltonian, nc_evec_complex, nc_eval_complex
    public :: diamag_qvect, nc_eval_q, nc_evec_q
 
 contains
@@ -53,6 +54,7 @@ contains
       implicit none
 
       do_diamag='N'
+        do_helicity='N'
       diamag_niter=1000
       diamag_mix=0.030_dblprec
       diamag_thresh=1.0d-8
@@ -133,17 +135,21 @@ contains
       allocate(h_k(hdim,hdim),stat=i_stat)
       call memocc(i_stat,product(shape(h_k))*kind(h_k),'h_k','setup_tensor_hamiltonian')
       if (flag == 0) then
-        allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
-        call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
-        allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
-        call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
+            allocate(nc_eval_q(hdim,nq_ext),stat=i_stat)
+            call memocc(i_stat,product(shape(nc_eval_q))*kind(nc_eval_q),'nc_eval_q','setup_tensor_hamiltonian')
+            allocate(nc_evec_q(hdim,hdim,nq_ext),stat=i_stat)
+            call memocc(i_stat,product(shape(nc_evec_q))*kind(nc_evec_q),'nc_evec_q','setup_tensor_hamiltonian')
+            ! Allocate complex eigenvectors only when helicity analysis requested
+            if (do_helicity=='Y') then
+               allocate(nc_evec_complex(hdim,hdim,nq_ext),stat=i_stat)
+               call memocc(i_stat,product(shape(nc_evec_complex))*kind(nc_evec_complex),'nc_evec_complex','setup_tensor_hamiltonian')
+            end if
       else
-        allocate(nc_eval_qchern(hdim,nq_ext),stat=i_stat)
-        call memocc(i_stat,product(shape(nc_eval_qchern))*kind(nc_eval_qchern),'nc_eval_qchern','setup_tensor_hamiltonian')
-        if (.not. allocated(nc_evec_qchern)) then
-          allocate(nc_evec_qchern(hdim,hdim,nq_ext),stat=i_stat)
-          call memocc(i_stat,product(shape(nc_evec_qchern))*kind(nc_evec_qchern),'nc_evec_qchern','setup_tensor_hamiltonian')
-        end if
+            allocate(nc_eval_complex(hdim,nq_ext),stat=i_stat)
+            call memocc(i_stat,product(shape(nc_eval_complex))*kind(nc_eval_complex),'nc_eval_complex','setup_tensor_hamiltonian')
+         ! For Chern-number calculations we always need complex eigenvectors
+         allocate(nc_evec_complex(hdim,hdim,nq_ext),stat=i_stat)
+         call memocc(i_stat,product(shape(nc_evec_complex))*kind(nc_evec_complex),'nc_evec_complex','setup_tensor_hamiltonian')
       end if
          !
       allocate(eig_vec(hdim,hdim),stat=i_stat)
@@ -260,14 +266,16 @@ contains
          call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
-         if (flag==0) then
-           nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
-           nc_evec_q(:,:,iq)=abs(eig_vec)
-           nc_evec_qchern(:,:,iq)=eig_vec  ! Store complex eigenvectors for helicity
-         else
-           nc_eval_qchern(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
-           nc_evec_qchern(:,:,iq)=eig_vec
-         end if
+             if (flag==0) then
+                nc_eval_q(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+                nc_evec_q(:,:,iq)=abs(eig_vec)
+                if (do_helicity=='Y') then
+                   nc_evec_complex(:,:,iq)=eig_vec  ! Store complex eigenvectors for helicity
+                end if
+             else
+                nc_eval_complex(:,iq)=real(eig_val)*ry_ev*4.0_dblprec
+                nc_evec_complex(:,:,iq)=eig_vec
+             end if
       end do
 
       if (flag==0) then
@@ -298,8 +306,10 @@ contains
         !   !call magdos_calc(magdos_file,nc_eval_q(1:na,:),nc_magdos,na,nq)
         !end if
 
-        ! Output band helicity (circular polarization) on the q-path
-        call diamag_write_helicity(NA, nq, q_vect, nc_evec_qchern, simid)
+            ! Output band helicity (circular polarization) on the q-path (only if requested)
+            if (do_helicity=='Y') then
+               call diamag_write_helicity(NA, nq, q_vect, nc_evec_complex, simid)
+            end if
 
         call diamag_sqw(NA,nq,nq_ext,diamag_nfreq,q_vect,nc_eval_q,S_prime,simid,diamag_nvect)
 
@@ -339,14 +349,28 @@ contains
       deallocate(h_k,stat=i_stat)
       call memocc(i_stat,i_all,'h_k','setup_tensor_hamiltonian')
       !
-      if (flag == 0) then
-      i_all=-product(shape(nc_eval_q))*kind(nc_eval_q)
-      deallocate(nc_eval_q,stat=i_stat)
-      call memocc(i_stat,i_all,'nc_eval_q','setup_tensor_hamiltonian')
-      i_all=-product(shape(nc_evec_q))*kind(nc_evec_q)
-      deallocate(nc_evec_q,stat=i_stat)
-      call memocc(i_stat,i_all,'nc_evec_q','setup_tensor_hamiltonian')
-      end if
+         if (flag == 0) then
+            i_all=-product(shape(nc_eval_q))*kind(nc_eval_q)
+            deallocate(nc_eval_q,stat=i_stat)
+            call memocc(i_stat,i_all,'nc_eval_q','setup_tensor_hamiltonian')
+            i_all=-product(shape(nc_evec_q))*kind(nc_evec_q)
+            deallocate(nc_evec_q,stat=i_stat)
+            call memocc(i_stat,i_all,'nc_evec_q','setup_tensor_hamiltonian')
+         else
+            ! For Chern-number calculations keep `nc_eval_complex` allocated
+            ! so the caller (`calculate_chern_number`) can access eigenvalues.
+         end if
+
+         ! Deallocate complex eigenvectors used for helicity/output only for LSWT branch.
+         ! For Chern-number calculations (`flag /= 0`) keep `nc_evec_complex` allocated
+         ! so callers (e.g., calculate_chern_number) can access the data.
+         if (flag == 0) then
+            if (allocated(nc_evec_complex)) then
+               i_all=-product(shape(nc_evec_complex))*kind(nc_evec_complex)
+               deallocate(nc_evec_complex,stat=i_stat)
+               call memocc(i_stat,i_all,'nc_evec_complex','setup_tensor_hamiltonian')
+            end if
+         end if
       !
       i_all=-product(shape(eig_vec))*kind(eig_vec)
       deallocate(eig_vec,stat=i_stat)
@@ -1551,6 +1575,10 @@ contains
 
          case('nc_eps') ! Perform frequency based spin-correlation sampling
             read(ifile,*,iostat=i_err) diamag_eps
+            if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
+         case('do_helicity') ! Enable helicity/chern analysis
+            read(ifile,*,iostat=i_err) do_helicity
             if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! END OF LEGACY VARIABLES
