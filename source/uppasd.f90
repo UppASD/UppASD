@@ -296,6 +296,7 @@ contains
       call timing(0,'SpinCorr      ','OF')
 
       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
+         call print_siminfo()
          call mc_mphase() ! Monte Carlo measurement phase
          
       elseif (mode=='MS') then
@@ -1093,28 +1094,28 @@ contains
       call set_correlation_average(lc,i)
       !
 
-         if(do_sc=='Y'.or.do_sc=='Q'.or.do_sc=='C') then
-            write (*,'(1x,a)') "Allocate spin-correlation data"
-            call allocate_corr(Natom,Mensemble,sc,1)
-         end if
-         if(do_uc=='Y'.or.do_uc=='Q'.or.do_uc=='C') then
-            write (*,'(1x,a)') "Allocate angular momentum correlation data"
-            call allocate_corr(Natom,Mensemble,uc,1)
-         end if
-         if(do_vc=='Y'.or.do_vc=='Q'.or.do_vc=='C') then
-            write (*,'(1x,a)') "Allocate angular momentum correlation data"
-            call allocate_corr(Natom,Mensemble,vc,1)
-         end if
-         if(do_lc=='Y'.or.do_lc=='Q'.or.do_lc=='C') then
-            write (*,'(1x,a)') "Allocate  angular momentum correlation data"
-            call allocate_corr(Natom,Mensemble,lc,1)
-         end if
+      if(do_sc=='Y'.or.do_sc=='Q'.or.do_sc=='C') then
+         write (*,'(1x,a)') "Allocate spin-correlation data"
+         call allocate_corr(Natom,Mensemble,sc,1)
+      end if
+      if(do_uc=='Y'.or.do_uc=='Q'.or.do_uc=='C') then
+         write (*,'(1x,a)') "Allocate angular momentum correlation data"
+         call allocate_corr(Natom,Mensemble,uc,1)
+      end if
+      if(do_vc=='Y'.or.do_vc=='Q'.or.do_vc=='C') then
+         write (*,'(1x,a)') "Allocate angular momentum correlation data"
+         call allocate_corr(Natom,Mensemble,vc,1)
+      end if
+      if(do_lc=='Y'.or.do_lc=='Q'.or.do_lc=='C') then
+         write (*,'(1x,a)') "Allocate  angular momentum correlation data"
+         call allocate_corr(Natom,Mensemble,lc,1)
+      end if
 
-         if(do_sr=='Y'.or.do_sr=='R'.or.do_sr=='T') then
-            write(*,'(1x,a)',advance='no') "Set up neighbourmap for correlations"
-            call corr_sr_init(Natom, sc, coord, 1)
-            write(*,'(a)')" done."
-         end if
+      if(do_sr=='Y'.or.do_sr=='R'.or.do_sr=='T') then
+         write(*,'(1x,a)',advance='no') "Set up neighbourmap for correlations"
+         call corr_sr_init(Natom, sc, coord, 1)
+         write(*,'(a)')" done."
+      end if
 
       ! Print input
       write(*,'(1x,a)',advance='no') 'Write input data'
@@ -1628,26 +1629,32 @@ contains
       write (*,'(1x,a)')          "------------------------------------------"
       write (*,'(1x,a)')          "           Simulation data                "
       write (*,'(1x,a)')          "------------------------------------------"
-      write (*,'(1x,a,i8)')       " Number of atoms", Natom
-      write (*,'(1x,a,i4)')       " Number of ensembles", Mensemble
-      write (*,'(1x,a,1x,a)')     " Gradient:", grad
+      write (*,'(1x,a,1x,a)')       " Simulation mode:", mode
+      write (*,'(1x,a,i8)')       " Number of atoms:", Natom
+      write (*,'(1x,a,i4)')       " Number of ensembles:", Mensemble
       if(grad.eq.'N') then
          write (*,'(1x,a,f8.2,a)')   " Temperature:", Temp, " K"
       else
+         write (*,'(1x,a,1x,a)')     " Gradient:", grad
          write (*,'(1x,a,f8.2,f8.2,f8.2,f8.2,a)')   " Temperature boundaries:", Temp_low_x, Temp_high_x, Temp_low_y, Temp_high_y, " K"
       end if
 
-      write (*,'(1x,a,i10)')      " Number of simulation steps:", nstep
-      write (*,'(1x,a,G11.4,a)')  " Time step:", (delta_t*1.0d18), "as"
-      write (*,'(1x,a,G11.4,a)')  " Simulation time:", (nstep*delta_t*1.0d12), "ps"
-      if (do_site_damping=='Y') then
-         write (*,'(2x,a,4x,a)') "Damping_1", "Site"
-         do i=1, NA
-            write (*,'(2x,G11.4,i3)') lambda1_array(i),i
-         end do
-      else
-         write (*,'(1x,a,G11.4)')    " Damping parameter:", lambda1_array(1)
-      endif
+      ! Print dynamics info if relevent for the mode
+      if (mode=='S' .or. mode=='R') then
+         write (*,'(1x,a,i10)')      " Number of simulation steps:", nstep
+         write (*,'(1x,a,G11.4,a)')  " Time step:", (delta_t*1.0d18), "as"
+         write (*,'(1x,a,G11.4,a)')  " Simulation time:", (nstep*delta_t*1.0d12), "ps"
+         if (do_site_damping=='Y') then
+            write (*,'(2x,a,4x,a)') "Damping_1", "Site"
+            do i=1, NA
+               write (*,'(2x,G11.4,i3)') lambda1_array(i),i
+            end do
+         else
+            write (*,'(1x,a,G11.4)')    " Damping parameter:", lambda1_array(1)
+         endif
+      else if (mode=='M' .or. mode=='H' .or. mode=='L' .or. mode=='D' .or. mode=='I' .or. mode=='W') then
+         write (*,'(1x,a,i10)')      " Number of MC sweeps:", mcnstep
+      end if
       write (*,'(1x,a,1x,a)')     " Sample averages:", do_avrg
       write (*,'(1x,a,1x,a)')     " Sample moments:", do_tottraj
       write (*,'(1x,a,1x,a)')     " Spin correlation:", do_sc
