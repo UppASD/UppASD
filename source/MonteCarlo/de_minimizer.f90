@@ -329,11 +329,12 @@ contains
          ! Initialize q-vectors: uniform in unit ball
          do j = 1, n_qvec_optimize
             call rng_uniform(rnd, 3)
-            ! Use rejection sampling for uniform distribution in ball
+            ! Use rejection sampling for uniform distribution in unit cube
             do while (sum(rnd**2) > 1.0_dblprec)
                call rng_uniform(rnd, 3)
-               rnd = 2.0_dblprec * rnd - 1.0_dblprec
             end do
+            ! Map from [0,1) to [-1,1) to obtain uniform point in unit ball
+            rnd = 2.0_dblprec * rnd - 1.0_dblprec
             population(3*(j-1)+1:3*j, i) = rnd * 0.8_dblprec  ! Start with smaller q
             
             ! If x-y plane constraint is active, set qz = 0
@@ -401,6 +402,7 @@ contains
       ! Crossover: binomial
       call rng_uniform(rnd, 1)
       r_idx = int(rnd(1) * de_n_params) + 1  ! Random parameter index
+      if (r_idx > de_n_params) r_idx = de_n_params
       
       do j = 1, de_n_params
          call rng_uniform(rnd, 1)
@@ -430,9 +432,11 @@ contains
       do i = 1, 3
          call rng_uniform(rnd, 1)
          indices(i) = int(rnd(1) * pop_size) + 1
+         if (indices(i) > pop_size) indices(i) = pop_size
          do while (indices(i) == exclude .or. any(indices(1:i-1) == indices(i)))
             call rng_uniform(rnd, 1)
             indices(i) = int(rnd(1) * pop_size) + 1
+            if (indices(i) > pop_size) indices(i) = pop_size
          end do
       end do
       
@@ -524,13 +528,14 @@ contains
    subroutine de_cartesian_to_spherical(vec, theta, phi)
       implicit none
       real(dblprec), dimension(3), intent(in) :: vec
-      real(dblprec), intent(out) :: theta, phi
-      real(dblprec) :: r
+        real(dblprec), intent(out) :: theta, phi
+        real(dblprec) :: r, pi
       
       r = sqrt(sum(vec**2))
       theta = acos(vec(3) / (r + 1.0e-12_dblprec))
       phi = atan2(vec(2), vec(1))
-      if (phi < 0.0_dblprec) phi = phi + 2.0_dblprec * 4.0_dblprec * atan(1.0_dblprec)
+      pi = 4.0_dblprec * atan(1.0_dblprec)
+      if (phi < 0.0_dblprec) phi = phi + 2.0_dblprec * pi
       
    end subroutine de_cartesian_to_spherical
    
