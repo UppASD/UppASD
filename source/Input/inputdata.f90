@@ -134,7 +134,8 @@ module InputData
    integer :: plotenergy       !< Calculate and plot energy (0/1)
    integer :: do_hoc_debug     !< Print higher order couplings debug information (0/1)
    integer :: do_prnstruct     !< Print Hamiltonian information (0/1)
-   integer :: do_storeham       !< Save a binary copy of the Heisenberg Hamiltonian (0/1)
+   integer :: import_ham       !< Import Hamiltonian from file (0/1)
+   integer :: do_storeham      !< Save a binary copy of the Heisenberg Hamiltonian (0/1)
    integer :: do_prn_poscar    !< Print geometry on POSCAR format (0/1)
    integer :: do_prn_elk       !< Print geometry on ELK format (0/1)
    integer :: do_read_elk      !< Read geometry on ELK format (0/1)
@@ -435,7 +436,8 @@ contains
       !Tasks
       compensate_drift  = 0
       do_prnstruct      = 0
-      do_storeham        = 0
+      import_ham        = 0
+      do_storeham       = 0
       do_prn_poscar     = 0
       do_prn_elk        = 0
       do_read_elk       = 0

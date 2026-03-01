@@ -521,7 +521,6 @@ module ScaleHamiltonian
       integer :: rd_len, i_err, i_errb, i_stat, ii
       logical :: comment
 
-      print *,'Reading j-scaling data '
       do
          10     continue
          ! Read file character for character until first whitespace
@@ -545,44 +544,36 @@ module ScaleHamiltonian
 
         case('jscaling_flag')
            read(ifile,*,iostat=i_err) jscaling_flag
-           print *,'jscaling_flag:', jscaling_flag
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_dynamic')
            read(ifile,*,iostat=i_err) jscaling_dynamic
-           print *,'jscaling_dynamic:', jscaling_dynamic
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_pair')
            read(ifile,*,iostat=i_err) jscaling_pair
-           print *,'jscaling_pair:', jscaling_pair
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
          case('jscaling_dmi')
-              read(ifile,*,iostat=i_err) jscaling_dmi
-              print *,'jscaling_dmi:', jscaling_dmi
-              if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+           read(ifile,*,iostat=i_err) jscaling_dmi
+           if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_prefactor')
            read(ifile,*,iostat=i_err) jscaling_prefactor
-           print *,'jscaling_prefactor:', jscaling_prefactor
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_freq')
            read(ifile,*,iostat=i_err) jscaling_freq
-           print *,'jscaling_freq:', jscaling_freq
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_phase')
            read(ifile,*,iostat=i_err) jscaling_phase
-           print *,'jscaling_phase:', jscaling_phase
            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
         case('jscaling_file')
             read(ifile,'(a)',iostat=i_err) cache
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             jscaling_file=trim(adjustl(cache))
-            print *,'jscaling_file:', trim(jscaling_file)
 
             call read_jscaling_file()
 

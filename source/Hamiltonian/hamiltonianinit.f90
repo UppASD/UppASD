@@ -64,7 +64,7 @@ contains
       use PrintHamiltonian
       use LatticeHamiltonianInit, only : setup_neighbour_latticehamiltonian
       use DipoleManager, only : dipole_setup
-      use InputData, only : ham_inp
+      use InputData, only : ham_inp, import_ham
       use ScaleHamiltonian, only : jscaling_flag, apply_jscaling
 
       !.. Implicit declarations
@@ -191,7 +191,7 @@ contains
       if (ham_inp%do_jtensor/=1) then
 
          ! Setup or import map
-         if (.not.prev_map(simid)) then
+         if (.not.prev_map(simid) .or. import_ham==0) then
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! Data for the cluster method
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

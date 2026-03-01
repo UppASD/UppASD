@@ -89,7 +89,7 @@ contains
       !tol=0.0001_dblprec
       tol=0.01_dblprec
 
-      if(present(nntype)) print *, 'nntype', shape(nntype)
+      ! if(present(nntype)) print *, 'nntype', shape(nntype)
 
       ! calculate max.no. of shells of neighbours
       nndim=0
