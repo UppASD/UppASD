@@ -459,7 +459,7 @@ class ASDInputGen:
             if window.InpZhangLiCheck.isChecked():
                 ASDInputGen.UppASDKeywords["spintorque"]["stt"] = "A"
             if window.InpSlonwceskiCheck.isChecked():
-                ASDInputGen.UppASDKeywords["spintorque"]["stt"] = "Y"
+                ASDInputGen.UppASDKeywords["spintorque"]["stt"] = "S"
             # Check if the SHE is considered
             if window.InpSHEBox.isChecked():
                 ASDInputGen.UppASDKeywords["spintorque"]["do_she"] = "Y"

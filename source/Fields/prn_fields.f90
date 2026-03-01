@@ -62,7 +62,7 @@ contains
    subroutine print_fields(mstep, sstep, Natom, Mensemble, simid, real_time_measure, delta_t, &
          beff, thermal_field, beff1, beff3, emom)
 
-      use SpinTorques, only : do_she
+      use SpinTorques, only : stt, do_she, do_sot
       implicit none
 
       integer, intent(in) :: mstep                      !< Current simulation step
@@ -176,6 +176,10 @@ contains
       endif
       ! Site dependent spin torques
       if (do_prn_spin_torques=='Y') then
+         ! Skip if all torque modes are disabled
+         if (stt=='N' .and. do_she=='N' .and. do_sot=='N') then
+            return
+         endif
 
          if (mod(sstep-1,spin_torques_step)==0) then
             ! Write step to buffer
@@ -323,7 +327,7 @@ contains
          endif
 
          if (do_prn_spin_torques=='Y') then
-            allocate(spin_torquesb(6,Natom,spin_torques_buff,Mensemble),stat=i_stat)
+            allocate(spin_torquesb(9,Natom,spin_torques_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(spin_torquesb))*kind(spin_torquesb),'spin_torquesb','allocate_measurements')
             allocate(indxb_spin_torques(spin_torques_buff),stat=i_stat)
             call memocc(i_stat,product(shape(indxb_spin_torques))*kind(indxb_spin_torques),'indxb_spin_torques','allocate_measurements')
@@ -538,7 +542,7 @@ contains
    subroutine buffer_spin_torques(Natom, Mensemble, mstep,&
          bcount_spin_torques,delta_t,real_time_measure,emom)
       !
-      use spintorques, only : btorque
+      use spintorques, only : btorque, sot_btorque
       use math_functions, only : f_cross_product
 
       implicit none
@@ -563,6 +567,13 @@ contains
             damp_torque = f_cross_product(emom(:,i,k), prec_torque)
             spin_torquesb(1:3,i,bcount_spin_torques,k)=prec_torque
             spin_torquesb(4:6,i,bcount_spin_torques,k)=damp_torque
+            ! Store SOT torque if allocated: m x sot_btorque (actual torque, not field)
+            if (allocated(sot_btorque)) then
+               tmp_fld=sot_btorque(1:3,i,k)
+               spin_torquesb(7:9,i,bcount_spin_torques,k)=f_cross_product(emom(:,i,k), tmp_fld)
+            else
+               spin_torquesb(7:9,i,bcount_spin_torques,k)=0.0_dblprec
+            endif
          end do
       end do
 
@@ -578,7 +589,7 @@ contains
    subroutine buffer_she_torques(Natom, Mensemble, mstep,&
          bcount_spin_torques,delta_t,real_time_measure,emom)
       !
-      use spintorques, only : she_btorque
+      use spintorques, only : she_btorque, sot_btorque
       use math_functions, only : f_cross_product
 
       implicit none
@@ -595,7 +606,7 @@ contains
       integer :: i,k
       real(dblprec), dimension(3) :: prec_torque,damp_torque, tmp_fld
 
-      ! Print precessional and damping torques from the spin transfer field
+      ! Print precessional and damping torques from the SHE field
       do k=1, Mensemble
          do i=1, Natom
             tmp_fld=she_btorque(1:3,i,k)
@@ -603,6 +614,13 @@ contains
             damp_torque = f_cross_product(emom(:,i,k), prec_torque)
             spin_torquesb(1:3,i,bcount_spin_torques,k)=prec_torque
             spin_torquesb(4:6,i,bcount_spin_torques,k)=damp_torque
+            ! Store SOT torque if allocated: m x sot_btorque (actual torque, not field)
+            if (allocated(sot_btorque)) then
+               tmp_fld=sot_btorque(1:3,i,k)
+               spin_torquesb(7:9,i,bcount_spin_torques,k)=f_cross_product(emom(:,i,k), tmp_fld)
+            else
+               spin_torquesb(7:9,i,bcount_spin_torques,k)=0.0_dblprec
+            endif
          end do
       end do
 
@@ -613,6 +631,7 @@ contains
       endif
 
    end subroutine buffer_she_torques
+
 
    !> Buffer site resulting torques
    subroutine buffer_torques(Natom, Mensemble, mstep,beff,thermal_field,&
@@ -863,8 +882,8 @@ contains
 
       ! Write header to output files for first iteration
       if(abs(indxb_torques(1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)') "# Iter.     Site     Replica        Tau_B_x     Tau_B_y     Tau_B_z     |Tau_B|     &
-          Tau_b_x     Tau_b_y     Tau_b_z     |Tau_b|"
+         write (ofileno,'(a)') "# Iter.     Site     Replica        Tau_B_x     Tau_B_y     Tau_B_z     |Tau_B|  "   &
+          // "Tau_b_x     Tau_b_y     Tau_b_z     |Tau_b|"
       end if
 
       do k=1, bcount_torques
@@ -906,15 +925,16 @@ contains
       integer :: i,j,k
       character(len=30) :: filn
 
-      ! Print thermal fields to output file if specified
+      ! Print torque data to output file
       ! Remember to remove old data since the write statement appends new data to the file
       write(filn,'(''spin_torques.'',a,''.out'')') trim(simid)
       open(ofileno,file=filn, position = 'APPEND',form = 'formatted')
 
       ! Write header to output files for first iteration
       if(abs(indxb_spin_torques(1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)') "# Iter.     Site     Replica        STT_p_x     STT_p_y     STT_p_z     |STT_p|     &
-            STT_d_x     STT_d_y     STT_d_z     |STT_d|"
+         write (ofileno,'(a)') "# Spin torque output: STT (Zhang-Li+Slonczewski), SHE (Spin Hall), SOT (Spin-Orbit Torque)"
+         write (ofileno,'(a)') "# Iter.     Site     Replica   STT_prec_x STT_prec_y STT_prec_z  |STT_p| "  &
+            //  "STT_damp_x STT_damp_y STT_damp_z  |STT_d|    SOT_x      SOT_y      SOT_z      |SOT|"
       end if
 
       do k=1, bcount_spin_torques
@@ -923,11 +943,13 @@ contains
                if (real_time_measure=='Y') then
                   write (ofileno,121) indxb_spin_torques(k), i, j, &
                   spin_torquesb(1:3,i,k,j), norm2(spin_torquesb(1:3,i,k,j)), &
-                     spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j))
+                  spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j)), &
+                  spin_torquesb(7:9,i,k,j), norm2(spin_torquesb(7:9,i,k,j))
                else
                   write (ofileno,120) int(indxb_spin_torques(k)), i, j, &
                   spin_torquesb(1:3,i,k,j), norm2(spin_torquesb(1:3,i,k,j)), &
-                     spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j))
+                  spin_torquesb(4:6,i,k,j), norm2(spin_torquesb(4:6,i,k,j)), &
+                  spin_torquesb(7:9,i,k,j), norm2(spin_torquesb(7:9,i,k,j))
                endif
             end do
          end do
@@ -936,10 +958,10 @@ contains
 
       return
 
-      write(*,*) 'Error writing the internal field file'
+      write(*,*) 'Error writing the spin torque file'
 
-      120 format(i8,i8,i8,8x,8es12.4)
-      121 format(es12.4,i8,i8,8x,8es12.4)
+      120 format(i8,i8,i8,8x,12es12.4)
+      121 format(es12.4,i8,i8,8x,12es12.4)
 
    end subroutine prn_spin_torques
 

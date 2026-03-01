@@ -1,0 +1,61 @@
+simid  scHeis64 
+ncell     80 80 1
+BC        0         0         0                 Boundary conditions (0=vacuum,P=periodic)
+cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+alat      2.5e-10
+
+Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+posfile    ./posfile
+exchange   ./jfile
+momfile    ./momfile
+anisotropy ./kfile
+do_prnstruct 1
+
+Mensemble 1
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+#restartfile ./restart
+
+ip_mode   S                                     Initial phase parameters
+ip_nphase 1
+2500 000.0e-4 1.0e-15 1.0
+ip_hfield   0.01 0.00 0.00 
+
+mode      S                                     S=SD, M=MC
+temp      000.0e-4
+timestep  1.0e-15
+Nstep     100000         # 0.5 ns
+damping   0.1
+hfield    0.01 0.00 0.00
+
+do_she    Y
+she_angle 0.20
+she_n_vec 0.0 0.0 1.0
+jdens     1.0e12 0.0 1.0e12
+thick_ferro 2.5e-10
+adibeta 0.1
+
+do_avrg   Y                                     Measure averages
+avrg_step 1000
+
+do_tottraj N                                    Measure moments
+tottraj_step       100
+tottraj_buff       10                           time step, buffer size
+
+plotenergy 1                                    Calculate energy of the system projected on the different Hamiltonian components
+
+do_cumu Y
+cumu_step 100
+do_prn_spin_torques Y
+spin_torques_step    100    # print every 100 steps
+spin_torques_buff    10     # buffer 10 steps before writing
+
+do_prn_beff Y
+beff_step 100
+beff_buff 10
+
+do_prn_torques Y
+torques_step    100    # print every 100 steps
+torques_buff    10     # buffer 10 steps before writing
+
