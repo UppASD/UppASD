@@ -222,6 +222,9 @@ contains
       elseif (ipmode=='Z') then
          ! Spin spiral minimization initial phase
          call qminimizer_wrapper(ipmode)
+      elseif (ipmode=='DE') then
+         ! Spin spiral minimization initial phase
+         call qminimizer_wrapper('D')
       elseif (ipmode=='Y') then
          ! Spin spiral minimization initial phase
          call qminimizer_wrapper(ipmode)
@@ -618,6 +621,7 @@ contains
       use Chern_number
       use ElkGeometry
       use Qminimizer
+      use de_minimizer, only : read_parameters_de
       use Correlation_core
       use Correlation_utils, only : allocate_corr, corr_sr_init
       use Omegas, only : set_w, set_w_print_option
@@ -754,6 +758,8 @@ contains
       call read_parameters_elkgeometry(ifileno)
       rewind(ifileno)
       call read_parameters_qminimizer(ifileno)
+      rewind(ifileno)
+      call read_parameters_de(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
       rewind(ifileno)
