@@ -4,7 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.1.0] - 2025-09-11
+## [6.1.0rc5] - 2025-09-11
+
+### Added
+
+- Tutorial notebooks showcasing the Python interface [[Anders Bergman](anders.bergman@physics.uu.se)]
+- OSO minimization algorithm [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Differential evolution minmization algorithm [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Dynamic scaling of Jij and DMI `jscaling` [[Anders Bergman](anders.bergman@physics.uu.se)]
+
+### Changed
+
+- Updated spin-transfer torque (STT/SOT/SHE) routines [[Anders Bergman](anders.bergman@physics.uu.se)]
+- Updated Python wrappers and helping routines [[Anders Bergman](anders.bergman@physics.uu.se)]
+
+## [6.1.0rc0] - 2025-09-11
 
 ### Added
 

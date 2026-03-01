@@ -1,0 +1,42 @@
+simid bccFe100                                    
+ncell 20 20 20 
+BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
+cell      1.00000   0.00000   0.00000         
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile    ./posfile
+momfile    ./momfile
+exchange   ./jfile
+
+Initmag   1                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode   N
+
+mode      S
+Temp      1.00          K                     Temperature of the system
+hfield    0.00000   0.00000   0.00000           Static H field
+
+damping   0.10                                  damping parameter (gamma)
+nstep     200000                                Number of time-steps
+timestep  1.000e-16       s                     The time step-size for the SDE-solver
+
+do_avrg   Y                                     Measure averages
+avrg_step   100 
+do_cumu Y
+cumu_step 100
+plotenergy 1
+ene_step 100
+
+gpu_mode 0
+
+ea_model T
+ea_sigma 1.0
+ea_algo F
+
+
+do_prnstruct 1
+
+do_autocorr Y
+acfile ./acfile
