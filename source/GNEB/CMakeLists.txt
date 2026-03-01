@@ -7,4 +7,5 @@ oso.f90
 cg_direction.f90
 wolfe_search.f90
 oso_full.f90
+lbfgs_direction.f90
 vpo.f90)
