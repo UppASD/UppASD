@@ -562,36 +562,6 @@ contains
             time_external_field=0.0_dblprec
          endif
 
-         ! Measure averages and trajectories
-         if (do_prn_beff=='Y') then
-            ! Apply Hamiltonian to obtain effective field
-            if(do_sparse=='Y') then
-               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-                  call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-               else
-                  call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-               end if
-               beff1=beff
-               beff2=external_field+time_external_field
-               beff=beff1+beff2
-            else
-
-               call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-                  mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
-                  max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-                  constellations, constellationsNeighType, totenergy,        &
-                  Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
-            end if
-         end if
-         !print '(3f12.6)', beff
-         call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,mstep,emom,emomM,   &
-            mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,plotenergy,    &
-            Temp,temprescale,temprescalegrad,real_time_measure,delta_t,logsamp,     &
-            ham%max_no_neigh,                                                       &
-            ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field,beff,beff1,    &
-            beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,          &
-            ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
-
          ! Calculate total and term resolved energies
          if(plotenergy>0) then
             call timing(0,'Measurement   ','OF')
