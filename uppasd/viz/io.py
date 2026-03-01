@@ -12,7 +12,7 @@ Design principles
 """
 
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 
 
 # ======================================================================
@@ -289,6 +289,154 @@ def reshape_supercell(
         return arr.mean(axis=2)
 
     return arr
+
+
+def snapshot_to_grid(
+    vals: np.ndarray,
+    coord: Optional[Dict] = None,
+    ncell: Optional[Tuple[int, int, int]] = None,
+    reduce_z: bool = True,
+):
+    """
+    Convert a per-atom 1D array of values into a 2D grid suitable for heatmap plotting.
+
+    Parameters
+    ----------
+    vals : ndarray (Natom,)
+        Per-atom scalar values (e.g. mz) indexed by atom number 1..Natom.
+    coord : dict, optional
+        Coordinate table as returned by `read_coord` (keys: 'iatom','x','y').
+    ncell : tuple (Nx,Ny,Nz), optional
+        Supercell shape to reshape into. If provided, `vals` will be reshaped
+        into (Nx,Ny,Nz) and reduced over z if `reduce_z` is True.
+    reduce_z : bool
+        If True and Nz>1, average over z-direction.
+
+    Returns
+    -------
+    grid2d : ndarray (Ny, Nx)
+        2D grid ready for `imshow(origin='lower')`.
+    """
+    vals = np.asarray(vals)
+
+    if ncell is not None:
+        Nx, Ny, Nz = ncell
+        if vals.size != Nx * Ny * Nz:
+            raise ValueError("vals length does not match ncell product")
+        arr = vals.reshape((Nx, Ny, Nz))
+        if reduce_z and Nz > 1:
+            return arr.mean(axis=2)
+        if Nz > 1:
+            return arr
+        return arr.reshape((Nx, Ny))
+
+    if coord is None:
+        raise ValueError("coord must be provided when ncell is not given")
+
+    xs = coord["x"]
+    ys = coord["y"]
+    iatom = coord["iatom"].astype(int)
+
+    ux = np.unique(xs)
+    uy = np.unique(ys)
+    nx = ux.size
+    ny = uy.size
+
+    grid = np.full((ny, nx), np.nan, dtype=float)
+
+    # Build index maps using exact matches
+    x_to_ix = {float(v): i for i, v in enumerate(ux)}
+    y_to_iy = {float(v): i for i, v in enumerate(uy)}
+
+    for ia, x, y in zip(iatom, xs, ys):
+        ix = x_to_ix.get(float(x))
+        iy = y_to_iy.get(float(y))
+        if ix is None or iy is None:
+            continue
+        grid[iy, ix] = vals[ia - 1]
+
+    return grid
+
+
+def results_snapshot_grid(
+    results,
+    key: str = "restart",
+    component: int = 2,
+    snapshot_index: int = -1,
+    idx: int | None = None,
+    ncell: Optional[Tuple[int, int, int]] = None,
+    reduce_z: bool = True,
+):
+    """
+    Convenience wrapper: extract a single snapshot from `results` and return
+    (iter_id, grid2d) ready for plotting.
+
+    Parameters
+    ----------
+    results : ASDResults
+    key : str
+        'restart' or 'moment' (or any table with 'iter','iatom','mx','my','mz').
+    component : int
+        0=x,1=y,2=z component to extract.
+    snapshot_index : int
+        Index into time snapshots for 'moment' (supports negative indexing). For
+        'restart' this is ignored.
+    ncell : optional
+        Supercell shape to reshape into.
+    reduce_z : bool
+        Whether to average over z when ncell indicates Nz>1.
+
+    Returns
+    -------
+    (iter_id, grid2d)
+    or None if data missing.
+    """
+    if key == "moment":
+        # use spin_snapshots to get structured array
+        steps, spins = spin_snapshots(results, key="moment")
+        if len(steps) == 0:
+            return None
+        # accept `idx` as an alias for `snapshot_index` (notebook-friendly)
+        if idx is not None:
+            snapshot_index = idx
+        sel_idx = snapshot_index
+        iter_id = int(steps[sel_idx])
+        vals = spins[sel_idx, :, component]
+
+        coord = results.coord
+        grid = snapshot_to_grid(vals, coord=coord, ncell=ncell, reduce_z=reduce_z)
+        return iter_id, grid
+
+    # fallback: treat as restart-like table
+    table = results.get(key)
+    if table is None:
+        return None
+
+    if "iter" in table:
+        iters = np.unique(table["iter"])
+        iter_id = int(iters[-1])
+        mask = table["iter"] == iter_id
+    else:
+        iter_id = None
+        mask = slice(None)
+
+    iatom = table["iatom"][mask].astype(int)
+    if component == 0:
+        vals = table["mx"][mask]
+    elif component == 1:
+        vals = table["my"][mask]
+    else:
+        vals = table["mz"][mask]
+
+    # Build full per-atom array
+    natom = int(table["iatom"].max())
+    full = np.full(natom, np.nan, dtype=float)
+    for ia, v in zip(iatom, vals):
+        full[int(ia) - 1] = v
+
+    coord = results.coord
+    grid = snapshot_to_grid(full, coord=coord, ncell=ncell, reduce_z=reduce_z)
+    return iter_id, grid
 
 
 # ======================================================================

@@ -266,6 +266,35 @@ def read_coord(workdir, simid: Optional[str] = None) -> Dict:
     }
 
 
+def read_sq(workdir, simid: Optional[str] = None) -> Dict:
+    """
+    Read sq.<simid>.out
+
+    Expected columns (common UppASD sq format):
+        iq, qx, qy, qz, qw, ReSxx, ReSyy, ReSzz, AbsS
+
+    Returns keys: iq, qx, qy, qz, qw, resxx, resyy, reszz, abs, raw
+    """
+    path = output_path(workdir, "sq", simid)
+    data = np.loadtxt(path, comments="#")
+
+    if data.ndim == 1:
+        data = data[None, :]
+
+    return {
+        "iq": data[:, 0].astype(int),
+        "qx": data[:, 1],
+        "qy": data[:, 2],
+        "qz": data[:, 3],
+        "qw": data[:, 4],
+        "resxx": data[:, 5],
+        "resyy": data[:, 6],
+        "reszz": data[:, 7],
+        "abs": data[:, 8],
+        "raw": data,
+    }
+
+
 def read_site_scalar(workdir, simid, prefix):
     """
     Read site-resolved scalar observable.
@@ -414,6 +443,11 @@ def read_all_outputs(workdir):
 
     try:
         tables["dens_skynum"] = read_site_scalar(workdir, simid, "dens_skynum")
+    except FileNotFoundError:
+        pass
+
+    try:
+        tables["sq"] = read_sq(workdir, simid)
     except FileNotFoundError:
         pass
 

@@ -19,6 +19,8 @@ from .io import (
     effective_field_snapshots,
     site_snapshots,
     reshape_supercell,
+    snapshot_to_grid,
+    results_snapshot_grid,
 )
 
 # ------------------------------------------------------------
@@ -27,6 +29,9 @@ from .io import (
 
 from .heatmap import (
     plot_heatmap,
+)
+from .sq import (
+    plot_sq,
 )
 
 # ------------------------------------------------------------
@@ -40,7 +45,10 @@ __all__ = [
     "effective_field_snapshots",
     "site_snapshots",
     "reshape_supercell",
+    "snapshot_to_grid",
+    "results_snapshot_grid",
 
     # plotting
     "plot_heatmap",
+    "plot_sq",
 ]

@@ -1,3 +1,18 @@
+"""Backward-compatibility shim for `uppasd.analysis.magnons`.
+
+Existing imports from `uppasd.magnons` will continue to work via this
+re-exporting shim. New code should import from `uppasd.analysis.magnons`.
+"""
+
+from uppasd.analysis.magnons import *  # noqa: F401,F403
+
+__all__ = [
+    'compute_magnons',
+    'setup_q_mesh_path',
+    'setup_q_mesh_grid',
+    'get_magnon_dispersion',
+    'filter_imaginary_modes',
+]
 """
 Linear Spin Wave Theory (LSWT) magnon calculations for UppASD.
 

@@ -130,6 +130,14 @@ class ASDResults:
         """Expanded coordinates of the replicated system."""
         return self._tables.get("coord")
 
+    @property
+    def sq(self) -> Optional[dict]:
+        """Static structure factor table parsed from `sq.<simid>.out`.
+
+        Keys follow `read_sq` normalization: `iq, qx, qy, qz, qw, resxx, resyy, reszz, abs`.
+        """
+        return self._tables.get("sq")
+
     # ------------------------------------------------------------------
     # Scalar convenience accessors (safe, optional)
     # ------------------------------------------------------------------
