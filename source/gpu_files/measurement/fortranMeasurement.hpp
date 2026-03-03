@@ -87,6 +87,7 @@ public:
 
    // Access methods
    void measure(std::size_t mstep) override;
+   void updateAC(size_t mstep) override;
    void flushMeasurements(std::size_t mstep) override;
 };
 

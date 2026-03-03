@@ -32,6 +32,7 @@ public:
                     bool alwaysCopy = false);
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
+    void updateAC(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
 
 
@@ -128,6 +129,7 @@ private:
 
     unsigned int ac_count;
     unsigned int sw_next;
+    int sw_curr;
     unsigned int sw_curIdx;
     const unsigned int ac_buff;
     const unsigned int ac_step;

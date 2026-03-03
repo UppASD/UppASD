@@ -179,6 +179,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 
         sw_curIdx = 0;
         sw_next = spinwaittable_cpu(0);
+        sw_curr = 0;
 
         ac_tasksX = 3 * N * M;
         ac_threadsX = ac_maxThreads;
@@ -349,9 +350,9 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
     if (do_autocorr)
     {
         //measureAutocorrelation(mstep);
-        ac_count++;
-        stopwatch.add("autocorrelation");
-        saveToFile(MeasurementType::Autocorrelation);
+        //ac_count++;
+        //stopwatch.add("autocorrelation");
+        //saveToFile(MeasurementType::Autocorrelation);
     }
 
     cpuMeas.flushMeasurements(mstep + 1); 
@@ -467,32 +468,47 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 {
  
-    /*KERNELS TODO*/
-    ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
-    real norm = 1/(static_cast<real>(emom.extent(1)*emom.extent(2)));
-    //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
+   // printf("sw_next = %i, mstep = %i\n", sw_next, mstep);
 
-    calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, emom);
-    calc_autocorr_final<<<(sw_curIdx + 1), 1024>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+    if (((mstep % ac_step) == 0)||(mstep == sw_curr)){
+        ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
+        real norm = 1/(static_cast<real>(emom.extent(1)*emom.extent(2)));
+        //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
+        //if (mstep == sw_curr) printf("HERE!\n");
+
+
+        calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, emom);
+        calc_autocorr_final<<<(sw_curIdx + 1), 1024>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+    
+
+        if (*FortranData::real_time_measure=='Y') {
+            indxb_ac(ac_count++)=(mstep+1)*(*FortranData::delta_t);
+        }
+        else {
+            indxb_ac(ac_count++)=mstep+1;
+        }
+
+        if (ac_count >= *FortranData::ac_buff)
+        {
+            saveToFile(MeasurementType::Autocorrelation);
+
+        }
+    }
    
-    if(mstep == sw_next){
+}
+   
+void GpuMeasurement::updateAC(std::size_t mstep)
+{
+ 
+    if ((mstep == sw_next)&&(sw_curIdx < (spinwaittable_cpu.extent(0) - 1) )){
+        printf("sw_next = %i, mstep = %i, swId = %i, \n\n", sw_next,  mstep, sw_curIdx);
+
+        sw_curIdx++;
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, emom, sw_tasks, sw_curIdx);
-        sw_next = spinwaittable_cpu(++sw_curIdx); 
-
+        sw_curr = sw_next;
+        sw_next = spinwaittable_cpu(sw_curIdx); 
     }
-
-    if (*FortranData::real_time_measure=='Y') {
-        indxb_ac(ac_count++)=mstep*(*FortranData::delta_t);
-    }
-    else {
-        indxb_ac(ac_count++)=mstep;
-    }
-
-    if (ac_count >= *FortranData::ac_buff)
-    {
-        saveToFile(MeasurementType::Autocorrelation);
-
-    }
+   
 }
    
 
@@ -576,7 +592,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 }
                 else
                 {
-                    int iter_int = static_cast<int>(indxb_ac[i]);
+                    int iter_int = static_cast<int>(indxb_ac[i]); 
                     measurementWriter.write(&iter_int, &row, 1);
                 }
             }
@@ -607,7 +623,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
         case MeasurementType::Autocorrelation: {
-            return do_autocorr && (((mstep % ac_step) == 0)||(mstep == sw_next));//TODO
+            return do_autocorr && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
         }
 
         default:

@@ -171,6 +171,9 @@ void FortranMeasurement::measure(std::size_t mstep) {
    }
 }
 
+void FortranMeasurement::updateAC(std::size_t mstep) {
+}
+
 void FortranMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
