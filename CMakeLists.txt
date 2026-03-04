@@ -48,11 +48,13 @@ message(STATUS "Final module path  : ${CMAKE_MODULE_PATH}")
 ##############################################################################################
 
 ##############################################################################################
-# Create lib directory if missing
 ##############################################################################################
-set(LIB ${CMAKE_SOURCE_DIR}/lib)
+# Create lib directory in the build tree if missing
+##############################################################################################
+set(LIB ${CMAKE_BINARY_DIR}/lib)
 #message(STATUS "The lib is ${LIB}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB})
 message(STATUS "The lib is ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 set(LEGACY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
@@ -66,11 +68,11 @@ message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
 #SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
 SET(MOD ${CMAKE_BINARY_DIR}/mod)
-SET(BIN ${CMAKE_SOURCE_DIR}/bin)
+SET(BIN ${CMAKE_BINARY_DIR}/bin)
 # Have the .mod files placed in the lib folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
-# Have the .o files placed in the bin folder
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+# Place runtime outputs (executables) in the build tree's bin directory
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 ##############################################################################################
 
 
@@ -1090,13 +1092,18 @@ if (NOT BUILD_PYTHON)
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 else()
    #   INSTALL(TARGETS ${UppASD_pyLIB} RUNTIME DESTINATION lib)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_LIB} ARCHIVE DESTINATION lib)
    if(NOT (APPLE AND BUNDLE_LIBRARIES))
        INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    endif()
 endif(NOT BUILD_PYTHON)
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
 install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+
+# Install Python extension if built
+if(TARGET _${CMAKE_PROJECT_NAME})
+   INSTALL(TARGETS _${CMAKE_PROJECT_NAME} LIBRARY DESTINATION lib)
+endif()
 
 ##############################################################################################
 
@@ -1117,8 +1124,8 @@ add_custom_command(
 add_custom_command(
    TARGET ${UppASD_EXE} POST_BUILD
    COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
-   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_BINARY_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_BINARY_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
    # ${LEGACY_OUTPUT_DIRECTORY}/sd
    )
 
@@ -1133,7 +1140,7 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
+set(TestBinary ${CMAKE_BINARY_DIR}/bin/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
 add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
