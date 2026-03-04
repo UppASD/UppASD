@@ -18,6 +18,8 @@ from pathlib import Path
 from uppasd.core.system import SpinSystem
 from uppasd.core.results import ASDResults
 from uppasd.input.inputdata import ASDInput
+from uppasd.core.exchange import ExchangeShellTable, DMIShellTable
+from uppasd.core.anisotropy import AnisotropyTable
 from uppasd.run.simulator import ASDWorkspace, UppASDSimulator
 
 # ----------------------------------------------------------------------
@@ -72,7 +74,7 @@ def numpy_to_vtk_scalars(scalars):
 # MAIN APPLICATION
 # ----------------------------------------------------------------------
 
-def main():
+def main(exchange: ExchangeShellTable = None, dmi: DMIShellTable = None, ani: AnisotropyTable = None):
     # ------------------------------------------------------------
     # Setup UppASD
     # ------------------------------------------------------------
@@ -80,7 +82,7 @@ def main():
     inp = build_input()
 
     ws = ASDWorkspace(WORKDIR, clean=True)
-    ws.prepare(system=system, inp=inp)
+    ws.prepare(system=system, inp=inp, exchange=exchange, dmi=dmi, ani=ani)
 
     sim = UppASDSimulator(ws)
     sim.initialize()

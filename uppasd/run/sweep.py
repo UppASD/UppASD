@@ -15,6 +15,7 @@ from typing import Optional, Callable, Dict, Any
 from uppasd.input.inputdata import ASDInput
 from uppasd.input.inputdata import set_temperature_token, validate_temperature_token
 from uppasd.core.exchange import ExchangeShellTable, DMIShellTable
+from uppasd.core.anisotropy import AnisotropyTable
 from uppasd.core.system import SpinSystem
 from uppasd.core.results import ASDResults
 
@@ -28,6 +29,7 @@ def run_temperature_sweep(
     inp: ASDInput,
     exchange: Optional[ExchangeShellTable] = None,
     dmi: Optional[DMIShellTable] = None,
+    ani: Optional[AnisotropyTable] = None,
     clean: bool = True,
     verbose: bool = True,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -92,7 +94,7 @@ def run_temperature_sweep(
         workdir = f"{workdir_root}_T{temp_label}"
 
         ws = ASDWorkspace(workdir, clean=clean)
-        ws.prepare(system=system, inp=inp_point, exchange=exchange, dmi=dmi)
+        ws.prepare(system=system, inp=inp_point, exchange=exchange, dmi=dmi, ani=ani)
 
         sim = UppASDSimulator(ws)
         sim.initialize()
@@ -119,8 +121,8 @@ def run_temperature_sweep(
                 "result": row,
             })
 
-        if verbose:
-            print(f"[{idx}/{total}] Completed T={temp_value:.6g} K")
+        # if verbose:
+        #     print(f"[{idx}/{total}] Completed T={temp_value:.6g} K")
 
         sweep_results.append(row)
 

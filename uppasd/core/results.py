@@ -12,6 +12,7 @@ Design principles:
 
 from pathlib import Path
 from typing import Optional, Dict, Any
+import numpy as np
 
 from .output import read_all_outputs
 
@@ -279,6 +280,79 @@ class ASDResults:
         tables, simid = read_all_outputs(self.workdir)
         self._tables.update(tables)
         self.simid = simid
+
+    # ------------------------------------------------------------------
+    # Convenience converters
+    # ------------------------------------------------------------------
+
+    def coord_to_np(self) -> np.ndarray:
+        """Return positions from `coord` as an (Ncoord, 3) numpy array.
+
+        Raises
+        -----
+        RuntimeError: if `coord` table is not available.
+        """
+        coord = self.coord
+        if coord is None:
+            raise RuntimeError("coord table not available in results")
+
+        return np.vstack((coord["x"], coord["y"], coord["z"])).T
+
+    def restart_to_np(self, fallback_by_iatom: bool = True):
+        """Return (pos_aligned, vecs) arrays aligned to the `restart` ordering.
+
+        - `pos_aligned` (Nrestart, 3): positions taken from `coord` matched to
+          each `restart` row by (replica, iatom). If no exact match is found
+          and `fallback_by_iatom` is True, a row with the same `iatom` is used.
+        - `vecs` (Nrestart, 3): reconstructed moment vectors = (mx,my,mz) * magnitude.
+
+        Raises
+        -----
+        RuntimeError or KeyError on missing data or unrecoverable mapping failures.
+        """
+        coord = self.coord
+        restart = self.restart
+        if coord is None or restart is None:
+            raise RuntimeError("coord and restart tables are required")
+
+        # Build exact mapping (replica, iatom) -> index in coord arrays
+        coord_pairs = [(int(r), int(i)) for r, i in zip(coord["replica"], coord["iatom"]) ]
+        coord_map = {pair: idx for idx, pair in enumerate(coord_pairs)}
+
+        def find_coord_index(replica, iatom):
+            key = (int(replica), int(iatom))
+            if key in coord_map:
+                return coord_map[key]
+            if not fallback_by_iatom:
+                raise KeyError(f"No coord entry for replica/iatom {key}")
+
+            matches = np.where(coord["iatom"] == int(iatom))[0]
+            if matches.size == 1:
+                return matches[0]
+            if matches.size > 1:
+                # prefer same replica if present among matches
+                for m in matches:
+                    if int(coord["replica"][m]) == int(replica):
+                        return m
+                return matches[0]
+
+            raise KeyError(
+                f"No coord entry for replica/iatom {key}; available sample: {coord_pairs[:20]}"
+            )
+
+        n = len(restart["iatom"])
+        pos = np.empty((n, 3), dtype=float)
+        vecs = np.empty((n, 3), dtype=float)
+
+        for i in range(n):
+            repl = restart["replica"][i]
+            iatom = restart["iatom"][i]
+            idx = find_coord_index(repl, iatom)
+            pos[i, :] = (coord["x"][idx], coord["y"][idx], coord["z"][idx])
+            mag = restart["magnitude"][i]
+            vecs[i, :] = np.array((restart["mx"][i], restart["my"][i], restart["mz"][i])) * mag
+
+        return pos, vecs
 
     # ------------------------------------------------------------------
     # Internals

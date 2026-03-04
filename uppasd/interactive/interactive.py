@@ -15,6 +15,7 @@ from typing import Callable, Dict
 
 from uppasd.core.system import SpinSystem
 from uppasd.core.exchange import ExchangeShellTable, DMIShellTable
+from uppasd.core.anisotropy import AnisotropyTable
 from uppasd.core.neighbors import (
     build_neighbors,
     assign_shells,
@@ -151,8 +152,10 @@ def remove_exchange_shell(
 def run_interactive_relaxation(
     workdir: str,
     system: SpinSystem,
-    exchange: ExchangeShellTable,
-    inp: ASDInput,
+    exchange: ExchangeShellTable = None,
+    inp: ASDInput = None,
+    dmi: DMIShellTable = None,
+    ani: AnisotropyTable = None,
     runtime: Dict = None,
     clean: bool = True,
 ):
@@ -164,6 +167,8 @@ def run_interactive_relaxation(
         system=system,
         inp=inp,
         exchange=exchange,
+        dmi=dmi,
+        ani=ani,
     )
 
     sim = UppASDSimulator(ws)
@@ -181,8 +186,10 @@ def run_interactive_relaxation(
 def run_interactive_measurement(
     workdir: str,
     system: SpinSystem,
-    exchange: ExchangeShellTable,
-    inp: ASDInput,
+    exchange: ExchangeShellTable = None,
+    inp: ASDInput = None,
+    dmi: DMIShellTable = None,
+    ani: AnisotropyTable = None,
     runtime: Dict = None,
     clean: bool = False,
 ):
@@ -194,6 +201,8 @@ def run_interactive_measurement(
         system=system,
         inp=inp,
         exchange=exchange,
+        dmi=dmi,
+        ani=ani,
     )
 
     sim = UppASDSimulator(ws)
