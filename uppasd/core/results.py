@@ -140,6 +140,34 @@ class ASDResults:
         return self._tables.get("sq")
 
     # ------------------------------------------------------------------
+    # Skyrmion observables
+    # ------------------------------------------------------------------
+
+    @property
+    def sknumber(self) -> Optional[dict]:
+        """Global skyrmion number time series parsed from sknumber.<simid>.out."""
+        return self._tables.get("sknumber")
+
+    @property
+    def final_sk(self):
+        """
+        Final skyrmion number (last sampled step). Returns None if not present.
+        """
+        sk = self.sknumber
+        if sk is None:
+            return None
+        # read_sknumber returns key 'sk'
+        if "sk" in sk:
+            return sk["sk"][-1]
+        # fallback to raw table second column
+        if "raw" in sk:
+            try:
+                return float(sk["raw"][-1, 1])
+            except Exception:
+                return None
+        return None
+
+    # ------------------------------------------------------------------
     # Scalar convenience accessors (safe, optional)
     # ------------------------------------------------------------------
 

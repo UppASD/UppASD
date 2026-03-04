@@ -446,6 +446,12 @@ def read_all_outputs(workdir):
     except FileNotFoundError:
         pass
 
+    # sknumber (global skyrmion number time series)
+    try:
+        tables["sknumber"] = read_sknumber(workdir, simid)
+    except FileNotFoundError:
+        pass
+
     try:
         tables["sq"] = read_sq(workdir, simid)
     except FileNotFoundError:
