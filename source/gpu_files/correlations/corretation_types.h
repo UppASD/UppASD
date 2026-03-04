@@ -12,6 +12,22 @@ struct blocksQ{
     unsigned int y;
     unsigned int z;
     dim3 blocks;
+
+    blocksQ(insigned int N, unsigned int M, unsigned int nq, unsigned int numThreads, unsigned int maxBlocks){
+        tasks = 3 * N * M;
+        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        y = nq;
+        z = 1;
+        blocks = {x, y, z};
+    }
+
+    blocksQ(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
+        tasks = 3 * sc_max_nstep;;
+        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        y = nq * nw;
+        z = 1;
+        blocks = {x, y, z};
+    }
 };
 
 struct blocksW{

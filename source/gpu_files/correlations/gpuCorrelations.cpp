@@ -52,27 +52,17 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
         t_cur = 0;
         n_samples = 0;
         do_sc = Flags.do_sc;
+        do_proj = Flags.do_sc_proj;
+        do_projch = Flags.do_sc_projch;
         sc_sep = SimParam.sc_sep;
         sc_step = SimParam.sc_step;
-        // nainv = 1 / N;
+
         // Blocks and threads
         maxThreads = 512;
-        maxBlocks = 1024; 
-        tasksTot_q = 3 * N * M;
-        tasksTot_w = 3 * sc_max_nstep;
-        // maxBlocks = 1023; //must be devidable by 3, less than 1024
+        maxBlocks = 1024;        
         numThreads = maxThreads;
-        //numBlocks = std::min(((3 * ((spinTot + 2) / 3) + numThreads - 1) / numThreads), maxBlocks);
-        numBlocksX_q = std::min(((tasksTot_q + numThreads - 1) / numThreads), maxBlocks);
-        numBlocksX_w = std::min(((tasksTot_w + numThreads - 1) / numThreads), maxBlocks);
-        numBlocksY_q = nq;
-        numBlocksY_w = nq*nw;//TODO
-        blocks_q = { numBlocksX_q, numBlocksY_q, 1 };
-        blocks_w = { numBlocksX_w, numBlocksY_w, 1 };//TODO
         threads = { numThreads, 1, 1 };
-        //printf("numBlocks = %i\n", numBlocksX_q);
 
-        //iqfac = thrust::complex<real>(0, 2 * M_PI);
         r_mid.Allocate(static_cast <long int>(3));
         q.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
         coord.Allocate(static_cast <long int>(3), static_cast <long int>(N));

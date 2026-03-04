@@ -40,6 +40,8 @@ private:
 
     std::size_t n_samples;
     char do_sc;
+    char do_proj;
+    char do_projch;
     std::size_t sc_max_nstep;
     std::size_t sc_window_fun;
     std::size_t nw;
