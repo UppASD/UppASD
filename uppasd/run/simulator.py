@@ -19,6 +19,7 @@ from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from uppasd.input.inputdata import ASDInput
 from uppasd.core.exchange import ExchangeShellTable, DMIShellTable
+from uppasd.core.anisotropy import AnisotropyTable
 from uppasd.core.system import SpinSystem
 from uppasd import pyasd
 
@@ -101,6 +102,7 @@ class ASDWorkspace:
         self,
         exchange: ExchangeShellTable = None,
         dmi: DMIShellTable = None,
+        ani: AnisotropyTable = None,
     ):
         """Write exchange (jfile) and DMI (dmfile) interaction tables.
 
@@ -118,12 +120,17 @@ class ASDWorkspace:
         if dmi is not None:
             dmi.write_dmfile(self.path / "dmfile")
 
+        # `ani` is the canonical anisotropy table parameter
+        if ani is not None:
+            ani.write_kfile(self.path / "kfile")
+
     def write_input(
         self,
         system: SpinSystem,
         inp: ASDInput,
         exchange: ExchangeShellTable = None,
         dmi: DMIShellTable = None,
+        ani: AnisotropyTable = None,
     ):
         """Assemble and write the `inpsd.dat` input file.
 
@@ -156,6 +163,8 @@ class ASDWorkspace:
             full.block("interactions").set(exchange="./jfile")
         if dmi is not None:
             full.block("interactions").set(dm="./dmfile")
+        if ani is not None:
+            full.block("interactions").set(anisotropy="./kfile")
 
         # Initialization block: default initmag 3
         full.block("initialization").set(initmag=3)
@@ -185,6 +194,7 @@ class ASDWorkspace:
         inp: ASDInput,
         exchange: ExchangeShellTable = None,
         dmi: DMIShellTable = None,
+        ani: AnisotropyTable = None,
     ):
         """Prepare the workspace by writing system, interactions and input.
 
@@ -199,8 +209,8 @@ class ASDWorkspace:
             dmi (DMIShellTable, optional): DMI table.
         """
         self.write_system(system)
-        self.write_interactions(exchange, dmi)
-        self.write_input(system, inp, exchange, dmi)
+        self.write_interactions(exchange, dmi, ani)
+        self.write_input(system, inp, exchange, dmi, ani)
 
 
 # ======================================================================
@@ -466,6 +476,7 @@ def run_relaxation(
     inp: ASDInput,
     exchange: ExchangeShellTable = None,
     dmi: DMIShellTable = None,
+    ani: AnisotropyTable = None,
     runtime: dict = None,
     clean: bool = True,
 ):
@@ -502,7 +513,7 @@ def run_relaxation(
         >>> results = ASDResults(ws.path)
     """
     ws = ASDWorkspace(workdir, clean=clean)
-    ws.prepare(system, inp, exchange, dmi)
+    ws.prepare(system, inp, exchange, dmi, ani)
 
     sim = UppASDSimulator(ws)
     sim.initialize()
@@ -522,6 +533,7 @@ def run_measurement(
     inp: ASDInput,
     exchange: ExchangeShellTable = None,
     dmi: DMIShellTable = None,
+    ani: AnisotropyTable = None,
     runtime: dict = None,
     clean: bool = True,
 ):
@@ -553,7 +565,7 @@ def run_measurement(
         >>> # parse outputs from ws.path
     """
     ws = ASDWorkspace(workdir, clean=clean)
-    ws.prepare(system, inp, exchange, dmi)
+    ws.prepare(system, inp, exchange, dmi, ani)
 
     sim = UppASDSimulator(ws)
     sim.initialize()
