@@ -1108,14 +1108,10 @@ endif()
 ##############################################################################################
 
 ##############################################################################################
-# Copy static library to ./lib
+# Static library output is already placed in ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+# by setting CMAKE_LIBRARY_OUTPUT_DIRECTORY/CMAKE_ARCHIVE_OUTPUT_DIRECTORY.
+# Remove redundant post-build copy that previously assumed a different layout.
 ##############################################################################################
-add_custom_command(
-   TARGET ${UppASD_LIB} POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-   )
 
 #################################################################################################
 #### Copy binary to ./bin/sd.<compiler> for legacy purposes

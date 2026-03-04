@@ -73,12 +73,12 @@ jobs:
       run: |
         cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
         cmake --build build 
-        ls ./bin
-        cp ./bin/sd.gfortran.exe ./bin/sd.gfortran.${{matrix.sys}}.${{matrix.arch}}.exe
-        cp ./bin/sd.gfortran.exe ./bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
-        ls ./bin
+        ls build/bin
+        cp build/bin/sd.gfortran.exe build/bin/sd.gfortran.${{matrix.sys}}.${{matrix.arch}}.exe
+        cp build/bin/sd.gfortran.exe build/bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
+        ls build/bin
         
     - uses: actions/upload-artifact@v4
       with:
-       name: uppasd.${{matrix.sys}}.${{matrix.arch}}
-       path: ./bin/uppasd*.exe
+      name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+      path: build/bin/uppasd*.exe

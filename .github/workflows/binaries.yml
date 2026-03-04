@@ -73,14 +73,12 @@ jobs:
                -DFORCE_STATIC_FORTRAN=ON
              cmake --build build --parallel 
              mkdir ./dist
-             # echo "./bin directory:"
-             # ls -l ./bin
-             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
-             
-             # Copy bundled libraries if they exist
-             if [ -d "./lib" ]; then
+             cp build/bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+
+             # Copy bundled libraries if they exist in the build tree
+             if [ -d "build/lib" ]; then
                mkdir -p ./dist/lib
-               cp ./lib/* ./dist/lib/ 2>/dev/null || true
+               cp build/lib/* ./dist/lib/ 2>/dev/null || true
              fi
              
              # Verify the binary works and show dependencies
@@ -100,7 +98,7 @@ jobs:
              cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DFORCE_STATIC_FORTRAN=ON
              cmake --build build --parallel 
              mkdir ./dist
-             cp ./bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
+             cp build/bin/uppasd* ./dist/uppasd.${{runner.os}}.${{matrix.arch}}.exe
 
       - name: Install python packages for testing
         if: runner.os != 'Windows'

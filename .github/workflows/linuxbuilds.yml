@@ -24,7 +24,7 @@ jobs:
              mkdir ./dist
              uname -a
              echo ${{runner.name}}
-             cp ./bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
+             cp build/bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
 
       - uses: actions/upload-artifact@v4
         with:

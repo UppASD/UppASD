@@ -88,6 +88,26 @@ class cmake_build_ext(build_ext):
             subprocess.check_call(
                 ["cmake", "--build", self.build_temp, "--parallel", "--config", cfg]
             )
+            # Install into a staging prefix so packaging tools (pip/wheel)
+            # can collect runtime libraries from a known location.
+            install_stage = os.path.join(self.build_temp, "install_stage")
+            os.makedirs(install_stage, exist_ok=True)
+            subprocess.check_call(
+                ["cmake", "--install", self.build_temp, "--prefix", install_stage, "--config", cfg]
+            )
+
+            # Copy any staged libraries into the Python extension output
+            # directory so they are bundled into the wheel / pip install.
+            staged_lib_dir = os.path.join(install_stage, "lib")
+            if os.path.isdir(staged_lib_dir):
+                for fname in os.listdir(staged_lib_dir):
+                    src = os.path.join(staged_lib_dir, fname)
+                    dst = os.path.join(extdir, os.path.basename(fname))
+                    try:
+                        shutil.copy2(src, dst)
+                    except Exception:
+                        # Best-effort copy; don't fail the build here.
+                        pass
 
 
 setup(
