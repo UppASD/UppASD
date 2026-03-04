@@ -11,6 +11,7 @@
 #include <thrust/complex.h>
 #include <curand.h>
 #include "correlation.hpp"
+#include "correlation_types.h"
 
 
 //#include <complex>
@@ -51,6 +52,7 @@ private:
     unsigned int  tasksTot_w;
     unsigned int maxThreads;
     unsigned int maxBlocks;
+
     dim3 blocks_q;
     dim3 blocks_w;
     dim3 threads;
@@ -58,13 +60,12 @@ private:
     //real nainv;
     //thrust::complex<real> iqfac;
 
-    //Block variables
+    //Block variables regular correlatrions
     GpuTensor<thrust::complex<real>, 2> sc_block_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_block_w_gpu;
     GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
-    Tensor<thrust::complex<real>, 2> sc_q_cpu;
 
 
     // Buffer variables 
@@ -76,6 +77,10 @@ private:
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
     Tensor<real, 1> sc_step_arr_cpu;  // Host buffer for sc_step array bookkeeping
+
+    SC_proj sc_proj;
+    SC_proj sc_projch;
+    SC sc;
 
 public:
     // Constructor
@@ -92,5 +97,10 @@ public:
     void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) override;
     void recordSample();
     void publishSamplingInfo(hostCorrelations& cpuCorrelations);
+
+private:
+    measure_SC(std::size_t mstep);
+    measure_proj(std::size_t mstep, SC_proj& sc_proj);
+
 };
 
