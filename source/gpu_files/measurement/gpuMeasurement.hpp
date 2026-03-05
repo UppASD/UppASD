@@ -107,7 +107,7 @@ private:
     const dim3 skyno_kernel_blocks;
 
     // Autocorrelations 
-    const bool do_autocorr;
+    const char do_autocorr;
    // GpuVector<unsigned int> spinwaittable_gpu;
     GpuTensor<real, 2> autocorr_buff_gpu;
     Tensor<real, 2> autocorr_buff_cpu;

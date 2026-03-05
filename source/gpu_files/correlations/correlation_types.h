@@ -72,19 +72,27 @@ struct SC{
 
     SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, unsigned int numThreads, blocksQW blq, blocksQW blw){
 
-        int bl;
+        long int bl;
         long int nw = static_cast <long int>(p_nw);
         long int nq = static_cast <long int> (p_nq);
         long int sc_max_nstep = static_cast <long int>(p_sc_max_nstep);
+        
 
         q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
+        bl = (3 * nq + numThreads - 1) / numThreads;
         setZero<2> <<<bl, numThreads>>> (q_block, 3 * blq.x * nq);
+
+
     
         if ((do_sc == 'C') || (do_sc == 'Y')) {
             q.Allocate(3, nq);           
             bl = (3 * nq + numThreads - 1) / numThreads;
             setZero<2> << <bl, numThreads >> > (q, 3 * nq);
+        }
+ 
 
+
+        if ((do_sc == 'Q') || (do_sc == 'Y')) {
             qt.Allocate(3, nq, sc_max_nstep);
             qw.Allocate(3, nq, nw);
             w_block.Allocate(static_cast <long int>(3 * blw.x), nq, nw);
@@ -96,10 +104,11 @@ struct SC{
 
             bl = (3 * blw.x * nq * nw + numThreads - 1) / numThreads;
             setZero<3> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw);
-            bl = (3 * nq * nw + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (qw, 3 * nq * nw);
 
         }
+ 
+
+        
 
     }
 
@@ -121,7 +130,7 @@ struct SC{
 struct SC_proj{
     //Proj correlations
     GpuTensor<thrust::complex<real>, 3> q_block;
-    GpuTensor<thrust::complex<real>, 4> w_block;
+    GpuTensor<thrust::complex<real>, 3> w_block;
     GpuTensor<thrust::complex<real>, 3> q;
     GpuTensor<thrust::complex<real>, 4> qt;
     GpuTensor<thrust::complex<real>, 4> qw;
@@ -130,21 +139,22 @@ struct SC_proj{
     //char do_sc;
 
     SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
-/*
+
         int bl;
         long int nw = static_cast <long int> (p_nw);
         long int nq = static_cast <long int> (p_nq);
         long int sc_max_nstep = static_cast <long int> (p_sc_max_nstep);
         long int nproj = static_cast <long int> (p_nproj);
 
-        q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
-        setZero<2> << <bl, numThreads >> > (q_block, 3 * blq.x * nq);
+        q_block.Allocate(static_cast <long int>(3 * blq.x), nq, nproj);
+        bl = (3 * nq *nproj + numThreads - 1) / numThreads;
+        setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.x * nq * nproj);
         atype.Allocate(nproj);           
 
         if ((do_sc == 'C') || (do_sc == 'Y')) {
             q.Allocate(3, nproj, nq);           
-            bl = (3 * nq + numThreads - 1) / numThreads;
-            setZero<2> << <bl, numThreads >> > (q, 3 * nproj * nq);
+            bl = (3 * nq * nproj + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (q, 3 * nproj * nq);
 
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
@@ -152,12 +162,14 @@ struct SC_proj{
             qw.Allocate(3, nproj, nq, nw);
             w_block.Allocate(static_cast <long int>(3 * blw.x), nq, nw);
 
-            bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
-            bl = (3 * nq * nw + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (qw, 3 * nq * nw * n_proj);
+            bl = (3 * nq* sc_max_nstep* nproj + numThreads - 1) / numThreads;
+            setZero<4> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
+            bl = (3 * nq * nw* nproj + numThreads - 1) / numThreads;
+            setZero<4> << <bl, numThreads >> > (qw, 3 * nq * nw * nproj);
+            bl = (3 * blw.x * nq * nw* nproj + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw* nproj);
 
-        }*/
+        }
     }
 
         void free(char do_sc){

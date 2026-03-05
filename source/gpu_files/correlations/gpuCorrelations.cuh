@@ -46,10 +46,11 @@ private:
     real delta_t;
 
     unsigned int  t_cur;
-
-    unsigned int numThreads;
+    
     unsigned int maxThreads;
     unsigned int maxBlocks;
+    unsigned int numThreads;
+
 
     blocksQW blQ;
     blocksQW blW;

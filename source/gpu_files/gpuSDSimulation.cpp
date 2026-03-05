@@ -249,7 +249,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
       measurement->measure(mstep);
-      //cpuMeas.measure(mstep);
       correlation->measure(mstep);
 
       stopwatch.add("measurement");
@@ -291,8 +290,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure and print remaining measurements to file
-   measurement->measure(rstep + nstep + 1);  
-   //cpuMeas.measure(rstep + nstep + 1);  
+   measurement->measure(rstep + nstep + 1);   
    correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 

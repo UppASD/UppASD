@@ -164,7 +164,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
         mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
     }
 
-    if (do_autocorr){
+    if (do_autocorr=='Y'){
         sw_threads = 256;
         sw_tasks = 3*N*M;
         sw_blocks = (sw_tasks + sw_threads - 1)/sw_threads;
@@ -178,6 +178,7 @@ GpuMeasurement::GpuMeasurement(const GpuTensor<real, 3>& emomM,
 
 
         sw_curIdx = 0;
+        printf("\n do_ac = %c, swtt size = %i\n ", do_autocorr, spinwaittable_cpu.extent(0));
         sw_next = spinwaittable_cpu(0);
         sw_curr = 0;
 
@@ -623,7 +624,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
         case MeasurementType::Autocorrelation: {
-            return do_autocorr && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
+            return (do_autocorr=='Y') && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
         }
 
         default:
