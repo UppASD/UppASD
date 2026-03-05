@@ -89,7 +89,7 @@ public:
 
 private:
     void measure_SC(std::size_t mstep);
-    void measure_proj(std::size_t mstep, SC_proj& sc_proj);
+    void measure_SC_proj(std::size_t mstep);
 
 };
 

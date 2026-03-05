@@ -5,6 +5,11 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include <thrust/complex.h>
+#if defined(HIP_V)
+#include <correlation_kernels.hpp>
+#elif defined(CUDA_V)
+#include <correlation_kernels.cuh>
+#endif
 
 struct blocksQW{
     unsigned int tasks;
@@ -13,7 +18,7 @@ struct blocksQW{
     unsigned int z;
     dim3 blocks;
 
-    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQW(unsigned int N, unsigned int M, unsigned int nq, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq;
@@ -21,7 +26,7 @@ struct blocksQW{
         blocks = {x, y, z};
     }
 
-    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQW(unsigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * sc_max_nstep;;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq * nw;
@@ -37,7 +42,7 @@ struct blocksQWproj{
     unsigned int z;
     dim3 blocks;
 
-    blocksQWproj(insigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq;
@@ -45,7 +50,7 @@ struct blocksQWproj{
         blocks = {x, y, z};
     }
 
-    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * sc_max_nstep;;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq * nw;
@@ -65,12 +70,12 @@ struct SC{
     GpuTensor<thrust::complex<real>, 3> qw;  
     //char do_sc;
 
-    SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, blocksQW blq, blocksQW blw){
+    SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, unsigned int numThreads, blocksQW blq, blocksQW blw){
 
         int bl;
-        long int nw = static_cast <long int> p_nw;
-        long int nq = static_cast <long int> p_nq;
-        long int sc_max_nstep = static_cast <long int> p_sc_max_nstep;
+        long int nw = static_cast <long int>(p_nw);
+        long int nq = static_cast <long int> (p_nq);
+        long int sc_max_nstep = static_cast <long int>(p_sc_max_nstep);
 
         q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
         setZero<2> <<<bl, numThreads>>> (q_block, 3 * blq.x * nq);
@@ -124,13 +129,13 @@ struct SC_proj{
     //size_t NT;
     //char do_sc;
 
-    /*SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, blocksQW blq, blocksQW blw){
-
+    SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
+/*
         int bl;
-        long int nw = static_cast <long int> p_nw;
-        long int nq = static_cast <long int> p_nq;
-        long int sc_max_nstep = static_cast <long int> p_sc_max_nstep;
-        long int nproj = static_cast <long int> p_nproj;
+        long int nw = static_cast <long int> (p_nw);
+        long int nq = static_cast <long int> (p_nq);
+        long int sc_max_nstep = static_cast <long int> (p_sc_max_nstep);
+        long int nproj = static_cast <long int> (p_nproj);
 
         q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
         setZero<2> << <bl, numThreads >> > (q_block, 3 * blq.x * nq);
@@ -152,11 +157,11 @@ struct SC_proj{
             bl = (3 * nq * nw + numThreads - 1) / numThreads;
             setZero<3> << <bl, numThreads >> > (qw, 3 * nq * nw * n_proj);
 
-        }
+        }*/
     }
 
         void free(char do_sc){
-        q_block.Free();
+       /* q_block.Free();
             if ((do_sc == 'C') || (do_sc == 'Y')) {
                 q.Free();
             }
@@ -164,8 +169,8 @@ struct SC_proj{
                 qt.Free();
                 qw.Free();
                 w_block.Free();
-            }
+            }*/
     }
-    */
+    
 };
 

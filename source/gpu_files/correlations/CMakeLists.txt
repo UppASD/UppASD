@@ -23,6 +23,7 @@ fortranCorrelation.cpp
 #correlationQueue.cpp
 correlationFactory.hpp
 gpuCorrelations.cpp
+correlation_types.h
 
 
 #kernels.hpp

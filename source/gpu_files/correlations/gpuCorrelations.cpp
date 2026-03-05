@@ -48,9 +48,9 @@ GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters Si
 , blWproj(N, M, nq, sc_max_nstep, nw, NT, numThreads, maxBlocks)
 , blQprojch(N, M, nq, Nchmax, numThreads, maxBlocks)
 , blWprojch(N, M, nq, sc_max_nstep, nw, Nchmax, numThreads, maxBlocks)
-, sc(do_sc, nw, nq, sc_max_nstep, blQ, blW)
-, sc_proj(do_sc_proj, nw, nq, sc_max_nstep, NT, blQproj, blWproj)
-, sc_projch(do_sc_projch, nw, nq, sc_max_nstep, Nchmax, blQprojch, blWprojch)
+, sc(do_sc, nw, nq, sc_max_nstep, numThreads, blQ, blW)
+, sc_proj(do_proj, nw, nq, sc_max_nstep, NT, numThreads, blQproj, blWproj)
+, sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, numThreads, blQprojch, blWprojch)
 
 {
     isallocated = 0; 
@@ -116,16 +116,16 @@ void GpuCorrelations::release() {
             sc_step_arr_cpu.FreeHost();
         }
         sc.free(do_sc);
-        sc_proj.free(do_sc_proj);
-        sc_projch.free(do_sc_projch);
+        sc_proj.free(do_proj);
+        sc_projch.free(do_projch);
 
         isallocated = 0;
     }
 
 }
 
-void GpuCorrelations::measure(std::size_r mstep){
-    measure_SC(std::size_t mstep);
+void GpuCorrelations::measure(std::size_t mstep){
+    measure_SC(mstep);
     
 
 }
@@ -199,7 +199,7 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
             
-            GPUSqSum << <blQ.block, threads >> > (emomM, coord, q, r_mid, sc.q_block, blq.tasks, N);
+            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
             GPUSqFinalSum_both << <nq, maxBlocks >> > (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur++;
@@ -207,7 +207,7 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
             GPUSqFinalSum_both << <nq, maxBlocks >> > (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
