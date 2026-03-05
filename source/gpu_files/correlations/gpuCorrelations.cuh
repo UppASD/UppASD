@@ -24,54 +24,41 @@ private:
     const GpuTensor<real, 3>& emom;
     const GpuTensor<real, 2>& mmom;
 
-    unsigned int numThreads;
-    unsigned int numBlocksX_q;
-    unsigned int numBlocksX_w;
-    unsigned int numBlocksY_q;
-    unsigned int numBlocksY_w;
-    //std::size_t step_num;
-    //std::size_t cc_step;
-    std::size_t N;
-    std::size_t M;
-    std::size_t nq;
+    const std::size_t N;
+    const std::size_t M;
+    const std::size_t nq;
     //std::size_t tidx;
-    std::size_t sc_step;
-    std::size_t sc_sep;
+    const std::size_t sc_step;
+    const std::size_t sc_sep;
 
     std::size_t n_samples;
-    char do_sc;
-    char do_proj;
-    char do_projch;
-    std::size_t sc_max_nstep;
-    std::size_t sc_window_fun;
-    std::size_t nw;
+    const char do_sc;
+    const char do_proj;
+    const char do_projch;
+    const std::size_t sc_max_nstep;
+    const std::size_t sc_window_fun;
+    const std::size_t nw;
+
+    const std::size_t Nchmax;
+    const std::size_t NT;
+
     std::size_t both_flag;
     real delta_t;
 
     unsigned int  t_cur;
-    //unsigned int  spinTot;
-    unsigned int  tasksTot_q;
-    unsigned int  tasksTot_w;
+
+    unsigned int numThreads;
     unsigned int maxThreads;
     unsigned int maxBlocks;
 
-    dim3 blocks_q;
-    dim3 blocks_w;
+    blocksQW blQ;
+    blocksQW blW;
+    blocksQWproj blQproj;
+    blocksQWproj blWproj;
+    blocksQWproj blQprojch;
+    blocksQWproj blWprojch;
     dim3 threads;
 
-    //real nainv;
-    //thrust::complex<real> iqfac;
-
-    //Block variables regular correlatrions
-    GpuTensor<thrust::complex<real>, 2> sc_block_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_block_w_gpu;
-    GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
-
-
-    // Buffer variables 
-    //Tensor<real, 2> SC;     // 3 x buff x M
     GpuTensor<real, 1> r_mid;
     GpuTensor<real, 2> q;
     GpuTensor<real, 2> coord;
@@ -101,8 +88,8 @@ public:
     void publishSamplingInfo(hostCorrelations& cpuCorrelations);
 
 private:
-    measure_SC(std::size_t mstep);
-    measure_proj(std::size_t mstep, SC_proj& sc_proj);
+    void measure_SC(std::size_t mstep);
+    void measure_proj(std::size_t mstep, SC_proj& sc_proj);
 
 };
 

@@ -6,14 +6,14 @@
 #include "real_type.h"
 #include <thrust/complex.h>
 
-struct blocksQ{
+struct blocksQW{
     unsigned int tasks;
     unsigned int x;
     unsigned int y;
     unsigned int z;
     dim3 blocks;
 
-    blocksQ(insigned int N, unsigned int M, unsigned int nq, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq;
@@ -21,7 +21,7 @@ struct blocksQ{
         blocks = {x, y, z};
     }
 
-    blocksQ(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
+    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * sc_max_nstep;;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
         y = nq * nw;
@@ -30,68 +30,142 @@ struct blocksQ{
     }
 };
 
-struct blocksW{
+struct blocksQWproj{
     unsigned int tasks;
     unsigned int x;
     unsigned int y;
     unsigned int z;
     dim3 blocks;
+
+    blocksQWproj(insigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
+        tasks = 3 * N * M;
+        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        y = nq;
+        z = 1;
+        blocks = {x, y, z};
+    }
+
+    blocksQW(insigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
+        tasks = 3 * sc_max_nstep;;
+        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        y = nq * nw;
+        z = 1;
+        blocks = {x, y, z};
+    }
 };
 
 
+
+
 struct SC{
-    //Proj correlations
-    GpuTensor<thrust::complex<real>, 2> sc_block_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_block_w_gpu;
-    GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;  
-    char do_sc;
+    GpuTensor<thrust::complex<real>, 2> q_block;
+    GpuTensor<thrust::complex<real>, 3> w_block;
+    GpuTensor<thrust::complex<real>, 2> q;
+    GpuTensor<thrust::complex<real>, 3> qt;
+    GpuTensor<thrust::complex<real>, 3> qw;  
+    //char do_sc;
+
+    SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, blocksQW blq, blocksQW blw){
+
+        int bl;
+        long int nw = static_cast <long int> p_nw;
+        long int nq = static_cast <long int> p_nq;
+        long int sc_max_nstep = static_cast <long int> p_sc_max_nstep;
+
+        q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
+        setZero<2> <<<bl, numThreads>>> (q_block, 3 * blq.x * nq);
+    
+        if ((do_sc == 'C') || (do_sc == 'Y')) {
+            q.Allocate(3, nq);           
+            bl = (3 * nq + numThreads - 1) / numThreads;
+            setZero<2> << <bl, numThreads >> > (q, 3 * nq);
+
+            qt.Allocate(3, nq, sc_max_nstep);
+            qw.Allocate(3, nq, nw);
+            w_block.Allocate(static_cast <long int>(3 * blw.x), nq, nw);
+
+            bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
+            setZero<3> <<<bl, numThreads>>> (qt, 3 * nq * sc_max_nstep);
+            bl = (3 * nq * nw + numThreads - 1) / numThreads;
+            setZero<3> <<<bl, numThreads>>> (qw, 3 * nq * nw);
+
+            bl = (3 * blw.x * nq * nw + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw);
+            bl = (3 * nq * nw + numThreads - 1) / numThreads;
+            setZero<3> << <bl, numThreads >> > (qw, 3 * nq * nw);
+
+        }
+
+    }
+
+    void free(char do_sc){
+        q_block.Free();
+            if ((do_sc == 'C') || (do_sc == 'Y')) {
+                q.Free();
+            }
+            if ((do_sc == 'Q') || (do_sc == 'Y')) {
+                qt.Free();
+                qw.Free();
+                w_block.Free();
+            }
+    }
 
 
 };
 
 struct SC_proj{
     //Proj correlations
-    GpuTensor<thrust::complex<real>, 3> sc_block_gpu;
-    GpuTensor<thrust::complex<real>, 4> sc_block_w_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_q_gpu;
-    GpuTensor<thrust::complex<real>, 4> sc_qt_gpu;
-    GpuTensor<thrust::complex<real>, 4> sc_qw_gpu;
+    GpuTensor<thrust::complex<real>, 3> q_block;
+    GpuTensor<thrust::complex<real>, 4> w_block;
+    GpuTensor<thrust::complex<real>, 3> q;
+    GpuTensor<thrust::complex<real>, 4> qt;
+    GpuTensor<thrust::complex<real>, 4> qw;
     GpuVector<int> atype;    
     //size_t NT;
     //char do_sc;
 
-    SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_nt, std::size_t p_nproj, blocksQ bq, blocksW bw){
+    /*SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, blocksQW blq, blocksQW blw){
 
         int bl;
         long int nw = static_cast <long int> p_nw;
         long int nq = static_cast <long int> p_nq;
-        long int nt = static_cast <long int> p_nt;
+        long int sc_max_nstep = static_cast <long int> p_sc_max_nstep;
         long int nproj = static_cast <long int> p_nproj;
 
-        sc_block_gpu.Allocate(static_cast <long int>(3 * numBlocksX_q), static_cast <long int>(nq));
-        setZero<2> << <bl, numThreads >> > (sc_block_gpu, 3 * numBlocksX_q * nq);
+        q_block.Allocate(static_cast <long int>(3 * blq.x), nq);
+        setZero<2> << <bl, numThreads >> > (q_block, 3 * blq.x * nq);
         atype.Allocate(nproj);           
 
         if ((do_sc == 'C') || (do_sc == 'Y')) {
-            sc_q_gpu.Allocate(3, nproj, nq);           
+            q.Allocate(3, nproj, nq);           
             bl = (3 * nq + numThreads - 1) / numThreads;
-            setZero<2> << <bl, numThreads >> > (sc_q_gpu, 3 * nproj * nq);
+            setZero<2> << <bl, numThreads >> > (q, 3 * nproj * nq);
 
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
-            sc_qt_gpu.Allocate(3, nproj, nq, nt);
-            sc_qw_gpu.Allocate(3, nproj, nq, nw);
-            sc_block_w_gpu.Allocate(static_cast <long int>(3 * numBlocksX_w), static_cast <long int>(nq), static_cast <long int>(nw));
+            qt.Allocate(3, nproj, nq, sc_max_nstep);
+            qw.Allocate(3, nproj, nq, nw);
+            w_block.Allocate(static_cast <long int>(3 * blw.x), nq, nw);
 
             bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (sc_qt_gpu, 3 * nq* sc_max_nstep);
+            setZero<3> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
             bl = (3 * nq * nw + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (sc_qw_gpu, 3 * nq*nw);
+            setZero<3> << <bl, numThreads >> > (qw, 3 * nq * nw * n_proj);
 
         }
-
     }
+
+        void free(char do_sc){
+        q_block.Free();
+            if ((do_sc == 'C') || (do_sc == 'Y')) {
+                q.Free();
+            }
+            if ((do_sc == 'Q') || (do_sc == 'Y')) {
+                qt.Free();
+                qw.Free();
+                w_block.Free();
+            }
+    }
+    */
 };
 
