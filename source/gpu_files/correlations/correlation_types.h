@@ -29,8 +29,8 @@ struct blocksQW{
     blocksQW(unsigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * sc_max_nstep;;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
-        y = nq * nw;
-        z = 1;
+        y = nq ;
+        z = nw;
         blocks = {x, y, z};
     }
 };
@@ -45,17 +45,19 @@ struct blocksQWproj{
     blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
-        y = nq;
-        z = 1;
+        y = nt;
+        z = nq;
         blocks = {x, y, z};
+        blocksFin = {nt, nq, 1};
     }
 
     blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * sc_max_nstep;;
         x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
-        y = nq * nw;
-        z = 1;
+        y = nt;
+        z = nq * nw;
         blocks = {x, y, z};
+        blocksFin = {nt, nq, nw};
     }
 };
 
@@ -146,7 +148,7 @@ struct SC_proj{
         long int sc_max_nstep = static_cast <long int> (p_sc_max_nstep);
         long int nproj = static_cast <long int> (p_nproj);
 
-        q_block.Allocate(static_cast <long int>(3 * blq.x), nq, nproj);
+        q_block.Allocate(static_cast <long int>(3 * blq.x), nproj, nq);
         bl = (3 * nq *nproj + numThreads - 1) / numThreads;
         setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.x * nq * nproj);
         atype.Allocate(nproj);           
@@ -155,12 +157,11 @@ struct SC_proj{
             q.Allocate(3, nproj, nq);           
             bl = (3 * nq * nproj + numThreads - 1) / numThreads;
             setZero<3> << <bl, numThreads >> > (q, 3 * nproj * nq);
-
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
             qt.Allocate(3, nproj, nq, sc_max_nstep);
             qw.Allocate(3, nproj, nq, nw);
-            w_block.Allocate(static_cast <long int>(3 * blw.x), nq, nw);
+            w_block.Allocate(static_cast <long int>(3 * blw.x), nproj, nq, nw);
 
             bl = (3 * nq* sc_max_nstep* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
@@ -173,7 +174,7 @@ struct SC_proj{
     }
 
         void free(char do_sc){
-       /* q_block.Free();
+        q_block.Free();
             if ((do_sc == 'C') || (do_sc == 'Y')) {
                 q.Free();
             }
@@ -181,7 +182,7 @@ struct SC_proj{
                 qt.Free();
                 qw.Free();
                 w_block.Free();
-            }*/
+            }
     }
     
 };

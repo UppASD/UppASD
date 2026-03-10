@@ -126,6 +126,15 @@ void GpuCorrelations::release() {
 
 void GpuCorrelations::measure(std::size_t mstep){
     measure_SC(mstep);
+    if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
+        measure_SC_proj(mstep, sc_proj, blQproj, do_proj)
+
+    }
+
+    if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
+        measure_SC_proj(step, sc_projch, blQprojch, do_projch)
+        
+    }
     
 
 }
@@ -218,10 +227,10 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
 
 }
 
-void GpuCorrelations::measure_SC_proj(std::size_t mstep) {
+void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type) {
     
    /* std::size_t curstep = mstep;
-    switch (do_sc) {
+    switch (sc_type) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
             GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);

@@ -46,7 +46,7 @@ private:
     real delta_t;
 
     unsigned int  t_cur;
-    
+
     unsigned int maxThreads;
     unsigned int maxBlocks;
     unsigned int numThreads;
@@ -90,7 +90,7 @@ public:
 
 private:
     void measure_SC(std::size_t mstep);
-    void measure_SC_proj(std::size_t mstep);
+    void measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type);
 
 };
 
