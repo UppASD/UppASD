@@ -76,3 +76,7 @@ __global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 3> scblock, GpuTe
 __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuVector<int>aproj, GpuTensor<thrust::complex<real>, 3> scblock, int tasks, unsigned int N);
 
 __global__ void GPUSqProjFinalSum_stat(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 3> scsum, int numBlocks);
+
+__global__ void GPUSqProjFinalSum_dyn(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 4> scsum, int numBlocks, unsigned int t_cur);
+
+__global__ void GPUSqProjFinalSum_both(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 3> scsum_q, GpuTensor<thrust::complex<real>, 4> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag);

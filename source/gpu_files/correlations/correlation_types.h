@@ -41,6 +41,7 @@ struct blocksQWproj{
     unsigned int y;
     unsigned int z;
     dim3 blocks;
+    dim3 blocksFin;
 
     blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
@@ -132,15 +133,15 @@ struct SC{
 struct SC_proj{
     //Proj correlations
     GpuTensor<thrust::complex<real>, 3> q_block;
-    GpuTensor<thrust::complex<real>, 3> w_block;
+    GpuTensor<thrust::complex<real>, 4> w_block;
     GpuTensor<thrust::complex<real>, 3> q;
     GpuTensor<thrust::complex<real>, 4> qt;
     GpuTensor<thrust::complex<real>, 4> qw;
-    GpuVector<int> atype;    
+    GpuVector<int> aproj;    
     //size_t NT;
     //char do_sc;
 
-    SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
+    SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, Vector<int>aproj_cpu, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
 
         int bl;
         long int nw = static_cast <long int> (p_nw);
@@ -151,7 +152,8 @@ struct SC_proj{
         q_block.Allocate(static_cast <long int>(3 * blq.x), nproj, nq);
         bl = (3 * nq *nproj + numThreads - 1) / numThreads;
         setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.x * nq * nproj);
-        atype.Allocate(nproj);           
+        aproj.Allocate(nproj); 
+        aproj.copy_sync(aproj_cpu);         
 
         if ((do_sc == 'C') || (do_sc == 'Y')) {
             q.Allocate(3, nproj, nq);           
@@ -168,22 +170,23 @@ struct SC_proj{
             bl = (3 * nq * nw* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (qw, 3 * nq * nw * nproj);
             bl = (3 * blw.x * nq * nw* nproj + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw* nproj);
+            setZero<4> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw* nproj);
 
         }
     }
 
         void free(char do_sc){
-        q_block.Free();
-            if ((do_sc == 'C') || (do_sc == 'Y')) {
-                q.Free();
-            }
-            if ((do_sc == 'Q') || (do_sc == 'Y')) {
-                qt.Free();
-                qw.Free();
-                w_block.Free();
-            }
-    }
+            q_block.Free();
+            aproj.Free();
+                if ((do_sc == 'C') || (do_sc == 'Y')) {
+                    q.Free();
+                }
+                if ((do_sc == 'Q') || (do_sc == 'Y')) {
+                    qt.Free();
+                    qw.Free();
+                    w_block.Free();
+                }
+        }
     
 };
 
