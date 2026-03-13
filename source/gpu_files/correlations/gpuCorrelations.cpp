@@ -139,6 +139,28 @@ void GpuCorrelations::measure(std::size_t mstep){
 
 }
 
+void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) {
+
+    
+    flush_SC(mstep, cpuCorrelations);
+    if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
+        flush_SC_proj(mstep, 'p', cpuCorrelations, sc_proj, blQproj, do_proj);
+
+    }
+
+    if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
+        flush_SC_proj(mstep, 'c', cpuCorrelations, sc_projch, blQprojch, do_projch);
+        
+    }
+    
+    GPU_DEVICE_SYNCHRONIZE();
+    
+    // Publish sampling info to Fortran (CRITICAL: updates sc_nsamp and sc_tidx)
+    publishSamplingInfo(cpuCorrelations);
+
+}
+
+
 void GpuCorrelations::measure_SC(std::size_t mstep) {
     
     std::size_t curstep = mstep;
@@ -316,7 +338,7 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
 }
 
 
-void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) {
+void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations) {
     int tasks; int bl;
     switch (do_sc) {
     case 'C': {
@@ -385,9 +407,121 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     }  // end switch
     
     GPU_DEVICE_SYNCHRONIZE();
+
+}
+
+void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blQp, char sc_type) {
+    int tasks; int bl;
     
-    // Publish sampling info to Fortran (CRITICAL: updates sc_nsamp and sc_tidx)
-    publishSamplingInfo(cpuCorrelations);
+    switch (sc_type) {
+    case 'C': {
+        if (p == 'p')
+        cpuCorrelations.m_k_proj.copy_sync(scp.q);
+         else if (p == 'c')
+        cpuCorrelations.m_k_projch.copy_sync(scp.q);
+        break;
+    }
+
+    case 'Q': {
+        // Copy time step data to GPU
+        dt.copy_sync(dt_cpu);
+        //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
+        // Compute partial S(q,ω) from S(q,t) using Fourier transform
+        GPUSwSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
+        
+        // Transfer time-domain correlations for Fortran reference
+        if (p == 'p'){
+            if (scp.qt.extent(0) == cpuCorrelations.m_kt_proj.extent(0) &&
+                scp.qt.extent(1) == cpuCorrelations.m_kt_proj.extent(1) &&
+                scp.qt.extent(2) == cpuCorrelations.m_kt_proj.extent(2)) {
+
+                cpuCorrelations.m_kt_proj.copy_sync(scp.qt);
+                //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
+            }
+                    // Transfer frequency-domain correlations (m_kw)
+            if (scp.qw.extent(0) == cpuCorrelations.m_kw_proj.extent(0) &&
+                scp.qw.extent(1) == cpuCorrelations.m_kw_proj.extent(1) &&
+                scp.qw.extent(2) == cpuCorrelations.m_kw_proj.extent(2)) {
+                cpuCorrelations.m_kw_proj.copy_sync(scp.qw);
+            }
+        }
+        else if (p == 'c'){                
+            if (scp.qt.extent(0) == cpuCorrelations.m_kt_projch.extent(0) &&
+                scp.qt.extent(1) == cpuCorrelations.m_kt_projch.extent(1) &&
+                scp.qt.extent(2) == cpuCorrelations.m_kt_projch.extent(2)) {
+
+                cpuCorrelations.m_kt_projch.copy_sync(scp.qt);
+                //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
+            }
+            if (scp.qw.extent(0) == cpuCorrelations.m_kw_projch.extent(0) &&
+                scp.qw.extent(1) == cpuCorrelations.m_kw_projch.extent(1) &&
+                scp.qw.extent(2) == cpuCorrelations.m_kw_projch.extent(2)) {
+                cpuCorrelations.m_kw_projch.copy_sync(scp.qw);
+            }
+        }
+        
+        break;
+    }
+
+    case 'Y': {
+        // Copy time step data to GPU
+        dt.copy_sync(dt_cpu);
+        
+        // Compute partial S(q,ω) from S(q,t) using Fourier transform
+        GPUSwSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
+        
+        // Transfer static S(q)
+        if (p == 'p')
+            cpuCorrelations.m_k_proj.copy_sync(scp.q);
+        else if (p=='c')
+            cpuCorrelations.m_k_projch.copy_sync(scp.q);
+        
+        if (p == 'p'){
+            if (scp.qt.extent(0) == cpuCorrelations.m_kt_proj.extent(0) &&
+                scp.qt.extent(1) == cpuCorrelations.m_kt_proj.extent(1) &&
+                scp.qt.extent(2) == cpuCorrelations.m_kt_proj.extent(2)) {
+
+                cpuCorrelations.m_kt_proj.copy_sync(scp.qt);
+                //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
+            }
+                    // Transfer frequency-domain correlations (m_kw)
+            if (scp.qw.extent(0) == cpuCorrelations.m_kw_proj.extent(0) &&
+                scp.qw.extent(1) == cpuCorrelations.m_kw_proj.extent(1) &&
+                scp.qw.extent(2) == cpuCorrelations.m_kw_proj.extent(2)) {
+                cpuCorrelations.m_kw_proj.copy_sync(scp.qw);
+            }
+        }
+        else if (p == 'c'){                
+            if (scp.qt.extent(0) == cpuCorrelations.m_kt_projch.extent(0) &&
+                scp.qt.extent(1) == cpuCorrelations.m_kt_projch.extent(1) &&
+                scp.qt.extent(2) == cpuCorrelations.m_kt_projch.extent(2)) {
+
+                cpuCorrelations.m_kt_projch.copy_sync(scp.qt);
+               // cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
+            }
+            if (scp.qw.extent(0) == cpuCorrelations.m_kw_projch.extent(0) &&
+                scp.qw.extent(1) == cpuCorrelations.m_kw_projch.extent(1) &&
+                scp.qw.extent(2) == cpuCorrelations.m_kw_projch.extent(2)) {
+                cpuCorrelations.m_kw_projch.copy_sync(scp.qw);
+            }
+        }
+        
+        break;
+    }
+    
+    default: {
+        // Case C: S(q) static correlations only
+        if (p == 'p')
+            cpuCorrelations.m_k_proj.copy_sync(scp.q);
+        else if (p=='c')
+            cpuCorrelations.m_k_projch.copy_sync(scp.q);
+        break;
+    }
+
+    }  // end switch
+    
 
 }
 

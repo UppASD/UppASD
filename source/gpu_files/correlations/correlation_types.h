@@ -40,12 +40,14 @@ struct blocksQWproj{
     unsigned int x;
     unsigned int y;
     unsigned int z;
+    unsigned int blocksNum;
     dim3 blocks;
     dim3 blocksFin;
 
     blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
         tasks = 3 * N * M;
-        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        blocksNum =  std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        x = blocksNum;
         y = nt;
         z = nq;
         blocks = {x, y, z};
@@ -53,10 +55,11 @@ struct blocksQWproj{
     }
 
     blocksQWproj(unsigned int N, unsigned int M, unsigned int nq, unsigned int sc_max_nstep, unsigned int nw, unsigned int nt, unsigned int numThreads, unsigned int maxBlocks){
-        tasks = 3 * sc_max_nstep;;
-        x = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
-        y = nt;
-        z = nq * nw;
+        tasks = 3 * sc_max_nstep;
+        blocksNum = std::min(((tasks + numThreads - 1) / numThreads), maxBlocks);
+        x = blocksNum * nt;
+        y = nq;
+        z = nw;
         blocks = {x, y, z};
         blocksFin = {nt, nq, nw};
     }

@@ -80,3 +80,7 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<thrust::complex<real>, 3> scblo
 __global__ void GPUSqProjFinalSum_dyn(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 4> scsum, int numBlocks, unsigned int t_cur);
 
 __global__ void GPUSqProjFinalSum_both(GpuTensor<thrust::complex<real>, 3> scblock, GpuTensor<thrust::complex<real>, 3> scsum_q, GpuTensor<thrust::complex<real>, 4> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag);
+
+__global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun);
+
+__global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 4> scblock, GpuTensor<thrust::complex<real>, 4> scsum, int numBlocks, int nq);
