@@ -93,7 +93,7 @@ private:
     void measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type);
 
     void flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations);
-    void flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blQp, char sc_type);
+    void flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
 
 };
 

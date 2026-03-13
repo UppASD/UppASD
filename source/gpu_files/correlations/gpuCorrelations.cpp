@@ -410,7 +410,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
 
 }
 
-void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blQp, char sc_type) {
+void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type) {
     int tasks; int bl;
     
     switch (sc_type) {
@@ -427,8 +427,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations&
         dt.copy_sync(dt_cpu);
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
+        GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
         
         // Transfer time-domain correlations for Fortran reference
         if (p == 'p'){
@@ -469,8 +469,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations&
         dt.copy_sync(dt_cpu);
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
+        GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, blWp.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
         
         // Transfer static S(q)
         if (p == 'p')

@@ -1038,7 +1038,7 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     }
 }
 
-__global__ void GPUSwFinalSum(GpuTensor<thrust::complex<real>, 4> scblock, GpuTensor<thrust::complex<real>, 4> scsum, int numBlocks, int nq)
+__global__ void GPUSwProjFinalSum(GpuTensor<thrust::complex<real>, 4> scblock, GpuTensor<thrust::complex<real>, 4> scsum, int numBlocks, int nq)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
