@@ -338,6 +338,16 @@ contains
             cc%gk_flag=2
             allocate(cc%m_k(3,nq))
             cc%m_k=0.0_dblprec
+            if(cc%do_proj=='C'.or.cc%do_proj=='Y') then
+               allocate(cc%m_k_proj(3,nt,nq))
+               cc%m_k_proj=0.0_dblprec
+            end if
+
+            if(cc%do_projch=='C'.or.cc%do_projch=='Y') then
+               allocate(cc%m_k_projch(3,Nchmax,nq))
+               cc%m_k_projch=0.0_dblprec
+            end if
+
             ! call find_rmid(r_mid,coord,Natom)
             ! Possible alternative: Call the Fortran routine with init flag = 0
             ! zeroflag = 0
@@ -351,6 +361,16 @@ contains
             call allocate_deltatcorr(.true.,cc)
             allocate(cc%m_kw(3,nq,cc%nw))
             cc%m_kw=0.0_dblprec
+            if(cc%do_proj=='Q'.or.cc%do_proj=='T'.or.cc%do_proj=='Y') then
+               allocate(cc%m_kt_proj(3,nt,nq,cc%sc_max_nstep))
+               cc%m_kt_proj=0.0_dblprec
+            end if
+
+            if(cc%do_projch=='Q'.or.cc%do_projch=='T'.or.cc%do_projch=='Y') then
+               allocate(cc%m_kt_projch(3,Nchmax,nq,cc%sc_max_nstep))
+               cc%m_kt_projch=0.0_dblprec
+            end if
+
             ! Possible alternative: Call the Fortran routine with init flag = 0
             ! zeroflag = 0
             ! cc%gkt_flag=0
