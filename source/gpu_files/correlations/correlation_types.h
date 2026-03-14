@@ -144,18 +144,21 @@ struct SC_proj{
     //size_t NT;
     //char do_sc;
 
-    SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, Vector<int>aproj_cpu, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
+    SC_proj(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_sc_max_nstep, std::size_t p_nproj, Vector<int>aproj_cpu, std::size_t p_N, std::size_t numThreads, blocksQWproj blq, blocksQWproj blw){
 
         int bl;
         long int nw = static_cast <long int> (p_nw);
         long int nq = static_cast <long int> (p_nq);
         long int sc_max_nstep = static_cast <long int> (p_sc_max_nstep);
         long int nproj = static_cast <long int> (p_nproj);
+        long int N = static_cast <long int> (p_N);
 
         q_block.Allocate(static_cast <long int>(3 * blq.x), nproj, nq);
         bl = (3 * nq *nproj + numThreads - 1) / numThreads;
         setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.x * nq * nproj);
-        aproj.Allocate(nproj); 
+        aproj.Allocate(aproj_cpu.extent(0)); 
+        printf("\n EXTENTS: gpu = %i, cpu = %i\n", aproj.extent(0), aproj_cpu.extent(0));
+
         aproj.copy_sync(aproj_cpu);         
 
         if ((do_sc == 'C') || (do_sc == 'Y')) {

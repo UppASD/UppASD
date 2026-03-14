@@ -49,8 +49,8 @@ GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters Si
 , blQprojch(N, M, nq, Nchmax, numThreads, maxBlocks)
 , blWprojch(N, M, nq, sc_max_nstep, nw, Nchmax, numThreads, maxBlocks)
 , sc(do_sc, nw, nq, sc_max_nstep, numThreads, blQ, blW)
-, sc_proj(do_proj, nw, nq, sc_max_nstep, NT, cpuCorrelations.atype,  numThreads, blQproj, blWproj)
-, sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, cpuCorrelations.achtype, numThreads, blQprojch, blWprojch)
+, sc_proj(do_proj, nw, nq, sc_max_nstep, NT, cpuCorrelations.atype,  N, numThreads, blQproj, blWproj)
+, sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, cpuCorrelations.achtype, N, numThreads, blQprojch, blWprojch)
 
 {
     isallocated = 0; 

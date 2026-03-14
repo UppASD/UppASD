@@ -383,8 +383,14 @@ contains
       print *,' AB shape of m_k', shape(cc%m_k)
       print *,' AB allocated?', allocated(cc%m_k)
 
-      !print *, 'FORTRAN EMOOOOM', size(emomM), size(emomM,1), size(emomM,2)
+      print *,' AB shape of m_kt', shape(cc%m_kt)
+      print *,' AB allocated?', allocated(cc%m_kt)
 
+      print *,' AB shape of m_k_proj', shape(cc%m_k_proj)
+      print *,' AB allocated?', allocated(cc%m_k_proj)  
+
+      print *,' AB shape of m_kt_proj', shape(cc%m_kt_proj)
+      print *,' AB allocated?', allocated(cc%m_kt_proj)  
 
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
