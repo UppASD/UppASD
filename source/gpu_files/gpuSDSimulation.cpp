@@ -277,7 +277,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       stopwatch.add("moments");
 
       measurement->updateAC(mstep);
-      stopwatch.add("moments");
 
       // Check for error
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();

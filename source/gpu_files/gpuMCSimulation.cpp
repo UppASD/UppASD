@@ -252,7 +252,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
 
       }
 
-
+      measurement->updateAC(mstep);
 
       // Check for error
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
@@ -454,6 +454,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
          stopwatch.add("montecarlo");
          hamCalc.heisge(gpuSim.gpuLattice);
          stopwatch.add("hamiltonian");
+
+      measurement->updateAC(mstep);
 
 
       
