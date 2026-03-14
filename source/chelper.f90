@@ -324,10 +324,10 @@ contains
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
 
-      if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
-         print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"
-         return  
-      end if
+      !if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
+      !   print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"
+      !   return  
+      !end if
 
       if(do_gpu_correlations=='Y'.and.phase=='M') then
          ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise

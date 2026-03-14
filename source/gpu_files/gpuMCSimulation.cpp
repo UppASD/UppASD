@@ -17,14 +17,20 @@
 #include "measurementFactory.hpp"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
+#include "correlationFactory.hpp"
+
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
 #include <hiprand/hiprand.h>
+#include "gpuCorrelations.hpp"
+
 #elif defined(CUDA_V)
 #include <cuda.h>
 #include <curand.h>
+#include "gpuCorrelations.cuh"
+
 #endif
 using ParallelizationHelper = GpuParallelizationHelper;
 
@@ -208,6 +214,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
 
  // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
+
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -224,6 +232,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       // Measure
       //printf("STEP = %i\n", mstep);
       measurement->measure(mstep);
+      correlation->measure(mstep);
+
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -256,12 +266,16 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
 
    // Final measure
    measurement->measure(mcnstep + 1);  // TODO
+   correlation->measure(mcnstep + 1);  // TODO
+
    stopwatch.add("measurement");
 
    mqueue.finish();
 
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, mcnstep + 1); 
+
    stopwatch.add("flush measurement");
 
    // Synchronize with device
@@ -403,7 +417,9 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
 
  // Measurement
-const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
+
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -422,6 +438,8 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
       // Measure
       //printf("STEP = %i\n", mstep);
       measurement->measure(mstep);
+      correlation->measure(mstep);
+
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -454,11 +472,15 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
 
    // Final measure
    measurement->measure(mcnstep + 1);
+   correlation->measure(mcnstep + 1);  // TODO
+
    stopwatch.add("measurement");
 
    mqueue.finish();
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, mcnstep + 1); 
+
    stopwatch.add("flush measurement");
 
    // Synchronize with device
