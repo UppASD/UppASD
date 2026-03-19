@@ -949,6 +949,8 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     __shared__ real shared_re[3][32];
     __shared__ real shared_im[3][32];
 
+
+    thrust::complex<real> sq_val;
     // Fourier transform loop: unroll for performance
     #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
@@ -966,7 +968,8 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
         sincos(phase, &s, &c);
 
         // 3. Extract S(q,t) values
-        thrust::complex<real> sq_val = sq(cInd, pInd, qInd, tInd);
+        //sq_val = sq(cInd, pInd, qInd, tInd);
+        sq_val = thrust::complex<real>(0,0);
         real sq_re = sq_val.real();
         real sq_im = sq_val.imag();
         
@@ -1032,9 +1035,9 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, pInd, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, pInd, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, pInd, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
+       // scblock(3 * block.group_index().x + 0, pInd, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
+       // scblock(3 * block.group_index().x + 1, pInd, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
+       // scblock(3 * block.group_index().x + 2, pInd, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
     }
 }
 

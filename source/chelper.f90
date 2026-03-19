@@ -364,11 +364,15 @@ contains
             if(cc%do_proj=='Q'.or.cc%do_proj=='T'.or.cc%do_proj=='Y') then
                allocate(cc%m_kt_proj(3,nt,nq,cc%sc_max_nstep))
                cc%m_kt_proj=0.0_dblprec
+               allocate(cc%m_kw_proj(3,nt,nq,cc%nw))
+               cc%m_kw_proj=0.0_dblprec
             end if
 
             if(cc%do_projch=='Q'.or.cc%do_projch=='T'.or.cc%do_projch=='Y') then
                allocate(cc%m_kt_projch(3,Nchmax,nq,cc%sc_max_nstep))
                cc%m_kt_projch=0.0_dblprec
+               allocate(cc%m_kw_projch(3,Nchmax,nq,cc%nw))
+               cc%m_kw_projch=0.0_dblprec
             end if
 
             ! Possible alternative: Call the Fortran routine with init flag = 0
