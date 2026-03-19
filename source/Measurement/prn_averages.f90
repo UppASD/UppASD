@@ -517,7 +517,7 @@ contains
             mavg_buff_proj(1,i_na,bcount_avrg,k) = avg_mom(1,i_na,k)
             mavg_buff_proj(2,i_na,bcount_avrg,k) = avg_mom(2,i_na,k)
             mavg_buff_proj(3,i_na,bcount_avrg,k) = avg_mom(3,i_na,k)
-            mavg2_buff_proj(i_na,bcount_avrg,k)  = (avg_mom(1,i_na,k)**2+avg_mom(3,i_na,k)**2+avg_mom(3,i_na,k)**2)
+            mavg2_buff_proj(i_na,bcount_avrg,k)  = (avg_mom(1,i_na,k)**2+avg_mom(2,i_na,k)**2+avg_mom(3,i_na,k)**2)
          end do
 
       end do

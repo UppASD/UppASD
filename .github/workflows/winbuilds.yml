@@ -80,5 +80,5 @@ jobs:
         
     - uses: actions/upload-artifact@v4
       with:
-      name: uppasd.${{matrix.sys}}.${{matrix.arch}}
-      path: build/bin/uppasd*.exe
+        name: uppasd.${{matrix.sys}}.${{matrix.arch}}
+        path: build/bin/uppasd*.exe
