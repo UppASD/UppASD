@@ -397,6 +397,10 @@ contains
       print *,' AB allocated?', allocated(cc%m_kt_proj)  
 
 
+      print *,' AB shape of m_kw_proj', shape(cc%m_kw_proj)
+      print *,' AB allocated?', allocated(cc%m_kw_proj)  
+
+
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
            do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure, &

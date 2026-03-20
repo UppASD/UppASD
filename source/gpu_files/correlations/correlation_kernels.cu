@@ -938,6 +938,10 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     int qInd = grid.block_index().y;
     int wInd = grid.block_index().z;
 
+    int pInd = grid.block_index().x / blockN;
+    int bInd = grid.block_index().x % blockN;
+    
+
     int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
     int stride = grid.dim_blocks().x * block.num_threads();
 
@@ -945,7 +949,7 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    unsigned int tInd, cInd, pInd, bInd, ii;
+    unsigned int tInd, cInd, ii;
     __shared__ real shared_re[3][32];
     __shared__ real shared_im[3][32];
 
@@ -954,10 +958,12 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     // Fourier transform loop: unroll for performance
     #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
-        pInd = id / blockN;
-        ii = id % blockN;
-        tInd = ii / 3;
-        cInd = ii % 3;
+        cInd = id % 3;
+        ii = id / 3;
+        tInd = ii % sc_max_nstep;
+
+        //printf("c = %i, p = %i, q = %i, t = %i\n", cInd, pInd, qInd, tInd);
+       // printf("id = %i, tasks = %i\n",id, tasks);
 
 
         // 1. Calculate the real-valued phase: Phase = t * dt(t) * w(w)
@@ -968,8 +974,8 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
         sincos(phase, &s, &c);
 
         // 3. Extract S(q,t) values
-        //sq_val = sq(cInd, pInd, qInd, tInd);
-        sq_val = thrust::complex<real>(0,0);
+        sq_val = sq(cInd, pInd, qInd, tInd);
+       //sq_val = thrust::complex<real>(0,0);
         real sq_re = sq_val.real();
         real sq_im = sq_val.imag();
         

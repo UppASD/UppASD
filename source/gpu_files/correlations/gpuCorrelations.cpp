@@ -144,12 +144,12 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     
     flush_SC(mstep, cpuCorrelations);
     if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
-        flush_SC_proj(mstep, 'p', cpuCorrelations, sc_proj, blQproj, do_proj);
+        flush_SC_proj(mstep, 'p', NT, cpuCorrelations, sc_proj, blWproj, do_proj);
 
     }
 
     if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
-        flush_SC_proj(mstep, 'c', cpuCorrelations, sc_projch, blQprojch, do_projch);
+        flush_SC_proj(mstep, 'c', Nchmax, cpuCorrelations, sc_projch, blWprojch, do_projch);
         
     }
     
@@ -410,7 +410,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
 
 }
 
-void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type) {
+void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type) {
     int tasks; int bl;
     
     switch (sc_type) {
@@ -426,7 +426,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations&
     case 'Q': {
         // Copy time step data to GPU
         dt.copy_sync(dt_cpu);
-        tasks =  blWp.tasks*scp.aproj.extent(0);
+        tasks =  blWp.tasks*nproj;
+        printf("bl = %i, tasks = %i, real = %i\n", blWp.tasks, tasks, 3*NT*sc_max_nstep);
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
@@ -471,7 +472,7 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, hostCorrelations&
         dt.copy_sync(dt_cpu);
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        tasks =  blWp.tasks*scp.aproj.extent(0);
+        tasks =  blWp.tasks*nproj;
 
         GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
         GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.x, nq);
