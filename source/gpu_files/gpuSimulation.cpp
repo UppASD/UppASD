@@ -187,13 +187,13 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
         cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
         cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
-        if(Flags.do_sc_proj){          
+        if((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y')){          
         cpuCorrelations.atype.set(FortranData::atype, N);
         cpuCorrelations.m_k_proj.set(FortranData::m_k_proj, static_cast <long int>(3), NT, nq);
         cpuCorrelations.m_kt_proj.set(FortranData::m_kt_proj, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
         cpuCorrelations.m_kw_proj.set(FortranData::m_kw_proj, static_cast <long int>(3), NT, nq, nw);
         }
-        if(Flags.do_sc_projch){   
+        if((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y')){   
         cpuCorrelations.achtype.set(FortranData::achtype, N);
         cpuCorrelations.m_k_projch.set(FortranData::m_k_projch, static_cast <long int>(3), Nchmax, nq);
         cpuCorrelations.m_kt_projch.set(FortranData::m_kt_projch, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));

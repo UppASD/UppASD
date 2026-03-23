@@ -1044,6 +1044,7 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
        scblock(3 * bInd + 0, pInd, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
        scblock(3 * bInd + 1, pInd, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
        scblock(3 * bInd + 2, pInd, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
+       printf("pInd = %i, scblock = %.4lf\n", pInd, scblock(3 * bInd + 0, pInd, qInd, wInd).real());
     }
 }
 
@@ -1122,5 +1123,6 @@ __global__ void GPUSwProjFinalSum(GpuTensor<thrust::complex<real>, 4> scblock, G
         scsum(0, pInd, qInd, wInd) += thrust::complex<real>(sum_re[0], sum_im[0]);
         scsum(1, pInd, qInd, wInd) += thrust::complex<real>(sum_re[1], sum_im[1]);
         scsum(2, pInd, qInd, wInd) += thrust::complex<real>(sum_re[2], sum_im[2]);
+        printf("p = %i, scsum = %.4lf, %.4lf\n", pInd, scsum(0, pInd, qInd, wInd).real(), scsum(0, pInd, qInd, wInd).imag());
     }
 }
