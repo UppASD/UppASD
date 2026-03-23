@@ -1041,9 +1041,9 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-       // scblock(3 * block.group_index().x + 0, pInd, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
-       // scblock(3 * block.group_index().x + 1, pInd, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
-       // scblock(3 * block.group_index().x + 2, pInd, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
+       scblock(3 * bInd + 0, pInd, qInd, wInd) = thrust::complex<real>(sum_re[0], sum_im[0]);
+       scblock(3 * bInd + 1, pInd, qInd, wInd) = thrust::complex<real>(sum_re[1], sum_im[1]);
+       scblock(3 * bInd + 2, pInd, qInd, wInd) = thrust::complex<real>(sum_re[2], sum_im[2]);
     }
 }
 
