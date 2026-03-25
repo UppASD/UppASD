@@ -125,15 +125,19 @@ void GpuCorrelations::release() {
 }
 
 void GpuCorrelations::measure(std::size_t mstep){
+    int bl;
     measure_SC(mstep);
     if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
+        bl = (3 * nq *NT + numThreads - 1) / numThreads;
+        setZero<3> << <bl, numThreads >> > (sc_proj.q_block, 3 * blQproj.blocksNum * nq * NT);
         measure_SC_proj(mstep, sc_proj, blQproj, do_proj);
 
     }
 
     if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
-        measure_SC_proj(mstep, sc_projch, blQprojch, do_projch);
-        
+        bl = (3 * nq *Nchmax + numThreads - 1) / numThreads;
+        setZero<3> << <bl, numThreads >> > (sc_projch.q_block, 3 * blQprojch.blocksNum * nq * Nchmax);
+        measure_SC_proj(mstep, sc_projch, blQprojch, do_projch);     
     }
     
 
@@ -426,7 +430,7 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
     case 'Q': {
         // Copy time step data to GPU
         dt.copy_sync(dt_cpu);
-        tasks =  blWp.tasks*nproj;
+        tasks =  blWp.tasks;
         //printf("bl = %i, tasks = %i, real = %i\n", blWp.tasks, tasks, 3*NT*sc_max_nstep);
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
@@ -447,8 +451,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
                 scp.qw.extent(1) == cpuCorrelations.m_kw_proj.extent(1) &&
                 scp.qw.extent(2) == cpuCorrelations.m_kw_proj.extent(2)) {
                 cpuCorrelations.m_kw_proj.copy_sync(scp.qw);
-                printf("gpu projected %.4lf, %.4lf\n", 
-                            cpuCorrelations.m_kw_proj[0].real(),cpuCorrelations.m_kw_proj[10].real());
+                //printf("gpu projected %.4lf, %.4lf\n", 
+                            //cpuCorrelations.m_kw_proj[0].real(),cpuCorrelations.m_kw_proj[10].real());
             }
         }
         else if (p == 'c'){                

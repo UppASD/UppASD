@@ -152,11 +152,11 @@ struct SC_proj{
         long int sc_max_nstep = static_cast <long int> (p_sc_max_nstep);
         long int nproj = static_cast <long int> (p_nproj);
 
-        q_block.Allocate(static_cast <long int>(3 * blq.x), nproj, nq);
+        q_block.Allocate(static_cast <long int>(3 * blq.blocksNum), nproj, nq);
         bl = (3 * nq *nproj + numThreads - 1) / numThreads;
-        setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.x * nq * nproj);
+        setZero<3> << <bl, numThreads >> > (q_block, 3 * blq.blocksNum * nq * nproj);
         aproj.Allocate(aproj_cpu.extent(0)); 
-        printf("\n EXTENTS: gpu = %i, cpu = %i\n", aproj.extent(0), aproj_cpu.extent(0));
+        //printf("\n EXTENTS: gpu = %i, cpu = %i\n", aproj.extent(0), aproj_cpu.extent(0));
 
         aproj.copy_sync(aproj_cpu);         
 
@@ -168,14 +168,14 @@ struct SC_proj{
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
             qt.Allocate(3, nproj, nq, sc_max_nstep);
             qw.Allocate(3, nproj, nq, nw);
-            w_block.Allocate(static_cast <long int>(3 * blw.x), nproj, nq, nw);
+            w_block.Allocate(static_cast <long int>(3 * blw.blocksNum), nproj, nq, nw);
 
             bl = (3 * nq* sc_max_nstep* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
             bl = (3 * nq * nw* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (qw, 3 * nq * nw * nproj);
             bl = (3 * blw.x * nq * nw* nproj + numThreads - 1) / numThreads;
-            setZero<4> << <bl, numThreads >> > (w_block, 3 * blw.x * nq * nw* nproj);
+            setZero<4> << <bl, numThreads >> > (w_block, 3 * blw.blocksNum * nq * nw* nproj);
 
         }
     }

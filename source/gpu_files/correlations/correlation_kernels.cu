@@ -23,24 +23,29 @@ __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int
         //Hann
     case 2:
         dum = (0.5 - 0.5 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
-            //Hamming
+        break;
+        //Hamming
     case 3:
         dum = (0.54 - 0.46 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
             //Hamming v2
     case 32:
         dum = (0.53836 - 0.46164 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
-            //Blackman - Harris
+        break;
+        //Blackman - Harris
     case 4:
         dum =
             (0.35785 - 0.48829 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) +
                 0.14128 * cos(4.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) -
                 0.01168 * cos(6.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
-            //Nuttal
+        break;
+        //Nuttal
     case 5:
         dum =
             (0.355768 - 0.478396 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) +
                 0.144232 * cos(4.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) -
                 0.012604 * cos(6.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
     }
  
         
@@ -430,7 +435,7 @@ __global__ void GPUSwSum(const GpuTensor<thrust::complex<real>, 3> sq, const Gpu
         real sq_im = sq_val.imag();
         
         // 4. Windowing function
-        real win = sc_window_fac(sc_window_fun, (tInd - 1), sc_max_nstep);
+        real win = sc_window_fac(sc_window_fun, (tInd + 1), sc_max_nstep);
 
         // 5. Complex multiply-accumulate: (sq_re + sq_im*i) * (c + s*i) * win
         // Result = ((sq_re*c - sq_im*s) + i*(sq_re*s + sq_im*c)) * win
@@ -941,9 +946,10 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
     int pInd = grid.block_index().x / blockN;
     int bInd = grid.block_index().x % blockN;
     
-
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int tid_in_X = bInd * blockDim.x + threadIdx.x;
+    int stride   = blockN * blockDim.x;
+    //int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
+    //int stride = grid.dim_blocks().x * block.num_threads();
 
     // Register-based accumulation: store real and imaginary parts separately
     real sum_re[3] = {0.0, 0.0, 0.0};
@@ -980,7 +986,7 @@ __global__ void GPUSwProjSum(const GpuTensor<thrust::complex<real>, 4> sq, const
         real sq_im = sq_val.imag();
         
         // 4. Windowing function
-        real win = sc_window_fac(sc_window_fun, (tInd - 1), sc_max_nstep);
+        real win = sc_window_fac(sc_window_fun, (tInd + 1), sc_max_nstep);
 
         // 5. Complex multiply-accumulate: (sq_re + sq_im*i) * (c + s*i) * win
         // Result = ((sq_re*c - sq_im*s) + i*(sq_re*s + sq_im*c)) * win
