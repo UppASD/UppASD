@@ -23,10 +23,7 @@ public:
         {
             std::cout << "GpuMeasurement used" << std::endl;
             return std::make_unique<GpuMeasurement>(
-                gpuLattice.emomM,
-                gpuLattice.emom,
-                gpuLattice.mmom,
-                gpuLattice.beff,
+                gpuLattice,
                 cpuLattice.emomM,
                 cpuLattice.emom,
                 cpuLattice.mmom,

@@ -3,6 +3,7 @@
 // Ivan Zivkovic, ivanzi@kth.se
 // Requires C++ and CUDA 20 support
 
+#include "gpuStructures.hpp"
 #include "measurable.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
@@ -12,6 +13,8 @@
 #include "measurementData.h"
 #include "kernels.hpp"
 #include "gpu_wrappers.h"
+#include "gpuParallelizationHelper.hpp"
+#include "gpuCommon.hpp"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
 #include "autocorrelation_kernels.hpp"
@@ -20,10 +23,7 @@
 class GpuMeasurement : public Measurable
 {
 public:
-    GpuMeasurement(const GpuTensor<real, 3>& emomM,
-                    const GpuTensor<real, 3>& emom,
-                    const GpuTensor<real, 2>& mmom,
-                    const GpuTensor<real, 3>& beff,
+   GpuMeasurement((const deviceLattice& gpuLattice,
                     Tensor<real, 3>& f_emomM, 
                     Tensor<real, 3>& f_emom,
                     Tensor<real, 2>& f_mmom,
@@ -35,24 +35,25 @@ public:
     void updateAC(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
 
-
 private:
-    bool isAllocated;
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
+    void measureEnergy(size_t mstep);
+    void release();
+    static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
+
     void measureAutocorrelation(size_t mstep);
     void release();
     MeasurementQueue& mqueue;
     CpuRestMeasurement cpuMeas;
     
 private:
-    const GpuTensor<real, 3>& emomM;
-    const GpuTensor<real, 3>& emom;
-    const GpuTensor<real, 2>& mmom;
+    bool isAllocated;
+    const deviceLattice& gpuLattice;
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
@@ -106,6 +107,12 @@ private:
     const dim3 skyno_kernel_threads;
     const dim3 skyno_kernel_blocks;
 
+    // Energy
+    const bool plotenergy;
+    GpuVector<EnergyData> energy_buff_gpu;
+    Vector<EnergyData> energy_buff_cpu;
+    Vector<size_t> energy_iter;
+    size_t energy_count = 0;
     // Autocorrelations 
     const bool do_autocorr;
    // GpuVector<unsigned int> spinwaittable_gpu;
