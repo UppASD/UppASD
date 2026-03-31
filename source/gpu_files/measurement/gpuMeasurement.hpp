@@ -23,7 +23,7 @@
 class GpuMeasurement : public Measurable
 {
 public:
-   GpuMeasurement((const deviceLattice& gpuLattice,
+   GpuMeasurement(const deviceLattice& gpuLattice,
                     Tensor<real, 3>& f_emomM, 
                     Tensor<real, 3>& f_emom,
                     Tensor<real, 2>& f_mmom,
@@ -43,7 +43,6 @@ private:
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
     void measureEnergy(size_t mstep);
-    void release();
     static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
 
     void measureAutocorrelation(size_t mstep);

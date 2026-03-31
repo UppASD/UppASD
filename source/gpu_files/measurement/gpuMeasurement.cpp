@@ -14,7 +14,7 @@
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
-GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice
+GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                  Tensor<real, 3>& f_emomM, 
                                  Tensor<real, 3>& f_emom,
                                  Tensor<real, 2>& f_mmom,
