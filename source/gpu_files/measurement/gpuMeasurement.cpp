@@ -10,16 +10,30 @@
 #include <cuda_runtime.h>
 #endif
 
+#include "measurementQueue.hpp"
+using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
-GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice, bool alwaysCopy)
+GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice
+                                 Tensor<real, 3>& f_emomM, 
+                                 Tensor<real, 3>& f_emom,
+                                 Tensor<real, 2>& f_mmom,
+                                 Tensor<real, 3>& f_beff,
+                                 MeasurementQueue& mq,
+                                 bool alwaysCopy)
 : gpuLattice(gpuLattice)
+, mqueue(mq)
 , N(gpuLattice.emomM.extent(1))
 , M(gpuLattice.emomM.extent(2))
 , NX(0) // TODO: dont hardcode these values, needs to be imported from Fortran
 , NY(0)
 , NZ(0)
 , NT(0)
+//, NX(128) // TODO: dont hardcode these values, needs to be imported from Fortran
+//, NY(128)
+//, NZ(1)
+//, NT(1)
+, cpuMeas(gpuLattice.emomM, gpuLattice.emom, gpuLattice.mmom, gpuLattice.beff, f_emomM, f_emom, f_mmom, f_beff, mq)
 , workStream( ParallelizationHelperInstance.getWorkStream() )
 , stopwatch(GlobalStopwatchPool::get("Gpu measurement"))
 , do_avrg(*FortranData::do_avrg == 'Y')
@@ -30,12 +44,22 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice, bool alwaysCopy)
 , cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
 , sumOverAtoms_kernel_threads(256, 1)
 , sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
+, do_autocorr(*FortranData::do_autocorr)
+, nspinwait(*FortranData::nspinwait)
+, n0spinwait(0)
+, ac_buff(*FortranData::ac_buff)
+, ac_step(*FortranData::ac_step)
+, sw_next(0)
+, ac_maxThreads(512)
+, ac_maxBlocks(1024)
+, ac_count(0)
 , do_skyno(skyrmionMethodFromFlag(*FortranData::do_skyno))
 , nsimp(2 * NX * NY * NZ * NT)
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
 , plotenergy(*FortranData::plotenergy == 1)
 {
+    
     isAllocated = false;
     if (do_avrg)
     {
@@ -136,6 +160,38 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice, bool alwaysCopy)
         energy_buff_cpu.AllocateHost(*FortranData::avrg_buff);
         energy_iter.AllocateHost(*FortranData::avrg_buff);
     }
+    if (do_autocorr){
+        sw_threads = 256;
+        sw_tasks = 3*N*M;
+        sw_blocks = (sw_tasks + sw_threads - 1)/sw_threads;
+        indxb_ac.set(FortranData::indxb_ac, ac_buff);
+        //spinwait_cpu.set (FortranData::spinwait, 3, N, nspinwait);
+        spinwaittable_cpu.set(FortranData::spinwaittable, nspinwait);
+        spinwait_gpu.Allocate(3, N, M, nspinwait);
+        spinwait_gpu.zeros();
+        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
+        
+        sw_curIdx = 0;
+        sw_next = spinwaittable_cpu(0);
+        sw_curr = 0;
+
+        ac_tasksX = 3 * N * M;
+        ac_threadsX = ac_maxThreads;
+        ac_blocksX =  std::min(((ac_tasksX + ac_threadsX - 1) / ac_threadsX), ac_maxBlocks);
+        ac_threads = {ac_threadsX, 1, 1};
+
+        ac_block_gpu.Allocate(ac_blocksX, nspinwait);
+        ac_block_gpu.zeros();
+
+        autocorr_buff_gpu.Allocate(nspinwait, ac_buff);
+        autocorr_buff_gpu.zeros();
+
+        autocorr_buff_cpu.AllocateHost(nspinwait, ac_buff);
+        autocorr_buff_cpu.zeros(); 
+        
+        indxb_ac.AllocateHost(ac_buff);
+        indxb_ac.zeros();
+    }
 
     isAllocated = true;
     stopwatch.add("constructor");
@@ -193,6 +249,15 @@ void GpuMeasurement::release(){
         energy_buff_cpu.FreeHost();
         energy_iter.FreeHost();
     }
+      
+    if (do_autocorr)
+    {
+        spinwait_gpu.Free();
+        ac_block_gpu.Free();
+        autocorr_buff_gpu.Free();
+        autocorr_buff_cpu.FreeHost();
+        indxb_ac.FreeHost();
+    }
 
     isAllocated = false;
 }
@@ -205,11 +270,14 @@ GpuMeasurement::~GpuMeasurement()
 
 void GpuMeasurement::measure(std::size_t mstep)
 {
+    cpuMeas.measure(mstep);
+
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     const bool avrg = timeToMeasure(MeasurementType::AverageMagnetization, mstep);
     const bool cumu = timeToMeasure(MeasurementType::BinderCumulant, mstep);
     const bool energy = timeToMeasure(MeasurementType::Energy, mstep);
+    const bool autocorr = timeToMeasure(MeasurementType::Autocorrelation, mstep);
 
     if (avrg || cumu)
     {
@@ -240,6 +308,12 @@ void GpuMeasurement::measure(std::size_t mstep)
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
     }
+    if(autocorr){
+        measureAutocorrelation(mstep);
+        stopwatch.add("autocorelation");
+
+    }
+    
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();
@@ -250,6 +324,8 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
+    cpuMeas.measure(mstep);  
+
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     if (do_avrg || do_cumu)
@@ -294,6 +370,15 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::SkyrmionNumber);
     }
 
+    if (do_autocorr)
+    {
+        //measureAutocorrelation(mstep);
+        //ac_count++;
+        //stopwatch.add("autocorrelation");
+        //saveToFile(MeasurementType::Autocorrelation);
+    }
+
+    cpuMeas.flushMeasurements(mstep + 1); 
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
     {
@@ -360,7 +445,6 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
 
 }
 
-
 void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 {
     if (do_skyno == SkyrmionMethod::BruteForce)
@@ -417,6 +501,53 @@ void GpuMeasurement::measureEnergy(size_t mstep)
         saveToFile(MeasurementType::Energy);
     }
 }
+
+void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
+{
+ 
+   // printf("sw_next = %i, mstep = %i\n", sw_next, mstep);
+
+    if (((mstep % ac_step) == 0)||(mstep == sw_curr)){
+        ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
+        real norm = 1/(static_cast<real>(gpuLattice.emom.extent(1)*gpuLattice.emom.extent(2)));
+        //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
+        //if (mstep == sw_curr) printf("HERE!\n");
+
+
+        calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
+        calc_autocorr_final<<<(sw_curIdx + 1), 1024>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+    
+
+        if (*FortranData::real_time_measure=='Y') {
+            indxb_ac(ac_count++)=(mstep+1)*(*FortranData::delta_t);
+        }
+        else {
+            indxb_ac(ac_count++)=mstep+1;
+        }
+
+        if (ac_count >= *FortranData::ac_buff)
+        {
+            saveToFile(MeasurementType::Autocorrelation);
+
+        }
+    }
+   
+}
+   
+void GpuMeasurement::updateAC(std::size_t mstep)
+{
+ 
+    if ((mstep == sw_next)&&(sw_curIdx < (spinwaittable_cpu.extent(0) - 1) )){
+        printf("sw_next = %i, mstep = %i, swId = %i, \n\n", sw_next,  mstep, sw_curIdx);
+
+        sw_curIdx++;
+        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);
+        sw_curr = sw_next;
+        sw_next = spinwaittable_cpu(sw_curIdx); 
+    }
+   
+}
+   
 
 
 void GpuMeasurement::calculateEmomMSum()
@@ -496,9 +627,36 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
         energy_iter.zeros();
         energy_count = 0;
     break;
+        
+    case MeasurementType::Autocorrelation:
+        autocorr_buff_cpu.copy_sync(autocorr_buff_gpu);
 
-    default:
-        throw std::invalid_argument("Not yet implemented.");
+        for (size_t i = 0; i < ac_buff; ++i)
+        {
+            AutocorrelationData row{
+                .values = autocorr_buff_cpu.data() + i * nspinwait,
+                .size   = nspinwait
+            };
+
+            if (*FortranData::real_time_measure == 'Y')
+            {
+                measurementWriter.write(&indxb_ac[i], &row, 1);
+            }
+            else
+            {
+                int iter_int = static_cast<int>(indxb_ac[i]); 
+                measurementWriter.write(&iter_int, &row, 1);
+            }
+        }
+        autocorr_buff_gpu.zeros();
+        autocorr_buff_cpu.zeros();
+        indxb_ac.zeros();
+        ac_count = 0;
+  break;
+
+  default:
+      throw std::invalid_argument("Not yet implemented.");
+
     }
 }
 
@@ -515,6 +673,10 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
 
         case MeasurementType::SkyrmionNumber:
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
+        
+        case MeasurementType::Autocorrelation: {
+            return do_autocorr && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
+        }
 
         case MeasurementType::Energy:
             return do_avrg && plotenergy && ((mstep % *FortranData::avrg_step) == 0);

@@ -22,18 +22,29 @@
 #endif
 
 // Measurement class methods
-MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, std::size_t NM,
-                                           std::size_t _step) {
+MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, real* _beff, std::size_t NM,
+                                           std::size_t _step, MeasurementType _type) {
    step = _step;
+   type = _type;
    if(NM != 0) {
       emomM = new real[NM * 3];
       emom = new real[NM * 3];
       mmom = new real[NM * 1];
+
       memcpy(emomM, _emomM, NM * 3 * sizeof(real));
       memcpy(emom, _emom, NM * 3 * sizeof(real));
       memcpy(mmom, _mmom, NM * 1 * sizeof(real));
+
+      if(type==MeasurementType::Rest){
+         beff = new real[NM * 3];
+         memcpy(beff, _beff, NM * 3 * sizeof(real));
+      }
+      else{
+         beff = nullptr;
+      }
+
    } else {
-      emomM = emom = mmom = nullptr;
+      emomM = emom = mmom = beff = nullptr;
    }
 }
 
@@ -46,6 +57,9 @@ MeasurementQueue::Measurement::~Measurement() {
    }
    if(mmom != nullptr) {
       delete[] mmom;
+   }
+   if(beff != nullptr) {
+      delete[] beff;
    }
 }
 
@@ -74,8 +88,21 @@ void MeasurementQueue::processMeasurements() {
          // Unlock the mutex (allow stack modification while working)
          pthread_mutex_unlock(&mutex);
 
+         switch(m->type) {
+            case MeasurementType::Moment:
+               processMomentMeasurement(m);
+               break;
+
+            case MeasurementType::Rest:
+               processRestMeasurement(m);
+               break;
+            case MeasurementType::Correlations:
+               processCorrelationsMeasurement(m);
+               break;
+         }
+
          // Get data pointers
-         const real* emomM = m->emomM;
+         /*const real* emomM = m->emomM;
          const real* emom = m->emom;
          const real* mmom = m->mmom;
 
@@ -92,7 +119,7 @@ void MeasurementQueue::processMeasurements() {
 
          // Measure
          fortran_measure_moment(emomM, emom, mmom, m->step);
-
+         */
          // Destroy measurement data
          delete m;
       }
@@ -114,6 +141,34 @@ void MeasurementQueue::processMeasurements() {
          pthread_mutex_unlock(&mutex);
       }
    }
+}
+
+void MeasurementQueue::processMomentMeasurement(Measurement* m)
+{
+   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+
+   fortran_measure_moment(emomM, emom, mmom, m->step);
+}
+
+void MeasurementQueue::processRestMeasurement(Measurement* m)
+{
+   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+   const real* beff  = (m->beff)  ? m->beff  : FortranData::beff;
+
+   fortran_measure_rest(emomM, emom, mmom, beff, m->step);
+}
+
+void MeasurementQueue::processCorrelationsMeasurement(Measurement* m)
+{
+   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+
+   fortran_measure_correlations(emomM, emom, mmom, m->step);
 }
 
 void MeasurementQueue::startProcessThread() {
@@ -184,10 +239,23 @@ bool MeasurementQueue::empty() {
 
 // Push a measurement with data to the queue
 void MeasurementQueue::push(std::size_t mstep) {
-   push(mstep, nullptr, nullptr, nullptr, 0);
+   push(mstep, nullptr, nullptr, nullptr, nullptr, 0, MeasurementType::Moment);
 }
 
-void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mmom, std::size_t NM) {
+void MeasurementQueue::push(std::size_t mstep, real* emomM,
+                            real* emom,
+                            real* mmom,
+                            std::size_t NM)
+{
+   push(mstep, emomM, emom, mmom, nullptr, NM, MeasurementType::Moment);
+}
+void MeasurementQueue::push(std::size_t mstep,
+                            real* emomM,
+                            real* emom,
+                            real* mmom,
+                            real* beff,
+                            std::size_t NM,
+                            MeasurementType type) {
    // Finishing?
    if(finishMeasurements) {
       std::fprintf(stderr, "MeasurementQueue::push() called after finish()!\n");
@@ -197,7 +265,7 @@ void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mm
    // Initial push?
    if(!processThreadStarted) {
       // Push measurement to queue
-      q.push(new Measurement(emomM, emom, mmom, NM, mstep));
+      q.push(new Measurement(emomM, emom, mmom, beff, NM, mstep, type));
 
       // Start process thread
       startProcessThread();
@@ -206,7 +274,7 @@ void MeasurementQueue::push(std::size_t mstep, real* emomM, real* emom, real* mm
       pthread_mutex_lock(&mutex);
 
       // Push measurement to queue
-      q.push(new Measurement(emomM, emom, mmom, NM, mstep));
+      q.push(new Measurement(emomM, emom, mmom, beff, NM, mstep, type));
 
       // Signal condition change if thread started
       if(processThreadStarted) {

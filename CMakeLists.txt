@@ -17,9 +17,15 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
 PROJECT(UppASD Fortran)
 # Set the project version
 SET(VERSION 5.1.0)
+SET(CMAKE_CXX_STANDARD 20)
 ##############################################################################################
 
 ##############################################################################################
@@ -160,6 +166,7 @@ OPTION(USE_HIP "Compile with HIP support" OFF)
 if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
+CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -339,7 +346,13 @@ if (USE_CUDA)
    endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
-   set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp ${SRC}/gpu_files/correlations/fortranCorrelation.cpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
+                               ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  
+                               ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
+                               ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
+                               ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp 
+                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp 
+							   ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")

@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include "fortranMeasurement.hpp"
+#include "cpuRestMeasurement.hpp"
 #include "c_headers.hpp"
 #include "c_helper.h"
 #include "fortranData.hpp"
@@ -22,16 +22,22 @@ using ParallelizationHelper = GpuParallelizationHelper;
 
 #include "measurementQueue.hpp"
 
+/*   CpuMeasurement(const GpuTensor<real, 3>& emomM, const GpuTensor<real, 3>& emom,
+                   const GpuTensor<real, 2>& mmom, const GpuTensor<real, 3>& beff, Tensor<real, 3>& f_emomM, Tensor<real, 3>& f_emom,
+                   Tensor<real, 2>& f_mmom, Tensor<real, 3>& f_beff, bool fastCopy = DEFAULT_FAST_COPY,
+                   bool alwaysCopy = false);*/
 // Constructor
-FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2,
-                                 const GpuTensor<real, 2>& p3, Tensor<real, 3>& p4, Tensor<real, 3>& p5,
-                                 Tensor<real, 2>& p6, MeasurementQueue& mq, bool p7, bool p8)
-    : emomM(p1),
-      emom(p2),
-      mmom(p3),
-      fortran_emomM(p4),
-      fortran_emom(p5),
-      fortran_mmom(p6),
+CpuRestMeasurement::CpuRestMeasurement(const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_emom,
+                                 const GpuTensor<real, 2>& p_mmom, const GpuTensor<real, 3>& p_beff, Tensor<real, 3>& p_femomM, 
+                                 Tensor<real, 3>& p_femom, Tensor<real, 2>& p_fmmom, Tensor<real, 3>& p_fbeff, MeasurementQueue &mq, bool p7, bool p8)
+    : emomM(p_emomM),
+      emom(p_emom),
+      mmom(p_mmom),
+      beff(p_beff),
+      fortran_emomM(p_femomM),
+      fortran_emom(p_femom),
+      fortran_mmom(p_fmmom),
+      fortran_beff(p_fbeff),
       measurementQueue(mq),
       fastCopy(p7),
       alwaysCopy(p8),
@@ -50,6 +56,8 @@ FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTe
       tmp_emomM.Allocate(3, N, M);
       tmp_emom.Allocate(3, N, M);
       tmp_mmom.Allocate(N, M);
+      tmp_beff.Allocate(3, N, M);
+
 
       // Initiate pinned memory
       // pinned_emomM = pinned_emom = pinned_mmom = nullptr;
@@ -57,6 +65,8 @@ FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTe
       pinned_emomM.AllocateHost(3, N, M);
       pinned_emom.AllocateHost(3, N, M);
       pinned_mmom.AllocateHost(N, M);
+      pinned_beff.AllocateHost(3, N, M);
+
       // cudaHostAlloc(&pinned_emomM, emomM.bytes(), cudaHostAllocDefault);
       // cudaHostAlloc(&pinned_emom, emom.bytes(), cudaHostAllocDefault);
       // cudaHostAlloc(&pinned_mmom, mmom.bytes(), cudaHostAllocDefault);
@@ -64,20 +74,22 @@ FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTe
 }
 
 // Destructor
-FortranMeasurement::~FortranMeasurement() {
+CpuRestMeasurement::~CpuRestMeasurement() {
    if(fastCopy) {
       tmp_emomM.Free();
       tmp_emom.Free();
       tmp_mmom.Free();
+      tmp_beff.Free();
 
       pinned_emomM.FreeHost();
       pinned_emom.FreeHost();
       pinned_mmom.FreeHost();
+      pinned_beff.FreeHost();
    }
 }
 
 // Callback
-void FortranMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
+void CpuRestMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 #ifdef NVPROF
    nvtxRangePush("queue_callback");
 #endif
@@ -90,12 +102,12 @@ void FortranMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
 }
 
 // Callback method
-void FortranMeasurement::queueMeasurement(std::size_t mstep) {
-   measurementQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), mmom.size());
+void CpuRestMeasurement::queueMeasurement(std::size_t mstep) {
+   measurementQueue.push(mstep, pinned_emomM.data(), pinned_emom.data(), pinned_mmom.data(), pinned_beff.data(), mmom.size(),  MeasurementQueue::MeasurementType::Rest);
 }
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
-void FortranMeasurement::copyQueueFast(std::size_t mstep) {
+void CpuRestMeasurement::copyQueueFast(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -115,6 +127,7 @@ void FortranMeasurement::copyQueueFast(std::size_t mstep) {
    tmp_emomM.copy_async(emomM, copyStream);
    tmp_emom.copy_async(emom, copyStream);
    tmp_mmom.copy_async(mmom, copyStream);
+   tmp_beff.copy_async(beff, copyStream);
    GPU_EVENT_RECORD(copyDone.event(), copyStream);
    stopwatch.add("fast - D2D");
 
@@ -123,6 +136,7 @@ void FortranMeasurement::copyQueueFast(std::size_t mstep) {
    pinned_emomM.copy_async(tmp_emomM, copyStream);
    pinned_emom.copy_async(tmp_emom, copyStream);
    pinned_mmom.copy_async(tmp_mmom, copyStream);
+   pinned_beff.copy_async(tmp_beff, copyStream);
 
    // Make the work stream wait out the copying
    GPU_STREAM_WAIT_EVENT(workStream, copyDone.event(), 0);
@@ -133,8 +147,8 @@ void FortranMeasurement::copyQueueFast(std::size_t mstep) {
    GPU_STREAM_ADD_CALLBACK(workStream, queue_callback, new queue_callback_data(this, mstep), 0);
 }
 
-// Slow copying (D -> H)
-void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
+// Slow copying (D -> H)fortran
+void CpuRestMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -143,6 +157,7 @@ void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
    fortran_emomM.copy_sync(emomM);
    fortran_mmom.copy_sync(mmom);
    fortran_emom.copy_sync(emom);
+   fortran_beff.copy_sync(emom);
 
 
    // emomM.write(FortranData::emomM);
@@ -151,10 +166,10 @@ void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
    stopwatch.add("slow - D2H copy");
 
    // Queue measurement
-   measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());
+   measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), fortran_beff.data(), mmom.size(),  MeasurementQueue::MeasurementType::Rest);
 }
 
-void FortranMeasurement::measure(std::size_t mstep) {
+void CpuRestMeasurement::measure(std::size_t mstep) {
    // Copy required?
    bool copy = (alwaysCopy || fortran_do_measurements(mstep));
 
@@ -171,10 +186,7 @@ void FortranMeasurement::measure(std::size_t mstep) {
    }
 }
 
-void FortranMeasurement::updateAC(std::size_t mstep) {
-}
-
-void FortranMeasurement::flushMeasurements(std::size_t mstep) {
+void CpuRestMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
@@ -188,4 +200,3 @@ void FortranMeasurement::flushMeasurements(std::size_t mstep) {
    fortran_flush_measurements(mstep);
    stopwatch.add("measure");
 }
-

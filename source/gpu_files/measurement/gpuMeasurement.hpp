@@ -15,14 +15,24 @@
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
 #include "gpuCommon.hpp"
+#include "measurementQueue.hpp"
+#include "cpuRestMeasurement.hpp"
+#include "autocorrelation_kernels.hpp"
 
 
 class GpuMeasurement : public Measurable
 {
 public:
-    GpuMeasurement(const deviceLattice& gpuLattice, bool alwaysCopy = false);
+   GpuMeasurement((const deviceLattice& gpuLattice,
+                    Tensor<real, 3>& f_emomM, 
+                    Tensor<real, 3>& f_emom,
+                    Tensor<real, 2>& f_mmom,
+                    Tensor<real, 3>& f_beff,
+                    MeasurementQueue& mq,
+                    bool alwaysCopy = false);
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
+    void updateAC(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
 
 private:
@@ -36,6 +46,11 @@ private:
     void release();
     static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
 
+    void measureAutocorrelation(size_t mstep);
+    void release();
+    MeasurementQueue& mqueue;
+    CpuRestMeasurement cpuMeas;
+    
 private:
     bool isAllocated;
     const deviceLattice& gpuLattice;
@@ -98,5 +113,38 @@ private:
     Vector<EnergyData> energy_buff_cpu;
     Vector<size_t> energy_iter;
     size_t energy_count = 0;
+    // Autocorrelations 
+    const bool do_autocorr;
+   // GpuVector<unsigned int> spinwaittable_gpu;
+    GpuTensor<real, 2> autocorr_buff_gpu;
+    Tensor<real, 2> autocorr_buff_cpu;
+    GpuTensor<real, 2> ac_block_gpu;
+    GpuTensor<real, 4> spinwait_gpu;
+
+    Vector<unsigned int> spinwaittable_cpu;
+    //Tensor<real, 3> spinwait_cpu;
+
+    Vector<real> indxb_ac;
+
+    dim3 ac_threads;
+    dim3 ac_blocks;
+    unsigned int ac_threadsX;
+    unsigned int ac_tasksX;
+    unsigned int ac_blocksX;
+    const unsigned int ac_maxThreads;
+    const unsigned int ac_maxBlocks;
+
+    unsigned int ac_count;
+    unsigned int sw_next;
+    int sw_curr;
+    unsigned int sw_curIdx;
+    const unsigned int ac_buff;
+    const unsigned int ac_step;
+    const unsigned int nspinwait;
+    const unsigned int n0spinwait;
+    unsigned int sw_threads;
+    unsigned int sw_tasks;
+    unsigned int sw_blocks;
+
 };
 

@@ -4,8 +4,11 @@
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
+
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
+#include <cuda.h>
+
 #endif
 
 
@@ -18,11 +21,20 @@ namespace
     __device__ __forceinline__ real warp_reduce_sum(real v)
     {
         unsigned mask = 0xffffffffu;
-        v += __shfl_down_sync(mask, v, 16);
-        v += __shfl_down_sync(mask, v, 8);
-        v += __shfl_down_sync(mask, v, 4);
-        v += __shfl_down_sync(mask, v, 2);
-        v += __shfl_down_sync(mask, v, 1);
+ 
+        #pragma unroll
+    for (int offset = WARPSIZE / 2; offset > 0; offset /= 2) {
+#if defined(HIP_V)
+        v+= __shfl_down(v, offset);
+#elif defined (CUDA_V)
+#if CUDA_VERSION < 9000
+        real shfl_v = __shfl_down(v, offset);
+#else
+        real shfl_v = __shfl_down_sync(mask, v, offset);
+#endif
+       v += v;
+#endif
+    }        
         return v;
     }
 
@@ -30,9 +42,9 @@ namespace
     __device__ __forceinline__ real block_reduce_sum_1d(real v, real* shared)
     {
         v = warp_reduce_sum(v);
-        int lane  = threadIdx.x & 31;
-        int wid   = threadIdx.x >> 5;
-        int nwarp = (blockDim.x + 31) >> 5;
+        int lane  = threadIdx.x & (WARPSIZE - 1);       
+        int wid   = threadIdx.x >> (WARPSIZE == 32 ? 5 : 6); 
+        int nwarp = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
         if (lane == 0) shared[wid] = v;
         __syncthreads();
         real out = (threadIdx.x < nwarp) ? shared[threadIdx.x] : real(0);

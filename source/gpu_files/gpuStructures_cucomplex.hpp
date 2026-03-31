@@ -4,13 +4,15 @@
 #include "tensor.hpp"
 #include "real_type.h"
 
+#include <thrust/complex.h>
+
 #include "gpu_wrappers.h"
-#include "measurementData.h"
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
 #include <curand.h>
 #endif
+#include <complex>
 
 
 struct Flag {    
@@ -23,8 +25,6 @@ struct Flag {
    bool do_mphase_now;    
    char do_sc;
    bool do_gpu_correlations;
-   char do_sc_proj;
-   char do_sc_projch;
 };
 
 struct SimulationParameters {    
@@ -63,8 +63,6 @@ struct SimulationParameters {
    std::size_t nq;
    std::size_t sc_max_nstep;
    std::size_t sc_window_fun;
-   std::size_t NT;
-   std::size_t Nchmax;
 
 
 
@@ -131,22 +129,13 @@ struct hostCorrelations {
    Tensor<real, 1> r_mid;
    Tensor<real, 2> q;
    Tensor<real, 1> w;
-   Tensor<cpu_complex, 2> m_k;
-   Tensor<cpu_complex, 3> m_kt;
-   Tensor<cpu_complex, 3> m_kw;
-   Tensor<real, 1> deltat_corr;  // Per-sample delta_t timing array
-   Tensor<real, 1> scstep_arr;   // Per-sample sc_step array
+   Tensor<std::complex<real>, 2> m_k;
+   Tensor<std::complex<real>, 3> m_kt;
+   Tensor<std::complex<real>, 3> m_kw;
+   Tensor<real, 1> deltat_corr;
+   Tensor<real, 1> scstep_arr;
    int sc_nsamp;  // Number of samples from GPU correlations
    int sc_tidx;   // Number of time steps accumulated in GPU correlations
-   Vector<int> atype;
-   Vector<int> achtype;
-   Tensor<cpu_complex, 3> m_k_proj;//TODO: check dimentions
-   Tensor<cpu_complex, 4> m_kt_proj;
-   Tensor<cpu_complex, 4> m_kw_proj;
-   Tensor<cpu_complex, 3> m_k_projch;//TODO: check dimentions
-   Tensor<cpu_complex, 4> m_kt_projch;
-   Tensor<cpu_complex, 4> m_kw_projch;
-
 };
    
 struct deviceHamiltonian {
@@ -164,7 +153,7 @@ struct deviceHamiltonian {
    GpuTensor<real, 1>             sb;
    GpuTensor<real, 3>             extfield;
 }; 
-
+   
 struct deviceLattice {
    GpuTensor<real, 3> beff;
    GpuTensor<real, 3> b2eff;
@@ -180,7 +169,6 @@ struct deviceLattice {
    GpuTensor<real, 1> temperature;
    GpuTensor<real, 1> ipTemp;
    GpuTensor<real, 1> ipTemp_array;
-   GpuVector<EnergyData> energy;
 };
 
 struct deviceMeasurables {    

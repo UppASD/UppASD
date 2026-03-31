@@ -1,5 +1,7 @@
 target_sources(${UppASD_LIB} PRIVATE
         measurable.hpp
+        cpuRestMeasurement.hpp
+        cpuRestMeasurement.cpp
         fortranMeasurement.hpp
         fortranMeasurement.cpp
         measurementQueue.hpp
@@ -15,6 +17,8 @@ target_sources(${UppASD_LIB} PRIVATE
         measurementData.h
         memoryMeasurement.h
         memoryMeasurement.cpp
+        autocorrelation_kernels.hpp
+        autocorrelation_kernels.cpp
 )
 
 target_include_directories(${UppASD_LIB}

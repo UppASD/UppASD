@@ -533,7 +533,7 @@ contains
       do_gpu_llg        = 'Y'
       do_gpu_mc         = 'N'
       do_gpu_measurements = 'Y'
-      do_gpu_correlations = 'Y'
+      do_gpu_correlations = 'N'
 
 
       ! I/O OVF

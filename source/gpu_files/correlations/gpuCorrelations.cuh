@@ -64,6 +64,7 @@ private:
     GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
     GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
+    Tensor<thrust::complex<real>, 2> sc_q_cpu;
 
 
     // Buffer variables 
@@ -74,6 +75,7 @@ private:
     GpuTensor<real, 1> dt;
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
+    Tensor<real, 1> sc_step_arr_cpu;  // Host buffer for sc_step array bookkeeping
 
 public:
     // Constructor
@@ -88,5 +90,7 @@ public:
     // Measurements
     void measure(std::size_t mstep) override;
     void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) override;
+    void recordSample();
+    void publishSamplingInfo(hostCorrelations& cpuCorrelations);
 };
 

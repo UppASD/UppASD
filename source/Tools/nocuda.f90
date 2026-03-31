@@ -48,10 +48,11 @@ contains
       return
    end subroutine gpusim_initiatematrices
 
-   subroutine gpusim_gpurunsimulation(whichsim, whichphase)
+   subroutine gpusim_gpurunsimulation(whichsim, whichphase, gpu_mc_bf)
       implicit none
       integer, intent(in) :: whichsim, whichphase
       character(len=1), intent(in) :: gpu_mc_bf
+      !character(len=1) :: gpu_mc_bf
       return
   end subroutine gpusim_gpurunsimulation
 
@@ -75,13 +76,15 @@ contains
     !  return
   ! end subroutine cmdsim_measurementphase
 
-   subroutine FortranData_Initiate(stt,btorque, cc)
+   subroutine FortranData_Initiate(stt,btorque, cc, phase)
       use Parameters
       use Correlation_type
       implicit none
       character(len=1), intent(in) :: STT       !< Treat spin transfer torque? (Y/N)
       real(dblprec), dimension(:,:,:), optional :: btorque !< Field from (m x dm/dr)
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
+      character(len=1), intent(in) :: phase !< initial or measurement (I/M)
+
       return
    end subroutine FortranData_Initiate
 

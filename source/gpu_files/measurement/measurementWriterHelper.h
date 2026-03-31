@@ -91,3 +91,22 @@ template<> struct MeasurementTraits<EnergyData>
                 d.DM, d.PD, d.BiqDM, d.BQ, d.Dip, d.Zeeman, d.LSF, d.Chir, d.Ring, d.SA);
     }
 };
+template<>
+struct MeasurementTraits<AutocorrelationData>
+{
+    static constexpr std::string_view filebase = "autocorr";
+
+    static constexpr std::array<std::string_view, 1> columns = {};
+
+    static void print(const AutocorrelationData& a,
+                      std::ostream& out,
+                      int width)
+    {
+        for (size_t j = 0; j < a.size; ++j)
+        {
+            out << std::setw(width)
+                << a.values[j];
+        }
+    }
+};
+

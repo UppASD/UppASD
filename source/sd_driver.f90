@@ -1066,7 +1066,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'I')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -1109,19 +1109,52 @@ contains
       use NoCuda
 #endif
       use Damping
-      use SpinTorques, only : btorque, stt
-      use InputData, only : do_gpu, gpu_mc_bf
-      use Correlation
+      use SpinTorques, only : btorque, stt  
+      use Correlation  
+      use Temperature
+      use InputData
+      use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
+         external_field,field1,field2,time_external_field,allocation_field_time,    &
+         thermal_field
+      use MomentData
+      use FieldPulse
+      use SystemData,            only: coord
+      use SystemData,            only : atype, anumb, Landeg
+      use ChemicalData
+      use SimulationData,        only : bn, rstep, mstep
+      use MetaTypes
+       use Polarization
+       use HamiltonianData
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
       integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      integer ::cgk_flag, ntmp, dummy_mstep
       !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
       whichsim = 0
       whichphase = 1
+      cgk_flag = 0
+      dummy_mstep = 0
+
+      if (do_gpu_measurements =='Y') then
+         if (do_spintemp=='Y') then
+            ntmp=nstep/spintemp_step
+            call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+         end if
+
+         if (do_pol=='Y') then
+            call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
+         end if
+      end if
+
+      !if (do_gpu_correlations=='Y') then
+         !call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
+         !   NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+      !endif
+
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque, sc)
+      call FortranData_Initiate(stt,btorque, sc, 'M')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -1143,6 +1176,16 @@ contains
       !   stop "Invalid do_gpu"
       !endif
       call timing(0,'Measurement   ','OF')
+
+            ! Print final polarization, chirality and local polarization
+      if (do_pol=='Y') then
+         call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,-1)
+      end if
+
+      if (do_spintemp=='Y') then
+         call spintemperature(Natom,Mensemble,mstep,1,simid,emomM,beff,2)
+      endif
+      
    end subroutine sd_mphaseGPU
 
    !---------------------------------------------------------------------------------
