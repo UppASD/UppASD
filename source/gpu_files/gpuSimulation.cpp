@@ -19,7 +19,10 @@
 #endif
 
 //#include "gpuSDSimulation.hpp"
-GpuSimulation::GpuSimulation() {
+GpuSimulation::GpuSimulation()
+: maxThreads(256)
+, maxBlocks(1024)
+{
     isInitiated = false;
 }
 
@@ -44,6 +47,7 @@ void GpuSimulation::initiateConstants() {
     Flags.do_gpu_correlations = static_cast<bool>(*FortranData::do_gpu_correlations);
     Flags.do_sc_proj = *FortranData::do_sc_proj;
     Flags.do_sc_projch = *FortranData::do_sc_projch;
+    Flags.do_sc_projch = *FortranData::do_ene;
     //Flags.do_avrg = static_cast<bool>(*FortranData::do_avrg);
     //Flags.do_cumu = static_cast<bool>(*FortranData::do_cumu);
 
@@ -67,6 +71,7 @@ void GpuSimulation::initiateConstants() {
     SimParam.gamma = *FortranData::gamma;
     SimParam.k_bolt = *FortranData::k_bolt;
     SimParam.mub = *FortranData::mub;
+    SimParam.mry = *FortranData::mry;
     SimParam.Temp = *FortranData::Temp;
     SimParam.damping = *FortranData::damping;
     SimParam.mompar = *FortranData::mompar;
@@ -83,6 +88,9 @@ void GpuSimulation::initiateConstants() {
     SimParam.sc_max_nstep = *FortranData::sc_max_nstep;
     SimParam.NT = *FortranData::NT;
     SimParam.Nchmax= *FortranData::Nchmax;
+
+    SimParam.ene_step = *FortranData::ene_step;
+    SimParam.ene_buff = *FortranData::ene_buff;
 
 
    // SimParam.avrg_step = *FortranData::avrg_step;  
@@ -147,6 +155,7 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuHamiltonian.ncoup.set(FortranData::ncoup, mnn, NH);           
     cpuHamiltonian.nlist.set(FortranData::nlist, mnn, N);
     cpuHamiltonian.nlistsize.set(FortranData::nlistsize, NH);
+
     if(Flags.do_dm != 0) {
         cpuHamiltonian.dmvect.set(FortranData::dmvect,  static_cast <long int>(3), mnndm, NH);    
         cpuHamiltonian.dmlist.set(FortranData::dmlist, mnndm, N);
@@ -214,7 +223,8 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         }
     }*/
         
-
+.Allocate(static_cast <long int>(1));
+    
 
 }
 
@@ -228,6 +238,9 @@ bool GpuSimulation::initiateMatrices() {
     long int mnndm = static_cast <long int>( SimParam.mnndm);
     long int ipnphase = static_cast <long int>( SimParam.ipnphase);
     long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
+
+    gpuEne.tasks = 3 * N * M;
+    gpuEne.blocks = std::min(((gpuEne.tasks + maxThreads - 1) / maxThreads), maxBlocks);
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
@@ -245,23 +258,34 @@ bool GpuSimulation::initiateMatrices() {
    }
 
    // Allocate
+    if(Flags.do_ene) gpuEne.ext_block.Allocate(gpuEne.blocks);
+    else gpuEne.ext_block.Allocate(static_cast <long int>(1));
+
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
         std::printf("\n GPU: jTensor has been initialized \n");
         gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
-         gpuHamiltonian.nlist.Allocate(mnn, N);
-         gpuHamiltonian.nlistsize.Allocate(NH);}
+        gpuHamiltonian.nlist.Allocate(mnn, N);
+        gpuHamiltonian.nlistsize.Allocate(NH);
+        if(Flags.do_ene) gpuEne.pair_block.Allocate(gpuEne.blocks);
+        else gpuEne.pair_block.Allocate(static_cast <long int>(1));
+    }
     else {
         
-    gpuHamiltonian.ncoup.Allocate(NH, mnn);            
-    gpuHamiltonian.nlist.Allocate(N, mnn);
-    gpuHamiltonian.nlistsize.Allocate(NH);
-    if(Flags.do_dm != 0) {
-        gpuHamiltonian.dmvect.Allocate( static_cast <long int>(3), mnndm, NH);     
-        gpuHamiltonian.dmlist.Allocate(mnndm, N);
-        gpuHamiltonian.dmlistsize.Allocate(NH);
+        gpuHamiltonian.ncoup.Allocate(NH, mnn);            
+        gpuHamiltonian.nlist.Allocate(N, mnn);
+        gpuHamiltonian.nlistsize.Allocate(NH);
+        if(Flags.do_ene) gpuEne.xc_block.Allocate(gpuEne.blocks);
+        else gpuEne.xc_block.Allocate(static_cast <long int>(1));
+
+        if(Flags.do_dm != 0) {
+            gpuHamiltonian.dmvect.Allocate( static_cast <long int>(3), mnndm, NH);     
+            gpuHamiltonian.dmlist.Allocate(mnndm, N);
+            gpuHamiltonian.dmlistsize.Allocate(NH);
+            if(Flags.do_ene) gpuEne.dm_block.Allocate(gpuEne.blocks);
+            else gpuEne.dm_block.Allocate(static_cast <long int>(1));
         }
-        }
+    }
 
 
     if(Flags.do_aniso != 0) {
@@ -269,6 +293,10 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.eaniso.Allocate( static_cast <long int>(3), N);;
         gpuHamiltonian.taniso.Allocate(N);;
         gpuHamiltonian.sb.Allocate(N);
+        if(Flags.do_ene) gpuEne.ani_block.Allocate(gpuEne.blocks);
+        else gpuEne.ani_block.Allocate(static_cast <long int>(1));
+
+
     }
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
@@ -286,10 +314,9 @@ bool GpuSimulation::initiateMatrices() {
 
     gpuLattice.eneff.zeros();
 
-
-   
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
-    if(FortranData::btorque) {gpuLattice.btorque.Allocate( static_cast <long int>(3), N, M);} 
+    if(FortranData::btorque) {gpuLattice.btorqu.Allocate(static_cast <long int>(1));
+    e.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
         if (Flags.do_avrg !=0){
@@ -310,7 +337,7 @@ bool GpuSimulation::initiateMatrices() {
       std::fprintf(stderr, "Gpu: Failed to allocate memory: %s\n", err);
       return false;
    }
-
+blocks
    // Flag that we're initiated
    isInitiated = true;
    isFreed = false;
@@ -320,7 +347,7 @@ bool GpuSimulation::initiateMatrices() {
 }
 
 bool GpuSimulation::gpuHasNoData(){
-    bool check = (  gpuHamiltonian.aHam.empty() ||                             
+    bool check = (  gpuHamiltonian.aHam.empty() ||                             blocks
                     (gpuHamiltonian.ncoup.empty() && (FortranData::j_tensor == nullptr))||            
                     gpuHamiltonian.nlist.empty() || 
                     gpuHamiltonian.nlistsize.empty() ||
@@ -336,7 +363,7 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuLattice.beff.empty() || 
                     gpuLattice.b2eff.empty() ||
                     gpuLattice.eneff.empty() ||
-                    gpuLattice.energy.empty() ||
+                    gpuLattice.energy.empty() ||blocks
                     gpuLattice.emomM.empty() || 
                     gpuLattice.emom.empty() || 
                     gpuLattice.emom2.empty() || 
@@ -349,7 +376,7 @@ bool GpuSimulation::gpuHasNoData(){
     //TODO: add measurables
     return check;
 }
-
+blocks
 void GpuSimulation::release() {
     if(isInitiated && !isFreed)
     isInitiated = false;
@@ -359,20 +386,34 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
 
-  if(Flags.do_dm != 0) { gpuHamiltonian.dmvect.Free();  
-    gpuHamiltonian.dmlist.Free();     
-    gpuHamiltonian.dmlistsize.Free();  }
-     if(Flags.do_jtensor != 0) {gpuHamiltonian.j_tensor.Free();}
-     else {gpuHamiltonian.ncoup.Free();}
+    gpuEne.ext_block.Free();
+
+
+    if(Flags.do_jtensor != 0) {
+        gpuHamiltonian.j_tensor.Free();
+        gpuEne.pair_block.Free();
+    }
+    else {
+        gpuHamiltonian.ncoup.Free();
+        gpuEne.xc_block.Free();
+        if(Flags.do_dm != 0) { 
+            gpuHamiltonian.dmvect.Free();  
+            gpuHamiltonian.dmlist.Free();     
+            gpuHamiltonian.dmlistsize.Free(); 
+            gpuEne.dm_block.Free(); 
+        }
+    }
 
     
     if(Flags.do_aniso != 0) {
         gpuHamiltonian.kaniso.Free();    
-    gpuHamiltonian.eaniso.Free();     
-    gpuHamiltonian.taniso.Free(); 
-    gpuHamiltonian.sb.Free();}   
+        gpuHamiltonian.eaniso.Free();     
+        gpuHamiltonian.taniso.Free(); 
+        gpuHamiltonian.sb.Free();
+        gpuEne.ani_block.Free();blocks
+    }   
      
-   gpuHamiltonian.extfield.Free();  
+    gpuHamiltonian.extfield.Free();  
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
     gpuLattice.eneff.Free();
@@ -385,7 +426,7 @@ void GpuSimulation::release() {
     gpuLattice.mmom2.Free();  
     gpuLattice.mmomi.Free();
    // gpuLattice.ipTemp.Free();
-     if(FortranData::btorque) {gpuLattice.btorque.Free();  }
+     if(FortranData::btorque) {gpuLattice.btorque.Free();  }blocks
 
     
 
@@ -448,7 +489,7 @@ void GpuSimulation::copyFromFortran() {
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
 }
-void GpuSimulation::copyToFortran() {
+void GpuSimulation::copyToFortran() {blocks
    if(isInitiated) {
    // printf("COPIED\n");
     cpuLattice.beff.copy_sync(gpuLattice.beff);  

@@ -56,6 +56,7 @@ real* FortranData::delta_t;
 real* FortranData::gamma;
 real* FortranData::k_bolt;
 real* FortranData::mub;
+real* FortranData::mry;
 real* FortranData::damping;
 real* FortranData::Temp;
 
@@ -74,7 +75,7 @@ char* FortranData::do_cuda_measurements;
 char* FortranData::do_avrg;
 char* FortranData::do_cumu;
 char* FortranData::do_autocorr;
-unsigned int* FortranData::plotenergy;
+unsigned int* FortranData::do_ene;
 char* FortranData::do_skyno;
 char* FortranData::do_gpu_correlations;
 char* FortranData::real_time_measure;
@@ -122,8 +123,8 @@ int* FortranData::gpu_rng_seed;
 real* FortranData::mavg_buff;
 real* FortranData::mavg2_buff;
 real* FortranData::mavg4_buff;
-real* FortranData::eavg_buff;
-real* FortranData::eavg2_buff;
+//real* FortranData::eavg_buff;
+//real* FortranData::eavg2_buff;
 real* FortranData::spinwait;
 unsigned int* FortranData::spinwaittable; 
 real* FortranData::autocorr_buff;
@@ -134,8 +135,8 @@ unsigned int* FortranData::avrg_step;
 unsigned int* FortranData::avrg_buff;
 unsigned int* FortranData::cumu_step;
 unsigned int* FortranData::cumu_buff;
-unsigned int* FortranData::eavrg_step;
-unsigned int* FortranData::eavrg_buff;
+unsigned int* FortranData::ene_step;
+unsigned int* FortranData::ene_buff;
 unsigned int* FortranData::skyno_step;
 unsigned int* FortranData::skyno_buff;
 unsigned int* FortranData::ac_step;
@@ -156,7 +157,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    do_avrg = p_do_avrg;
    do_cumu = p_do_cumu;
    do_autocorr = p_do_autocorr;
-   plotenergy = p_plotenergy;
+   do_ene = p_plotenergy;
    do_skyno = p_do_skyno;
    do_gpu_correlations = p_do_gpu_correlations;
    do_sc = p_do_sc;
@@ -172,11 +173,11 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
                                       real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
                                       unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
                                       unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-                                      unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff,  unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+                                      unsigned int* p_ene_step, unsigned int* p_ene_buff,  unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
                                       unsigned int* p_skyno_step, unsigned int* p_skyno_buff, unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
                                       unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
                                       unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
-                                      unsigned int* p_nt, unsigned int* p_Nchmax){
+                                      unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry){
 
    stt = p_stt;
    SDEalgh = p_SDEalgh;
@@ -192,6 +193,7 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    gamma = p_gamma;
    k_bolt = p_k_bolt;
    mub = p_mub;
+   mry = p_mry;
    damping = p_mplambda1;
                                     
    binderc = p_binderc;
@@ -212,8 +214,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    avrg_buff = p_avrg_buff;
    cumu_step = p_cumu_step;
    cumu_buff = p_cumu_buff;
-   eavrg_step = p_eavrg_step;
-   eavrg_buff = p_eavrg_buff;
+   ene_step = p_ene_step;
+   ene_buff = p_ene_buff;
 
    skyno_step = p_skyno_step;
    skyno_buff = p_skyno_buff;
@@ -430,17 +432,18 @@ extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned 
    real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
    unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
    unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-   unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+   unsigned int* p_ene_step, unsigned int* p_ene_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
    unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
-   unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff, unsigned int* p_nt, unsigned int* p_Nchmax) {
+   unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff, unsigned int* p_nt, unsigned int* p_Nchmax,
+   real* p_mry) {
 FortranData::setConstantPointers(
    p_stt, p_SDEalgh, p_rstep, p_nstep, p_Natom, p_Mensemble, p_max_no_neigh, p_delta_t, p_gamma, 
    p_k_bolt, p_mub, p_mplambda1, p_binderc, p_mavg, p_mompar, p_initexc, p_max_no_dmneigh, p_nHam, 
    p_Temp, p_ipmcnphase, p_mcnstep, p_ipnphase,
-   p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_eavrg_step, p_eavrg_buff, p_tottraj_step, p_tottraj_buff,
+   p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_ene_step, p_ene_buff, p_tottraj_step, p_tottraj_buff,
    p_skyno_step, p_skyno_buff, p_nq, p_sc_window_fun, p_nw, p_sc_sep, p_sc_step, p_sc_max_nstep,
-   p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax);
+   p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax, p_mry);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

@@ -98,6 +98,7 @@ public:
    static real* gamma;
    static real* k_bolt;
    static real* mub;
+   static real* mry;
    static real* damping;
    static real * Temp;
 
@@ -119,7 +120,7 @@ public:
    static char* do_avrg;                        // Measure average magnetization (Y/N)
    static char* do_cumu;                        // Measure Binder cumulant, susceptibility, and specific heat(Y/N)
    static char* do_autocorr;                    // Perform autocorrelation (Y/N)
-   static unsigned int* plotenergy;             // Calculate and plot energy (0/1)
+   static unsigned int* do_ene;             // Calculate and plot energy (0/1)
    static char* do_skyno;
    static char* do_gpu_correlations;
    static char* real_time_measure;
@@ -184,8 +185,8 @@ public:
    static unsigned int* avrg_buff;
    static unsigned int* cumu_step;
    static unsigned int* cumu_buff;
-   static unsigned int* eavrg_step;
-   static unsigned int* eavrg_buff;
+   static unsigned int* ene_step;
+   static unsigned int* ene_buff;
    static unsigned int* skyno_step;
    static unsigned int* skyno_buff;
    static unsigned int* ac_step;
@@ -207,11 +208,11 @@ public:
                                     real* p_binderc, real* p_mavg, int* p_mompar, char* p_initexc, unsigned int* p_max_no_dmneigh,
                                     unsigned int* p_nHam, real* p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* p_ipnphase,
                                     unsigned int* p_avrg_step, unsigned int* p_avrg_buff, unsigned int* p_cumu_step, unsigned int* p_cumu_buff,
-                                    unsigned int* p_eavrg_step, unsigned int* p_eavrg_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
+                                    unsigned int* p_ene_step, unsigned int* p_ene_buff, unsigned int*p_tottraj_step, unsigned int*p_tottraj_buff,
                                     unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
                                     unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
                                     unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
-                                    unsigned int* p_nt, unsigned int* p_Nchmax);
+                                    unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,

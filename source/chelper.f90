@@ -375,10 +375,10 @@ contains
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
          initexc,ham%max_no_dmneigh,nHam, Temp, ipmcnphase, mcnstep, ipnphase, &
-         avrg_step, avrg_buff, cumu_step, cumu_buff, eavrg_step, eavrg_buff, &
+         avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
-         NT, Nchmax)
+         NT, Nchmax, mry)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &

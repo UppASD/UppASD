@@ -53,6 +53,8 @@ struct SimulationParameters {
    std::size_t avrg_buff;
    std::size_t cumu_step;
    std::size_t cumu_buff;  
+   std::size_t ene_step;
+   std::size_t cumu_buff;  
 
    int mompar;
    char initexc;

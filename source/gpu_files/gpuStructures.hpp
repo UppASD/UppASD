@@ -46,6 +46,7 @@ struct SimulationParameters {
    real gamma;
    real k_bolt;
    real mub;
+   real mry;
    real damping;
    real Temp;
 
@@ -53,6 +54,8 @@ struct SimulationParameters {
    std::size_t avrg_buff;
    std::size_t cumu_step;
    std::size_t cumu_buff;  
+   std::size_t ene_step;
+   std::size_t ene_buff;  
 
    int mompar;
    char initexc;
@@ -126,6 +129,16 @@ struct hostMeasurables {
    Tensor<real, 1> binderc; 
 };
 
+//TODO: do we need?
+struct hostEnergies {    
+   Tensor<real, 1> tot;
+   Tensor<real, 1> xc;
+   Tensor<real, 1> dm;
+   Tensor<real, 1> ani;
+   Tensor<real, 1> ext;
+   Tensor<real, 1> pair;
+};
+
 struct hostCorrelations {    
    Tensor<real, 2> coord;
    Tensor<real, 1> r_mid;
@@ -190,4 +203,26 @@ struct deviceMeasurables {
    GpuTensor<real, 1> ecumu_buff;
    GpuTensor<real, 1> binderc;
 };
+
+struct deviceEnergies {   
+   long int blocks; 
+   long int tasks; 
+   GpuTensor<real, 1> tot_block;
+   GpuTensor<real, 1> xc_block;
+   GpuTensor<real, 1> dm_block;
+   GpuTensor<real, 1> ani_block;
+   GpuTensor<real, 1> ext_block;
+   GpuTensor<real, 1> pair_block;
+};
+
+struct deviceEmpties {   
+ 
+   GpuTensor<real, 1> real1D;
+   GpuTensor<real, 2> real2D;
+   GpuTensor<real, 3> real3D;
+   GpuTensor<real, 4> real4D;
+
+};
+
+
    
