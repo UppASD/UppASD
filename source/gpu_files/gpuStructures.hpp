@@ -204,17 +204,6 @@ struct deviceMeasurables {
    GpuTensor<real, 1> binderc;
 };
 
-struct deviceEnergies {   
-   long int blocks; 
-   long int tasks; 
-   GpuTensor<real, 1> tot_block;
-   GpuTensor<real, 1> xc_block;
-   GpuTensor<real, 1> dm_block;
-   GpuTensor<real, 1> ani_block;
-   GpuTensor<real, 1> ext_block;
-   GpuTensor<real, 1> pair_block;
-};
-
 struct deviceEmpties {   
  
    GpuTensor<real, 1> real1D;

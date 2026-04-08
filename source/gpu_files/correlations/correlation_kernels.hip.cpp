@@ -67,8 +67,8 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     
     unsigned int rInd, mInd, cInd, ii;
     real inv_N = 1.0 / N;
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     // Main computation loop over tasks (unroll for better performance)
     #pragma unroll 4
@@ -169,8 +169,8 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
@@ -243,8 +243,8 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
@@ -320,8 +320,8 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
@@ -406,8 +406,8 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
     real sum_im[3] = {0.0, 0.0, 0.0};
     
     unsigned int tInd, cInd, ii;
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     // Fourier transform loop: unroll for performance
     #pragma unroll 2
@@ -517,8 +517,8 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex<real>, 3> scblock, GpuTensor
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    __shared__ real shared_re[3][64];
-    __shared__ real shared_im[3][64];
+    __shared__ real shared_re[3][32];
+    __shared__ real shared_im[3][32];
 
     if (tid_in_Q < numBlocks) {
         // Load and sum block results

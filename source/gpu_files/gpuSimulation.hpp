@@ -23,8 +23,7 @@ private:
     deviceLattice gpuLattice; //those are device matrices
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
-    deviceEnergies gpuEne;
-    //deviceEmpties gpuEmpty;
+
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
 

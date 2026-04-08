@@ -239,9 +239,6 @@ bool GpuSimulation::initiateMatrices() {
     long int ipnphase = static_cast <long int>( SimParam.ipnphase);
     long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
 
-    gpuEne.tasks = 3 * N * M;
-    gpuEne.blocks = std::min(((gpuEne.tasks + maxThreads - 1) / maxThreads), maxBlocks);
-
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
       std::printf("GpuSimulation: constants not initiated!\n");
@@ -258,8 +255,6 @@ bool GpuSimulation::initiateMatrices() {
    }
 
    // Allocate
-    if(Flags.do_ene) gpuEne.ext_block.Allocate(gpuEne.blocks);
-    else gpuEne.ext_block.Allocate(static_cast <long int>(1));
 
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
@@ -267,23 +262,19 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
         gpuHamiltonian.nlist.Allocate(mnn, N);
         gpuHamiltonian.nlistsize.Allocate(NH);
-        if(Flags.do_ene) gpuEne.pair_block.Allocate(gpuEne.blocks);
-        else gpuEne.pair_block.Allocate(static_cast <long int>(1));
+
     }
     else {
         
         gpuHamiltonian.ncoup.Allocate(NH, mnn);            
         gpuHamiltonian.nlist.Allocate(N, mnn);
         gpuHamiltonian.nlistsize.Allocate(NH);
-        if(Flags.do_ene) gpuEne.xc_block.Allocate(gpuEne.blocks);
-        else gpuEne.xc_block.Allocate(static_cast <long int>(1));
+
 
         if(Flags.do_dm != 0) {
             gpuHamiltonian.dmvect.Allocate( static_cast <long int>(3), mnndm, NH);     
             gpuHamiltonian.dmlist.Allocate(mnndm, N);
             gpuHamiltonian.dmlistsize.Allocate(NH);
-            if(Flags.do_ene) gpuEne.dm_block.Allocate(gpuEne.blocks);
-            else gpuEne.dm_block.Allocate(static_cast <long int>(1));
         }
     }
 
@@ -293,10 +284,6 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.eaniso.Allocate( static_cast <long int>(3), N);;
         gpuHamiltonian.taniso.Allocate(N);;
         gpuHamiltonian.sb.Allocate(N);
-        if(Flags.do_ene) gpuEne.ani_block.Allocate(gpuEne.blocks);
-        else gpuEne.ani_block.Allocate(static_cast <long int>(1));
-
-
     }
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
@@ -315,8 +302,8 @@ bool GpuSimulation::initiateMatrices() {
     gpuLattice.eneff.zeros();
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
-    if(FortranData::btorque) {gpuLattice.btorqu.Allocate(static_cast <long int>(1));
-    e.Allocate( static_cast <long int>(3), N, M);} 
+    if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M)};
+    //e.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
         if (Flags.do_avrg !=0){
@@ -386,21 +373,17 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
 
-    gpuEne.ext_block.Free();
 
 
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.Free();
-        gpuEne.pair_block.Free();
     }
     else {
         gpuHamiltonian.ncoup.Free();
-        gpuEne.xc_block.Free();
         if(Flags.do_dm != 0) { 
             gpuHamiltonian.dmvect.Free();  
             gpuHamiltonian.dmlist.Free();     
-            gpuHamiltonian.dmlistsize.Free(); 
-            gpuEne.dm_block.Free(); 
+            gpuHamiltonian.dmlistsize.Free();  
         }
     }
 
@@ -410,7 +393,6 @@ void GpuSimulation::release() {
         gpuHamiltonian.eaniso.Free();     
         gpuHamiltonian.taniso.Free(); 
         gpuHamiltonian.sb.Free();
-        gpuEne.ani_block.Free();blocks
     }   
      
     gpuHamiltonian.extfield.Free();  
@@ -426,7 +408,7 @@ void GpuSimulation::release() {
     gpuLattice.mmom2.Free();  
     gpuLattice.mmomi.Free();
    // gpuLattice.ipTemp.Free();
-     if(FortranData::btorque) {gpuLattice.btorque.Free();  }blocks
+     if(FortranData::btorque) {gpuLattice.btorque.Free();  }
 
     
 

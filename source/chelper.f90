@@ -14,7 +14,7 @@ module Chelper
    !use AutoCorrelation
    use AutoCorrelation
    use MicroWaveField,   only : mwffield
-   use Constants,        only : gama, mub, k_bolt
+   use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
 
    use prn_averages,     only : calc_and_print_cumulant, do_avrg, do_proj_avrg, mavg, binderc, &

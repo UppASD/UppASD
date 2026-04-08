@@ -7,7 +7,7 @@
 #include "gridHelper.hpp"
 #include "real_type.h"
 #if !defined(THREAD_COUNT)
-#define THREAD_COUNT 64
+#define THREAD_COUNT 256
 #endif
 #if !defined(USE_BIG_GRID)
 #define USE_BIG_GRID false

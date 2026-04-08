@@ -9,10 +9,56 @@
 #include "measurementData.h"
 #if defined (HIP_V)
 #include <hip/hip_runtime.h>
+#define WARP_SIZE warpSize
+#define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
+#define WARP_SIZE 32
+#define FULL_MASK 0xffffffff
+#define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
 #endif
 using ParallelizationHelper = GpuParallelizationHelper;
+
+__device__ void sum_warp_energy(real *val){
+
+   __shared__ real warp_sums[32];  // max 1024 threads → 32 warps
+
+   int tid  = threadIdx.x;
+   int lane = tid & (WARP_SIZE - 1);
+   int warp = tid / WARP_SIZE;
+
+   #pragma unroll
+   for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+   {
+      val += SHFL_DOWN(val, offset);
+   }
+
+   if (lane == 0)
+   {
+      warp_sums[warp] = val;
+   }
+
+   __syncthreads();
+
+   if (warp == 0)
+   {
+      int num_warps = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
+
+      val = (lane < num_warps) ? warp_sums[lane] : (real)0;
+
+      #pragma unroll
+      for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+      {
+         val += SHFL_DOWN(val, offset);
+      }
+
+   }
+
+}
+__global__ void null_energy(GpuVector<EnergyData> energy){
+   energy(0) = {};
+}
+
 // Possible improvements
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,10 +402,11 @@ private:
    const unsigned int* taniso;
    const real* sb;
    const unsigned int* aham;
+   int do_ene;
 
 public:
    HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuVector<EnergyData>& p_energy, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const Anisotropy& aniso, const HamRed& redHam)
+             const Anisotropy& aniso, const HamRed& redHam, int p_do_ene)
              :       energy(p_energy)
     {
       beff = p_beff.data();
@@ -377,6 +424,7 @@ public:
       sb = aniso.sb.data();
 
       aham = redHam.redNeibourCount.data();
+      do_ene = p_do_ene;
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -422,7 +470,7 @@ public:
 
       // anisotropy constants
       const real k1 = kaniso[0 + site * 2];
-      const real k2 = kaniso[1 + site * 2];
+      const real k2 = kaniso[1 + site * 2];å
 
       if(type == 1 || type == 7)  // uniaxial anisotropy
       {
@@ -471,42 +519,28 @@ public:
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
 
-       __shared__ EnergyData smem[THREAD_COUNT];
-       smem[threadIdx.x].exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-       smem[threadIdx.x].anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+      if(do_ene == 0) return;
 
-       if (threadIdx.x == 0 && blockIdx.x == 0)
-       {
-           energy(0) = {};
-       }
-       __syncthreads();
+       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+       real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
 
-       for (int s=1; s < blockDim.x; s *=2)
-       {
-           int index = 2 * s * threadIdx.x;
-           if (index < blockDim.x)
-           {
-               assert(index < THREAD_COUNT);
-               assert(index+s < THREAD_COUNT);
-
-               smem[index].exchange += smem[index + s].exchange;
-               smem[index].anisotropy += smem[index + s].anisotropy;
-           }
-           __syncthreads();
-       }
+       sum_warp_energy(exchange);
+       sum_warp_energy(anisotropy);
 
        const real mub = 9.274009994e-24;
        const real mry = 2.179872325e-21;
        const real fcinv = mub / mry;
        if (threadIdx.x == 0)
        {
-           const real exchange = (smem[0].exchange / static_cast<real>(N)) * fcinv;
-           const real anisotropy = smem[0].anisotropy / static_cast<real>(N);
+           const real exchange = (exchange / static_cast<real>(N)) * fcinv;
+           const real anisotropy = anisotropy / static_cast<real>(N);
            const real total = exchange + anisotropy;
            atomicAdd(&energy(0).exchange, exchange);
            atomicAdd(&energy(0).anisotropy, anisotropy);
            atomicAdd(&energy(0).total, total);
        }
+
+       
    }
 };
 
@@ -1090,6 +1124,7 @@ else{
 
 void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice) {
    // Kernel call
+   null_energy<<<1,1>>>(gpuLattice.energy);
 
    if(do_j_tensor == 1) {
       if(do_aniso != 0) {
