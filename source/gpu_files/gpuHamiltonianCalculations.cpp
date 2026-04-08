@@ -251,10 +251,14 @@ private:
    const real* ext_f;
    unsigned int mnn;
    const unsigned int* aham;
+   GpuVector<EnergyData>& energy;
+   int do_ene;
 
 public:
-   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, 
-             const HamRed& redHam) {
+   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuVector<EnergyData>&p_energy, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, 
+             const HamRed& redHam, int p_do_ene)
+             :       energy(p_energy) 
+   {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -263,6 +267,7 @@ public:
       pos = ex.neighbourPos.data();
       mnn = ex.mnn;
       aham = redHam.redNeibourCount.data();
+      do_ene = p_do_ene;
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -294,6 +299,23 @@ public:
       eneff[atom * 3 + 0] = x + ext_f[atom * 3 + 0];
       eneff[atom * 3 + 1] = y + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + ext_f[atom * 3 + 2];
+
+      if(do_ene == 0) return;
+
+       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+
+       sum_warp_energy(exchange);
+
+       const real mub = 9.274009994e-24;
+       const real mry = 2.179872325e-21;
+       const real fcinv = mub / mry;
+       if (threadIdx.x == 0)
+       {
+           const real exchange = (exchange / static_cast<real>(N)) * fcinv;
+           const real total = exchange;
+           atomicAdd(&energy(0).exchange, exchange);
+           atomicAdd(&energy(0).total, total);
+       } 
    }
 };
 
@@ -538,9 +560,7 @@ public:
            atomicAdd(&energy(0).exchange, exchange);
            atomicAdd(&energy(0).anisotropy, anisotropy);
            atomicAdd(&energy(0).total, total);
-       }
-
-       
+       }     
    }
 };
 
@@ -561,10 +581,13 @@ private:
    const unsigned int* taniso;
    const real* sb;
    const unsigned int* aham;
+   GpuTensor<EnergyData>& eneregy;
+   int do_ene;
 
 public:
-   HeisgeJijDMAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const Anisotropy& aniso, const HamRed& redHam) {
+   HeisgeJijDMAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<EnergyData>& p_energy, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
+             const Anisotropy& aniso, const HamRed& redHam, int p_do_ene)
+             : energy(p_energy) {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -584,6 +607,7 @@ public:
       sb = aniso.sb.data();
 
       aham = redHam.redNeibourCount.data();
+      do_ene = p_do_ene;
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -703,6 +727,31 @@ public:
       eneff[atom * 3 + 0] = x + ax_en + ext_f[atom * 3 + 0];
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
+      
+      if(do_ene == 0) return;
+
+      real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+      real DM = ((-Dz * Sy + Dy * Sz)*Sx + (-Dx * Sz + Dz * Sx) * Sy + (-Dy * Sx + Dx * Sy)*Sz)* (real)-0.5;
+
+      sum_warp_energy(exchange);
+      sum_warp_energy(anisotropy);
+      sum_warp_energy(DM);
+
+      const real mub = 9.274009994e-24;
+      const real mry = 2.179872325e-21;
+      const real fcinv = mub / mry;
+      if (threadIdx.x == 0)
+       {
+           const real exchange = (exchange / static_cast<real>(N)) * fcinv;
+           const real anisotropy = anisotropy / static_cast<real>(N);
+           const real DM = DM / static_cast<real>(N); 
+           const real total = exchange + anisotropy + DM;
+           atomicAdd(&energy(0).exchange, exchange);
+           atomicAdd(&energy(0).anisotropy, anisotropy);
+           atomicAdd(&energy(0).DM, DM);
+           atomicAdd(&energy(0).total, total);
+       } 
    }
 };
 
