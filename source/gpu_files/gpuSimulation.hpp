@@ -23,13 +23,15 @@ private:
     deviceLattice gpuLattice; //those are device matrices
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
+    deviceEnergies gpuEnergies;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
 
 class GpuSDSimulation {
 private:
-   bool isInitiatedSD;
+   bool isInitiatedSD;   GpuTensor<real, 1> exchangeM;
+
    void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
 
 public:

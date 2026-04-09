@@ -256,12 +256,23 @@ bool GpuSimulation::initiateMatrices() {
 
    // Allocate
 
+    if(Flags.do_ene > 0) {
+        gpuEnergies.totalM.Allocate(M);
+        gpuEnergies.extM.Allocate(M);
+    }
+    else{ 
+        gpuEnergies.totalM.Allocate(1);
+        gpuEnergies.extM.Allocate(1);
+    }
+
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
         std::printf("\n GPU: jTensor has been initialized \n");
         gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
         gpuHamiltonian.nlist.Allocate(mnn, N);
         gpuHamiltonian.nlistsize.Allocate(NH);
+        if(Flags.do_ene > 0) gpuEnergies.tensorM.Allocate(M);
+        else gpuEnergies.tensorM.Allocate(1);
 
     }
     else {
@@ -269,12 +280,16 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.ncoup.Allocate(NH, mnn);            
         gpuHamiltonian.nlist.Allocate(N, mnn);
         gpuHamiltonian.nlistsize.Allocate(NH);
+        if(Flags.do_ene > 0) gpuEnergies.exchM.Allocate(M);
+        else gpuEnergies.exchM.Allocate(1);
 
 
         if(Flags.do_dm != 0) {
             gpuHamiltonian.dmvect.Allocate( static_cast <long int>(3), mnndm, NH);     
             gpuHamiltonian.dmlist.Allocate(mnndm, N);
             gpuHamiltonian.dmlistsize.Allocate(NH);
+            if(Flags.do_ene > 0) gpuEnergies.dmM.Allocate(M);
+            else gpuEnergies.dmM.Allocate(1);
         }
     }
 
@@ -284,6 +299,8 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.eaniso.Allocate( static_cast <long int>(3), N);;
         gpuHamiltonian.taniso.Allocate(N);;
         gpuHamiltonian.sb.Allocate(N);
+        if(Flags.do_ene > 0) gpuEnergies.aniM.Allocate(M);
+        else gpuEnergies.aniM.Allocate(1);
     }
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
@@ -373,17 +390,23 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
 
-
+    gpuEnergies.totalM.Free();
+    gpuEnergies.extM.Free();
 
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.Free();
+        gpuEnergies.tensorM.Free();
     }
     else {
         gpuHamiltonian.ncoup.Free();
+        gpuEnergies.exchM.Free();
+
         if(Flags.do_dm != 0) { 
             gpuHamiltonian.dmvect.Free();  
             gpuHamiltonian.dmlist.Free();     
-            gpuHamiltonian.dmlistsize.Free();  
+            gpuHamiltonian.dmlistsize.Free();
+            gpuEnergies.dmM.Free();
+
         }
     }
 
@@ -393,6 +416,8 @@ void GpuSimulation::release() {
         gpuHamiltonian.eaniso.Free();     
         gpuHamiltonian.taniso.Free(); 
         gpuHamiltonian.sb.Free();
+        gpuEnergies.aniM.Free();
+
     }   
      
     gpuHamiltonian.extfield.Free();  
