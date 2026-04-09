@@ -122,7 +122,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
    stopwatch.add("hamiltonian");
    //printf("HERE - 3\n");
 
@@ -138,7 +138,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    //printf("HERE - 4\n");
 
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice);
+            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
             stopwatch.add("hamiltonian");
          }
 
@@ -236,7 +236,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
          // Perform Metropolis sweep
          gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
          stopwatch.add("hamiltonian");
 
 
@@ -323,7 +323,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
    stopwatch.add("hamiltonian");
 
    //printf("mcs = %i\n", mcs);   
@@ -336,7 +336,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
             gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
             stopwatch.add("montecarlo");
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice);
+            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
             stopwatch.add("hamiltonian");
          
 
@@ -434,7 +434,7 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
          // Perform Metropolis sweep
          gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
          stopwatch.add("hamiltonian");
 
 

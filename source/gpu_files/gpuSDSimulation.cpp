@@ -133,7 +133,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          // printMdStatus(mstep); -- Do we need it in initial phase?
 
          // Apply Hamiltonian to obtain effective field
-         hamCalc.heisge(gpuSim.gpuLattice);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
          stopwatch.add("hamiltonian");
 
          // Perform first step of SDE solver
@@ -141,7 +141,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          stopwatch.add("evolution");
 
          // Apply Hamiltonian to obtain effective field
-         hamCalc.heisge(gpuSim.gpuLattice);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
          stopwatch.add("hamiltonian");
 
          // Perform second (corrector) step of SDE solver
@@ -258,7 +258,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
@@ -266,7 +266,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       stopwatch.add("evolution");
 
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
       stopwatch.add("hamiltonian");
   
 
