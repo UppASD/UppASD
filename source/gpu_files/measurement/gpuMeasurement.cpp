@@ -159,6 +159,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         energy_buff_gpu.Allocate(*FortranData::avrg_buff);
         energy_buff_cpu.AllocateHost(*FortranData::avrg_buff);
         energy_iter.AllocateHost(*FortranData::avrg_buff);
+        printf("WARNING: DO NOT USE BIG GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
         sw_threads = 256;

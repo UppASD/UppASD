@@ -60,7 +60,7 @@ void GpuSimulation::GpuSDSimulation::printMdStatus(std::size_t mstep, GpuSimulat
    }
 }
 
-// Spin Dynamics measurement phase
+// Spin Dynamics initial phase
 void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    // Unbuffered printf
    std::setbuf(stdout, nullptr);
@@ -133,7 +133,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          // printMdStatus(mstep); -- Do we need it in initial phase?
 
          // Apply Hamiltonian to obtain effective field
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          stopwatch.add("hamiltonian");
 
          // Perform first step of SDE solver
@@ -141,7 +141,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          stopwatch.add("evolution");
 
          // Apply Hamiltonian to obtain effective field
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          stopwatch.add("hamiltonian");
 
          // Perform second (corrector) step of SDE solver
@@ -245,6 +245,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    size_t nstep = gpuSim.SimParam.nstep;
    size_t rstep = gpuSim.SimParam.rstep;
 
+   bool measure_ene;
+
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
@@ -258,15 +260,17 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
       integrator.evolveFirst(gpuSim.gpuLattice);
       stopwatch.add("evolution");
 
+      measure_ene = ((mstep)%gpuSim.SimParam.ene_step == 0);
+
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       stopwatch.add("hamiltonian");
   
 
@@ -286,11 +290,14 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
          GPU_DEVICE_RESET();
          std::exit(EXIT_FAILURE);
-      }
+      }    real cv{};            // Specific heat
+
 
    }  // End loop over simulation steps
 
    // Final measure and print remaining measurements to file
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
+
    measurement->measure(rstep + nstep + 1);  
    //cpuMeas.measure(rstep + nstep + 1);  
    correlation->measure(rstep + nstep + 1);  // TODO

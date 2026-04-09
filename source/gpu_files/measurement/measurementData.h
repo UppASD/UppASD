@@ -42,8 +42,9 @@ struct BinderCumulantData
     real avrgm4cum{};     // Cumulated average of m^4
     real binderc{};       // Binder cumulant
     real pmsusc{};        // Susceptibility
-    real cv{};            // Specific heat
     real avrgecum{};      // Cumulated average of E
+    real cv{};            // Specific heat
+
     // real avrge2cum;     // Cumulated average of E^2
     real avrgetcum{};     // Cumulated average of E_xc
     real avrgelcum{};     // Cumulated average of E_LSF
@@ -65,9 +66,18 @@ struct EnergyData
     real total;
     real exchange;
     real anisotropy;
+    real DM;
+    real Zeeman;
+
+    real std_total;
+    real std_exchange;
+    real std_anisotropy;
+    real std_DM;
+    real std_Zeeman;
+
 
     // fields below not yet implemented
-    real DM, PD, BiqDM, BQ, Dip, Zeeman, LSF, Chir, Ring, SA;
+    real PD, BiqDM, BQ, Dip, LSF, Chir, Ring, SA;
 };
 struct AutocorrelationData
 {

@@ -100,5 +100,5 @@ public:
       return initiated;
    }
    // Calculate "heisge"
-   void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies);
+   void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure);
 };

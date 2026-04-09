@@ -122,7 +122,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
    stopwatch.add("hamiltonian");
    //printf("HERE - 3\n");
 
@@ -138,7 +138,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    //printf("HERE - 4\n");
 
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
             stopwatch.add("hamiltonian");
          }
 
@@ -218,11 +218,14 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    stopwatch.add("initiate");
 
    size_t mcnstep = gpuSim.SimParam.mcnstep;
+   bool measure_ene;
 
    // Time step loop
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
       // Measure
       //printf("STEP = %i\n", mstep);
+      measure_ene = ((mstep-1)%gpuSim.SimParam.ene_step == 0);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       measurement->measure(mstep);
       stopwatch.add("measurement");
 
@@ -236,11 +239,13 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
          // Perform Metropolis sweep
          gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          stopwatch.add("hamiltonian");
 
 
       }
+
+
 
 
 
@@ -255,6 +260,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
    measurement->measure(mcnstep + 1);  // TODO
    stopwatch.add("measurement");
 
@@ -323,7 +329,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
    stopwatch.add("hamiltonian");
 
    //printf("mcs = %i\n", mcs);   
@@ -336,7 +342,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
             gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
             stopwatch.add("montecarlo");
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
             stopwatch.add("hamiltonian");
          
 
@@ -416,6 +422,7 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
    stopwatch.add("initiate");
 
    size_t mcnstep = gpuSim.SimParam.mcnstep;
+   bool measure_ene;
 
    // Time step loop
    for(std::size_t mstep = 1; mstep <= mcnstep; mstep++) {
@@ -434,13 +441,9 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
          // Perform Metropolis sweep
          gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies);
+         measure_ene = ((mstep)%gpuSim.SimParam.ene_step == 0);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
          stopwatch.add("hamiltonian");
-
-
-      
-
-
 
       // Check for error
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
@@ -453,6 +456,8 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
    }  // End loop over simulation steps
 
    // Final measure
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
+
    measurement->measure(mcnstep + 1);
    stopwatch.add("measurement");
 
