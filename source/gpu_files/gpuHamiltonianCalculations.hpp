@@ -61,6 +61,7 @@ private:
    bool do_j_tensor = false;
    bool do_dm = false;
    int do_aniso = 0;
+   int do_ene = 0;
 
    // Initiation flag
    bool initiated;

@@ -57,7 +57,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , nsimp(2 * NX * NY * NZ * NT)
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
-, plotenergy(*FortranData::plotenergy == 1)
+, do_ene(*FortranData::do_ene)
 {
     
     isAllocated = false;
@@ -154,7 +154,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
     }
 
-    if (plotenergy)
+    if (do_ene>0)
     {
         energy_buff_gpu.Allocate(*FortranData::avrg_buff);
         energy_buff_cpu.AllocateHost(*FortranData::avrg_buff);
@@ -243,7 +243,7 @@ void GpuMeasurement::release(){
         simp.Free();
     }
 
-    if (plotenergy)
+    if (do_ene>0)
     {
         energy_buff_gpu.Free();
         energy_buff_cpu.FreeHost();
@@ -343,7 +343,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::AverageMagnetization);
     }
 
-    if (do_avrg && plotenergy)
+    if (do_avrg && (do_ene==1))
     {
         measureEnergy(mstep);
         stopwatch.add("energy");
@@ -413,7 +413,7 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
 
 void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
 {
-    if (!plotenergy)
+    if ((do_ene==0))
     {
         const size_t smem = mm::nwarps(cumu_kernel_threads) * sizeof(real);
 
@@ -679,7 +679,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
         }
 
         case MeasurementType::Energy:
-            return do_avrg && plotenergy && ((mstep % *FortranData::avrg_step) == 0);
+            return do_avrg && (do_ene>0) && ((mstep % *FortranData::avrg_step) == 0);
 
         default:
             throw std::invalid_argument("Not yet implemented.");

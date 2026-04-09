@@ -107,7 +107,7 @@ private:
     const dim3 skyno_kernel_blocks;
 
     // Energy
-    const bool plotenergy;
+    const int do_ene;
     GpuVector<EnergyData> energy_buff_gpu;
     Vector<EnergyData> energy_buff_cpu;
     Vector<size_t> energy_iter;

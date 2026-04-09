@@ -323,6 +323,8 @@ contains
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
+      integer :: ene_step = 10
+      integer :: ene_buff = 100
 
       if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
          print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"

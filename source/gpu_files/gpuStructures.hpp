@@ -25,6 +25,7 @@ struct Flag {
    bool do_gpu_correlations;
    char do_sc_proj;
    char do_sc_projch;
+   int do_ene;
 };
 
 struct SimulationParameters {    

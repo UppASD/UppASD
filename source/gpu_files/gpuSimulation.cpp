@@ -47,7 +47,7 @@ void GpuSimulation::initiateConstants() {
     Flags.do_gpu_correlations = static_cast<bool>(*FortranData::do_gpu_correlations);
     Flags.do_sc_proj = *FortranData::do_sc_proj;
     Flags.do_sc_projch = *FortranData::do_sc_projch;
-    Flags.do_sc_projch = *FortranData::do_ene;
+    Flags.do_ene = *FortranData::do_ene;
     //Flags.do_avrg = static_cast<bool>(*FortranData::do_avrg);
     //Flags.do_cumu = static_cast<bool>(*FortranData::do_cumu);
 
@@ -223,7 +223,7 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         }
     }*/
         
-.Allocate(static_cast <long int>(1));
+
     
 
 }
@@ -302,7 +302,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuLattice.eneff.zeros();
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
-    if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M)};
+    if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M);}
     //e.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
@@ -321,10 +321,10 @@ bool GpuSimulation::initiateMatrices() {
       release();
       // Check for error
       const char* err = GPU_GET_ERROR_STRING(GPU_GET_LAST_ERROR());
-      std::fprintf(stderr, "Gpu: Failed to allocate memory: %s\n", err);
+      std::fprintf(stderr, "Gpu: Failed to allocate meFlags.mory: %s\n", err);
       return false;
    }
-blocks
+
    // Flag that we're initiated
    isInitiated = true;
    isFreed = false;
@@ -334,7 +334,7 @@ blocks
 }
 
 bool GpuSimulation::gpuHasNoData(){
-    bool check = (  gpuHamiltonian.aHam.empty() ||                             blocks
+    bool check = (  gpuHamiltonian.aHam.empty() ||                             
                     (gpuHamiltonian.ncoup.empty() && (FortranData::j_tensor == nullptr))||            
                     gpuHamiltonian.nlist.empty() || 
                     gpuHamiltonian.nlistsize.empty() ||
@@ -350,7 +350,7 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuLattice.beff.empty() || 
                     gpuLattice.b2eff.empty() ||
                     gpuLattice.eneff.empty() ||
-                    gpuLattice.energy.empty() ||blocks
+                    gpuLattice.energy.empty() ||
                     gpuLattice.emomM.empty() || 
                     gpuLattice.emom.empty() || 
                     gpuLattice.emom2.empty() || 
@@ -363,7 +363,7 @@ bool GpuSimulation::gpuHasNoData(){
     //TODO: add measurables
     return check;
 }
-blocks
+
 void GpuSimulation::release() {
     if(isInitiated && !isFreed)
     isInitiated = false;
@@ -471,7 +471,7 @@ void GpuSimulation::copyFromFortran() {
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
 }
-void GpuSimulation::copyToFortran() {blocks
+void GpuSimulation::copyToFortran() {
    if(isInitiated) {
    // printf("COPIED\n");
     cpuLattice.beff.copy_sync(gpuLattice.beff);  
