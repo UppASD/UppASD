@@ -17,13 +17,15 @@ class MeasurementFactory
 public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
-    static std::unique_ptr<Measurable> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, MeasurementQueue& mq)
+    static std::unique_ptr<Measurable> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, 
+                                              const deviceEnergies& gpuEnergies, MeasurementQueue& mq)
     {
         if (*FortranData::do_cuda_measurements == 'Y')
         {
             std::cout << "GpuMeasurement used" << std::endl;
             return std::make_unique<GpuMeasurement>(
                 gpuLattice,
+                gpuEnergies,
                 cpuLattice.emomM,
                 cpuLattice.emom,
                 cpuLattice.mmom,

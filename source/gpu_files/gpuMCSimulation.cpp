@@ -142,7 +142,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
             stopwatch.add("hamiltonian");
          }
 
-         // Check for error
+         // Check for error gpuSim.Energies,
          GPU_ERROR_T e = GPU_GET_LAST_ERROR();
          if(e != GPU_SUCCESS) {
             std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
@@ -207,7 +207,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
 
  // Measurement
-   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.Energies, mqueue);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -409,7 +409,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
 
  // Measurement
-const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, mqueue);
+const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.Energies, mqueue);
  
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);

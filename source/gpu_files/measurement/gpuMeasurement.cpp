@@ -680,7 +680,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
         }
 
         case MeasurementType::Energy:
-            return do_avrg && (do_ene>0) && ((mstep % *FortranData::avrg_step) == 0);
+            return do_avrg && (do_ene>0) && ((mstep % *FortranData::ene_step) == 0);
 
         default:
             throw std::invalid_argument("Not yet implemented.");

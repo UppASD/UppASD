@@ -24,6 +24,7 @@ class GpuMeasurement : public Measurable
 {
 public:
    GpuMeasurement(const deviceLattice& gpuLattice,
+                    const deviceEnergies& gpuEnergies,
                     Tensor<real, 3>& f_emomM, 
                     Tensor<real, 3>& f_emom,
                     Tensor<real, 2>& f_mmom,
@@ -53,6 +54,7 @@ private:
 private:
     bool isAllocated;
     const deviceLattice& gpuLattice;
+    const deviceEnergies& gpuEnergies;
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;

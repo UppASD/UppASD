@@ -1262,15 +1262,16 @@ else{
 void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
-   gpuEnergies.totalM.zeros();
-   gpuEnergies.extM.zeros();
+   if(measure){
+      gpuEnergies.totalM.zeros();
+      gpuEnergies.extM.zeros();}
 
 
    if(do_j_tensor == 1) {
-      gpuEnergies.tensorM.zeros();
+     if(measure) gpuEnergies.tensorM.zeros();
 
       if(do_aniso != 0) {
-         gpuEnergies.aniM.zeros();
+         if(measure) gpuEnergies.aniM.zeros();
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, tenEx, aniso, redHam));
       }
       else{
@@ -1279,11 +1280,11 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
 
    } 
    else {
-      gpuEnergies.exchM.zeros();
+      if(measure) gpuEnergies.exchM.zeros();
       if(do_dm !=0){
-         gpuEnergies.dmM.zeros();
+         if(measure) gpuEnergies.dmM.zeros();
          if(do_aniso !=0){
-            gpuEnergies.aniM.zeros();
+            if(measure) gpuEnergies.aniM.zeros();
             parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies, 
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
          }
@@ -1294,7 +1295,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       }
       else{
          if(do_aniso !=0){
-            gpuEnergies.aniM.zeros();
+            if(measure) gpuEnergies.aniM.zeros();
             parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies, 
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
          }

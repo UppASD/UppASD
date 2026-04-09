@@ -194,7 +194,7 @@ struct deviceLattice {
    GpuTensor<real, 1> temperature;
    GpuTensor<real, 1> ipTemp;
    GpuTensor<real, 1> ipTemp_array;
-   GpuVector<EnergyData> energy;
+   //GpuVector<EnergyData> energy;
 };
 
 struct deviceMeasurables {    
