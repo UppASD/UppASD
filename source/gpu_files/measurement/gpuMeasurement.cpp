@@ -15,6 +15,7 @@ using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
 GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
+                                const deviceEnergies& gpuEnergies,
                                  Tensor<real, 3>& f_emomM, 
                                  Tensor<real, 3>& f_emom,
                                  Tensor<real, 2>& f_mmom,
@@ -22,6 +23,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                  MeasurementQueue& mq,
                                  bool alwaysCopy)
 : gpuLattice(gpuLattice)
+, gpuEnergies(gpuEnergies)
 , mqueue(mq)
 , N(gpuLattice.emomM.extent(1))
 , M(gpuLattice.emomM.extent(2))
@@ -492,8 +494,8 @@ void GpuMeasurement::measureEnergy(size_t mstep)
 {
     // copy from gpuLattice to energy gpu buffer,
     // all the calculations for energy is done together with hamiltonian calculations
-    GPU_MEMCPY(energy_buff_gpu.data()+energy_count, gpuLattice.energy.data(),
-            1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
+    //GPU_MEMCPY(energy_buff_gpu.data()+energy_count, gpuLattice.energy.data(),
+           // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
 
     energy_iter(energy_count++) = mstep;
 
