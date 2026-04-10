@@ -21,8 +21,7 @@ using ParallelizationHelper = GpuParallelizationHelper;
 
 __device__ void sum_warp_energy(real& val){
 
-   __shared__ real warp_sums[32];  // max 1024 threads → 32 warps
-
+   __shared__ real warp_sums[32];
    int tid  = threadIdx.x;
    int lane = tid & (WARP_SIZE - 1);
    int warp = tid / WARP_SIZE;

@@ -78,6 +78,8 @@ struct EnergyData
 
     // fields below not yet implemented
     real PD, BiqDM, BQ, Dip, LSF, Chir, Ring, SA;
+    real std_PD, std_BiqDM, std_BQ, std_Dip, std_LSF, std_Chir, std_Ring, std_SA;
+
 };
 struct AutocorrelationData
 {

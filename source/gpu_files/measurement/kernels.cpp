@@ -512,3 +512,80 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
         d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
     }
 }
+
+    __global__ void averageEnergy(const GpuTensor<EnergyData> energyM,
+                                                  uint ensembles,
+                                                  EnergyData& out)
+
+
+{   
+    __shared__ real exch_sums[32];  
+    __shared__ real ani_sums[32];  
+    __shared__ real dm_sums[32];
+    __shared__ real ext_sums[32];  
+    __shared__ real total_sums[32]; 
+    
+    __shared__ real exch2_sums[32];  
+    __shared__ real ani2_sums[32];  
+    __shared__ real dm2_sums[32];
+    __shared__ real ext2_sums[32];  
+    __shared__ real total2_sums[32]; 
+
+    real exch = 0;  
+    real ani = 0;   
+    real dm = 0; 
+    real ext = 0;   
+    real total = 0; 
+    
+    real exch2 = 0;  
+    real ani2 = 0;   
+    real dm2 = 0; 
+    real ext2 = 0;  
+    real total2_ = 0; 
+
+   int tid  = threadIdx.x;
+   int lane = tid & (WARP_SIZE - 1);
+   int warp = tid / WARP_SIZE;
+
+   #pragma unroll
+   for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+   {
+      val += SHFL_DOWN(val, offset);
+   }
+
+   if (lane == 0)
+   {
+      warp_sums[warp] = val;
+   }
+
+   __syncthreads();
+
+   if (warp == 0)
+   {
+      int num_warps = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
+
+      val = (lane < num_warps) ? warp_sums[lane] : (real)0;
+
+      #pragma unroll
+      for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+      {
+         val += SHFL_DOWN(val, offset);
+      }
+
+   }
+
+    if (threadIdx.x == 0)
+       {
+           exchange = exchange / static_cast<real>(N);
+           DM = DM / static_cast<real>(N); 
+           external = external / static_cast<real> (N);
+           const real total = exchange + DM + external;
+           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
+           atomicAdd(&gpuEnergies.dmM(mInd), DM);
+           atomicAdd(&gpuEnergies.extM(mInd), external);
+           atomicAdd(&gpuEnergies.totalM(mInd), total);
+       } 
+
+
+
+}

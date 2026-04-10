@@ -5,11 +5,13 @@
 #include "measurementData.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
-#define WARPSIZE 64
-
+#define WARP_SIZE warpSize
+#define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
 #define WARPSIZE 32
+#define FULL_MASK 0xffffffff
+#define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
 //#include "device_launch_parameters.h"
 #endif
 
@@ -101,5 +103,10 @@ namespace kernels::measurement
     {
         return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
     }
+
+    __global__ void averageEnergy(const GpuTensor<EnergyData> energyM,
+                                                  uint ensembles,
+                                                  EnergyData& out);
+
 
 } // namespace kernels::measurement
