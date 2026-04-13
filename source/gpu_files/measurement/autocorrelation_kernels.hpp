@@ -22,7 +22,7 @@ namespace cg = cooperative_groups;
 
 __inline__ __device__
 void warpReduceScalar(real &sum) {
-    const unsigned int FULL_MASK = 0xffffffff;
+    const unsigned int F_MASK = 0xffffffff;
     
     #pragma unroll
     for (unsigned int offset = warpSize / 2; offset > 0; offset >>= 1) {
@@ -30,7 +30,7 @@ void warpReduceScalar(real &sum) {
 #if CUDA_VERSION < 9000
         real shfl = __shfl_down(sum, offset);
 #else
-        real shfl = __shfl_down_sync(FULL_MASK, sum, offset);
+        real shfl = __shfl_down_sync(F_MASK, sum, offset);
 #endif
         sum += shfl;
 #elif defined(HIP_V)

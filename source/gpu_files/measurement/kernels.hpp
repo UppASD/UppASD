@@ -3,9 +3,10 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include "measurementData.h"
+#include "gpuStructures.hpp"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
-#define WARP_SIZE warpSize
+#define WARPSIZE warpSize
 #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 #elif defined(CUDA_V)
 #include <cuda_runtime.h>
@@ -104,9 +105,9 @@ namespace kernels::measurement
         return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
     }
 
-    __global__ void averageEnergy(const GpuTensor<EnergyData> energyM,
-                                                  uint ensembles,
-                                                  EnergyData& out);
+    __global__ void averageEnergy(const deviceEnergies& energyM,
+                                                  uint M,
+                                                  EnergyData& ene);
 
 
 } // namespace kernels::measurement

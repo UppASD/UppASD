@@ -513,9 +513,9 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     }
 }
 
-    __global__ void averageEnergy(const GpuTensor<EnergyData> energyM,
-                                                  uint ensembles,
-                                                  EnergyData& out)
+    __global__ void averageEnergy(const deviceEnergies& energyM,
+                                                  uint M,
+                                                  EnergyData& ene)
 
 
 {   
@@ -531,59 +531,120 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     __shared__ real ext2_sums[32];  
     __shared__ real total2_sums[32]; 
 
-    real exch = 0;  
-    real ani = 0;   
-    real dm = 0; 
-    real ext = 0;   
-    real total = 0; 
-    
-    real exch2 = 0;  
-    real ani2 = 0;   
-    real dm2 = 0; 
-    real ext2 = 0;  
-    real total2_ = 0; 
 
-   int tid  = threadIdx.x;
-   int lane = tid & (WARP_SIZE - 1);
-   int warp = tid / WARP_SIZE;
+    int tid  = threadIdx.x;
+    int lane = tid & (WARPSIZE - 1);
+    int warp = tid / WARPSIZE;
+
+    real exch = energyM.exchM(tid);  
+    real ani = energyM.aniM(tid);     
+    real dm = energyM.dmM(tid);  
+    real ext = energyM.extM(tid);    
+    real total = energyM.totalM(tid); 
+    
+    real exch2 = exch*exch;  
+    real ani2 = ani*ani;   
+    real dm2 = dm*dm; 
+    real ext2 = ext*ext;  
+    real total2 = total*total; 
+
 
    #pragma unroll
-   for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+   for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
    {
-      val += SHFL_DOWN(val, offset);
+      exch += SHFL_DOWN(exch, offset);
+      ani += SHFL_DOWN(ani, offset);
+      dm += SHFL_DOWN(dm, offset);
+      ext += SHFL_DOWN(ext, offset);
+      total += SHFL_DOWN(total, offset);
+
+      exch2 += SHFL_DOWN(exch2, offset);
+      ani2 += SHFL_DOWN(ani2, offset);
+      dm2 += SHFL_DOWN(dm2, offset);
+      ext2 += SHFL_DOWN(ext2, offset);
+      total2 += SHFL_DOWN(total2, offset);
+
    }
 
    if (lane == 0)
    {
-      warp_sums[warp] = val;
+      exch_sums[warp] = exch;
+      ani_sums[warp] = ani;
+      dm_sums[warp] = dm;
+      ext_sums[warp] = ext;
+      total_sums[warp] = total;
+
+      exch2_sums[warp] = exch2;
+      ani2_sums[warp] = ani2;
+      dm2_sums[warp] = dm2;
+      ext2_sums[warp] = ext2;
+      total2_sums[warp] = total2;
+
+
+
    }
 
    __syncthreads();
 
    if (warp == 0)
    {
-      int num_warps = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
+      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
 
-      val = (lane < num_warps) ? warp_sums[lane] : (real)0;
+      exch = (lane < num_warps) ? exch_sums[lane] : (real)0;
+      ani = (lane < num_warps) ? ani_sums[lane] : (real)0;
+      dm = (lane < num_warps) ? dm_sums[lane] : (real)0;
+      ext = (lane < num_warps) ? ext_sums[lane] : (real)0;
+      total = (lane < num_warps) ? total_sums[lane] : (real)0;
+
+      exch2 = (lane < num_warps) ? exch2_sums[lane] : (real)0;
+      ani2 = (lane < num_warps) ? ani2_sums[lane] : (real)0;
+      dm2 = (lane < num_warps) ? dm2_sums[lane] : (real)0;
+      ext2 = (lane < num_warps) ? ext2_sums[lane] : (real)0;
+      total2 = (lane < num_warps) ? total2_sums[lane] : (real)0;
 
       #pragma unroll
-      for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
       {
-         val += SHFL_DOWN(val, offset);
+        exch += SHFL_DOWN(exch, offset);
+        ani += SHFL_DOWN(ani, offset);
+        dm += SHFL_DOWN(dm, offset);
+        ext += SHFL_DOWN(ext, offset);
+        total += SHFL_DOWN(total, offset);
+
+        exch2 += SHFL_DOWN(exch2, offset);
+        ani2 += SHFL_DOWN(ani2, offset);
+        dm2 += SHFL_DOWN(dm2, offset);
+        ext2 += SHFL_DOWN(ext2, offset);
+        total2 += SHFL_DOWN(total2, offset);
       }
 
    }
 
     if (threadIdx.x == 0)
        {
-           exchange = exchange / static_cast<real>(N);
-           DM = DM / static_cast<real>(N); 
-           external = external / static_cast<real> (N);
-           const real total = exchange + DM + external;
-           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           atomicAdd(&gpuEnergies.dmM(mInd), DM);
-           atomicAdd(&gpuEnergies.extM(mInd), external);
-           atomicAdd(&gpuEnergies.totalM(mInd), total);
+           exch = exch / static_cast<real>(M);
+           ani = ani / static_cast<real>(M);
+           dm = dm / static_cast<real>(M); 
+           ext = ext / static_cast<real> (M);
+           total = total / static_cast<real> (M);
+
+           exch2 = exch2 / static_cast<real>(M);
+           ani2 = ani2 / static_cast<real>(M);
+           dm2 = dm2 / static_cast<real>(M); 
+           ext2 = ext2 / static_cast<real> (M);
+           total2 = total2 / static_cast<real> (M);
+
+           atomicAdd(&ene.exchange, exch);
+           atomicAdd(&ene.DM, dm);
+           atomicAdd(&ene.anisotropy, ani);
+           atomicAdd(&ene.Zeeman, ext);
+           atomicAdd(&ene.total, total);
+
+           atomicAdd(&ene.std_exchange, fmax((exch2 - exch*exch), real(0)));
+           atomicAdd(&ene.std_DM, fmax((dm2 - dm*dm), real(0)));
+           atomicAdd(&ene.std_anisotropy, fmax((ani2 - ani*ani), real(0)));
+           atomicAdd(&ene.std_Zeeman, fmax((ext2 - ext*ext), real(0)));
+           atomicAdd(&ene.std_total, fmax((total2 - total*total), real(0)));
        } 
 
 
