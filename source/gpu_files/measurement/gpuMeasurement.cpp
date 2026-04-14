@@ -41,7 +41,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
 , sumOverAtoms_kernel_threads(256, 1)
 , sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
-, do_autocorr(*FortranData::do_autocorr)
+, do_autocorr((*FortranData::do_autocorr=='Y') ? true : false)
 , nspinwait(*FortranData::nspinwait)
 , n0spinwait(0)
 , ac_buff(*FortranData::ac_buff)
