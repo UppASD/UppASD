@@ -4,25 +4,13 @@
 #include "real_type.h"
 #include <cmath>
 #include "gpu_wrappers.h"
-#if defined(HIP_V)
-#include <hip/hip_runtime.h>
-#include <hip/hip_cooperative_groups.h>
-#define WARPSIZE 64
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-#include <cuda.h>
-#define WARPSIZE 32
 
-#endif
 namespace cg = cooperative_groups;
 
 
 
 __inline__ __device__
 void warpReduceScalar(real &sum) {
-    const unsigned int F_MASK = 0xffffffff;
     
     #pragma unroll
     for (unsigned int offset = warpSize / 2; offset > 0; offset >>= 1) {
@@ -30,7 +18,7 @@ void warpReduceScalar(real &sum) {
 #if CUDA_VERSION < 9000
         real shfl = __shfl_down(sum, offset);
 #else
-        real shfl = __shfl_down_sync(F_MASK, sum, offset);
+        real shfl = __shfl_down_sync(FULL_MASK, sum, offset);
 #endif
         sum += shfl;
 #elif defined(HIP_V)

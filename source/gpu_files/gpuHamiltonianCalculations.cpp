@@ -7,27 +7,18 @@
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
 #include "measurementData.h"
-#if defined (HIP_V)
-#include <hip/hip_runtime.h>
-#define WARP_SIZE warpSize
-#define SHFL_DOWN(val, offset) __shfl_down(val, offset)
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#define WARP_SIZE 32
-#define FULL_MASK 0xffffffff
-#define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
-#endif
+
 using ParallelizationHelper = GpuParallelizationHelper;
 
 __device__ void sum_warp_energy(real& val){
 
    __shared__ real warp_sums[32];
    int tid  = threadIdx.x;
-   int lane = tid & (WARP_SIZE - 1);
-   int warp = tid / WARP_SIZE;
+   int lane = tid & (WARPSIZE - 1);
+   int warp = tid / WARPSIZE;
 
    #pragma unroll
-   for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+   for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
    {
       val += SHFL_DOWN(val, offset);
    }
@@ -41,12 +32,12 @@ __device__ void sum_warp_energy(real& val){
 
    if (warp == 0)
    {
-      int num_warps = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
+      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
 
       val = (lane < num_warps) ? warp_sums[lane] : (real)0;
 
       #pragma unroll
-      for (int offset = WARP_SIZE / 2; offset > 0; offset >>= 1)
+      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
       {
          val += SHFL_DOWN(val, offset);
       }

@@ -4,17 +4,11 @@
 #include "real_type.h"
 #include "measurementData.h"
 #include "gpuStructures.hpp"
-#if defined(HIP_V)
-#include <hip/hip_runtime.h>
-#define WARPSIZE warpSize
-#define SHFL_DOWN(val, offset) __shfl_down(val, offset)
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#define WARPSIZE 32
-#define FULL_MASK 0xffffffff
-#define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
+#include "gpu_wrappers.h"
+
+
 //#include "device_launch_parameters.h"
-#endif
+
 
 namespace kernels::measurement
 {

@@ -91,6 +91,7 @@ template<> struct MeasurementTraits<EnergyData>
                 d.DM, d.PD, d.BiqDM, d.BQ, d.Dip, d.Zeeman, d.LSF, d.Chir, d.Ring, d.SA);
     }
 };
+
 template<>
 struct MeasurementTraits<AutocorrelationData>
 {

@@ -1,15 +1,7 @@
 #include "kernels.hpp"
-
 #include <cmath>
 #include "gpu_wrappers.h"
-#if defined(HIP_V)
-#include <hip/hip_runtime.h>
 
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#include <cuda.h>
-
-#endif
 
 
 // ============================================================================
@@ -513,7 +505,7 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     }
 }
 
-    __global__ void averageEnergy(const deviceEnergies& energyM,
+    __global__ void kernels::measurement::averageEnergy(const deviceEnergies& energyM,
                                                   uint M,
                                                   EnergyData& ene)
 

@@ -4,11 +4,8 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include <numeric>
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
+#include "gpu_wrappers.h"
 #include <thrust/complex.h>
-#include <curand.h>
-#include <cuda.h>
 #include <correlation_kernels.cuh>
 
 namespace cg = cooperative_groups;

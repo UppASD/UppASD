@@ -38,7 +38,7 @@ __global__ void calc_autocorr_block(GpuTensor<real, 2> ac_block, const GpuTensor
  
     unsigned int mInd, cInd, nInd, ii;
  
-    __shared__ real shared_nm[WARPSIZE];
+    __shared__ real shared_nm[32];
 
     unsigned int N = static_cast<unsigned int>(emom.extent(1));
     unsigned int M = static_cast<unsigned int>(emom.extent(2));
@@ -101,7 +101,7 @@ __global__ void calc_autocorr_final(GpuTensor<real, 2> ac_block, GpuTensor<real,
 
     // Register-based accumulators
     real sum_nm = 0.0; 
-    __shared__ real shared_nm[WARPSIZE];
+    __shared__ real shared_nm[32];
 
     if (tid_in_SW < numBlocks) {
         sum_nm += ac_block(tid_in_SW, swInd);     

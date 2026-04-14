@@ -114,6 +114,9 @@ private:
     Vector<EnergyData> energy_buff_cpu;
     Vector<size_t> energy_iter;
     size_t energy_count = 0;
+    const dim3 ene_kernel_threads;
+    const dim3 ene_kernel_blocks;
+
     // Autocorrelations 
     const bool do_autocorr;
    // GpuVector<unsigned int> spinwaittable_gpu;

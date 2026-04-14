@@ -4,11 +4,6 @@
 #include "gpuParallelizationHelper.hpp"
 #include <iostream>
 #include "gpu_wrappers.h"
-#if defined(HIP_V)
-#include <hip/hip_runtime.h>
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#endif
 
 #include "measurementQueue.hpp"
 using ParallelizationHelper = GpuParallelizationHelper;
@@ -52,7 +47,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , ac_buff(*FortranData::ac_buff)
 , ac_step(*FortranData::ac_step)
 , sw_next(0)
-, ac_maxThreads(512)
+, ac_maxThreads(256)
 , ac_maxBlocks(1024)
 , ac_count(0)
 , do_skyno(skyrmionMethodFromFlag(*FortranData::do_skyno))
@@ -60,6 +55,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
 , do_ene(*FortranData::do_ene)
+, ene_kernel_threads(256)
+, ene_kernel_blocks(mm::ceil_div(M, ene_kernel_threads.x))
 {
     
     isAllocated = false;
@@ -496,10 +493,13 @@ void GpuMeasurement::measureEnergy(size_t mstep)
     // all the calculations for energy is done together with hamiltonian calculations
     //GPU_MEMCPY(energy_buff_gpu.data()+energy_count, gpuLattice.energy.data(),
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
+           
+           
+    mm::averageEnergy<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies, M, energy_buff_gpu.data()[energy_count]);
 
     energy_iter(energy_count++) = mstep;
 
-    if (timeToMeasure(MeasurementType::Energy, mstep))
+    if ((energy_count++ % *FortranData::ene_buff) == 0)
     {
         saveToFile(MeasurementType::Energy);
     }

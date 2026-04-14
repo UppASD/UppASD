@@ -3,6 +3,7 @@
 #if defined(HIP_V)
   #include <hip/hip_runtime.h>
   #include <hiprand/hiprand.h>
+  #include <hip/hip_cooperative_groups.h>
   #define GPU_DEVICE_RESET() hipDeviceReset()
   #define GPU_DEVICE_SYNCHRONIZE() hipDeviceSynchronize()
   #define GPU_ERROR_T hipError_t
@@ -44,8 +45,18 @@
   #define GPU_RAND_GENERATE_NORMAL(generator, outputPtr, n, mean, stddev) hiprandGenerateNormal(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
 
+  #define WARPSIZE warpSize
+  #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
+
+
 #elif defined(CUDA_V)
+  #include <cuda.h>
   #include <cuda_runtime.h>
+
+  #include <cooperative_groups.h>
+  //#include <cooperative_groups/reduce.h>
+  #include <curand.h>
+
   #define GPU_DEVICE_RESET() cudaDeviceReset()
   #define GPU_DEVICE_SYNCHRONIZE() cudaDeviceSynchronize()
   #define GPU_ERROR_T cudaError_t
@@ -88,7 +99,13 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
 
 
+  #define WARPSIZE 32
+  #define FULL_MASK 0xffffffff
+  #define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
+
+
 #endif
+
 
 /*#define ASSERT_GPU(call) \
   do { \

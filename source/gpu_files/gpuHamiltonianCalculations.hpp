@@ -5,11 +5,7 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
-#if defined(HIP_V)
-#include <hip/hip_runtime.h>
-#elif defined(CUDA_V)
-#include <cuda_runtime.h>
-#endif
+
 using ParallelizationHelper = GpuParallelizationHelper;
 
 

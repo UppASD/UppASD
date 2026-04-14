@@ -4,11 +4,8 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include <numeric>
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
+#include "gpu_wrappers.h"
 #include <thrust/complex.h>
-#include <curand.h>
-#include <cuda.h>
 
 namespace cg = cooperative_groups;
 #ifndef M_PI
@@ -19,7 +16,6 @@ namespace cg = cooperative_groups;
 // Modifies sum_re and sum_im in-place, avoiding complex object overhead
 __inline__ __device__
 void warpReduceSum(real &sum_re, real &sum_im) {
-    const unsigned int FULL_MASK = 0xffffffff;
     
     #pragma unroll
     for (int offset = warpSize / 2; offset > 0; offset /= 2) {
