@@ -111,11 +111,15 @@ private:
     // Energy
     const int do_ene;
     GpuVector<EnergyData> energy_buff_gpu;
+    GpuVector<EnergyStdData> energy_std_buff_gpu;
     Vector<EnergyData> energy_buff_cpu;
+    Vector<EnergyData> energy_std_buff_cpu;
     Vector<size_t> energy_iter;
     size_t energy_count = 0;
     const dim3 ene_kernel_threads;
     const dim3 ene_kernel_blocks;
+    const unsigned int ene_step;
+    const unsigned int ene_buff;
 
     // Autocorrelations 
     const bool do_autocorr;

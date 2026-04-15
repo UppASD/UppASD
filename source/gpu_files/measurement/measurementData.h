@@ -6,7 +6,7 @@
 
 enum class MeasurementType : uint8_t
 {
-    AverageMagnetization, BinderCumulant, SkyrmionNumber, Energy, Autocorrelation
+    AverageMagnetization, BinderCumulant, SkyrmionNumber, Energy, EnergyStd, Autocorrelation
 };
 
 enum class SkyrmionMethod : uint8_t
@@ -81,6 +81,13 @@ struct EnergyData
     real std_PD, std_BiqDM, std_BQ, std_Dip, std_LSF, std_Chir, std_Ring, std_SA;
 
 };
+
+struct EnergyStdData
+{
+    const EnergyData& ene_ref;
+};
+
+
 struct AutocorrelationData
 {
     const real* values{};

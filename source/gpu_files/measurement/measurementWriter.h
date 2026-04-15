@@ -22,6 +22,10 @@ public:
     template<class Iter_t, MeasurementTypeLike Data_t>
     void write(const Iter_t* iteration, const Data_t* data, size_t N);
 
+
+    template<class Iter_t>
+    void writeEnergyStd(const Iter_t* iteration, const EnergyData * data, size_t N);
+
 private:
     template<MeasurementTypeLike T>
     std::ofstream& getFile();
@@ -52,6 +56,18 @@ void MeasurementWriter::write(const Iter_t* iteration, const Data_t* data, size_
     {
         out << std::setw(colWidth) << iteration[i];
         MeasurementTraits<Data_t>::print(data[i], out, colWidth);
+        out << '\n';
+    }
+}
+
+template<class Iter_t>
+void MeasurementWriter::writeEnergyStd(const Iter_t* iteration, const EnergyData* data, size_t N)
+{
+    std::ofstream& out = getFile<EnergyStdData>();
+    for (size_t i = 0; i < N; ++i)
+    {
+        out << std::setw(colWidth) << iteration[i];
+        MeasurementTraits<EnergyStdData>::print({data[i]}, out, colWidth);
         out << '\n';
     }
 }

@@ -55,6 +55,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
 , do_ene(*FortranData::do_ene)
+, ene_step(*FortranData::ene_step)
+, ene_buff(*FortranData::ene_buff)
 , ene_kernel_threads(256)
 , ene_kernel_blocks(mm::ceil_div(M, ene_kernel_threads.x))
 {
@@ -155,10 +157,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
     if (do_ene>0)
     {
-        energy_buff_gpu.Allocate(*FortranData::avrg_buff);
-        energy_buff_cpu.AllocateHost(*FortranData::avrg_buff);
-        energy_iter.AllocateHost(*FortranData::avrg_buff);
-        printf("WARNING: DO NOT USE BIG GRID WITH GPU CALCULATIONS OF ENERGY\n");
+        energy_buff_gpu.Allocate(*FortranData::ene_buff);
+        energy_buff_cpu.AllocateHost(*FortranData::ene_buff);
+        energy_iter.AllocateHost(*FortranData::ene_buff);
+        printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
         sw_threads = 256;
@@ -620,6 +622,11 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
         energy_buff_cpu.copy_sync(energy_buff_gpu);
 
         measurementWriter.write(
+            energy_iter.data(),
+            energy_buff_cpu.data(),
+            energy_count
+        );
+        measurementWriter.writeEnergyStd(
             energy_iter.data(),
             energy_buff_cpu.data(),
             energy_count

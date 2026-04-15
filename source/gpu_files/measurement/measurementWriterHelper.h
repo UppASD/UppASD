@@ -92,6 +92,24 @@ template<> struct MeasurementTraits<EnergyData>
     }
 };
 
+template<> struct MeasurementTraits<EnergyStdData>
+{
+    static constexpr std::string_view filebase = "stdenergy";
+
+    static constexpr std::array<std::string_view, 14> columns = {
+        "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ","Dip","Zeeman","LSF","Chir","Ring","SA"
+    };
+
+    static void print(const EnergyStdData& v, std::ostream& out, int width)
+    {
+        const auto& d = v.ene_ref;
+        write_cols(out, width, d.std_total, d.std_exchange, d.std_anisotropy,
+                d.std_DM, d.std_PD, d.std_BiqDM, d.std_BQ, d.std_Dip, d.std_Zeeman, d.std_LSF, 
+                d.std_Chir, d.std_Ring, d.std_SA);
+    }
+};
+
+
 template<>
 struct MeasurementTraits<AutocorrelationData>
 {
