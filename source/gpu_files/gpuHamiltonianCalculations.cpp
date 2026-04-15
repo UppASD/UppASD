@@ -259,7 +259,7 @@ public:
       mnn = ex.mnn;
       aham = redHam.redNeibourCount.data();
       //do_ene = p_do_ene;
-      measure = ((p_do_ene > 0)&&(p_measure));
+      measure = p_measure;
 
    }
 
@@ -311,8 +311,8 @@ public:
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
        real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
 
-       sum_warp_energy(exchange);
-       sum_warp_energy(external);
+       //sum_warp_energy(exchange);
+       //sum_warp_energy(external);
 
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
@@ -322,9 +322,9 @@ public:
            exchange = exchange / static_cast<real>(N);
            external = external / static_cast<real>(N);
            const real total = exchange + external;
-           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           atomicAdd(&gpuEnergies.extM(mInd), external);
-           atomicAdd(&gpuEnergies.totalM(mInd), total);
+           //atomicAdd(&gpuEnergies.exchM(mInd), exchange);
+           //atomicAdd(&gpuEnergies.extM(mInd), external);
+           //atomicAdd(&gpuEnergies.totalM(mInd), total);
        } 
    }
 };
@@ -364,7 +364,7 @@ public:
       dmmnn = dm.mnn;
       aham = redHam.redNeibourCount.data();
       //do_ene = p_do_ene;
-      measure = ((p_do_ene > 0)&&(p_measure));
+      measure = p_measure;
 
    }
 
@@ -500,7 +500,7 @@ public:
 
       aham = redHam.redNeibourCount.data();
       //do_ene = p_do_ene;
-      measure = ((p_do_ene > 0)&&(p_measure));
+      measure = p_measure;
 
    }
 
@@ -673,7 +673,7 @@ public:
 
       aham = redHam.redNeibourCount.data();
       //do_ene = p_do_ene;
-      measure = ((p_do_ene > 0)&&(p_measure));
+      measure = p_measure;
 
    }
 

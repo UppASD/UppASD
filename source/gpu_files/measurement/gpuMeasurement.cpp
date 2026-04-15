@@ -295,7 +295,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     if (energy)
     {
-        measureEnergy(mstep);
+       // measureEnergy(mstep);
         stopwatch.add("energy");
     }
 
@@ -347,11 +347,11 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     if (do_avrg && (do_ene==1))
     {
-        measureEnergy(mstep);
-        stopwatch.add("energy");
+        //measureEnergy(mstep);
+        //topwatch.add("energy");
 
-        if (energy_count > 0)
-            saveToFile(MeasurementType::Energy);
+        //if (energy_count > 0)
+          //  saveToFile(MeasurementType::Energy);
     }
 
     if (do_cumu)

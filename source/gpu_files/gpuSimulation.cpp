@@ -48,6 +48,7 @@ void GpuSimulation::initiateConstants() {
     Flags.do_sc_proj = *FortranData::do_sc_proj;
     Flags.do_sc_projch = *FortranData::do_sc_projch;
     Flags.do_ene = *FortranData::do_ene;
+    Flags.do_gpu_measurements = ((*FortranData::do_cuda_measurements == 'Y')? true : false);
     //Flags.do_avrg = static_cast<bool>(*FortranData::do_avrg);
     //Flags.do_cumu = static_cast<bool>(*FortranData::do_cumu);
 

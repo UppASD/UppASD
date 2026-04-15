@@ -23,6 +23,7 @@ struct Flag {
    bool do_mphase_now;    
    char do_sc;
    bool do_gpu_correlations;
+   bool do_gpu_measurements;
    char do_sc_proj;
    char do_sc_projch;
    int do_ene;

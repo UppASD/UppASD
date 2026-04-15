@@ -268,7 +268,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       integrator.evolveFirst(gpuSim.gpuLattice);
       stopwatch.add("evolution");
 
-      measure_ene = ((mstep)%gpuSim.SimParam.ene_step == 0);
+      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)
+                     &&((mstep-1)%gpuSim.SimParam.ene_step == 0));
 
       // Apply Hamiltonian to obtain effective field
       hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
@@ -297,7 +298,9 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure and print remaining measurements to file
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
+
+   measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);  
    //cpuMeas.measure(rstep + nstep + 1);  
