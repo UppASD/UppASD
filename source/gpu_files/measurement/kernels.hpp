@@ -17,6 +17,8 @@ namespace kernels::measurement
     struct AvgMPart   { real mx, my, mz, m, m2; };
     struct BinderPart { real s1, s2, s4; };
     struct SumPart    { real s; };
+    struct EnePart    { real exch, ani, dm, ext, tensor, total,
+                        exch2, ani2, dm2, ext2, tensor2, total2; };
 
     // ----------------------------- kernels: declarations ----------------------------
     
@@ -89,6 +91,19 @@ namespace kernels::measurement
                                             uint sk_num_count,
                                             SkyrmionNumberData& d);
 
+    __global__ void averageEnergy_partial(const GpuTensor<real, 1> exchM,
+                                const GpuTensor<real, 1> dmM,
+                                const GpuTensor<real, 1> aniM,
+                                const GpuTensor<real, 1> extM,
+                                const GpuTensor<real, 1> totalM,
+                                uint M,
+                                EnePart* __restrict__ block_parts);
+
+    __global__ void averageEnergy_final(const EnePart* __restrict__ block_parts,
+                                        uint nblocks,
+                                        uint M,
+                                        EnergyData& ene);
+
     // ----------------------------- small helpers (host) -----------------------------
     template<class T>
     inline uint ceil_div(T a, T b) { return (a + b - T(1)) / b; }
@@ -99,9 +114,7 @@ namespace kernels::measurement
         return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
     }
 
-    __global__ void averageEnergy(const deviceEnergies& energyM,
-                                                  uint M,
-                                                  EnergyData& ene);
+
 
 
 } // namespace kernels::measurement

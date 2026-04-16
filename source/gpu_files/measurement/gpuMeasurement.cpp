@@ -19,6 +19,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                  bool alwaysCopy)
 : gpuLattice(gpuLattice)
 , gpuEnergies(gpuEnergies)
+, do_gpu_measurements(FortranData::do_cuda_measurements)
 , mqueue(mq)
 , N(gpuLattice.emomM.extent(1))
 , M(gpuLattice.emomM.extent(2))
@@ -57,8 +58,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , do_ene(*FortranData::do_ene)
 , ene_step(*FortranData::ene_step)
 , ene_buff(*FortranData::ene_buff)
-, ene_kernel_threads(256)
-, ene_kernel_blocks(mm::ceil_div(M, ene_kernel_threads.x))
 {
     
     isAllocated = false;
@@ -157,9 +156,21 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
     if (do_ene>0)
     {
+
+        assert(*FortranData::ene_step > 0 && *FortranData::ene_buff > 0);
+
+        ene_maxBlocks = 1024;
+        ene_maxThreads = 256;
+        ene_kernel_threads = ene_maxThreads;
+        ene_kernel_blocks =  std::min(((M + ene_maxThreads - 1) / ene_maxThreads), ene_maxBlocks);
         energy_buff_gpu.Allocate(*FortranData::ene_buff);
         energy_buff_cpu.AllocateHost(*FortranData::ene_buff);
+        energy_buff_gpu.zeros();
+        energy_buff_cpu.zeros();
         energy_iter.AllocateHost(*FortranData::ene_buff);
+        energy_iter.zeros();
+        energy_partial_buff.Allocate(ene_kernel_blocks.x);
+
         printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
@@ -248,6 +259,7 @@ void GpuMeasurement::release(){
     if (do_ene>0)
     {
         energy_buff_gpu.Free();
+        energy_partial_buff.Free();
         energy_buff_cpu.FreeHost();
         energy_iter.FreeHost();
     }
@@ -295,7 +307,7 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     if (energy)
     {
-       // measureEnergy(mstep);
+        measureEnergy(mstep);
         stopwatch.add("energy");
     }
 
@@ -345,13 +357,13 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::AverageMagnetization);
     }
 
-    if (do_avrg && (do_ene==1))
+    if (do_gpu_measurements && (do_ene==1))
     {
-        //measureEnergy(mstep);
-        //topwatch.add("energy");
+        measureEnergy(mstep);
+        stopwatch.add("energy");
 
-        //if (energy_count > 0)
-          //  saveToFile(MeasurementType::Energy);
+        if (energy_count > 0)
+            saveToFile(MeasurementType::Energy);
     }
 
     if (do_cumu)
@@ -497,7 +509,11 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies, M, energy_buff_gpu.data()[energy_count]);
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.exchM, gpuEnergies.dmM, gpuEnergies.aniM,
+                    gpuEnergies.extM, gpuEnergies.totalM, M, energy_partial_buff.data());
+
+    mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
+            energy_partial_buff.data(), ene_kernel_blocks.x, M, energy_buff_gpu.data()[energy_count]);
 
     energy_iter(energy_count++) = mstep;
 
@@ -689,7 +705,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
         }
 
         case MeasurementType::Energy:
-            return do_avrg && (do_ene>0) && ((mstep % *FortranData::ene_step) == 0);
+            return do_gpu_measurements && (do_ene>0) && ((mstep % *FortranData::ene_step) == 0);
 
         default:
             throw std::invalid_argument("Not yet implemented.");

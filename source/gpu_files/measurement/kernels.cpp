@@ -16,16 +16,16 @@ namespace
  
         #pragma unroll
     for (int offset = WARPSIZE / 2; offset > 0; offset /= 2) {
-#if defined(HIP_V)
+ #if defined(HIP_V)
         v+= __shfl_down(v, offset);
-#elif defined (CUDA_V)
-#if CUDA_VERSION < 9000
+ #elif defined (CUDA_V)
+ #if CUDA_VERSION < 9000
         real shfl_v = __shfl_down(v, offset);
-#else
+ #else
         real shfl_v = __shfl_down_sync(mask, v, offset);
-#endif
+ #endif
        v += v;
-#endif
+ #endif
     }        
         return v;
     }
@@ -505,10 +505,13 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     }
 }
 
-    __global__ void kernels::measurement::averageEnergy(const deviceEnergies& energyM,
-                                                  uint M,
-                                                  EnergyData& ene)
-
+__global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real, 1> exchM,
+                                const GpuTensor<real, 1> dmM,
+                                const GpuTensor<real, 1> aniM,
+                                const GpuTensor<real, 1> extM,
+                                const GpuTensor<real, 1> totalM,
+                                uint M,
+                                EnePart* __restrict__ block_parts)
 
 {   
     __shared__ real exch_sums[32];  
@@ -524,21 +527,40 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     __shared__ real total2_sums[32]; 
 
 
+    int i0 = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint stride = blockDim.x * gridDim.x;
+
     int tid  = threadIdx.x;
     int lane = tid & (WARPSIZE - 1);
     int warp = tid / WARPSIZE;
 
-    real exch = energyM.exchM(tid);  
-    real ani = energyM.aniM(tid);     
-    real dm = energyM.dmM(tid);  
-    real ext = energyM.extM(tid);    
-    real total = energyM.totalM(tid); 
-    
-    real exch2 = exch*exch;  
-    real ani2 = ani*ani;   
-    real dm2 = dm*dm; 
-    real ext2 = ext*ext;  
-    real total2 = total*total; 
+    real exch = 0;  
+    real ani = 0;     
+    real dm = 0;  
+    real ext = 0;    
+    real total = 0; 
+
+    real exch2 = 0;  
+    real ani2 = 0;   
+    real dm2 = 0; 
+    real ext2 = 0;  
+    real total2 = 0; 
+
+    for(int i = i0; i < M; i += stride){
+        exch += exchM(i);  
+        ani += aniM(i);     
+        dm += dmM(i);  
+        ext += extM(i);    
+        total += totalM(i); 
+      // printf("ene0 = %.4lf, enei = %.4lf\n", exchM(0), exchM(i));
+        
+        exch2 += exch*exch;  
+        ani2 += ani*ani;   
+        dm2 += dm*dm; 
+        ext2 += ext*ext;  
+        total2 += total*total; 
+
+    }
 
 
    #pragma unroll
@@ -612,33 +634,164 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
 
    }
 
-    if (threadIdx.x == 0)
-       {
-           exch = exch / static_cast<real>(M);
-           ani = ani / static_cast<real>(M);
-           dm = dm / static_cast<real>(M); 
-           ext = ext / static_cast<real> (M);
-           total = total / static_cast<real> (M);
+     if (threadIdx.x==0) {
+        block_parts[blockIdx.x].exch = exch; 
+        block_parts[blockIdx.x].dm = dm; 
+        block_parts[blockIdx.x].ani = ani; 
+        block_parts[blockIdx.x].ext = ext; 
+        block_parts[blockIdx.x].total = total; 
 
-           exch2 = exch2 / static_cast<real>(M);
-           ani2 = ani2 / static_cast<real>(M);
-           dm2 = dm2 / static_cast<real>(M); 
-           ext2 = ext2 / static_cast<real> (M);
-           total2 = total2 / static_cast<real> (M);
+        block_parts[blockIdx.x].exch2 = exch2; 
+        block_parts[blockIdx.x].dm2 = dm2; 
+        block_parts[blockIdx.x].ani2 = ani2; 
+        block_parts[blockIdx.x].ext2 = ext2; 
+        block_parts[blockIdx.x].total2 = total2; 
 
-           atomicAdd(&ene.exchange, exch);
-           atomicAdd(&ene.DM, dm);
-           atomicAdd(&ene.anisotropy, ani);
-           atomicAdd(&ene.Zeeman, ext);
-           atomicAdd(&ene.total, total);
 
-           atomicAdd(&ene.std_exchange, fmax((exch2 - exch*exch), real(0)));
-           atomicAdd(&ene.std_DM, fmax((dm2 - dm*dm), real(0)));
-           atomicAdd(&ene.std_anisotropy, fmax((ani2 - ani*ani), real(0)));
-           atomicAdd(&ene.std_Zeeman, fmax((ext2 - ext*ext), real(0)));
-           atomicAdd(&ene.std_total, fmax((total2 - total*total), real(0)));
-       } 
-
+     }
 
 
 }
+    
+
+__global__ void kernels::measurement::averageEnergy_final(const EnePart* __restrict__ block_parts,
+                                        uint nblocks,
+                                        uint M,
+                                        EnergyData& ene)
+{
+    real exch=0, dm=0, ani=0, ext=0, total=0;
+    real exch2=0, dm2=0, ani2=0, ext2=0, total2=0;
+
+    __shared__ real exch_sums[32];  
+    __shared__ real ani_sums[32];  
+    __shared__ real dm_sums[32];
+    __shared__ real ext_sums[32];  
+    __shared__ real total_sums[32]; 
+    
+    __shared__ real exch2_sums[32];  
+    __shared__ real ani2_sums[32];  
+    __shared__ real dm2_sums[32];
+    __shared__ real ext2_sums[32];  
+    __shared__ real total2_sums[32]; 
+
+    int tid  = threadIdx.x;
+    int lane = tid & (WARPSIZE - 1);
+    int warp = tid / WARPSIZE;
+
+    if(tid  < nblocks) {
+        exch  += block_parts[tid].exch;
+        ani  += block_parts[tid].ani;
+        dm  += block_parts[tid].dm;
+        ext  += block_parts[tid].ext;
+        total += block_parts[tid].total;
+
+        exch2  += block_parts[tid].exch;
+        ani2  += block_parts[tid].ani;
+        dm2  += block_parts[tid].dm;
+        ext2  += block_parts[tid].ext;
+        total2 += block_parts[tid].total;
+    }
+
+   __syncwarp();
+       #pragma unroll
+   for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+   {
+      exch += SHFL_DOWN(exch, offset);
+      ani += SHFL_DOWN(ani, offset);
+      dm += SHFL_DOWN(dm, offset);
+      ext += SHFL_DOWN(ext, offset);
+      total += SHFL_DOWN(total, offset);
+
+      exch2 += SHFL_DOWN(exch2, offset);
+      ani2 += SHFL_DOWN(ani2, offset);
+      dm2 += SHFL_DOWN(dm2, offset);
+      ext2 += SHFL_DOWN(ext2, offset);
+      total2 += SHFL_DOWN(total2, offset);
+
+   }
+
+   if (lane == 0)
+   {
+      exch_sums[warp] = exch;
+      ani_sums[warp] = ani;
+      dm_sums[warp] = dm;
+      ext_sums[warp] = ext;
+      total_sums[warp] = total;
+
+      exch2_sums[warp] = exch2;
+      ani2_sums[warp] = ani2;
+      dm2_sums[warp] = dm2;
+      ext2_sums[warp] = ext2;
+      total2_sums[warp] = total2;
+
+
+
+   }
+
+   __syncthreads();
+
+ 
+      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
+
+      exch = (lane < num_warps) ? exch_sums[lane] : (real)0;
+      ani = (lane < num_warps) ? ani_sums[lane] : (real)0;
+      dm = (lane < num_warps) ? dm_sums[lane] : (real)0;
+      ext = (lane < num_warps) ? ext_sums[lane] : (real)0;
+      total = (lane < num_warps) ? total_sums[lane] : (real)0;
+
+      exch2 = (lane < num_warps) ? exch2_sums[lane] : (real)0;
+      ani2 = (lane < num_warps) ? ani2_sums[lane] : (real)0;
+      dm2 = (lane < num_warps) ? dm2_sums[lane] : (real)0;
+      ext2 = (lane < num_warps) ? ext2_sums[lane] : (real)0;
+      total2 = (lane < num_warps) ? total2_sums[lane] : (real)0;
+
+  if (warp == 0)
+   {
+      #pragma unroll
+      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+      {
+        exch += SHFL_DOWN(exch, offset);
+        ani += SHFL_DOWN(ani, offset);
+        dm += SHFL_DOWN(dm, offset);
+        ext += SHFL_DOWN(ext, offset);
+        total += SHFL_DOWN(total, offset);
+
+        exch2 += SHFL_DOWN(exch2, offset);
+        ani2 += SHFL_DOWN(ani2, offset);
+        dm2 += SHFL_DOWN(dm2, offset);
+        ext2 += SHFL_DOWN(ext2, offset);
+        total2 += SHFL_DOWN(total2, offset);
+      }
+
+   }
+
+
+    if (threadIdx.x==0) {
+
+        exch = exch / static_cast<real>(M);
+        ani = ani / static_cast<real>(M);
+        dm = dm / static_cast<real>(M); 
+        ext = ext / static_cast<real> (M);
+        total = total / static_cast<real> (M);
+
+        exch2 = exch2 / static_cast<real>(M);
+        ani2 = ani2 / static_cast<real>(M);
+        dm2 = dm2 / static_cast<real>(M); 
+        ext2 = ext2 / static_cast<real> (M);
+        total2 = total2 / static_cast<real> (M);
+
+
+        ene.exchange = exch;
+        ene.DM = dm;
+        ene.anisotropy = ani;
+        ene.Zeeman = ext;
+        ene.total = total;   int tid  = threadIdx.x;
+
+        ene.std_exchange = sqrt(fmax((exch2 - exch*exch), real(0)));
+        ene.std_DM = sqrt(fmax((dm2 - dm*dm), real(0)));
+        ene.std_anisotropy = sqrt(fmax((ani2 - ani*ani), real(0)));
+        ene.std_Zeeman =  sqrt(fmax((ext2 - ext*ext), real(0)));
+        ene.std_total = sqrt(fmax((total2 - total*total), real(0)));
+    }
+}
+

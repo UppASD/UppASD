@@ -1290,6 +1290,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       gpuEnergies.extM.zeros();}
 
 
+    
    if(do_j_tensor) {
      if(measure) gpuEnergies.tensorM.zeros();
 
