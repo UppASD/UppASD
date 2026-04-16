@@ -515,9 +515,12 @@ void GpuMeasurement::measureEnergy(size_t mstep)
     mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, energy_buff_gpu.data()[energy_count]);
 
+   //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
+    //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);
+    
     energy_iter(energy_count++) = mstep;
 
-    if ((energy_count++ % *FortranData::ene_buff) == 0)
+    if ((energy_count % *FortranData::ene_buff) == 0)
     {
         saveToFile(MeasurementType::Energy);
     }
@@ -652,6 +655,8 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
         energy_buff_cpu.zeros();
         energy_iter.zeros();
         energy_count = 0;
+        //printf("HERE!, ene count = %i", energy_count);
+    
     break;
         
     case MeasurementType::Autocorrelation:
