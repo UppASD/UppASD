@@ -252,7 +252,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
       measurement->measure(mstep);
-      //cpuMeas.measure(mstep);
       correlation->measure(mstep);
 
       stopwatch.add("measurement");
@@ -302,8 +301,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
    hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
-   measurement->measure(rstep + nstep + 1);  
-   //cpuMeas.measure(rstep + nstep + 1);  
+   measurement->measure(rstep + nstep + 1);    
    correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 

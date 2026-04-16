@@ -235,20 +235,26 @@ class GpuHamiltonianCalculations::HeisgeJij : public ParallelizationHelper::Atom
 private:
    real* beff;
    real* eneff;
+   GpuTensor<real, 1> exchM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
    const real* coup;
    const unsigned int* pos;
    const real* emomM;
    const real* ext_f;
    unsigned int mnn;
    const unsigned int* aham;
-   deviceEnergies& gpuEnergies;
    //int do_ene;
    bool measure;
 
 public:
-   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, deviceEnergies&p_gpuEnergies, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, 
+   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_exchM, 
+             GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM, const GpuTensor<real, 3>& p_emomM, 
+             const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, 
              const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             :       gpuEnergies(p_gpuEnergies) 
+             : exchM(p_exchM)
+             , extM(p_extM)
+             , totalM(p_totalM)
    {
       beff = p_beff.data();
       eneff = p_eneff.data();
@@ -265,6 +271,7 @@ public:
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
       // Field
+      printf("here\n");
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
@@ -311,8 +318,8 @@ public:
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
        real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
 
-       //sum_warp_energy(exchange);
-       //sum_warp_energy(external);
+       sum_warp_energy(exchange);
+       sum_warp_energy(external);
 
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
@@ -322,9 +329,9 @@ public:
            exchange = exchange / static_cast<real>(N);
            external = external / static_cast<real>(N);
            const real total = exchange + external;
-           //atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           //atomicAdd(&gpuEnergies.extM(mInd), external);
-           //atomicAdd(&gpuEnergies.totalM(mInd), total);
+           atomicAdd(&exchM(mInd), exchange);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
        } 
    }
 };
@@ -333,6 +340,10 @@ class GpuHamiltonianCalculations::HeisgeJijDM : public ParallelizationHelper::At
 private:
    real* beff;
    real* eneff;
+   GpuTensor<real, 1> exchM;
+   GpuTensor<real, 1> dmM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
    const real* coup;
    const unsigned int* pos;
    const real* emomM;
@@ -342,14 +353,17 @@ private:
    const unsigned int* dmpos;
    unsigned int dmmnn;
    const unsigned int* aham;
-   deviceEnergies& gpuEnergies;
    //int do_ene;
    bool measure;
 
 public:
-   HeisgeJijDM(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, deviceEnergies&p_gpuEnergies, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
+   HeisgeJijDM(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_exchM, GpuTensor<real, 1> p_dmM,
+             GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM,  const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
              const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : gpuEnergies(p_gpuEnergies) {
+             : exchM(p_exchM)
+             , dmM(p_dmM)
+             , extM(p_extM)
+             , totalM(p_totalM) {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -453,10 +467,10 @@ public:
            DM = DM / static_cast<real>(N); 
            external = external / static_cast<real> (N);
            const real total = exchange + DM + external;
-           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           atomicAdd(&gpuEnergies.dmM(mInd), DM);
-           atomicAdd(&gpuEnergies.extM(mInd), external);
-           atomicAdd(&gpuEnergies.totalM(mInd), total);
+           atomicAdd(&exchM(mInd), exchange);
+           atomicAdd(&dmM(mInd), DM);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
        } 
    }
 };
@@ -465,7 +479,10 @@ class GpuHamiltonianCalculations::HeisgeJijAniso : public ParallelizationHelper:
 private:
    real* beff;
    real* eneff;
-   deviceEnergies& gpuEnergies;
+   GpuTensor<real, 1> exchM;
+   GpuTensor<real, 1> aniM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
    const real* coup;
    const unsigned int* pos;
    const real* emomM;
@@ -480,9 +497,13 @@ private:
    bool measure;
 
 public:
-   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, deviceEnergies& p_gpuEnergies, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             :       gpuEnergies(p_gpuEnergies)
+   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_exchM, GpuTensor<real, 1> p_aniM, 
+                  GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, 
+                  const Exchange& ex, const DMinteraction& dm, const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
+             : exchM(p_exchM)
+             , aniM(p_aniM)
+             , extM(p_extM)
+             , totalM(p_totalM)
     {
       beff = p_beff.data();
       eneff = p_eneff.data();
@@ -611,6 +632,8 @@ public:
        sum_warp_energy(anisotropy);
        sum_warp_energy(external);
 
+       //printf("mInd = %i, extent = %i\n", mInd, extM.extent(0));
+
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
        //const real fcinv = mub / mry;
@@ -620,10 +643,10 @@ public:
            anisotropy = anisotropy / static_cast<real>(N);
            external = external / static_cast<real>(N);
            const real total = exchange + anisotropy + external;
-           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           atomicAdd(&gpuEnergies.aniM(mInd), anisotropy);
-           atomicAdd(&gpuEnergies.extM(mInd), external);
-           atomicAdd(&gpuEnergies.totalM(mInd), total);
+           atomicAdd(&exchM(mInd), exchange);
+           atomicAdd(&aniM(mInd), anisotropy);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
        }     
    }
 };
@@ -632,6 +655,11 @@ class GpuHamiltonianCalculations::HeisgeJijDMAniso : public ParallelizationHelpe
 private:
    real* beff;
    real* eneff;
+   GpuTensor<real, 1> exchM;
+   GpuTensor<real, 1> dmM;
+   GpuTensor<real, 1> aniM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
    const real* coup;
    const unsigned int* pos;
    const real* emomM;
@@ -645,14 +673,19 @@ private:
    const unsigned int* taniso;
    const real* sb;
    const unsigned int* aham;
-   deviceEnergies& gpuEnergies;
    //int do_ene;
    bool measure;
 
 public:
-   HeisgeJijDMAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, deviceEnergies& p_gpuEnergies, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : gpuEnergies(p_gpuEnergies) {
+   HeisgeJijDMAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_exchM, GpuTensor<real, 1> p_dmM,
+      GpuTensor<real, 1> p_aniM, GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM, 
+      const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
+      const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
+             : exchM(p_exchM)
+             , dmM(p_dmM)
+             , aniM(p_aniM)
+             , extM(p_extM)
+             , totalM(p_totalM) {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -823,11 +856,11 @@ public:
            DM = DM / static_cast<real>(N); 
            external = external / static_cast<real>(N); 
            const real total = exchange + anisotropy + DM + external;
-           atomicAdd(&gpuEnergies.exchM(mInd), exchange);
-           atomicAdd(&gpuEnergies.aniM(mInd), anisotropy);
-           atomicAdd(&gpuEnergies.dmM(mInd), DM);
-           atomicAdd(&gpuEnergies.extM(mInd), external);
-           atomicAdd(&gpuEnergies.totalM(mInd), total);
+           atomicAdd(&exchM(mInd), exchange);
+           atomicAdd(&dmM(mInd), DM);
+           atomicAdd(&aniM(mInd), anisotropy);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
        } 
    }
 };
@@ -1226,7 +1259,7 @@ else{
    //------- DM Interaction -------//
    dm.mnn = 0;
    if(Flags.do_dm) {
-  
+      GpuHamiltonianCalculations::do_dm = true;
 
       dm.mnn = mnndm;  // Max number of DM neighbours  // I CHANGED THE INDEX FROM 0 TO 1!!!
 
@@ -1257,7 +1290,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       gpuEnergies.extM.zeros();}
 
 
-   if(do_j_tensor == 1) {
+   if(do_j_tensor) {
      if(measure) gpuEnergies.tensorM.zeros();
 
       if(do_aniso != 0) {
@@ -1271,28 +1304,39 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    } 
    else {
       if(measure) gpuEnergies.exchM.zeros();
-      if(do_dm !=0){
+      if(do_dm){
          if(measure) gpuEnergies.dmM.zeros();
          if(do_aniso !=0){
             if(measure) gpuEnergies.aniM.zeros();
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies, 
+            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.exchM,
+                                             gpuEnergies.dmM, gpuEnergies.aniM, gpuEnergies.extM, gpuEnergies.totalM, 
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
+            //printf("dmaniso\n");
          }
          else{
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies,
-                                             gpuLattice.emomM, external_field, ex, dm, redHam, do_ene, measure));
-         }
+            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.exchM,
+                                             gpuEnergies.dmM,  gpuEnergies.extM, gpuEnergies.totalM, 
+                                            gpuLattice.emomM, external_field, ex, dm, redHam, do_ene, measure));
+         
+            //printf("dm\n");
+                                          }
       }
       else{
          if(do_aniso !=0){
             if(measure) gpuEnergies.aniM.zeros();
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies, 
+            parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.exchM,
+                                             gpuEnergies.aniM, gpuEnergies.extM, gpuEnergies.totalM,
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
-         }
+         
+            //printf("aniso\n");
+                                          }
          else{
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuEnergies, 
+            parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.exchM,
+                                             gpuEnergies.extM, gpuEnergies.totalM, 
                                              gpuLattice.emomM, external_field, ex, redHam, do_ene, measure));
-         }
+         
+            //printf("plain\n");
+                                          }
       }     
    }
    return;
