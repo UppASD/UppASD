@@ -14,11 +14,11 @@ struct MeasurementTraits;
 
 
 template<class T>
-concept MeasurementTypeLike = requires(const T& t, std::ostream& os, int w)
+concept MeasurementTypeLike = requires(const T& t, std::ostream& os, int w, bool flag)
 {
     { MeasurementTraits<T>::filebase } -> std::convertible_to<std::string_view>;
-    MeasurementTraits<T>::columns;
-    { MeasurementTraits<T>::print(t, os, w) } -> std::same_as<void>;
+    { MeasurementTraits<T>::write_header(os, w, flag) } -> std::same_as<void>;
+    { MeasurementTraits<T>::print(t, os, w, flag) } -> std::same_as<void>;
 };
 
 
@@ -33,13 +33,14 @@ template<> struct MeasurementTraits<AverageMagnetizationData>
 {
     static constexpr std::string_view filebase = "averages";
 
-    static constexpr std::array<std::string_view, 6> columns = {
-        "#Iter", "<M>_x", "<M>_y", "<M>_z", "<M>", "M_{stdv}"
-    };
-
-    static void print(const AverageMagnetizationData& a, std::ostream& out, int width)
+    static void write_header(std::ostream& out, int w, bool)
     {
-        write_cols(out, width, a.m_x, a.m_y, a.m_z, a.m, a.m_stdv);
+        write_cols(out, w, "#Iter","<M>_x","<M>_y","<M>_z","<M>","M_{stdv}");
+    }
+
+    static void print(const AverageMagnetizationData& a, std::ostream& out, int w, bool)
+    {
+        write_cols(out, w, a.m_x, a.m_y, a.m_z, a.m, a.m_stdv);
     }
 };
 
@@ -48,14 +49,16 @@ template<> struct MeasurementTraits<BinderCumulantData>
 {
     static constexpr std::string_view filebase = "cumulants";
 
-    static constexpr std::array<std::string_view, 10> columns = {
-        "#Iter", "<M>", "<M^2>", "<M^4>", "U_{Binder}",
-        "\\chi", "C_v(tot)", "<E>", "<E_{exc}>", "<E_{lsf}>"
-    };
-
-    static void print(const BinderCumulantData& b, std::ostream& out, int width)
+    static void write_header(std::ostream& out, int w, bool)
     {
-        write_cols(out, width,
+        write_cols(out, w,
+                   "#Iter","<M>","<M^2>","<M^4>","U_{Binder}",
+                   "\\chi","C_v(tot)","<E>","<E_{exc}>","<E_{lsf}>");
+    }
+
+    static void print(const BinderCumulantData& b, std::ostream& out, int w, bool)
+    {
+        write_cols(out, w,
                    b.avrgmcum, b.avrgm2cum, b.avrgm4cum, b.binderc,
                    b.pmsusc, b.cv, b.avrgecum, b.avrgetcum, b.avrgelcum);
     }
@@ -66,48 +69,138 @@ template<> struct MeasurementTraits<SkyrmionNumberData>
 {
     static constexpr std::string_view filebase = "sknumber";
 
-    static constexpr std::array<std::string_view, 4> columns = {
-        "#Iter", "Skx num", "Skx avg", "Skx std"
-    };
-
-    static void print(const SkyrmionNumberData& s, std::ostream& out, int width)
+    static void write_header(std::ostream& out, int w, bool)
     {
-        write_cols(out, width, s.skyno, s.skyno_avg, s.skyno_stdv);
+        write_cols(out, w, "#Iter","Skx num","Skx avg","Skx std");
+    }
+
+    static void print(const SkyrmionNumberData& s, std::ostream& out, int w, bool)
+    {
+        write_cols(out, w, s.skyno, s.skyno_avg, s.skyno_stdv);
     }
 };
+
 
 
 template<> struct MeasurementTraits<EnergyData>
 {
     static constexpr std::string_view filebase = "totenergy";
 
-    static constexpr std::array<std::string_view, 14> columns = {
-        "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ","Dip","Zeeman","LSF","Chir","Ring","SA"
-    };
-
-    static void print(const EnergyData& d, std::ostream& out, int width)
+    static void write_header(std::ostream& out, int w, bool do_jtensor)
     {
-        write_cols(out, width, d.total, d.exchange, d.anisotropy,
-                d.DM, d.PD, d.BiqDM, d.BQ, d.Dip, d.Zeeman, d.LSF, d.Chir, d.Ring, d.SA);
+        if (do_jtensor)
+        {
+            write_cols(out, w,
+                "#Iter","Tot","Heis-Tens","Ani","PD","BiqDM","BQ",
+                "Dip","Zeeman","LSF","Chir","Ring","SA");
+        }
+        else
+        {
+            write_cols(out, w,
+                "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ",
+                "Dip","Zeeman","LSF","Chir","Ring","SA");
+        }
+    }
+
+    static void print(const EnergyData& d, std::ostream& out, int w, bool do_jtensor)
+    {
+        if (do_jtensor)
+        {
+            write_cols(out, w,
+                d.total,
+                d.pair,
+                d.anisotropy,
+                d.PD,
+                d.BiqDM,
+                d.BQ,
+                d.Dip,
+                d.Zeeman,
+                d.LSF,
+                d.Chir,
+                d.Ring,
+                d.SA);
+        }
+        else
+        {
+            write_cols(out, w,
+                d.total,
+                d.exchange,
+                d.anisotropy,
+                d.DM,
+                d.PD,
+                d.BiqDM,
+                d.BQ,
+                d.Dip,
+                d.Zeeman,
+                d.LSF,
+                d.Chir,
+                d.Ring,
+                d.SA);
+        }
     }
 };
+
 
 template<> struct MeasurementTraits<EnergyStdData>
 {
     static constexpr std::string_view filebase = "stdenergy";
 
-    static constexpr std::array<std::string_view, 14> columns = {
-        "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ","Dip","Zeeman","LSF","Chir","Ring","SA"
-    };
+    static void write_header(std::ostream& out, int w, bool do_jtensor)
+    {
+        if (do_jtensor)
+        {
+            write_cols(out, w,
+                "#Iter","Tot","Heis-Tens","Ani","PD","BiqDM","BQ",
+                "Dip","Zeeman","LSF","Chir","Ring","SA");
+        }
+        else
+        {
+            write_cols(out, w,
+                "#Iter","Tot","Exc","Ani","DM","PD","BiqDM","BQ",
+                "Dip","Zeeman","LSF","Chir","Ring","SA");
+        }
+    }
 
-    static void print(const EnergyStdData& v, std::ostream& out, int width)
+    static void print(const EnergyStdData& v, std::ostream& out, int w, bool do_jtensor)
     {
         const auto& d = v.ene_ref;
-        write_cols(out, width, d.std_total, d.std_exchange, d.std_anisotropy,
-                d.std_DM, d.std_PD, d.std_BiqDM, d.std_BQ, d.std_Dip, d.std_Zeeman, d.std_LSF, 
-                d.std_Chir, d.std_Ring, d.std_SA);
+
+        if (do_jtensor)
+        {
+            write_cols(out, w,
+                d.std_total,
+                d.std_pair,
+                d.std_anisotropy,
+                d.std_PD,
+                d.std_BiqDM,
+                d.std_BQ,
+                d.std_Dip,
+                d.std_Zeeman,
+                d.std_LSF,
+                d.std_Chir,
+                d.std_Ring,
+                d.std_SA);
+        }
+        else
+        {
+            write_cols(out, w,
+                d.std_total,
+                d.std_exchange,
+                d.std_anisotropy,
+                d.std_DM,
+                d.std_PD,
+                d.std_BiqDM,
+                d.std_BQ,
+                d.std_Dip,
+                d.std_Zeeman,
+                d.std_LSF,
+                d.std_Chir,
+                d.std_Ring,
+                d.std_SA);
+        }
     }
 };
+
 
 
 template<>
@@ -115,17 +208,11 @@ struct MeasurementTraits<AutocorrelationData>
 {
     static constexpr std::string_view filebase = "autocorr";
 
-    static constexpr std::array<std::string_view, 1> columns = {};
+    static void write_header(std::ostream&, int, bool) {}
 
-    static void print(const AutocorrelationData& a,
-                      std::ostream& out,
-                      int width)
+    static void print(const AutocorrelationData& a, std::ostream& out, int width, bool)
     {
         for (size_t j = 0; j < a.size; ++j)
-        {
-            out << std::setw(width)
-                << a.values[j];
-        }
+            out << std::setw(width) << a.values[j];
     }
 };
-

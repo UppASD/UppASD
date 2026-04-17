@@ -3,9 +3,11 @@
 #include <sstream>
 #include <stdexcept>
 
-
-MeasurementWriter::MeasurementWriter(int fp_precision, int padding)
-: fp_precision(fp_precision)
+MeasurementWriter::MeasurementWriter(bool do_jtensor,
+                                     int fp_precision,
+                                     int padding)
+: do_jtensor(do_jtensor)
+, fp_precision(fp_precision)
 , colWidth(fp_precision + padding + fp_printed_symbols)
 {
     if (padding <= 0)

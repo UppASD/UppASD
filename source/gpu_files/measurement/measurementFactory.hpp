@@ -18,7 +18,8 @@ public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
     static std::unique_ptr<Measurable> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, 
-                                              const deviceEnergies& gpuEnergies, MeasurementQueue& mq)
+                                              const deviceEnergies& gpuEnergies, MeasurementQueue& mq,
+                                              bool do_jtensor)
     {
         if (*FortranData::do_cuda_measurements == 'Y')
         {
@@ -30,7 +31,8 @@ public:
                 cpuLattice.emom,
                 cpuLattice.mmom,
                 cpuLattice.beff,
-                mq
+                mq,
+                do_jtensor
             );
         }
         else

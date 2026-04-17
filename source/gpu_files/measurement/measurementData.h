@@ -68,12 +68,14 @@ struct EnergyData
     real anisotropy;
     real DM;
     real Zeeman;
+    real pair;
 
     real std_total;
     real std_exchange;
     real std_anisotropy;
     real std_DM;
     real std_Zeeman;
+    real std_pair;
 
 
     // fields below not yet implemented

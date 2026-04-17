@@ -95,6 +95,7 @@ namespace kernels::measurement
                                 const GpuTensor<real, 1> dmM,
                                 const GpuTensor<real, 1> aniM,
                                 const GpuTensor<real, 1> extM,
+                                const GpuTensor<real, 1> tensorM,
                                 const GpuTensor<real, 1> totalM,
                                 uint M,
                                 EnePart* __restrict__ block_parts);

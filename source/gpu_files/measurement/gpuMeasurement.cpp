@@ -16,7 +16,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                  Tensor<real, 2>& f_mmom,
                                  Tensor<real, 3>& f_beff,
                                  MeasurementQueue& mq,
-                                 bool alwaysCopy)
+                                 bool p_do_jtensor,
+                                 bool alwaysCopy
+                               )
 : gpuLattice(gpuLattice)
 , gpuEnergies(gpuEnergies)
 , do_gpu_measurements(FortranData::do_cuda_measurements)
@@ -31,6 +33,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 //, NY(128)
 //, NZ(1)
 //, NT(1)
+, do_jtensor(p_do_jtensor)
+, measurementWriter(do_jtensor)
 , cpuMeas(gpuLattice.emomM, gpuLattice.emom, gpuLattice.mmom, gpuLattice.beff, f_emomM, f_emom, f_mmom, f_beff, mq)
 , workStream( ParallelizationHelperInstance.getWorkStream() )
 , stopwatch(GlobalStopwatchPool::get("Gpu measurement"))
@@ -510,7 +514,7 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            
            
     mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.exchM, gpuEnergies.dmM, gpuEnergies.aniM,
-                    gpuEnergies.extM, gpuEnergies.totalM, M, energy_partial_buff.data());
+                    gpuEnergies.extM, gpuEnergies.tensorM, gpuEnergies.totalM, M, energy_partial_buff.data());
 
     mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, energy_buff_gpu.data()[energy_count]);

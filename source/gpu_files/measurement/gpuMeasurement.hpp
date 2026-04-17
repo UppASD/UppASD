@@ -30,7 +30,9 @@ public:
                     Tensor<real, 2>& f_mmom,
                     Tensor<real, 3>& f_beff,
                     MeasurementQueue& mq,
-                    bool alwaysCopy = false);
+                    bool p_do_jtensor,
+                    bool alwaysCopy = false
+                    );
     ~GpuMeasurement() override;
     void measure(size_t mstep) override;
     void updateAC(size_t mstep) override;
@@ -59,6 +61,7 @@ private:
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
+    bool do_jtensor;
     GPU_STREAM_T workStream;
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;

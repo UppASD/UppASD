@@ -7,24 +7,22 @@
 #include <string>
 #include <typeindex>
 #include <unordered_map>
-#include <vector>
-#include <ostream>
 
 #include "measurementData.h"
 #include "measurementWriterHelper.h"
 
-
 class MeasurementWriter
 {
 public:
-    explicit MeasurementWriter(int fp_precision = 8, int padding = 6);
+    explicit MeasurementWriter(bool do_jtensor,
+                               int fp_precision = 8,
+                               int padding = 6);
 
     template<class Iter_t, MeasurementTypeLike Data_t>
     void write(const Iter_t* iteration, const Data_t* data, size_t N);
 
-
     template<class Iter_t>
-    void writeEnergyStd(const Iter_t* iteration, const EnergyData * data, size_t N);
+    void writeEnergyStd(const Iter_t* iteration, const EnergyData* data, size_t N);
 
 private:
     template<MeasurementTypeLike T>
@@ -39,6 +37,8 @@ private:
     static std::string readSimIDFromFile();
 
 private:
+    bool do_jtensor;
+
     static constexpr int fp_printed_symbols = 6;
     const int fp_precision;
     const int colWidth;
@@ -48,6 +48,7 @@ private:
 };
 
 
+
 template<class Iter_t, MeasurementTypeLike Data_t>
 void MeasurementWriter::write(const Iter_t* iteration, const Data_t* data, size_t N)
 {
@@ -55,10 +56,11 @@ void MeasurementWriter::write(const Iter_t* iteration, const Data_t* data, size_
     for (size_t i = 0; i < N; ++i)
     {
         out << std::setw(colWidth) << iteration[i];
-        MeasurementTraits<Data_t>::print(data[i], out, colWidth);
+        MeasurementTraits<Data_t>::print(data[i], out, colWidth, do_jtensor);
         out << '\n';
     }
 }
+
 
 template<class Iter_t>
 void MeasurementWriter::writeEnergyStd(const Iter_t* iteration, const EnergyData* data, size_t N)
@@ -67,7 +69,7 @@ void MeasurementWriter::writeEnergyStd(const Iter_t* iteration, const EnergyData
     for (size_t i = 0; i < N; ++i)
     {
         out << std::setw(colWidth) << iteration[i];
-        MeasurementTraits<EnergyStdData>::print({data[i]}, out, colWidth);
+        MeasurementTraits<EnergyStdData>::print({data[i]}, out, colWidth, do_jtensor);
         out << '\n';
     }
 }
@@ -93,8 +95,7 @@ void MeasurementWriter::initFile(std::ofstream& out) const
 
     out << std::setfill(' ') << std::right;
 
-    for (const auto& h : MeasurementTraits<T>::columns)
-        out << std::setw(colWidth) << h;
+    MeasurementTraits<T>::write_header(out, colWidth, do_jtensor);
     out << '\n';
 
     out << std::scientific << std::uppercase << std::setprecision(fp_precision);
@@ -112,4 +113,3 @@ std::string MeasurementWriter::filename() const
     s.append(".out");
     return s;
 }
-

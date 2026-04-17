@@ -877,10 +877,19 @@ private:
    const real* ext_f;
    unsigned int mnn;
    const unsigned int* aham;
+   GpuTensor<real, 1> tensorM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
+   bool measure;
 
 public:
-   HeisgeJijTensor(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
-                 const HamRed& redHam) {
+   HeisgeJijTensor(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_tensorM,
+                     GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM, const GpuTensor<real, 3>& p_emomM, 
+                     const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx, const HamRed& redHam, const bool p_measure) 
+                  : tensorM(p_tensorM)
+                  , extM(p_extM)
+                  , totalM(p_totalM)   
+   {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -891,6 +900,7 @@ public:
       size = tenEx.neighbourCount.data();
       mnn = tenEx.mnn;
       aham = redHam.redNeibourCount.data();
+      measure = p_measure;
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -898,6 +908,8 @@ public:
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
+
+      real Sx, Sy, Sz;
 
       // Pointers with fixed indices
       const real* my_emomM = &emomM[ensemble * N * 3];
@@ -927,23 +939,54 @@ public:
          real J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))];  // i=2,j=2
 
          // magnetic moment of current neighbor
-         real Sx = my_emomM[x_offset + 0];
-         real Sy = my_emomM[x_offset + 1];
-         real Sz = my_emomM[x_offset + 2];
+         Sx = my_emomM[x_offset + 0];
+         Sy = my_emomM[x_offset + 1];
+         Sz = my_emomM[x_offset + 2];
 
          x += J11 * Sx + J12 * Sy + J13 * Sz;
          y += J21 * Sx + J22 * Sy + J23 * Sz;
          z += J31 * Sx + J32 * Sy + J33 * Sz;
       }
 
-      // Save field
-      beff[atom * 3 + 0] = x + ext_f[atom * 3 + 0];
-      beff[atom * 3 + 1] = y + ext_f[atom * 3 + 1];
-      beff[atom * 3 + 2] = z + ext_f[atom * 3 + 2];
+      real ext_x = ext_f[atom * 3 + 0];
+      real ext_y = ext_f[atom * 3 + 1];
+      real ext_z = ext_f[atom * 3 + 2];
 
-      eneff[atom * 3 + 0] = x + ext_f[atom * 3 + 0];
-      eneff[atom * 3 + 1] = y + ext_f[atom * 3 + 1];
-      eneff[atom * 3 + 2] = z + ext_f[atom * 3 + 2];
+      // Save field
+      beff[atom * 3 + 0] = x + ext_x;
+      beff[atom * 3 + 1] = y + ext_y;
+      beff[atom * 3 + 2] = z + ext_z;
+
+      eneff[atom * 3 + 0] = x + ext_x;
+      eneff[atom * 3 + 1] = y + ext_y;
+      eneff[atom * 3 + 2] = z + ext_z;
+
+      if(!measure) return;
+
+      int mInd = blockIdx.y;
+
+      Sx = emomM[atom * 3 + 0];
+      Sy = emomM[atom * 3 + 1];
+      Sz = emomM[atom * 3 + 2];
+
+      real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+
+      sum_warp_energy(tensor);
+      sum_warp_energy(external);
+
+       //const real mub = 9.274009994e-24;
+       //const real mry = 2.179872325e-21;
+       //const real fcinv = mub / mry;
+       if (threadIdx.x == 0)
+       {
+           tensor = tensor / static_cast<real>(N);
+           external = external / static_cast<real>(N);
+           const real total = tensor + external;
+           atomicAdd(&tensorM(mInd), tensor);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
+       } 
    }
 };
 
@@ -962,10 +1005,22 @@ private:
    const real* eaniso;
    const unsigned int* taniso;
    const real* sb;
+   GpuTensor<real, 1> tensorM;
+   GpuTensor<real, 1> aniM;
+   GpuTensor<real, 1> extM;
+   GpuTensor<real, 1> totalM;
+   bool measure;
 
 public:
-   HeisgeJijTensorAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
-                 const Anisotropy& aniso, const HamRed& redHam) {
+   HeisgeJijTensorAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 1> p_tensorM,
+                        GpuTensor<real, 1> p_aniM, GpuTensor<real, 1> p_extM, GpuTensor<real, 1> p_totalM,
+                        const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
+                        const Anisotropy& aniso, const HamRed& redHam, const bool p_measure) 
+                     : tensorM(p_tensorM)
+                     , aniM(p_aniM)
+                     , extM(p_extM)
+                     , totalM(p_totalM)   
+   {
       beff = p_beff.data();
       eneff = p_eneff.data();
       emomM = p_emomM.data();
@@ -981,6 +1036,7 @@ public:
       eaniso = aniso.eaniso.data();
       taniso = aniso.taniso.data();
       sb = aniso.sb.data();
+      measure = p_measure;
    }
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
@@ -1104,13 +1160,46 @@ public:
       }
 
       // Save field
-      beff[atom * 3 + 0] = x + ax + ext_f[atom * 3 + 0];
-      beff[atom * 3 + 1] = y + ay + ext_f[atom * 3 + 1];
-      beff[atom * 3 + 2] = z + az + ext_f[atom * 3 + 2];
+      real ext_x = ext_f[atom * 3 + 0];
+      real ext_y = ext_f[atom * 3 + 1];
+      real ext_z = ext_f[atom * 3 + 2];
+
+      beff[atom * 3 + 0] = x + ax + ext_x;
+      beff[atom * 3 + 1] = y + ay + ext_y;
+      beff[atom * 3 + 2] = z + az + ext_z;
 
       eneff[atom * 3 + 0] = x + ax_en + ext_f[atom * 3 + 0];
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
+
+      int mInd = blockIdx.y;
+
+      Sx = emomM[atom * 3 + 0];
+      Sy = emomM[atom * 3 + 1];
+      Sz = emomM[atom * 3 + 2];
+
+      real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+
+      sum_warp_energy(tensor);
+      sum_warp_energy(anisotropy);
+      sum_warp_energy(external);
+
+       //const real mub = 9.274009994e-24;
+       //const real mry = 2.179872325e-21;
+       //const real fcinv = mub / mry;
+       if (threadIdx.x == 0)
+       {
+           tensor = tensor / static_cast<real>(N);
+           anisotropy = anisotropy / static_cast<real>(N);
+           external = external / static_cast<real>(N);
+           const real total = tensor + anisotropy + external;
+           atomicAdd(&tensorM(mInd), tensor);
+           atomicAdd(&tensorM(mInd), tensor);
+           atomicAdd(&extM(mInd), external);
+           atomicAdd(&totalM(mInd), total);
+       }
    }
 };
 
@@ -1166,7 +1255,7 @@ public:
 };
 
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////ext/////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1296,10 +1385,14 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
 
       if(do_aniso != 0) {
          if(measure) gpuEnergies.aniM.zeros();
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, tenEx, aniso, redHam));
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensorM,
+                                          gpuEnergies.aniM, gpuEnergies.extM, gpuEnergies.totalM, gpuLattice.emomM, 
+                                          external_field, tenEx, aniso, redHam, measure));
       }
       else{
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, external_field, tenEx, redHam));
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensorM,
+                                          gpuEnergies.extM, gpuEnergies.totalM, gpuLattice.emomM, external_field, 
+                                          tenEx, redHam, measure));
       }
 
    } 
