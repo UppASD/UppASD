@@ -24,7 +24,7 @@ namespace
  #else
         real shfl_v = __shfl_down_sync(mask, v, offset);
  #endif
-       v += v;
+       v += shfl_v;
  #endif
     }        
         return v;
