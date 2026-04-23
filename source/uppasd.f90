@@ -872,7 +872,7 @@ contains
          endif
       end if
       ! Site dependent dampinf for the measurement phase
-      if (mode=='S'.and.do_site_damping=='Y') then
+      if (do_site_damping=='Y'.and.(mode=='S'.or.mode=='R')) then
          if(do_ralloy==0) then
             call read_damping()
          else

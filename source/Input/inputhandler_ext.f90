@@ -2392,6 +2392,7 @@ contains
       implicit none
       !
       integer :: i,j,i_stat,flines,ipNlines
+      integer :: isite, ichem, itype
       real(dblprec) :: idamp1, idamp2
 
       ! Open input file
@@ -2420,11 +2421,12 @@ contains
       call memocc(i_stat,product(shape(ipdampingalloy2))*kind(ipdampingalloy2),'ipdampingalloy2','read_ip_damping_alloy')
       ipdampingalloy2=0.0_dblprec
       ! Read Site, Type, damping parameter per atom
+      ! Note: itype is not used here but read for consistency with posfile
       do i=1, ipnphase
          do j=1, ipNlines
-            read (ifileno,*) idamp1, idamp2
-            ipdampingalloy1(i,asite(j),acomp(j))=idamp1
-            ipdampingalloy2(i,asite(j),acomp(j))=idamp2
+            read (ifileno,*) isite, itype, ichem, idamp1, idamp2
+            ipdampingalloy1(i,isite,ichem)=idamp1
+            ipdampingalloy2(i,isite,ichem)=idamp2
          enddo
       enddo
 
@@ -2487,6 +2489,7 @@ contains
 
       !
       integer :: i_stat, i, flines
+      integer :: isite, ichem, itype
       real(dblprec) :: idamp1, idamp2
 
       ! Open input file
@@ -2513,10 +2516,11 @@ contains
 
       ! Read data
       ! Site,  Type, Damping parameter
+      ! Note: itype is not used here but read for consistency with posfile
       do i=1, flines
-         read (ifileno,*) idamp1,idamp2
-         mpdampingalloy1(asite(i),acomp(i))=idamp1
-         mpdampingalloy2(asite(i),acomp(i))=idamp2
+         read (ifileno,*) isite, itype, ichem, idamp1,idamp2
+         mpdampingalloy1(isite, ichem)=idamp1
+         mpdampingalloy2(isite, ichem)=idamp2
       end do
       close (ifileno)
    end subroutine read_damping_alloy
