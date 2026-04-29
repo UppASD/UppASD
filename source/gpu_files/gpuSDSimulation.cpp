@@ -267,8 +267,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       integrator.evolveFirst(gpuSim.gpuLattice);
       stopwatch.add("evolution");
 
-      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)
-                     &&((mstep-1)%gpuSim.SimParam.ene_step == 0));
+      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
+            (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
 
       // Apply Hamiltonian to obtain effective field
       hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);

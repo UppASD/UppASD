@@ -114,6 +114,7 @@ private:
 
     // Energy
     const int do_ene;
+    const int ene_types;
     dim3 ene_kernel_threads;
     dim3 ene_kernel_blocks;
     unsigned int ene_maxBlocks;
@@ -122,7 +123,7 @@ private:
     const unsigned int ene_buff;
     GpuVector<EnergyData> energy_buff_gpu;
     Vector<EnergyData> energy_buff_cpu;
-    GpuVector<kernels::measurement::EnePart> energy_partial_buff;
+    GpuTensor<kernels::measurement::EnePart, 2> energy_partial_buff;
     //GpuVector<EnergyStdData> energy_std_buff_gpu;
     //Vector<EnergyData> energy_std_buff_cpu;
 

@@ -307,29 +307,33 @@ bool GpuSimulation::initiateMatrices() {
     gpuLattice.eneff.zeros();
 
     if(Flags.do_ene > 0) {
-        gpuEnergies.totalM.Allocate(M);
-        gpuEnergies.exchM.Allocate(M);
-        gpuEnergies.aniM.Allocate(M);
-        gpuEnergies.dmM.Allocate(M);
-        gpuEnergies.extM.Allocate(M);
-        gpuEnergies.tensorM.Allocate(M);
+        //gpuEnergies.totalM.Allocate(M);
+        //gpuEnergies.exchM.Allocate(M);
+        //gpuEnergies.aniM.Allocate(M);
+        //gpuEnergies.dmM.Allocate(M);
+        //gpuEnergies.extM.Allocate(M);
+        //gpuEnergies.tensorM.Allocate(M);
+        gpuEnergies.energyM.Allocate(M, static_cast <long int>(6));
 
     }
     else{ 
-        gpuEnergies.totalM.Allocate(1);
-        gpuEnergies.exchM.Allocate(1);
-        gpuEnergies.aniM.Allocate(1);
-        gpuEnergies.dmM.Allocate(1);
-        gpuEnergies.extM.Allocate(1);
-        gpuEnergies.tensorM.Allocate(1);
+        //gpuEnergies.totalM.Allocate(1);
+        //gpuEnergies.exchM.Allocate(1);
+        //gpuEnergies.aniM.Allocate(1);
+        //gpuEnergies.dmM.Allocate(1);
+        //gpuEnergies.extM.Allocate(1);
+        //gpuEnergies.tensorM.Allocate(1);
+        gpuEnergies.energyM.Allocate(1, 1);
     }
 
-        gpuEnergies.totalM.zeros();
-        gpuEnergies.exchM.zeros();
-        gpuEnergies.aniM.zeros();
-        gpuEnergies.dmM.zeros();
-        gpuEnergies.extM.zeros();
-        gpuEnergies.tensorM.zeros();
+        //gpuEnergies.totalM.zeros();
+       // gpuEnergies.exchM.zeros();
+       // gpuEnergies.aniM.zeros();
+        //gpuEnergies.dmM.zeros();
+        //gpuEnergies.extM.zeros();
+        //gpuEnergies.tensorM.zeros();
+        gpuEnergies.energyM.zeros();
+
 
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
@@ -404,12 +408,13 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
 
-    gpuEnergies.totalM.Free();
-    gpuEnergies.extM.Free();
-    gpuEnergies.tensorM.Free();
-    gpuEnergies.exchM.Free();
-    gpuEnergies.dmM.Free();
-    gpuEnergies.aniM.Free();
+    gpuEnergies.energyM.Free();
+    //gpuEnergies.totalM.Free();
+    //gpuEnergies.extM.Free();
+    //gpuEnergies.tensorM.Free();
+    //gpuEnergies.exchM.Free();
+    //gpuEnergies.dmM.Free();
+    //gpuEnergies.aniM.Free();
 
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.Free();

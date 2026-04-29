@@ -62,6 +62,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , do_ene(*FortranData::do_ene)
 , ene_step(*FortranData::ene_step)
 , ene_buff(*FortranData::ene_buff)
+, ene_types(6)
 {
     
     isAllocated = false;
@@ -166,14 +167,14 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         ene_maxBlocks = 1024;
         ene_maxThreads = 256;
         ene_kernel_threads = ene_maxThreads;
-        ene_kernel_blocks =  std::min(((M + ene_maxThreads - 1) / ene_maxThreads), ene_maxBlocks);
+        ene_kernel_blocks =  {std::min(((M + ene_maxThreads - 1) / ene_maxThreads), ene_maxBlocks), ene_types, 1};
         energy_buff_gpu.Allocate(*FortranData::ene_buff);
         energy_buff_cpu.AllocateHost(*FortranData::ene_buff);
         energy_buff_gpu.zeros();
         energy_buff_cpu.zeros();
         energy_iter.AllocateHost(*FortranData::ene_buff);
         energy_iter.zeros();
-        energy_partial_buff.Allocate(ene_kernel_blocks.x);
+        energy_partial_buff.Allocate(ene_kernel_blocks.x, ene_types);
 
         printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
@@ -330,7 +331,8 @@ void GpuMeasurement::measure(std::size_t mstep)
         measureAutocorrelation(mstep);
         stopwatch.add("autocorelation");
 
-    }
+    }//0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
+
     
 
     if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
@@ -513,8 +515,7 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.exchM, gpuEnergies.dmM, gpuEnergies.aniM,
-                    gpuEnergies.extM, gpuEnergies.tensorM, gpuEnergies.totalM, M, energy_partial_buff.data());
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
 
     mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, energy_buff_gpu.data()[energy_count]);

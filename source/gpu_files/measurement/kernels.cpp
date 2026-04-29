@@ -44,6 +44,19 @@ namespace
         return out; // valid when threadIdx.x==0
     }
 
+        __device__ __forceinline__ real ene_block_reduce(real v, real* shared)
+    {
+        v = warp_reduce_sum(v);
+        int lane  = threadIdx.x & (WARPSIZE - 1);       
+        int wid   = threadIdx.x >> (WARPSIZE == 32 ? 5 : 6); 
+        int nwarp = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
+        if (lane == 0) shared[wid] = v;
+        __syncthreads();
+        real out = (threadIdx.x < nwarp) ? shared[threadIdx.x] : real(0);
+        if (wid == 0) out = warp_reduce_sum(out);
+        return out; // valid when threadIdx.x==0
+    }
+
     __device__ __forceinline__ real vnorm3(real x, real y, real z) { return sqrt(x*x + y*y + z*z); }
 
 } // anon
@@ -198,6 +211,118 @@ __global__ void kernels::measurement::binderCumulantNoEnergy_partial(const GpuTe
 
 
 __global__ void kernels::measurement::binderCumulantNoEnergy_finalize(const BinderPart* __restrict__ block_parts,
+                                                         uint nblocks,
+                                                         uint atoms,
+                                                         uint ensembles,
+                                                         real temp,
+                                                         real mub,
+                                                         real k_bolt,
+                                                         BinderCumulantData& d)
+{
+    // Strided accumulation over blocks
+    real s1 = 0, s2 = 0, s4 = 0;
+    for (uint i = threadIdx.x; i < nblocks; i += blockDim.x) {
+        s1 += block_parts[i].s1;
+        s2 += block_parts[i].s2;
+        s4 += block_parts[i].s4;
+    }
+
+    // Shared memory must be at least (#warps) * sizeof(real)
+    extern __shared__ real sh[];
+
+    // Reduce each scalar with the block helper.
+    // IMPORTANT: barrier between calls since the helper reuses 'sh' and has no trailing sync.
+    real S1 = 0, S2 = 0, S4 = 0;
+
+    real r = block_reduce_sum_1d(s1, sh);
+    if (threadIdx.x == 0) S1 = r;
+    __syncthreads();
+
+    r = block_reduce_sum_1d(s2, sh);
+    if (threadIdx.x == 0) S2 = r;
+    __syncthreads();
+
+    r = block_reduce_sum_1d(s4, sh);
+    if (threadIdx.x == 0) S4 = r;
+    __syncthreads();
+
+    if (threadIdx.x == 0) {
+        const real w_new = static_cast<real>(ensembles);
+        const real tot   = d.cumutotw + w_new;
+
+        const real avrgme   = S1 / w_new; // batch mean |m|
+        const real avrgm2_b = S2 / w_new;
+        const real avrgm4_b = S4 / w_new;
+
+        d.avrgmcum  = (d.avrgmcum  * d.cumutotw + avrgme   * w_new) / tot;
+        d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2_b * w_new) / tot;
+        d.avrgm4cum = (d.avrgm4cum * d.cumutotw + avrgm4_b * w_new) / tot;
+
+        const real eps = (sizeof(real) == sizeof(double)) ? real(1e-15) : real(1e-7);
+        const real m2c = (fabs(d.avrgm2cum) < eps) ? eps : d.avrgm2cum;
+
+        d.binderc = real(1) - (d.avrgm4cum / (real(3) * m2c * m2c));
+
+        if (temp > real(0))
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / (k_bolt*k_bolt) / temp;
+        else
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / k_bolt;
+
+        d.cumuw    += w_new;
+        d.cumutotw  =  tot;
+    }
+}
+
+// ============================================================================
+// Binder cumulant (with energy) (two-phase across ensembles)
+// ============================================================================
+__global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTensor<real, 2> emomMSum,
+                                                        const GpuTensor<real, 1> exchM,
+                                                        const GpuTensor<real, 1> totalM,
+                                                        uint atoms,
+                                                        uint ensembles,
+                                                        BinderPart* __restrict__ block_parts)
+{
+    const uint k0 = blockIdx.x * blockDim.x + threadIdx.x;
+    const uint stride = blockDim.x * gridDim.x;
+
+    const real atoms_inv = 1.0 / static_cast<real>(atoms);
+
+    real s1=0, s2=0, s4=0;
+    real exch = 0, tt, total = 0, total2 = 0;
+
+    for (uint k = k0; k < ensembles; k += stride)
+    {
+        const real mx = emomMSum(0, k) * atoms_inv;
+        const real my = emomMSum(1, k) * atoms_inv;
+        const real mz = emomMSum(2, k) * atoms_inv;
+        const real m  = vnorm3(mx, my, mz);
+        const real m2 = m*m;
+        s1 += m;  s2 += m2;  s4 += m2*m2;
+        exch += exchM(k);
+        tt = totalM(k);
+        total += tt;
+        total2 += (tt*tt);
+    }
+
+    extern __shared__ real s[];
+    real r1, r2, r4, ex, t, t2;
+    //r1 = block_reduce_sum_1d(s1, s); 
+    //r2 = block_reduce_sum_1d(s2, s); 
+    //r3 = block_reduce_sum_1d(s4, s); 
+    //r3 = block_reduce_sum_1d(s4, s); 
+    //r3 = block_reduce_sum_1d(s4, s); 
+
+
+    if (threadIdx.x==0) {
+        block_parts[blockIdx.x].s1 = r1; 
+        block_parts[blockIdx.x].s2 = r2;
+        block_parts[blockIdx.x].s4 = r4;
+    }
+}
+
+
+__global__ void kernels::measurement::binderCumulantEnergy_finalize(const BinderPart* __restrict__ block_parts,
                                                          uint nblocks,
                                                          uint atoms,
                                                          uint ensembles,
@@ -505,326 +630,182 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
     }
 }
 
-__global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real, 1> exchM,
-                                const GpuTensor<real, 1> dmM,
-                                const GpuTensor<real, 1> aniM,
-                                const GpuTensor<real, 1> extM,
-                                const GpuTensor<real, 1> tensorM,
-                                const GpuTensor<real, 1> totalM,
-                                uint M,
-                                EnePart* __restrict__ block_parts)
+__global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real, 2> energyM,
+                           uint M,
+                           EnePart* __restrict__ block_parts)
+{
+    const int etype = blockIdx.y;
 
-{   
-    __shared__ real exch_sums[32];  
-    __shared__ real ani_sums[32];  
-    __shared__ real dm_sums[32];
-    __shared__ real ext_sums[32];  
-    __shared__ real tensor_sums[32];  
-    __shared__ real total_sums[32]; 
-    
-    __shared__ real exch2_sums[32];  
-    __shared__ real ani2_sums[32];  
-    __shared__ real dm2_sums[32];
-    __shared__ real ext2_sums[32];  
-    __shared__ real tensor2_sums[32];  
-    __shared__ real total2_sums[32]; 
+    __shared__ real ene_sums[32];
+    __shared__ real ene2_sums[32];
 
+    int tid    = threadIdx.x;
+    int lane   = tid & (WARPSIZE - 1);
+    int warp   = tid / WARPSIZE;
 
-    int i0 = blockIdx.x * blockDim.x + threadIdx.x;
-    const uint stride = blockDim.x * gridDim.x;
+    int i0 = blockIdx.x * blockDim.x + tid;
+    int stride = blockDim.x * gridDim.x;
 
-    int tid  = threadIdx.x;
-    int lane = tid & (WARPSIZE - 1);
-    int warp = tid / WARPSIZE;
+    real ene  = 0;
+    real ene2 = 0;
 
-    real exch = 0;  
-    real ani = 0;     
-    real dm = 0;  
-    real ext = 0;    
-    real tensor = 0;    
-    real total = 0; 
+    for (int i = i0; i < M; i += stride)
+    {
+        real e = energyM(i, etype);
 
-    real exch2 = 0;  
-    real ani2 = 0;   
-    real dm2 = 0; 
-    real ext2 = 0;  
-    real tensor2 = 0;  
-    real total2 = 0; 
-
-    for(int i = i0; i < M; i += stride){
-        exch += exchM(i);  
-        ani += aniM(i);     
-        dm += dmM(i);  
-        ext += extM(i);    
-        tensor += tensorM(i);    
-        total += totalM(i); 
-      // printf("ene0 = %.4lf, enei = %.4lf\n", exchM(0), exchM(i));
-        
-        exch2 += exch*exch;  
-        ani2 += ani*ani;   
-        dm2 += dm*dm; 
-        ext2 += ext*ext;  
-        tensor2 += tensor*tensor;  
-        total2 += total*total; 
-
+        ene  += e;
+        ene2 += e * e;
     }
 
+    #pragma unroll
+    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+    {
+        ene  += SHFL_DOWN(ene, offset);
+        ene2 += SHFL_DOWN(ene2, offset);
+    }
 
-   #pragma unroll
-   for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-   {
-      exch += SHFL_DOWN(exch, offset);
-      ani += SHFL_DOWN(ani, offset);
-      dm += SHFL_DOWN(dm, offset);
-      ext += SHFL_DOWN(ext, offset);
-      tensor += SHFL_DOWN(tensor, offset);
-      total += SHFL_DOWN(total, offset);
+    if (lane == 0)
+    {
+        ene_sums[warp]  = ene;
+        ene2_sums[warp] = ene2;
+    }
 
-      exch2 += SHFL_DOWN(exch2, offset);
-      ani2 += SHFL_DOWN(ani2, offset);
-      dm2 += SHFL_DOWN(dm2, offset);
-      ext2 += SHFL_DOWN(ext2, offset);
-      tensor2 += SHFL_DOWN(tensor2, offset);
-      total2 += SHFL_DOWN(total2, offset);
+    __syncthreads();
 
-   }
+    int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
 
-   if (lane == 0)
-   {
-      exch_sums[warp] = exch;
-      ani_sums[warp] = ani;
-      dm_sums[warp] = dm;
-      ext_sums[warp] = ext;
-      tensor_sums[warp] = tensor;
-      total_sums[warp] = total;
+    if (warp == 0)
+    {
+        ene  = (lane < num_warps) ? ene_sums[lane]  : (real)0;
+        ene2 = (lane < num_warps) ? ene2_sums[lane] : (real)0;
 
-      exch2_sums[warp] = exch2;
-      ani2_sums[warp] = ani2;
-      dm2_sums[warp] = dm2;
-      ext2_sums[warp] = ext2;
-      tensor2_sums[warp] = tensor2;
-      total2_sums[warp] = total2;
+        #pragma unroll
+        for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+        {
+            ene  += SHFL_DOWN(ene, offset);
+            ene2 += SHFL_DOWN(ene2, offset);
+        }
+    }
 
+    if (tid == 0)
+    {
+        EnePart& part = block_parts[blockIdx.y * gridDim.x + blockIdx.x];
 
-
-   }
-
-   __syncthreads();
-
-   if (warp == 0)
-   {
-      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
-
-      exch = (lane < num_warps) ? exch_sums[lane] : (real)0;
-      ani = (lane < num_warps) ? ani_sums[lane] : (real)0;
-      dm = (lane < num_warps) ? dm_sums[lane] : (real)0;
-      ext = (lane < num_warps) ? ext_sums[lane] : (real)0;
-      tensor = (lane < num_warps) ? tensor_sums[lane] : (real)0;
-      total = (lane < num_warps) ? total_sums[lane] : (real)0;
-
-      exch2 = (lane < num_warps) ? exch2_sums[lane] : (real)0;
-      ani2 = (lane < num_warps) ? ani2_sums[lane] : (real)0;
-      dm2 = (lane < num_warps) ? dm2_sums[lane] : (real)0;
-      ext2 = (lane < num_warps) ? ext2_sums[lane] : (real)0;
-      tensor2 = (lane < num_warps) ? tensor2_sums[lane] : (real)0;
-      total2 = (lane < num_warps) ? total2_sums[lane] : (real)0;
-
-      #pragma unroll
-      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-      {
-        exch += SHFL_DOWN(exch, offset);
-        ani += SHFL_DOWN(ani, offset);
-        dm += SHFL_DOWN(dm, offset);
-        ext += SHFL_DOWN(ext, offset);
-        tensor += SHFL_DOWN(tensor, offset);
-        total += SHFL_DOWN(total, offset);
-
-        exch2 += SHFL_DOWN(exch2, offset);
-        ani2 += SHFL_DOWN(ani2, offset);
-        dm2 += SHFL_DOWN(dm2, offset);
-        ext2 += SHFL_DOWN(ext2, offset);
-        tensor2 += SHFL_DOWN(tensor2, offset);
-        total2 += SHFL_DOWN(total2, offset);
-      }
-
-   }
-
-     if (threadIdx.x==0) {
-        block_parts[blockIdx.x].exch = exch; 
-        block_parts[blockIdx.x].dm = dm; 
-        block_parts[blockIdx.x].ani = ani; 
-        block_parts[blockIdx.x].ext = ext; 
-        block_parts[blockIdx.x].tensor = tensor; 
-        block_parts[blockIdx.x].total = total; 
-
-        block_parts[blockIdx.x].exch2 = exch2; 
-        block_parts[blockIdx.x].dm2 = dm2; 
-        block_parts[blockIdx.x].ani2 = ani2; 
-        block_parts[blockIdx.x].ext2 = ext2; 
-        block_parts[blockIdx.x].tensor2 = tensor2; 
-        block_parts[blockIdx.x].total2 = total2; 
-
-
-     }
-
-
+        part.sum[etype]  = ene;
+        part.sum2[etype] = ene2;
+    }
 }
     
 
 __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restrict__ block_parts,
-                                        uint nblocks,
-                                        uint M,
-                                        EnergyData& ene)
+                                                            uint nblocks_x,
+                                                            uint M,
+                                                            EnergyData& ene)
 {
-    real exch=0, dm=0, ani=0, ext=0, tensor = 0, total=0;
-    real exch2=0, dm2=0, ani2=0, ext2=0, tensor2 = 0, total2=0;
+    constexpr int N = N_ENERGY_TYPES;
 
-    __shared__ real exch_sums[32];  
-    __shared__ real ani_sums[32];  
-    __shared__ real dm_sums[32];
-    __shared__ real ext_sums[32];  
-    __shared__ real tensor_sums[32];  
-    __shared__ real total_sums[32]; 
-    
-    __shared__ real exch2_sums[32];  
-    __shared__ real ani2_sums[32];  
-    __shared__ real dm2_sums[32];
-    __shared__ real ext2_sums[32];  
-    __shared__ real tensor2_sums[32];  
-    __shared__ real total2_sums[32]; 
+    __shared__ real sums[N][32];
+    __shared__ real sums2[N][32];
+
+    real local[N]  = {};
+    real local2[N] = {};
 
     int tid  = threadIdx.x;
     int lane = tid & (WARPSIZE - 1);
     int warp = tid / WARPSIZE;
 
-    if(tid  < nblocks) {
-        exch  += block_parts[tid].exch;
-        ani  += block_parts[tid].ani;
-        dm  += block_parts[tid].dm;
-        ext  += block_parts[tid].ext;
-        tensor  += block_parts[tid].tensor;
-        total += block_parts[tid].total;
 
-        exch2  += block_parts[tid].exch2;
-        ani2  += block_parts[tid].ani2;
-        dm2  += block_parts[tid].dm2;
-        ext2  += block_parts[tid].ext2;
-        tensor2  += block_parts[tid].tensor2;
-        total2 += block_parts[tid].total2;
+    if (tid < nblocks_x)
+    {
+        const EnePart& p = block_parts[tid];
+
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  = p.sum[t];
+            local2[t] = p.sum2[t];
+        }
     }
 
-   __syncwarp();
-       #pragma unroll
-   for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-   {
-      exch += SHFL_DOWN(exch, offset);
-      ani += SHFL_DOWN(ani, offset);
-      dm += SHFL_DOWN(dm, offset);
-      ext += SHFL_DOWN(ext, offset);
-      tensor += SHFL_DOWN(tensor, offset);
-      total += SHFL_DOWN(total, offset);
-
-      exch2 += SHFL_DOWN(exch2, offset);
-      ani2 += SHFL_DOWN(ani2, offset);
-      dm2 += SHFL_DOWN(dm2, offset);
-      ext2 += SHFL_DOWN(ext2, offset);
-      tensor2 += SHFL_DOWN(tensor2, offset);
-      total2 += SHFL_DOWN(total2, offset);
-
-   }
-
-   if (lane == 0)
-   {
-      exch_sums[warp] = exch;
-      ani_sums[warp] = ani;
-      dm_sums[warp] = dm;
-      ext_sums[warp] = ext;
-      tensor_sums[warp] = tensor;
-      total_sums[warp] = total;
-
-      exch2_sums[warp] = exch2;
-      ani2_sums[warp] = ani2;
-      dm2_sums[warp] = dm2;
-      ext2_sums[warp] = ext2;
-      tensor2_sums[warp] = tensor2;
-      total2_sums[warp] = total2;
+    #pragma unroll
+    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  += SHFL_DOWN(local[t], offset);
+            local2[t] += SHFL_DOWN(local2[t], offset);
+        }
+    }
 
 
+    if (lane == 0)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            sums[t][warp]  = local[t];
+            sums2[t][warp] = local2[t];
+        }
+    }
 
-   }
+    __syncthreads();
 
-   __syncthreads();
+    int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
 
- 
-      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
+    if (warp == 0)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  = (lane < num_warps) ? sums[t][lane]  : (real)0;
+            local2[t] = (lane < num_warps) ? sums2[t][lane] : (real)0;
+        }
 
-      exch = (lane < num_warps) ? exch_sums[lane] : (real)0;
-      ani = (lane < num_warps) ? ani_sums[lane] : (real)0;
-      dm = (lane < num_warps) ? dm_sums[lane] : (real)0;
-      ext = (lane < num_warps) ? ext_sums[lane] : (real)0;
-      tensor = (lane < num_warps) ? tensor_sums[lane] : (real)0;
-      total = (lane < num_warps) ? total_sums[lane] : (real)0;
+        #pragma unroll
+        for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+        {
+            #pragma unroll
+            for (int t = 0; t < N; ++t)
+            {
+                local[t]  += SHFL_DOWN(local[t], offset);
+                local2[t] += SHFL_DOWN(local2[t], offset);
+            }
+        }
+    }
 
-      exch2 = (lane < num_warps) ? exch2_sums[lane] : (real)0;
-      ani2 = (lane < num_warps) ? ani2_sums[lane] : (real)0;
-      dm2 = (lane < num_warps) ? dm2_sums[lane] : (real)0;
-      ext2 = (lane < num_warps) ? ext2_sums[lane] : (real)0;
-      tensor2 = (lane < num_warps) ? tensor2_sums[lane] : (real)0;
-      total2 = (lane < num_warps) ? total2_sums[lane] : (real)0;
+    if (tid == 0)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  /= static_cast<real>(M);
+            local2[t] /= static_cast<real>(M);
+        }
 
-  if (warp == 0)
-   {
-      #pragma unroll
-      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-      {
-        exch += SHFL_DOWN(exch, offset);
-        ani += SHFL_DOWN(ani, offset);
-        dm += SHFL_DOWN(dm, offset);
-        ext += SHFL_DOWN(ext, offset);
-        tensor += SHFL_DOWN(tensor, offset);
-        total += SHFL_DOWN(total, offset);
+        ene.exchange  = local[EXCH];
+        ene.DM        = local[DM];
+        ene.anisotropy= local[ANI];
+        ene.Zeeman    = local[EXT];
+        ene.pair      = local[TENSOR];
+        ene.total     = local[TOTAL];
 
-        exch2 += SHFL_DOWN(exch2, offset);
-        ani2 += SHFL_DOWN(ani2, offset);
-        dm2 += SHFL_DOWN(dm2, offset);
-        ext2 += SHFL_DOWN(ext2, offset);
-        tensor2 += SHFL_DOWN(tensor2, offset);
-        total2 += SHFL_DOWN(total2, offset);
-      }
+        ene.std_exchange =
+            sqrt(fmax(local2[EXCH] - local[EXCH]*local[EXCH], real(0)));
 
-   }
+        ene.std_DM =
+            sqrt(fmax(local2[DM] - local[DM]*local[DM], real(0)));
 
+        ene.std_anisotropy =
+            sqrt(fmax(local2[ANI] - local[ANI]*local[ANI], real(0)));
 
-    if (threadIdx.x==0) {
+        ene.std_Zeeman =
+            sqrt(fmax(local2[EXT] - local[EXT]*local[EXT], real(0)));
 
-        exch = exch / static_cast<real>(M);
-        ani = ani / static_cast<real>(M);
-        dm = dm / static_cast<real>(M); 
-        ext = ext / static_cast<real> (M);
-        tensor = tensor / static_cast<real> (M);
-        total = total / static_cast<real> (M);
+        ene.std_pair =
+            sqrt(fmax(local2[TENSOR] - local[TENSOR]*local[TENSOR], real(0)));
 
-        exch2 = exch2 / static_cast<real>(M);
-        ani2 = ani2 / static_cast<real>(M);
-        dm2 = dm2 / static_cast<real>(M); 
-        ext2 = ext2 / static_cast<real> (M);
-        tensor2 = tensor2 / static_cast<real> (M);
-        total2 = total2 / static_cast<real> (M);
-
-
-        ene.exchange = exch;
-        ene.DM = dm;
-        ene.anisotropy = ani;
-        ene.Zeeman = ext;
-        ene.pair = tensor;
-        ene.total = total;  
-
-        ene.std_exchange = sqrt(fmax((exch2 - exch*exch), real(0)));
-        ene.std_DM = sqrt(fmax((dm2 - dm*dm), real(0)));
-        ene.std_anisotropy = sqrt(fmax((ani2 - ani*ani), real(0)));
-        ene.std_Zeeman =  sqrt(fmax((ext2 - ext*ext), real(0)));
-        ene.std_pair =  sqrt(fmax((tensor2 - tensor*tensor), real(0)));
-        ene.std_total = sqrt(fmax((total2 - total*total), real(0)));
+        ene.std_total =
+            sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)));
     }
 }
-

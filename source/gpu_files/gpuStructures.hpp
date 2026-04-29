@@ -216,12 +216,14 @@ struct deviceEmpties {
 };
 
 struct deviceEnergies {
-   GpuTensor<real, 1> exchM;
-   GpuTensor<real, 1> aniM;
-   GpuTensor<real, 1> dmM;
-   GpuTensor<real, 1> totalM;
-   GpuTensor<real, 1> tensorM;
-   GpuTensor<real, 1> extM;
+   //GpuTensor<real, 1> exchM;
+   //GpuTensor<real, 1> aniM;
+   //GpuTensor<real, 1> dmM;
+   //GpuTensor<real, 1> totalM;
+   //GpuTensor<real, 1> tensorM;
+   //GpuTensor<real, 1> extM;
+
+   GpuTensor<real,2> energyM; //0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
 
 };
 

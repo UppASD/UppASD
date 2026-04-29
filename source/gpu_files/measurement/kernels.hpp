@@ -15,10 +15,25 @@ namespace kernels::measurement
 
     // ---------------- helper partial structs (for two-phase kernels) ----------------
     struct AvgMPart   { real mx, my, mz, m, m2; };
-    struct BinderPart { real s1, s2, s4; };
+    struct BinderPart { real s1, s2, s4, exch, total, total2; };
     struct SumPart    { real s; };
-    struct EnePart    { real exch, ani, dm, ext, tensor, total,
-                        exch2, ani2, dm2, ext2, tensor2, total2; };
+    constexpr int N_ENERGY_TYPES = 6;
+
+    enum EnergyType : int
+    {
+        EXCH   = 0,
+        DM     = 1,
+        ANI    = 2,
+        EXT    = 3,
+        TENSOR = 4,
+        TOTAL  = 5
+    };
+
+    struct EnePart
+    {
+        real sum[N_ENERGY_TYPES];
+        real sum2[N_ENERGY_TYPES];
+    };
 
     // ----------------------------- kernels: declarations ----------------------------
     
@@ -48,6 +63,23 @@ namespace kernels::measurement
                                                    BinderPart* __restrict__ block_parts);
 
     __global__ void binderCumulantNoEnergy_finalize(const BinderPart* __restrict__ block_parts,
+                                                    uint nblocks,
+                                                    uint atoms,
+                                                    uint ensembles,
+                                                    real temp,
+                                                    real mub,
+                                                    real k_bolt,
+                                                    BinderCumulantData& d);
+
+    // Binder cumulant (with energy) over ensembles (two-phase)
+    __global__ void binderCumulantEnergy_partial(const GpuTensor<real, 2> emomMSum,
+                                                   const GpuTensor<real, 1> exchM,
+                                                   const GpuTensor<real, 1> totalM,
+                                                   uint atoms,
+                                                   uint ensembles,
+                                                   BinderPart* __restrict__ block_parts);
+
+    __global__ void binderCumulantEnergy_finalize(const BinderPart* __restrict__ block_parts,
                                                     uint nblocks,
                                                     uint atoms,
                                                     uint ensembles,
@@ -91,12 +123,7 @@ namespace kernels::measurement
                                             uint sk_num_count,
                                             SkyrmionNumberData& d);
 
-    __global__ void averageEnergy_partial(const GpuTensor<real, 1> exchM,
-                                const GpuTensor<real, 1> dmM,
-                                const GpuTensor<real, 1> aniM,
-                                const GpuTensor<real, 1> extM,
-                                const GpuTensor<real, 1> tensorM,
-                                const GpuTensor<real, 1> totalM,
+    __global__ void averageEnergy_partial(const GpuTensor<real, 2> energyM,
                                 uint M,
                                 EnePart* __restrict__ block_parts);
 
