@@ -15,9 +15,10 @@ namespace kernels::measurement
 
     // ---------------- helper partial structs (for two-phase kernels) ----------------
     struct AvgMPart   { real mx, my, mz, m, m2; };
-    struct BinderPart { real s1, s2, s4, exch, total, total2; };
+    struct BinderPart { real s1, s2, s4};
     struct SumPart    { real s; };
     constexpr int N_ENERGY_TYPES = 6;
+    constexpr int N_BINDER_TYPES = 3;
 
     enum EnergyType : int
     {
@@ -26,13 +27,27 @@ namespace kernels::measurement
         ANI    = 2,
         EXT    = 3,
         TENSOR = 4,
-        TOTAL  = 5
+        TOTAL  = 5,
     };
 
     struct EnePart
     {
         real sum[N_ENERGY_TYPES];
         real sum2[N_ENERGY_TYPES];
+    };
+
+    enum BinderEnergyType : int
+    {
+        MAG    = 0,
+        EXCH   = 1,
+        TOTAL  = 2
+    };
+
+    struct BinderEnePart
+    {
+        real sum[N_BINDER_TYPES];
+        real sum2[N_BINDER_TYPES];
+        real sum4[N_BINDER_TYPES];
     };
 
     // ----------------------------- kernels: declarations ----------------------------

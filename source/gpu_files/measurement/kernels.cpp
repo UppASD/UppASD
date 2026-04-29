@@ -277,48 +277,101 @@ __global__ void kernels::measurement::binderCumulantNoEnergy_finalize(const Bind
 // Binder cumulant (with energy) (two-phase across ensembles)
 // ============================================================================
 __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTensor<real, 2> emomMSum,
-                                                        const GpuTensor<real, 1> exchM,
-                                                        const GpuTensor<real, 1> totalM,
+                                                        const GpuTensor<real, 2> energyM,
                                                         uint atoms,
                                                         uint ensembles,
-                                                        BinderPart* __restrict__ block_parts)
+                                                        BinderEnePart* __restrict__ block_parts)
 {
     const uint k0 = blockIdx.x * blockDim.x + threadIdx.x;
     const uint stride = blockDim.x * gridDim.x;
+    const uint emtype = blockIdx.y;
+    int tid = threadIdx.x;
 
     const real atoms_inv = 1.0 / static_cast<real>(atoms);
 
     real s1=0, s2=0, s4=0;
-    real exch = 0, tt, total = 0, total2 = 0;
+    //real exch = 0, tt, total = 0, total2 = 0;
+   real mx, my, mz, m, m2;
+   real ene, ene2;
 
     for (uint k = k0; k < ensembles; k += stride)
     {
-        const real mx = emomMSum(0, k) * atoms_inv;
-        const real my = emomMSum(1, k) * atoms_inv;
-        const real mz = emomMSum(2, k) * atoms_inv;
-        const real m  = vnorm3(mx, my, mz);
-        const real m2 = m*m;
-        s1 += m;  s2 += m2;  s4 += m2*m2;
-        exch += exchM(k);
-        tt = totalM(k);
-        total += tt;
-        total2 += (tt*tt);
+        //0 - magnetizarion, 1 - exchange energy, 2 - total energy
+        switch(emtype){
+        case(0):
+            mx = emomMSum(0, k) * atoms_inv;
+            my = emomMSum(1, k) * atoms_inv;
+            mz = emomMSum(2, k) * atoms_inv;
+            m  = vnorm3(mx, my, mz);
+            m2 = m*m;
+            s1 += m;  s2 += m2;  s4 += m2*m2;   
+        case(1):
+            ene = energyM(k, 0);
+            ene2 = ene*ene;
+            s1 += ene;  s2 += ene2; 
+        case(2):
+            ene = energyM(k, 5);
+            ene2 = ene*ene;
+            s1 += ene;  s2 += ene2; 
+        }
     }
 
-    extern __shared__ real s[];
-    real r1, r2, r4, ex, t, t2;
-    //r1 = block_reduce_sum_1d(s1, s); 
-    //r2 = block_reduce_sum_1d(s2, s); 
-    //r3 = block_reduce_sum_1d(s4, s); 
-    //r3 = block_reduce_sum_1d(s4, s); 
-    //r3 = block_reduce_sum_1d(s4, s); 
+    extern __shared__ real sum[3][32];
+    extern __shared__ real sum2[3][32];
+    extern __shared__ real sum4[3][32];
 
+     #pragma unroll
+    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+    {
+        s1  += SHFL_DOWN(s1, offset);
+        s2  += SHFL_DOWN(s2, offset);
+        s4  += SHFL_DOWN(s4, offset);
 
-    if (threadIdx.x==0) {
-        block_parts[blockIdx.x].s1 = r1; 
-        block_parts[blockIdx.x].s2 = r2;
-        block_parts[blockIdx.x].s4 = r4;
     }
+
+    if (lane == 0)
+    {
+        sum[warp]  = s1;
+        sum2[warp]  = s2;
+        sum4[warp]  = s4;
+
+    }
+
+    __syncthreads();
+
+    int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
+
+    if (warp == 0)
+    {
+        s1  = (lane < num_warps) ? sum1[lane]  : (real)0;
+        s2  = (lane < num_warps) ? sum2[lane]  : (real)0;
+        s4  = (lane < num_warps) ? sum4[lane]  : (real)0;
+
+
+        #pragma unroll
+        for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+        {
+            s1  += SHFL_DOWN(s1, offset);
+            s2  += SHFL_DOWN(s2, offset);
+            s4  += SHFL_DOWN(s4, offset);
+        }
+    }
+
+    if (tid == 0)
+    {
+        BinderEnePart& part = block_parts[blockIdx.y * gridDim.x + blockIdx.x];
+
+        part.sum[emtype]  = s1;
+        part.sum2[emtype] = s2;
+        part.sum4[emtype] = s4;
+    }
+
+
+   //if (threadIdx.x==0) {
+    //    block_parts[blockIdx.x].s1 = r1; 
+    //    block_parts[blockIdx.x].s2 = r2;
+    //    block_parts[blockIdx.x].s4 = r4;
+    //}
 }
 
 
