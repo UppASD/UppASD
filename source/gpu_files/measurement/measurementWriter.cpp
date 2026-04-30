@@ -36,3 +36,15 @@ std::string MeasurementWriter::readSimIDFromFile()
 
     return value;
 }
+
+void MeasurementWriter::writeIteration(std::ostream& out, real value) const
+{
+    if (*FortranData::real_time_measure == 'Y')
+    {
+        out << std::setw(colWidth) << value;
+    }
+    else
+    {
+        out << std::setw(colWidth) << static_cast<int>(value);
+    }
+}

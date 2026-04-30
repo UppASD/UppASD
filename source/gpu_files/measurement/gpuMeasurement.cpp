@@ -430,9 +430,8 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
             mavg_partial_buff.data(), mavg_kernel_blocks.x, M, mavg_buff_gpu.data()[mavg_count]
     );
 
-
-    mavg_iter(mavg_count++) = mstep;
-
+    mavg_count++;
+    fill_index(mavg_iter, mstep, mavg_count);
 
     if (mavg_count >= *FortranData::avrg_buff)
     {
@@ -524,7 +523,8 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
         );
     }
 
-    skyno_iter(skyno_count++) = mstep;
+    skyno_count++;
+    fill_index(skyno_iter, mstep, skyno_count);
 
     if (skyno_count >= *FortranData::skyno_buff)
     {
@@ -549,7 +549,8 @@ void GpuMeasurement::measureEnergy(size_t mstep)
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
     //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);
     
-    energy_iter(energy_count++) = mstep;
+    energy_count++;
+    fill_index(energy_iter, mstep, energy_count);
 
     if ((energy_count % *FortranData::ene_buff) == 0)
     {
@@ -573,12 +574,8 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
         calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
     
 
-        if (*FortranData::real_time_measure=='Y') {
-            indxb_ac(ac_count++)=(mstep+1)*(*FortranData::delta_t);
-        }
-        else {
-            indxb_ac(ac_count++)=mstep+1;
-        }
+        ac_count++;
+        fill_index(indxb_ac, mstep + 1, ac_count);
 
         if (ac_count >= *FortranData::ac_buff)
         {
@@ -699,16 +696,9 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 .values = autocorr_buff_cpu.data() + i * nspinwait,
                 .size   = nspinwait
             };
+            
+            measurementWriter.write(&indxb_ac[i], &row, 1);
 
-            if (*FortranData::real_time_measure == 'Y')
-            {
-                measurementWriter.write(&indxb_ac[i], &row, 1);
-            }
-            else
-            {
-                int iter_int = static_cast<int>(indxb_ac[i]); 
-                measurementWriter.write(&iter_int, &row, 1);
-            }
         }
         autocorr_buff_gpu.zeros();
         autocorr_buff_cpu.zeros();
@@ -756,5 +746,16 @@ dim3 GpuMeasurement::skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint
         case SkyrmionMethod::BruteForce: return (mm::ceil_div(N, kernel_threads), M);
         case SkyrmionMethod::Triangulation: return mm::ceil_div(nsimp, kernel_threads);
         default: return 0;
+    }
+}
+
+template<typename T>
+inline void GpuMeasurement::fill_index(Vector<real>& iter, T step, size_t& count)
+{
+    if (*FortranData::real_time_measure == 'Y') {
+        iter(count) = static_cast<real>(step) * (*FortranData::delta_t);
+    }
+    else {
+        iter(count) = static_cast<real>(step);
     }
 }

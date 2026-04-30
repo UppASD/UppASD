@@ -10,6 +10,7 @@
 
 #include "measurementData.h"
 #include "measurementWriterHelper.h"
+#include "fortranData.hpp"
 
 class MeasurementWriter
 {
@@ -35,6 +36,7 @@ private:
     std::string filename() const;
 
     static std::string readSimIDFromFile();
+    void writeIteration(std::ostream& out, real value) const;
 
 private:
     bool do_jtensor;
@@ -55,7 +57,7 @@ void MeasurementWriter::write(const Iter_t* iteration, const Data_t* data, size_
     std::ofstream& out = getFile<Data_t>();
     for (size_t i = 0; i < N; ++i)
     {
-        out << std::setw(colWidth) << iteration[i];
+        writeIteration(out, static_cast<real>(iteration[i]));
         MeasurementTraits<Data_t>::print(data[i], out, colWidth, do_jtensor);
         out << '\n';
     }
@@ -68,7 +70,7 @@ void MeasurementWriter::writeEnergyStd(const Iter_t* iteration, const EnergyData
     std::ofstream& out = getFile<EnergyStdData>();
     for (size_t i = 0; i < N; ++i)
     {
-        out << std::setw(colWidth) << iteration[i];
+        writeIteration(out, static_cast<real>(iteration[i]));
         MeasurementTraits<EnergyStdData>::print({data[i]}, out, colWidth, do_jtensor);
         out << '\n';
     }

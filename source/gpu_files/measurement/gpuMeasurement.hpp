@@ -40,6 +40,7 @@ public:
 
 private:
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
+    template<typename T> inline void fill_index(Vector<real>& iter, T step, size_t& count);
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();
     void measureAverageMagnetization(size_t mstep);
@@ -72,7 +73,7 @@ private:
     GpuVector<AverageMagnetizationData> mavg_buff_gpu;
     Vector<AverageMagnetizationData> mavg_buff_cpu;
     GpuVector<kernels::measurement::AvgMPart> mavg_partial_buff;
-    Vector<size_t> mavg_iter;
+    Vector<real> mavg_iter;
     const dim3 mavg_kernel_threads;
     const dim3 mavg_kernel_blocks;
     size_t mavg_count = 0;
@@ -118,7 +119,7 @@ private:
     GpuVector<SkyrmionNumberData> skyno_buff_gpu;
     Vector<SkyrmionNumberData> skyno_buff_cpu;
     GpuVector<kernels::measurement::SumPart> skyno_partial_buff;
-    Vector<size_t> skyno_iter;
+    Vector<real> skyno_iter;
     size_t skyno_count = 0;
 
     // Skyrmion number method brute force
@@ -139,7 +140,7 @@ private:
     //GpuVector<EnergyStdData> energy_std_buff_gpu;
     //Vector<EnergyData> energy_std_buff_cpu;
 
-    Vector<size_t> energy_iter;
+    Vector<real> energy_iter;
     size_t energy_count = 0;
 
 
@@ -164,7 +165,7 @@ private:
     const unsigned int ac_maxThreads;
     const unsigned int ac_maxBlocks;
 
-    unsigned int ac_count;
+    size_t ac_count;
     unsigned int sw_next;
     int sw_curr;
     unsigned int sw_curIdx;
