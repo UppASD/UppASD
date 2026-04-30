@@ -15,7 +15,7 @@ namespace kernels::measurement
 
     // ---------------- helper partial structs (for two-phase kernels) ----------------
     struct AvgMPart   { real mx, my, mz, m, m2; };
-    struct BinderPart { real s1, s2, s4};
+    struct BinderPart { real s1, s2, s4;};
     struct SumPart    { real s; };
     constexpr int N_ENERGY_TYPES = 6;
     constexpr int N_BINDER_TYPES = 3;
@@ -38,9 +38,9 @@ namespace kernels::measurement
 
     enum BinderEnergyType : int
     {
-        MAG    = 0,
-        EXCH   = 1,
-        TOTAL  = 2
+        MAGCUM    = 0,
+        EXCHCUM   = 1,
+        TOTALCUM  = 2
     };
 
     struct BinderEnePart
@@ -88,13 +88,12 @@ namespace kernels::measurement
 
     // Binder cumulant (with energy) over ensembles (two-phase)
     __global__ void binderCumulantEnergy_partial(const GpuTensor<real, 2> emomMSum,
-                                                   const GpuTensor<real, 1> exchM,
-                                                   const GpuTensor<real, 1> totalM,
+                                                   const GpuTensor<real, 2> energyM,
                                                    uint atoms,
                                                    uint ensembles,
-                                                   BinderPart* __restrict__ block_parts);
+                                                   BinderEnePart* __restrict__ block_parts);
 
-    __global__ void binderCumulantEnergy_finalize(const BinderPart* __restrict__ block_parts,
+    __global__ void binderCumulantEnergy_finalize(const BinderEnePart* __restrict__ block_parts,
                                                     uint nblocks,
                                                     uint atoms,
                                                     uint ensembles,
@@ -145,6 +144,7 @@ namespace kernels::measurement
     __global__ void averageEnergy_final(const EnePart* __restrict__ block_parts,
                                         uint nblocks,
                                         uint M,
+                                        real fcinv,
                                         EnergyData& ene);
 
     // ----------------------------- small helpers (host) -----------------------------

@@ -63,6 +63,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , ene_step(*FortranData::ene_step)
 , ene_buff(*FortranData::ene_buff)
 , ene_types(6)
+, mub(9.274009994e-24)
+, mry(2.179872325e-21)
+, fcinv(mub / mry)
 {
     
     isAllocated = false;
@@ -518,7 +521,7 @@ void GpuMeasurement::measureEnergy(size_t mstep)
     mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
 
     mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
-            energy_partial_buff.data(), ene_kernel_blocks.x, M, energy_buff_gpu.data()[energy_count]);
+            energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
 
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
     //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);

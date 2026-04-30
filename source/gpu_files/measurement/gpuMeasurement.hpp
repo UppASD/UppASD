@@ -124,6 +124,10 @@ private:
     GpuVector<EnergyData> energy_buff_gpu;
     Vector<EnergyData> energy_buff_cpu;
     GpuTensor<kernels::measurement::EnePart, 2> energy_partial_buff;
+
+    const real mub;
+    const real mry;
+    const real fcinv;
     //GpuVector<EnergyStdData> energy_std_buff_gpu;
     //Vector<EnergyData> energy_std_buff_cpu;
 

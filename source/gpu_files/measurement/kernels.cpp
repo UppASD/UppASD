@@ -286,6 +286,8 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
     const uint stride = blockDim.x * gridDim.x;
     const uint emtype = blockIdx.y;
     int tid = threadIdx.x;
+    int lane   = tid & (WARPSIZE - 1);
+    int warp   = tid / WARPSIZE;
 
     const real atoms_inv = 1.0 / static_cast<real>(atoms);
 
@@ -316,9 +318,9 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
         }
     }
 
-    extern __shared__ real sum[3][32];
-    extern __shared__ real sum2[3][32];
-    extern __shared__ real sum4[3][32];
+    extern __shared__ real sum1[32];
+    extern __shared__ real sum2[32];
+    extern __shared__ real sum4[32];
 
      #pragma unroll
     for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
@@ -331,7 +333,7 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
 
     if (lane == 0)
     {
-        sum[warp]  = s1;
+        sum1[warp]  = s1;
         sum2[warp]  = s2;
         sum4[warp]  = s4;
 
@@ -375,7 +377,7 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
 }
 
 
-__global__ void kernels::measurement::binderCumulantEnergy_finalize(const BinderPart* __restrict__ block_parts,
+__global__ void kernels::measurement::binderCumulantEnergy_finalize(const BinderEnePart* __restrict__ block_parts,
                                                          uint nblocks,
                                                          uint atoms,
                                                          uint ensembles,
@@ -387,9 +389,9 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(const Binder
     // Strided accumulation over blocks
     real s1 = 0, s2 = 0, s4 = 0;
     for (uint i = threadIdx.x; i < nblocks; i += blockDim.x) {
-        s1 += block_parts[i].s1;
-        s2 += block_parts[i].s2;
-        s4 += block_parts[i].s4;
+       // s1 += block_parts[i].s1;
+       // s2 += block_parts[i].s2;
+        //s4 += block_parts[i].s4;
     }
 
     // Shared memory must be at least (#warps) * sizeof(real)
@@ -753,6 +755,7 @@ __global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real
 __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restrict__ block_parts,
                                                             uint nblocks_x,
                                                             uint M,
+                                                            real fcinv,
                                                             EnergyData& ene)
 {
     constexpr int N = N_ENERGY_TYPES;
@@ -836,29 +839,29 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
             local2[t] /= static_cast<real>(M);
         }
 
-        ene.exchange  = local[EXCH];
-        ene.DM        = local[DM];
-        ene.anisotropy= local[ANI];
-        ene.Zeeman    = local[EXT];
-        ene.pair      = local[TENSOR];
-        ene.total     = local[TOTAL];
+        ene.exchange  = local[EXCH]*fcinv;
+        ene.DM        = local[DM]*fcinv;
+        ene.anisotropy= local[ANI]*fcinv;
+        ene.Zeeman    = local[EXT]*fcinv;
+        ene.pair      = local[TENSOR]*fcinv;
+        ene.total     = local[TOTAL]*fcinv;
 
         ene.std_exchange =
-            sqrt(fmax(local2[EXCH] - local[EXCH]*local[EXCH], real(0)));
+            sqrt(fmax(local2[EXCH] - local[EXCH]*local[EXCH], real(0)))*fcinv;
 
         ene.std_DM =
-            sqrt(fmax(local2[DM] - local[DM]*local[DM], real(0)));
+            sqrt(fmax(local2[DM] - local[DM]*local[DM], real(0)))*fcinv;
 
         ene.std_anisotropy =
-            sqrt(fmax(local2[ANI] - local[ANI]*local[ANI], real(0)));
+            sqrt(fmax(local2[ANI] - local[ANI]*local[ANI], real(0)))*fcinv;
 
         ene.std_Zeeman =
-            sqrt(fmax(local2[EXT] - local[EXT]*local[EXT], real(0)));
+            sqrt(fmax(local2[EXT] - local[EXT]*local[EXT], real(0)))*fcinv;
 
         ene.std_pair =
-            sqrt(fmax(local2[TENSOR] - local[TENSOR]*local[TENSOR], real(0)));
+            sqrt(fmax(local2[TENSOR] - local[TENSOR]*local[TENSOR], real(0)))*fcinv;
 
         ene.std_total =
-            sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)));
+            sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)))*fcinv;
     }
 }
