@@ -77,6 +77,20 @@ private:
     const dim3 mavg_kernel_blocks;
     size_t mavg_count = 0;
 
+
+    // Energy
+    const int do_ene;
+    const int ene_types;
+    dim3 ene_kernel_threads;
+    dim3 ene_kernel_blocks;
+    unsigned int ene_maxBlocks;
+    unsigned int ene_maxThreads;
+    const unsigned int ene_step;
+    const unsigned int ene_buff;
+    GpuVector<EnergyData> energy_buff_gpu;
+    Vector<EnergyData> energy_buff_cpu;
+    GpuTensor<kernels::measurement::EnePart, 2> energy_partial_buff;
+
     // Binder cumulant
     const bool do_cumu;
     GpuVector<BinderCumulantData> cumu_buff_gpu; // scalar but tensor of rank 0 is not allowed, so rank 1 is size 1
@@ -85,6 +99,13 @@ private:
     const dim3 cumu_kernel_threads;
     const dim3 cumu_kernel_blocks;
     size_t cumu_count = 0;
+    GpuVector<kernels::measurement::BinderEnePart> cumu_ene_partial_buff;
+    const unsigned int cumu_ene_maxBlocks;
+    const unsigned int cumu_ene_maxThreads;
+ 
+    const dim3 cumu_ene_kernel_threads;
+    const dim3 cumu_ene_kernel_blocks;
+
 
     // Used for both Average magnetization and Binder cumulant
     GpuTensor<real, 3> emomMEnsembleSums_partial;
@@ -111,19 +132,6 @@ private:
     const uint nsimp;
     const dim3 skyno_kernel_threads;
     const dim3 skyno_kernel_blocks;
-
-    // Energy
-    const int do_ene;
-    const int ene_types;
-    dim3 ene_kernel_threads;
-    dim3 ene_kernel_blocks;
-    unsigned int ene_maxBlocks;
-    unsigned int ene_maxThreads;
-    const unsigned int ene_step;
-    const unsigned int ene_buff;
-    GpuVector<EnergyData> energy_buff_gpu;
-    Vector<EnergyData> energy_buff_cpu;
-    GpuTensor<kernels::measurement::EnePart, 2> energy_partial_buff;
 
     const real mub;
     const real mry;

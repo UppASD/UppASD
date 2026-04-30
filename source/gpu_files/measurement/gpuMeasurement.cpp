@@ -44,6 +44,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , do_cumu(*FortranData::do_cumu == 'Y')
 , cumu_kernel_threads(32)
 , cumu_kernel_blocks(mm::ceil_div(M, cumu_kernel_threads.x))
+, cumu_ene_maxBlocks(1024)
+, cumu_ene_maxThreads(256)
+, cumu_ene_kernel_threads(cumu_ene_maxThreads)
+, cumu_ene_kernel_blocks(std::min(((M + cumu_ene_maxThreads - 1) / cumu_ene_maxThreads), cumu_ene_maxBlocks), 3, 1)
 , sumOverAtoms_kernel_threads(256, 1)
 , sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
 , do_autocorr((*FortranData::do_autocorr=='Y') ? true : false)
@@ -97,7 +101,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         cumu_buff_cpu.AllocateHost(1);
         cumu_buff_cpu.zeros();
 
-        cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
+        if (do_ene>0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
+        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
 
         std::cout << "BinderCumulant observable added" << std::endl;
     }
@@ -235,6 +240,8 @@ void GpuMeasurement::release(){
         cumu_buff_gpu.Free();
         cumu_buff_cpu.FreeHost();
         cumu_partial_buff.Free();
+        if (do_ene>0) cumu_partial_buff.Free();
+        else cumu_ene_partial_buff.Free();
     }
 
     if (do_avrg || do_cumu)
@@ -457,7 +464,23 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
     }
     else
     {
-        throw std::invalid_argument("Not yet implemented.");
+        //throw std::invalid_argument("Not yet implemented.");
+
+        mm::binderCumulantEnergy_partial<<<cumu_ene_kernel_blocks, cumu_ene_kernel_threads>>>(
+                emomMEnsembleSums, gpuEnergies.energyM, N, M, cumu_ene_partial_buff.data()
+        );
+
+        mm::binderCumulantEnergy_finalize<<<1, cumu_ene_maxBlocks>>>(
+                                                                        cumu_ene_partial_buff.data(),
+                                                                        cumu_ene_kernel_blocks.x,
+                                                                        N,
+                                                                        M,
+                                                                        *FortranData::temperature,
+                                                                        *FortranData::mub,
+                                                                        *FortranData::k_bolt,
+                                                                        *FortranData::mry,
+                                                                        *cumu_buff_gpu.data()
+                                                                    );
     }
 
 
@@ -547,7 +570,7 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 
 
         calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
-        calc_autocorr_final<<<(sw_curIdx + 1), 1024>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+        calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
     
 
         if (*FortranData::real_time_measure=='Y') {

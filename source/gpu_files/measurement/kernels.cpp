@@ -301,26 +301,40 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
         //0 - magnetizarion, 1 - exchange energy, 2 - total energy
         switch(emtype){
         case(0):
+        {
             mx = emomMSum(0, k) * atoms_inv;
             my = emomMSum(1, k) * atoms_inv;
             mz = emomMSum(2, k) * atoms_inv;
             m  = vnorm3(mx, my, mz);
             m2 = m*m;
-            s1 += m;  s2 += m2;  s4 += m2*m2;   
+            s1 += m;  s2 += m2;  s4 += m2*m2; 
+            break;
+
+        }
+  
         case(1):
+        {
             ene = energyM(k, 0);
             ene2 = ene*ene;
             s1 += ene;  s2 += ene2; 
+            break;
+        }
+
         case(2):
+        {
             ene = energyM(k, 5);
             ene2 = ene*ene;
             s1 += ene;  s2 += ene2; 
+            break;
+
+        }
+
         }
     }
 
-    extern __shared__ real sum1[32];
-    extern __shared__ real sum2[32];
-    extern __shared__ real sum4[32];
+    __shared__ real sum1[32];
+    __shared__ real sum2[32];
+    __shared__ real sum4[32];
 
      #pragma unroll
     for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
@@ -377,49 +391,123 @@ __global__ void kernels::measurement::binderCumulantEnergy_partial(const GpuTens
 }
 
 
-__global__ void kernels::measurement::binderCumulantEnergy_finalize(const BinderEnePart* __restrict__ block_parts,
+__global__ void kernels::measurement::binderCumulantEnergy_finalize(
+                                                         const BinderEnePart* __restrict__ block_parts,
                                                          uint nblocks,
                                                          uint atoms,
                                                          uint ensembles,
                                                          real temp,
                                                          real mub,
                                                          real k_bolt,
+                                                         real mry,
+                                                         //real temprescale,
+                                                         //real temprescalegrad,
                                                          BinderCumulantData& d)
 {
-    // Strided accumulation over blocks
-    real s1 = 0, s2 = 0, s4 = 0;
-    for (uint i = threadIdx.x; i < nblocks; i += blockDim.x) {
-       // s1 += block_parts[i].s1;
-       // s2 += block_parts[i].s2;
-        //s4 += block_parts[i].s4;
+     constexpr int N = N_BINDER_TYPES;
+
+    __shared__ real sums[N][32];
+    __shared__ real sums2[N][32];
+    __shared__ real sums4[N][32];
+
+    real local[N]  = {};
+    real local2[N] = {};
+    real local4[N] = {};
+
+    int tid  = threadIdx.x;
+    int lane = tid & (WARPSIZE - 1);
+    int warp = tid / WARPSIZE;
+
+
+    if (tid < nblocks)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            const BinderEnePart& p =
+                block_parts[t * nblocks + tid];
+
+            local[t]  = p.sum[t];
+            local2[t] = p.sum2[t];
+            local4[t] = p.sum4[t];
+        }
     }
 
-    // Shared memory must be at least (#warps) * sizeof(real)
-    extern __shared__ real sh[];
+    #pragma unroll
+    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  += SHFL_DOWN(local[t], offset);
+            local2[t] += SHFL_DOWN(local2[t], offset);
+            local4[t] += SHFL_DOWN(local4[t], offset);
+        }
+    }
 
-    // Reduce each scalar with the block helper.
-    // IMPORTANT: barrier between calls since the helper reuses 'sh' and has no trailing sync.
-    real S1 = 0, S2 = 0, S4 = 0;
 
-    real r = block_reduce_sum_1d(s1, sh);
-    if (threadIdx.x == 0) S1 = r;
+    if (lane == 0)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            sums[t][warp]  = local[t];
+            sums2[t][warp] = local2[t];
+            sums4[t][warp] = local4[t];
+        }
+    }
+
     __syncthreads();
 
-    r = block_reduce_sum_1d(s2, sh);
-    if (threadIdx.x == 0) S2 = r;
-    __syncthreads();
+    int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
 
-    r = block_reduce_sum_1d(s4, sh);
-    if (threadIdx.x == 0) S4 = r;
-    __syncthreads();
+    if (warp == 0)
+    {
+        #pragma unroll
+        for (int t = 0; t < N; ++t)
+        {
+            local[t]  = (lane < num_warps) ? sums[t][lane]  : (real)0;
+            local2[t] = (lane < num_warps) ? sums2[t][lane] : (real)0;
+            local4[t] = (lane < num_warps) ? sums4[t][lane] : (real)0;
+        }
 
-    if (threadIdx.x == 0) {
+        #pragma unroll
+        for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
+        {
+            #pragma unroll
+            for (int t = 0; t < N; ++t)
+            {
+                local[t]  += SHFL_DOWN(local[t], offset);
+                local2[t] += SHFL_DOWN(local2[t], offset);
+                local4[t] += SHFL_DOWN(local4[t], offset);
+            }
+        }
+    }
+
+    if (tid == 0)    
+    {
+        real m1     = local[MAGCUM];
+        real m2     = local2[MAGCUM];
+        real m4     = local4[MAGCUM];
+
+        real exch1  = local[EXCHCUM];
+        real exch2  = local2[EXCHCUM];
+
+        real total1 = local[TOTALCUM];
+        real total2 = local2[TOTALCUM];
+
         const real w_new = static_cast<real>(ensembles);
         const real tot   = d.cumutotw + w_new;
 
-        const real avrgme   = S1 / w_new; // batch mean |m|
-        const real avrgm2_b = S2 / w_new;
-        const real avrgm4_b = S4 / w_new;
+        const real avrgme   = m1 / w_new;
+        const real avrgm2_b = m2 / w_new;
+        const real avrgm4_b = m4 / w_new;
+
+        const real exch_mean  = exch1 / w_new;
+        const real exch2_mean = exch2 / w_new;
+
+        const real total_mean  = total1 / w_new;
+        const real total2_mean = total2 / w_new;
 
         d.avrgmcum  = (d.avrgmcum  * d.cumutotw + avrgme   * w_new) / tot;
         d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2_b * w_new) / tot;
@@ -430,16 +518,28 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(const Binder
 
         d.binderc = real(1) - (d.avrgm4cum / (real(3) * m2c * m2c));
 
+        d.avrgecum  = (d.avrgecum  * d.cumutotw + total_mean  * w_new) / tot;
+        d.avrge2cum = (d.avrge2cum * d.cumutotw + total2_mean * w_new) / tot;
+        d.avrgetcum = (d.avrgetcum * d.cumutotw + exch_mean  * w_new) / tot;
+
         if (temp > real(0))
-            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / (k_bolt*k_bolt) / temp;
+        {
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum)* mub * mub * atoms / (k_bolt * k_bolt) / temp;
+
+            d.cv = (d.avrge2cum - d.avrgecum * d.avrgecum) * mry * mry * atoms  / (k_bolt * k_bolt) / (temp * temp);
+                // * (temprescalegrad * temp + temprescale) / (temprescale * temprescale);
+        }
         else
-            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub*mub * atoms / k_bolt;
+        {
+            d.pmsusc = (d.avrgm2cum - d.avrgmcum * d.avrgmcum) * mub * mub * atoms / k_bolt;
+            d.cv = real(0);
+        }
 
         d.cumuw    += w_new;
-        d.cumutotw  =  tot;
+        d.cumutotw  = tot;
+        d.Navrgcum += 1;
     }
 }
-
 
 // ============================================================================
 // grad_moments (first index contiguous; N ≫ M → set block.y=1 typically)

@@ -45,7 +45,7 @@ struct BinderCumulantData
     real avrgecum{};      // Cumulated average of E
     real cv{};            // Specific heat
 
-    // real avrge2cum;     // Cumulated average of E^2
+    real avrge2cum;     // Cumulated average of E^2
     real avrgetcum{};     // Cumulated average of E_xc
     real avrgelcum{};     // Cumulated average of E_LSF
 

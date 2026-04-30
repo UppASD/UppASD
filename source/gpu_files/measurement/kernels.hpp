@@ -93,14 +93,18 @@ namespace kernels::measurement
                                                    uint ensembles,
                                                    BinderEnePart* __restrict__ block_parts);
 
-    __global__ void binderCumulantEnergy_finalize(const BinderEnePart* __restrict__ block_parts,
-                                                    uint nblocks,
-                                                    uint atoms,
-                                                    uint ensembles,
-                                                    real temp,
-                                                    real mub,
-                                                    real k_bolt,
-                                                    BinderCumulantData& d);
+    __global__ void binderCumulantEnergy_finalize(
+                                                         const BinderEnePart* __restrict__ block_parts,
+                                                         uint nblocks,
+                                                         uint atoms,
+                                                         uint ensembles,
+                                                         real temp,
+                                                         real mub,
+                                                         real k_bolt,
+                                                         real mry,
+                                                         //real temprescale,
+                                                         //real temprescalegrad,
+                                                         BinderCumulantData& d);
 
     // Gradient of magnetization field
     __global__ void grad_moments(const GpuTensor<real, 3> emomM,
