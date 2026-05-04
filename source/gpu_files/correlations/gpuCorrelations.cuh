@@ -46,6 +46,8 @@ private:
     real delta_t;
 
     unsigned int  t_cur;
+    unsigned int  t_cur_proj;
+    unsigned int  t_cur_projch;
 
     unsigned int maxThreads;
     unsigned int maxBlocks;
@@ -90,7 +92,7 @@ public:
 
 private:
     void measure_SC(std::size_t mstep);
-    void measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type);
+    void measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type, unsigned int& t_cur_local);
 
     void flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations);
     void flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
