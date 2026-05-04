@@ -26,9 +26,9 @@ module Energy
    implicit none
 
    ! Printing definitions
-   ! integer :: eavrg_step !< Interval for sampling average energy
-   ! integer :: eavrg_buff !< Buffer size for average energy
-   ! character(len=1) :: do_avrg !< Measure average magnetization (Y/N)
+   integer :: eavrg_step !< Interval for sampling average energy
+   integer :: eavrg_buff !< Buffer size for average energy
+   character(len=1) :: do_avrg !< Measure average magnetization (Y/N)
 
    type ene_t
    ! Separated energy contributions
@@ -669,13 +669,13 @@ contains
          call memocc(i_stat,product(shape(ene%ene_pair))*kind(ene%ene_pair),'ene%ene_pair','allocate_energies')
          ene%ene_pair=0.0_dblprec
 
-         allocate(eavg_buff(3,ene_buff,Mensemble),stat=i_stat)
+         allocate(eavg_buff(3,eavrg_buff,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(eavg_buff))*kind(eavg_buff),'eavg_buff','allocate_energies')
          eavg_buff=0.0_dblprec
-         allocate(eavg2_buff(3,ene_buff,Mensemble),stat=i_stat)
+         allocate(eavg2_buff(3,eavrg_buff,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(eavg2_buff))*kind(eavg2_buff),'eavg2_buff','allocate_energies')
          eavg2_buff=0.0_dblprec
-         allocate(eavg4_buff(3,ene_buff,Mensemble),stat=i_stat)
+         allocate(eavg4_buff(3,eavrg_buff,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(eavg4_buff))*kind(eavg4_buff),'eavg4_buff','allocate_energies')
          eavg4_buff=0.0_dblprec
 
