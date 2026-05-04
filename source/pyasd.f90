@@ -251,7 +251,9 @@ contains
    subroutine RunLLGCUDA()
       implicit none
 
-      call sd_mphaseCUDA(1, 1)
+      integer :: one = 1
+
+      call sd_mphaseCUDA(one, one)
    end subroutine RunLLGCUDA
 
    subroutine RunLD()

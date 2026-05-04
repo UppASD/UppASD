@@ -191,7 +191,7 @@ contains
 
       ! Calculate total and term resolved energies
          if(plotenergy>0) then
-            if (mod(ext_mstep-1,avrg_step)==0) then
+            if (mod(ext_mstep-1,ene_step)==0) then
                call calc_energy(nHam,ext_mstep,Natom,Nchmax, &
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
