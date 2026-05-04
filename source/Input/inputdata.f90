@@ -132,6 +132,8 @@ module InputData
    integer :: heisout          !< Print debug information from heisge
    integer :: evolveout        !< Print debug information from evolution
    integer :: plotenergy       !< Calculate and plot energy (0/1)
+   integer :: ene_step        !< Interval for sampling energy
+   integer :: ene_buff        !< Buffer size for energy buffering before printing
    integer :: do_hoc_debug     !< Print higher order couplings debug information (0/1)
    integer :: do_prnstruct     !< Print Hamiltonian information (0/1)
    integer :: do_storeham       !< Save a binary copy of the Heisenberg Hamiltonian (0/1)
@@ -447,6 +449,8 @@ contains
       heisout           = 0
       mompar            = 0
       plotenergy        = 0
+      ene_step          = 100
+      ene_buff          = 10
       do_sparse         = 'N'
       do_reduced        = 'N'
 

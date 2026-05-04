@@ -514,7 +514,7 @@ contains
          if(plotenergy>0) then
             call timing(0,'Measurement   ','OF')
             call timing(0,'Energy        ','ON')
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,ene_step)==0) then
                call calc_energy(nHam,mstep,Natom,Nchmax, &
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &

@@ -1108,7 +1108,7 @@ contains
 
          ! Calculate total and term resolved spin energies
          if(plotenergy>0) then
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,ene_step)==0) then
                totenergy=0.0_dblprec
                call calc_energy(nHam,mstep,Natom,Nchmax,  &
                   conf_num,Mensemble,Natom,Num_macro,1,  &
@@ -1426,7 +1426,7 @@ contains
 
       ! Calculate total and term resolved spin energies
       if(plotenergy>0) then
-         if (mod(mstep-1,avrg_step)==0) then
+         if (mod(mstep-1,ene_step)==0) then
             totenergy=0.0_dblprec
             call calc_energy(nHam,mstep,Natom,Nchmax, &
                conf_num,Mensemble,Natom,Num_macro,1,     &
@@ -1732,7 +1732,7 @@ contains
 
          ! Calculate total and term resolved spin energies
          if(plotenergy>0) then
-            if (mod(mstep-1,avrg_step)==0) then
+            if (mod(mstep-1,ene_step)==0) then
                totenergy=0.0_dblprec
                call calc_energy(nHam,mstep,Natom,Nchmax,  &
                   conf_num,Mensemble,nHam,Num_macro,1,   &
@@ -1981,7 +1981,7 @@ contains
 
       ! Calculate total and term resolved spin energies
       if(plotenergy>0) then
-         if (mod(mstep-1,avrg_step)==0) then
+         if (mod(mstep-1,ene_step)==0) then
             totenergy=0.0_dblprec
             call calc_energy(nHam,mstep,Natom,Nchmax, &
                conf_num,Mensemble,nHam,Num_macro,1,      &
