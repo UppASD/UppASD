@@ -307,6 +307,7 @@ contains
       character(LEN=30), intent(in) :: twfile !< Name of input file
       !
       integer :: iw
+      integer :: jw, twtmp
       integer :: i_stat
 
       open(ifileno, file=adjustl(twfile))
@@ -318,6 +319,25 @@ contains
       do iw=1,nspinwait
          read (ifileno,*) spinwaitt(iw)
       enddo
+
+      ! Sort waiting times in ascending order
+      do iw=2,nspinwait
+         twtmp = spinwaitt(iw)
+         jw = iw - 1
+         do while (jw>=1 .and. spinwaitt(jw)>twtmp)
+            spinwaitt(jw+1) = spinwaitt(jw)
+            jw = jw - 1
+         end do
+         spinwaitt(jw+1) = twtmp
+      end do
+
+      ! Ensure that waiting time iteration nubers are larger than 0
+      if (spinwaitt(1) < 0) then
+         write(*,*) 'ERROR: Invalid waiting time iteration number: ', spinwaitt(1)
+         stop
+      else if (spinwaitt(1) == 0) then
+         spinwaitt(:) = spinwaitt(:) + 1
+      end if
 
       close(ifileno)
    end subroutine read_tw
