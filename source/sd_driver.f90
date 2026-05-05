@@ -1051,10 +1051,15 @@ contains
 #else
       use NoCuda
 #endif
+   use Restart
       use Damping
       use SpinTorques, only : btorque, stt
-      use InputData, only : do_gpu, gpu_mc_bf
+      use InputData
       use Correlation
+   use MomentData, only : emom, mmom
+      use CalculateFields, only : calc_external_fields
+      use FieldData, only : external_field, sitefld
+      use SystemData, only : anumb
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
@@ -1063,6 +1068,10 @@ contains
 
       whichsim = 0
       whichphase = 0
+
+      ! Match CPU sd_iphase setup: initialize static external fields for initial phase.
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field, &
+         do_bpulse,sitefld,sitenatomfld)
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
@@ -1087,6 +1096,16 @@ contains
       !else
       !   stop "Invalid do_gpu"
       !endif
+
+      ! Save restart information after GPU initial phase.
+      call timing(0,'PrintRestart  ','ON')
+      if (do_mom_legacy.ne.'Y') then
+         call prn_mag_conf(Natom,0,Mensemble,'R',simid,mmom,emom,'',mode)
+      else
+         call prnrestart(Natom,Mensemble,simid,0,emom,mmom)
+      endif
+      call timing(0,'PrintRestart  ','OF')
+
       call timing(0,'Measurement   ','OF')
    end subroutine sd_iphaseGPU
 

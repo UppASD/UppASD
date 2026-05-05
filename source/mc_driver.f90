@@ -548,10 +548,13 @@ contains
 #else
       use NoCuda
 #endif
+   use Restart
       use Damping
       use SpinTorques, only : btorque, stt
-      use InputData, only : do_gpu, gpu_mc_bf
+      use InputData, only : do_gpu, gpu_mc_bf, Natom, Mensemble, simid, mode, &
+         do_mom_legacy
       use Correlation
+   use MomentData, only : emom, mmom
 
       ! Common stuff
       integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC
@@ -584,6 +587,16 @@ contains
       !else
       !  stop "Invalid do_gpu"
       !endif
+
+      ! Save restart information after GPU initial phase.
+      call timing(0,'PrintRestart  ','ON')
+      if (do_mom_legacy.ne.'Y') then
+         call prn_mag_conf(Natom,0,Mensemble,'R',simid,mmom,emom,'',mode)
+      else
+         call prnrestart(Natom,Mensemble,simid,0,emom,mmom)
+      endif
+      call timing(0,'PrintRestart  ','OF')
+
       call timing(0,'Measurement   ','OF')
    end subroutine mc_iphaseGPU
 
