@@ -101,7 +101,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         cumu_buff_cpu.AllocateHost(1);
         cumu_buff_cpu.zeros();
 
-        if (do_ene>0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
+        if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
         else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
 
         std::cout << "BinderCumulant observable added" << std::endl;
@@ -239,8 +239,7 @@ void GpuMeasurement::release(){
     {
         cumu_buff_gpu.Free();
         cumu_buff_cpu.FreeHost();
-        cumu_partial_buff.Free();
-        if (do_ene>0) cumu_partial_buff.Free();
+        if (do_ene==0) cumu_partial_buff.Free();
         else cumu_ene_partial_buff.Free();
     }
 
@@ -430,8 +429,8 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
             mavg_partial_buff.data(), mavg_kernel_blocks.x, M, mavg_buff_gpu.data()[mavg_count]
     );
 
-    mavg_count++;
     fill_index(mavg_iter, mstep, mavg_count);
+    mavg_count++;
 
     if (mavg_count >= *FortranData::avrg_buff)
     {
@@ -523,8 +522,8 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
         );
     }
 
-    skyno_count++;
     fill_index(skyno_iter, mstep, skyno_count);
+    skyno_count++;
 
     if (skyno_count >= *FortranData::skyno_buff)
     {
@@ -549,8 +548,8 @@ void GpuMeasurement::measureEnergy(size_t mstep)
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
     //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);
     
-    energy_count++;
     fill_index(energy_iter, mstep, energy_count);
+    energy_count++;
 
     if ((energy_count % *FortranData::ene_buff) == 0)
     {
@@ -574,8 +573,8 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
         calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
     
 
-        ac_count++;
         fill_index(indxb_ac, mstep + 1, ac_count);
+        ac_count++;
 
         if (ac_count >= *FortranData::ac_buff)
         {
