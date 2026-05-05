@@ -136,14 +136,16 @@ contains
 
          else if (flag==2) then
 
-            call calc_gkt(Natom, Mensemble,NT,atype,Nchmax,achtype, cc, coord, idata, gkt_flag)
+            if (cc%sc_tidx > 0) then
+               call calc_gkt(Natom, Mensemble,NT,atype,Nchmax,achtype, cc, coord, idata, gkt_flag)
 
-            if(do_cc=='Q'.or.do_cc=='Y')  then
-               call print_gkw(NT, Nchmax, cc, cc, simid, cc%label)
-            end if
+               if(do_cc=='Q'.or.do_cc=='Y')  then
+                  call print_gkw(NT, Nchmax, cc, cc, simid, cc%label)
+               end if
 
-            if(do_cc=='T'.or.do_cc=='Y')  then
-               call print_gkt(NT, Nchmax, cc, cc, simid, cc%label)
+               if(do_cc=='T'.or.do_cc=='Y')  then
+                  call print_gkt(NT, Nchmax, cc, cc, simid, cc%label)
+               end if
             end if
 
          else if (flag==3) then
