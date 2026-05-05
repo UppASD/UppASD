@@ -198,6 +198,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
         
         sw_curIdx = 0;
+        printf("\n do_ac = %c, swtt size = %i\n ", do_autocorr, spinwaittable_cpu.extent(0));
         sw_next = spinwaittable_cpu(0);
         sw_curr = 0;
 
@@ -726,7 +727,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
         case MeasurementType::Autocorrelation: {
-            return do_autocorr && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
+            return (do_autocorr=='Y') && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
         }
 
         case MeasurementType::Energy:

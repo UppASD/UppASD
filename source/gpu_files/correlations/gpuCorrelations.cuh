@@ -11,6 +11,7 @@
 #include <thrust/complex.h>
 #include <curand.h>
 #include "correlation.hpp"
+#include "correlation_types.h"
 
 
 //#include <complex>
@@ -23,52 +24,44 @@ private:
     const GpuTensor<real, 3>& emom;
     const GpuTensor<real, 2>& mmom;
 
-    unsigned int numThreads;
-    unsigned int numBlocksX_q;
-    unsigned int numBlocksX_w;
-    unsigned int numBlocksY_q;
-    unsigned int numBlocksY_w;
-    //std::size_t step_num;
-    //std::size_t cc_step;
-    std::size_t N;
-    std::size_t M;
-    std::size_t nq;
+    const std::size_t N;
+    const std::size_t M;
+    const std::size_t nq;
     //std::size_t tidx;
-    std::size_t sc_step;
-    std::size_t sc_sep;
+    const std::size_t sc_step;
+    const std::size_t sc_sep;
 
     std::size_t n_samples;
-    char do_sc;
-    std::size_t sc_max_nstep;
-    std::size_t sc_window_fun;
-    std::size_t nw;
+    const char do_sc;
+    const char do_proj;
+    const char do_projch;
+    const std::size_t sc_max_nstep;
+    const std::size_t sc_window_fun;
+    const std::size_t nw;
+
+    const std::size_t Nchmax;
+    const std::size_t NT;
+
     std::size_t both_flag;
     real delta_t;
 
     unsigned int  t_cur;
-    //unsigned int  spinTot;
-    unsigned int  tasksTot_q;
-    unsigned int  tasksTot_w;
+    unsigned int  t_cur_proj;
+    unsigned int  t_cur_projch;
+
     unsigned int maxThreads;
     unsigned int maxBlocks;
-    dim3 blocks_q;
-    dim3 blocks_w;
+    unsigned int numThreads;
+
+
+    blocksQW blQ;
+    blocksQW blW;
+    blocksQWproj blQproj;
+    blocksQWproj blWproj;
+    blocksQWproj blQprojch;
+    blocksQWproj blWprojch;
     dim3 threads;
 
-    //real nainv;
-    //thrust::complex<real> iqfac;
-
-    //Block variables
-    GpuTensor<thrust::complex<real>, 2> sc_block_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_block_w_gpu;
-    GpuTensor<thrust::complex<real>, 2> sc_q_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qt_gpu;
-    GpuTensor<thrust::complex<real>, 3> sc_qw_gpu;
-    Tensor<thrust::complex<real>, 2> sc_q_cpu;
-
-
-    // Buffer variables 
-    //Tensor<real, 2> SC;     // 3 x buff x M
     GpuTensor<real, 1> r_mid;
     GpuTensor<real, 2> q;
     GpuTensor<real, 2> coord;
@@ -76,6 +69,10 @@ private:
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
     Tensor<real, 1> sc_step_arr_cpu;  // Host buffer for sc_step array bookkeeping
+
+    SC_proj sc_proj;
+    SC_proj sc_projch;
+    SC sc;
 
 public:
     // Constructor
@@ -92,5 +89,13 @@ public:
     void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) override;
     void recordSample();
     void publishSamplingInfo(hostCorrelations& cpuCorrelations);
+
+private:
+    void measure_SC(std::size_t mstep);
+    void measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWproj blQp, char sc_type, unsigned int& t_cur_local);
+
+    void flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations);
+    void flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
+
 };
 

@@ -17,14 +17,20 @@
 #include "measurementFactory.hpp"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
+#include "correlationFactory.hpp"
+
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
 #include <hiprand/hiprand.h>
+#include "gpuCorrelations.hpp"
+
 #elif defined(CUDA_V)
 #include <cuda.h>
 #include <curand.h>
+#include "gpuCorrelations.cuh"
+
 #endif
 using ParallelizationHelper = GpuParallelizationHelper;
 
@@ -228,6 +234,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       measure_ene = ((mstep-1)%gpuSim.SimParam.ene_step == 0);
       hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       measurement->measure(mstep);
+      correlation->measure(mstep);
+
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -263,12 +271,16 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    // Final measure
    hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
    measurement->measure(mcnstep + 1);  // TODO
+   correlation->measure(mcnstep + 1);  // TODO
+
    stopwatch.add("measurement");
 
    mqueue.finish();
 
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, mcnstep + 1); 
+
    stopwatch.add("flush measurement");
 
    // Synchronize with device
@@ -431,6 +443,8 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
       // Measure
       //printf("STEP = %i\n", mstep);
       measurement->measure(mstep);
+      correlation->measure(mstep);
+
       stopwatch.add("measurement");
 
       // Print simulation status for each 5% of the simulation length
@@ -447,6 +461,13 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
          hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
          stopwatch.add("hamiltonian");
 
+      measurement->updateAC(mstep);
+
+
+      
+
+
+
       // Check for error
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
       if(e != GPU_SUCCESS) {
@@ -461,11 +482,15 @@ const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cp
    hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
 
    measurement->measure(mcnstep + 1);
+   correlation->measure(mcnstep + 1);  // TODO
+
    stopwatch.add("measurement");
 
    mqueue.finish();
    // Print remaining measurements
    measurement->flushMeasurements(mcnstep + 1);  // TODO
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, mcnstep + 1); 
+
    stopwatch.add("flush measurement");
 
    // Synchronize with device

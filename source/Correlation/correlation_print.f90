@@ -83,6 +83,8 @@ contains
 
          call combine_corr_proj_scalar(nt, nq, 3, cc%nw, cc%m_kw_proj, cc%m_kw_proj, c_kw_proj)
 
+         c_kw_proj = c_kw_proj / (0.5_dblprec*(cc%sc_tidx-1)) / (0.5_dblprec*(dc%sc_tidx-1))
+
          ! Write S(q,w)
          do it=1,nt
             do jt=1,nt
@@ -117,6 +119,8 @@ contains
          c_kw_projch=0.0_dblprec
 
          call combine_corr_proj_scalar(Nchmax, nq, 3, cc%nw, dc%m_kw_projch, dc%m_kw_projch, c_kw_projch)
+
+         c_kw_projch = c_kw_projch / (0.5_dblprec*(cc%sc_tidx-1)) / (0.5_dblprec*(dc%sc_tidx-1))
 
          ! Write S(q,w)
          do it=1,nchmax
@@ -322,6 +326,8 @@ contains
 
          call combine_corr_proj_scalar(nt, nq, 3, cc%sc_max_nstep, cc%m_kt_proj, cc%m_kt_proj, c_kt_proj)
 
+         c_kt_proj = c_kt_proj / (0.5_dblprec*(cc%sc_tidx-1)) / (0.5_dblprec*(dc%sc_tidx-1))
+
          ! Write S(q,w)
          do it=1,nt
             do jt=1,nt
@@ -348,6 +354,8 @@ contains
          c_kt_projch=0.0_dblprec
 
          call combine_corr_proj_scalar(Nchmax, nq, 3, cc%sc_max_nstep, dc%m_kt_projch, dc%m_kt_projch, c_kt_projch)
+
+         c_kt_projch = c_kt_projch / (0.5_dblprec*(cc%sc_tidx-1)) / (0.5_dblprec*(dc%sc_tidx-1))
 
          ! Write S(q,t)
          do it=1,nchmax
