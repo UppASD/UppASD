@@ -324,8 +324,8 @@ contains
       !!!TODO: replace those with actual variables 
       integer :: ene_step = 10
       integer :: ene_buff = 100
-      character(len=1)::do_projch_avrg = 'Y'
-      character(len=1)::do_cumu_proj = 'Y'
+      !character(len=1)::do_projch_avrg = 'Y'
+      !character(len=1)::do_cumu_proj = 'Y'
 
 
       if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then

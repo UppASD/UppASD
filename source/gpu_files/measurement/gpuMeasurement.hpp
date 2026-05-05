@@ -62,7 +62,13 @@ private:
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
+    const uint NA, Natom_full, Nchmax;
+    const char do_avrg_proj;
+    const bool do_avrg_projch;
+    const bool do_cumu_proj;
+
     bool do_jtensor;
+    const int do_ralloy;
     GPU_STREAM_T workStream;
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
@@ -71,12 +77,28 @@ private:
     // Average magnetization
     const bool do_avrg;
     GpuVector<AverageMagnetizationData> mavg_buff_gpu;
+    GpuTensor<AverageMagnetizationData, 2> mavg_proj_buff_gpu;
+    GpuTensor<AverageMagnetizationData, 2> mavg_projch_buff_gpu;
     Vector<AverageMagnetizationData> mavg_buff_cpu;
+    Tensor<AverageMagnetizationData, 2> mavg_proj_buff_cpu;
+    Tensor<AverageMagnetizationData, 2> mavg_projch_buff_cpu;
     GpuVector<kernels::measurement::AvgMPart> mavg_partial_buff;
+    GpuTensor<kernels::measurement::AvgMPart, 2> mavg_proj_partial_buff;
+    GpuTensor<kernels::measurement::AvgMPart, 2> mavg_projch_partial_buff;
     Vector<real> mavg_iter;
     const dim3 mavg_kernel_threads;
     const dim3 mavg_kernel_blocks;
+    dim3 mavg_proj_kernel_threads;
+    dim3 mavg_proj_kernel_blocks;
+    dim3 mavg_projch_kernel_threads;
+    dim3 mavg_projch_kernel_blocks;
     size_t mavg_count = 0;
+    GpuVector<int> achem_ch_gpu;
+    GpuVector<int> asite_ch_gpu;
+    GpuVector<int> atype_gpu;
+    Vector<int> achem_ch_cpu;
+    Vector<int> asite_ch_cpu;
+    Vector<int> atype_cpu;
 
 
     // Energy
@@ -97,6 +119,9 @@ private:
     GpuVector<BinderCumulantData> cumu_buff_gpu; // scalar but tensor of rank 0 is not allowed, so rank 1 is size 1
     Vector<BinderCumulantData> cumu_buff_cpu;
     GpuVector<kernels::measurement::BinderPart> cumu_partial_buff;
+    GpuVector<BinderCumulantData> cumu_NT_buff_gpu; // scalar but tensor of rank 0 is not allowed, so rank 1 is size 1
+    Vector<BinderCumulantData> cumu_NT_buff_cpu;
+    GpuTensor<kernels::measurement::BinderPart, 2> cumu_NT_partial_buff;
     const dim3 cumu_kernel_threads;
     const dim3 cumu_kernel_blocks;
     size_t cumu_count = 0;
@@ -111,8 +136,22 @@ private:
     // Used for both Average magnetization and Binder cumulant
     GpuTensor<real, 3> emomMEnsembleSums_partial;
     GpuTensor<real, 2> emomMEnsembleSums; // tensor of dim = 3 x M
+    GpuTensor<real, 4> emomMEnsembleNTSums_partial;
+    GpuTensor<real, 3> emomMEnsembleNTSums; // tensor of dim = 3 x M
+    GpuTensor<real, 4> emomMEnsembleNASums_partial;
+    GpuTensor<real, 3> emomMEnsembleNASums; // tensor of dim = 3 x M
+    GpuTensor<real, 4> emomMEnsembleNCSums_partial;
+    GpuTensor<real, 3> emomMEnsembleNCSums; // tensor of dim = 3 x M
     const dim3 sumOverAtoms_kernel_threads;
     const dim3 sumOverAtoms_kernel_blocks;
+
+    dim3 sumOverAtoms_NT_kernel_threads;
+    dim3 sumOverAtoms_NT_kernel_blocks;
+    dim3 sumOverAtoms_NA_kernel_threads;
+    dim3 sumOverAtoms_NA_kernel_blocks;
+    dim3 sumOverAtoms_NC_kernel_threads;
+    dim3 sumOverAtoms_NC_kernel_blocks;
+
 
     // Skyrmion number
     const SkyrmionMethod do_skyno;
