@@ -44,7 +44,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , do_avrg(*FortranData::do_avrg == 'Y')
 , do_avrg_proj(*FortranData::do_avrg_proj)
 , do_avrg_projch(*FortranData::do_avrg_projch == 'Y')
-, do_cumu_proj(*FortranData::do_cumu_proj == 'Y')
+, do_cumu_proj(*FortranData::do_cumu_proj)
+, do_cumu_projch(0)
 , do_ralloy(*FortranData::do_ralloy)
 , mavg_kernel_threads(256)
 , mavg_kernel_blocks(mm::ceil_div(M, mavg_kernel_threads.x))
@@ -138,16 +139,44 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
         else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
 
-        if(do_cumu_proj){
+        if(do_cumu_proj == 'Y'){
+            cumu_proj_kernel_blocks = {1,1,1};
 
-            cumu_NT_buff_gpu.Allocate(NT);
-            cumu_NT_buff_gpu.zeros();
+            cumu_proj_buff_gpu.Allocate(NT);
+            cumu_proj_buff_gpu.zeros();
 
-            cumu_NT_buff_cpu.AllocateHost(NT);
-            cumu_NT_buff_cpu.zeros();
+            cumu_proj_buff_cpu.AllocateHost(NT);
+            cumu_proj_buff_cpu.zeros();
 
-            cumu_NT_partial_buff.Allocate(cumu_ene_kernel_blocks.x, NT);
-            cumu_NT_partial_buff.zeros();
+            cumu_proj_partial_buff.Allocate(cumu_proj_kernel_blocks.x, NT);
+            cumu_proj_partial_buff.zeros();
+        }
+        else if(do_cumu_proj == 'A'){
+            cumu_proj_kernel_blocks = {1,1,1};
+
+            cumu_proj_buff_gpu.Allocate(NA);
+            cumu_proj_buff_gpu.zeros();
+
+            cumu_proj_buff_cpu.AllocateHost(NA);
+            cumu_proj_buff_cpu.zeros();
+
+            cumu_proj_partial_buff.Allocate(cumu_proj_kernel_blocks.x, NA);
+            cumu_proj_partial_buff.zeros();
+
+        }
+        
+        if(do_cumu_projch){
+
+            cumu_projch_kernel_blocks = {1,1,1};
+
+            cumu_projch_buff_gpu.Allocate(NT);
+            cumu_projch_buff_gpu.zeros();
+
+            cumu_projch_buff_cpu.AllocateHost(NT);
+            cumu_projch_buff_cpu.zeros();
+
+            cumu_projch_partial_buff.Allocate(cumu_projch_kernel_blocks.x, NT);
+            cumu_projch_partial_buff.zeros();
         }
 
         std::cout << "BinderCumulant observable added" << std::endl;
@@ -161,20 +190,20 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         emomMEnsembleSums_partial.Allocate(sumOverAtoms_kernel_blocks.x, 3, M);
         emomMEnsembleSums_partial.zeros();
 
-        if((do_avrg_proj=='Y')||(do_cumu_proj)){
+        if((do_avrg_proj=='Y')||(do_cumu_proj == 'Y')){
             emomMEnsembleNTSums.Allocate(3, NT, M);
             emomMEnsembleNTSums.zeros();
             emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
             emomMEnsembleNTSums_partial.zeros();
         }
-        if((do_avrg_proj=='A')){
-            emomMEnsembleNASums.Allocate(3, NT, M);
+        if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
+            emomMEnsembleNASums.Allocate(3, NA, M);
             emomMEnsembleNASums.zeros();
-            emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NT, M);
+            emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
             emomMEnsembleNASums_partial.zeros();
 
         }
-        if((do_avrg_projch=='Y')){
+        if((do_avrg_projch=='Y')||(do_cumu_projch=='Y')){
             emomMEnsembleNCSums.Allocate(3, Nchmax, M);
             emomMEnsembleNCSums.zeros();
             emomMEnsembleNCSums_partial.Allocate(sumOverAtoms_NC_kernel_blocks.x, 3, Nchmax, M);
@@ -331,11 +360,18 @@ void GpuMeasurement::release(){
         if (do_ene==0) cumu_partial_buff.Free();
         else cumu_ene_partial_buff.Free();
 
-        if(do_cumu_proj){
-            cumu_NT_buff_gpu.Free();
-            cumu_NT_buff_cpu.FreeHost();
-            cumu_NT_partial_buff.Free();
+        if((do_cumu_proj == 'Y')||(do_cumu_proj == 'A')){
+            cumu_proj_buff_gpu.Free();
+            cumu_proj_buff_cpu.FreeHost();
+            cumu_proj_partial_buff.Free();
         }
+
+        if(do_cumu_projch){
+            cumu_projch_buff_gpu.Free();
+            cumu_projch_buff_cpu.FreeHost();
+            cumu_projch_partial_buff.Free();
+        }
+
     }
 
     if (do_avrg || do_cumu)
