@@ -64,6 +64,7 @@ module prn_averages
    public :: print_averages, flush_averages, averages_allocations, avrg_init, calc_and_print_cumulant
    public :: read_parameters_averages,zero_cumulant_counters
    public :: do_avrg, do_proj_avrg, mavg, binderc, avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff
+   public :: do_projch_avrg, do_cumu_proj 
    public :: mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj
    public :: avrgmcum, avrgm2cum, avrgm4cum
    public :: Navrgcum

@@ -17,10 +17,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, do_proj_avrg, mavg, binderc, &
-        avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff, &
-        mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj, &
-        avrgmcum, avrgm2cum, avrgm4cum
+   use prn_averages,  
    use prn_topology,     only : skyno, skyno_step, skyno_buff
    use Gradients,        only : dxyz_vec, dxyz_atom, dxyz_list
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff, calc_energy
@@ -323,8 +320,13 @@ contains
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
+      
+      !!!TODO: replace those with actual variables 
       integer :: ene_step = 10
       integer :: ene_buff = 100
+      !character(len=1)::do_projch_avrg = 'Y'
+      !character(len=1)::do_cumu_proj = 'Y'
+
 
       !if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
       !   print *, "Projections are not available in GPU correlations yet, please use do_gpu_correlations 0"
@@ -404,9 +406,9 @@ contains
 
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
-           do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
+           do_avrg, do_proj_avrg, do_projch_avrg, do_cumu, do_cumu_proj, plotenergy, do_autocorr, do_tottraj, ntraj, &
            do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure, &
-           cc%do_proj, cc%do_projch)
+           cc%do_proj, cc%do_projch, do_ralloy)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &
          ham%max_no_neigh,delta_t,gama,k_bolt,mub,mplambda1,binderc,mavg,mompar, &
@@ -414,7 +416,7 @@ contains
          avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
-         NT, Nchmax, mry)
+         NT, Nchmax, mry, NA, Natom_full)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
@@ -435,7 +437,8 @@ contains
            traj_step, traj_buff, traj_atom, &
            mmomb, mmomb_traj, emomb, emomb_traj, &
            spinwaitt, spinwait, &
-           indxb_ac, autocorr_buff) !TODO: get rd of those once printed on CPU
+           indxb_ac, autocorr_buff, &
+           achem_ch, asite_ch) !TODO: get rd of those once printed on CPU
 
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype, achtype, cc%m_k_proj, cc%m_k_projch, &
