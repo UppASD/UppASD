@@ -216,6 +216,9 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, mqueue,
                                                       gpuSim.Flags.do_jtensor);
  
+   //Corrrelations
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
+            gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -425,6 +428,9 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
 const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, mqueue,
                                                    gpuSim.Flags.do_jtensor);
  
+//Corrrelations
+const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
+         gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);

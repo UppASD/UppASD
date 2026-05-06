@@ -55,24 +55,9 @@ contains
       call memocc(i_stat,product(shape(c_kw))*kind(c_kw),'c_kw','print_gkw')
       c_kw=0.0_dblprec
 
-      ! DEBUG: Check if m_kt and m_kw have data from GPU
-      print *, '[SQW-DEBUG] print_gkw entry: cc%sc_tidx=', cc%sc_tidx, ' dc%sc_tidx=', dc%sc_tidx
-      print *, '[SQW-DEBUG] m_kt shape:', shape(cc%m_kt), ' first q-point (t=1):', cc%m_kt(:,1,1)
-      print *, '[SQW-DEBUG] m_kw shape:', shape(cc%m_kw), ' first q-point (w=1):', cc%m_kw(:,1,1)
-      print *, '[SQW-DEBUG] m_kt first element sum (real):', real(sum(cc%m_kt(:,1:min(3,nq),1:min(3,cc%sc_max_nstep))))
-
-      print *, '[SQW-DEBUG] is m_kt allocated? ', allocated(cc%m_kt)
-      print *, '[SQW-DEBUG] is m_kw allocated? ', allocated(cc%m_kw)
-
       call combine_corr_scalar(nq, 3, cc%nw, cc%m_kw, dc%m_kw, c_kw)
 
-      print *, '[SQW-DEBUG] After combine_corr_scalar: first element of c_kw:', c_kw(:,1,1)
-      print *, '[SQW-DEBUG] Divisor = (0.5*(cc%sc_tidx-1)) * (0.5*(dc%sc_tidx-1)) = ', &
-               (0.5_dblprec*(cc%sc_tidx-1)) * (0.5_dblprec*(dc%sc_tidx-1))
-
       c_kw = c_kw / (0.5_dblprec*(cc%sc_tidx-1))  / (0.5_dblprec*(dc%sc_tidx-1))
-
-      print *, '[SQW-DEBUG] After normalization: first element of c_kw:', c_kw(:,1,1)
 
       if(cc%do_proj=='Q'.or.cc%do_proj=='Y') then
 

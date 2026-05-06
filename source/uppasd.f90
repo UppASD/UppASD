@@ -364,15 +364,15 @@ contains
       if (do_gpu == 'Y' .and. do_gpu_correlations == 'Y') then !HIP or CUDA
          print *, "Running correlation calculations on GPU"
             if(do_sc=='C'.or.do_sc=='Y')  then
-               call print_gk(NT, Nchmax, sc, sc, simid, sc%label)
+               call print_gk(NT_meta, Nchmax, sc, sc, simid, sc%label)
             end if
 
             if(do_sc=='Q'.or.do_sc=='Y')  then
-               call print_gkw(NT, Nchmax, sc, sc, simid, sc%label)
+               call print_gkw(NT_meta, Nchmax, sc, sc, simid, sc%label)
             end if
 
             if(do_sc=='T'.or.do_sc=='Y')  then
-               call print_gkt(NT, Nchmax, sc, sc, simid, sc%label)
+               call print_gkt(NT_meta, Nchmax, sc, sc, simid, sc%label)
             end if
       else
          ! Spin-correlation

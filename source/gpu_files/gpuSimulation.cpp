@@ -186,6 +186,8 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
     cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
+    cpuLattice.ipdelta_t.set(FortranData::ipdelta_t, ipnphase);
+    cpuLattice.iplambda1.set(FortranData::iplambda1, ipnphase);
     if(Flags.do_gpu_correlations){
         cpuCorrelations.r_mid.set(FortranData::r_mid, static_cast <long int>(3));
         cpuCorrelations.q.set(FortranData::q, static_cast <long int>(3), nq);
@@ -544,6 +546,9 @@ printf("current type %i\n", whichsim);
             copyToFortran();
         }
         else if(whichphase == 1) {
+            // Ensure measurement phase starts from the latest moments stored on the Fortran side.
+            // This is important when initial and measurement phases are executed in separate GPU sessions.
+            copyFromFortran();
             GpuSD.SDmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}

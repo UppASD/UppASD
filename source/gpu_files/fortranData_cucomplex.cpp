@@ -87,6 +87,8 @@ real* FortranData::ipTemp;
 unsigned int* FortranData::ipmcnstep;
 real* FortranData::ipTemp_array;
 unsigned int* FortranData::ipnstep;
+real* FortranData::ipdelta_t;
+real* FortranData::iplambda1;
 real* FortranData::mmom0;
 real* FortranData::mmom2;
 real* FortranData::mmomi;
@@ -205,7 +207,8 @@ void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, u
                                          real* p_j_tensor, unsigned int* p_aHam, 
                                          real* p_external_field, real* p_btorque, real* p_Temp_array, 
                                          real * p_ipTemp, unsigned int * p_ipmcnstep,
-                                         real * p_ipTemp_array, unsigned int* p_ipnstep){
+                                         real * p_ipTemp_array, unsigned int* p_ipnstep,
+                                         real * p_ipdelta_t, real * p_iplambda1){
 
    ncoup = p_ncoup;
    nlist = p_nlist;
@@ -226,6 +229,8 @@ void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, u
    ipmcnstep = p_ipmcnstep;
    ipTemp_array = p_ipTemp_array;
    ipnstep = p_ipnstep;
+   ipdelta_t = p_ipdelta_t;
+   iplambda1 = p_iplambda1;
 }
 
 
@@ -398,11 +403,12 @@ extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist
    real* p_j_tensor, unsigned int* p_aHam, 
    real* p_external_field, real* p_btorque, real* p_Temp_array, 
    real * p_ipTemp, unsigned int * p_ipmcnstep,
-   real * p_ipTemp_array, unsigned int* p_ipnstep) {
+   real * p_ipTemp_array, unsigned int* p_ipnstep,
+   real * p_ipdelta_t, real * p_iplambda1) {
 FortranData::setHamiltonianPointers(
    p_ncoup, p_nlist, p_nlistsize, p_dmvect, p_dmlist, p_dmlistsize,  p_kaniso, p_eaniso, p_taniso, p_sb, 
    p_j_tensor, p_aHam, p_external_field, p_btorque, p_Temp_array, 
-   p_ipTemp, p_ipmcnstep, p_ipTemp_array, p_ipnstep);
+   p_ipTemp, p_ipmcnstep, p_ipTemp_array, p_ipnstep, p_ipdelta_t, p_iplambda1);
 }
 
 extern "C" void fortrandata_setlattice_(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 

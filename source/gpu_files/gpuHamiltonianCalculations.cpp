@@ -269,7 +269,7 @@ public:
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
       // Field
-      printf("here\n");
+      // printf("here\n");
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
