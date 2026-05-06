@@ -443,7 +443,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         if (p == 'p'){
             if (scp.qt.extent(0) == cpuCorrelations.m_kt_proj.extent(0) &&
                 scp.qt.extent(1) == cpuCorrelations.m_kt_proj.extent(1) &&
-                scp.qt.extent(2) == cpuCorrelations.m_kt_proj.extent(2)) {
+                scp.qt.extent(2) == cpuCorrelations.m_kt_proj.extent(2) &&
+                scp.qt.extent(3) == cpuCorrelations.m_kt_proj.extent(3)) {
 
                 cpuCorrelations.m_kt_proj.copy_sync(scp.qt);
                 //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
@@ -451,7 +452,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
                     // Transfer frequency-domain correlations (m_kw)
             if (scp.qw.extent(0) == cpuCorrelations.m_kw_proj.extent(0) &&
                 scp.qw.extent(1) == cpuCorrelations.m_kw_proj.extent(1) &&
-                scp.qw.extent(2) == cpuCorrelations.m_kw_proj.extent(2)) {
+                scp.qw.extent(2) == cpuCorrelations.m_kw_proj.extent(2) &&
+                scp.qw.extent(3) == cpuCorrelations.m_kw_proj.extent(3)) {
                 cpuCorrelations.m_kw_proj.copy_sync(scp.qw);
                 //printf("gpu projected %.4lf, %.4lf\n", 
                             //cpuCorrelations.m_kw_proj[0].real(),cpuCorrelations.m_kw_proj[10].real());
@@ -460,7 +462,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         else if (p == 'c'){                
             if (scp.qt.extent(0) == cpuCorrelations.m_kt_projch.extent(0) &&
                 scp.qt.extent(1) == cpuCorrelations.m_kt_projch.extent(1) &&
-                scp.qt.extent(2) == cpuCorrelations.m_kt_projch.extent(2)) {
+                scp.qt.extent(2) == cpuCorrelations.m_kt_projch.extent(2) &&
+                scp.qt.extent(3) == cpuCorrelations.m_kt_projch.extent(3)) {
 
                 cpuCorrelations.m_kt_projch.copy_sync(scp.qt);
                 //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
@@ -484,12 +487,23 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
 
         GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
         GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.blocksNum, nq);
+        GPU_DEVICE_SYNCHRONIZE();
         
-        // Transfer static S(q)
-        if (p == 'p')
-            cpuCorrelations.m_k_proj.copy_sync(scp.q);
-        else if (p=='c')
-            cpuCorrelations.m_k_projch.copy_sync(scp.q);
+        // Transfer static S(q) only when extents match host buffers
+        if (p == 'p') {
+            if (scp.q.extent(0) == cpuCorrelations.m_k_proj.extent(0) &&
+                scp.q.extent(1) == cpuCorrelations.m_k_proj.extent(1) &&
+                scp.q.extent(2) == cpuCorrelations.m_k_proj.extent(2)) {
+                cpuCorrelations.m_k_proj.copy_sync(scp.q);
+            }
+        }
+        else if (p=='c') {
+            if (scp.q.extent(0) == cpuCorrelations.m_k_projch.extent(0) &&
+                scp.q.extent(1) == cpuCorrelations.m_k_projch.extent(1) &&
+                scp.q.extent(2) == cpuCorrelations.m_k_projch.extent(2)) {
+                cpuCorrelations.m_k_projch.copy_sync(scp.q);
+            }
+        }
         
         if (p == 'p'){
             if (scp.qt.extent(0) == cpuCorrelations.m_kt_proj.extent(0) &&
@@ -516,7 +530,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
             }
             if (scp.qw.extent(0) == cpuCorrelations.m_kw_projch.extent(0) &&
                 scp.qw.extent(1) == cpuCorrelations.m_kw_projch.extent(1) &&
-                scp.qw.extent(2) == cpuCorrelations.m_kw_projch.extent(2)) {
+                scp.qw.extent(2) == cpuCorrelations.m_kw_projch.extent(2) &&
+                scp.qw.extent(3) == cpuCorrelations.m_kw_projch.extent(3)) {
                 cpuCorrelations.m_kw_projch.copy_sync(scp.qw);
             }
         }

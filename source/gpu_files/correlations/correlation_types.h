@@ -174,7 +174,7 @@ struct SC_proj{
             setZero<4> << <bl, numThreads >> > (qt, 3 * nq * sc_max_nstep * nproj);
             bl = (3 * nq * nw* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (qw, 3 * nq * nw * nproj);
-            bl = (3 * blw.x * nq * nw* nproj + numThreads - 1) / numThreads;
+            bl = (3 * blw.blocksNum * nq * nw* nproj + numThreads - 1) / numThreads;
             setZero<4> << <bl, numThreads >> > (w_block, 3 * blw.blocksNum * nq * nw* nproj);
 
         }

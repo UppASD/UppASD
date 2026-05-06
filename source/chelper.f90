@@ -300,13 +300,13 @@ contains
       cgk_flag = 2
       !type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       if(do_sc=='C'.or.do_sc=='Y') then
-         call print_gk(NT, Nchmax, sc, sc, simid, sc%label)
+         call print_gk(NT_meta, Nchmax, sc, sc, simid, sc%label)
       endif
      if(do_sc=='Q'.or.do_sc=='Y') then
-         call print_gkw(NT, Nchmax, sc, sc, simid, sc%label)
+         call print_gkw(NT_meta, Nchmax, sc, sc, simid, sc%label)
       endif
      if(do_sc=='T'.or.do_sc=='Y') then
-         call print_gkt(NT, Nchmax, sc, sc, simid, sc%label)
+         call print_gkt(NT_meta, Nchmax, sc, sc, simid, sc%label)
 
       endif
    end subroutine fortran_print_correlations
@@ -334,14 +334,13 @@ contains
       if(do_gpu_correlations=='Y'.and.phase=='M') then
          ! Calculate r_mid for GPU correlations, as it is needed for the correlation calculations and not calculated on the Fortran side otherwise
 
-            print *,'AB first test, do_sc = ', do_sc
          if (do_sc=='Y' .or. do_sc=='C') then
             ! Initializing Fortran-side correlation arrays. Here for static correlation function
             cc%gk_flag=2
             allocate(cc%m_k(3,nq))
             cc%m_k=0.0_dblprec
             if(cc%do_proj=='C'.or.cc%do_proj=='Y') then
-               allocate(cc%m_k_proj(3,nt,nq))
+               allocate(cc%m_k_proj(3,NT_meta,nq))
                cc%m_k_proj=0.0_dblprec
             end if
 
@@ -355,6 +354,18 @@ contains
             ! zeroflag = 0
             ! call calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, emomM, zeroflag)
          end if
+
+         ! Projected static correlations are needed whenever projected mode includes static terms,
+         ! even if base do_sc='Q' and m_k itself is not allocated.
+         if ((cc%do_proj=='C'.or.cc%do_proj=='Y') .and. (.not.allocated(cc%m_k_proj))) then
+            allocate(cc%m_k_proj(3,NT_meta,nq))
+            cc%m_k_proj=0.0_dblprec
+         end if
+
+         if ((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. (.not.allocated(cc%m_k_projch))) then
+            allocate(cc%m_k_projch(3,Nchmax,nq))
+            cc%m_k_projch=0.0_dblprec
+         end if
          if (do_sc=='Y' .or. do_sc=='Q') then
             ! Initializing Fortran-side correlation arrays. Here for dynamic correlation function
             cc%gkt_flag=2
@@ -364,9 +375,9 @@ contains
             allocate(cc%m_kw(3,nq,cc%nw))
             cc%m_kw=0.0_dblprec
             if(cc%do_proj=='Q'.or.cc%do_proj=='T'.or.cc%do_proj=='Y') then
-               allocate(cc%m_kt_proj(3,nt,nq,cc%sc_max_nstep))
+               allocate(cc%m_kt_proj(3,NT_meta,nq,cc%sc_max_nstep))
                cc%m_kt_proj=0.0_dblprec
-               allocate(cc%m_kw_proj(3,nt,nq,cc%nw))
+               allocate(cc%m_kw_proj(3,NT_meta,nq,cc%nw))
                cc%m_kw_proj=0.0_dblprec
             end if
 
@@ -386,22 +397,6 @@ contains
 
       end if
      
-      print *,' AB shape of m_k', shape(cc%m_k)
-      print *,' AB allocated?', allocated(cc%m_k)
-
-      print *,' AB shape of m_kt', shape(cc%m_kt)
-      print *,' AB allocated?', allocated(cc%m_kt)
-
-      print *,' AB shape of m_k_proj', shape(cc%m_k_proj)
-      print *,' AB allocated?', allocated(cc%m_k_proj)  
-
-      print *,' AB shape of m_kt_proj', shape(cc%m_kt_proj)
-      print *,' AB allocated?', allocated(cc%m_kt_proj)  
-
-
-      print *,' AB shape of m_kw_proj', shape(cc%m_kw_proj)
-      print *,' AB allocated?', allocated(cc%m_kw_proj)  
-
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_cumu, plotenergy, do_autocorr, do_tottraj, ntraj, &
@@ -414,14 +409,14 @@ contains
          avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
-         NT, Nchmax, mry)
+         NT_meta, Nchmax, mry)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &
          ham%kaniso, ham%eaniso, ham%taniso, ham%sb, &
          ham%j_tens, ham%aHam, &
          external_field, btorque,Temp_array, &
-         ipTemp, ipmcnstep, ipTemp_array, ipnstep)
+          ipTemp, ipmcnstep, ipTemp_array, ipnstep, ipdelta_t, iplambda1)
 
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
@@ -438,7 +433,7 @@ contains
            indxb_ac, autocorr_buff) !TODO: get rd of those once printed on CPU
 
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
-          cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype, achtype, cc%m_k_proj, cc%m_k_projch, &
+          cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
 
 

@@ -185,8 +185,11 @@ bool GpuDepondtIntegrator::initiateConstants(const SimulationParameters SimParam
 }
 
 
-void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature) {
-   // Set parameters
+void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping) {
+   // Update per-phase constants before resetting thermfield state.
+   timestep = phaseTimestep;
+   damping = phaseDamping;
+   dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
    thermfield.resetConstants(temperature, timestep, gamma, k_bolt, mub, damping); 
 }
 

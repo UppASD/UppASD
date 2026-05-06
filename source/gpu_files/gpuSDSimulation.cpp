@@ -100,12 +100,12 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
 
    // TEMPORARY PRINTING
    std::printf("\n");
-   std::printf("________DEBUG System Information:___________ \n");
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(0));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(1));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(2));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(3));
-   std::printf("______________________________________\n");
+   // std::printf("________DEBUG System Information:___________ \n");
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(0));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(1));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(2));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(3));
+   // std::printf("______________________________________\n");
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -115,7 +115,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    ipTemp.AllocateHost(N);
 
    for(unsigned int k = 0; k < N; k++){
-      ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 1);
+      ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 0);
    }
    // Initiate constants for integrator
    integrator.initiateConstants(gpuSim.SimParam, ipTemp);
@@ -125,12 +125,17 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    unsigned int steps;
    int ipnphase = gpuSim.SimParam.ipnphase; 
    for(unsigned int it = 0; it < ipnphase; it++){
+       const real phaseDt = gpuSim.cpuLattice.ipdelta_t(it);
+       const real phaseDamp = gpuSim.cpuLattice.iplambda1(it);
+       gpuSim.SimParam.delta_t = phaseDt;
+       gpuSim.SimParam.damping = phaseDamp;
+       integrator.resetConstants(ipTemp, phaseDt, phaseDamp);
       steps = gpuSim.cpuLattice.ipnstep(it);
 
       // Time step loop
       for(std::size_t mstep = 1; mstep <= steps; mstep++) {
          // Print simulation status for each 5% of the simulation length
-         // printMdStatus(mstep); -- Do we need it in initial phase?
+         printMdStatus(mstep, gpuSim); //-- Do we need it in initial phase?
 
          // Apply Hamiltonian to obtain effective field
          hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
@@ -164,13 +169,15 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
       if(it < (ipnphase - 1)){
          for(unsigned int k = 0; k < N; k++){
             ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, it + 1);
-         }  
-         integrator.resetConstants(ipTemp);
+          }
          }
       }  
       
    // Synchronize with device
    GPU_DEVICE_SYNCHRONIZE();
+   // Explicitly export final initial-phase moments (emom/emom2/emomM/mmom/mmom2/mmomi)
+   // so measurement phase can restart from this exact state.
+   gpuSim.copyToFortran();
    stopwatch.add("final synchronize");
    ipTemp.FreeHost();
 }
@@ -187,6 +194,15 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
+
+   // Reload lattice state from Fortran to guarantee phase handover continuity,
+   // including all moment arrays that may have been updated in SDiphase.
+   gpuSim.copyFromFortran();
+
+   // Make phase boundary explicit: start SDmphase with emom2 synchronized to emom.
+   // This removes any dependence on historical emom2 content from prior phase bookkeeping.
+   gpuSim.gpuLattice.emom2.copy_sync(gpuSim.gpuLattice.emom);
+   gpuSim.copyToFortran();
 
    // Timer
    StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("GPU measurement phase"));
@@ -226,12 +242,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // TEMPORARY PRINTING
    std::printf("\n");
-   std::printf("________DEBUG System Information:___________ \n");
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(0));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(1));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(2));
-   std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(3));
-   std::printf("______________________________________\n");
+   // std::printf("________DEBUG System Information:___________ \n");
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(0));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(1));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(2));
+   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(3));
+   // std::printf("______________________________________\n");
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -313,11 +329,9 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Transfer GPU sample count back to Fortran for averaging
    if (FortranData::sc_nsamp_ptr != nullptr) {
        *FortranData::sc_nsamp_ptr = gpuSim.cpuCorrelations.sc_nsamp;
-       printf("[GPU-DEBUG] Updated FortranData sc_nsamp_ptr: sc_nsamp=%d\n", *FortranData::sc_nsamp_ptr);
    }
       if (FortranData::sc_tidx_ptr != nullptr) {
          *FortranData::sc_tidx_ptr = gpuSim.cpuCorrelations.sc_tidx;
-         printf("[GPU-DEBUG] Updated FortranData sc_tidx_ptr: sc_tidx=%d\n", *FortranData::sc_tidx_ptr);
       }
    
    stopwatch.add("flush measurement");

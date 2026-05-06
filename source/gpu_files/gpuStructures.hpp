@@ -119,6 +119,8 @@ struct hostLattice {
    Tensor<real, 1> ipTemp;
    Tensor<real, 2> ipTemp_array;
    Tensor<unsigned int, 1> ipnstep;
+   Tensor<real, 1> ipdelta_t;
+   Tensor<real, 1> iplambda1;
    Tensor<unsigned int, 1> ipmcnstep;
 
 };

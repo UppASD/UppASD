@@ -67,7 +67,7 @@ public:
 
    // Set up constants
    bool initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature);
-   void resetConstants(const Tensor<real, 1> temperature);
+   void resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping);
 
    // Releaser
    void release();

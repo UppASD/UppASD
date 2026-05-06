@@ -143,6 +143,8 @@ public:
    static unsigned int* ipmcnstep;
    static real* ipTemp_array;
    static unsigned int* ipnstep;
+   static real* ipdelta_t;
+   static real* iplambda1;
    static real* mmom0;
    static real* mmom2;
    static real* mmomi;
@@ -196,7 +198,8 @@ public:
                                        real* p_j_tensor, unsigned int* p_aHam, 
                                        real* p_external_field, real* p_btorque, real* p_Temp_array, 
                                        real * p_ipTemp, unsigned int * p_ipmcnstep,
-                                       real * p_ipTemp_array, unsigned int* p_ipnstep);
+                                       real * p_ipTemp_array, unsigned int* p_ipnstep,
+                                       real * p_ipdelta_t, real * p_iplambda1);
 
     static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
                                    real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
