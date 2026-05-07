@@ -41,7 +41,9 @@ contains
       !
       complex(dblprec), dimension(:,:,:),     allocatable :: c_kw                ! Correlation for G(k,w)
       complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_kw_proj           ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:,:), allocatable :: c_kw_proj_tens      ! Tensor for G(k,w) proj
       complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_kw_projch         ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:,:), allocatable :: c_kw_projch_tens    ! Tensor for G(k,w) projch
       complex(dblprec), dimension(:,:,:,:),   allocatable :: c_kw_tens           ! Correlation for G(k,w)
 
       complex(dblprec), dimension(:,:),       allocatable :: sqwintensity        ! Intensity for G(k,w)
@@ -88,6 +90,37 @@ contains
             end do
          end do
 
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_kw_proj_tens(3,3,nt,nt,nq,cc%nw),stat=i_stat)
+            call memocc(i_stat,product(shape(c_kw_proj_tens))*kind(c_kw_proj_tens),'c_kw_proj_tens','print_gkw')
+            c_kw_proj_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(nt, nq, 3, cc%nw, cc%m_kw_proj, cc%m_kw_proj, c_kw_proj_tens)
+
+            block
+               complex(dblprec), dimension(:,:,:,:), allocatable :: c_kw_tmp
+               allocate(c_kw_tmp(3,3,nq,cc%nw),stat=i_stat)
+               do it=1,nt
+                  do jt=1,nt
+                     c_kw_tmp = c_kw_proj_tens(:,:,it,jt,:,:)
+                     write (filn,'(a,''qwtensa_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                     write (filn,'(a,''qwtensr_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                     write (filn,'(a,''qwtensi_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                  end do
+               end do
+               deallocate(c_kw_tmp)
+            end block
+
+            i_all=-product(shape(c_kw_proj_tens))*kind(c_kw_proj_tens)
+            deallocate(c_kw_proj_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_kw_proj_tens','print_gkw')
+
+         end if
+
          i_all=-product(shape(c_kw_proj))*kind(c_kw_proj)
          deallocate(c_kw_proj,stat=i_stat)
          call memocc(i_stat,i_all,'c_kw_proj','print_gkw')
@@ -122,6 +155,37 @@ contains
                end if
             end do
          end do
+
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_kw_projch_tens(3,3,Nchmax,Nchmax,nq,cc%nw),stat=i_stat)
+            call memocc(i_stat,product(shape(c_kw_projch_tens))*kind(c_kw_projch_tens),'c_kw_projch_tens','print_gkw')
+            c_kw_projch_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(Nchmax, nq, 3, cc%nw, cc%m_kw_projch, cc%m_kw_projch, c_kw_projch_tens)
+
+            block
+               complex(dblprec), dimension(:,:,:,:), allocatable :: c_kw_tmp
+               allocate(c_kw_tmp(3,3,nq,cc%nw),stat=i_stat)
+               do it=1,nchmax
+                  do jt=1,nchmax
+                     c_kw_tmp = c_kw_projch_tens(:,:,it,jt,:,:)
+                     write (filn,'(a,''qwtensa_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                     write (filn,'(a,''qwtensr_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                     write (filn,'(a,''qwtensi_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,cc%nw,9,filn,c_kw_tmp,cc%w)
+                  end do
+               end do
+               deallocate(c_kw_tmp)
+            end block
+
+            i_all=-product(shape(c_kw_projch_tens))*kind(c_kw_projch_tens)
+            deallocate(c_kw_projch_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_kw_projch_tens','print_gkw')
+
+         end if
 
          i_all=-product(shape(c_kw_projch))*kind(c_kw_projch)
          deallocate(c_kw_projch,stat=i_stat)
@@ -266,7 +330,9 @@ contains
       !
       complex(dblprec), dimension(:,:,:),     allocatable :: c_kt                ! Correlation for G(k,w)
       complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_kt_proj           ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:,:), allocatable :: c_kt_proj_tens      ! Tensor for G(k,t) proj
       complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_kt_projch         ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:,:), allocatable :: c_kt_projch_tens    ! Tensor for G(k,t) projch
 
 
       i=(0.0_dblprec,1.0_dblprec)
@@ -319,6 +385,37 @@ contains
             end do
          end do
 
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_kt_proj_tens(3,3,nt,nt,nq,cc%sc_max_nstep),stat=i_stat)
+            call memocc(i_stat,product(shape(c_kt_proj_tens))*kind(c_kt_proj_tens),'c_kt_proj_tens','print_gkt')
+            c_kt_proj_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(nt, nq, 3, cc%sc_max_nstep, cc%m_kt_proj, cc%m_kt_proj, c_kt_proj_tens)
+
+            block
+               complex(dblprec), dimension(:,:,:,:), allocatable :: c_kt_tmp
+               allocate(c_kt_tmp(3,3,nq,cc%sc_max_nstep),stat=i_stat)
+               do it=1,nt
+                  do jt=1,nt
+                     c_kt_tmp = c_kt_proj_tens(:,:,it,jt,:,:)
+                     write (filn,'(a,''qttensa_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                     write (filn,'(a,''qttensr_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                     write (filn,'(a,''qttensi_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                  end do
+               end do
+               deallocate(c_kt_tmp)
+            end block
+
+            i_all=-product(shape(c_kt_proj_tens))*kind(c_kt_proj_tens)
+            deallocate(c_kt_proj_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_kt_proj_tens','print_gkt')
+
+         end if
+
          i_all=-product(shape(c_kt_proj))*kind(c_kt_proj)
          deallocate(c_kt_proj,stat=i_stat)
          call memocc(i_stat,i_all,'c_kt_proj','print_gkt')
@@ -345,6 +442,37 @@ contains
                end if
             end do
          end do
+
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_kt_projch_tens(3,3,Nchmax,Nchmax,nq,cc%sc_max_nstep),stat=i_stat)
+            call memocc(i_stat,product(shape(c_kt_projch_tens))*kind(c_kt_projch_tens),'c_kt_projch_tens','print_gkt')
+            c_kt_projch_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(Nchmax, nq, 3, cc%sc_max_nstep, cc%m_kt_projch, cc%m_kt_projch, c_kt_projch_tens)
+
+            block
+               complex(dblprec), dimension(:,:,:,:), allocatable :: c_kt_tmp
+               allocate(c_kt_tmp(3,3,nq,cc%sc_max_nstep),stat=i_stat)
+               do it=1,nchmax
+                  do jt=1,nchmax
+                     c_kt_tmp = c_kt_projch_tens(:,:,it,jt,:,:)
+                     write (filn,'(a,''qttensa_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                     write (filn,'(a,''qttensr_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                     write (filn,'(a,''qttensi_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,cc%sc_max_nstep,9,filn,c_kt_tmp)
+                  end do
+               end do
+               deallocate(c_kt_tmp)
+            end block
+
+            i_all=-product(shape(c_kt_projch_tens))*kind(c_kt_projch_tens)
+            deallocate(c_kt_projch_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_kt_projch_tens','print_gkt')
+
+         end if
 
          i_all=-product(shape(c_kt_projch))*kind(c_kt_projch)
          deallocate(c_kt_projch,stat=i_stat)
@@ -384,7 +512,9 @@ contains
       !
       complex(dblprec), dimension(:,:),     allocatable :: c_k                ! Correlation for G(k,w)
       complex(dblprec), dimension(:,:,:,:), allocatable :: c_k_proj           ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_k_proj_tens      ! Tensor for G(k) proj
       complex(dblprec), dimension(:,:,:,:), allocatable :: c_k_projch         ! Correlation for G(k,w)
+      complex(dblprec), dimension(:,:,:,:,:), allocatable :: c_k_projch_tens    ! Tensor for G(k) projch
       complex(dblprec), dimension(:,:,:),   allocatable :: c_k_tens           ! Correlation for G(k,w)
 
       complex(dblprec), dimension(:),   allocatable :: sqintensity
@@ -433,6 +563,38 @@ contains
             end do
          end do
 
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_k_proj_tens(3,3,nt,nt,nq),stat=i_stat)
+            call memocc(i_stat,product(shape(c_k_proj_tens))*kind(c_k_proj_tens),'c_k_proj_tens','print_gk')
+            c_k_proj_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(nt, nq, 3, 1, cc%m_k_proj, cc%m_k_proj, c_k_proj_tens)
+            c_k_proj_tens = c_k_proj_tens / cc%sc_nsamp / dc%sc_nsamp
+
+            block
+               complex(dblprec), dimension(:,:,:), allocatable :: c_k_tmp
+               allocate(c_k_tmp(3,3,nq),stat=i_stat)
+               do it=1,nt
+                  do jt=1,nt
+                     c_k_tmp = c_k_proj_tens(:,:,it,jt,:)
+                     write (filn,'(a,''qtensa_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,1,9,filn,c_k_tmp)
+                     write (filn,'(a,''qtensr_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,1,9,filn,c_k_tmp)
+                     write (filn,'(a,''qtensi_proj.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,1,9,filn,c_k_tmp)
+                  end do
+               end do
+               deallocate(c_k_tmp)
+            end block
+
+            i_all=-product(shape(c_k_proj_tens))*kind(c_k_proj_tens)
+            deallocate(c_k_proj_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_k_proj_tens','print_gk')
+
+         end if
+
          i_all=-product(shape(c_k_proj))*kind(c_k_proj)
          deallocate(c_k_proj,stat=i_stat)
          call memocc(i_stat,i_all,'c_k_proj','print_gkw')
@@ -460,6 +622,38 @@ contains
                end if
             end do
          end do
+
+         if(cc%do_sc_tens=='Y') then
+
+            allocate(c_k_projch_tens(3,3,Nchmax,Nchmax,nq),stat=i_stat)
+            call memocc(i_stat,product(shape(c_k_projch_tens))*kind(c_k_projch_tens),'c_k_projch_tens','print_gk')
+            c_k_projch_tens=0.0_dblprec
+
+            call combine_corr_proj_tensor(Nchmax, nq, 3, 1, cc%m_k_projch, cc%m_k_projch, c_k_projch_tens)
+            c_k_projch_tens = c_k_projch_tens / cc%sc_nsamp / dc%sc_nsamp
+
+            block
+               complex(dblprec), dimension(:,:,:), allocatable :: c_k_tmp
+               allocate(c_k_tmp(3,3,nq),stat=i_stat)
+               do it=1,nchmax
+                  do jt=1,nchmax
+                     c_k_tmp = c_k_projch_tens(:,:,it,jt,:)
+                     write (filn,'(a,''qtensa_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_abscorr(nq,1,9,filn,c_k_tmp)
+                     write (filn,'(a,''qtensr_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_recorr(nq,1,9,filn,c_k_tmp)
+                     write (filn,'(a,''qtensi_projch.'',i0,''.'',i0,''.'',a,''.out'')') trim(label),it,jt,trim(simid)
+                     call corr_write_aicorr(nq,1,9,filn,c_k_tmp)
+                  end do
+               end do
+               deallocate(c_k_tmp)
+            end block
+
+            i_all=-product(shape(c_k_projch_tens))*kind(c_k_projch_tens)
+            deallocate(c_k_projch_tens,stat=i_stat)
+            call memocc(i_stat,i_all,'c_k_projch_tens','print_gk')
+
+         end if
 
          i_all=-product(shape(c_k_projch))*kind(c_k_projch)
          deallocate(c_k_projch,stat=i_stat)
