@@ -151,6 +151,13 @@ namespace kernels::measurement
                                         real fcinv,
                                         EnergyData& ene);
 
+    // Projected stuff.
+    __global__ void sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
+                                         GpuTensor<real, 3> block_parts);
+    __global__ void sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
+                                          uint nblocks,
+                                          GpuTensor<real, 2> emomMEnsembleSums);
+
     // ----------------------------- small helpers (host) -----------------------------
     template<class T>
     inline uint ceil_div(T a, T b) { return (a + b - T(1)) / b; }

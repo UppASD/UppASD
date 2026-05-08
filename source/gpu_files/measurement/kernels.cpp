@@ -965,3 +965,53 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
             sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)))*fcinv;
     }
 }
+
+// ============================================================================
+// Projected stuff
+// ============================================================================
+__global__ void kernels::measurement::sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
+        GpuTensor<real, 3> block_parts)
+{
+    const uint N_atoms     = static_cast<uint>(in_tensor.extent(1));
+    const uint M_ensembles = static_cast<uint>(in_tensor.extent(2));
+
+    const uint q = blockIdx.y;      // 0..(3*M-1)
+    const uint i = q % 3u;          // component
+    const uint k = q / 3u;          // ensemble
+    if (k >= M_ensembles) return;
+
+    real local{};
+    for (uint j = blockIdx.x * blockDim.x + threadIdx.x; j < N_atoms; j += blockDim.x * gridDim.x)
+        local += in_tensor(i, j, k);
+
+
+    extern __shared__ real s[];
+    real block_sum = block_reduce_sum_1d(local, s);
+
+    if (threadIdx.x == 0)
+        block_parts(blockIdx.x, i, k) = block_sum;
+}
+
+
+__global__ void kernels::measurement::sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
+                                                            uint nblocks,
+                                                            GpuTensor<real, 2> emomMEnsembleSums)
+{
+    const uint M_ensembles = static_cast<uint>(emomMEnsembleSums.extent(1));
+
+    const uint q = blockIdx.x;      // 0 .. (3*M_ensembles - 1)
+    const uint i = q % 3u;          // component
+    const uint k = q / 3u;          // ensemble
+    if (k >= M_ensembles) return;
+
+    extern __shared__ real s[];
+
+    real local = 0;
+    for (uint bid = threadIdx.x; bid < nblocks; bid += blockDim.x)
+        local += block_parts(bid, i, k);
+
+    real sum = block_reduce_sum_1d(local, s);
+
+    if (threadIdx.x == 0)
+        emomMEnsembleSums(i, k) = sum;
+}

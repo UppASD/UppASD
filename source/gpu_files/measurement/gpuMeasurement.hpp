@@ -75,6 +75,8 @@ private:
     MeasurementWriter measurementWriter;
 
 
+    bool asitealloc;
+
     // Average magnetization
     const bool do_avrg;
     GpuVector<AverageMagnetizationData> mavg_buff_gpu;

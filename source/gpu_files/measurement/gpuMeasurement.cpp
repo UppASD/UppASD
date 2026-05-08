@@ -81,6 +81,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 {
     
     isAllocated = false;
+    asitealloc = false;
+
     if (do_avrg)
     {
         assert(*FortranData::avrg_step > 0 && *FortranData::avrg_buff > 0);
@@ -195,12 +197,29 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums.zeros();
             emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
             emomMEnsembleNTSums_partial.zeros();
+            atype_gpu.Allocate(N);
+            atype_cpu.set(FortranData::atype, static_cast<long int>(N));
+            atype_gpu.copy_sync(atype_cpu);
+
+            if((!asitealloc)&&(!do_ralloy)){
+                asite_ch_gpu.Allocate(Natom_full);
+                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
+                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                asitealloc = true;
+            }
+
         }
         if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
             emomMEnsembleNASums.Allocate(3, NA, M);
             emomMEnsembleNASums.zeros();
             emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
             emomMEnsembleNASums_partial.zeros();
+            if((!asitealloc)&&(!do_ralloy)){
+                asite_ch_gpu.Allocate(Natom_full);
+                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
+                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                asitealloc = true;
+            }
 
         }
         if((do_avrg_projch=='Y')||(do_cumu_projch=='Y')){
@@ -208,6 +227,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums.zeros();
             emomMEnsembleNCSums_partial.Allocate(sumOverAtoms_NC_kernel_blocks.x, 3, Nchmax, M);
             emomMEnsembleNCSums_partial.zeros();
+            achem_ch_gpu.Allocate(N);
+            achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
+            achem_ch_gpu.copy_sync(achem_ch_cpu);
+            
         }
     }
 
@@ -315,18 +338,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         indxb_ac.zeros();
     }
 
-    if(0){
-       // atype_gpu.Allocate(N);
-       // atype_cpu.set(*FortranData::atype, N);
-
-       // achem_ch_gpu.Allocate(N);
-        //achem_ch_cpu.set(*FortranData::achem_ch, N);
-
-      //  asite_ch_gpu.Allocate(Natom_full);
-      //  asite_ch_cpu.set(*FortranData::asite_ch, Natom_full);
-    }
-
-
 
     isAllocated = true;
     stopwatch.add("constructor");
@@ -379,19 +390,29 @@ void GpuMeasurement::release(){
     {
         emomMEnsembleSums.Free();
         emomMEnsembleSums_partial.Free();
-        if((do_avrg_proj=='Y')||(do_cumu_proj)){
+
+        if((do_avrg_proj=='Y')||(do_cumu_proj == 'Y')){
             emomMEnsembleNTSums.Free();
             emomMEnsembleNTSums_partial.Free();
+            atype_gpu.Free();
+            if((asitealloc)&&(!do_ralloy)){
+                asite_ch_gpu.Free();
+                asitealloc = false;
+            }
         }
-        if((do_avrg_proj=='A')){
+        if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
             emomMEnsembleNASums.Free();
             emomMEnsembleNASums_partial.Free();
-
+            if((asitealloc)&&(!do_ralloy)){
+                asite_ch_gpu.Free();
+                asitealloc = false;
+            }
         }
-        if((do_avrg_projch=='Y')){
+        if((do_avrg_projch=='Y')||(do_cumu_projch=='Y')){
             emomMEnsembleNCSums.Free();
             emomMEnsembleNCSums_partial.Free();
-        }
+            achem_ch_gpu.Free();          
+        }     
     }
 
     if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
