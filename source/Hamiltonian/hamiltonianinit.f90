@@ -410,36 +410,51 @@ contains
             write(*,'(a)') ' done'
          end if
       else ! If tensor
-         !  Setup neighbor map and exchange tensor
-         write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
-            nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
-         write(*,'(a)') ' done'
 
-         ! Transform data to general structure
-         write (*,'(2x,a)',advance='no') 'Mount Heisenberg Hamiltonian in tensorial (SKKR) form'
-         call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,     &
-            ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
+         ! Setup or import map
+         if (.not.prev_map(simid)) then
+            !  Setup neighbor map and exchange tensor
+            write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
+               nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+            write(*,'(a)') ' done'
 
-         ! Setup the Hamiltonian look-up table
-         call setup_aHam(Natom,anumb,do_reduced)
+            ! Transform data to general structure
+            write (*,'(2x,a)',advance='no') 'Mount Heisenberg Hamiltonian in tensorial (SKKR) form'
+            call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,     &
+               ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
 
-         call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam, anumb,atype,   &
-            ham%max_no_neigh,max_no_equiv,ham_inp%max_no_shells,ham%nlistsize,ham_inp%nn,ham%nlist, &
-            ham%j_tens,nm,nmdim,ham_inp%jc_tens,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,    &
-            Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,9,1,do_sortcoup, &
-            do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
-         write(*,'(a)') ' done'
+            ! Setup the Hamiltonian look-up table
+            call setup_aHam(Natom,anumb,do_reduced)
 
-         ! Deallocate the large neighbour map.
-         call deallocate_nm()
+            call setup_neighbour_hamiltonian(Natom,conf_num,NT,NA,nHam, anumb,atype,   &
+               ham%max_no_neigh,max_no_equiv,ham_inp%max_no_shells,ham%nlistsize,ham_inp%nn,ham%nlist, &
+               ham%j_tens,nm,nmdim,ham_inp%jc_tens,ham%fs_nlist,ham%fs_nlistsize,do_ralloy,    &
+               Natom_full,Nchmax,atype_ch,asite_ch,achem_ch,ammom_inp,9,1,do_sortcoup, &
+               do_lsf,ham%nind,lsf_field,ham_inp%map_multiple)
+            write(*,'(a)') ' done'
 
-         if(do_prnstruct==1.or.do_prnstruct==4) then
-            write(*,'(2x,a)',advance='no') "Print exchange interaction strenghts"
-            call prn_exchange(NA,9,Natom,Nchmax,do_ralloy,Natom_full,               &
-               ham%max_no_neigh,simid,anumb,atype,ham%nlistsize,asite_ch,achem_ch,  &
-               ham%nlist,coord,ammom_inp,ham%j_tens,ham%aham)
+            ! Deallocate the large neighbour map.
+            call deallocate_nm()
+
+            if(do_prnstruct==1.or.do_prnstruct==4) then
+               write(*,'(2x,a)',advance='no') "Print exchange interaction strenghts"
+               call prn_exchange(NA,9,Natom,Nchmax,do_ralloy,Natom_full,               &
+                  ham%max_no_neigh,simid,anumb,atype,ham%nlistsize,asite_ch,achem_ch,  &
+                  ham%nlist,coord,ammom_inp,ham%j_tens,ham%aham)
+               write(*,'(a)') ' done'
+            end if
+         else ! If .out file exists
+            write (*,'(2x,a)',advance='no') 'Importing exchange mapping'
+            call read_exchange_getdim(Natom, ham%max_no_neigh, simid)
+            call allocate_hamiltoniandata(Natom,NA,nHam,conf_num,ham%max_no_neigh,     &
+               ham_inp%do_jtensor,do_lsf,1,lsf_field,ham_inp%exc_inter)
+            ! Setup the Hamiltonian look-up table
+            call setup_aHam(Natom,anumb,do_reduced)
+            call read_exchange_tensor(NA,nHam,Natom,Nchmax,conf_num,do_ralloy,Natom_full, &
+               ham%max_no_neigh,anumb,atype,asite_ch,achem_ch,ammom_inp,            &
+               ham%nlistsize,ham%nlist,ham%j_tens,simid)
             write(*,'(a)') ' done'
          end if
       end if
@@ -1367,6 +1382,94 @@ contains
       10003 format (5es16.8)
 
    end subroutine read_exchange
+
+   !----------------------------------------------------------------------------
+   !> Reads the Heisenberg Hamiltonian from file for a tensor input
+   !> @note Tael Grunditz: A copy of the above function read_exchange modified
+   !> to work with the tensor format
+   !----------------------------------------------------------------------------
+
+   subroutine read_exchange_tensor(NA,nHam,Natom,Nchmax,conf_num,do_ralloy,Natom_full,     &
+      max_no_neigh,anumb,atype,asite_ch,achem_ch,ammom_inp,nlistsize,nlist,ncoup,   &
+      simid)
+      !
+      use Constants, only : mub,mry
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA           !< Number of atoms in one cell
+      integer, intent(in) :: nHam         !< Number of atoms in Hamiltonian
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Nchmax       !< Number of chemical components in system
+      integer, intent(in) :: conf_num     !< Number of configurations for LSF
+      integer, intent(in) :: do_ralloy    !< Random alloy simulation (0/1)
+      integer, intent(in) :: Natom_full   !< Number of atoms for full system (=Natom if not dilute)
+      integer, intent(in) :: max_no_neigh !< Calculated maximum of neighbours for exchange
+      integer, dimension(Natom), intent(in)        :: anumb    !< Atom number in cell
+      integer, dimension(Natom), intent(in)        :: atype    !< Type of atom
+      integer, dimension(Natom_full), intent(in)   :: asite_ch !< Actual site of atom for dilute system
+      integer, dimension(Natom_full), intent(in)   :: achem_ch !< Chemical type of atoms (reduced list)
+      real(dblprec), dimension(NA,Nchmax,conf_num), intent(in) :: ammom_inp   !< Magnetic moment directions from input (for alloys)
+      integer, dimension(nHam), intent(out) :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
+      integer, dimension(max_no_neigh, Natom), intent(out) :: nlist !< Neighbour list for Heisenberg exchange couplings
+      real(dblprec), dimension(9, max_no_neigh, nHam, conf_num), intent(out) :: ncoup !< Heisenberg exchange couplings
+      character(len=8),intent(in) :: simid !< Name of simulation
+
+      !.. Local variables
+      integer :: i,j,jatom,iatom,i_err
+      real(dblprec) :: fc2
+      real(dblprec) :: dum
+      real(dblprec), dimension(9) :: ncoup_tmp
+      character(len=20) :: filn
+      i_err=0
+      fc2 = 2.0_dblprec*mry/mub
+      !.. Executable statements
+      if (conf_num>1) then
+         write(*,*) 'Restart does not work with LSF right now'
+         stop
+      endif
+
+      write (filn,'(''struct.'',a,''.out'')') trim(simid)
+      open(ifileno, file=filn)
+
+      ncoup=0.0_dblprec
+      read (ifileno,*)
+      read (ifileno,*)
+      read (ifileno,*)
+      read (ifileno,*)
+      read (ifileno,*)
+      do while(i_err.eq.0)
+         ! Exchange
+         read (ifileno,*,iostat=i_err) iatom,jatom,dum,dum,dum,dum,dum,ncoup_tmp
+         nlistsize(iatom)=nlistsize(iatom)+1
+         nlist(nlistsize(iatom),iatom)=jatom
+         ncoup(:,nlistsize(iatom),iatom,1)=ncoup_tmp
+      end do
+      close(ifileno)
+
+      if (do_ralloy==0) then
+         do i=1,nHam
+            do j=1, nlistsize(i)
+               jatom=nlist(j,i)
+               if(abs(ammom_inp(anumb(i),1,1)*ammom_inp(anumb(jatom),1,1))<1e-6) then
+                  ncoup(:,j,i,1)=0.0_dblprec
+               else
+                  ncoup(:,j,i,1)=ncoup(:,j,i,1)*&
+                  fc2/ammom_inp(anumb(i),1,1)/ammom_inp(anumb(jatom),1,1)
+               endif
+            enddo
+         enddo
+      else
+         write(*,*) 'Random alloy treatment is currently disabled for '//char(13)//char(11)//char(0)// &
+               ' reading exchange tensor from file'
+         stop
+      endif
+
+      10001 format (5x,i8,13x,i7)
+      10002 format (13x,5i6)
+      10003 format (5es16.8)
+
+   end subroutine read_exchange_tensor
 
    !----------------------------------------------------------------------------
    !> Calculate a mean field estimate of the critical temperature
