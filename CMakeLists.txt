@@ -387,14 +387,16 @@ elseif(USE_HIP)
    find_package(HIP REQUIRED)
    add_compile_definitions(HIP_V)
 
-   ENABLE_LANGUAGE(C CXX)
+   ENABLE_LANGUAGE(HIP C CXX)
+    set(CMAKE_HIP_COMPILER hipcc)
+    set(CMAKE_CXX_COMPILER hipcc)
    #set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
    #set(CMAKE_HIP_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
 message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
-
-   # HIP include and compile flags
+  
+    # HIP include and compile flags
    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
 
@@ -627,27 +629,32 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 # Add the needed libraries and special compiler flags
 ##############################################################################################
 ########hip here?????
-target_link_libraries(${UppASD_LIB} PRIVATE
+TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    -lgfortran
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT}
-   ${OVF_LIB}
-   ${FFTW_LIB}
+   ${CMAKE_THREAD_LIBS_INIT} 
+   ${OVF_LIB} 
+   ${FFTW_LIB}  
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
-)
+   #    ${hiprand_LIBRARIES}
+#    ${HIP_LIBRARIES}
+   )
 
-target_link_libraries(${UppASD_EXE} PRIVATE
+TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
+   -lgfortran
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT}
-   ${OVF_LIB}
-   ${FFTW_LIB}
+   ${CMAKE_THREAD_LIBS_INIT} 
+   ${OVF_LIB} 
+   ${FFTW_LIB}  
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
-)
+   #    ${hiprand_LIBRARIES}
+#    ${HIP_LIBRARIES}
+   )
 
 
 ##############################################################################################
