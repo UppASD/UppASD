@@ -7,14 +7,13 @@
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
 #include "gpuStructures.hpp"
-#include "device_launch_parameters.h"
-#include "thrust/host_vector.h"
+
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
 #include <hiprand/hiprand.h>
-#include <hip/hiprand_kernel.h>
+#include <hiprand/hiprand_kernel_rocm.h>
 #include <hip/hip_cooperative_groups.h>
 //reduce??
 #elif defined(CUDA_V)
@@ -23,6 +22,8 @@
 #include <curand_kernel.h>
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
+#include "device_launch_parameters.h"
+#include "thrust/host_vector.h"
 #endif
 class GpuMetropolis_bruteforce {
 private:

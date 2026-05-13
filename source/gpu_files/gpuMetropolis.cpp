@@ -77,7 +77,7 @@ __global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2>
         real hamOld = fx * emomM(0, nInd, mInd) + fy * emomM(1, nInd, mInd) + fz * emomM(2, nInd, mInd);
         real hamNew = fx * xNew + fy * yNew + fz * zNew;
        // printf("exp = %lf\n", -beta * mub*(hamNew - hamOld));
-        if (exp(beta * mub*(hamNew - hamOld)) < curand_uniform_double(d_state.data() + dIdx)) {
+        if (exp(beta * mub*(hamNew - hamOld)) < GPU_RAND_UNIFORM_DOUBLE(d_state.data() + dIdx)) {
           //  printf("NOT sweeped\n");
 
             return;
@@ -326,7 +326,7 @@ void GpuMetropolis::count_spins() {
 void GpuMetropolis::rnd_init() {
     srand(time(NULL));
     unsigned long long seed = (unsigned long long)rand();
-    InitGenerator << <taskMax, 1 >> > (d_state.data(), seed, taskMax);
+    InitGenerator<<<taskMax, 1>>>(d_state.data(), seed, taskMax);
 }
 
 unsigned int GpuMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
@@ -406,7 +406,7 @@ void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub
         blocks = { static_cast <unsigned int>(block_subL_cpu(sub)),  static_cast <unsigned int>(M), static_cast <unsigned int>(1) };
         task_num = subL_spnum_cpu(sub);
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
-        MCSweep << <blocks, threads >> > (d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
+        MCSweep<<<blocks, threads>>>(d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
         //hamCalc.heisge(gpuLattice);
 
     
@@ -415,6 +415,7 @@ void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub
 
 void GpuMetropolis::mom_update(deviceLattice& gpuLattice){
     threads = {thread_num, 1, 1};
-    blocks = {(N + thread_num - 1)/thread_num, M, 1};
-     moms << <blocks, threads >> > (N, gpuLattice.mmom, gpuLattice.emomM, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom0, gpuLattice.mmom2, gpuLattice.mmomi);
+    blocks = dim3((N + thread_num - 1) / thread_num, M, 1);
+    //blocks = {(N + thread_num - 1)/thread_num, M, 1};
+     moms<<<blocks, threads>>>(N, gpuLattice.mmom, gpuLattice.emomM, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom0, gpuLattice.mmom2, gpuLattice.mmomi);
 }

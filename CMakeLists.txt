@@ -404,14 +404,24 @@ message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
    message(STATUS "HIP PPFLAG: __${PP_HIP_COMPILER_FLAG}__")
-find_library(HIPRAND_LIBRARY hiprand PATHS /opt/rocm/lib /opt/rocm/lib64)
-#link_directories("/opt/rocm-6.3.4/lib")
+   
+   
+    set(ROCM_ROOT $ENV{ROCM_PATH})
+    #link_directories("/opt/rocm/lib")
+    
+    target_include_directories(${UppASD_LIB} PRIVATE
+        ${ROCM_ROOT}/include
+    )
+    
 
-if(HIPRAND_LIBRARY)
-  target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
-else()
-  message(FATAL_ERROR "hiprand library not found")
-endif()
+    # hiprand
+    find_library(HIPRAND_LIBRARY
+        NAMES hiprand
+        PATHS /opt/rocm/lib /opt/rocm/lib64
+        REQUIRED
+    )
+
+    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
 
    SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "gfx90a")
 

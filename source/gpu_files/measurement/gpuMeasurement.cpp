@@ -293,7 +293,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         ene_maxBlocks = 1024;
         ene_maxThreads = 256;
         ene_kernel_threads = ene_maxThreads;
-        ene_kernel_blocks =  {std::min(((M + ene_maxThreads - 1) / ene_maxThreads), ene_maxBlocks), ene_types, 1};
+        ene_kernel_blocks =  dim3(std::min(((M + ene_maxThreads - 1) / ene_maxThreads), ene_maxBlocks), ene_types, 1);
         energy_buff_gpu.Allocate(*FortranData::ene_buff);
         energy_buff_cpu.AllocateHost(*FortranData::ene_buff);
         energy_buff_gpu.zeros();

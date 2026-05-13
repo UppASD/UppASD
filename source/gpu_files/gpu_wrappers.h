@@ -44,6 +44,7 @@
   #define GPU_RAND_SET_STREAM(gen, stream) hiprandSetStream(gen, stream)
   #define GPU_RAND_GENERATE_NORMAL(generator, outputPtr, n, mean, stddev) hiprandGenerateNormal(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
+  #define GPU_RAND_UNIFORM_DOUBLE(state) hiprand_uniform_double(state)
 
   #define WARPSIZE warpSize
   #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
@@ -97,7 +98,7 @@
   #define GPU_RAND_SET_STREAM(gen, stream) curandSetStream(gen, stream)
   #define GPU_RAND_GENERATE_NORMAL(generator, outputPtr, n, mean, stddev) curandGenerateNormal(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
-
+  #define GPU_RAND_UNIFORM_DOUBLE(state) curand_uniform_double(state)
 
   #define WARPSIZE 32
   #define FULL_MASK 0xffffffff
