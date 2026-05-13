@@ -388,7 +388,7 @@ elseif(USE_HIP)
    add_compile_definitions(HIP_V)
 
    ENABLE_LANGUAGE(C CXX)
-   set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
+   #set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
    #set(CMAKE_HIP_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
 message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
@@ -406,7 +406,7 @@ find_library(HIPRAND_LIBRARY hiprand PATHS /opt/rocm/lib /opt/rocm/lib64)
 #link_directories("/opt/rocm-6.3.4/lib")
 
 if(HIPRAND_LIBRARY)
-  target_link_libraries(${UppASD_LIB} ${HIPRAND_LIBRARY})
+  target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
 else()
   message(FATAL_ERROR "hiprand library not found")
 endif()
@@ -627,32 +627,27 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 # Add the needed libraries and special compiler flags
 ##############################################################################################
 ########hip here?????
-TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
+target_link_libraries(${UppASD_LIB} PRIVATE
    -lgfortran
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT} 
-   ${OVF_LIB} 
-   ${FFTW_LIB}  
+   ${CMAKE_THREAD_LIBS_INIT}
+   ${OVF_LIB}
+   ${FFTW_LIB}
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
-   #    ${hiprand_LIBRARIES}
-#    ${HIP_LIBRARIES}
-   )
+)
 
-TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
-   -lgfortran
+target_link_libraries(${UppASD_EXE} PRIVATE
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
-   ${CMAKE_THREAD_LIBS_INIT} 
-   ${OVF_LIB} 
-   ${FFTW_LIB}  
+   ${CMAKE_THREAD_LIBS_INIT}
+   ${OVF_LIB}
+   ${FFTW_LIB}
    ${CUDA_curand_LIBRARY}
    ${OpenMP_Fortran_LIBRARIES}
-   #    ${hiprand_LIBRARIES}
-#    ${HIP_LIBRARIES}
-   )
+)
 
 
 ##############################################################################################
