@@ -17,7 +17,7 @@
         typedef hipDoubleComplex gpu_complex;
         typedef std::complex<double> cpu_complex;
 
-        #define make_hipComplex  make_hipDoubleComplex
+        #define make_hipRealComplex  make_hipDoubleComplex
         #define hipCadd_complex     hipCadd
         #define hipCmul_complex     hipCmul
         #define hipCreal_complex    hipCreal

@@ -27,11 +27,13 @@ __global__ void calc_autocorr_block(GpuTensor<real, 2> ac_block, const GpuTensor
     int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
-    int tid_in_block = block.thread_rank();
+    int tid_in_block = threadIdx.x;
 
-    int swInd = grid.block_index().y;
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int swInd = blockIdx.y;
+
+    int tid_in_X = blockIdx.x * blockDim.x + tid_in_block;
+
+    int stride = gridDim.x * blockDim.x;
 
     // Register-based accumulation: store real and imaginary parts separately (reduced register pressure)
     real sum_nm = 0.0;
@@ -96,7 +98,7 @@ __global__ void calc_autocorr_final(GpuTensor<real, 2> ac_block, GpuTensor<real,
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int swInd = grid.block_index().x;
+    int swInd = blockIdx.x;
     int tid_in_SW = tid_in_block;
 
     // Register-based accumulators

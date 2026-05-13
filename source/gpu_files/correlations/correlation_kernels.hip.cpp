@@ -62,9 +62,9 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y;
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int qInd = blockIdx.y;
+    int tid_in_X = blockIdx.x * blockDim.x + tid_in_block;
+    int stride = gridDim.x *blockDim.x;
 
     // Register-based accumulation: store real and imaginary parts separately (reduced register pressure)
     real sum_re[3] = {0.0, 0.0, 0.0};
@@ -167,7 +167,7 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().x;
+    int qInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -241,7 +241,7 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().x;
+    int qInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -304,7 +304,7 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
     }
 }
 
-__global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex>, 2> scsum_q, GpuTensor<gpu_complex, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag)
+__global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 2> scsum_q, GpuTensor<gpu_complex, 3> scsum_qt, int numBlocks, unsigned int t_cur, unsigned int both_flag)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -318,7 +318,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().x;
+    int qInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -400,11 +400,11 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y%nq;
-    int wInd = grid.block_index().y/nq;
+    int qInd = blockIdx.y%nq;
+    int wInd = blockIdx.y/nq;
 
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int tid_in_X = blockIdx.x * blockDim.x + tid_in_block;
+    int stride = gridDim.x * blockDim.x;
 
     // Register-based accumulation: store real and imaginary parts separately
     real sum_re[3] = {0.0, 0.0, 0.0};
@@ -500,7 +500,7 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
     }
 }
 
-__global__ void GPUSwFinalSum(GpuTensor<gpu_complex<real>, 3> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks, int nq)
+__global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks, int nq)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
@@ -514,8 +514,8 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex<real>, 3> scblock, GpuTensor
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = (grid.block_index().x) % nq;
-    int wInd = (grid.block_index().x) / nq;
+    int qInd = (blockIdx.x) % nq;
+    int wInd = (blockIdx.x) / nq;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators for intermediate block results
@@ -589,10 +589,10 @@ __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().z;
-    int pInd = grid.block_index().y;
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int qInd = blockIdx.z;
+    int pInd = blockIdx.y;
+    int tid_in_X = blockIdx.x * blockDim.x + tid_in_block;
+    int stride = gridDim.x *blockDim.x;
     int nproj = aproj.extent(0);
 
     // Register-based accumulation: store real and imaginary parts separately (reduced register pressure)
@@ -701,8 +701,8 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y;
-    int pInd = grid.block_index().x;
+    int qInd = blockIdx.y;
+    int pInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -776,8 +776,8 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y;
-    int pInd = grid.block_index().x;
+    int qInd = blockIdx.y;
+    int pInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -854,8 +854,8 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y;
-    int pInd = grid.block_index().x;
+    int qInd = blockIdx.y;
+    int pInd = blockIdx.x;
     int tid_in_Q = tid_in_block;
 
     // Register-based accumulators
@@ -938,11 +938,11 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = grid.block_index().y;
-    int wInd = grid.block_index().z;
+    int qInd = blockIdx.y;
+    int wInd = blockIdx.z;
 
-    int tid_in_X = grid.block_index().x * block.num_threads() + tid_in_block;
-    int stride = grid.dim_blocks().x * block.num_threads();
+    int tid_in_X =blockIdx.x * blockDim.x + tid_in_block;
+    int stride = gridDim.x * blockDim.x;
 
     // Register-based accumulation: store real and imaginary parts separately
     real sum_re[3] = {0.0, 0.0, 0.0};
@@ -1055,9 +1055,9 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
     int tNum = block.size();
     int tid_in_block = block.thread_rank();
 
-    int qInd = (grid.block_index().y);
-    int wInd = (grid.block_index().z);
-    int pInd = (grid.block_index().x);
+    int qInd = (blockIdx.y);
+    int wInd = (blockIdx.z);
+    int pInd = (blockIdx.x);
 
     int tid_in_Q = tid_in_block;
 

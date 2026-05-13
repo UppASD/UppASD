@@ -81,7 +81,7 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
             sc_q_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(nq));
             sc_q_cpu.AllocateHost(static_cast <long int>(3), static_cast <long int>(nq));
             bl = (3 * nq + numThreads - 1) / numThreads;
-            setZero<2> << <bl, numThreads >> > (sc_q_gpu, 3 * nq);
+            setZero<2> <<<bl, numThreads >>> (sc_q_gpu, 3 * nq);
 
         }
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
@@ -98,16 +98,16 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
 
 
             bl = (3 * nq* sc_max_nstep + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (sc_qt_gpu, 3 * nq* sc_max_nstep);
+            setZero<3> <<<bl, numThreads >>> (sc_qt_gpu, 3 * nq* sc_max_nstep);
             bl = (3 * nq * nw + numThreads - 1) / numThreads;
-            setZero<3> << <bl, numThreads >> > (sc_qw_gpu, 3 * nq*nw);
+            setZero<3> <<<bl, numThreads >>> (sc_qw_gpu, 3 * nq*nw);
             //bl = (3 * nq * sc_max_nstep + numThreads - 1) / numThreads;
         }
 
         //mbuff_gpu.Allocate(static_cast <long int>(3), static_cast <long int>(avrg_buff), static_cast <long int>(M));
         isallocated = 1;
         bl = (3 * numBlocksX_q * nq + numThreads - 1) / numThreads;
-        setZero<2> << <bl, numThreads >> > (sc_block_gpu, 3 * numBlocksX_q * nq);
+        setZero<2> <<<bl, numThreads >>> (sc_block_gpu, 3 * numBlocksX_q * nq);
         //sc_block_gpu.zeros();
         //sc_gpu.zeros();
     }
@@ -150,8 +150,8 @@ void GpuCorrelations::measure(std::size_t mstep) {
     switch (do_sc) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
-            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
-            GPUSqFinalSum_stat << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, numBlocksX_q);
+            GPUSqSum <<<blocks_q, threads >>> (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqFinalSum_stat <<<nq, 1024 >>> (sc_block_gpu, sc_q_gpu, numBlocksX_q);
             cudaDeviceSynchronize();
             n_samples++;
         }
@@ -173,8 +173,8 @@ void GpuCorrelations::measure(std::size_t mstep) {
             }
             
             // Kernel writes to m_kt(:,:,t_cur)
-            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
-            GPUSqFinalSum_dyn << <nq, 1024 >> > (sc_block_gpu, sc_qt_gpu, numBlocksX_q, t_cur);
+            GPUSqSum <<<blocks_q, threads >>> (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqFinalSum_dyn <<<nq, 1024 >>> (sc_block_gpu, sc_qt_gpu, numBlocksX_q, t_cur);
             cudaDeviceSynchronize();
             t_cur++;  // Increment AFTER writing to that time slice
         } else {
@@ -195,8 +195,8 @@ void GpuCorrelations::measure(std::size_t mstep) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
             
-            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
-            GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
+            GPUSqSum <<<blocks_q, threads >>> (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqFinalSum_both <<<nq, 1024 >>> (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             t_cur++;
             n_samples++;
@@ -213,16 +213,16 @@ void GpuCorrelations::measure(std::size_t mstep) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
             
-            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
-            GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
+            GPUSqSum <<<blocks_q, threads >>> (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqFinalSum_both <<<nq, 1024 >>> (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             t_cur++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
-            GPUSqSum << <blocks_q, threads >> > (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
-            GPUSqFinalSum_both << <nq, 1024 >> > (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
+            GPUSqSum <<<blocks_q, threads >>> (emomM, coord, q, r_mid, sc_block_gpu, tasksTot_q, N);
+            GPUSqFinalSum_both <<<nq, 1024 >>> (sc_block_gpu, sc_q_gpu, sc_qt_gpu, numBlocksX_q, t_cur, both_flag);
             cudaDeviceSynchronize();
             n_samples++;
         }
@@ -238,7 +238,7 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
     case 'C': {
        // tasks = 3 * nq;
         //bl = (tasks + maxThreads - 1) / maxThreads;
-        //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);  
+        //GPUSqAvrg <<<bl, maxThreads >>> (sc_q_gpu, n_samples, tasks, M);  
         //cudaDeviceSynchronize();
         
         // Transfer to host CPU tensor first
@@ -255,17 +255,17 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         
         // Zero intermediate and output buffers
         int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
-        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        setZero<3> <<<bl_w, numThreads >>> (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
         bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
-        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
+        setZero<3> <<<bl_w, numThreads >>> (sc_qw_gpu, 3 * nq * nw);
         cudaDeviceSynchronize();
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwSum <<<blocks_w, threads >>> (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
         cudaDeviceSynchronize();
         
         // Reduce block results to final S(q,ω)
-        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        GPUSwFinalSum <<<nq * nw, 1024 >>> (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
         cudaDeviceSynchronize();
         
         // Transfer time-domain correlations for Fortran reference
@@ -291,23 +291,23 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         
         // Zero intermediate and output FFT buffers
         int bl_w = (3 * numBlocksX_w * nq * nw + numThreads - 1) / numThreads;
-        setZero<3> << <bl_w, numThreads >> > (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
+        setZero<3> <<<bl_w, numThreads >>> (sc_block_w_gpu, 3 * numBlocksX_w * nq * nw);
         bl_w = (3 * nq * nw + numThreads - 1) / numThreads;
-        setZero<3> << <bl_w, numThreads >> > (sc_qw_gpu, 3 * nq * nw);
+        setZero<3> <<<bl_w, numThreads >>> (sc_qw_gpu, 3 * nq * nw);
         cudaDeviceSynchronize();
         
         // Average static S(q) correlations -- avaraged on Fortran now
         //tasks = 3 * nq;
         //bl = (tasks + maxThreads - 1) / maxThreads;
-        //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
+        //GPUSqAvrg <<<bl, maxThreads >>> (sc_q_gpu, n_samples, tasks, M);
         //cudaDeviceSynchronize();
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blocks_w, threads >> > (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwSum <<<blocks_w, threads >>> (sc_qt_gpu, dt, w, sc_block_w_gpu, tasksTot_w, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
         cudaDeviceSynchronize();
         
         // Reduce block results to final S(q,ω)
-        GPUSwFinalSum << <nq * nw, 1024 >> > (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
+        GPUSwFinalSum <<<nq * nw, 1024 >>> (sc_block_w_gpu, sc_qw_gpu, numBlocksX_w, nq);
         cudaDeviceSynchronize();
         
         // Transfer static S(q)
@@ -334,7 +334,7 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         // Case C: S(q) static correlations only
         //tasks = 3 * nq;
         //bl = (tasks + maxThreads - 1) / maxThreads;
-        //GPUSqAvrg << <bl, maxThreads >> > (sc_q_gpu, n_samples, tasks, M);
+        //GPUSqAvrg <<<bl, maxThreads >>> (sc_q_gpu, n_samples, tasks, M);
         //cudaDeviceSynchronize();
         
         // Transfer to cpuCorrelations for Fortran

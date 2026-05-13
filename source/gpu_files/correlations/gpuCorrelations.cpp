@@ -131,14 +131,14 @@ void GpuCorrelations::measure(std::size_t mstep){
     measure_SC(mstep);
     if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
         bl = (3 * nq *NT + numThreads - 1) / numThreads;
-        setZero<3> << <bl, numThreads >> > (sc_proj.q_block, 3 * blQproj.blocksNum * nq * NT);
+        setZero<3> <<<bl, numThreads >>> (sc_proj.q_block, 3 * blQproj.blocksNum * nq * NT);
         measure_SC_proj(mstep, sc_proj, blQproj, do_proj, t_cur_proj);
 
     }
 
     if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
         bl = (3 * nq *Nchmax + numThreads - 1) / numThreads;
-        setZero<3> << <bl, numThreads >> > (sc_projch.q_block, 3 * blQprojch.blocksNum * nq * Nchmax);
+        setZero<3> <<<bl, numThreads >>> (sc_projch.q_block, 3 * blQprojch.blocksNum * nq * Nchmax);
         measure_SC_proj(mstep, sc_projch, blQprojch, do_projch, t_cur_projch);     
     }
     
@@ -173,8 +173,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
     switch (do_sc) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_stat << <nq, maxBlocks>> > (sc.q_block, sc.q, blQ.x);
+            GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
+            GPUSqFinalSum_stat <<<nq, maxBlocks>> > (sc.q_block, sc.q, blQ.x);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -196,8 +196,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             }
             
             // Kernel writes to m_kt(:,:,t_cur)
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_dyn << <nq, maxBlocks>> > (sc.q_block, sc.qt, blQ.x, t_cur);
+            GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
+            GPUSqFinalSum_dyn <<<nq, maxBlocks>> > (sc.q_block, sc.qt, blQ.x, t_cur);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur++;  // Increment AFTER writing to that time slice
         } else {
@@ -218,8 +218,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
             
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both << <nq, maxBlocks >> > (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
+            GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur++;
             n_samples++;
@@ -236,16 +236,16 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
             
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both << <nq, maxBlocks >> > (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
+            GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
-            GPUSqSum << <blQ.blocks, threads >> > (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both << <nq, maxBlocks >> > (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
+            GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -261,8 +261,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
     switch (sc_type) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
-            GPUSqProjSum << <blQp.blocks, threads >> > (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_stat << <blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.q, blQp.x);
+            GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
+            GPUSqProjFinalSum_stat <<<blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.q, blQp.x);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -284,8 +284,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
             }
             
             // Kernel writes to m_kt(:,:,t_cur)
-            GPUSqProjSum << <blQp.blocks, threads >> > (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_dyn << <blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.qt, blQp.x, t_cur_local);
+            GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
+            GPUSqProjFinalSum_dyn <<<blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.qt, blQp.x, t_cur_local);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;  // Increment AFTER writing to that time slice
         } else {
@@ -306,8 +306,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
                 sc_step_arr_cpu(int(t_cur_local)) = static_cast<real>(sc_step);
             }
             
-            GPUSqProjSum << <blQp.blocks, threads >> > (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_both << <blQp.blocksFin, maxBlocks >> > (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
+            GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
+            GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;
             n_samples++;
@@ -324,16 +324,16 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
                 sc_step_arr_cpu(int(t_cur_local)) = static_cast<real>(sc_step);
             }
             
-            GPUSqProjSum << <blQp.blocks, threads >> > (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_both << <blQp.blocksFin, maxBlocks >> > (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
+            GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
+            GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
-            GPUSqProjSum << <blQp.blocks, threads >> > (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_both << <blQp.blocksFin, maxBlocks >> > (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
+            GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
+            GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -357,8 +357,8 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
         dt.copy_sync(dt_cpu);
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blW.blocks, threads >> > (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <nq * nw, maxBlocks >> > (sc.w_block, sc.qw, blW.x, nq);
+        GPUSwSum <<<blW.blocks, threads >>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwFinalSum <<<nq * nw, maxBlocks >>> (sc.w_block, sc.qw, blW.x, nq);
         
         // Transfer time-domain correlations for Fortran reference
         if (sc.qt.extent(0) == cpuCorrelations.m_kt.extent(0) &&
@@ -382,8 +382,8 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
         dt.copy_sync(dt_cpu);
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum << <blW.blocks, threads >> > (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum << <nq * nw, maxBlocks >> > (sc.w_block, sc.qw, blW.x, nq);
+        GPUSwSum <<<blW.blocks, threads >>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwFinalSum <<<nq * nw, maxBlocks >>> (sc.w_block, sc.qw, blW.x, nq);
         
         // Transfer static S(q)
         cpuCorrelations.m_k.copy_sync(sc.q);
@@ -436,8 +436,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         //printf("bl = %i, tasks = %i, real = %i\n", blWp.tasks, tasks, 3*NT*sc_max_nstep);
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.blocksNum, nq);
+        GPUSwProjSum <<<blWp.blocks, threads >>> (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
         
         // Transfer time-domain correlations for Fortran reference
         if (p == 'p'){
@@ -485,8 +485,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         tasks = blWp.tasks;  // per-projection tasks; pInd is derived from blockIdx.x in the kernel
 
-        GPUSwProjSum << <blWp.blocks, threads >> > (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwProjFinalSum << <blWp.blocksFin, maxBlocks >> > (scp.w_block, scp.qw, blWp.blocksNum, nq);
+        GPUSwProjSum <<<blWp.blocks, threads >>> (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
+        GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
         GPU_DEVICE_SYNCHRONIZE();
         
         // Transfer static S(q) only when extents match host buffers
