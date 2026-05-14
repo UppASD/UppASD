@@ -167,6 +167,7 @@ if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
+CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -351,8 +352,9 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
                                ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
                                ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp 
-                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp 
-							   ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
+                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
+                               ${SRC}/gpu_files/correlations/correlation_kernels.cpp
+                               ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
@@ -386,6 +388,10 @@ if (USE_CUDA)
 elseif(USE_HIP)
    find_package(HIP REQUIRED)
    add_compile_definitions(HIP_V)
+   if(ON_LUMI)
+     add_compile_definitions(ON_LUMI)
+     message(STATUS "ON_LUMI: using Thrust complex for HIP correlations")
+   endif()
 
    ENABLE_LANGUAGE(HIP C CXX)
     set(CMAKE_HIP_COMPILER hipcc)
@@ -423,7 +429,12 @@ message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
 
     target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
 
-   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "gfx90a")
+   if(NOT CMAKE_HIP_ARCHITECTURES)
+      set(CMAKE_HIP_ARCHITECTURES "gfx90a")
+   endif()
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${CMAKE_HIP_ARCHITECTURES}")
+   message(STATUS "HIP GPU architecture: ${CMAKE_HIP_ARCHITECTURES}")
 
 else ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Tools/nocuda.f90)

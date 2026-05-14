@@ -6,8 +6,7 @@
 #include "real_type.h"
 #include "gpuStructures.hpp"
 #include <numeric>
-#include <hip/hip_runtime.h>
-#include <hip/hip_complex.h>
+#include "gpu_wrappers.h"
 #include "correlation.hpp"
 #include "correlation_types.h"
 
@@ -96,4 +95,3 @@ private:
     void flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
 
 };
-

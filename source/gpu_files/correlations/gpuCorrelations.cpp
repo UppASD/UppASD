@@ -9,13 +9,8 @@
 
 #include "gpu_wrappers.h"
 
-#if defined(HIP_V)
 #include <correlation_kernels.hpp>
 #include "gpuCorrelations.hpp"
-#elif defined(CUDA_V)
-#include <correlation_kernels.cuh>
-#include "gpuCorrelations.cuh"
-#endif
 
 
 // Constructor
@@ -174,7 +169,7 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_stat <<<nq, maxBlocks>> > (sc.q_block, sc.q, blQ.x);
+            GPUSqFinalSum_stat <<<nq, maxBlocks>>> (sc.q_block, sc.q, blQ.x);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -197,7 +192,7 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             
             // Kernel writes to m_kt(:,:,t_cur)
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_dyn <<<nq, maxBlocks>> > (sc.q_block, sc.qt, blQ.x, t_cur);
+            GPUSqFinalSum_dyn <<<nq, maxBlocks>>> (sc.q_block, sc.qt, blQ.x, t_cur);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur++;  // Increment AFTER writing to that time slice
         } else {
@@ -262,7 +257,7 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
     case 'C':
         if ((curstep % sc_sep) == 0) {
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_stat <<<blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.q, blQp.x);
+            GPUSqProjFinalSum_stat <<<blQp.blocksFin, maxBlocks>>> (scp.q_block, scp.q, blQp.x);
             GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
@@ -285,7 +280,7 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
             
             // Kernel writes to m_kt(:,:,t_cur)
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            GPUSqProjFinalSum_dyn <<<blQp.blocksFin, maxBlocks>> > (scp.q_block, scp.qt, blQp.x, t_cur_local);
+            GPUSqProjFinalSum_dyn <<<blQp.blocksFin, maxBlocks>>> (scp.q_block, scp.qt, blQp.x, t_cur_local);
             GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;  // Increment AFTER writing to that time slice
         } else {

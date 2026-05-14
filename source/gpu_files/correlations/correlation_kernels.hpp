@@ -4,9 +4,7 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include <numeric>
-#include <hip/hip_runtime.h>
-#include <hip/hip_cooperative_groups.h>
-#include <hip/hip_complex.h>
+#include "gpu_wrappers.h"
 
 namespace cg = cooperative_groups;
 #ifndef M_PI
@@ -15,15 +13,14 @@ namespace cg = cooperative_groups;
 
 // Optimized register-based warp reduction for raw real/imaginary components
 // Modifies sum_re and sum_im in-place, avoiding complex object overhead
-
 __inline__ __device__
 void warpReduceSum(real &sum_re, real &sum_im)
 {
     #pragma unroll
     for (int offset = warpSize / 2; offset > 0; offset >>= 1)
     {
-        sum_re += __shfl_down(sum_re, offset);
-        sum_im += __shfl_down(sum_im, offset);
+        sum_re += SHFL_DOWN(sum_re, offset);
+        sum_im += SHFL_DOWN(sum_im, offset);
     }
 }
 
@@ -49,11 +46,11 @@ template <size_t dim>
 __global__ void setZero(GpuTensor<gpu_complex, dim> sc, unsigned int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
-        sc[idx] = gpu_complex(0, 0);;
+        sc[idx] = MAKE_GPU_COMPLEX(0, 0);
     }
 }
 
-__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N); 
+__global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N);
 
 __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 2> scsum, int numBlocks);
 

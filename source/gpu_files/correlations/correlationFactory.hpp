@@ -9,11 +9,7 @@
 
 #include "fortranCorrelation.hpp"
 
-#if defined(HIP_V)
 #include "gpuCorrelations.hpp"
-#elif defined(CUDA_V)
-#include "gpuCorrelations.cuh"
-#endif
 #include "measurementQueue.hpp"
 #include <iostream>
 

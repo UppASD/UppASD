@@ -4,13 +4,7 @@
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
-#if defined(HIP_V)
 #include <correlation_kernels.hpp>
-#elif defined(CUDA_V)
-#include <correlation_kernels.cuh>
-#include <thrust/complex.h>
-
-#endif
 
 struct blocksQW{
     unsigned int tasks;
