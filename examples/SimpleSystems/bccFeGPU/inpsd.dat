@@ -33,7 +33,7 @@ timestep  1.000e-17       s                     The time step-size for the SDE-s
 do_avrg   Y                                     Measure averages
 
 do_tottraj N                                    Measure moments
-do_proj_avrg Y
+do_proj_avrg N
 tottraj_step   100 
 
 ntraj     1
