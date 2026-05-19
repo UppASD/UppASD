@@ -3,12 +3,18 @@
 
 #pragma once
 
-#include <cuda_runtime.h>
-
 #include "c_headers.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
+#include <iostream>
+#define ASYNC_STOPWATCH true // this makes the gpu time measuring async, only works if "DUMMY_STOPWATCH" is false
 
+#include "gpu_wrappers.h"
+#if defined(HIP_V)
+#include <hip/hip_runtime.h>
+#elif defined(CUDA_V)
+#include <cuda_runtime.h>
+#endif
 
 class StopwatchDeviceSync {
 #if defined(DUMMY_STOPWATCH) || defined(ASYNC_STOPWATCH)
@@ -16,7 +22,7 @@ class StopwatchDeviceSync {
    }
 #else
    inline void sync() {
-      cudaDeviceSynchronize();
+      GPU_DEVICE_SYNCHRONIZE();
    }
 #endif
 public:

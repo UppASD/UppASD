@@ -3,6 +3,7 @@
 
 #pragma once
 
+#define DUMMY_STOPWATCH true // this fully disables the stopwatch, no timing is done
 #include <sys/time.h>
 
 #include <ctime>
@@ -11,7 +12,6 @@
 
 #include "c_headers.hpp"
 #include "real_type.h"
-
 
 class Stopwatch {
    // Allow StopwatchPool to access private methods

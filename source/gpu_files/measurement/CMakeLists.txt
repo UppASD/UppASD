@@ -1,0 +1,27 @@
+target_sources(${UppASD_LIB} PRIVATE
+        measurable.hpp
+        cpuRestMeasurement.hpp
+        cpuRestMeasurement.cpp
+        fortranMeasurement.hpp
+        fortranMeasurement.cpp
+        measurementQueue.hpp
+        measurementQueue.cpp
+        gpuMeasurement.hpp
+        gpuMeasurement.cpp
+        measurementFactory.hpp
+        measurementWriter.h
+        measurementWriter.cpp
+        measurementWriterHelper.h
+        kernels.hpp
+        kernels.cpp
+        measurementData.h
+        memoryMeasurement.h
+        memoryMeasurement.cpp
+        autocorrelation_kernels.hpp
+        autocorrelation_kernels.cpp
+)
+
+target_include_directories(${UppASD_LIB}
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)

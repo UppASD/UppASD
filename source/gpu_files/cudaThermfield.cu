@@ -2,10 +2,9 @@
 #include <curand.h>
 
 #include "c_headers.hpp"
-#include "cudaMatrix.hpp"
-#include "cudaParallelizationHelper.hpp"
+#include "gpuParallelizationHelper.hpp"
 #include "cudaThermfield.hpp"
-#include "fortMatrix.hpp"
+#include "tensor.hpp"
 #include "real_type.h"
 #include "stopwatch.hpp"
 #include "stopwatchDeviceSync.hpp"
@@ -15,16 +14,15 @@
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
-
 // The neighbour list setup helper
-class CudaThermfield::SetupSigmaFactor : public CudaParallelizationHelper::Site {
+class CudaThermfield::SetupSigmaFactor : public GpuParallelizationHelper::Site {
 private:
    real* sigma_factor;
    real dp;
 
 public:
-   SetupSigmaFactor(real* p1, real p2) {
-      sigma_factor = p1;
+   SetupSigmaFactor(GpuTensor<real, 1>& p1, real p2) {
+      sigma_factor = p1.data();
       dp = p2;
    }
 
@@ -33,18 +31,17 @@ public:
    }
 };
 
-
-class CudaThermfield::SetupField : public CudaParallelizationHelper::AtomSite {
+class CudaThermfield::SetupField : public GpuParallelizationHelper::AtomSite {
 private:
    real* field;
    const real* sigma_factor;
    const real* mmom;
 
 public:
-   SetupField(real* p1, const real* p2, const real* p3) {
-      field = p1;
-      sigma_factor = p2;
-      mmom = p3;
+   SetupField(GpuTensor<real, 3>&  p1, const GpuTensor<real, 1>& p2, const GpuTensor<real, 2>& p3) {
+      field = p1.data();
+      sigma_factor = p2.data();
+      mmom = p3.data();
    }
 
    __device__ void each(unsigned int atom, unsigned int site) {
@@ -55,24 +52,22 @@ public:
    }
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
+
 CudaThermfield::CudaThermfield()
     : stopwatch(GlobalStopwatchPool::get("Cuda thermfield")),
-      parallel(CudaParallelizationHelper::def) {
+      parallel(ParallelizationHelperInstance) {
    constantsInitiated = false;
    dataInitiated = false;
 }
-
 
 CudaThermfield::~CudaThermfield() {
    if(dataInitiated) {
       curandDestroyGenerator(gen);
    }
 }
-
 
 bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
                               unsigned long long seed) {
@@ -82,8 +77,9 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
    }
 
    stopwatch.skip();
-
-   if(field.initiate(3, N, M) && sigmaFactor.initiate(N)) {
+   field.Allocate(3, N, M);
+   sigmaFactor.Allocate(N);
+   if(!field.empty() && !sigmaFactor.empty()) {
       if(curandCreateGenerator(&gen, rngType) == CURAND_STATUS_SUCCESS) {
          if(seed == 0ULL) {
             seed = time(nullptr);
@@ -92,16 +88,15 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
          curandSetStream(gen, parallel.getWorkStream());
          dataInitiated = true;
       } else {
-         field.free();
-         sigmaFactor.free();
+         field.Free();
+         sigmaFactor.Free();
       }
    }
    stopwatch.add("initiate");
    return dataInitiated;
 }
 
-
-bool CudaThermfield::initiateConstants(const fortMatrix<real, 1>& temperature, real timestep, real gamma,
+bool CudaThermfield::initiateConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
                                        real k_bolt, real mub, real damping) {
    // Timing
    stopwatch.skip();
@@ -115,18 +110,27 @@ bool CudaThermfield::initiateConstants(const fortMatrix<real, 1>& temperature, r
    real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
 
    // Set up sigmaFactor
-   sigmaFactor.memcopy(temperature, parallel.getWorkStream());
+   sigmaFactor.copy_sync(temperature);
 
    // sF = sqrt(dp*sF) ( = sqrt(dp*temp))
-   parallel.cudaSiteCall(SetupSigmaFactor(sigmaFactor, dp));
+   parallel.gpuSiteCall(SetupSigmaFactor(sigmaFactor, dp));
    stopwatch.add("initiate constants");
 
    constantsInitiated = true;
    return true;
 }
 
+void CudaThermfield::resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
+                                       real k_bolt, real mub, real damping) {
+   // Set up sigmaFactor
+   sigmaFactor.copy_sync(temperature);
+   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
+   // sF = sqrt(dp*sF) ( = sqrt(dp*temp))
+   parallel.gpuSiteCall(SetupSigmaFactor(sigmaFactor, dp));
+   stopwatch.add("initiate constants");
+}
 
-void CudaThermfield::randomize(const cudaMatrix<real, 2>& mmom) {
+void CudaThermfield::randomize(const GpuTensor<real, 2>& mmom) {
    // Initiated?
    if(!initiated()) {
       return;
@@ -137,14 +141,14 @@ void CudaThermfield::randomize(const cudaMatrix<real, 2>& mmom) {
 
 // Generate random vector
 #ifdef SINGLE_PREC
-   curandGenerateNormal(gen, field.get_data(), field.size(), 0.0, 1.0);
+   curandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0);
 #else
-   curandGenerateNormalDouble(gen, field.get_data(), field.size(), 0.0, 1.0);
+   curandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0);
 #endif
    stopwatch.add("RNG");
 
    // Expand thermal field
-   parallel.cudaAtomSiteCall(SetupField(field, sigmaFactor, mmom));
+   parallel.gpuAtomSiteCall(SetupField(field, sigmaFactor, mmom));
    stopwatch.add("loop");
 }
 

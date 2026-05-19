@@ -1,0 +1,50 @@
+#include "measurementWriter.h"
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+
+MeasurementWriter::MeasurementWriter(bool do_jtensor,
+                                     int fp_precision,
+                                     int padding)
+: do_jtensor(do_jtensor)
+, fp_precision(fp_precision)
+, colWidth(fp_precision + padding + fp_printed_symbols)
+{
+    if (padding <= 0)
+        throw std::invalid_argument("Padding must be bigger than zero.");
+}
+
+
+std::string MeasurementWriter::readSimIDFromFile()
+{
+    const std::string filename = "inpsd.dat";
+    std::ifstream inputFile(filename);
+
+    if (!inputFile)
+        throw std::runtime_error("Could not open file '" + filename + "'");
+
+    std::string line, keyword, value;
+    while (std::getline(inputFile, line))
+    {
+        std::istringstream iss(line);
+        if ((iss >> keyword >> value) && keyword == "simid")
+            break;
+    }
+
+    if (value.empty())
+        throw std::runtime_error("simid not found in " + filename);
+
+    return value;
+}
+
+void MeasurementWriter::writeIteration(std::ostream& out, real value) const
+{
+    if (*FortranData::real_time_measure == 'Y')
+    {
+        out << std::setw(colWidth) << value;
+    }
+    else
+    {
+        out << std::setw(colWidth) << static_cast<int>(value);
+    }
+}

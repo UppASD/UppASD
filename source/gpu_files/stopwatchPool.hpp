@@ -10,7 +10,6 @@
 #include "real_type.h"
 #include "stopwatch.hpp"
 
-
 class StopwatchPool {
 private:
    class StopwatchNode {
