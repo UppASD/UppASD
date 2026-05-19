@@ -9,8 +9,8 @@
 module HamiltonianSetupDispatcher
    use Parameters
    use Constants
-   use SFCIntegration
-   use SFCHamiltonianInterface
+   ! use SFCIntegration
+   ! use SFCHamiltonianInterface
    ! NOTE: HamiltonianInit would be imported here for traditional setup
    ! use HamiltonianInit, only: setup_neighbour_hamiltonian
    implicit none

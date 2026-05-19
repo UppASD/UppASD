@@ -7,7 +7,7 @@
 !> @author Anders Bergman
 !-------------------------------------------------------------------------------
 module FullHamiltonianDispatcher
-   use SFCIntegration
+   !use SFCIntegration
    implicit none
 
    ! Use double precision consistently
