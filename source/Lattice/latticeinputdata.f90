@@ -16,7 +16,7 @@ module LatticeInputData
    integer :: initlatt                                  !< Mode of initialization of ionic displacments (1/2/4)
    integer :: lattroteul                                !< Global rotation of ionic displacements
    real(dblprec) , dimension(3) :: lattrotang           !< Euler angles for global rotation of ionic displacements
-   character(len=1) :: do_n3                            !< Newton's third law correction of force constant coefficient elements ('Y'/'N')
+   character(len=1) :: do_n3                            !< Newton´s third law correction of force constant coefficient elements ('Y'/'N')
    character(len=35) :: lattrestartfile                 !< Name of lattice restart file
   !!!SLDTODO Right now only a single iplattdamp value is read. C.f. initial phase for spins
   !!!real(dblprec) :: iplattdamp                          !< Initial phase dissipative damping constant for ionic motion

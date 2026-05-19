@@ -13,7 +13,7 @@ The GUI has the following capabilities
             - Plot the DMI vectors between neighbours, with the colormap being determined
             by the magnitude of the vectors.
         - Site dependent energy, allowing for time-dependent rendering.
-        - It also includes several general actors, such a colorbars, axes and time step visualization
+        - Also includes several general actors, such a colorbars, axes and time step visualization
         - It allows for on the fly modification of the glyphs for the magnetization,
         visualization of the magnetization density.
         - On the fly change of the size of the magnetization glyphs.
@@ -35,22 +35,62 @@ Author
 ----------
 Jonathan Chico
 """
+# pylint: disable=invalid-name, no-name-in-module, no-member
+
 import sys
+import locale
+import argparse
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QLocale
 from ASD_GUI.UI.ASDUIDriver import UppASDVizMainWindow
 
-################################################################################
-## @brief Main executable class to run the ASD_Visualizer
+
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="UppASDViz visualization tool.")
+
+    # Relevant arguments
+    parser.add_argument('--settings', '-s', type=str, help='Path to the configuration file.')
+    parser.add_argument('--coords', '-c', type=str, help='Filename for atomic coordinates.')
+    parser.add_argument('--moments', '-m', type=str, help='Filename for magnetic moments.')
+    parser.add_argument('--energies', '-e', type=str, help='Filename for site-resolved energies.')
+    parser.add_argument('--neighbours', '-n', type=str, help='Filename for interacting neighbours.')
+    parser.add_argument('--dmi-neighbours', '-d', type=str, help='Filename for DMI vectors.')
+    # parser.add_argument('--magnons', action='store_true', help='Spin wave spectrum visualization.')
+
+    return parser.parse_args()
+
+
+##########################################################################
+# @brief Main executable class to run the ASD_Visualizer
 # @details It calls the ASDUIDriver which contains the UppASDVizMainWindow class
 # containing the wrapper class defining the data needed to setup the GUI.
 # @author Jonathan Chico
-################################################################################
-if __name__ == '__main__':
+##########################################################################
+def main():
+    """
+    Initialize and run the UppASDVizMainWindow application.
+    """
+    # Try to enforce en_US locale for number parsing/formatting
+    try:
+        locale.setlocale(locale.LC_NUMERIC, 'en_US.UTF-8')
+        QLocale.setDefault(QLocale("en_US"))
+        # QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+    except locale.Error:
+        print("Could not set en_US locale, using fallback.")
+        locale.setlocale(locale.LC_NUMERIC, 'C')
+
+    # Parse command-line arguments
+    args = parse_args()
 
     # Open the Application Window
     app = QApplication(sys.argv)
-    window = UppASDVizMainWindow()
+    window = UppASDVizMainWindow(args=args)
     window.show()
-    window.iren.Initialize() # Need this line to actually show the render inside Qt
+    window.iren.Initialize()  # Need this line to actually show the render inside Qt
     # Return
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

@@ -383,7 +383,7 @@ contains
    !
    ! DESCRIPTION:
    !> @brief This routine will calculate the tranisition rate between the possible states
-   !> of this way the \f$J_{ij}\f$'s will be updated at the time calculates by this routine
+   !> of this way the \f$J_{ij}\f$´s will be updated at the time calculates by this routine
    !> thus allowing the dynamics of magnetic polarons. This is done by a regular
    !> KMC method
    !
@@ -1433,7 +1433,7 @@ contains
    !
    !  end subroutine linear_exchange_update
    !
-   !! For Nina's angle approach
+   !! For Nina´s angle approach
    !!------------------------------------------------------------------------------
    !! SUBROUTINE: anti_parallel_update
    !!

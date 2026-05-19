@@ -25,7 +25,7 @@ do
 
       echo -e "Performing simulation for damping $damping"
       # Running the ASD simulation
-      ../../../../source/sd > out.out
+      ${SD_BINARY} > out.out
       echo -e "done"
 
    cd ../

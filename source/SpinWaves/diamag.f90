@@ -187,7 +187,7 @@ contains
                B_k(ia,ja) =B_k(ia,ja) +0.5_dblprec*sqrt(mmom(ia,1))*sqrt(mmom(ja,1))*sJs(ui,Jtens_q(:,:,ia,ja,iq+3*nq),uj)
                C_k(ia,ia) =C_k(ia,ia) +1.0_dblprec*mmom(ja,1)*sJs(vi,Jtens_q(:,:,ia,ja,0),vj)
 
-               ! Also mount S' for later correlation function use 
+               ! Also mount S´ for later correlation function use 
                do alfa=1,3
                   do beta=1,3
                      ! Y(alfa,beta,k)
@@ -208,7 +208,7 @@ contains
             end do
          end do
 
-         ! Hamiltonian h = [A(k)-C B(k) ; B'(k) A(-k)+C ]
+         ! Hamiltonian h = [A(k)-C B(k) ; B´(k) A(-k)+C ]
          h_k=0.0_dblprec
          do ia=1,NA
             do ja=1,NA
@@ -231,13 +231,13 @@ contains
 
          !!! write(2001,*) iq
          !!! write(2001,*) 'A'
-         !!! write(2001,'(2f12.6)')A_k
+         !!! write(2001,'(12f12.6)')A_k
          !!! write(2001,*) 'B'
-         !!! write(2001,'(2f12.6)')B_k
+         !!! write(2001,'(12f12.6)')B_k
          !!! write(2001,*)'C'
-         !!! write(2001,'(2f12.6)')C_k
+         !!! write(2001,'(12f12.6)')C_k
          !!! write(2001,*)'h'
-         !!! write(2001,'(4f12.6)')h_k
+         !!! write(2001,'(24f12.6)')h_k
 
          !if (iq<=nq) then 
          !   eig_fcinv = 0.5_dblprec*mub/mry
@@ -399,6 +399,8 @@ contains
 
       complex(dblprec) :: cone, czero, fcinv, im, dia_eps
 
+      !  print *,'In diagonalize quad Hamiltonian'
+      !  print '(12f10.6)',real(h_in)
       !
       !
       hdim=2*NA
@@ -423,7 +425,7 @@ contains
          g_mat(ia+NA,ia+NA)=(-1.0_dblprec,0.0_dblprec)
       end do
       !
-      ! Cholesky decomposition of h to K'*K
+      ! Cholesky decomposition of h to K´*K
       !!! print *,'h'
       !!! print '(8f12.6)',h_in
       !!! print *,'Re h'
@@ -467,20 +469,20 @@ contains
       enddo
 
       if(info==0) then  ! Positive-definit matrix, Colpa diagonalization ok
+         do ia=1,hdim
+            do ja=ia+1,hdim
+               K_mat(ja,ia)=0.0_dblprec
+            end do
+         end do
+         call zgemm('N','C',hdim,hdim,hdim,cone,g_mat,hdim,K_mat,hdim,czero,dum_mat,hdim)
+         call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
       else
          print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
-         !print '(2f10.6)',real(K_mat)
-         !print *,'-----------------'
-         !print '(2f10.6)',aimag(K_mat)
-         !print *,'-----------------'
+         ! print '(12f10.6)',real(h_in)
+         call fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+         ! print *,'eig_val',eig_val
       end if
-      do ia=1,hdim
-         do ja=ia+1,hdim
-            K_mat(ja,ia)=0.0_dblprec
-         end do
-      end do
-      call zgemm('N','C',hdim,hdim,hdim,cone,g_mat,hdim,K_mat,hdim,czero,dum_mat,hdim)
-      call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
+
       allocate(cwork(lwork))
       allocate(rwork(6*NA-2))
       ! Symmetrization of K (from SpinW code, not TothLake)
@@ -490,7 +492,7 @@ contains
       !       eig_vec(ja,ia)=eig_vec(ia,ja)
       !    end do
       ! end do
-      ! Eigenvaluesolver for HgH'
+      ! Eigenvaluesolver for HgH´
       KgK_mat=eig_vec
       call zheev('V','U', hdim, eig_vec, hdim, eig_val, cwork, lwork, rwork, info)
       deallocate(cwork)
@@ -538,7 +540,7 @@ contains
 
       do alfa=1,3
          do beta=1,3
-            ! Calculate T' * [Y Z ; V W ] * T
+            ! Calculate T´ * [Y Z ; V W ] * T
             call zgemm('N','N',hdim,hdim,hdim,cone,S_prime(:,:,alfa,beta,iq),hdim,T_mat,hdim,czero,dum_mat,hdim)
             call zgemm('C','N',hdim,hdim,hdim,cone,T_mat,hdim,dum_mat,hdim,czero,S_prime(:,:,alfa,beta,iq),hdim)
          end do
@@ -560,6 +562,93 @@ contains
       return
       !
    end subroutine diagonalize_quad_hamiltonian
+
+   subroutine fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+      use Constants
+      implicit none
+
+      integer, intent(in) :: NA, iq
+      integer :: hdim, ia, info, lwork
+      complex(dblprec), intent(in)  :: h_in(2*NA, 2*NA)
+      real(dblprec),    intent(out) :: eig_val(2*NA)
+      complex(dblprec), intent(out) :: eig_vec(2*NA, 2*NA)
+
+      complex(dblprec), allocatable :: alpha_mat(:), beta_mat(:), work(:)
+      complex(dblprec), allocatable :: eta(:,:), A_copy(:,:)
+      real(dblprec),    allocatable :: rwork(:)
+      complex(dblprec) :: czero
+      complex(dblprec) :: dummy_vl(1,1)
+
+      czero = (0.0_dblprec, 0.0_dblprec)
+      hdim = 2 * NA
+
+      !— allocate everything —
+      allocate(alpha_mat(hdim), beta_mat(hdim))
+      allocate(eta(hdim, hdim), A_copy(hdim, hdim))
+      allocate(work(8 * hdim))
+      allocate(rwork(hdim))
+
+      eig_vec = czero
+      eig_val = 0.0_dblprec
+
+      !— build η = diag(1, …, 1, –1, …, –1) —
+      eta = czero
+      do ia = 1, NA
+         eta(ia,   ia)       = (1.0_dblprec, 0.0_dblprec)
+         eta(NA+ia, NA+ia)   = (-1.0_dblprec, 0.0_dblprec)
+      end do
+
+      !— copy H into a working array —
+      A_copy = h_in
+
+      !- Pretty-print A_copy
+      ! print *, 'A_copy'
+      ! do ia = 1, hdim
+      !    print '(20f12.6)', h_in(ia, 1:hdim)
+      ! end do
+
+      !- Add small diagonal offset to ensure positive definiteness
+      !— (can be controlled by input parameter `nc_eps`) —
+      if (diamag_eps > -1.0_dblprec) then
+         do ia = 1, hdim
+            A_copy(ia, ia) = A_copy(ia, ia) + diamag_eps
+         end do
+      else
+         do ia = 1, hdim
+            A_copy(ia, ia) = A_copy(ia, ia) + 1.0d-6
+         end do
+      end if
+
+      !— solve A_copy * v = ω * η * v  via ZGGEV —
+      call zggev( 'N', 'V', hdim,                       &
+                  A_copy, hdim,                         &
+                  eta,   hdim,                         &
+                  alpha_mat, beta_mat,                 &
+                  dummy_vl, 1,                         & ! VL unused
+                  eig_vec, hdim,                       & ! VR returned
+                  work, 8*hdim,                        & ! complex workspace
+                  rwork,                                & ! <<<<< required real workspace
+                  info )
+
+      if (info /= 0) then
+         print *, 'ERROR: ZGGEV failed at iq=', iq, ' info=', info
+         eig_val = 0.0_dblprec
+         eig_vec = czero
+      else
+         do ia = 1, hdim
+            if (abs(beta_mat(ia)) > 1d-12) then
+               eig_val(ia) = real(alpha_mat(ia) / beta_mat(ia))
+            else
+               eig_val(ia) = 0.0_dblprec
+            end if
+         end do
+      end if
+
+      !— clean up —
+      deallocate(alpha_mat, beta_mat, eta, A_copy, work, rwork)
+
+   end subroutine fallback_bosonic_diag
+
 
    subroutine diamag_sqw(NA,nq,nq_ext,nw,q,nc_eval_q,S_prime,simid,n_vec)
       !
@@ -844,7 +933,7 @@ contains
       mom_hat=mom/mnorm
       !mnorm=1.0_dblprec
       !mom_hat=z_hat
-      ! Follow Toth-Lake recipe for R'
+      ! Follow Toth-Lake recipe for R´
       R_prime(3,:)=mom_hat
       !if(abs(mom_hat(3))==1.0_dblprec) then  !if m=00+-1 then R_2=0+-10
       if(abs(mom_hat(3)-1.0_dblprec)<0.9999_dblprec) then  !if m=00+-1 then R_2 = x^  cross m (not R_2=0+-10)
@@ -917,11 +1006,17 @@ contains
       mnorm=sqrt(sum(mom_n*mom_n)+1.0d-15)
       mom_hat_n=mom_n/mnorm
       mdot=sum(mom_hat_0*mom_hat_n)
+      if (mdot>1.0_dblprec) then
+         mdot=1.0_dblprec
+      else if (mdot<-1.0_dblprec) then
+         mdot=-1.0_dblprec
+      end if
+
       angle=acos(mdot)
 
       ! Find perpendicular vector from cross-product
-      !print '(a,3f18.8)', 'k_hat',k_hat
-      !print '(a,f18.8)', 'angle: ',angle*180/3.1415
+      ! print '(a,3f18.8)', 'k_hat',k_hat
+      ! print '(a,f18.8)', 'angle: ',angle*180/3.1415
       !
       if (present(e_rot)) then
          e_norm=norm2(e_rot)

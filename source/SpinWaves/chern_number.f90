@@ -239,16 +239,30 @@ contains
           end do
         end do
       end do
+      !1d grid
+      if (Nx .eq. 1 .and. Ny .eq. 1) then
+        kx=Ny
+        ky=0
+        kz=0
+      else if (Nx .eq. 1 .and. Nz .eq. 1) then
+        kx=Ny
+        kz=0
+        ky=0
+      else if (Ny .eq. 1 .and. Nz .eq.1 ) then
+        kx=Nx
+        ky=0
+        kz=0
+      end if
       ! 2D grid and 3D grid
-      if (min(Nx,Ny,Nz)==Nz) then
+      if (Nz .eq. 1) then
         kx=Nx
         ky=Ny
         kz=0
-      else if (min(Nx,Ny,Nz)==Ny) then
+      else if (Ny .eq. 1) then
         kx=Nx
         ky=Nz
         kz=0
-      else if (min(Nx,Ny,Nz)==Nx) then
+      else if (Nx .eq. 1) then
         kx=Ny
         ky=Nz
         kz=0
@@ -403,9 +417,16 @@ contains
 
       Berry_cuv=log(u1norm*u2norm*u3norm*u1invnorm*u2invnorm*u3invnorm)
 
-      Ch_numq=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,1:j),dim=2))
-      Ch_numqplus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+1:j+k),dim=2))
-      Ch_numqminus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+k+1:j+k+l),dim=2))
+      ! 2D grid or 3D grid
+      if (kz == 0) then
+        Ch_numq=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,1:j),dim=2))
+        Ch_numqplus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+1:j+k),dim=2))
+        Ch_numqminus=(1.0_dblprec/(2*pi))*aimag(sum(Berry_cuv(:,j+k+1:j+k+l),dim=2))
+      else
+        Ch_numq=(1.0_dblprec/(2*pi*(max(Nx,Ny,Nz)-1)))*aimag(sum(Berry_cuv(:,1:j),dim=2))
+        Ch_numqplus=(1.0_dblprec/(2*pi*(max(Nx,Ny,Nz)-1)))*aimag(sum(Berry_cuv(:,j+1:j+k),dim=2))
+        Ch_numqminus=(1.0_dblprec/(2*pi*(max(Nx,Ny,Nz)-1)))*aimag(sum(Berry_cuv(:,j+k+1:j+k+l),dim=2))
+      end if
 
       ! Calculate the thermal magnon conductivity Kxy in units W/K
       ! Definiton of the Bose-Einstein distribution

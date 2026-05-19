@@ -1109,6 +1109,7 @@ contains
          ! Calculate total and term resolved spin energies
          if(plotenergy>0) then
             if (mod(mstep-1,avrg_step)==0) then
+               ! print *,'Energy!', mstep-1
                totenergy=0.0_dblprec
                call calc_energy(nHam,mstep,Natom,Nchmax,  &
                   conf_num,Mensemble,Natom,Num_macro,1,  &
@@ -1118,17 +1119,25 @@ contains
                   time_external_field,max_no_constellations,maxNoConstl,            &
                   unitCellType,constlNCoup,constellations,OPT_flag,                 &
                   constellationsNeighType,totenergy,NA,N1,N2,N3)
-            end if
+               ! Calculate energies of the lattice and the spin-lattice Hamiltonians
+               ! The energy of the magnetic system was calculated with the call to calc_energy
+               sdpot_energy = Natom*totenergy
+               call calc_lattenergies(Natom,Mensemble,1,Mensemble,1,Natom,do_ll,   &
+                  do_ml,do_mml,mode,uvec,emomM,latt_external_field,       &
+                  latt_time_external_field,ll_energy,ml_energy,    &
+                  mml_energy,ldpot_energy,sdpot_energy,sldpot_energy,         &
+                  totpot_energy,sld_single_energy,mm_energy0,ammom_inp,aemom_inp,NA)
+             end if
          endif
 
          ! Calculate energies of the lattice and the spin-lattice Hamiltonians
          ! The energy of the magnetic system was calculated with the call to calc_energy
-         sdpot_energy = Natom*totenergy
-         call calc_lattenergies(Natom,Mensemble,1,Mensemble,1,Natom,do_ll,   &
-            do_ml,do_mml,mode,uvec,emomM,latt_external_field,       &
-            latt_time_external_field,ll_energy,ml_energy,    &
-            mml_energy,ldpot_energy,sdpot_energy,sldpot_energy,         &
-            totpot_energy,sld_single_energy,mm_energy0,ammom_inp,aemom_inp,NA)
+         ! sdpot_energy = Natom*totenergy
+         ! call calc_lattenergies(Natom,Mensemble,1,Mensemble,1,Natom,do_ll,   &
+         !    do_ml,do_mml,mode,uvec,emomM,latt_external_field,       &
+         !    latt_time_external_field,ll_energy,ml_energy,    &
+         !    mml_energy,ldpot_energy,sdpot_energy,sldpot_energy,         &
+         !    totpot_energy,sld_single_energy,mm_energy0,ammom_inp,aemom_inp,NA)
 
          call local_angular_momentum(Natom, Mensemble, mion,  uvec, vvec, lvec)
 

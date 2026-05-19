@@ -62,4 +62,10 @@ contains
       return
    end subroutine FortranData_Initiate
 
+   subroutine cudasim_cudarunsimulation(whichsim, whichphase)
+      implicit none
+      integer, dimension(:), intent(inout) :: whichsim, whichphase
+      return
+  end subroutine cudasim_cudarunsimulation
+
 end module nocuda

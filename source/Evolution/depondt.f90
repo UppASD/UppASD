@@ -642,31 +642,47 @@ contains
       integer :: i_all, i_stat
 
       if(flag>0) then
-         allocate(bloc(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(bloc))*kind(bloc),'bloc','allocate_depondtfields')
-         bloc=0.0_dblprec
-         allocate(btherm(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(btherm))*kind(btherm),'btherm','allocate_depondtfields')
-         btherm=0.0_dblprec
-         allocate(bdup(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(bdup))*kind(bdup),'bdup','allocate_depondtfields')
-         bdup=0.0_dblprec
-         allocate(mrod(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(mrod))*kind(mrod),'mrod','allocate_depondtfields')
-         mrod=0.0_dblprec
+         if (.not. allocated(bloc)) then
+            allocate(bloc(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(bloc))*kind(bloc),'bloc','allocate_depondtfields')
+            bloc=0.0_dblprec
+         end if
+         if (.not. allocated(btherm)) then
+            allocate(btherm(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(btherm))*kind(btherm),'btherm','allocate_depondtfields')
+            btherm=0.0_dblprec
+         end if
+         if (.not. allocated(bdup)) then
+            allocate(bdup(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(bdup))*kind(bdup),'bdup','allocate_depondtfields')
+            bdup=0.0_dblprec
+         end if
+         if (.not. allocated(mrod)) then
+            allocate(mrod(3,Natom,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mrod))*kind(mrod),'mrod','allocate_depondtfields')
+            mrod=0.0_dblprec
+         end if
       else
-         i_all=-product(shape(bloc))*kind(bloc)
-         deallocate(bloc,stat=i_stat)
-         call memocc(i_stat,i_all,'bloc','allocate_systemdata')
-         i_all=-product(shape(btherm))*kind(btherm)
-         deallocate(btherm,stat=i_stat)
-         call memocc(i_stat,i_all,'btherm','allocate_systemdata')
-         i_all=-product(shape(bdup))*kind(bdup)
-         deallocate(bdup,stat=i_stat)
-         call memocc(i_stat,i_all,'bdup','allocate_systemdata')
-         i_all=-product(shape(mrod))*kind(mrod)
-         deallocate(mrod,stat=i_stat)
-         call memocc(i_stat,i_all,'mrod','allocate_systemdata')
+         if (allocated(bloc)) then
+            i_all=-product(shape(bloc))*kind(bloc)
+            deallocate(bloc,stat=i_stat)
+            call memocc(i_stat,i_all,'bloc','allocate_systemdata')
+         end if
+         if (allocated(btherm)) then
+            i_all=-product(shape(btherm))*kind(btherm)
+            deallocate(btherm,stat=i_stat)
+            call memocc(i_stat,i_all,'btherm','allocate_systemdata')
+         end if
+         if (allocated(bdup)) then
+            i_all=-product(shape(bdup))*kind(bdup)
+            deallocate(bdup,stat=i_stat)
+            call memocc(i_stat,i_all,'bdup','allocate_systemdata')
+         end if
+         if (allocated(mrod)) then
+            i_all=-product(shape(mrod))*kind(mrod)
+            deallocate(mrod,stat=i_stat)
+            call memocc(i_stat,i_all,'mrod','allocate_systemdata')
+         end if
       end if
    end subroutine allocate_depondtfields
 

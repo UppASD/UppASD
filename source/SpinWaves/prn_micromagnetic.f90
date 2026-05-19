@@ -377,7 +377,7 @@ contains
       real(dblprec), dimension(3,3), intent(in) :: D_xc_stiffness_matrix_lsq !< Spin wave stiffness tensor LSQ fit
       real(dblprec), dimension(3,3), intent(in) :: A_xc_stiffness_matrix_lsq !< Exchange stiffness constant LSQ fit
 
-      ! Printing of exchange stiffness information obtained from the Jij's
+      ! Printing of exchange stiffness information obtained from the Jij´s
       write (ofileno,'(a)') " "
       write (ofileno,'(2x,a,f10.3,2x,a)') 'Exchange stiffness at T=0 K:',A_xc*1e12,'pJ/m'
       write (ofileno,'(a)') "**************** EXCHANGE STIFFNESS MATRIX [pJ/m] **************"

@@ -85,7 +85,7 @@ contains
       thermal_field=0.0_dblprec
 
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       if(SDEalgh==1) then
          ! random numbers the same for calculation et and emom2
@@ -134,7 +134,7 @@ contains
             btorque,emom,emom2,emomM,mmom,delta_t,Temp_array,temprescale,stt,       &
             thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list)
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
       elseif(SDEalgh==6) then
          ! random numbers the same for calculation et and emom2
@@ -235,7 +235,7 @@ contains
       ! .. Local variables
 
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       if(SDEalgh==1) then
          call modeulermpf(Natom,Mensemble,Landeg,bn,lambda1_array,beff, emom,emom2, &
@@ -256,7 +256,7 @@ contains
             btorque,emom,emom2,delta_t,stt,do_she,she_btorque,do_sot,sot_btorque,   &
             red_atom_list)
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
       elseif(SDEalgh==6) then
          call sibf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,delta_t)

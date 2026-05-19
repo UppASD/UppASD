@@ -9,7 +9,7 @@ bccFe
 do
     cd $n
     echo Starts example $n
-    time ../../../source/sd > out.log
+    time -p ${SD_BINARY} > out.log
     echo Ends example $n
     cd ../
 done

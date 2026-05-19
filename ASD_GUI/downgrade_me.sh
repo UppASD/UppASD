@@ -8,6 +8,7 @@ for i in setup.py bin/asd_gui `find . -name "*.py"` ;
 do 
    sed -i  "s/Qt6/Qt5/g" $i 
 done
+sed -i "0,/asd_gui/s/asd_gui/asd_gui_qt5/" setup.py
 echo '-----------------------------------------------'
 
 echo 'Downgrade complete.'

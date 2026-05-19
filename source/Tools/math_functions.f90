@@ -215,7 +215,7 @@ contains
 
    end subroutine matvecmul
 
-   ! Inversion of 3 x 3 matrix with Cramer's rule
+   ! Inversion of 3 x 3 matrix with Cramer´s rule
    subroutine matinvcramer3(A, B)
 
       implicit none

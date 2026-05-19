@@ -3,11 +3,11 @@
 !> and Fourier transforms \f$\mathbf{S}\left(\mathbf{q},\omega\right)\f$
 !> @details
 !> In this routine magnon disperion relations, magnon density of states, etc. are calculated from the
-!> time and spatially displaced correlation function \f$ C^k \left(\mathbf{r}-\mathbf{r'},t\right)\f$ which is defined as
-!> \f$ C^k (\mathbf{r}-\mathbf{r'},t) = \langle m^k_{\mathbf{r}}(t) m^k_{\mathbf{r'}}(0) \rangle - \langle m^k_{\mathbf{r}}(t) \rangle \langle m^k_{\mathbf{r'}}(0) \rangle\f$.
+!> time and spatially displaced correlation function \f$ C^k \left(\mathbf{r}-\mathbf{r´},t\right)\f$ which is defined as
+!> \f$ C^k (\mathbf{r}-\mathbf{r´},t) = \langle m^k_{\mathbf{r}}(t) m^k_{\mathbf{r´}}(0) \rangle - \langle m^k_{\mathbf{r}}(t) \rangle \langle m^k_{\mathbf{r´}}(0) \rangle\f$.
 !> Using this one can then calculate the dynamical structure factor \f$ \mathbf{S}\left(\mathbf{q},\omega\right)\f$, via a Fourier transforms
 !> of the correlation function
-!> \f$ S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r'}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r'})} \int_{-\infty}^{\infty} e^{i\omega t} C^k (\mathbf{r}-\mathbf{r'},t) dt\f$
+!> \f$ S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r´}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r´})} \int_{-\infty}^{\infty} e^{i\omega t} C^k (\mathbf{r}-\mathbf{r´},t) dt\f$
 !> @author
 !> A. Bergman, L. Bergqvist, J. Hellsvik, J. Chico
 !> @todo Automatic generation of q-points for do_sc="Y"
@@ -307,11 +307,11 @@ contains
             !> - do_sc
             !! Calculate correlation (N=no/C=static/Q=dynamic)
             !! Dynamical structure factor measures the time and space correlation function
-            !! \f$C^k (\mathbf{r}-\mathbf{r'},t) = \langle m_{\mathbf{r}^k}(t) m_{\mathbf{r'}^k}(0) \rangle -
-            !! \langle m_{\mathbf{r}^k}(t) \rangle \langle m_{\mathbf{r'}^k}(0) \rangle\f$
+            !! \f$C^k (\mathbf{r}-\mathbf{r´},t) = \langle m_{\mathbf{r}^k}(t) m_{\mathbf{r´}^k}(0) \rangle -
+            !! \langle m_{\mathbf{r}^k}(t) \rangle \langle m_{\mathbf{r´}^k}(0) \rangle\f$
             !! ,where the angular brackets signify an ensemble average and k the Cartesian component, and its Fourier Transform, the dynamical structure factor
-            !! \f$S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r'}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r'})}
-            !! \int_{-\infty}^{\infty} e^{i \omega t} C^k (\mathbf{r}-\mathbf{r'},t) dt, \f$
+            !! \f$S^k(\mathbf{q},\omega) = \frac{1}{\sqrt{2\pi}N} \sum_{\mathbf{r},\mathbf{r´}} e^{i\mathbf{q}\cdot(\mathbf{r}-\mathbf{r´})}
+            !! \int_{-\infty}^{\infty} e^{i \omega t} C^k (\mathbf{r}-\mathbf{r´},t) dt, \f$
          case('do_sc')
             read(ifile,*,iostat=i_err) do_sc
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

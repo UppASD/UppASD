@@ -200,7 +200,7 @@ contains
       visited_atoms(selected_atom)=1
       ! Increase the size of the number of accepted atoms, as the seed has been accepted
       atom_wolff_len=atom_wolff_len+1
-      ! Store the atom in the wolff snake to be able to afterward chek it's neighbours
+      ! Store the atom in the wolff snake to be able to afterward chek it´s neighbours
       wolffsnake(atom_wolff_len)=selected_atom
       ! Initiliaze the border atom, setting up the border index to one and the seed atom as the first border atom
       border_index=1
