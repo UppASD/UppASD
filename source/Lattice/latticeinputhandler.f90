@@ -153,8 +153,8 @@ contains
                call ErrorHandling_check_file_exists(mmlfile, &
                   'Please specify mml <mmlfile> where <mmlfile> is a valid MML interaction file')
 
-            case('mml_scale')
-               read(ifile,*,iostat=i_err) mml_scale
+            case('ll_scale')
+               read(ifile,*,iostat=i_err) ll_scale
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('mmll')

@@ -7,7 +7,7 @@ do
    cp Base/* T$Temp/
    cd T$Temp/
    sed -i "s/TEMP/$Temp/g" inpsd.dat
-   ../../../../source/sd > out.log
+   ${SD_BINARY} > out.log
    cd ..
 done
 exit

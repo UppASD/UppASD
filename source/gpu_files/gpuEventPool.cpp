@@ -18,6 +18,7 @@
 #include <nvToolsExtCuda.h>
 #endif
 
+
 // Event class methods
 GpuEventPool::Event::Event() {
    GPU_EVENT_CREATE(&_event);
@@ -33,6 +34,7 @@ void GpuEventPool::Event::deactivate() {
 }
 
 void GpuEventPool::Event::deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e) {
+
 #ifdef NVPROF
    nvtxRangePush("deactivate_callback");
 #endif
@@ -45,6 +47,7 @@ void GpuEventPool::Event::deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e
 void GpuEventPool::Event::addDeactivateCallback(GPU_STREAM_T stream) {
    GPU_STREAM_ADD_CALLBACK(stream, deactivate_callback, this, 0);
 }
+
 
 // Pool class methods
 GpuEventPool::Event &GpuEventPool::get() {
@@ -61,6 +64,7 @@ GpuEventPool::Event &GpuEventPool::get() {
    return *stack.back();
 }
 
+
 // Destroy all events in pool when done
 GpuEventPool::~GpuEventPool() {
    //	std::printf("Event stack size: %ld\n", stack.size());
@@ -69,4 +73,5 @@ GpuEventPool::~GpuEventPool() {
       delete *it;
    }
 }
+
 

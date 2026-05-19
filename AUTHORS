@@ -23,7 +23,8 @@ Lars Bergqvist <lbergqv@kth.se>
 Jonathan Chico <j.chico@fz-juelich.de>
 Johan Mentink*, Andrea Taroni, Satadeep Bhattacharjee, Peter Larsson,
 Thomas Nystrand, Jonathan Werpers, Johan Venemalm, Manuel Pereiro, 
-Fan Pan, Pavel Bessarab**, Raghuveer Chimata, Niklas Fejes
+Fan Pan, Pavel Bessarab**, Raghuveer Chimata, Niklas Fejes, Nastaran Salehi,
+Philipp Rieger, Arkadijs Slobodkins, Mariia Mohylna
 
 Specific contributions:
 * Semi-implicit midpoint solver: Johan Mentink <j.mentink@science.ru.nl>
@@ -35,7 +36,9 @@ Present and former members of the UppASD team
 Olle Eriksson, Lars Nordström, Björn Skubic, Johan Hellsvik, Anders Bergman,
 Lars Bergqvist, Andrea Taroni, Satadeep Bhattacharjee, Corina Etz, Anna Delin,
 Manuel Pereiro, Jonathan Chico, Raghuveer Chimata, Konstantinos Koumpouras,
-Simone Borlenghi, Fan Pan, Debora Rodrigues, Pavel Bessarab, Danny Thonig
+Simone Borlenghi, Fan Pan, Debora Rodrigues, Pavel Bessarab, Danny Thonig,
+Zhiwei Liu, Ivan Miranda, Qichen Xu, Maryna Pankratova, Nastaran Salehi, 
+Arkadijs Slobodkins, Mariia Mohylna
 
 --------------------------------------------------------------------------------
 

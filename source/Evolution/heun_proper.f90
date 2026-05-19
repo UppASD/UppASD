@@ -544,14 +544,18 @@ contains
 
       integer :: i_stat,i_all
 
-      if (flag>0) then
-         allocate(btorque_full(3,Natom,Mensemble),stat=i_stat)
-         call memocc(i_stat,product(shape(btorque_full))*kind(btorque_full),'btorque_full','allocate_aux_heun_fields')
-         btorque_full=0.0_dblprec
+      if (flag > 0) then
+         if (.not. allocated(btorque_full)) then
+            allocate(btorque_full(3,Natom,Mensemble), stat=i_stat)
+            call memocc(i_stat, product(shape(btorque_full))*kind(btorque_full), 'btorque_full', 'allocate_aux_heun_fields')
+         end if
+         btorque_full = 0.0_dblprec
       else
-         i_all=-product(shape(btorque_full))*kind(btorque_full)
-         deallocate(btorque_full,stat=i_stat)
-         call memocc(i_stat,i_all,'btorque_full','allocate_aux_heun_fields')
+         if (allocated(btorque_full)) then
+            i_all = -product(shape(btorque_full))*kind(btorque_full)
+            deallocate(btorque_full, stat=i_stat)
+            call memocc(i_stat, i_all, 'btorque_full', 'allocate_aux_heun_fields')
+         end if
       endif
 
    end subroutine allocate_aux_heun_fields

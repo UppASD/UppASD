@@ -16,6 +16,7 @@
 #include <cuda_runtime.h>
 #endif
 
+
 class StopwatchDeviceSync {
 #if defined(DUMMY_STOPWATCH) || defined(ASYNC_STOPWATCH)
    inline void sync() {

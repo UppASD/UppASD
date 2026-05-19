@@ -23,8 +23,8 @@ Initmag   3                                     (1=random, 2=cone, 3=spec., 4=fi
 
 ip_mode N
 ip_mcanneal 2
-10000 100.0001
-10000 0.0001
+1000 001.00000 1.0e-15 1.0
+1000 000.00001 1.0e-15 1.0
 
 mode      S                                     S=SD, M=MC
 temp      0.100
@@ -35,14 +35,13 @@ timestep  1e-16
 do_avrg   Y                                     Measure averages
 avrg_step 100
 
-
 plotenergy 1         
 
 use_vsl T
 
 do_reduced N
 
-do_ams Y
+do_ams N
 do_diamag Y
 do_sc  Q
 sc_nstep 500
@@ -56,5 +55,5 @@ do_sc_tens Y
 qpoints D
 qfile ./qfile.spinw
 
-
 nc_qvect 0.0 0 0
+

@@ -72,6 +72,7 @@ contains
 
       implicit none
 
+   print *,'Start UppASD from fortran main()'
    ! Executable statements
    !==============================================================!
    ! Check if inpsd.dat exists and whether it contains anything
@@ -271,13 +272,21 @@ contains
       use DiaMag
       use ElkGeometry
       use MetaTypes
-      
+      use Qvectors,        only : q,nq
+      use Chern_number
+
       integer :: cflag
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
-         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
+         call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom, q, nq,0)
          call timing(0,'SpinCorr      ','OF')
+      end if
+
+      if(do_chern=='Y') then
+         call timing(0,'ChernNumber      ','ON')
+         call calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
+         call timing(0,'ChernNumber      ','OF')
       end if
 
       write (*,'(1x,a)') "Enter measurement phase:"
@@ -635,6 +644,7 @@ contains
       use HamiltonianData
       use AutoCorrelation
       use hamiltonianinit
+      ! use HamiltonianInitSFC  ! Not needed - using conditional calls in setup_hamiltonian
       use LatticeInputData
       use magnetizationinit
       use prn_latticefields
@@ -647,6 +657,7 @@ contains
       use prn_latticetrajectories
       use WangLandau
       use Diamag
+      use Chern_number
       use ElkGeometry
       use Qminimizer
       use Correlation_core
@@ -779,11 +790,15 @@ contains
       rewind(ifileno)
       call read_parameters_diamag(ifileno)
       rewind(ifileno)
+      call read_parameters_chern_number(ifileno)
+      rewind(ifileno)
       call read_parameters_elkgeometry(ifileno)
       rewind(ifileno)
       call read_parameters_qminimizer(ifileno)
       rewind(ifileno)
       call read_parameters_3tm(ifileno)
+      rewind(ifileno)
+      call read_parameters_tempexp(ifileno)
       close(ifileno)
       
        
@@ -964,8 +979,8 @@ contains
          ! Read normal exchange file which is thereafter used to build tensor coupling
          call read_exchange_build_tensor()
       else
-         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor &
-            &and calc_tensor")
+         call ErrorHandling_ERROR("Unrecognized or unsupported combination of do_tensor"// &
+            &" and calc_tensor")
       end if
       ham_inp%max_no_shells=maxval(ham_inp%NN)
 
@@ -1027,7 +1042,7 @@ contains
       endif
 
       ! See if it is necesary to read the temperature file
-      if(grad.eq.'Y') call read_temperature_legacy()
+      !if(grad.eq.'Y') call read_temperature_legacy()
       !if(grad.eq.'Y'.or.grad.eq.'F') call read_temperature()
 
       ! Allocating the temperature arrays
@@ -1037,9 +1052,9 @@ contains
       if (ipnphase.ge.1) then
          do i=1, ipnphase
             if(grad=='Y') then
-               !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-               !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
-               !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
+               ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+               !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,iptemp(i),&
+               !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,ipTemp_array(:,i))
                call Lparray(ipTemp_array(:,i),Natom,coord,iptemp(i),simid,.false.)
             else if(grad=='F') then
                call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,     &
@@ -1052,9 +1067,9 @@ contains
          enddo
       endif
       if(grad=='Y') then
-         !call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
-         !   DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
-         !   C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
+         ! call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,&
+         !    DO_RALLOY,ATYPE,ACELLNUMB,ATYPE_CH,SIMID,TEMP,&
+         !    C1,C2,C3,BC1,BC2,BC3,BAS,COORD,Temp_array)
          call Lparray(Temp_array,Natom,coord,Temp,simid,.true.)
       else if(grad=='F') then
          call SETUP_TEMP(NATOM,NT,NA,N1,N2,N3,NATOM_FULL,DO_RALLOY,ATYPE,ACELLNUMB, &
@@ -1169,6 +1184,16 @@ contains
       !!!    max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
       !!!    do_reduced,do_prnstruct,do_sortcoup,simid,print_dip_tensor,read_dipole,    &
       !!!    qdip_files)
+      
+      ! Debug: Check do_sfc value
+      write(*,'(1x,a,a)') 'DEBUG: do_sfc value = ', do_sfc
+      ! Hamiltonian setup - unified approach with conditional neighbor mapping
+      if (do_sfc == 'Y') then
+         write(*,'(a)') 'Using SFC coordinate-based neighbor mapping (O(N log N))'
+      else
+         write(*,'(a)') 'Using traditional supercell-based neighbor mapping (O(N²))'
+      end if
+         
       call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Mensemble,  &
          nHam,Natom,achtype,atype_ch,asite_ch,achem_ch,acellnumb,acellnumbrev,atype,&
          anumb,alat,C1,C2,C3,Bas,ammom_inp,coord,BC1,BC2,BC3,sym,        &
@@ -1185,6 +1210,7 @@ contains
          max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
          do_reduced,do_prnstruct,do_sortcoup,simid,ham_inp%print_dip_tensor,ham_inp%read_dipole,    &
          ham_inp%qdip_files)
+      
       !call setup_reduced_hamiltonian(Natom,NA,conf_num)
       ! Allocate arrays for simulation and measurement
       call allocate_general(1)

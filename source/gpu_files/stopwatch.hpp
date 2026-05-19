@@ -13,6 +13,7 @@
 #include "c_headers.hpp"
 #include "real_type.h"
 
+
 class Stopwatch {
    // Allow StopwatchPool to access private methods
    friend class StopwatchPool;

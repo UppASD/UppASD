@@ -101,7 +101,7 @@ sc_step 40                                Number of time steps between each samp
 #sc_sep 10                                 Number of time steps between the start of subsequent sc measurements
 
 qpoints D                                 Flag for q-point generation (F=file,A=automatic,C=full cell)
-qfile   ./qfile
+qfile   ./qfileN10
 #qfile   ./qfile.kpath
 
 do_uc Q                                   Measure spin correlation

@@ -519,7 +519,7 @@ contains
             conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,ham_inp%exc_inter,              &
             lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
             ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
-            ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),ham_inp%do_dip,    &
+            ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield(1:3),ham_inp%do_dip,    &
             Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
             macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
       enddo

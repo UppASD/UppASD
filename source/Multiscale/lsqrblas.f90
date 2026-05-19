@@ -28,7 +28,7 @@
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.
@@ -122,7 +122,7 @@ end function ddot
 !
 !  Discussion:
 !    This routine uses real(8) real arithmetic.
-!     DNRM2 ( X ) = sqrt ( X' * X )
+!     DNRM2 ( X ) = sqrt ( X´ * X )
 !
 !  Modified:
 !    16 May 2005
@@ -133,7 +133,7 @@ end function ddot
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.
@@ -206,7 +206,7 @@ end function dnrm2
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.

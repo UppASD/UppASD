@@ -119,7 +119,7 @@ contains
             constellationsUnitVec2,constellations,constellationsMag,delta_t)
       end if
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       if(SDEalgh==1) then
          ! random numbers the same for calculation et and emom2
@@ -194,7 +194,7 @@ contains
           
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
       elseif(SDEalgh==6) then
          ! random numbers the same for calculation et and emom2
@@ -349,7 +349,7 @@ contains
          end do
       end if
       !------------------------------------------------------------------------------
-      ! Mentink's midpoint solver
+      ! Mentink´s midpoint solver
       !------------------------------------------------------------------------------
       if(SDEalgh==1) then
          call modeulermpf(Natom,Mensemble,Landeg,bn,lambda1_array,beff, emom,emom2, &
@@ -371,7 +371,7 @@ contains
          red_atom_list)
           
       !------------------------------------------------------------------------------
-      ! Mentink's Semi-implicit midpoint solver with fixed point iteration
+      ! Mentink´s Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
       elseif(SDEalgh==6) then
          call sibf(Natom,Mensemble,Landeg,bn,lambda1_array,beff,emom,emom2,delta_t)

@@ -33,6 +33,7 @@ module InputDataType
       real(dblprec) :: jij_scale                               !< Rescale Jij couplings manually
       logical ::  ea_model                                     !< Randomize exchange couplings for Edwards-Anderson model T,(F)
       real(dblprec) ::  ea_sigma                               !< Standard deviation for Edwards-Anderson randomization
+      character(len=1) :: ea_algo                              !< Algoritm for Edwards-Anderson randomization
       !---------------------------------------------------------------------------------
       ! Anisotropy data
       !---------------------------------------------------------------------------------
@@ -52,6 +53,9 @@ module InputDataType
       integer :: max_no_dmshells                            !< Actual maximum number of shells for DM interactions
       character(len=35) :: dmfile                           !< File name for Dzyaloshinskii-Moriya data
       real(dblprec) :: dm_scale                             !< Rescale Dij couplings manually
+      logical ::  rdm_model                                 !< Randomize Dij couplings
+      real(dblprec) ::  rdm_sigma                           !< Standard deviation for random Dij couplings
+      character(len=1) :: rdm_algo                          !< Algoritm for random Dij couplings
       integer, dimension(:), allocatable :: dm_nn           !< No. shells of neighbours for DM
       real(dblprec), dimension(:,:,:), allocatable :: dm_redcoord    !< Neighbour vectors for DM
       real(dblprec), dimension(:,:,:,:,:), allocatable :: dm_inpvect !< Neighbour vectors for DM

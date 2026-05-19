@@ -14,6 +14,7 @@
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
 
+
 // The neighbour list setup helper
 class CudaThermfield::SetupSigmaFactor : public GpuParallelizationHelper::Site {
 private:
@@ -52,10 +53,10 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
-
 CudaThermfield::CudaThermfield()
     : stopwatch(GlobalStopwatchPool::get("Cuda thermfield")),
       parallel(ParallelizationHelperInstance) {
@@ -63,11 +64,13 @@ CudaThermfield::CudaThermfield()
    dataInitiated = false;
 }
 
+
 CudaThermfield::~CudaThermfield() {
    if(dataInitiated) {
       curandDestroyGenerator(gen);
    }
 }
+
 
 bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngType,
                               unsigned long long seed) {

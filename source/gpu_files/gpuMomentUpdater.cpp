@@ -61,6 +61,7 @@ public:
    }
 };
 
+
 // mmomi = 1.0 / mmom
 // mmomM = emom*  mmom
 class GpuMomentUpdater::Copy1 : public ParallelizationHelper::Atom {
@@ -89,6 +90,7 @@ public:
       my_emomM[2] = m * my_emom[2];
    }
 };
+
 
 // mmomi = (mmom < 0.000001) ? 1 : (1.0 / mmom)
 // mmomM = emom*  mmom
@@ -119,6 +121,7 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +146,7 @@ GpuMomentUpdater::GpuMomentUpdater(deviceLattice& gpuLattice, int p8, char p9)
       std::exit(EXIT_FAILURE);
    }
 }
+
 
 // Wrapper routine for updating the magnetic moments
 void GpuMomentUpdater::update() {

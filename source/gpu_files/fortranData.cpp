@@ -436,6 +436,7 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_rng_seed = p3;
 }
 
+
 // Fortran helpers
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
    char* p_do_avrg, char* p_do_proj_avrg, char* p_do_projch_avrg, char* p_do_cumu, char* p_do_cumu_proj,

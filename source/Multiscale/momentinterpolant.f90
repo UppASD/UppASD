@@ -19,7 +19,7 @@
 !! Many of the operations are performed inplace to save memory and reduce allocations.
 !! The problem will be ill-conditioned when positions are too close to each other
 !! and unsolvable if too few or repeated positions are given.
-!! In such cases NaN's will appear, beware!
+!! In such cases NaN´s will appear, beware!
 !> authors
 !> Edgar Mendez
 !> Nikos  Ntallis
@@ -102,7 +102,7 @@ contains
        !! Care, gets the direction considering periodic boundaries!
        !! Notice: When the domain is too thin, an atom that is specified twice
        !! (e.g: due to PBC) will be assigned the same vector twice.
-       !! This shouldn't be happening right now only because areaCoefficients will
+       !! This shouldn´t be happening right now only because areaCoefficients will
        !! list each atom once, but could generally cause tricky situations.
        call getDirectionalVector(space, &
             positions(:,atom), centre, normpos(:,i))
@@ -138,7 +138,7 @@ contains
     real(dblprec) :: accum
     !! E = (At diag(W) A), 
     !! thus E_ij = a_ik w_i a_kj
-    !! It's symmetric, we calculate each element once.
+    !! It´s symmetric, we calculate each element once.
     do j=1,ubound(A,2)
        do i=j,ubound(A,2)
           accum = 0
@@ -152,7 +152,7 @@ contains
 
   end subroutine kt_diagw_k
 
-  !> Calculates A's inverse in Inv using gaussian elimination
+  !> Calculates A´s inverse in Inv using gaussian elimination
   !! Destroys A in the process
   subroutine invert(A,Inv)
     real(dblprec), dimension(:,:), intent(inout)  :: A

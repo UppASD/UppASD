@@ -61,7 +61,7 @@ contains
     
     !! Sorting the matrix by row, the algorithm to convert an SpMatrix to
     !!  the UppASD interpolation structure is much simpler for sorted matrices.
-    !! Sorting by column too isn't more expensive and could (hopefully)
+    !! Sorting by column too isn´t more expensive and could (hopefully)
     !!  bring a small cache/branch pred. hit rate improvement.
     call sortMatrixByRowAndColumn(gradientCoeffs)
 
@@ -278,7 +278,7 @@ contains
        !! Compute the weights at both eval points
        ! Note: gfortran will warn here that k is possibly uninitialized.
        ! It is allocated in ensureSize up there,
-       ! I don't know how to supress the warning here
+       ! I don´t know how to supress the warning here
        call rowMatrixProd(K, M, ubound(K,2), nNeigh, 1, gradient_weights)
        call rowMatrixProd(K, M, ubound(K,2), nNeigh, 2, gradient_pre_weights)
        

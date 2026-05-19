@@ -11,6 +11,7 @@ module HamiltonianInit
 
    use Profiling
    use Parameters
+   use NeighbourMapSFC
 
    implicit none
 
@@ -52,7 +53,7 @@ contains
       use LSF,             only : LSF_datareshape
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
-      use InputData,       only : ham_inp
+      use InputData,       only : ham_inp, do_sfc
       !use InputData,       only : jij_scale, dm_scale, ea_model, ea_sigma
       use NeighbourMap,    only : setup_nm, setup_nm_nelem
       use InducedMoments
@@ -260,6 +261,7 @@ contains
 
                      !Re-scale DMI if needed
                      if(ham_inp%dm_scale.ne.1.0_dblprec) ham%dm_vect=ham_inp%dm_scale*ham%dm_vect
+
                   write(*,'(a)') ' done'
                   call deallocate_nm()
                endif
@@ -313,9 +315,15 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !  Setup neighbor map
             write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
-               atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
-               ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
+            if (do_sfc == 'Y') then
+               call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+                  atype, coord, ham%max_no_neigh, ham_inp%max_no_shells, max_no_equiv, sym, &
+                  ham_inp%nn, ham_inp%redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+            else
+               call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
+                  atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
+                  ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
+            end if
             write(*,'(a)') ' done'
 
             ! If one is doing the cluster method one could have that the impurity system
@@ -361,7 +369,7 @@ contains
             ! Randomize Jij if Edwards-Anderson model is enabled
             if(ham_inp%ea_model) then
                call randomize_exchange(NA,1,Natom,ham%max_no_neigh,ham%nlistsize, &
-                  ham%nlist,ham%ncoup,ham%aham,do_reduced,ham_inp%ea_sigma)
+                  ham%nlist,ham%ncoup,ham%aham,do_reduced,ham_inp%ea_sigma,ham_inp%ea_algo)
             end if
 
             if(do_prnstruct==1.or.do_prnstruct==4) then
@@ -411,9 +419,15 @@ contains
       else ! If tensor
          !  Setup neighbor map and exchange tensor
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
-            nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_neigh, ham_inp%max_no_shells, max_no_equiv, sym, &
+               ham_inp%nn, ham_inp%redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
+               nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! Transform data to general structure
@@ -481,9 +495,15 @@ contains
       if(ham_inp%do_dm==1) then
          ! Allocate and mount DM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
-            nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_dmneigh, ham_inp%max_no_dmshells, max_no_equiv, 0, &
+               ham_inp%dm_nn, ham_inp%dm_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
+               nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! If one is doing the cluster method one could have that the impurity system
@@ -509,6 +529,13 @@ contains
          !Re-scale DMI if needed
          if(ham_inp%dm_scale.ne.1.0_dblprec) ham%dm_vect=ham_inp%dm_scale*ham%dm_vect
 
+
+         ! Randomize Dij if random DM-model is enabled
+         if(ham_inp%rdm_model) then
+            call randomize_exchange(NA,3,Natom,ham%max_no_dmneigh,ham%dmlistsize, &
+               ham%dmlist,ham%dm_vect,ham%aham,do_reduced,ham_inp%rdm_sigma,ham_inp%rdm_algo)
+         end if
+
          ! Deallocate the large neighbour map.
          call deallocate_nm()
 
@@ -525,9 +552,15 @@ contains
       if(ham_inp%do_sa==1) then
          ! Allocate and mount SA Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for symmetric anisotropic exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,0,ham_inp%sa_nn,ham_inp%sa_redcoord,&
-            nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%max_no_saneigh, ham_inp%max_no_sashells, max_no_equiv, sym, &
+               ham_inp%sa_nn, ham_inp%sa_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,sym,ham_inp%sa_nn,ham_inp%sa_redcoord,&
+               nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          write(*,'(a)') ' done'
 
          ! If one is doing the cluster method one could have that the impurity system
@@ -576,9 +609,15 @@ contains
       if(ham_inp%do_pd==1) then
         ! Allocate and mount PD Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Pseudo-Dipolar exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
-            nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         if (do_sfc == 'Y') then
+            call setup_nm_sfc(Natom, NT, NA, N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, &
+               atype, coord, ham%nn_pd_tot, ham_inp%max_no_pdshells, max_no_equiv, 0, &
+               ham_inp%pd_nn, ham_inp%pd_redcoord, nm, nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
+         else
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+               Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
+               nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
+         end if
          !write(*,'(a)') ' done'
 
           !call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
@@ -1591,8 +1630,9 @@ contains
    !> @details Loops over all couplings and multiplies the original value
    !> with a Gaussian random number between (-1,1)
    !----------------------------------------------------------------------------
-   subroutine randomize_exchange(NA,mdim,Natom,max_no_neigh,nlistsize,nlist,ncoup,aham,do_reduced,sigma)
+   subroutine randomize_exchange(NA,mdim,Natom,max_no_neigh,nlistsize,nlist,ncoup,aham,do_reduced,sigma, algorithm)
       
+      use Constants
       use RandomNumbers, only : rng_gaussian
 
       implicit none
@@ -1606,12 +1646,16 @@ contains
       real(dblprec), dimension(mdim,max_no_neigh, Natom), intent(inout) :: ncoup !< Heisenberg exchange couplings
       integer, dimension(Natom), optional, intent(in) :: aham !< Hamiltonian look-up table
       character(len=1), intent(in) :: do_reduced       !< Use reduced formulation of Hamiltonian (T/F)
-      real(dblprec),intent(in) :: sigma                  !< Standard deviaton for Gaussian RNG
+      real(dblprec),intent(in) :: sigma                !< Standard deviaton for Gaussian RNG
+      character(len=1), intent(in) :: algorithm        !< Choice of randomization algoritm
 
       !.. Local variables
       integer :: iatom,jatom,ineigh,iham,ielem, jneigh, jham, jelem
       real(dblprec), dimension(:,:,:), allocatable :: rng_arr
+      real(dblprec) :: xc_sign, xc_norm
+      real(dblprec) :: fc2
 
+      fc2 = 2.0_dblprec * mry/mub
       ! loop over neighbor list 
       !!! if(do_reduced=='Y') then
       !!!    allocate(rng_arr(mdim,max_no_neigh,NA))
@@ -1628,25 +1672,97 @@ contains
       allocate(rng_arr(mdim,max_no_neigh,Natom))
       call rng_gaussian(rng_arr,mdim*max_no_neigh*Natom,sigma)
 
-      do iatom=1,Natom
-         iham=aham(iatom)
-         do ineigh=1,nlistsize(iham)
-            jatom=nlist(ineigh,iatom)
-            do ielem=1,mdim
-               ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)*rng_arr(ielem,ineigh,iham)
+
+      ! Set the sign for symmetry check: Jij = Jji but Dij = -Dji
+      xc_sign = 1.0_dblprec
+      if(mdim==3) then  !Assume DMI if mdim=3
+         xc_sign = -1.0_dblprec
+      end if
+
+      ! Default algorithm (S)cale: Scale the existing coupling by multiplying with random Gaussian number
+      if (algorithm == 'S') then
+         do iatom=1,Natom
+            iham=aham(iatom)
+            do ineigh=1,nlistsize(iham)
+               jatom=nlist(ineigh,iatom)
+               do ielem=1,mdim
+                  ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)*rng_arr(ielem,ineigh,iham)
+               enddo
+               ! Ensure symmetry Jij=Jji
+               jham=aham(jatom)
+               do jneigh=1,nlistsize(jham)
+                  if (nlist(jneigh,jatom)==iatom) then
+                     do jelem=1,mdim
+                        ncoup(jelem,jneigh,jham)=xc_sign*ncoup(jelem,ineigh,iham)
+                     enddo
+                  end if
+               end do
             enddo
-            ! Ensure symmetry Jij=Jji
-            jham=aham(jatom)
-            do jneigh=1,nlistsize(jham)
-               if (nlist(jneigh,jatom)==iatom) then
-                  do jelem=1,mdim
-                     ncoup(jelem,jneigh,jham)=ncoup(jelem,ineigh,iham)
-                  enddo
-               end if
-            end do
-         enddo
-      end do
-      !!! end if
+         end do
+      ! Alternative algorithm (A)round: Add a random Gaussian number to the existing value
+      else if (algorithm == 'A') then
+         do iatom=1,Natom
+            iham=aham(iatom)
+            do ineigh=1,nlistsize(iham)
+               jatom=nlist(ineigh,iatom)
+               do ielem=1,mdim
+                  ncoup(ielem,ineigh,iham)=ncoup(ielem,ineigh,iham)+rng_arr(ielem,ineigh,iham)
+               enddo
+               ! Ensure symmetry Jij=Jji
+               jham=aham(jatom)
+               do jneigh=1,nlistsize(jham)
+                  if (nlist(jneigh,jatom)==iatom) then
+                     do jelem=1,mdim
+                        ncoup(jelem,jneigh,jham)=xc_sign*ncoup(jelem,ineigh,iham)
+                     enddo
+                  end if
+               end do
+            enddo
+         end do
+      ! Alternative algorithm (F)ully random: Set each individual coupling component to a random 
+      ! Gaussian number (then sigma sets the magnitude of each component)
+      else if (algorithm == 'F') then
+         do iatom=1,Natom
+            iham=aham(iatom)
+            do ineigh=1,nlistsize(iham)
+               jatom=nlist(ineigh,iatom)
+               do ielem=1,mdim
+                  ncoup(ielem,ineigh,iham)=rng_arr(ielem,ineigh,iham)*fc2
+               enddo
+               ! Ensure symmetry Jij=Jji
+               jham=aham(jatom)
+               do jneigh=1,nlistsize(jham)
+                  if (nlist(jneigh,jatom)==iatom) then
+                     do jelem=1,mdim
+                        ncoup(jelem,jneigh,jham)=xc_sign*ncoup(jelem,ineigh,iham)
+                     enddo
+                  end if
+               end do
+            enddo
+         end do
+      ! Alternative algorithm (R)otate and scale: Set each component by multiplying the initial magnitude with a 
+      ! Gaussian random number in each direction
+      else if (algorithm == 'R') then
+         do iatom=1,Natom
+            iham=aham(iatom)
+            do ineigh=1,nlistsize(iham)
+               jatom=nlist(ineigh,iatom)
+               xc_norm = sqrt(sum(ncoup(:,ineigh,iham)*ncoup(:,ineigh,iham)))
+               do ielem=1,mdim
+                  ncoup(ielem,ineigh,iham)=xc_norm*rng_arr(ielem,ineigh,iham)
+               enddo
+               ! Ensure symmetry Jij=Jji
+               jham=aham(jatom)
+               do jneigh=1,nlistsize(jham)
+                  if (nlist(jneigh,jatom)==iatom) then
+                     do jelem=1,mdim
+                        ncoup(jelem,jneigh,jham)=xc_sign*ncoup(jelem,ineigh,iham)
+                     enddo
+                  end if
+               end do
+            enddo
+         end do
+      end if
       !
       deallocate(rng_arr)
       !

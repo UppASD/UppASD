@@ -1,0 +1,35 @@
+simid SCcubfET
+ncell     16 16 16
+BC        P         P         P                 Boundary conditions (0=vacuum,P=periodic)
+cell      1.00000   0.00000   0.00000 
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+
+posfile   ./posfile
+exchange ./jij
+momfile ./momfile
+
+
+Initmag   1                                     (1=random, 2=cone, 3=spec., 4=file)
+
+ip_mode S
+ip_nphase 1
+10000 500.000 1.0e-15 0.5
+
+mode      S                                     M for MC and S for SD
+temp      0.000
+damping   0.001 
+Nstep    10000
+timestep  1.000d-15        s                    The time step-size for the SDE-solver
+
+plotenergy   1   
+do_avrg Y
+do_spintemp Y
+
+do_tempexp Y
+tempexp_start 500.0
+tempexp_end   100.00
+tempexp_tau   1.0e-12
+tempexp_step  100
+
+

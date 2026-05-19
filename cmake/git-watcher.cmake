@@ -44,7 +44,26 @@ function(GetGitState _working_dir _gitlabel)
     set(${_gitlabel} VERSION=\"${git_output}\" PARENT_SCOPE)
 endfunction()
 
+function(GetGitVersion _working_dir _gitversion)
+    # Get whether or not the working tree is dirty.
+    execute_process(COMMAND
+       "${GIT_EXECUTABLE}" describe --abbrev=0 --tags
+        WORKING_DIRECTORY "${_working_dir}"
+        OUTPUT_VARIABLE GIT_VERSION
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    # If git describe fails, fallback to a default version
+    if(NOT GIT_VERSION)
+        set(GIT_VERSION "0.0.0")
+    endif()
+    
+    # Remove the leading 'v' if present
+    string(REGEX REPLACE "^v" "" GIT_VERSION ${GIT_VERSION})    
+    set(${_gitversion} "${GIT_VERSION}" PARENT_SCOPE)
+endfunction()
+
 GetGitState("${_working_dir}" gitlabel)
+GetGitVersion("${_working_dir}" gitversion)
 
 # Ensure that preprocessor flags are invoked
 add_compile_definitions(${gitlabel})

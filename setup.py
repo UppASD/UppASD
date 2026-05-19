@@ -1,0 +1,89 @@
+import os
+import sys
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+import sysconfig
+
+
+class CMakeExtension(Extension):
+    # def __init__(self, name, cmake_lists_dir='../', **kwa):
+    def __init__(self, name, cmake_lists_dir=".", **kwa):
+        Extension.__init__(self, name, sources=[], **kwa)
+        self.cmake_lists_dir = os.path.abspath(cmake_lists_dir)
+
+
+class cmake_build_ext(build_ext):
+    def build_extensions(self):
+        import subprocess
+
+        # Ensure that CMake is present and working
+        try:
+            out = subprocess.check_output(["cmake", "--version"])
+        except OSError:
+            raise RuntimeError("Cannot find CMake executable")
+
+        for ext in self.extensions:
+            extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
+            cfg = (
+                "Debug"
+                if os.environ.get("DISPTOOLS_DEBUG", "OFF") == "ON"
+                else "Release"
+            )
+            python_inc_dir = sysconfig.get_path("include")
+            python_lib_dir = sysconfig.get_config_var("LIBDIR")
+
+            cmake_args = [
+                "-DCMAKE_BUILD_TYPE=%s" % cfg,
+                # Ask CMake to place the resulting library in the directory
+                # containing the extension
+                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}".format(cfg.upper(), extdir),
+                # Other intermediate static libraries are placed in a
+                # temporary build directory instead
+                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), extdir),
+                #'-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), self.build_temp),
+                # Hint CMake to use the same Python executable that
+                # is launching the build, prevents possible mismatching if
+                # multiple versions of Python are installed
+                "-DPython3_ROOT_DIR={}".format(sys.exec_prefix),
+                "-DPython3_FIND_STRATEGY=LOCATION",
+                "-DBUILD_PYTHON=ON",
+                "-DUSE_MKL=OFF",
+                "-GNinja",
+                "-DCMAKE_OSX_DEPLOYMENT_TARGET=12",
+                # '-DPYTHON_INCLUDE_DIR={}'.format(python_inc_dir),
+                # '-DPYTHON_LIBRARY={}'.format(python_lib_dir),
+                # '-DMKL_INTERFACE_FULL=gf_lp64',
+                # '-DMKL_THREADING=gnu_thread',
+            ]
+
+            if not os.path.exists(self.build_temp):
+                os.makedirs(self.build_temp)
+
+            # Use an out-of-tree build: explicitly set source and build directories
+            # This prevents CMake from doing an in-tree configure in the source tree.
+            subprocess.check_call(
+                ["cmake", "-S", ext.cmake_lists_dir, "-B", self.build_temp] + cmake_args
+            )
+
+            # Build using the build directory
+            subprocess.check_call(
+                ["cmake", "--build", self.build_temp, "--parallel", "--config", cfg]
+            )
+
+
+setup(
+    # name="uppasd",
+    # version="1.0.1",
+    # description="An UppASD Python wrapper",
+    # url="https://github.com/UppASD/UppASD",
+    # author="UppASD group",
+    # author_email="uppasd@physics.uu.se",
+    # license="GPLv2",
+    cmdclass={"build_ext": cmake_build_ext},
+    # include_package_data=True,
+    # packages=["uppasd"],
+    # package_dir={"uppasd": "uppasd"},
+    ext_modules=[CMakeExtension(name="_uppasd")],
+    # scripts=["scripts/uppasd", "scripts/uppasd_interactive"],
+    # install_requires=["numpy>1.19"],
+)

@@ -37,7 +37,7 @@ do
             sed -i "s/Mensemble 1/Mensemble $ENS/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and $ENS emsembles"
             # Running the ASD simulation
-            ../../../../../source/sd > out.out
+            ${SD_BINARY} > out.out
             echo -e "done"
 
          cd ../
@@ -59,7 +59,7 @@ do
             sed -i "s/Mensemble 1/Mensemble 1/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and 1 emsembles"
             # Running the ASD simulation
-            ../../../../../source/sd > out.out
+            ${SD_BINARY} > out.out
             echo -e "done"
 
 

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asd_gui"
+version = "1.6.0"
+description = "The UppASD GUI"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.6"
+authors = [
+    {name = "Jonathan P. Chico", email = "uppasd@physics.uu.se"}
+]
+urls = { "Homepage" = "https://github.com/UppASD/UppASD" }
+dependencies = [
+    "matplotlib",
+    "numpy>=1.19.0",
+    "pandas",
+    "PyQt6",
+    "PyYAML",
+    "setuptools",
+    "vtk>=9.0.0",
+    "f90nml",
+    "spglib"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ASD_GUI*"]
+
+[tool.setuptools.package-data]
+ASD_GUI = ["UI/*.ui", "TemplateStructurePic/*.png"]
+
+[project.scripts]
+asd_gui = "ASD_GUI.ASD_GUI:main"
+
+

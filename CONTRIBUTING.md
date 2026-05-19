@@ -15,10 +15,10 @@ The code is written mostly in `FORTRAN 90`, so please adhere to that standard. T
    - If you are implementing into develop remember to first `pull` the remote to the local, resolve conflicts, perform tests and then `push` your changes.
    - The agreed `git` practices for working in `develop` are:
       * Write your changes.
-      * Perform `make asd-tests`, `make sld-tests`, `make gneb-tests` and `make regression-test`.
+      * Perform `ctest` or alternatively `make asd-tests`, `make sld-tests`, `make gneb-tests` and `make regression-test`.
       * Perform `git pull`.
       * Solve any conflicts.
-      * Perform `make asd-tests`, `make sld-tests`, `make gneb-tests` and `make regression-test` again.
+      * Perform `ctest` or alternatively `make asd-tests`, `make sld-tests`, `make gneb-tests` and `make regression-test` again.
       * If everything is okay do `git commit` and leave an explanatory comment of the changes.
       * After that `git push`.
 - `UppASD` is a code under constant development, to avoid divergence between branches, remember to update your local implementation as often as possible.
@@ -41,4 +41,4 @@ UppASD has the following conventions:
    * Please use the `!<` command to document **all** input/output variables for a routine.
 - Whenever writing a routine for `UppASD` try for it to be **modular** i.e. as self contained as possible.
 - Python code should be written in python3 following the [PEP8](https://www.python.org/dev/peps/pep-0008/) coding standard.
-- **Always** test the code with the `make tests` command before pushing a revision to the repository.
+- **Always** test the code with the `ctest` or `make tests` command before pushing a revision to the repository.

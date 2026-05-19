@@ -10,6 +10,7 @@
 !> Manuel Pereiro
 !> Jonathan Chico
 !> Anders Bergman
+!> Nastaran Salehi
 !> @copyright
 !> GNU Public License.
 !-------------------------------------------------------------------------------
@@ -58,7 +59,8 @@ contains
 
 
 
- subroutine smodeulermpt_ms(Natom, Mensemble, Landeg,bn, lambda1_array, beff, emom, emom2, emomM, mmom, deltat,thermal_field,dband)
+ subroutine smodeulermpt_ms(Natom, Mensemble, Landeg,bn, lambda1_array, beff, emom, emom2, emomM, mmom, deltat,thermal_field,dband,&
+                            STT,do_she,do_sot,btorque,she_btorque,sot_btorque)
            !  nlist,nlistsize,constellationsUnitVec2,unitCellType,OPT_flag,cos_thr)
     use Constants
     use RandomNumbers, only : ranv
@@ -77,9 +79,15 @@ contains
     real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
     real(dblprec), intent(in) :: deltat !< Time step
     type(DampingBandData), intent(in) :: dband !< Damping band info (multiscale)
+    character(len=1), intent(in) :: STT    !< Treat spin transfer torque
+    character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+    character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque 
 
     ! ... Local variables ...
-    integer :: i, j, ij
+    integer :: i, j, ij, ired
     real(dblprec) :: lldamp
 
     ! de/dt (damping band)
@@ -123,6 +131,41 @@ contains
     !!$omp parallel do default(shared) schedule(guided,128) &
     !!$omp private(ij,i,j,e1x,e1y,e1z,etx,ety,etz,s1x,s1y,s1z,&
     !!$omp f1x,f1y,f1z,a1x,a1y,a1z,b1x,b1y,b1z,Ax,Ay,Az,detAi,a2x,a2y,a2z,dt,dtg,sqrtdtg,lldamp,dedt)
+    
+    btorque_full=0.0_dblprec
+      !
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)=btorque_full(:,i,j)+btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+she_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+              btorque_full(:,i,j)= btorque_full(:,i,j)+sot_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+    
     do i=1,Natom
        do j=1,Mensemble
 
@@ -144,9 +187,9 @@ contains
        f1z=ranv(3,i,j)
        
        ! a1 = -b1 - lambda*(e1 cross b1)
-       a1x=-b1x-lambda1_array(i)*(e1y*b1z-e1z*b1y)
-       a1y=-b1y-lambda1_array(i)*(e1z*b1x-e1x*b1z)
-       a1z=-b1z-lambda1_array(i)*(e1x*b1y-e1y*b1x)
+       a1x=-b1x-lambda1_array(i)*(e1y*b1z-e1z*b1y)-btorque_full(1,i,j)
+       a1y=-b1y-lambda1_array(i)*(e1z*b1x-e1x*b1z)-btorque_full(2,i,j)
+       a1z=-b1z-lambda1_array(i)*(e1x*b1y-e1y*b1x)-btorque_full(3,i,j)
        !
 
            
@@ -173,7 +216,7 @@ contains
        ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
        ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
        ! Ax,Ay,Az off-diagonal components of A
-       ! solve with Cramers' rule => define detAi=1/determinant(A)
+       ! solve with Cramers´ rule => define detAi=1/determinant(A)
        !
        Ax=0.5d0*dtg*a1x + 0.5d0*sqrtdtg*s1x 
        Ay=0.5d0*dtg*a1y + 0.5d0*sqrtdtg*s1y 
@@ -189,12 +232,12 @@ contains
        ety=a2x*(Ay*Ax-Az)+a2y*(1+Ay*Ay)+a2z*(Ay*Az+Ax)
        etz=a2x*(Az*Ax+Ay)+a2y*(Az*Ay-Ax)+a2z*(1+Az*Az)
 
-       ! now use et for writing et'=(e1+et)/2 in emom2
+       ! now use et for writing et´=(e1+et)/2 in emom2
        etx=0.5d0*(e1x+etx*detAi)
        ety=0.5d0*(e1y+ety*detAi)
        etz=0.5d0*(e1z+etz*detAi)
        !
-       ! write et'=(e1+et)/2 in emom2
+       ! write et´=(e1+et)/2 in emom2
        emom2(1,i,j)=etx
        emom2(2,i,j)=ety
        emom2(3,i,j)=etz
@@ -251,7 +294,8 @@ contains
 
 
   !> Second step of midpoint solver
-  subroutine modeulermpf_ms(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, deltat, dband)
+  subroutine modeulermpf_ms(Natom, Mensemble, Landeg, bn, lambda1_array, beff, emom, emom2, deltat, dband,STT,do_she,do_sot,&
+                            btorque,she_btorque,sot_btorque)
     use Constants
     use RandomNumbers, only : ranv
     implicit none
@@ -266,6 +310,12 @@ contains
     real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: emom2  !< Final (or temporary) unit moment vector
     real(dblprec), intent(in) :: deltat !< Time step
     type(DampingBandData), intent(in) :: dband !< Damping band info (multiscale)
+    character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
+    character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
+    character(len=1), intent(in) :: do_sot !< Treat the general SOT model
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque      !< Spin transfer torque
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque  !< SHE spin transfer torque
+    real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: sot_btorque  !< Spin orbit torque
 
     
     ! deterministic variables
@@ -289,7 +339,7 @@ contains
     real(dblprec) :: e1x, e1y, e1z
     !
     ! ... Local variables ...
-    integer :: i, j, ij
+    integer :: i, j, ij, ired
     real(dblprec) :: lldamp
 
     ! de/dt (damping band)
@@ -308,7 +358,41 @@ contains
     !!$omp parallel do default(shared) schedule(guided,128) &
     !!$omp private(ij,i,j,e1x,e1y,e1z,etpx,etpy,etpz,s1x,s1y,&
     !!$omp s1z,f1x,f1y,f1z,a1x,a1y,a1z,b1x,b1y,b1z,Ax,Ay,Az,detAi,a2x,a2y,a2z,dt,dtg,sqrtdtg,lldamp,dedt)
-    do i=1,Natom
+   
+    btorque_full=0.0_dblprec
+      if(stt/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)=btorque_full(:,i,j)+btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+
+      if(do_she/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT and SHE torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+she_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+      if(do_sot/='N') then
+         !$omp parallel do default(shared) private(ired,i,j)  schedule(static) collapse(2)
+         do j=1,Mensemble
+            do i=1,Natom
+               ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
+               btorque_full(:,i,j)= btorque_full(:,i,j)+sot_btorque(:,i,j)
+            end do
+         end do
+         !$omp end parallel do
+      end if
+   
+   do i=1,Natom
       do j=1,Mensemble
        !i=mod(ij-1,Natom)+1
        !j=int((ij-1)/Natom)+1
@@ -320,7 +404,7 @@ contains
        e1x=emom(1,i,j) ! load e1 back from emom
        e1y=emom(2,i,j) ! emom unchanged by step t
        e1z=emom(3,i,j)
-       etpx=emom2(1,i,j) ! load etp=et' back from emom2
+       etpx=emom2(1,i,j) ! load etp=et´ back from emom2
        etpy=emom2(2,i,j)
        etpz=emom2(3,i,j)
        b1x=beff(1,i,j) ! effective field approximated with e1
@@ -331,9 +415,9 @@ contains
        f1z=ranv(3,i,j)
        
        ! a1 = -b1 - lambda*(et cross b1)  
-       a1x=-b1x-lambda1_array(i)*(etpy*b1z-etpz*b1y) 
-       a1y=-b1y-lambda1_array(i)*(etpz*b1x-etpx*b1z)
-       a1z=-b1z-lambda1_array(i)*(etpx*b1y-etpy*b1x)
+       a1x=-b1x-lambda1_array(i)*(etpy*b1z-etpz*b1y)-btorque_full(1,i,j)
+       a1y=-b1y-lambda1_array(i)*(etpz*b1x-etpx*b1z)-btorque_full(2,i,j)
+       a1z=-b1z-lambda1_array(i)*(etpx*b1y-etpy*b1x)-btorque_full(3,i,j)
        !
 
        ! Multiscale damping band     
@@ -354,7 +438,7 @@ contains
        ! A = I + skew(dt*a1/2 + sqrt(dt)*s1/2)
        ! write A*e2=a2, a2=At*e1 => e2=inv(A)*a2
        ! Ax,Ay,Az off-diagonal components of A
-       ! solve with Cramers' rule => define detAi=1/determinant(A)
+       ! solve with Cramers´ rule => define detAi=1/determinant(A)
        !
        Ax=0.5d0*dtg*a1x+0.5d0*sqrtdtg*s1x
        Ay=0.5d0*dtg*a1y+0.5d0*sqrtdtg*s1y
@@ -418,5 +502,31 @@ contains
 
     
   end subroutine modeulermpf_ms
+
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: allocate_midpoint_fields
+   !> @brief Allocation of auxilary fields for the treatment of STT and SOT based torques
+   !----------------------------------------------------------------------------
+   subroutine allocate_midpointms_fields(flag,Natom,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: flag   !< Allocate or deallocate (1/-1)
+      integer, intent(in), optional :: Natom !< Number of atoms in system
+      integer, intent(in), optional :: Mensemble   !< Number of ensembles
+
+      integer :: i_stat,i_all
+
+      if (flag>0) then
+         allocate(btorque_full(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btorque_full))*kind(btorque_full),'btorque_full','allocate_midpointms_fields')
+         btorque_full=0.0_dblprec
+      else
+         i_all=-product(shape(btorque_full))*kind(btorque_full)
+         deallocate(btorque_full,stat=i_stat)
+         call memocc(i_stat,i_all,'btorque_full','allocate_midpointms_fields')
+      endif
+
+   end subroutine allocate_midpointms_fields
 
 end module midpoint_ms

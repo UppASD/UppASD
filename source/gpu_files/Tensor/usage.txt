@@ -1,0 +1,44 @@
+usage of Tensor class(only usable on host):
+
+Tensor<T, dim> x;                // default ctor
+Tensor<T, dim> x(data, extents); // ctor that takes non-const pointer to data and dimensions
+Tensor<T, dim> x(data, ext...);  // similar, but ext... are integers instead of Extents class
+
+// nearly identical to two constructors above. useful when data and extents are not available right away
+x.set(data, extents);
+x.set(data, ext...);
+
+x.size();
+x.empty();
+x.data(); // (const and non-const overloads)
+x.extent(0); // size of the first dimension
+x.extent(i); // size of ith dimension
+x.extents();
+x[i];        // 1-d indexing(const and non-const overloads)
+x(i, j, ...) // multi-dimensional indexing(const and non-const overloads)
+x.copy_sync(CudaTensor) // copies data from device using cudaMemcpy, dimensions of both tensors must agree
+
+
+
+usage of CudaTensor class(some functions are usable on both on host and device):
+
+// these functions can only be called from the host
+CudaTensor<T, dim> x; // must be default-constructed on the host
+x.Allocate(extents);  // allocate with cudaMalloc
+x.Allocate(ext...);   // allocate with cudaMalloc
+x.Free();             // use cudaFree, double Free is currently not allowed
+
+// these have identical semantics to those in Tensor class and can be called on both host and device
+x.size();
+x.empty();
+x.data();
+x.extent(0);
+x.extent(i); /
+x.extents();
+
+// can be only called on device
+x[i];
+x(i, j, ...)
+
+x.copy_sync(CudaTensor) // cudaMemcpyDeviceToDevice, dimensions of both tensors must agree
+x.copy_sync(Tensor)     // cudaMemcpyHostToDevice, dimensions of both tensors must agree

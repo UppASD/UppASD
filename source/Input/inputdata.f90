@@ -37,6 +37,7 @@ module InputData
    integer, dimension(:), allocatable :: atype_inp          !< Type of atom
    character :: posfiletype                                 !< posfile type (D)irect or (C)arteisian coordinates in posfile
    character :: do_sortcoup                                 !< Sort the entries of ncoup arrays (Y/N)
+   character :: do_sfc                                      !< Use SFC coordinate-based Hamiltonian setup (Y/N)
    character(len=1) :: BC1                                  !< Boundary conditions in x-direction
    character(len=1) :: BC2                                  !< Boundary conditions in y-direction
    character(len=1) :: BC3                                  !< Boundary conditions in z-direction
@@ -317,6 +318,7 @@ contains
       NT                = 0
       Sym               = 0
       do_sortcoup       = 'N'
+      do_sfc            = 'N'
       posfile           = 'posfile'
       posfiletype       = 'C'
       alat              = 1.0_dblprec
@@ -345,6 +347,7 @@ contains
       ham_inp%jij_scale         = 1.0_dblprec
       ham_inp%ea_model          = .false.
       ham_inp%ea_sigma          = 1.0_dblprec
+      ham_inp%ea_algo           = 'S'
 
       !Anisotropy data
       ham_inp%kfile             = 'kfile'
@@ -355,6 +358,9 @@ contains
       ham_inp%dmfile            = 'dmfile'
       ham_inp%do_dm             = 0
       ham_inp%dm_scale          = 1.0_dblprec
+      ham_inp%rdm_model         = .false.
+      ham_inp%rdm_sigma         = 1.0_dblprec
+      ham_inp%rdm_algo          = 'S'
 
       !Symmetric anisotropic data
       ham_inp%safile            = 'safile'

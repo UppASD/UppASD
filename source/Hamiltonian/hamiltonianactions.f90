@@ -23,7 +23,7 @@ module HamiltonianActions
    implicit none
 
    interface effective_field
-      module procedure effective_field_bare, effective_field_full
+      module procedure effective_field_bare, effective_field_full, effective_field_energy, effective_field_hb
    end interface
 
 contains
@@ -58,6 +58,52 @@ contains
          macro_nlistsize,NA,N1,N2,N3)
 
    end subroutine effective_field_bare
+
+   subroutine effective_field_hb(i_moment, i_ensemble, out_field)
+      use InputData, only : Natom, Mensemble, NA, N1, N2, N3
+      use MomentData, only : emomM, mmom
+      use FieldData, only : external_field, time_external_field, beff, beff1, beff2
+      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, maxNoConstl
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      implicit none
+
+      integer, intent(in) :: i_moment
+      integer, intent(in) :: i_ensemble
+      real(dblprec), dimension(3), intent(out) :: out_field
+      real(dblprec) :: energy
+
+      call effective_field_single(Natom,Mensemble,i_moment, i_ensemble, &
+         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         macro_nlistsize,NA,N1,N2,N3)
+
+      out_field = beff(:, i_moment, i_ensemble)
+
+   end subroutine effective_field_hb
+
+   subroutine effective_field_energy(energy)
+      use InputData, only : Natom, Mensemble, NA, N1, N2, N3
+      use MomentData, only : emomM, mmom
+      use FieldData, only : external_field, time_external_field, beff, beff1, beff2
+      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
+         constellations, constellationsNeighType, maxNoConstl
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      implicit none
+
+      real(dblprec), intent(out) :: energy
+
+
+      call effective_field_full(Natom,Mensemble,1,Natom,   &
+         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         macro_nlistsize,NA,N1,N2,N3)
+
+      return
+
+   end subroutine effective_field_energy
       !
    subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
@@ -204,6 +250,146 @@ contains
       energy = energy * mub / mry
 
    end subroutine effective_field_full
+
+   subroutine effective_field_single(Natom,Mensemble,i_atom, i_ensemble,  &
+      emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
+      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
+      constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+      macro_nlistsize,NA,N1,N2,N3)
+      !
+      use Constants, only : mry,mub
+      use DipoleManager, only : dipole_field_calculation
+      !.. Implicit declarations
+      implicit none
+
+      integer, intent(in) :: NA
+      integer, intent(in) :: N1
+      integer, intent(in) :: N2
+      integer, intent(in) :: N3
+      integer, intent(in) :: Natom        !< Number of atoms in system
+      integer, intent(in) :: Mensemble    !< Number of ensembles
+      integer, intent(in) :: i_atom       !< Atom to calculate field for
+      integer, intent(in) :: i_ensemble   !< Ensemble to calculate field for
+      integer, intent(in) :: Num_macro    !< Number of macrocells in the system
+      integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
+      real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field  !< External magnetic field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
+      ! .. Output Variables
+      real(dblprec), intent(out) :: energy !< Total energy
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff  !< Total effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ Optimization Routines Variables +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
+      logical, intent(in) :: OPT_flag
+      integer, dimension(:), intent(in) :: maxNoConstl
+      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
+      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
+      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
+      real(dblprec), dimension(:,:,:), intent(in) :: constellations
+      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! +++ End Region +++ !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      !.. Local scalars
+      real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
+
+      !.. Executable statements
+      if(OPT_flag) call pre_optimize(Natom,Mensemble,max_no_constellations,         &
+         maxNoConstl,constellations,constlNCoup,beff1_constellations,               &
+         constellationsNeighType)
+
+      ! Initialization of the energy
+      energy=0.0_dblprec
+      ! Initialization if the effective field
+      beff(:, i_atom, :)=0.0_dblprec
+      ! Wrapper for the calculation of the dipole-dipole interaction field
+      ! The field is stored in the bfield array which then is passed to the main loop
+      ! This is inefficient for the brute-force methods, but it the best way to ensure
+      ! that the FFT approaches can be used in an appropriate way
+      if (ham_inp%do_dip>0) then
+         call timing(0,'Hamiltonian   ','OF')
+         call timing(0,'Dipolar Int.  ','ON')
+         call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
+            Mensemble,i_atom, i_atom,cell_index,macro_nlistsize,emomM,        &
+            emomM_macro,ham%Qdip,ham%Qdip_macro,energy,beff)
+         call timing(0,'Dipolar Int.  ','OF')
+         call timing(0,'Hamiltonian   ','ON')
+      endif
+      
+
+            beff_s=0.0_dblprec
+            beff_q=0.0_dblprec
+            beff_m=0.0_dblprec
+
+            if(ham_inp%do_jtensor/=1) then
+               ! Heisenberg exchange term
+               if(ham_inp%exc_inter=='N') then
+                  call heisenberg_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,OPT_flag,      &
+                     beff1_constellations,unitCellType,emomM,max_no_constellations)
+               else
+                  call heisenberg_rescaling_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,mmom,emomM)
+               endif
+            else
+               call tensor_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+            end if
+
+            ! Dzyaloshinskii-Moriya term
+            if(ham_inp%do_dm==1) call dzyaloshinskii_moriya_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+
+            ! Symmetric anisotropic term
+            if(ham_inp%do_sa==1) call symmetric_anisotropic_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+
+            ! Pseudo-Dipolar term
+            if(ham_inp%do_pd==1) call pseudo_dipolar_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+
+            ! BIQDM term
+            if(ham_inp%do_biqdm==1) call dzyaloshinskii_moriya_bq_field(i_atom, i_ensemble, beff_q,Natom,Mensemble,emomM)
+
+            ! Biquadratic exchange term
+            if(ham_inp%do_bq==1) call biquadratic_field(i_atom, i_ensemble, beff_q,Natom,Mensemble,emomM)
+            
+            ! Four-spin ring exchange term
+            if(ham_inp%do_ring==1) call ring_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+
+            ! Scalar chiral term
+            if(ham_inp%do_chir==1) call chirality_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,emomM)
+
+            ! Anisotropy
+            if (ham_inp%do_anisotropy==1) then
+               if (ham%taniso(i_atom)==1) then
+                  ! Uniaxial anisotropy
+                  call uniaxial_anisotropy_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               elseif (ham%taniso(i_atom)==2) then
+                  ! Cubic anisotropy
+                  call cubic_anisotropy_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+               elseif (ham%taniso(i_atom)==7)then
+                  ! Uniaxial and cubic anisotropy
+                  call uniaxial_anisotropy_field(i_atom, i_ensemble, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+                  tfield=0.0_dblprec
+                  call cubic_anisotropy_field(i_atom, i_ensemble, tfield,Natom,Mensemble,ham_inp%mult_axis,emomM)
+                  beff_q=beff_q+tfield*ham%sb(i_atom)
+               endif
+            endif
+            beff1(1:3,i_atom,i_ensemble)= beff_s
+            beff2(1:3,i_atom,i_ensemble)= beff_q+external_field(1:3,i_atom,i_ensemble)+time_external_field(1:3,i_atom,i_ensemble)
+            ! Here the dipole contribution is added since beff != 0 in that case.
+            beff(1:3,i_atom,i_ensemble) = beff(1:3,i_atom, i_ensemble)+ beff1(1:3,i_atom, i_ensemble)+beff2(1:3,i_atom, i_ensemble)
+
+            tfield=0.50_dblprec*(beff_s+2.0_dblprec*beff_q + &
+              2.0_dblprec*external_field(1:3,i_atom,i_ensemble)+time_external_field(1:3,i_atom,i_ensemble))
+            energy=energy - emomM(1,i_atom,i_ensemble)*tfield(1)-emomM(2,i_atom,i_ensemble)*tfield(2)-emomM(3,i_atom,i_ensemble)*tfield(3)
+      energy = energy * mub / mry
+
+   end subroutine effective_field_single
 
    !contains
 

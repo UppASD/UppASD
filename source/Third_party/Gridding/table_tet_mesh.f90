@@ -1193,7 +1193,7 @@ contains
    !---------------------------------------------------------------------------------
    ! subroutine: i4_swap 
    ! 
-   !> @brief swaps two I4's.
+   !> @brief swaps two I4´s.
    !
    !> @author Original John Burkardt
    !> @copyright This code is distributed under the GNU LGPL license.
@@ -2166,7 +2166,7 @@ contains
    !
    !> @details This routine updates a record in FC due to a local transformation.
    !>  Tetrahedron ABCD becomes ABCE. Add face ABC to queue if it is
-   !>  interior face, not yet in queue, and its largest index isn't I.
+   !>  interior face, not yet in queue, and its largest index isn´t I.
    !> @author Original FORTRAN77 Barry Joe.
    !> FORTRAN90 version by John Burkardt. 
    !> @copyright This code is distributed under the GNU LGPL license.

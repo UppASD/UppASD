@@ -21,6 +21,7 @@
 #include <nvToolsExtCuda.h>
 #endif
 
+
 // Measurement class methods
 MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmom, real* _beff, std::size_t NM,
                                            std::size_t _step, MeasurementType _type) {
@@ -48,6 +49,7 @@ MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmo
    }
 }
 
+
 MeasurementQueue::Measurement::~Measurement() {
    if(emomM != nullptr) {
       delete[] emomM;
@@ -63,12 +65,14 @@ MeasurementQueue::Measurement::~Measurement() {
    }
 }
 
+
 // MeasurementQueue class methods
 void* MeasurementQueue::process_measurements(void* mqueue) {
    ((MeasurementQueue*)mqueue)->processMeasurements();
    pthread_exit(nullptr);
    return nullptr;
 }
+
 
 void MeasurementQueue::processMeasurements() {
 #ifdef NVPROF
@@ -196,6 +200,7 @@ void MeasurementQueue::startProcessThread() {
    }
 }
 
+
 void MeasurementQueue::finishProcessThread() {
    if(!finishMeasurements && processThreadStarted) {
       // Chage finish flag and send cond signal
@@ -216,11 +221,13 @@ void MeasurementQueue::finishProcessThread() {
    }
 }
 
+
 // Constructor / destructor
 MeasurementQueue::MeasurementQueue() {
    finishMeasurements = false;
    processThreadStarted = false;
 }
+
 
 MeasurementQueue::~MeasurementQueue() {
    if(!finishMeasurements) {
@@ -229,6 +236,7 @@ MeasurementQueue::~MeasurementQueue() {
    finishProcessThread();
 }
 
+
 // Test if empty
 bool MeasurementQueue::empty() {
    pthread_mutex_lock(&mutex);
@@ -236,6 +244,7 @@ bool MeasurementQueue::empty() {
    pthread_mutex_unlock(&mutex);
    return e;
 }
+
 
 // Push a measurement with data to the queue
 void MeasurementQueue::push(std::size_t mstep) {
@@ -285,6 +294,7 @@ void MeasurementQueue::push(std::size_t mstep,
       pthread_mutex_unlock(&mutex);
    }
 }
+
 
 // Finish
 void MeasurementQueue::finish() {

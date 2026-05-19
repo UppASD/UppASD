@@ -91,7 +91,7 @@ contains
          end if
       end if
 
-      ! If not returned yet, don't copy
+      ! If not returned yet, don´t copy
       do_copy = 0
 
    end subroutine do_measurements

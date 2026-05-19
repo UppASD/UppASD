@@ -10,7 +10,7 @@ TrimerauSLD3siteTilted
 do
     cd $n
     echo Starts example $n
-    ../../../../source/sd > out.log
+    time -p ${SD_BINARY} > out.log
     echo Ends example $n
     cd ../
 done

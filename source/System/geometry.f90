@@ -144,6 +144,8 @@ contains
    subroutine setup_type_and_numb(Natom_full,NA,N1,N2,N3,atype,anumb,atype_inp,     &
       anumb_inp,block_size)
       !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
       implicit none
 
       integer, intent(in) :: NA  !< Number of atoms in one cell
@@ -162,12 +164,12 @@ contains
       integer :: i0, i1, i2, i3, ii1, ii2, ii3
       !
       A1=0
-      do iI3=0, N3-1, block_size
-         do iI2=0, N2-1, block_size
-            do iI1=0, N1-1, block_size
-               do I3=ii3,min(ii3+block_size-1,N3-1)
-                  do I2=ii2,min(ii2+block_size-1,N2-1)
-                     do I1=ii1,min(ii1+block_size-1,N1-1)
+      do iI3=0, N3-1, block_size_z
+         do iI2=0, N2-1, block_size_y
+            do iI1=0, N1-1, block_size_x
+               do I3=ii3,min(ii3+block_size_z-1,N3-1)
+                  do I2=ii2,min(ii2+block_size_y-1,N2-1)
+                     do I1=ii1,min(ii1+block_size_x-1,N1-1)
                         do I0=1, NA
                            A1=A1+1
                            atype(A1)=atype_inp(I0)
@@ -336,6 +338,8 @@ contains
       do_prnstruct,do_prn_poscar,simid,do_ralloy,Natom_full,acellnumb,achtype,      &
       atype_ch,asite_ch,achem_ch,block_size)
       !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
       implicit none
       !
       integer, intent(in) :: NA  !< Number of atoms in one cell
@@ -389,20 +393,22 @@ contains
          invmatrix(3,2)=(C1(2)*C3(1)-C3(2)*C1(1))/detmatrix
          invmatrix(3,3)=(C1(1)*C2(2)-C2(1)*C1(2))/detmatrix
       end if
-
+      ! print *,' '
       do I0=1,NA
          !find coordinate vector in basis coordinates
          icvec(1)=Bas(1,I0)*invmatrix(1,1)+Bas(2,I0)*invmatrix(2,1)+Bas(3,I0)*invmatrix(3,1)
          icvec(2)=Bas(1,I0)*invmatrix(1,2)+Bas(2,I0)*invmatrix(2,2)+Bas(3,I0)*invmatrix(3,2)
          icvec(3)=Bas(1,I0)*invmatrix(1,3)+Bas(2,I0)*invmatrix(2,3)+Bas(3,I0)*invmatrix(3,3)
+         ! print '(i4,a,3f12.8)', i0, ' icvec=',icvec
          ! fold back to original cell
-         bsf(1)=floor(icvec(1)+1d-7)
-         bsf(2)=floor(icvec(2)+1d-7)
-         bsf(3)=floor(icvec(3)+1d-7)
+         bsf(1)=floor(icvec(1)+1d-5)
+         bsf(2)=floor(icvec(2)+1d-5)
+         bsf(3)=floor(icvec(3)+1d-5)
          !
          Bas(1,I0)=Bas(1,I0)-bsf(1)*C1(1)-bsf(2)*C2(1)-bsf(3)*C3(1)
          Bas(2,I0)=Bas(2,I0)-bsf(1)*C1(2)-bsf(2)*C2(2)-bsf(3)*C3(2)
          Bas(3,I0)=Bas(3,I0)-bsf(1)*C1(3)-bsf(2)*C2(3)-bsf(3)*C3(3)
+         ! print '(i4,a,3f12.8)', i0, ' bas  =',Bas(1:3,I0)
       end do
 
       ! Open file for writing the coordinates
@@ -433,12 +439,12 @@ contains
       allocate(coord(3,Natom),stat=i_stat)
       call memocc(i_stat,product(shape(coord))*kind(coord),'coord','setup_globcoord')
       i=0
-      do II3=0, N3-1,block_size
-         do II2=0, N2-1,block_size
-            do II1=0, N1-1,block_size
-               do I3=II3, min(II3+block_size-1,N3-1)
-                  do I2=II2,min(II2+block_size-1,N2-1)
-                     do I1=II1, min(II1+block_size-1,N1-1)
+      do II3=0, N3-1,block_size_z
+         do II2=0, N2-1,block_size_y
+            do II1=0, N1-1,block_size_x
+               do I3=II3, min(II3+block_size_z-1,N3-1)
+                  do I2=II2,min(II2+block_size_y-1,N2-1)
+                     do I1=II1, min(II1+block_size_x-1,N1-1)
                         do I0=1, NA
                            i=i+1
                            if (do_ralloy==0) then
@@ -462,8 +468,8 @@ contains
                                        atype_ch(iatom),asite_ch(iatom),achem_ch(iatom)
                                  end if
                                  if(do_prn_poscar==1) then
-                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy &
-                                         currently not supported.'
+                                    write(ofileno2,'(a)') 'Writing to POSCAR for random alloy'// &
+                                         '  currently not supported.'
                                  end if
                               end if
                            end if

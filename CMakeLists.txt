@@ -18,32 +18,37 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.13)
 CMAKE_POLICY(VERSION 3.13)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CUDA_STANDARD 20)
-set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
-
-PROJECT(UppASD Fortran)
-# Set the project version
-SET(VERSION 5.1.0)
 SET(CMAKE_CXX_STANDARD 20)
+PROJECT(uppasd LANGUAGES Fortran CXX)
 ##############################################################################################
-
+unset(CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES)
 ##############################################################################################
 # Check OS and compiler status
 ##############################################################################################
 message(STATUS "Operating system= ${CMAKE_SYSTEM_NAME}")
 include(CMakeDetermineFortranCompiler)
 message(STATUS "CMAKE_Fortran_COMPILER_ID ${CMAKE_Fortran_COMPILER_ID} ${CMAKE_Fortran_COMPILER}.")
+message(STATUS "CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES ${CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES}.")
+message(STATUS "CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES ${CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES}.")
 include(CMakeDetermineCCompiler)
 message(STATUS "CMAKE_C_COMPILER_ID ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER}.")
 enable_language(C)
 ##############################################################################################
 
+##############################################################################################
+# Set the fortran compiler as the linker
+##############################################################################################
+#set(CMAKE_LINKER ${CMAKE_Fortran_COMPILER})
+#############################################################################################
 
 ##############################################################################################
 # Add our local modlues to the module path
 ##############################################################################################
-SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+message(STATUS "Initial module path: ${CMAKE_MODULE_PATH}")
+SET(LOCAL_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+SET(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${LOCAL_MODULE_PATH}")
+message(STATUS "Final module path  : ${CMAKE_MODULE_PATH}")
 ##############################################################################################
 
 ##############################################################################################
@@ -61,9 +66,10 @@ message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 
 ##############################################################################################
 # Defines the directories for source, modules and object filed
+##############################################################################################
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
-SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
-#SET(MOD ${CMAKE_BINARY_DIR}/mod)
+#SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
+SET(MOD ${CMAKE_BINARY_DIR}/mod)
 SET(BIN ${CMAKE_SOURCE_DIR}/bin)
 # Have the .mod files placed in the lib folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
@@ -73,16 +79,18 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 
 ##############################################################################################
-# Uncomment if it is required that Fortran 90 is supported
+# Check that Fortran 90 is supported (CMAKE_Fortran_COMPILER_SUPPORTS_F90 is only
+# populated by older CMake versions; skip the check when the variable is unset)
 ##############################################################################################
-IF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
+IF(DEFINED CMAKE_Fortran_COMPILER_SUPPORTS_F90 AND NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
    MESSAGE(FATAL_ERROR "Fortran compiler does not support F90")
-ENDIF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
+ENDIF()
 ##############################################################################################
 
 ##############################################################################################
 # There is an error in CMAKE with this flag for pgf90.  Unset it
 ##############################################################################################
+UNSET(CMAKE_SHARED_LIBRARY_LINK_Fortran_FLAGS)
 GET_FILENAME_COMPONENT(FCNAME ${CMAKE_Fortran_COMPILER} NAME)
 set(CMAKE_Fortran_COMPILE_OPTIONS_PIE "")
 IF(FCNAME STREQUAL "pgf90")
@@ -90,20 +98,21 @@ IF(FCNAME STREQUAL "pgf90")
 ENDIF(FCNAME STREQUAL "pgf90")
 ##############################################################################################
 
-
 ##############################################################################################
 # Define the executable name
 ##############################################################################################
-set(ASD_binary sd)
+set(ASD_binary uppasd)
 #if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 #   string(APPEND CMAKE_Fortran_COMPILER ".exe")
 #   #message(STATUS "---> ${CMAKE_Fortran_COMPILER}")
 #endif()
 # Find the vernacular compiler name
-string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv current_compiler  ${CMAKE_Fortran_COMPILER})
+string(REGEX MATCH gfortran|g95|ifort|pgf90|f95|f77|nv|ifx current_compiler  ${CMAKE_Fortran_COMPILER})
 message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
+message(STATUS "Matched compiler: ${current_compiler}.  ${CMAKE_Fortran_COMPILER} ${FCNAME}")
+set(ASD_legacy_binary sd)
 if(current_compiler)
-   string(APPEND ASD_binary ".${current_compiler}")
+   string(APPEND ASD_legacy_binary ".${current_compiler}")
 endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
@@ -126,8 +135,8 @@ ADD_EXECUTABLE(${UppASD_EXE} ${SRC}/0sd.f90 )
 ##############################################################################################
 # Define the library name
 ##############################################################################################
-set(ASD_library asdlib)
-SET(UppASD_LIB ${ASD_library})
+SET(UppASD_LIB asdlib)
+#SET(UppASD_pyLIB pyasdlib)
 ##############################################################################################
 
 
@@ -135,25 +144,52 @@ SET(UppASD_LIB ${ASD_library})
 # Define the executable in terms of the source files
 ##############################################################################################
 set(lib_type STATIC)
+ADD_LIBRARY(${UppASD_LIB} ${lib_type})
+message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC} ${CMAKE_POSITION_INDEPENDENT_CODE}")
 if (BUILD_PYTHON)
    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+   set_target_properties(${UppASD_LIB} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+   #   ADD_LIBRARY(${UppASD_pyLIB} SHARED)
 endif(BUILD_PYTHON)
-message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC}")
-ADD_LIBRARY(${UppASD_LIB} ${lib_type})
+add_dependencies(${UppASD_EXE} ${UppASD_LIB})
 ##############################################################################################
 
 
 ##############################################################################################
+# MKL / FFTW actions
+##############################################################################################
+#if (USE_MKL)
 set(MKL_LINK static)
+set(MKL_INTERFACE lp64)
+set(MKL_THREADING sequential)
 find_package(MKL CONFIG)
+message(STATUS "MKL_IMPORTED_TARGETS:   ${MKL_IMPORTED_TARGETS}") 
+#endif ()
 
-include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
+set(FFTW_USE_STATIC_LIBS ON)
+if (USE_FFTW)
+find_package(FFTW)
+#include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
 if (FFTW_FOUND)
-   message(STATUS "FFTW found ${FFTW_FOUND} ${FFTW_INCLUDES} ${FFTW_INCLUDE_DIR}")
+	message(STATUS "FFTW found       : ${FFTW_FOUND}, ${FFTW_INCLUDES}, ${FFTW_INCLUDE_DIRS}")
+	message(STATUS "FFTW_LIBRARIES   : ${FFTW_LIBRARIES}")
+	message(STATUS "FFTW_INCLUDE_DIRS: ${FFTW_INCLUDE_DIRS}")
+	message(STATUS "FFTW_DOUBLE_LIB  : ${FFTW_DOUBLE_LIB}")
+	message(STATUS "FFTW_DOUBLE_OPENMP_LIB  : ${FFTW_DOUBLE_OPENMP_LIB}")
+   set(FFTW_LIB ${FFTW_LIBRARIES})
+   #set(FFTW_LIB "${FFTW_DOUBLE_LIB};${FFTW_DOUBLE_OPENMP_LIB}")
+   # It sets the following variables:
+#   FFTW_FOUND                  ... true if fftw is found on the system
+#   FFTW_[component]_LIB_FOUND  ... true if the component is found on the system (see components below)
+#   FFTW_LIBRARIES              ... full paths to all found fftw libraries
+#   FFTW_[component]_LIB        ... full path to one of the components (see below)
+#   FFTW_INCLUDE_DIRS           ... fftw include directory paths
+
 else (FFTW_FOUND)
    set(FFTW_LIB "")
    set(FFTW_LIBRARIES "")
 endif (FFTW_FOUND)
+endif (USE_FFTW)
 ##############################################################################################
 
 ##############################################################################################
@@ -168,6 +204,88 @@ if(USE_CUDA AND USE_HIP)
 endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
+OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
+OPTION(USE_STATIC_LIBGFORTRAN "Use static linking for libgfortran" OFF)
+OPTION(FORCE_NO_APP_BUNDLE "Force disable macOS app bundle creation for all generators" ON)
+
+# Windows uses static linking, so disable library bundling automatically
+if(WIN32 AND BUNDLE_LIBRARIES)
+   message(WARNING "BUNDLE_LIBRARIES is not supported on Windows (using static linking)")
+   message(STATUS "Automatically disabling BUNDLE_LIBRARIES for Windows")
+   set(BUNDLE_LIBRARIES OFF CACHE BOOL "Bundle runtime libraries with RPATH for portable distribution" FORCE)
+endif()
+
+##############################################################################################
+# Configure RPATH for portable distribution
+##############################################################################################
+if(BUNDLE_LIBRARIES)
+   message(STATUS "Enabling library bundling with RPATH")
+   
+   # Set RPATH configuration for macOS
+   if(APPLE)
+      # Use @rpath for library paths
+      set(CMAKE_MACOSX_RPATH TRUE)
+      
+      # Check if we're building an app bundle (detect from install destination)
+      set(BUILD_APP_BUNDLE FALSE)
+      if(NOT FORCE_NO_APP_BUNDLE AND (CMAKE_INSTALL_PREFIX MATCHES ".*\\.app.*" OR 
+         EXISTS "${CMAKE_SOURCE_DIR}/cpack/Info.plist.in"))
+         message(STATUS "Configuring for app bundle")
+         set(BUILD_APP_BUNDLE TRUE)
+      else()
+         message(STATUS "Configuring for standard zip")
+      endif()
+      
+      # Set RPATH for build tree
+      set(CMAKE_BUILD_RPATH "@executable_path/../lib")
+      
+      # Set RPATH for install tree based on bundle type
+      if(BUILD_APP_BUNDLE)
+         set(CMAKE_INSTALL_RPATH "@executable_path/../Frameworks")
+         message(STATUS "Configuring for app bundle with Frameworks directory")
+      else()
+         set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
+         message(STATUS "Configuring for standard bundle with lib directory")
+      endif()
+      
+      # Don't skip the full RPATH for the build tree
+      set(CMAKE_SKIP_BUILD_RPATH FALSE)
+      
+      # When building, don't use the install RPATH already
+      set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+      
+      # Add the automatically determined parts of the RPATH
+      # which point to directories outside the build tree to the install RPATH
+      set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+      
+   # Define bundled library directory inside the build tree to avoid
+   # accidentally pointing to system-wide library directories like
+   # /usr/local/lib or /opt/homebrew/lib which would cause large
+   # unintended copies. Use a dedicated directory under the build
+   # directory so only explicitly bundled files end up here.
+   set(BUNDLE_LIB_DIR "${CMAKE_BINARY_DIR}/bundled_libs")
+      
+      message(STATUS "RPATH configuration for bundling:")
+      message(STATUS "  CMAKE_BUILD_RPATH: ${CMAKE_BUILD_RPATH}")
+      message(STATUS "  CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
+      message(STATUS "  BUNDLE_LIB_DIR: ${BUNDLE_LIB_DIR}")
+      message(STATUS "  BUILD_APP_BUNDLE: ${BUILD_APP_BUNDLE}")
+   elseif(UNIX AND NOT APPLE)
+      # Linux RPATH configuration
+      set(CMAKE_BUILD_RPATH "$ORIGIN/../lib")
+      set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+      set(CMAKE_SKIP_BUILD_RPATH FALSE)
+      set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+      set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+   # On non-mac Unix builds also use a build-tree directory for bundled libs
+   set(BUNDLE_LIB_DIR "${CMAKE_BINARY_DIR}/bundled_libs")
+   elseif(WIN32)
+      # Windows: No library bundling - we use static linking instead
+      message(STATUS "Windows detected: Using static linking (no library bundling needed)")
+      message(STATUS "Windows detected: Library bundling disabled (using static linking)")
+   endif()
+endif()
+##############################################################################################
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -203,7 +321,7 @@ CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUD
 ##############################################################################################
 # Determine and set compiler-dependent flags
 ##############################################################################################
-INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake) 
+INCLUDE(${LOCAL_MODULE_PATH}/SetFortranFlags.cmake) 
 ##############################################################################################
 
 ##############################################################################################
@@ -212,8 +330,8 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 IF(USE_OPENMP)
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
-   message(STATUS "Which are the OpenMP flags?  ${OpenMP_Fortran_FLAGS}")
-
+   message(STATUS "            OpenMP flags: ${OpenMP_Fortran_FLAGS}")
+   message(STATUS "            OpenMP libraries: ${OpenMP_Fortran_LIBRARIES}")
 
    if(OpenMP_Fortran_FOUND)
         set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
@@ -224,6 +342,7 @@ IF(USE_OPENMP)
 ENDIF(USE_OPENMP)
 ##############################################################################################
 
+#set(CMAKE_Fortran_FLAGS "-assume underscore")
 
 ##############################################################################################
 # Build LaTeX manual (and extra notes if requested)
@@ -273,44 +392,52 @@ endif()
 ##############################################################################################
 # If MKL/VSL is requested. First checks here to set the linear algebra packages
 ##############################################################################################
-#if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
-#
-#   set(BLA_DEFINITIONS)
-#
-#   if (BLA_VENDOR MATCHES "_seq")
-#      set(MKL_USE_parallel OFF)
-#   else()
-#      set(MKL_USE_parallel ON)
-#   endif()
-#
-#   if (MKL_FOUND)
-#      message( STATUS "MKL_FOUND condition true")
-#      set(BLA_INCLUDE_DIR ${MKL_INCLUDE_DIR})
-#      set(BLAS_LIBRARIES ${MKL_LIBRARIES})
-#      set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
-#      set(BLA_DEFINITIONS USE_MKL)
-#      set(MKL_INTERFACE_FULL "lp64")
-#   else()
-#      #include(FindBLAS)
-#      #include(FindLAPACK)
-#      find_package(BLAS)
-#      find_package(LAPACK REQUIRED)
-#   endif()
-#   message(STATUS "mkl-location: ${MKL_LIBRARY_DIR}")
-#   message(STATUS "mkl-includes: ${MKL_INCLUDE}")
-#   link_directories(${MKL_LIBRARY_DIR})
-#
-#else()
-#   find_package(BLAS)
-#   find_package(LAPACK REQUIRED)
-#endif()
-#set(BLA_STATIC ON)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+set(BLA_STATIC ON)
+
+message( STATUS "USING::::: ${USE_VSL} ${USE_MKL} ${USE_MKL_FFT}")
+if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+
+   unset(BLA_DEFINITIONS)
+
+   if (BLA_VENDOR MATCHES "_seq")
+      set(MKL_USE_parallel OFF)
+   else()
+      set(MKL_USE_parallel ON)
+   endif()
+
+   if (MKL_FOUND)
+      message( STATUS "MKL_FOUND condition true")
+      #set(BLA_INCLUDE_DIR ${MKL_INCLUDE_DIR})
+      #set(BLAS_LIBRARIES ${MKL_LIBRARIES})
+      #set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
+      #set(BLA_DEFINITIONS USE_MKL)
+      #set(MKL_INTERFACE_FULL "lp64")
+      #set(BLA_VENDOR Intel)
+      #find_package(BLAS REQUIRED)
+      #find_package(LAPACK REQUIRED)
+   else()
+	   #include(FindBLAS)
+      	   #include(FindLAPACK)
+      find_package(BLAS REQUIRED)
+      find_package(LAPACK REQUIRED)
+   endif()
+   message(STATUS "mkl-location: ${MKL_LIBRARY_DIR}")
+   message(STATUS "mkl-includes: ${MKL_INCLUDE}")
+   #link_directories(${MKL_LIBRARY_DIR})
+
+   target_compile_options(${UppASD_LIB} PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_COMPILE_OPTIONS>)
+   target_include_directories(${UppASD_LIB} PUBLIC $<TARGET_PROPERTY:MKL::MKL,INTERFACE_INCLUDE_DIRECTORIES>)
+
+else()
+   find_package(BLAS REQUIRED)
+   find_package(LAPACK REQUIRED)
+endif()
+#find_package(BLAS REQUIRED)
+#find_package(LAPACK REQUIRED)
 message(STATUS "Math libs: 
-BLAS:${BLAS_FOUND} ${BLAS_LIBRARIES}  ${BLAS_LINKER_FLAGS}
-LAPACK:${LAPACK_FOUND} ${LAPACK_LIBRARIES}  ${LAPACK_LINKER_FLAGS}
-MKL:${MKL_FOUND} ${MKL_LIBRARIES} ${MKL_LINKER_FLAGS}"
+ BLAS:    ${BLAS_FOUND}, ${BLAS_LIBRARIES},  ${BLAS_LINKER_FLAGS}
+ LAPACK:  ${LAPACK_FOUND}, ${LAPACK_LIBRARIES},  ${LAPACK_LINKER_FLAGS}
+ MKL:     ${MKL_FOUND}, ${MKL_LIBRARIES}, ${MKL_LINKER_FLAGS}"
 )
 ##############################################################################################
 
@@ -329,9 +456,12 @@ ENDIF()
 
 
 ##############################################################################################
-# Extract git-stamp
+# Extract git-stamp for versioning
 ##############################################################################################
-INCLUDE(${CMAKE_MODULE_PATH}/git-watcher.cmake)
+INCLUDE(${LOCAL_MODULE_PATH}/git-watcher.cmake)
+message(STATUS "Git version info : ${gitversion}.")
+# Set the project version
+SET(VERSION ${gitversion})
 ##############################################################################################
 
 ##############################################################################################
@@ -339,7 +469,9 @@ INCLUDE(${CMAKE_MODULE_PATH}/git-watcher.cmake)
 ##############################################################################################
 if (USE_CUDA) 
 
-   ENABLE_LANGUAGE(C CUDA CXX)
+   set(CMAKE_CUDA_STANDARD 20)
+   set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
+   ENABLE_LANGUAGE(CUDA)
    if (CMAKE_VERSION VERSION_LESS "3.17.0")
 	   find_package(CUDA)
    else ()
@@ -513,27 +645,47 @@ ADD_CUSTOM_TARGET(distclean
 ###############################################################################################
 if(BUILD_PYTHON)
    # check if Python is installed
-   include(FindPython)
-   find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
-   #find_package(Python)
-   #message(STATUS "Python_STDLIB ${Python_STDLIB}.")
-   #message(STATUS "Python_SITELIB ${Python_SITELIB}")
-   #message(STATUS "Python_LIBRARIES ${Python_LIBRARIES}.")
-   #message(STATUS "Python_LIBRARY_DIRS ${Python_LIBRARY_DIRS}.")
+   #set(Python_VERSION $ENV{PYTHON_VERSION})
+   #message(STATUS "Python target version: ${Python_VERSION}")
+   message(STATUS "Python target version: $ENV{PYTHON_VERSION}")
 
-   if (Python_FOUND)
+   # Fix since FindPython is a bit flawed
+   # https://github.com/scikit-build/scikit-build/issues/506#issuecomment-706791791
+   find_package(Python3 COMPONENTS Interpreter Development.Module NumPy)
+   
+   message(STATUS "============================================")
+   message(STATUS "Python3_EXECUTABLE         ${Python3_EXECUTABLE}")
+   message(STATUS "Python3_SOABI              ${Python3_SOABI}")
+   message(STATUS "Python3_STDLIB             ${Python3_STDLIB}.")
+   message(STATUS "Python3_SITELIB            ${Python3_SITELIB}")
+   message(STATUS "Python3_LIBRARIES          ${Python3_LIBRARIES}.")
+   message(STATUS "Python3_LIBRARY_DIRS       ${Python3_LIBRARY_DIRS}.")
+   message(STATUS "Python3_INCLUDE_DIRS       ${Python3_INCLUDE_DIRS}.")
+   message(STATUS "Python3_NumPy_INCLUDE_DIRS ${Python3_NumPy_INCLUDE_DIRS}.")
+   message(STATUS "============================================")
+
+   if (Python3_FOUND)
       # Grab the variables from a local Python installation
       # F2PY headers
       execute_process(
-         COMMAND "${Python_EXECUTABLE}"
-         -c "import numpy.f2py; print(numpy.f2py.get_include())"
+         COMMAND "${Python3_EXECUTABLE}" -c "import numpy.f2py; print(numpy.f2py.get_include())"
          OUTPUT_VARIABLE F2PY_INCLUDE_DIR
+         OUTPUT_STRIP_TRAILING_WHITESPACE
+         )
+
+      execute_process(
+         COMMAND "${Python3_EXECUTABLE}" -c "import numpy; print(numpy.version.version)"
+         OUTPUT_VARIABLE F2PY_version
          OUTPUT_STRIP_TRAILING_WHITESPACE
          )
 
       # Common variables
       set(f2py_module_name "uppasd")
-      SET(UppASD_F90w f90_wraps)
+      set(f2py_module_c "_${f2py_module_name}module.c")
+      set(f2py_wrapper_f "_${f2py_module_name}-f2pywrappers.f")
+      set(f2py_wrapper_f90 "_${f2py_module_name}-f2pywrappers2.f90")
+      set(f2py_wrapper_o "_${f2py_module_name}-f2pywrappers2.o")
+      set(UppASD_F90w f90_wraps)
       set(F90wrap_kind
          ${CMAKE_SOURCE_DIR}/cmake/.f2py_f2cmapPRIVATE
          )
@@ -549,15 +701,17 @@ if(BUILD_PYTHON)
       #   ${SRC}/System/momentdata.f90 
       #   ${SRC}/System/simulationdata.f90
       #   )
+
       set(F2PY_sources 
-         ${SRC}/f90wrap/f90wrap_pyasd.f90
-         ${SRC}/f90wrap/f90wrap_uppasd.f90
-         ${SRC}/f90wrap/f90wrap_inputdatatype.f90
-         ${SRC}/f90wrap/f90wrap_inputdata.f90
-         ${SRC}/f90wrap/f90wrap_inputhandler.f90
-         ${SRC}/f90wrap/f90wrap_inputhandler_ext.f90
-         ${SRC}/f90wrap/f90wrap_simulationdata.f90
-         ${SRC}/f90wrap/f90wrap_momentdata.f90
+         ${SRC}/pyasd.f90
+      #   ${SRC}/f90wrap/f90wrap_pyasd.f90
+      #   #${SRC}/f90wrap/f90wrap_uppasd.f90
+      #   #${SRC}/f90wrap/f90wrap_inputdatatype.f90
+      #   #${SRC}/f90wrap/f90wrap_inputdata.f90
+      #   #${SRC}/f90wrap/f90wrap_inputhandler.f90
+      #   #${SRC}/f90wrap/f90wrap_inputhandler_ext.f90
+      #   #${SRC}/f90wrap/f90wrap_simulationdata.f90
+      #   #${SRC}/f90wrap/f90wrap_momentdata.f90
          )
 
       # Bild library list for f2py
@@ -615,32 +769,108 @@ if(BUILD_PYTHON)
          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
          COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${CMAKE_BINARY_DIR} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
          COMMENT "Generating Python modules"
-         VERBATIM 
+         DEPENDS ${UppASD_LIB}  ${F2PY_sources}
+         VERBATIM
          )
+
+      message(STATUS "F2PY_INCLUDE_DIR" ${F2PY_INCLUDE_DIR})
+      #message(STATUS "Python3_NumPy_INCLUDE_DIRS" ${Python3_NumPy_INCLUDE_DIRS})
+
+      # Set up target
+      #message(STATUS "F2PY_INCLUDE_DIR:        ${F2PY_INCLUDE_DIR}")
+      #message(STATUS "=============>  ${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}")
 
       # Not used by default (invoke only if new header files need to be generated)
-      add_custom_command( 
-         OUTPUT ${F2PY_sources}
-         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-         COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
-         COMMENT "Writing F90wrappers for F2PY"
-         DEPENDS ${F90wrap_sources}
+      # add_custom_command( 
+      #    OUTPUT "${F2PY_sources}"
+      #    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      #    COMMAND f90wrap  -P -k ${F90wrap_kind} -m ${f2py_module_name}  ${F90wrap_sources}
+      #    COMMENT "Writing F90wrappers for F2PY"
+      #    DEPENDS ${F90wrap_sources}
+      #    )
+
+      ##message(STATUS " F2PY_sauce: ${F2PY_sources}")
+      set(CMAKE_C_FLAGS "-std=c99")
+      Python3_add_library(_${CMAKE_PROJECT_NAME} MODULE WITH_SOABI
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_module_c}"
+         #"${F2PY_sources}"
+         "${F2PY_INCLUDE_DIR}/fortranobject.c" # From NumPy
+         "${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f}"
+         #"${CMAKE_CURRENT_BINARY_DIR}/${f2py_wrapper_f90}"
          )
 
-      add_dependencies(${UppASD_F90w} ${UppASD_LIB})
+      add_dependencies(_${CMAKE_PROJECT_NAME} ${UppASD_F90w})
 
-      add_custom_command(
-         TARGET ${UppASD_F90w} POST_BUILD
-         COMMAND ${CMAKE_COMMAND} -E copy
-         ${CMAKE_BINARY_DIR}/_*.so
-         ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+      target_link_libraries(_${CMAKE_PROJECT_NAME}  PRIVATE Python3::NumPy  ${UppASD_LIB})
+
+      #if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      #   TARGET_LINK_LIBRARIES(_${CMAKE_PROJECT_NAME} PUBLIC  $<LINK_ONLY:MKL::MKL>)
+      #endif(USE_VSL OR USE_MKL OR USE_MKL_FFT)
+      message(STATUS " Python linking check: 
+            ${UppASD_LIB},  ${BLAS_LIBRARIES}, ${OpenMP_Fortran_LIBRARIES}")
+      message(STATUS " CMAKE_MODULE_LINKER_FLAGS : ${CMAKE_MODULE_LINKER_FLAGS}")
+      target_include_directories(_${CMAKE_PROJECT_NAME} PRIVATE "${F2PY_INCLUDE_DIR}" )
+
+      ##############################################################################################
+      # Configure RPATH for Python extension when bundling
+      ##############################################################################################
+      if(BUNDLE_LIBRARIES AND APPLE)
+         # Set RPATH for Python extension
+         set_target_properties(_${CMAKE_PROJECT_NAME} PROPERTIES
+            BUILD_RPATH "@loader_path"
+            INSTALL_RPATH "@loader_path"
          )
+         
+         # Add post-build commands to bundle libraries for Python extension
+         add_custom_command(
+            TARGET _${CMAKE_PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E echo "Fixing Python extension rpath for bundled libraries"
+            COMMAND ${CMAKE_SOURCE_DIR}/bundle_python_ext.sh "${CMAKE_BINARY_DIR}" "${BUNDLE_LIB_DIR}"
+            COMMENT "Configuring Python extension for bundled libraries"
+         )
+      endif()
+      ##############################################################################################
+##############################################################################################
 
-      else (Python_FOUND)
+##############################################################################################
+# Set static linking for different compilers (for Python compilation)
+##############################################################################################
+if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+   if( CMAKE_Fortran_COMPILER_ID STREQUAL Intel )
+      #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -static-intel )
+      #set(CMAKE_MODULE_LINKER_FLAGS "-static-intel -lifcoremt")
+      set(CMAKE_MODULE_LINKER_FLAGS "-static -static-intel  -liomp5 /libs:static")
+   elseif( CMAKE_Fortran_COMPILER_ID STREQUAL GNU )
+      #set_target_properties( _${CMAKE_PROJECT_NAME} PROPERTIES LINK_FLAGS -static -lgfortran -libquadmath)
+      #set(CMAKE_MODULE_LINKER_FLAGS "-lgfortran -lquadmath")
+   endif()
+endif()
+##############################################################################################
+
+#############################################################################################
+# Copy the library to the designated place
+#############################################################################################
+###add_custom_command(
+###   TARGET ${UppASD_F90w} POST_BUILD
+###   COMMAND ${CMAKE_COMMAND} -E 
+###   #${CMAKE_BINARY_DIR}/_*.so
+###   copy -t ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+###   ${CMAKE_BINARY_DIR}/_*.*
+###   )
+#message(STATUS "COPY:::" ${CMAKE_BINARY_DIR} )
+#############################################################################################
+
+   else (Python3_FOUND)
       message("A proper Python environment needs to be installed to generate the python libraries")
-      endif (Python_FOUND)
+   endif (Python3_FOUND)
 endif(BUILD_PYTHON)
 ##############################################################################################
+
+
+#if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#   set(OpenMP_Fortran_LIBRARIES "${OpenMP_Fortran_FLAGS}")
+#endif()
+
 
 
 ##############################################################################################
@@ -682,18 +912,36 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
 # Tell where to install this executable
 ##############################################################################################
 IF(WIN32)
-   SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
+   SET(CMAKE_INSTALL_PREFIX "C:/Program Files")
 ELSE()
    SET(CMAKE_INSTALL_PREFIX /usr/local)
 ENDIF(WIN32)
 
 
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
+SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES LINKER_LANGUAGE "Fortran")
+
+# Only install in traditional structure if we're not building an app bundle
 if (NOT BUILD_PYTHON)
-   INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   #INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   # Only skip the traditional bin/ install when we're on macOS and
+   # actually creating an .app bundle (BUNDLE_LIBRARIES enabled and
+   # FORCE_NO_APP_BUNDLE not set). Honor FORCE_NO_APP_BUNDLE so users
+   # can force a flat bin+/lib/ layout for ZIP packaging.
+   if(NOT (APPLE AND BUNDLE_LIBRARIES AND NOT FORCE_NO_APP_BUNDLE))
+      INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   endif()
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
+else()
+   #   INSTALL(TARGETS ${UppASD_pyLIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   if(NOT (APPLE AND BUNDLE_LIBRARIES))
+       INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
+   endif()
 endif(NOT BUILD_PYTHON)
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+
 ##############################################################################################
 
 ##############################################################################################
@@ -707,15 +955,16 @@ add_custom_command(
    )
 
 #################################################################################################
-#### Copy binary to ./source/sd for legacy purposes
+#### Copy binary to ./bin/sd.<compiler> for legacy purposes
 #### currently disabled..
 #################################################################################################
-###add_custom_command(
-###   TARGET ${UppASD_EXE} POST_BUILD
-###   COMMAND ${CMAKE_COMMAND} -E copy
-###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-###   ${LEGACY_OUTPUT_DIRECTORY}/sd
-###   )
+add_custom_command(
+   TARGET ${UppASD_EXE} POST_BUILD
+   COMMAND ${CMAKE_COMMAND} -E copy
+   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}${CMAKE_EXECUTABLE_SUFFIX}
+   ${CMAKE_SOURCE_DIR}/bin/${ASD_legacy_binary}${CMAKE_EXECUTABLE_SUFFIX}
+   # ${LEGACY_OUTPUT_DIRECTORY}/sd
+   )
 
 
 ###############################################################################################
@@ -723,6 +972,7 @@ add_custom_command(
 ###############################################################################################
 add_subdirectory(${SRC})
 ##############################################################################################
+
 
 ###############################################################################################
 ## Add tests directory
@@ -733,13 +983,13 @@ if (RUN_REG_TESTS)
 add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
-add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+   add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_ASD_TESTS)
 if (RUN_SLD_TESTS)
-add_test(NAME sld-tests  COMMAND python3 -u ./bergtest.py --file sldtests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+   add_test(NAME sld-tests  COMMAND python3 -u ./bergtest.py --file sldtests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
-add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+   add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_GNEB_TESTS)
 #######hip here????
 if (RUN_CUDA_TESTS)
@@ -748,3 +998,269 @@ endif (RUN_CUDA_TESTS)
 set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
+message(STATUS "--> ${CMAKE_SYSTEM_NAME}")
+
+
+##############################################################################################
+## ADD Cpack
+##############################################################################################
+# Include CPack
+
+# Set package properties
+set(CPACK_PACKAGE_NAME "UppASD")
+set(CPACK_PACKAGE_DESCRIPTION "UppASD is a package for atomistic spin dynamics and Monte Carlo simulations.")
+set(CPACK_PACKAGE_VERSION "6.0.3")
+set(CPACK_PACKAGE_CONTACT "uppasd@physics.uu.se")
+set(CPACK_PACKAGE_VENDOR "The UppASD group")
+# Use appropriate icon format for each platform
+if(WIN32)
+    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+else()
+    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cpack/icon.jpg")
+endif()
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_RESOURCE_FILE_WELCOME "${CMAKE_SOURCE_DIR}/cpack/WELCOME.txt")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/README.txt")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "UppASD is a package for atomistic spin dynamics and Monte Carlo simulations.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/UppASD/UppASD")
+#set(CPACK_GENERATOR "STGZ;DEB;RPM")
+# DEB specifics
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set (CPACK_DEBIAN_PACKAGE_RELEASE ${GIT_HASH})
+set (CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
+set (CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set (CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
+set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_NAME} - ${CMAKE_PROJECT_DESCRIPTION}")
+set (CPACK_DEBIAN_PACKAGE_DEBUG ON)
+
+if(APPLE AND NOT FORCE_NO_APP_BUNDLE)
+   set(CPACK_GENERATOR "DragNDrop")
+    # Background image will be placed in .background/background.jpg within the DMG
+    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+    set(CPACK_DMG_FORMAT "UDZO") # Compressed image
+    set(CPACK_DMG_APPLICATION_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns")
+    set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/cpack/DS_Store")
+    set(CPACK_DMG_VOLUME_NAME "UppASD-${VERSION}")  # Use dynamic version to avoid conflicts)
+    set(CPACK_BUNDLE_NAME "UppASD")
+    
+    # Ensure .background and metadata files are properly hidden
+    # This tells CPack to create proper hidden attributes for DMG metadata
+    set(CPACK_DMG_DISABLE_APPLICATIONS_SYMLINK OFF)
+    
+    # Configure for bundled libraries
+   if(BUNDLE_LIBRARIES AND NOT FORCE_NO_APP_BUNDLE)
+        message(STATUS "Configuring CPack for bundled libraries")
+        
+        # Create macOS app bundle structure
+        set(APP_BUNDLE_NAME "UppASD.app")
+        set(APP_BUNDLE_DEST "${APP_BUNDLE_NAME}/Contents")
+        
+        # Install binary into app bundle
+        install(TARGETS ${UppASD_EXE} 
+                RUNTIME DESTINATION "${APP_BUNDLE_DEST}/MacOS")
+        
+        # Install bundled libraries into app bundle 
+   # Install only the explicitly found bundled libraries into the
+   # app bundle Frameworks directory. This avoids copying unrelated
+   # files from other directories.
+   if(BUNDLED_LIBS)
+       install(FILES ${BUNDLED_LIBS}
+          DESTINATION "${APP_BUNDLE_DEST}/Frameworks"
+          OPTIONAL)
+   endif()
+        
+        # Create Info.plist for the app bundle
+        configure_file("${CMAKE_SOURCE_DIR}/cpack/Info.plist.in" 
+                      "${CMAKE_BINARY_DIR}/Info.plist" @ONLY)
+        install(FILES "${CMAKE_BINARY_DIR}/Info.plist"
+                DESTINATION "${APP_BUNDLE_DEST}")
+        
+        # Install documentation into Resources
+        install(FILES "${CMAKE_SOURCE_DIR}/README.md" "${CMAKE_SOURCE_DIR}/LICENSE"
+                DESTINATION "${APP_BUNDLE_DEST}/Resources")
+        
+        # Install app icon
+        install(FILES "${CMAKE_SOURCE_DIR}/cpack/uppasd.icns"
+                DESTINATION "${APP_BUNDLE_DEST}/Resources")
+        
+        # Add a note about the bundled distribution
+        set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
+            "UppASD - Portable macOS Application Bundle")
+        
+        # Use portable-specific README if available
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
+            set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/cpack/PORTABLE_README.txt")
+        endif()
+        
+        # DMG-specific configuration for app bundle
+        set(CPACK_DMG_VOLUME_NAME "UppASD-${VERSION}")
+        
+        # Don't install additional files at root level for app bundle
+        set(CPACK_RESOURCE_FILE_LICENSE)
+        set(CPACK_RESOURCE_FILE_README)
+        
+   else()
+      # Standard installation for non-bundled builds: install only the
+      # explicitly found bundled libraries into lib/. This avoids
+      # inadvertently packaging unrelated system libraries.
+      if(BUNDLED_LIBS)
+      install(FILES ${BUNDLED_LIBS}
+         DESTINATION lib
+         OPTIONAL)
+      endif()
+   endif()
+    
+    # install(TARGETS uppasd DESTINATION ".") # Place uppasd in the DMG root
+
+    # Include NSIS for creating Windows installers
+    # set(CPACK_GENERATOR "NSIS64")
+
+    # Include the custom NSIS script
+    # set(CPACK_NSIS_INCLUDE "${CMAKE_SOURCE_DIR}/cpack/CustomInstallNSIS.nsh")
+
+endif()
+
+if(WIN32)
+    # Static build - no system libraries needed
+    # include(InstallRequiredSystemLibraries)  # Disabled for static build
+    
+    # Choose installer type based on available tools or preference
+    # Set INSTALLER_TYPE to "NSIS" or "WIX" to force a specific installer
+    if(NOT DEFINED INSTALLER_TYPE)
+        # Auto-detect available installer tools
+        find_program(MAKENSIS_EXECUTABLE makensis)
+        find_program(CANDLE_EXECUTABLE candle)
+        
+        if(MAKENSIS_EXECUTABLE)
+            set(INSTALLER_TYPE "NSIS")
+            message(STATUS "Found NSIS, using NSIS installer")
+        elseif(CANDLE_EXECUTABLE)
+            set(INSTALLER_TYPE "WIX")
+            message(STATUS "Found WiX Toolset, using WiX installer")
+        else()
+            set(INSTALLER_TYPE "ZIP")
+            message(STATUS "No installer tools found, using ZIP packaging")
+        endif()
+    endif()
+    
+    if(INSTALLER_TYPE STREQUAL "NSIS")
+        #############################################################################
+        # NSIS Installer Configuration
+        #############################################################################
+        set(CPACK_GENERATOR "NSIS64")
+        
+        # Basic NSIS settings
+        set(CPACK_NSIS_DISPLAY_NAME "UppASD ${VERSION}")
+        set(CPACK_NSIS_PACKAGE_NAME "UppASD")
+        set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\uppasd.exe")
+        set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        set(CPACK_NSIS_HELP_LINK "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        set(CPACK_NSIS_CONTACT "${CPACK_PACKAGE_CONTACT}")
+        
+        # Optimization: Fast compression for static executable
+        set(CPACK_NSIS_COMPRESSOR "lzma")
+        set(CPACK_NSIS_COMPRESSOR_FLAGS "/SOLID")
+        
+        # Only package essential files for static build
+        set(CPACK_NSIS_IGNORE_LICENSE_PAGE OFF)
+        
+        # Simple PATH modification without custom scripts
+        set(CPACK_NSIS_MODIFY_PATH ON)
+        set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+        
+        # Simple desktop shortcut creation without complex PATH management
+        set(CPACK_NSIS_CREATE_ICONS_EXTRA "
+            CreateShortCut '$$DESKTOP\\\\UppASD.lnk' '$$INSTDIR\\\\bin\\\\uppasd.exe'
+            CreateDirectory '$$SMPROGRAMS\\\\$$STARTMENU_FOLDER'
+            CreateShortCut '$$SMPROGRAMS\\\\$$STARTMENU_FOLDER\\\\UppASD.lnk' '$$INSTDIR\\\\bin\\\\uppasd.exe'
+        ")
+        set(CPACK_NSIS_DELETE_ICONS_EXTRA "
+            Delete '$$DESKTOP\\\\UppASD.lnk'
+            Delete '$$SMPROGRAMS\\\\$$START_MENU\\\\UppASD.lnk'
+        ")
+        
+        # Static executable - no additional libraries needed
+        
+    elseif(INSTALLER_TYPE STREQUAL "WIX")
+        #############################################################################
+        # WiX Installer Configuration  
+        #############################################################################
+        set(CPACK_GENERATOR "WIX")
+        
+        # WiX-specific settings
+        set(CPACK_WIX_UPGRADE_GUID "02cf4cf7-fa5b-43de-a8ff-b39098d35db3")
+        set(CPACK_WIX_PRODUCT_GUID "*") # Generate new GUID for each version
+        set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/cpack/uppasd.ico")
+        
+        # Optimization: Faster WiX build for static executable
+        set(CPACK_WIX_SKIP_PROGRAM_FOLDER TRUE)  # Skip if no additional programs
+        set(CPACK_WIX_CMAKE_PACKAGE_REGISTRY FALSE)  # Skip registry entries for speed
+        
+        # License and UI
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+            set(CPACK_WIX_LICENSE_RTF "${CMAKE_SOURCE_DIR}/cpack/LICENSE.rtf")
+        endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+            set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/cpack/banner.jpg")
+        endif()
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+            set(CPACK_WIX_UI_DIALOG "${CMAKE_SOURCE_DIR}/cpack/dialog.jpg")
+        endif()
+        
+        # PATH environment variable modification
+        if(EXISTS "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+            set(CPACK_WIX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cpack/wixpath.xml")
+        endif()
+        
+        # Program Files installation
+        set(CPACK_WIX_PROGRAM_MENU_FOLDER "UppASD")
+        set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
+        
+        # Optimization: Simple static build configuration
+        # With examples excluded, WiX should complete much faster (under 5 minutes)
+        message(STATUS "WiX installer configured for minimal static build (no examples)")
+        
+        # Configure bundled libraries for Windows
+        # NOTE: Windows uses static linking, so no library bundling needed
+        if(BUNDLE_LIBRARIES)
+            message(STATUS "Windows detected: Library bundling disabled (using static linking)")
+            message(STATUS "Static executable needs no additional DLLs")
+        endif()
+        
+    else()
+        #############################################################################
+        # Fallback to ZIP packaging
+        #############################################################################
+        set(CPACK_GENERATOR "ZIP")
+        message(STATUS "Using ZIP packaging for Windows")
+        
+        # Configure bundled libraries for Windows
+        # NOTE: Windows uses static linking, so no library bundling needed
+        if(BUNDLE_LIBRARIES)
+            message(STATUS "Windows detected: Library bundling disabled (using static linking)")
+            message(STATUS "Static executable needs no additional DLLs")
+        endif()
+    endif()
+    
+    # Common Windows-specific install components
+    install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION .)
+    install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" DESTINATION .)
+    
+    # Note: Examples directory is excluded from Windows packages for smaller installers
+    # Users can download examples separately from the repository
+    
+endif()
+
+include(CPack)
+
+# If we are bundling libraries but did not enter the APPLE app-bundle branch
+# (for example because FORCE_NO_APP_BUNDLE=ON), ensure the explicitly found
+# bundled libraries are still installed into lib/ so ZIP packages include them.
+if(BUNDLE_LIBRARIES AND BUNDLED_LIBS AND (NOT (APPLE AND NOT FORCE_NO_APP_BUNDLE)))
+   install(FILES ${BUNDLED_LIBS}
+         DESTINATION lib
+         OPTIONAL)
+endif()

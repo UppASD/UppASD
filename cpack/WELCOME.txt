@@ -1,0 +1,2 @@
+Welcome to the installation of UppASD.
+This program will guide you through the installation of this software.

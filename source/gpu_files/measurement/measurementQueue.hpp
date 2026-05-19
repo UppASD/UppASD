@@ -14,7 +14,6 @@
 #include "real_type.h"
 
 
-
 class MeasurementQueue {
 public:
    enum class MeasurementType {

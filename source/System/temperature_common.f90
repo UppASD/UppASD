@@ -130,17 +130,22 @@ contains
       zmax=maxval(Bas(3,:))
       zmin=minval(Bas(3,:))
 
+      print *, 'Calling setup_nm', shape(temp_nn), allocated(temp_nlist)
       ! one can use the already defined neighbour lists from the exchange to deal with the fact that the nearest neighbours are needed to calculate the temperature distribution
       call setup_nm(Natom, NT, NA,N1, N2, N3, C1, C2, C3, BC1, BC2, BC3, 1, atype, Bas, &
          temp_max_no_neigh, temp_max_no_shells, temp_max_no_equiv, crys_symm, &
          temp_nn, temp_neigh_dist, temp_nm, temp_nmdim, do_ralloy, Natom_full, acellnumb, atype_ch)
 
+      ! print *, 'Allocation', Natom, temp_max_no_neigh
       ! the full list of neighbours for the solution of the laplace of poisson equation
-      allocate(temp_nlist(temp_max_no_neigh,Natom))
+      allocate(temp_nlist(temp_max_no_neigh,Natom), stat = i_stat)
       call memocc(i_stat,product(shape(temp_nlist))*kind(temp_nlist),'temp_nlist','setup_temp_grid')
-      allocate(temp_nlistsize(Natom))
+      ! print *, 'Allocation status', allocated(temp_nlist), shape(temp_nlist), i_stat
+      allocate(temp_nlistsize(Natom), stat = i_stat)
       call memocc(i_stat,product(shape(temp_nlistsize))*kind(temp_nlistsize),'temp_nlistsize','setup_temp_grid')
+      ! print *, 'Allocation status', allocated(temp_nlistsize), shape(temp_nlistsize), i_stat
 
+      ! print *, 'Looping atoms'
       do I3=0, N3-1
          do I2=0, N2-1
             do I1=0, N1-1
@@ -198,7 +203,7 @@ contains
             enddo
          enddo
       enddo
-
+      ! print *, 'Deallocation'
       ! allocation of arrays that deal with the borders of the system
       if (count_I1_max.ne.0) then
          allocate(borders_I1_max(count_I1_max))
@@ -730,7 +735,7 @@ contains
       integer :: i,k,ios
       logical :: exists
 
-      print *,loadtemp
+      print *, "Trying to load temperature file ", loadtemp
       inquire(file=loadtemp,exist=exists)
       if (exists) then
          open(ifileno, iostat=ios,file=loadtemp,status="old")
@@ -2285,7 +2290,7 @@ contains
       ! m and n are the logical dimensions of a, and will be equal for square matrices.
       ! mp and np are the physical dimensions of a. b(1:m) is the input right-hand side.
       ! x(1:n) is the output solution vector. no input quantities are destroyed, so the routine may be called
-      ! sequentially with differen b's.
+      ! sequentially with differen b´s.
 
       implicit none
 

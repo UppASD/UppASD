@@ -124,6 +124,7 @@ public:
    }
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,10 +135,12 @@ GpuDepondtIntegrator::GpuDepondtIntegrator()
       parallel(ParallelizationHelperInstance) {
 }
 
+
 // Destructor
 GpuDepondtIntegrator::~GpuDepondtIntegrator() {
    release();
 }
+
 
 // Initiator
 bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
@@ -200,6 +203,7 @@ void GpuDepondtIntegrator::release() {
    bdup.Free();
 }
 
+
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
 // Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
@@ -238,6 +242,7 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    stopwatch.add("copy");
 }
 
+
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
 void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
@@ -269,6 +274,7 @@ void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
 void GpuDepondtIntegrator::rotate(const GpuTensor<real, 3>& emom, real delta_t) {
    parallel.gpuAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
 }
+
 
 // Constructs the effective field (including damping term)
 void GpuDepondtIntegrator::buildbeff(const GpuTensor<real, 3>& emom,

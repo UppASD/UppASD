@@ -225,7 +225,7 @@ contains
       enddo
       !$omp end parallel do
       write(*,'(a)') " done."
-      ! unit conversion from mRy to mEv, by division by Rydberg's constant in (eV) (and an factor of 4 for some reason..)
+      ! unit conversion from mRy to mEv, by division by Rydberg´s constant in (eV) (and an factor of 4 for some reason..)
       ! L.B. The factor is fine, a factor of 2 from the def of dynamical matrix and fc2 includes another factor of 2
       ! L.B Temporary fix before replacing 4 with Landeg_glob^2=4
       A = 4.0_dblprec*A/fc2*ry_ev !*sign(msat,1._dblprec)
@@ -1393,7 +1393,7 @@ subroutine calculate_random_ams()
    !!!jqres=jqres/magdos_rasamples
    !!!call printEnergies(output_file15,wres,msat,tcmfa,tcrpa,nchmax,1)
    !!!call magdos_calc(output_file16,wres,nchmax,nq)
-   ! unit conversion from mRy to mEv, by division by Rydberg's constant in (eV) (and an factor of 4 for some reason..)
+   ! unit conversion from mRy to mEv, by division by Rydberg´s constant in (eV) (and an factor of 4 for some reason..)
    ! L.B. The factor is fine, a factor of 2 from the def of dynamical matrix and fc2 includes another factor of 2
    ! L.B Temporary fix before replacing 4 with Landeg_glob^2=4
    A = 4.0_dblprec*A/fc2*ry_ev !*sign(msat,1._dblprec)

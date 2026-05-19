@@ -4,6 +4,7 @@
 #include "matrix.hpp"
 #include "real_type.h"
 
+
 // C implementation
 void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3>& beff, const matrix<real, 3, 3>& emomM,
                                          const matrix<real, 3, 3>& emom,
@@ -32,6 +33,7 @@ void HamiltonianCalculations::heisge_jij(matrix<real, 3, 3>& beff, const matrix<
    }
 }
 
+
 inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const std::size_t k,
                                                       const matrix<real, 3, 3>& emomM, real* beff_s) {
    std::size_t lsize = nlistsize[i];
@@ -43,6 +45,7 @@ inline void HamiltonianCalculations::heisenberg_field(const std::size_t i, const
       beff_s[2] += coup * emomM(2, n, k);
    }
 }
+
 
 inline void HamiltonianCalculations::dzyalonshinskii_moriya_field(const std::size_t i, const std::size_t k,
                                                                   const matrix<real, 3, 3>& emomM,

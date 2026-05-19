@@ -379,10 +379,10 @@ contains
 
       ! Write header to output files for first iteration
       if(abs(indxb_eeff (1))<=0.0e0_dblprec) then
-         write (ofileno,'(a)') "# Iter.     Site     Replica      E_LD_x      E_LD_y      E_LD_z      E_LD       &
-            & E_SLD_x     E_SLD_y     E_SLD_z     E_SLD"
-         write (ofileno2,'(a)') "# Iter.     Site     Replica      E_LD_x      E_LD_y      E_LD_z      E_LD       &
-            & E_SLD_x     E_SLD_y     E_SLD_z     E_SLD"
+         write (ofileno,'(a)') "# Iter.     Site     Replica      E_LD_x      E_LD_y      E_LD_z      E_LD      "// &
+            & "E_SLD_x     E_SLD_y     E_SLD_z     E_SLD"
+         write (ofileno2,'(a)') "# Iter.     Site     Replica      E_LD_x      E_LD_y      E_LD_z      E_LD      "// &
+            & "E_SLD_x     E_SLD_y     E_SLD_z     E_SLD"
       end if
 
       do k=1, bcount_einteff
