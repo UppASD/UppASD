@@ -29,7 +29,7 @@ module Gradients
    integer, dimension(:), allocatable :: dxyz_list
 
 
-   private
+   public
 
    public :: differentiate_moments, setup_stencil_mesh, grad_moments, proj_grad_moments, deallocate_gradient_lists
 

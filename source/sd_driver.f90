@@ -1116,14 +1116,15 @@ contains
    !> - Moved to separate routine
    !---------------------------------------------------------------------------------
    subroutine sd_mphaseCUDA()
-#ifdef CUDA
+#ifdef CUDA_V
       use Chelper
 #else
       use NoCuda
 #endif
       use Damping
       use SpinTorques, only : btorque, stt
-      use InputData, only : gpu_mode
+      use InputData, only : gpu_mode, gpu_mc_bf
+      integer :: whichsim, whichphase
 
       ! Common stuff
 
@@ -1136,19 +1137,12 @@ contains
       call timing(0,'Measurement   ','ON')
 
       ! Start simulation
-      if (gpu_mode==1) then  !CUDA
-         call cudaMdSim_initiateConstants()
-         call cudaMdSim_initiateMatrices()
-         call cudaMdSim_measurementPhase()
-
-      else if (gpu_mode==2) then     !C/C++
-         call cMdSim_initiateConstants() ! calls mdSimulation.cpp to copy initial constants from fortrandata.hpp
-         call cMdSim_initiateFortran()   ! calls mdSimulation.cpp to copy and initialize matrices from fortrandata.hpp
-         call cMdSim_measurementPhase()
-
-      else
-         stop "Invalid gpu_mode"
-      endif
+      whichsim=0
+      whichphase=1
+      call gpuSim_initiateConstants()
+      call gpuSim_initiateMatrices()
+      call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
+      call gpuSim_release()
       call timing(0,'Measurement   ','OF')
    end subroutine sd_mphaseCUDA
 

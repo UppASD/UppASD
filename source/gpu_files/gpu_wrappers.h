@@ -90,8 +90,8 @@
   #define GPU_STREAM_WAIT_EVENT(stream, event, flags) cudaStreamWaitEvent(stream, event, flags)
   #define GPU_RAND_RNGTYPE_T curandRngType_t
   #define GPU_RAND_GENERATOR_T curandGenerator_t
-  #define GPU_RAND_RNG_PSEUDO_DEFAULT CUPRAND_RNG_PSEUDO_DEFAULT
-  #define GPU_RAND_DESTROY_GEN(gen, rngType) curandDestroyGenerator(gen, rngType)/
+  #define GPU_RAND_RNG_PSEUDO_DEFAULT CURAND_RNG_PSEUDO_DEFAULT
+  #define GPU_RAND_DESTROY_GEN(gen) curandDestroyGenerator(gen)
   #define GPU_RAND_CREATE_GEN(gen, rngType) curandCreateGenerator(gen, rngType)//TODO: &
   #define GPU_RAND_STATUS_SUCCESS CURAND_STATUS_SUCCESS
   #define GPU_RAND_SET_PSEUDO_RANDOM_GENERATOR_SEED(gen, seed) curandSetPseudoRandomGeneratorSeed(gen, seed)
@@ -108,11 +108,3 @@
 #endif
 
 
-/*#define ASSERT_GPU(call) \
-  do { \
-    GPU_ERROR_T err = call; \
-    if (err != GPU_SUCCESS) { \
-      fprintf(stderr, "GPU error at %s:%d: %s\n", __FILE__, __LINE__, GPU_GET_ERROR_STRING(err)); \
-      exit(1); \
-    } \
-  } while (0)*/

@@ -6,6 +6,7 @@
 !> Helper for c code
 !--------------------------------!
 module Chelper
+   use iso_c_binding, only : c_double
    use InputData
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
@@ -17,9 +18,10 @@ module Chelper
 
    use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
-   use Temperature,      only : temp_array
+   use Temperature,      only : temp_array, ipTemp_array
    use Spinicedata,      only : vert_ice_coord
    use Fielddata,        only : thermal_field, beff, beff1, beff3,  b2eff, external_field
+   use Gradients,        only : dxyz_vec, dxyz_atom, dxyz_list
    use Systemdata,       only : coord, atype
 
    use Measurements,     only : measure, do_measurements, flush_measurements, calc_mavrg
@@ -75,12 +77,16 @@ contains
    !---------------------------------------------------------------------
    subroutine fortran_calc_simulation_status_variables(mavrg) bind(C,name='fortran_calc_simulation_status_variables')
       implicit none
-      real(dblprec), intent(inout) :: mavrg
-      call calc_mavrg(Natom, Mensemble, emomM, mavrg)
+      real(c_double), intent(inout) :: mavrg
+      real(dblprec) :: mavrg_loc
+
+      mavrg_loc = real(mavrg, kind=dblprec)
+      call calc_mavrg(Natom, Mensemble, emomM, mavrg_loc)
       if(do_cumu=='N') then
          call calc_and_print_cumulant(Natom,Mensemble,emomM,simid,Temp,1.0_dblprec, &
             0.0_dblprec,plotenergy,cumu_buff,.false.)
       endif
+      mavrg = real(mavrg_loc, kind=c_double)
    end subroutine fortran_calc_simulation_status_variables
 
    ! Measurements with pre-set parameters
@@ -152,7 +158,7 @@ contains
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
       real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
       real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_beff
+      real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: ext_beff
       integer, intent(in) :: ext_mstep
 
       call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,ext_emom,    &
@@ -241,10 +247,15 @@ contains
       !   mmom2(1,1),mmomi(1,1),ham%dm_vect(1,1,1),ham%dmlist(1,1),ham%dmlistsize(1))
 
 
-      call FortranData_setMatrices(ham%ncoup,ham%nlist,ham%nlistsize,&
-         beff,b2eff,emomM,emom,emom2,            &
-         external_field,mmom,btorque,Temp_array,mmom0,   &
-         mmom2,mmomi,ham%dm_vect,ham%dmlist,ham%dmlistsize, ham%j_tens, ham%kaniso, ham%eaniso, ham%taniso, ham%sb, ham%aHam)
+      call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
+         ham%dm_vect,ham%dmlist,ham%dmlistsize, &
+         ham%kaniso, ham%eaniso, ham%taniso, ham%sb, &
+         ham%j_tens, ham%aHam, &
+         external_field, btorque,Temp_array, &
+         ipTemp, ipmcnstep, ipTemp_array, ipnstep, ipdelta_t, iplambda1)
+
+      call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
+         dxyz_vec, dxyz_atom, dxyz_list)
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 
