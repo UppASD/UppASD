@@ -446,6 +446,24 @@ contains
       call timing(0,'Measurement   ','OF')
    end subroutine mc_mphase
 
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> GPU entry wrapper for MC initial phase.
+   !> Keeps compatibility while GPU backend integration is being reconciled.
+   !---------------------------------------------------------------------------
+   subroutine mc_iphaseGPU()
+      call mc_iphase()
+   end subroutine mc_iphaseGPU
+
+   !---------------------------------------------------------------------------
+   !> @brief
+   !> GPU entry wrapper for MC measurement phase.
+   !> Keeps compatibility while GPU backend integration is being reconciled.
+   !---------------------------------------------------------------------------
+   subroutine mc_mphaseGPU()
+      call mc_mphase()
+   end subroutine mc_mphaseGPU
+
    !---------------------------------------------------------------------------------
    !> @brief
    !> Monte Carlo minimal driver

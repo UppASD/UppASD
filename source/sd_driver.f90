@@ -1154,6 +1154,24 @@ contains
 
    !---------------------------------------------------------------------------------
    !> @brief
+   !> GPU entry wrapper for SD initial phase.
+   !> Keeps compatibility while GPU backend integration is being reconciled.
+   !---------------------------------------------------------------------------------
+   subroutine sd_iphaseGPU()
+      call sd_iphase()
+   end subroutine sd_iphaseGPU
+
+   !---------------------------------------------------------------------------------
+   !> @brief
+   !> GPU entry wrapper for SD measurement phase.
+   !> Reuses existing CUDA/C backend dispatch.
+   !---------------------------------------------------------------------------------
+   subroutine sd_mphaseGPU()
+      call sd_mphaseCUDA()
+   end subroutine sd_mphaseGPU
+
+   !---------------------------------------------------------------------------------
+   !> @brief
    !> Spin Dynamics minimal wrapper 
    !
    !> @author

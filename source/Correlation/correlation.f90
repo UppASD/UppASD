@@ -51,6 +51,7 @@ module Correlation
    !character(len=1) :: do_uvr        !< Perform velocity-correlation sampling in real space directly (Y/N)
 
    character(len=1) :: do_slc        !< Perform velocity-correlation sampling (Y/N/C)
+   character(len=1) :: do_gpu_correlations !< Perform correlations on GPU (Y/N)
 
    !-----------------------
    character(len=1) :: do_bimag  !< Perform spin-correlation sampling of bi-magnons (Y/N) (not implemented currently)
@@ -409,6 +410,10 @@ contains
             !! Calculate bimagnon form factor (Y/N)
          case('do_bimag')
             read(ifile,*,iostat=i_err) do_bimag
+            if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+         case('do_gpu_correlations')
+            read(ifile,*,iostat=i_err) do_gpu_correlations
             if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
          end select

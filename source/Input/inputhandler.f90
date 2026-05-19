@@ -1363,6 +1363,12 @@ contains
 
             case('gpu_mode')
                read(ifile,*,iostat=i_err) gpu_mode
+               if (gpu_mode == 1) do_gpu = 'Y'
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu')
+               read(ifile,*,iostat=i_err) do_gpu
+               if (do_gpu == 'Y') gpu_mode = 1
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('gpu_rng')
@@ -1371,6 +1377,27 @@ contains
 
             case('gpu_rng_seed')
                read(ifile,*,iostat=i_err) gpu_rng_seed
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_mc_bf')
+               read(ifile,*,iostat=i_err) gpu_mc_bf
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu_llg')
+               read(ifile,*,iostat=i_err) do_gpu_llg
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu_mc')
+               read(ifile,*,iostat=i_err) do_gpu_mc
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu_correlations')
+               read(ifile,*,iostat=i_err) do_gpu_correlations
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu_measurements')
+               read(ifile,*,iostat=i_err) do_gpu_measurements
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR GPU

@@ -15,7 +15,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt
    use HamiltonianData,  only : ham
 
-   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff, do_cuda_avrg, do_cuda_cumu
+   use prn_averages,     only : calc_and_print_cumulant, do_avrg, mavg, binderc, avrg_step, do_cumu, cumu_step, cumu_buff
    use prn_trajectories, only : do_tottraj, ntraj, tottraj_buff,tottraj_step, traj_step
    use Temperature,      only : temp_array
    use Spinicedata,      only : vert_ice_coord
@@ -27,7 +27,9 @@ module Chelper
 
    use Correlation
    use Correlation_core
+   use Correlation_print, only : print_gk, print_gkw, print_gkt
    use AutoCorrelation,       only : autocorr_sample, do_autocorr
+   use prn_cudameasurements,  only : print_observable
    use ChemicalData, only : achtype
    use MetaTypes
    use Omegas
@@ -39,7 +41,8 @@ module Chelper
 
    public :: fortran_do_measurements,fortran_measure,fortran_measure_moment,        &
       fortran_moment_update,fortran_flush_measurements,FortranData_Initiate,        &
-      fortran_calc_simulation_status_variables
+      fortran_calc_simulation_status_variables, fortran_print_correlations,          &
+      fortran_measure_correlations, fortran_measure_rest, fortran_print_measurables
 
 contains
 
@@ -70,7 +73,7 @@ contains
    !> @author
    !> Thomas Nystrand
    !---------------------------------------------------------------------
-   subroutine fortran_calc_simulation_status_variables(mavrg)
+   subroutine fortran_calc_simulation_status_variables(mavrg) bind(C,name='fortran_calc_simulation_status_variables')
       implicit none
       real(dblprec), intent(inout) :: mavrg
       call calc_mavrg(Natom, Mensemble, emomM, mavrg)
@@ -129,6 +132,66 @@ contains
 
    end subroutine fortran_measure_moment
 
+   ! Correlation-only sampling entry used by newer GPU measurement pipeline.
+   subroutine fortran_measure_correlations(ext_emomM, ext_emom, ext_mmom, ext_mstep)
+      implicit none
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
+      real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
+      integer, intent(in) :: ext_mstep
+      integer :: cgk_flag
+
+      cgk_flag=0
+      call correlation_wrapper(Natom,Mensemble,coord,simid,ext_emomM,ext_mstep,delta_t,  &
+         NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
+   end subroutine fortran_measure_correlations
+
+   ! Measurement entry for quantities that remain on the Fortran side in GPU runs.
+   subroutine fortran_measure_rest(ext_emomM, ext_emom, ext_mmom, ext_beff, ext_mstep)
+      implicit none
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
+      real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
+      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_beff
+      integer, intent(in) :: ext_mstep
+
+      call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,ext_emom,    &
+         ext_emomM,ext_mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,    &
+         plotenergy,Temp,1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp, &
+         ham%max_no_neigh,ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field, &
+         ext_beff,beff1,beff3,coord,ham%ind_list_full,ham%ind_nlistsize,             &
+         ham%ind_nlist,ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
+   end subroutine fortran_measure_rest
+
+   ! Print GPU-accumulated correlations through existing Fortran printers.
+   subroutine fortran_print_correlations()
+      implicit none
+      if(do_sc=='C'.or.do_sc=='Y') then
+         call print_gk(NT_meta, Nchmax, sc, sc, simid, sc%label)
+      endif
+      if(do_sc=='Q'.or.do_sc=='Y') then
+         call print_gkw(NT_meta, Nchmax, sc, sc, simid, sc%label)
+      endif
+      if(do_sc=='T'.or.do_sc=='Y') then
+         call print_gkt(NT_meta, Nchmax, sc, sc, simid, sc%label)
+      endif
+   end subroutine fortran_print_correlations
+
+   ! Print measurables calculated in GPU code via Fortran-side printer.
+   subroutine fortran_print_measurables(obs_step, obs_buff, indxb_obs, obs_name, &
+        obs_label, obs_dim, obs_buffer, mstep)
+      implicit none
+      integer, intent(in) :: obs_step, obs_buff, obs_dim
+      real(dblprec), dimension(:), allocatable, intent(in) :: indxb_obs
+      real(dblprec), dimension(:,:,:), allocatable, intent(in) :: obs_buffer
+      character(len=16), intent(in) :: obs_name
+      character(len=16), dimension(:), allocatable, intent(in) :: obs_label
+      integer, intent(in) :: mstep
+
+      call print_observable(simid, Mensemble, obs_name, obs_step, obs_buff, &
+         obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
+   end subroutine fortran_print_measurables
+
 
    ! Do measurements with pre-set parameters
    subroutine fortran_do_measurements(cmstep, do_copy)
@@ -137,7 +200,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
+         traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
    end subroutine fortran_do_measurements
 
 

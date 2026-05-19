@@ -170,7 +170,7 @@ contains
    !> - Moved to separate function
    !---------------------------------------------------------------------------------
    subroutine run_initial_phase()
-      use InputData, only : ipmode, iphfield
+      use InputData, only : ipmode, iphfield, do_gpu, do_gpu_mc, do_gpu_llg
       use QMinimizer
 
       implicit none
@@ -180,7 +180,11 @@ contains
 
       if (ipmode=='M' .or. ipmode=='H'.or.ipmode=='I'.or.ipmode=='L'.or.ipmode=='W'.or.ipmode=='D') then
          ! Monte Carlo initial phase
-         call mc_iphase()
+         if (do_gpu == 'Y' .and. do_gpu_mc == 'Y') then
+            call mc_iphaseGPU()
+         else
+            call mc_iphase()
+         endif
       
       elseif (ipmode=='MS') then
         call ms_iphase()
@@ -193,7 +197,11 @@ contains
          call ErrorHandling_missing('Spin-lattice Monte Carlo')
       elseif (ipmode=='S') then
          ! Spin dynamics initial phase
-         call sd_iphase()
+         if (do_gpu == 'Y' .and. do_gpu_llg == 'Y') then
+            call sd_iphaseGPU()
+         else
+            call sd_iphase()
+         endif
       elseif (ipmode=='P') then
          write (*,'(1x,a)') "Calls ld_iphase"
          call ld_iphase() ! Lattice Dynamics initial phase
@@ -256,7 +264,7 @@ contains
       use SystemData
       use LatticeData
       use Correlation
-      use Correlation_print, only: print_gkw, print_gkt
+      use Correlation_print, only: print_gk, print_gkw, print_gkt
       use ChemicalData
       use SimulationData
       use HamiltonianData
@@ -293,7 +301,11 @@ contains
       call timing(0,'SpinCorr      ','OF')
 
       if(mode=='M' .or. mode=='H'.or.mode=='I'.or.mode=='L'.or.mode=='W'.or.mode=='D') then
-         call mc_mphase() ! Monte Carlo measurement phase
+         if (do_gpu == 'Y' .and. do_gpu_mc == 'Y') then
+            call mc_mphaseGPU()
+         else
+            call mc_mphase() ! Monte Carlo measurement phase
+         endif
          
       elseif (mode=='MS') then
          call ms_mphase()
@@ -304,10 +316,10 @@ contains
 
       elseif (mode=='S') then
          call print_siminfo()
-         if (gpu_mode==0) then !FORTRAN
+         if (do_gpu == 'Y' .and. do_gpu_llg == 'Y') then
+            call sd_mphaseGPU()
+         else
             call sd_mphase() ! Spin Dynamics measurement phase
-         else ! C++ or CUDA
-            call sd_mphaseCUDA()
          endif
 
       elseif (mode=='E') then
@@ -359,21 +371,33 @@ contains
       cflag = 2 
 
 
-      ! Spin-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
-         atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
+      if (do_gpu == 'Y' .and. do_gpu_correlations == 'Y') then
+         if(do_sc=='C'.or.do_sc=='Y') then
+            call print_gk(NT_meta, Nchmax, sc, sc, simid, sc%label)
+         end if
+         if(do_sc=='Q'.or.do_sc=='Y') then
+            call print_gkw(NT_meta, Nchmax, sc, sc, simid, sc%label)
+         end if
+         if(do_sc=='T'.or.do_sc=='Y') then
+            call print_gkt(NT_meta, Nchmax, sc, sc, simid, sc%label)
+         end if
+      else
+         ! Spin-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
+            atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
 
-      ! Lattice-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
+         ! Lattice-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
 
-      ! Velocity-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
+         ! Velocity-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
 
-      ! Angular momentum-correlation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
+         ! Angular momentum-correlation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
+      end if
 
       if (do_suc=='Y'.and.(do_sc=='Y'.or.do_sc=='Q').and.(do_uc=='Y'.or.do_uc=='Q')) then
          call print_gkw(NT, Nchmax, sc, uc, simid, 'su')
@@ -397,21 +421,23 @@ contains
 
       cflag = 3
 
-      ! Spin-correlation deallocation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
-         atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
+      if (.not.(do_gpu == 'Y' .and. do_gpu_correlations == 'Y')) then
+         ! Spin-correlation deallocation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,mstep,delta_t,NT_meta,  &
+            atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cflag)
 
-      ! Lattice-correlation deallocation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
+         ! Lattice-correlation deallocation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,uvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,uc,do_uc,do_ur,cflag)
 
-      ! Velocity-correlation deallocation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
+         ! Velocity-correlation deallocation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,vvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,vc,do_vc,do_vr,cflag)
 
-      ! Angular momentum-correlation deallocation
-      call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
-         atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
+         ! Angular momentum-correlation deallocation
+         call correlation_wrapper(Natom,Mensemble,coord,simid,lvec,mstep,delta_t,NT,  &
+            atype,Nchmax,achtype,lc,do_lc,do_lr,cflag)
+      end if
 
       !call lattcorrelation_wrapper(Natom,Mensemble,coord,simid,uvec,vvec,mstep,     &
       !   delta_t,NT,atype,Nchmax,achtype,cflag,cflag_p)

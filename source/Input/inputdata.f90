@@ -247,6 +247,8 @@ module InputData
    character(len=1) :: logsamp !< Sample measurements logarithmically
    character(len=1) :: do_spintemp !< Measure spin temperature
    character(len=1) :: real_time_measure !< Measurements displayed in real time
+   integer :: ene_step !< Interval for sampling energy
+   integer :: ene_buff !< Buffer size for energy buffering before printing
    !---------------------------------------------------------------------------------
    ! Random alloy data (chemical data)
    !---------------------------------------------------------------------------------
@@ -270,6 +272,12 @@ module InputData
    integer :: gpu_mode     !< What GPU mode to use (0 = FORTRAN, 1 = CUDA, 2 = C/C++)
    integer :: gpu_rng      !< What CURAND RNG to use (0 = DEFAULT, 1 = XORWOW, 2 = MRG32K3A, 3 = MTGP32)
    integer :: gpu_rng_seed !< Seed for RNG. If 0, the current time will be used.
+   character(len=1) :: gpu_mc_bf !< Use brute force GPU Monte Carlo (Y/N)
+   character(len=1) :: do_gpu !< Enable GPU functionalities (Y/N)
+   character(len=1) :: do_gpu_llg !< Do LLG on GPU (Y/N)
+   character(len=1) :: do_gpu_mc !< Do MC on GPU (Y/N)
+   character(len=1) :: do_gpu_measurements !< Do measurements on GPU (Y/N)
+   character(len=1) :: do_gpu_correlations !< Do correlations on GPU (Y/N)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -515,6 +523,8 @@ contains
       real_time_measure = 'N'
       do_spintemp       = 'N'
       spintemp_step     = 100
+      ene_step          = 100
+      ene_buff          = 10
 
       !Random alloy data
       do_ralloy         = 0
@@ -528,6 +538,12 @@ contains
       gpu_mode          = 0
       gpu_rng           = 0
       gpu_rng_seed      = 0
+      gpu_mc_bf         = 'N'
+      do_gpu            = 'N'
+      do_gpu_llg        = 'Y'
+      do_gpu_mc         = 'N'
+      do_gpu_measurements = 'Y'
+      do_gpu_correlations = 'N'
 
       ! I/O OVF
       prn_ovf           = 'N'
