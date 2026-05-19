@@ -45,6 +45,12 @@ module Energy
    end type ene_t
 
    type(ene_t) :: ene
+   ! GPU bridge compatibility buffers (legacy aliases expected by chelper/GPU interface)
+   real(dblprec), dimension(:), allocatable :: eavg_buff
+   real(dblprec), dimension(:), allocatable :: eavg2_buff
+   real(dblprec), dimension(:), allocatable :: eavg4_buff
+   integer :: eavrg_step = 0
+   integer :: eavrg_buff = 0
 
    public
 

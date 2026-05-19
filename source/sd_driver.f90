@@ -1124,13 +1124,14 @@ contains
       use Damping
       use SpinTorques, only : btorque, stt
       use InputData, only : gpu_mode, gpu_mc_bf
+      use Correlation, only : sc
       integer :: whichsim, whichphase
 
       ! Common stuff
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-      call FortranData_Initiate(stt,btorque)
+      call FortranData_Initiate(stt,btorque,sc,'M')
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement

@@ -44,8 +44,11 @@ module prn_averages
 
    real(dblprec), dimension(:), allocatable       :: indxb_avrg       !< Step counter for average magnetization
    real(dblprec), dimension(:,:,:), allocatable   :: mavg_buff        !< Buffer for average magnetizations
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff       !< Buffer for squared average magnetizations
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg4_buff       !< Buffer for fourth-power average magnetizations
    real(dblprec), dimension(:,:,:), allocatable   :: mavg2_buff_proj  !< Buffer for squared projected averages
    real(dblprec), dimension(:,:,:,:), allocatable :: mavg_buff_proj   !< Buffer for projected averages
+   real(dblprec), dimension(:,:,:), allocatable   :: mavg4_buff_proj  !< Buffer for fourth-power projected averages
    real(dblprec), dimension(:,:,:,:), allocatable :: mavg_buff_projch !< Buffer for chemical projected averages
 
    real(dblprec), dimension(:), allocatable :: avrgm4cum_proj !< Cumulated average of projected m^4
@@ -62,7 +65,7 @@ module prn_averages
    public :: read_parameters_averages,zero_cumulant_counters
    public :: do_avrg, do_proj_avrg, mavg, binderc, avrg_step, avrg_buff, do_cumu, cumu_step, cumu_buff
    public :: do_projch_avrg, do_cumu_proj
-   public :: mavg_buff, mavg_buff_proj, mavg2_buff_proj
+   public :: mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, mavg4_buff_proj
    public :: avrgmcum, avrgm2cum, avrgm4cum
    public :: Navrgcum
 
@@ -322,12 +325,21 @@ contains
             allocate(mavg_buff(3,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_buff))*kind(mavg_buff),'mavg_buff','averages_allocations')
             mavg_buff=0.0_dblprec
+            allocate(mavg2_buff(3,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg2_buff))*kind(mavg2_buff),'mavg2_buff','averages_allocations')
+            mavg2_buff=0.0_dblprec
+            allocate(mavg4_buff(3,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg4_buff))*kind(mavg4_buff),'mavg4_buff','averages_allocations')
+            mavg4_buff=0.0_dblprec
             allocate(mavg_buff_proj(3,NA,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg_buff_proj))*kind(mavg_buff_proj),'mavg_buff_proj','averages_allocations')
             mavg_buff_proj=0.0_dblprec
             allocate(mavg2_buff_proj(NA,avrg_buff,Mensemble),stat=i_stat)
             call memocc(i_stat,product(shape(mavg2_buff_proj))*kind(mavg2_buff_proj),'mavg2_buff_proj','allocate_measurements')
             mavg2_buff_proj=0.0_dblprec
+            allocate(mavg4_buff_proj(NA,avrg_buff,Mensemble),stat=i_stat)
+            call memocc(i_stat,product(shape(mavg4_buff_proj))*kind(mavg4_buff_proj),'mavg4_buff_proj','allocate_measurements')
+            mavg4_buff_proj=0.0_dblprec
          endif
          ! Index array should be allocated fpr all kind of possible measurements
          if (do_avrg=='Y'.or.do_proj_avrg=='Y' .or. do_proj_avrg=='A'.or.do_projch_avrg=='Y') then
@@ -347,12 +359,21 @@ contains
             i_all=-product(shape(mavg_buff))*kind(mavg_buff)
             deallocate(mavg_buff,stat=i_stat)
             call memocc(i_stat,i_all,'mavg_buff','averages_allocations')
+            i_all=-product(shape(mavg2_buff))*kind(mavg2_buff)
+            deallocate(mavg2_buff,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg2_buff','averages_allocations')
+            i_all=-product(shape(mavg4_buff))*kind(mavg4_buff)
+            deallocate(mavg4_buff,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg4_buff','averages_allocations')
             i_all=-product(shape(mavg_buff_proj))*kind(mavg_buff_proj)
             deallocate(mavg_buff_proj,stat=i_stat)
             call memocc(i_stat,i_all,'mavg_buff_proj','averages_allocations')
             i_all=-product(shape(mavg2_buff_proj))*kind(mavg2_buff_proj)
             deallocate(mavg2_buff_proj,stat=i_stat)
             call memocc(i_stat,i_all,'mavg2_buff_proj','allocate_measurements')
+            i_all=-product(shape(mavg4_buff_proj))*kind(mavg4_buff_proj)
+            deallocate(mavg4_buff_proj,stat=i_stat)
+            call memocc(i_stat,i_all,'mavg4_buff_proj','allocate_measurements')
          endif
          ! Index array should be allocated for all kind of possible measurements
          if (do_avrg=='Y'.or.do_proj_avrg=='Y' .or. do_proj_avrg=='A'.or.do_projch_avrg=='Y') then

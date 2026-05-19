@@ -9,6 +9,10 @@
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
+namespace {
+inline bool valid_ptr(const void* p) { return p != nullptr; }
+}
+
 GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                 const deviceEnergies& gpuEnergies,
                                  Tensor<real, 3>& f_emomM, 
@@ -201,22 +205,15 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             atype_cpu.set(FortranData::atype, static_cast<long int>(N));
             atype_gpu.copy_sync(atype_cpu);
 
-            if((!asitealloc)&&(!do_ralloy)){
-                asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
-                asitealloc = true;
-            }
-
         }
         if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
             emomMEnsembleNASums.Allocate(3, NA, M);
             emomMEnsembleNASums.zeros();
             emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
             emomMEnsembleNASums_partial.zeros();
-            if((!asitealloc)&&(!do_ralloy)){
-                asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
+            if((!asitealloc)&&(!do_ralloy) && valid_ptr(FortranData::asite_ch)){
+                asite_ch_gpu.Allocate(N);
+                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(N));
                 asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
