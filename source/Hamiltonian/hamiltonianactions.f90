@@ -23,6 +23,8 @@ module HamiltonianActions
 
    implicit none
 
+   logical, save :: cpu_macroblock_status_printed = .false.
+
    interface effective_field
       module procedure effective_field_bare, effective_field_full, effective_field_energy, effective_field_hb
    end interface
@@ -182,10 +184,17 @@ contains
       endif
 
       if (do_cpu_macroblocks == 'Y' .and. macroblock_layout_is_ready(ham_macroblock_layout) .and. &
+          ham_inp%do_dip == 0 .and. &
           ham_inp%exc_inter == 'N' .and. ham_inp%do_jtensor /= 1 .and. ham_inp%do_dm == 0 .and. &
           ham_inp%do_sa == 0 .and. ham_inp%do_pd == 0 .and. ham_inp%do_biqdm == 0 .and. &
           ham_inp%do_bq == 0 .and. ham_inp%do_ring == 0 .and. ham_inp%do_chir == 0 .and. &
           ham_inp%do_anisotropy == 0 .and. .not. OPT_flag) then
+         if (.not. cpu_macroblock_status_printed) then
+            write(*,'(1x,a,1x,i0,a,1x,i0,a,1x,i0,a)') 'CPU: macroblock Heisenberg backend enabled (', &
+               ham_macroblock_layout%nblocks, ' blocks,', ham_macroblock_layout%n_pair_groups,        &
+               ' block pairs,', ham_macroblock_layout%n_entries, ' staged entries)'
+            cpu_macroblock_status_printed = .true.
+         end if
          call effective_field_macroblock_heisenberg_full(Natom, Mensemble, start_atom, stop_atom, emomM, &
             external_field, time_external_field, beff, beff1, beff2, energy)
          return
