@@ -18,7 +18,8 @@ module HamiltonianActions
    use Profiling
    use Parameters
    use HamiltonianData
-   use InputData, only : ham_inp
+   use HamiltonianMacroBlocks, only : ham_macroblock_layout, macroblock_layout_is_ready
+   use InputData, only : ham_inp, do_cpu_macroblocks
 
    implicit none
 
@@ -179,6 +180,16 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
+
+      if (do_cpu_macroblocks == 'Y' .and. macroblock_layout_is_ready(ham_macroblock_layout) .and. &
+          ham_inp%exc_inter == 'N' .and. ham_inp%do_jtensor /= 1 .and. ham_inp%do_dm == 0 .and. &
+          ham_inp%do_sa == 0 .and. ham_inp%do_pd == 0 .and. ham_inp%do_biqdm == 0 .and. &
+          ham_inp%do_bq == 0 .and. ham_inp%do_ring == 0 .and. ham_inp%do_chir == 0 .and. &
+          ham_inp%do_anisotropy == 0 .and. .not. OPT_flag) then
+         call effective_field_macroblock_heisenberg_full(Natom, Mensemble, start_atom, stop_atom, emomM, &
+            external_field, time_external_field, beff, beff1, beff2, energy)
+         return
+      end if
       !reduction(+:energy)
       !$omp parallel do default(shared) schedule(static) private(i,k,beff_s,beff_q,tfield,beff_m) collapse(2) reduction(+:energy)
       do k=1, Mensemble
@@ -250,6 +261,68 @@ contains
       energy = energy * mub / mry
 
    end subroutine effective_field_full
+
+   subroutine effective_field_macroblock_heisenberg_full(Natom,Mensemble,start_atom,stop_atom,emomM, &
+      external_field,time_external_field,beff,beff1,beff2,energy)
+      use Constants, only : mry, mub
+      implicit none
+
+      integer, intent(in) :: Natom, Mensemble, start_atom, stop_atom
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1
+      real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2
+      real(dblprec), intent(out) :: energy
+
+      integer :: i, j, k, ih
+      integer :: block_i, local_i, pair_group
+      integer :: pair_group_first, pair_group_last
+      integer :: src_atom_base_index, local_entry_index
+      integer :: entry_begin, entry_end, entry
+      real(dblprec), dimension(3) :: beff_s, tfield
+
+      energy = 0.0_dblprec
+      beff = 0.0_dblprec
+      beff1 = 0.0_dblprec
+      beff2 = 0.0_dblprec
+
+      !$omp parallel do default(shared) schedule(static) private(k,i,block_i,local_i,pair_group,pair_group_first,pair_group_last,src_atom_base_index,local_entry_index,entry_begin,entry_end,entry,ih,j,beff_s,tfield) collapse(2) reduction(+:energy)
+      do k = 1, Mensemble
+         do i = start_atom, stop_atom
+            block_i = ham_macroblock_layout%atom_to_block(i)
+            local_i = ham_macroblock_layout%atom_to_local(i)
+            beff_s = 0.0_dblprec
+
+            if (block_i > 0) then
+               pair_group_first = ham_macroblock_layout%block_neigh_offset(block_i) + 1
+               pair_group_last = ham_macroblock_layout%block_neigh_offset(block_i + 1)
+               do pair_group = pair_group_first, pair_group_last
+                  src_atom_base_index = ham_macroblock_layout%pair_group_src_atom_offset(pair_group)
+                  local_entry_index = src_atom_base_index + local_i + 1
+                  entry_begin = ham_macroblock_layout%pair_group_local_entry_offset(local_entry_index) + 1
+                  entry_end = ham_macroblock_layout%pair_group_local_entry_offset(local_entry_index + 1)
+                  do entry = entry_begin, entry_end
+                     ih = ham_macroblock_layout%entry_ih(entry)
+                     j = ham_macroblock_layout%entry_atom_j(entry)
+                     beff_s = beff_s + ham%ncoup(ham_macroblock_layout%entry_jslot(entry),ih,1) * emomM(:,j,k)
+                  end do
+               end do
+            end if
+
+            beff1(:,i,k) = beff_s
+            beff2(:,i,k) = external_field(:,i,k) + time_external_field(:,i,k)
+            beff(:,i,k) = beff1(:,i,k) + beff2(:,i,k)
+
+            tfield = 0.50_dblprec * (beff_s + 2.0_dblprec * external_field(:,i,k) + time_external_field(:,i,k))
+            energy = energy - dot_product(emomM(:,i,k), tfield)
+         end do
+      end do
+      !$omp end parallel do
+
+      energy = energy * mub / mry
+   end subroutine effective_field_macroblock_heisenberg_full
 
    subroutine effective_field_single(Natom,Mensemble,i_atom, i_ensemble,  &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &

@@ -1387,6 +1387,10 @@ contains
                read(ifile,*,iostat=i_err) do_gpu_macroblocks
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_cpu_macroblocks')
+               read(ifile,*,iostat=i_err) do_cpu_macroblocks
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_gpu_llg')
                read(ifile,*,iostat=i_err) do_gpu_llg
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

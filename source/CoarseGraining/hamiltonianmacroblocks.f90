@@ -22,6 +22,7 @@ module HamiltonianMacroBlocks
       integer(c_int) :: n_entries = 0
       integer(c_int) :: max_block_atoms = 0
       integer(c_int), allocatable :: atom_to_block(:)
+      integer(c_int), allocatable :: atom_to_local(:)
       integer(c_int), allocatable :: block_atom_count(:)
       integer(c_int), allocatable :: block_atom_offset(:)
       integer(c_int), allocatable :: block_atoms(:)
@@ -54,6 +55,7 @@ contains
       type(macroblock_layout_type), intent(inout) :: layout
 
       if (allocated(layout%atom_to_block)) deallocate(layout%atom_to_block)
+      if (allocated(layout%atom_to_local)) deallocate(layout%atom_to_local)
       if (allocated(layout%block_atom_count)) deallocate(layout%block_atom_count)
       if (allocated(layout%block_atom_offset)) deallocate(layout%block_atom_offset)
       if (allocated(layout%block_atoms)) deallocate(layout%block_atoms)
@@ -115,10 +117,12 @@ contains
       nblocks = Num_macro
 
       allocate(layout%atom_to_block(Natom))
+      allocate(layout%atom_to_local(Natom))
       allocate(layout%block_atom_count(nblocks))
       allocate(layout%block_atom_offset(nblocks + 1))
 
       layout%atom_to_block = int(cell_index(1:Natom), c_int)
+      layout%atom_to_local = 0_c_int
       layout%block_atom_count = int(macro_nlistsize(1:nblocks), c_int)
       layout%block_atom_offset(1) = 0_c_int
       do bi = 1, nblocks
@@ -132,6 +136,7 @@ contains
          do slot = 1, macro_nlistsize(bi)
             layout%block_atoms(atom_pos) = int(macro_atom_nlist(bi, slot), c_int)
             atom_local_index(macro_atom_nlist(bi, slot)) = slot - 1
+            layout%atom_to_local(macro_atom_nlist(bi, slot)) = int(slot - 1, c_int)
             atom_pos = atom_pos + 1
          end do
       end do
