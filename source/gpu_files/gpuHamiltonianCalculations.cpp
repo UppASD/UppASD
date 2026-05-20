@@ -49,6 +49,49 @@ __global__ void null_energy(GpuVector<EnergyData> energy){
    energy(0) = {};
 }
 
+__global__ void macroblock_heisenberg_entries_kernel(real* beff, real* eneff,
+                                                     const real* coup,
+                                                     const real* emomM,
+                                                     const unsigned int* entryAtomI,
+                                                     const unsigned int* entryAtomJ,
+                                                     const unsigned int* entryIH,
+                                                     const unsigned int* entryJslot,
+                                                     unsigned int nentries,
+                                                     unsigned int N,
+                                                     unsigned int NH,
+                                                     unsigned int M) {
+   const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+   const unsigned int total = nentries * M;
+
+   if (tid >= total) return;
+
+   const unsigned int ensemble = tid / nentries;
+   const unsigned int entry = tid - ensemble * nentries;
+   const unsigned int i = entryAtomI[entry] - 1;
+   const unsigned int j = entryAtomJ[entry] - 1;
+   const unsigned int ih = entryIH[entry] - 1;
+   const unsigned int slot = entryJslot[entry] - 1;
+   const unsigned int field_offset = ensemble * N * 3 + i * 3;
+   const unsigned int spin_offset = ensemble * N * 3 + j * 3;
+   const real Jij = coup[ih + slot * NH];
+
+   atomicAdd(&beff[field_offset + 0], Jij * emomM[spin_offset + 0]);
+   atomicAdd(&beff[field_offset + 1], Jij * emomM[spin_offset + 1]);
+   atomicAdd(&beff[field_offset + 2], Jij * emomM[spin_offset + 2]);
+   atomicAdd(&eneff[field_offset + 0], Jij * emomM[spin_offset + 0]);
+   atomicAdd(&eneff[field_offset + 1], Jij * emomM[spin_offset + 1]);
+   atomicAdd(&eneff[field_offset + 2], Jij * emomM[spin_offset + 2]);
+}
+
+__global__ void macroblock_add_external_field_kernel(real* beff, real* eneff, const real* ext_f,
+                                                     unsigned int total_elements) {
+   const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+   if (tid >= total_elements) return;
+
+   beff[tid] += ext_f[tid];
+   eneff[tid] += ext_f[tid];
+}
+
 // Possible improvements
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1260,6 +1303,22 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    redHam.redNeibourCount = gpuHamiltonian.aHam;
    external_field=gpuHamiltonian.extfield;
    do_ene = Flags.do_ene;
+   macroblocks.enabled = gpuHamiltonian.macroblock_enabled;
+   macroblocks.nblocks = gpuHamiltonian.macroblock_nblocks;
+   macroblocks.npairGroups = gpuHamiltonian.macroblock_npair_groups;
+   macroblocks.nentries = gpuHamiltonian.macroblock_nentries;
+   if (macroblocks.enabled != 0 && macroblocks.nentries > 0) {
+      macroblocks.atomToBlock = gpuHamiltonian.macroblock_atom_to_block;
+      macroblocks.blockAtomOffset = gpuHamiltonian.macroblock_block_atom_offset;
+      macroblocks.blockAtoms = gpuHamiltonian.macroblock_block_atoms;
+      macroblocks.pairGroupSrc = gpuHamiltonian.macroblock_pair_group_src;
+      macroblocks.pairGroupDst = gpuHamiltonian.macroblock_pair_group_dst;
+      macroblocks.pairGroupEntryOffset = gpuHamiltonian.macroblock_pair_group_entry_offset;
+      macroblocks.entryAtomI = gpuHamiltonian.macroblock_entry_atom_i;
+      macroblocks.entryAtomJ = gpuHamiltonian.macroblock_entry_atom_j;
+      macroblocks.entryIH = gpuHamiltonian.macroblock_entry_ih;
+      macroblocks.entryJslot = gpuHamiltonian.macroblock_entry_jslot;
+   }
 
    if(redHam.redNeibourCount.empty()) {
       initiated = false;
@@ -1318,7 +1377,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       initiated = true;
       return true;
    }
-else{
+   else{
    //------- Heisenberg Exchange -------//
    ex.mnn = mnn;  // Max number of neighbours
    ex.coupling = gpuHamiltonian.ncoup;
@@ -1354,6 +1413,10 @@ else{
       parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
    }
 
+   use_macroblock_backend = (macroblocks.enabled != 0 && macroblocks.nentries > 0 &&
+      !GpuHamiltonianCalculations::do_dm && !GpuHamiltonianCalculations::do_j_tensor &&
+      GpuHamiltonianCalculations::do_aniso == 0);
+
    // Flag
    initiated = true;
    return true;
@@ -1367,6 +1430,26 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       //gpuEnergies.totalM.zeros();
       //gpuEnergies.extM.zeros();
       gpuEnergies.energyM.zeros();
+   }
+
+   if(use_macroblock_backend && !measure) {
+      const unsigned int threads = 256;
+      const unsigned int ensemble_count = static_cast<unsigned int>(gpuLattice.emomM.extent(2));
+      const unsigned int total_entries = macroblocks.nentries * ensemble_count;
+      const unsigned int total_elements = 3 * N * ensemble_count;
+      const unsigned int blocks_entries = (total_entries + threads - 1) / threads;
+      const unsigned int blocks_elements = (total_elements + threads - 1) / threads;
+
+      gpuLattice.beff.zeros();
+      gpuLattice.eneff.zeros();
+      macroblock_heisenberg_entries_kernel<<<blocks_entries, threads>>>(
+         gpuLattice.beff.data(), gpuLattice.eneff.data(), ex.coupling.data(),
+         gpuLattice.emomM.data(), macroblocks.entryAtomI.data(), macroblocks.entryAtomJ.data(),
+         macroblocks.entryIH.data(), macroblocks.entryJslot.data(), macroblocks.nentries, N, NH,
+         ensemble_count);
+      macroblock_add_external_field_kernel<<<blocks_elements, threads>>>(
+         gpuLattice.beff.data(), gpuLattice.eneff.data(), external_field.data(), total_elements);
+      return;
    }
 
 

@@ -46,18 +46,37 @@ private:
 		GpuTensor<unsigned int, 1> redNeibourCount; //Reduced Hamiltonian -- shared between Jij, DMI anf Jtens
 	} ;
 
+   struct MacroBlockLayout {
+      unsigned int enabled = 0;
+      unsigned int nblocks = 0;
+      unsigned int npairGroups = 0;
+      unsigned int nentries = 0;
+      GpuTensor<unsigned int, 1> atomToBlock;
+      GpuTensor<unsigned int, 1> blockAtomOffset;
+      GpuTensor<unsigned int, 1> blockAtoms;
+      GpuTensor<unsigned int, 1> pairGroupSrc;
+      GpuTensor<unsigned int, 1> pairGroupDst;
+      GpuTensor<unsigned int, 1> pairGroupEntryOffset;
+      GpuTensor<unsigned int, 1> entryAtomI;
+      GpuTensor<unsigned int, 1> entryAtomJ;
+      GpuTensor<unsigned int, 1> entryIH;
+      GpuTensor<unsigned int, 1> entryJslot;
+   };
+
 
    Exchange ex;
    DMinteraction dm;
    TensorialExchange tenEx;
    Anisotropy aniso;
    HamRed redHam;
+   MacroBlockLayout macroblocks;
    GpuTensor<real, 3> external_field;
 
    bool do_j_tensor = false;
    bool do_dm = false;
    int do_aniso = 0;
    int do_ene = 0;
+   bool use_macroblock_backend = false;
 
    // Initiation flag
    bool initiated;

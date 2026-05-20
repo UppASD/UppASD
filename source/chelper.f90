@@ -8,6 +8,7 @@
 module Chelper
    use iso_c_binding
    use InputData
+   use HamiltonianMacroBlocks, only : ham_macroblock_layout, macroblock_layout_is_ready
    use SimulationData,   only : rstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
@@ -62,9 +63,12 @@ module Chelper
    real(dblprec), dimension(:,:,:), allocatable, target :: mmomb_traj_bridge
    real(dblprec), dimension(:,:,:,:), allocatable, target :: emomb_bridge
    real(dblprec), dimension(:,:,:,:), allocatable, target :: emomb_traj_bridge
+   integer(c_int), dimension(1), target :: gpu_bridge_dummy_int = [0_c_int]
+   integer(c_int), target :: gpu_bridge_zero = 0_c_int
+   integer(c_int), target :: gpu_bridge_one = 1_c_int
 
    interface
-         subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
+      subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
                atype, achtype, m_k_proj, m_k_projch, m_kt_proj, m_kt_projch, m_kw_proj, m_kw_projch) &
                 bind(C, name="fortrandata_setcorrelations_")
          import :: c_double, c_int
@@ -88,6 +92,27 @@ module Chelper
          integer(c_int), intent(inout) :: atype(*)
          integer(c_int), intent(inout) :: achtype(*)
       end subroutine FortranData_setCorrelations
+
+      subroutine FortranData_setMacroBlocks(enabled, nblocks, npair_groups, nentries, &
+            atom_to_block, block_atom_offset, block_atoms, pair_group_src, pair_group_dst, &
+            pair_group_entry_offset, entry_atom_i, entry_atom_j, entry_ih, entry_jslot) &
+            bind(C, name="fortrandata_setmacroblocks_")
+         import :: c_int
+         integer(c_int), intent(in) :: enabled
+         integer(c_int), intent(in) :: nblocks
+         integer(c_int), intent(in) :: npair_groups
+         integer(c_int), intent(in) :: nentries
+         integer(c_int), intent(in) :: atom_to_block(*)
+         integer(c_int), intent(in) :: block_atom_offset(*)
+         integer(c_int), intent(in) :: block_atoms(*)
+         integer(c_int), intent(in) :: pair_group_src(*)
+         integer(c_int), intent(in) :: pair_group_dst(*)
+         integer(c_int), intent(in) :: pair_group_entry_offset(*)
+         integer(c_int), intent(in) :: entry_atom_i(*)
+         integer(c_int), intent(in) :: entry_atom_j(*)
+         integer(c_int), intent(in) :: entry_ih(*)
+         integer(c_int), intent(in) :: entry_jslot(*)
+      end subroutine FortranData_setMacroBlocks
    end interface
 
 
@@ -517,6 +542,21 @@ contains
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
+
+      if (macroblock_layout_is_ready(ham_macroblock_layout)) then
+         call FortranData_setMacroBlocks(gpu_bridge_one, ham_macroblock_layout%nblocks, &
+            ham_macroblock_layout%n_pair_groups, ham_macroblock_layout%n_entries, &
+            ham_macroblock_layout%atom_to_block, ham_macroblock_layout%block_atom_offset, &
+            ham_macroblock_layout%block_atoms, ham_macroblock_layout%pair_group_src, &
+            ham_macroblock_layout%pair_group_dst, ham_macroblock_layout%pair_group_entry_offset, &
+            ham_macroblock_layout%entry_atom_i, ham_macroblock_layout%entry_atom_j, &
+            ham_macroblock_layout%entry_ih, ham_macroblock_layout%entry_jslot)
+      else
+         call FortranData_setMacroBlocks(gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, &
+            gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
+            gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
+            gpu_bridge_dummy_int, gpu_bridge_dummy_int)
+      end if
 
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)

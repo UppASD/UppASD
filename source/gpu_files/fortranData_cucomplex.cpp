@@ -102,6 +102,20 @@ real* FortranData::sb;
 real* FortranData::dxyz_vec;
 int* FortranData::dxyz_atom;
 int* FortranData::dxyz_list;
+unsigned int* FortranData::macroblock_enabled;
+unsigned int* FortranData::macroblock_nblocks;
+unsigned int* FortranData::macroblock_npair_groups;
+unsigned int* FortranData::macroblock_nentries;
+unsigned int* FortranData::macroblock_atom_to_block;
+unsigned int* FortranData::macroblock_block_atom_offset;
+unsigned int* FortranData::macroblock_block_atoms;
+unsigned int* FortranData::macroblock_pair_group_src;
+unsigned int* FortranData::macroblock_pair_group_dst;
+unsigned int* FortranData::macroblock_pair_group_entry_offset;
+unsigned int* FortranData::macroblock_entry_atom_i;
+unsigned int* FortranData::macroblock_entry_atom_j;
+unsigned int* FortranData::macroblock_entry_ih;
+unsigned int* FortranData::macroblock_entry_jslot;
 
 // GPU stuff
 int* FortranData::gpu_mode;
@@ -370,6 +384,34 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_rng_seed = p3;
 }
 
+void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p_nblocks,
+                                        unsigned int* p_npair_groups, unsigned int* p_nentries,
+                                        unsigned int* p_atom_to_block,
+                                        unsigned int* p_block_atom_offset,
+                                        unsigned int* p_block_atoms,
+                                        unsigned int* p_pair_group_src,
+                                        unsigned int* p_pair_group_dst,
+                                        unsigned int* p_pair_group_entry_offset,
+                                        unsigned int* p_entry_atom_i,
+                                        unsigned int* p_entry_atom_j,
+                                        unsigned int* p_entry_ih,
+                                        unsigned int* p_entry_jslot) {
+   macroblock_enabled = p_enabled;
+   macroblock_nblocks = p_nblocks;
+   macroblock_npair_groups = p_npair_groups;
+   macroblock_nentries = p_nentries;
+   macroblock_atom_to_block = p_atom_to_block;
+   macroblock_block_atom_offset = p_block_atom_offset;
+   macroblock_block_atoms = p_block_atoms;
+   macroblock_pair_group_src = p_pair_group_src;
+   macroblock_pair_group_dst = p_pair_group_dst;
+   macroblock_pair_group_entry_offset = p_pair_group_entry_offset;
+   macroblock_entry_atom_i = p_entry_atom_i;
+   macroblock_entry_atom_j = p_entry_atom_j;
+   macroblock_entry_ih = p_entry_ih;
+   macroblock_entry_jslot = p_entry_jslot;
+}
+
 // Fortran helpers
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
    char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
@@ -415,6 +457,18 @@ extern "C" void fortrandata_setlattice_(real* p_beff, real* p_b2eff, real* p_emo
    real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi, real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list) {
 FortranData::setLatticePointers(
    p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list);
+}
+
+extern "C" void fortrandata_setmacroblocks_(unsigned int* p_enabled, unsigned int* p_nblocks,
+   unsigned int* p_npair_groups, unsigned int* p_nentries, unsigned int* p_atom_to_block,
+   unsigned int* p_block_atom_offset, unsigned int* p_block_atoms,
+   unsigned int* p_pair_group_src, unsigned int* p_pair_group_dst,
+   unsigned int* p_pair_group_entry_offset, unsigned int* p_entry_atom_i,
+   unsigned int* p_entry_atom_j, unsigned int* p_entry_ih, unsigned int* p_entry_jslot) {
+FortranData::setMacroBlockPointers(
+   p_enabled, p_nblocks, p_npair_groups, p_nentries, p_atom_to_block,
+   p_block_atom_offset, p_block_atoms, p_pair_group_src, p_pair_group_dst,
+   p_pair_group_entry_offset, p_entry_atom_i, p_entry_atom_j, p_entry_ih, p_entry_jslot);
 }
 
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
@@ -484,4 +538,3 @@ FortranData::setCorrelationPointers(
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {
    FortranData::setInputDataPointers(p1, p2, p3);
 }
-

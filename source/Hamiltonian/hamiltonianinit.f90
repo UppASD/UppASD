@@ -53,6 +53,7 @@ contains
       use LSF,             only : LSF_datareshape
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
+      use HamiltonianMacroBlocks, only : ham_macroblock_layout, build_macroblock_layout
       use InputData,       only : ham_inp, do_sfc
       !use InputData,       only : jij_scale, dm_scale, ea_model, ea_sigma
       use NeighbourMap,    only : setup_nm, setup_nm_nelem
@@ -842,6 +843,8 @@ contains
             write(*,'(a)') ' done'
          end if
       end if 
+
+      call build_macroblock_layout(ham_macroblock_layout, Natom, ham%nlist, ham%nlistsize, ham%aHam)
 
    contains
 

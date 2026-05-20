@@ -96,6 +96,20 @@ struct hostHamiltonian {
    Tensor<unsigned int, 1>     taniso;
    Tensor<real, 1>             sb;
    Tensor<real, 3>             extfield;
+   unsigned int                macroblock_enabled = 0;
+   unsigned int                macroblock_nblocks = 0;
+   unsigned int                macroblock_npair_groups = 0;
+   unsigned int                macroblock_nentries = 0;
+   Tensor<unsigned int, 1>     macroblock_atom_to_block;
+   Tensor<unsigned int, 1>     macroblock_block_atom_offset;
+   Tensor<unsigned int, 1>     macroblock_block_atoms;
+   Tensor<unsigned int, 1>     macroblock_pair_group_src;
+   Tensor<unsigned int, 1>     macroblock_pair_group_dst;
+   Tensor<unsigned int, 1>     macroblock_pair_group_entry_offset;
+   Tensor<unsigned int, 1>     macroblock_entry_atom_i;
+   Tensor<unsigned int, 1>     macroblock_entry_atom_j;
+   Tensor<unsigned int, 1>     macroblock_entry_ih;
+   Tensor<unsigned int, 1>     macroblock_entry_jslot;
 
 };
    
@@ -154,6 +168,20 @@ struct deviceHamiltonian {
    GpuTensor<unsigned int, 1>     taniso;
    GpuTensor<real, 1>             sb;
    GpuTensor<real, 3>             extfield;
+   unsigned int                   macroblock_enabled = 0;
+   unsigned int                   macroblock_nblocks = 0;
+   unsigned int                   macroblock_npair_groups = 0;
+   unsigned int                   macroblock_nentries = 0;
+   GpuTensor<unsigned int, 1>     macroblock_atom_to_block;
+   GpuTensor<unsigned int, 1>     macroblock_block_atom_offset;
+   GpuTensor<unsigned int, 1>     macroblock_block_atoms;
+   GpuTensor<unsigned int, 1>     macroblock_pair_group_src;
+   GpuTensor<unsigned int, 1>     macroblock_pair_group_dst;
+   GpuTensor<unsigned int, 1>     macroblock_pair_group_entry_offset;
+   GpuTensor<unsigned int, 1>     macroblock_entry_atom_i;
+   GpuTensor<unsigned int, 1>     macroblock_entry_atom_j;
+   GpuTensor<unsigned int, 1>     macroblock_entry_ih;
+   GpuTensor<unsigned int, 1>     macroblock_entry_jslot;
 }; 
    
 struct deviceLattice {
