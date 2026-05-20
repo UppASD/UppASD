@@ -64,6 +64,26 @@ module Chelper
    real(dblprec), dimension(:,:,:,:), allocatable, target :: emomb_traj_bridge
 
    interface
+         subroutine FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
+               cell_index, macro_nlistsize, macro_atom_nlist, macro_halo_nlistsize, macro_halo_to_global, &
+               macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist) &
+                bind(C, name="fortrandata_setmacrohalo_")
+         import :: c_int
+         integer(c_int), intent(inout) :: Num_macro
+         integer(c_int), intent(inout) :: max_num_atom_macro_cell
+         integer(c_int), intent(inout) :: max_macro_halo_size
+         integer(c_int), intent(inout) :: max_macro_cell_neigh
+         integer(c_int), intent(inout) :: cell_index(*)
+         integer(c_int), intent(inout) :: macro_nlistsize(*)
+         integer(c_int), intent(inout) :: macro_atom_nlist(*)
+         integer(c_int), intent(inout) :: macro_halo_nlistsize(*)
+         integer(c_int), intent(inout) :: macro_halo_to_global(*)
+         integer(c_int), intent(inout) :: macro_atom_local_nlistsize(*)
+         integer(c_int), intent(inout) :: macro_atom_local_nlist(*)
+         integer(c_int), intent(inout) :: macro_cell_nlistsize(*)
+         integer(c_int), intent(inout) :: macro_cell_nlist(*)
+      end subroutine FortranData_setMacroHalo
+
          subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
                atype, achtype, m_k_proj, m_k_projch, m_kt_proj, m_kt_projch, m_kw_proj, m_kw_projch) &
                 bind(C, name="fortrandata_setcorrelations_")
@@ -499,6 +519,14 @@ contains
 
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
+
+      if (allocated(macro_halo_nlistsize) .and. allocated(macro_halo_to_global) .and. &
+            allocated(macro_atom_local_nlistsize) .and. allocated(macro_atom_local_nlist) .and. &
+            allocated(macro_cell_nlistsize) .and. allocated(macro_cell_nlist)) then
+         call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
+            cell_index, macro_nlistsize, macro_atom_nlist, macro_halo_nlistsize, macro_halo_to_global, &
+            macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist)
+      end if
 
 
       call ensure_gpu_bridge_buffers()

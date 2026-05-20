@@ -1193,6 +1193,10 @@ contains
          max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
          do_reduced,do_prnstruct,do_sortcoup,simid,ham_inp%print_dip_tensor,ham_inp%read_dipole,    &
          ham_inp%qdip_files)
+
+      if (do_macro_cells.eq.'Y'.or.ham_inp%do_dip.eq.2) then
+         call build_macro_halo_maps(Natom,ham%max_no_neigh,ham%nlist,ham%nlistsize)
+      end if
       
       !call setup_reduced_hamiltonian(Natom,NA,conf_num)
       ! Allocate arrays for simulation and measurement

@@ -27,6 +27,15 @@ module macrocells
    integer, dimension(:), allocatable :: dipole_subset   !< List of the cells where the macrocell dipolar interaction is printed
    integer, dimension(:), allocatable :: macro_nlistsize !< Number of atoms per macrocell
    integer, dimension(:,:), allocatable :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+   integer, dimension(:), allocatable :: atom_in_macro_pos !< Position of an atom within its macrocell
+   integer :: max_macro_halo_size !< Maximum number of unique halo atoms for any macrocell
+   integer :: max_macro_cell_neigh !< Maximum number of neighbouring macrocells for any macrocell
+   integer, dimension(:), allocatable :: macro_halo_nlistsize !< Number of unique halo atoms per macrocell
+   integer, dimension(:,:), allocatable :: macro_halo_to_global !< Local-halo to global atom map
+   integer, dimension(:,:), allocatable :: macro_atom_local_nlistsize !< Number of neighbours for local atoms
+   integer, dimension(:,:,:), allocatable :: macro_atom_local_nlist !< Atom neighbour list in macrocell-local halo indices
+   integer, dimension(:), allocatable :: macro_cell_nlistsize !< Number of neighbouring macrocells per macrocell
+   integer, dimension(:,:), allocatable :: macro_cell_nlist !< Macrocell neighbour map
 
    real(dblprec), dimension(:,:), allocatable :: mmom_macro !< Magnitude of the macrocell magnetic moments
    real(dblprec), dimension(:,:), allocatable :: max_coord_macro !< Maximum value of the coordinates per cell
@@ -100,6 +109,8 @@ contains
       dip_file='dip_file.dat'
       Num_macro=0
       max_num_atom_macro_cell=0
+      max_macro_halo_size=0
+      max_macro_cell_neigh=0
 
    end subroutine init_macrocell
 
@@ -139,9 +150,14 @@ contains
 
       ! .. Local variables
       integer :: dim
-      integer :: ii, kk
       integer :: II1,II2,II3,I0,I1,I2,I3
       integer :: i_stat, i_all
+      integer :: ii, kk
+      integer :: bnx, bny, bnz, nbins, ibin
+      integer, dimension(:), allocatable :: bin_count, bin_to_macro, atom_bin
+      real(dblprec) :: xmin, xmax, ymin, ymax, zmin, zmax
+      real(dblprec) :: dx, dy, dz
+      logical :: use_regular_partition
 
       character(len=23) :: output_file
       ! Creation of a file to writeout the geometry of the macro cell
@@ -161,45 +177,101 @@ contains
          dim=dim+1
       endif
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Notice that the determination of the following parameters assumes a cubic
-      ! macrocell, this should be modified for a general shape macrocell
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Calculate the number of macro cells
-      Num_macro=int(N3*N2*N1/(block_size_x*block_size_y*block_size_z))
-      !Num_macro=int(N3*N2*N1/block_size**dim)
-      ! Calculate the Maximum number of atoms per macro cell
-      max_num_atom_macro_cell=NA*(block_size_x*block_size_y*block_size_z)
-      !max_num_atom_macro_cell=NA*block_size**dim
-      call allocate_macrocell(1,Natom,Mensemble)
+      use_regular_partition=(N1*N2*N3*NA==Natom .and. N1>1 .and. N2>1 .and. N3>1)
+      if (use_regular_partition) then
+         ! Existing fast path for regular supercells.
+         Num_macro=int(N3*N2*N1/(block_size_x*block_size_y*block_size_z))
+         max_num_atom_macro_cell=NA*(block_size_x*block_size_y*block_size_z)
+         call allocate_macrocell(1,Natom,Mensemble)
 
-      print *,'Number of macrocells:',Num_macro
-      ! Create the macrocells lists needed for the macrocell approximation
-      do II3=0, N3-1, block_size_z
-         do II2=0, N2-1, block_size_y
-            do II1=0, N1-1, block_size_x
-               kk=kk+1 ! Cell counter
-               do I3=II3,min(II3+block_size_z-1,N3-1)
-                  do I2=II2,min(II2+block_size_y-1,N2-1)
-                     do I1=II1,min(II1+block_size_x-1,N1-1)
-                        do I0=1, NA
-                           ii=ii+1 ! Atom counter
-                           macro_nlistsize(kk)=macro_nlistsize(kk)+1
-                           cell_index(ii)=kk
-                           macro_atom_nlist(kk,macro_nlistsize(kk))=ii
-                           max_coord_macro(1,kk)=max(coord(1,ii),max_coord_macro(1,kk))
-                           max_coord_macro(2,kk)=max(coord(2,ii),max_coord_macro(2,kk))
-                           max_coord_macro(3,kk)=max(coord(3,ii),max_coord_macro(3,kk))
-                           min_coord_macro(1,kk)=min(coord(1,ii),min_coord_macro(1,kk))
-                           min_coord_macro(2,kk)=min(coord(2,ii),min_coord_macro(2,kk))
-                           min_coord_macro(3,kk)=min(coord(3,ii),min_coord_macro(3,kk))
+         print *,'Number of macrocells:',Num_macro
+         do II3=0, N3-1, block_size_z
+            do II2=0, N2-1, block_size_y
+               do II1=0, N1-1, block_size_x
+                  kk=kk+1 ! Cell counter
+                  do I3=II3,min(II3+block_size_z-1,N3-1)
+                     do I2=II2,min(II2+block_size_y-1,N2-1)
+                        do I1=II1,min(II1+block_size_x-1,N1-1)
+                           do I0=1, NA
+                              ii=ii+1 ! Atom counter
+                              macro_nlistsize(kk)=macro_nlistsize(kk)+1
+                              cell_index(ii)=kk
+                              macro_atom_nlist(kk,macro_nlistsize(kk))=ii
+                              atom_in_macro_pos(ii)=macro_nlistsize(kk)
+                              max_coord_macro(1,kk)=max(coord(1,ii),max_coord_macro(1,kk))
+                              max_coord_macro(2,kk)=max(coord(2,ii),max_coord_macro(2,kk))
+                              max_coord_macro(3,kk)=max(coord(3,ii),max_coord_macro(3,kk))
+                              min_coord_macro(1,kk)=min(coord(1,ii),min_coord_macro(1,kk))
+                              min_coord_macro(2,kk)=min(coord(2,ii),min_coord_macro(2,kk))
+                              min_coord_macro(3,kk)=min(coord(3,ii),min_coord_macro(3,kk))
+                           enddo
                         enddo
                      enddo
                   enddo
                enddo
             enddo
          enddo
-      enddo
+      else
+         ! General path: coordinate-based spatial binning, independent of N1/N2/N3 ordering.
+         bnx=max(1,block_size_x)
+         bny=max(1,block_size_y)
+         bnz=max(1,block_size_z)
+         if (bnx==1 .and. bny==1 .and. bnz==1) then
+            bnx=max(1,block_size)
+            bny=max(1,block_size)
+            bnz=max(1,block_size)
+         end if
+         nbins=bnx*bny*bnz
+
+         allocate(bin_count(nbins),bin_to_macro(nbins),atom_bin(Natom),stat=i_stat)
+         bin_count=0
+         bin_to_macro=0
+         atom_bin=0
+
+         xmin=minval(coord(1,:)); xmax=maxval(coord(1,:))
+         ymin=minval(coord(2,:)); ymax=maxval(coord(2,:))
+         zmin=minval(coord(3,:)); zmax=maxval(coord(3,:))
+         dx=max((xmax-xmin)/real(bnx,dblprec), dbl_tolerance)
+         dy=max((ymax-ymin)/real(bny,dblprec), dbl_tolerance)
+         dz=max((zmax-zmin)/real(bnz,dblprec), dbl_tolerance)
+
+         do ii=1,Natom
+            I1=min(max(1,int((coord(1,ii)-xmin)/dx)+1),bnx)
+            I2=min(max(1,int((coord(2,ii)-ymin)/dy)+1),bny)
+            I3=min(max(1,int((coord(3,ii)-zmin)/dz)+1),bnz)
+            ibin=I1+(I2-1)*bnx+(I3-1)*bnx*bny
+            atom_bin(ii)=ibin
+            bin_count(ibin)=bin_count(ibin)+1
+         end do
+
+         Num_macro=0
+         max_num_atom_macro_cell=0
+         do ibin=1,nbins
+            if (bin_count(ibin)>0) then
+               Num_macro=Num_macro+1
+               bin_to_macro(ibin)=Num_macro
+               max_num_atom_macro_cell=max(max_num_atom_macro_cell,bin_count(ibin))
+            end if
+         end do
+         call allocate_macrocell(1,Natom,Mensemble)
+         print *,'Number of macrocells:',Num_macro
+
+         do ii=1,Natom
+            kk=bin_to_macro(atom_bin(ii))
+            macro_nlistsize(kk)=macro_nlistsize(kk)+1
+            cell_index(ii)=kk
+            macro_atom_nlist(kk,macro_nlistsize(kk))=ii
+            atom_in_macro_pos(ii)=macro_nlistsize(kk)
+            max_coord_macro(1,kk)=max(coord(1,ii),max_coord_macro(1,kk))
+            max_coord_macro(2,kk)=max(coord(2,ii),max_coord_macro(2,kk))
+            max_coord_macro(3,kk)=max(coord(3,ii),max_coord_macro(3,kk))
+            min_coord_macro(1,kk)=min(coord(1,ii),min_coord_macro(1,kk))
+            min_coord_macro(2,kk)=min(coord(2,ii),min_coord_macro(2,kk))
+            min_coord_macro(3,kk)=min(coord(3,ii),min_coord_macro(3,kk))
+         end do
+
+         deallocate(bin_count,bin_to_macro,atom_bin,stat=i_stat)
+      end if
 
       ! Print the midpoint of the macro cells
       open(ofileno,file=output_file)
@@ -228,6 +300,150 @@ contains
             macro_nlistsize, macro_atom_nlist, simid)
 
    end subroutine create_macrocell
+
+   subroutine build_macro_halo_maps(Natom,mnn,nlist,nlistsize)
+      implicit none
+      integer, intent(in) :: Natom
+      integer, intent(in) :: mnn
+      integer, dimension(mnn,Natom), intent(in) :: nlist
+      integer, dimension(Natom), intent(in) :: nlistsize
+      integer :: i, j, a, ii, jj, kk, i_stat, i_all
+      integer, allocatable :: mark(:), touched(:), cell_mark(:), cell_touched(:)
+
+      if (.not.allocated(macro_nlistsize) .or. .not.allocated(macro_atom_nlist)) return
+
+      if (allocated(macro_halo_nlistsize)) then
+         i_all=-product(shape(macro_halo_nlistsize))*kind(macro_halo_nlistsize)
+         deallocate(macro_halo_nlistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_halo_nlistsize','build_macro_halo_maps')
+      end if
+      if (allocated(macro_halo_to_global)) then
+         i_all=-product(shape(macro_halo_to_global))*kind(macro_halo_to_global)
+         deallocate(macro_halo_to_global,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_halo_to_global','build_macro_halo_maps')
+      end if
+      if (allocated(macro_atom_local_nlistsize)) then
+         i_all=-product(shape(macro_atom_local_nlistsize))*kind(macro_atom_local_nlistsize)
+         deallocate(macro_atom_local_nlistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_atom_local_nlistsize','build_macro_halo_maps')
+      end if
+      if (allocated(macro_atom_local_nlist)) then
+         i_all=-product(shape(macro_atom_local_nlist))*kind(macro_atom_local_nlist)
+         deallocate(macro_atom_local_nlist,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_atom_local_nlist','build_macro_halo_maps')
+      end if
+      if (allocated(macro_cell_nlistsize)) then
+         i_all=-product(shape(macro_cell_nlistsize))*kind(macro_cell_nlistsize)
+         deallocate(macro_cell_nlistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_cell_nlistsize','build_macro_halo_maps')
+      end if
+      if (allocated(macro_cell_nlist)) then
+         i_all=-product(shape(macro_cell_nlist))*kind(macro_cell_nlist)
+         deallocate(macro_cell_nlist,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_cell_nlist','build_macro_halo_maps')
+      end if
+
+      allocate(mark(Natom), touched(Natom), cell_mark(Num_macro), cell_touched(Num_macro), stat=i_stat)
+      mark=0
+      cell_mark=0
+      max_macro_halo_size=0
+      max_macro_cell_neigh=0
+
+      allocate(macro_halo_nlistsize(Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_halo_nlistsize))*kind(macro_halo_nlistsize),'macro_halo_nlistsize','build_macro_halo_maps')
+      macro_halo_nlistsize=0
+
+      do ii=1,Num_macro
+         kk=0
+         do a=1,macro_nlistsize(ii)
+            i=macro_atom_nlist(ii,a)
+            do j=1,nlistsize(i)
+               jj=nlist(j,i)
+               if (mark(jj)/=ii) then
+                  mark(jj)=ii
+                  kk=kk+1
+               end if
+            end do
+         end do
+         macro_halo_nlistsize(ii)=kk
+         max_macro_halo_size=max(max_macro_halo_size,kk)
+      end do
+
+      allocate(macro_halo_to_global(Num_macro,max(1,max_macro_halo_size)),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_halo_to_global))*kind(macro_halo_to_global),'macro_halo_to_global','build_macro_halo_maps')
+      macro_halo_to_global=0
+      allocate(macro_atom_local_nlistsize(Num_macro,max_num_atom_macro_cell),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_atom_local_nlistsize))*kind(macro_atom_local_nlistsize),'macro_atom_local_nlistsize','build_macro_halo_maps')
+      macro_atom_local_nlistsize=0
+      allocate(macro_atom_local_nlist(Num_macro,max_num_atom_macro_cell,mnn),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_atom_local_nlist))*kind(macro_atom_local_nlist),'macro_atom_local_nlist','build_macro_halo_maps')
+      macro_atom_local_nlist=0
+
+      do ii=1,Num_macro
+         kk=0
+         touched=0
+         do a=1,macro_nlistsize(ii)
+            i=macro_atom_nlist(ii,a)
+            do j=1,nlistsize(i)
+               jj=nlist(j,i)
+               if (mark(jj)/=ii+Num_macro) then
+                  mark(jj)=ii+Num_macro
+                  kk=kk+1
+                  macro_halo_to_global(ii,kk)=jj
+                  touched(kk)=jj
+               end if
+            end do
+         end do
+         do j=1,kk
+            mark(touched(j))=j
+         end do
+         do a=1,macro_nlistsize(ii)
+            i=macro_atom_nlist(ii,a)
+            macro_atom_local_nlistsize(ii,a)=nlistsize(i)
+            do j=1,nlistsize(i)
+               jj=nlist(j,i)
+               macro_atom_local_nlist(ii,a,j)=mark(jj)
+            end do
+         end do
+
+         cell_touched=0
+         kk=0
+         do j=1,macro_halo_nlistsize(ii)
+            jj=macro_halo_to_global(ii,j)
+            a=cell_index(jj)
+            if (a/=ii .and. cell_mark(a)/=ii) then
+               cell_mark(a)=ii
+               kk=kk+1
+               cell_touched(kk)=a
+            end if
+         end do
+         max_macro_cell_neigh=max(max_macro_cell_neigh,kk)
+      end do
+
+      allocate(macro_cell_nlistsize(Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_cell_nlistsize))*kind(macro_cell_nlistsize),'macro_cell_nlistsize','build_macro_halo_maps')
+      macro_cell_nlistsize=0
+      allocate(macro_cell_nlist(Num_macro,max(1,max_macro_cell_neigh)),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_cell_nlist))*kind(macro_cell_nlist),'macro_cell_nlist','build_macro_halo_maps')
+      macro_cell_nlist=0
+
+      cell_mark=0
+      do ii=1,Num_macro
+         kk=0
+         do j=1,macro_halo_nlistsize(ii)
+            jj=macro_halo_to_global(ii,j)
+            a=cell_index(jj)
+            if (a/=ii .and. cell_mark(a)/=ii) then
+               cell_mark(a)=ii
+               kk=kk+1
+               macro_cell_nlist(ii,kk)=a
+            end if
+         end do
+         macro_cell_nlistsize(ii)=kk
+      end do
+
+      deallocate(mark,touched,cell_mark,cell_touched,stat=i_stat)
+   end subroutine build_macro_halo_maps
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: calc_macro_mom
@@ -497,6 +713,9 @@ contains
          allocate(emomM_macro(3,Num_macro,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(emomM_macro))*kind(emomM_macro),'emomM_macro','allocate_macrocell')
          emomM_macro=0.0_dblprec
+         allocate(atom_in_macro_pos(Natom),stat=i_stat)
+         call memocc(i_stat,product(shape(atom_in_macro_pos))*kind(atom_in_macro_pos),'atom_in_macro_pos','allocate_macrocell')
+         atom_in_macro_pos=0
       else
 
          i_all=-product(shape(cell_index))*kind(cell_index)
@@ -510,6 +729,11 @@ contains
          i_all=-product(shape(macro_nlistsize))*kind(macro_nlistsize)
          deallocate(macro_nlistsize,stat=i_stat)
          call memocc(i_stat,i_all,'macro_nlistsize','allocate_macrocell')
+         if (allocated(atom_in_macro_pos)) then
+            i_all=-product(shape(atom_in_macro_pos))*kind(atom_in_macro_pos)
+            deallocate(atom_in_macro_pos,stat=i_stat)
+            call memocc(i_stat,i_all,'atom_in_macro_pos','allocate_macrocell')
+         end if
 
          i_all=-product(shape(mmom_macro))*kind(mmom_macro)
          deallocate(mmom_macro,stat=i_stat)
@@ -527,6 +751,36 @@ contains
             i_all=-product(shape(dipole_subset))*kind(dipole_subset)
             deallocate(dipole_subset,stat=i_stat)
             call memocc(i_stat,i_all,'dipole_subset','allocate_macrocell')
+         endif
+         if (allocated(macro_halo_nlistsize)) then
+            i_all=-product(shape(macro_halo_nlistsize))*kind(macro_halo_nlistsize)
+            deallocate(macro_halo_nlistsize,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_halo_nlistsize','allocate_macrocell')
+         endif
+         if (allocated(macro_halo_to_global)) then
+            i_all=-product(shape(macro_halo_to_global))*kind(macro_halo_to_global)
+            deallocate(macro_halo_to_global,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_halo_to_global','allocate_macrocell')
+         endif
+         if (allocated(macro_atom_local_nlistsize)) then
+            i_all=-product(shape(macro_atom_local_nlistsize))*kind(macro_atom_local_nlistsize)
+            deallocate(macro_atom_local_nlistsize,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_atom_local_nlistsize','allocate_macrocell')
+         endif
+         if (allocated(macro_atom_local_nlist)) then
+            i_all=-product(shape(macro_atom_local_nlist))*kind(macro_atom_local_nlist)
+            deallocate(macro_atom_local_nlist,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_atom_local_nlist','allocate_macrocell')
+         endif
+         if (allocated(macro_cell_nlistsize)) then
+            i_all=-product(shape(macro_cell_nlistsize))*kind(macro_cell_nlistsize)
+            deallocate(macro_cell_nlistsize,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_cell_nlistsize','allocate_macrocell')
+         endif
+         if (allocated(macro_cell_nlist)) then
+            i_all=-product(shape(macro_cell_nlist))*kind(macro_cell_nlist)
+            deallocate(macro_cell_nlist,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_cell_nlist','allocate_macrocell')
          endif
       endif
 

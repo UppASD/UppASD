@@ -98,6 +98,19 @@ real* FortranData::kaniso;
 real* FortranData::eaniso;
 unsigned int* FortranData::taniso;
 real* FortranData::sb;
+unsigned int* FortranData::Num_macro = nullptr;
+unsigned int* FortranData::max_num_atom_macro_cell = nullptr;
+unsigned int* FortranData::max_macro_halo_size = nullptr;
+unsigned int* FortranData::max_macro_cell_neigh = nullptr;
+unsigned int* FortranData::cell_index = nullptr;
+unsigned int* FortranData::macro_nlistsize = nullptr;
+unsigned int* FortranData::macro_atom_nlist = nullptr;
+unsigned int* FortranData::macro_halo_nlistsize = nullptr;
+unsigned int* FortranData::macro_halo_to_global = nullptr;
+unsigned int* FortranData::macro_atom_local_nlistsize = nullptr;
+unsigned int* FortranData::macro_atom_local_nlist = nullptr;
+unsigned int* FortranData::macro_cell_nlistsize = nullptr;
+unsigned int* FortranData::macro_cell_nlist = nullptr;
 
 real* FortranData::dxyz_vec;
 int* FortranData::dxyz_atom;
@@ -253,6 +266,28 @@ void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM,
 
    dxyz_atom = p_dxyz_atom;
    dxyz_list = p_dxyz_list;
+}
+
+void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
+                                       unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
+                                       unsigned int* p_cell_index, unsigned int* p_macro_nlistsize,
+                                       unsigned int* p_macro_atom_nlist, unsigned int* p_macro_halo_nlistsize,
+                                       unsigned int* p_macro_halo_to_global, unsigned int* p_macro_atom_local_nlistsize,
+                                       unsigned int* p_macro_atom_local_nlist, unsigned int* p_macro_cell_nlistsize,
+                                       unsigned int* p_macro_cell_nlist){
+   Num_macro = p_Num_macro;
+   max_num_atom_macro_cell = p_max_num_atom_macro_cell;
+   max_macro_halo_size = p_max_macro_halo_size;
+   max_macro_cell_neigh = p_max_macro_cell_neigh;
+   cell_index = p_cell_index;
+   macro_nlistsize = p_macro_nlistsize;
+   macro_atom_nlist = p_macro_atom_nlist;
+   macro_halo_nlistsize = p_macro_halo_nlistsize;
+   macro_halo_to_global = p_macro_halo_to_global;
+   macro_atom_local_nlistsize = p_macro_atom_local_nlistsize;
+   macro_atom_local_nlist = p_macro_atom_local_nlist;
+   macro_cell_nlistsize = p_macro_cell_nlistsize;
+   macro_cell_nlist = p_macro_cell_nlist;
 }
 
 //TODO:binderc, autocorr_buff, spinwait
@@ -417,6 +452,18 @@ FortranData::setLatticePointers(
    p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list);
 }
 
+extern "C" void fortrandata_setmacrohalo_(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
+   unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
+   unsigned int* p_cell_index, unsigned int* p_macro_nlistsize, unsigned int* p_macro_atom_nlist,
+   unsigned int* p_macro_halo_nlistsize, unsigned int* p_macro_halo_to_global,
+   unsigned int* p_macro_atom_local_nlistsize, unsigned int* p_macro_atom_local_nlist,
+   unsigned int* p_macro_cell_nlistsize, unsigned int* p_macro_cell_nlist) {
+FortranData::setMacroHaloPointers(
+   p_Num_macro, p_max_num_atom_macro_cell, p_max_macro_halo_size, p_max_macro_cell_neigh,
+   p_cell_index, p_macro_nlistsize, p_macro_atom_nlist, p_macro_halo_nlistsize, p_macro_halo_to_global,
+   p_macro_atom_local_nlistsize, p_macro_atom_local_nlist, p_macro_cell_nlistsize, p_macro_cell_nlist);
+}
+
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
    real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 
    real* p_binderc, real* p_avrgmcum, real* p_avrgm2cum, real* p_avrgm4cum, 
@@ -484,4 +531,3 @@ FortranData::setCorrelationPointers(
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {
    FortranData::setInputDataPointers(p1, p2, p3);
 }
-
