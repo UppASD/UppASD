@@ -844,7 +844,7 @@ contains
          end if
       end if 
 
-      call build_macroblock_layout(ham_macroblock_layout, Natom, ham%nlist, ham%nlistsize, ham%aHam)
+      call build_macroblock_layout(ham_macroblock_layout, Natom, ham%nlist, ham%nlistsize, ham%aHam, simid)
 
    contains
 

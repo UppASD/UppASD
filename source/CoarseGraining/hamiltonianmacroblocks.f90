@@ -41,6 +41,7 @@ module HamiltonianMacroBlocks
    public :: build_macroblock_layout
    public :: destroy_macroblock_layout
    public :: macroblock_layout_is_ready
+   public :: print_macroblock_hamiltonian_map
 
 contains
 
@@ -78,12 +79,13 @@ contains
       end if
    end function macroblock_layout_is_ready
 
-   subroutine build_macroblock_layout(layout, Natom, nlist, nlistsize, aHam)
+   subroutine build_macroblock_layout(layout, Natom, nlist, nlistsize, aHam, simid)
       type(macroblock_layout_type), intent(inout) :: layout
       integer, intent(in) :: Natom
       integer, dimension(:,:), intent(in) :: nlist
       integer, dimension(:), intent(in) :: nlistsize
       integer, dimension(:), intent(in) :: aHam
+      character(len=*), intent(in), optional :: simid
 
       integer :: bi, bj, iat, jat, ih, slot
       integer :: nblocks, n_pair_groups, n_entries, n_block_neigh
@@ -219,9 +221,75 @@ contains
 
       layout%ready = .true.
 
+      if (present(simid)) call print_macroblock_hamiltonian_map(layout, simid)
+
       deallocate(cursor)
       deallocate(pair_counts)
       deallocate(pair_group_index)
    end subroutine build_macroblock_layout
+
+   subroutine print_macroblock_hamiltonian_map(layout, simid)
+      type(macroblock_layout_type), intent(in) :: layout
+      character(len=*), intent(in) :: simid
+
+      integer :: ofileno, i_err
+      integer :: bi, neigh_idx, pair_idx
+      integer :: atom_begin, atom_end, neigh_begin, neigh_end, pair_begin, pair_end
+      character(len=64) :: out_file
+
+      if (.not.layout%ready) return
+
+      out_file = 'blockstruct.' // trim(simid) // '.out'
+      open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
+      if (i_err /= 0) then
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macroblock structure file:', trim(out_file), i_err
+         return
+      end if
+
+      write(ofileno,'(a)') '# Macroblock Hamiltonian structure'
+      write(ofileno,'(a,1x,a)') '# simid', trim(simid)
+      write(ofileno,'(a,1x,i0)') '# nblocks', layout%nblocks
+      write(ofileno,'(a,1x,i0)') '# npair_groups', layout%n_pair_groups
+      write(ofileno,'(a,1x,i0)') '# nentries', layout%n_entries
+      write(ofileno,'(a)') '#'
+      write(ofileno,'(a)') '# block atom_count neigh_count first_atom last_atom'
+
+      do bi = 1, layout%nblocks
+         atom_begin = layout%block_atom_offset(bi) + 1
+         atom_end = layout%block_atom_offset(bi + 1)
+         write(ofileno,'(i8,1x,i8,1x,i8,1x,i8,1x,i8)') bi, layout%block_atom_count(bi), &
+            layout%block_neigh_count(bi), atom_begin, atom_end
+
+         if (atom_end >= atom_begin) then
+            write(ofileno,'(a)', advance='no') '  atoms'
+            do neigh_idx = atom_begin, atom_end
+               write(ofileno,'(1x,i8)', advance='no') layout%block_atoms(neigh_idx)
+            end do
+            write(ofileno,*)
+         end if
+
+         neigh_begin = layout%block_neigh_offset(bi) + 1
+         neigh_end = layout%block_neigh_offset(bi + 1)
+         if (neigh_end >= neigh_begin) then
+            write(ofileno,'(a)', advance='no') '  neigh'
+            do neigh_idx = neigh_begin, neigh_end
+               write(ofileno,'(1x,i8)', advance='no') layout%block_neigh_list(neigh_idx)
+            end do
+            write(ofileno,*)
+         end if
+      end do
+
+      write(ofileno,'(a)') '#'
+      write(ofileno,'(a)') '# pair_group src_block dst_block nentries first_entry last_entry'
+      do pair_idx = 1, layout%n_pair_groups
+         pair_begin = layout%pair_group_entry_offset(pair_idx) + 1
+         pair_end = layout%pair_group_entry_offset(pair_idx + 1)
+         write(ofileno,'(i8,1x,i8,1x,i8,1x,i8,1x,i8,1x,i8)') pair_idx, layout%pair_group_src(pair_idx), &
+            layout%pair_group_dst(pair_idx), pair_end - pair_begin + 1, pair_begin, pair_end
+      end do
+
+      close(ofileno)
+      write(*,'(2x,a,1x,a)') 'Wrote macroblock Hamiltonian map:', trim(out_file)
+   end subroutine print_macroblock_hamiltonian_map
 
 end module HamiltonianMacroBlocks

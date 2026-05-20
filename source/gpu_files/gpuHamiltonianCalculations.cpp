@@ -1416,6 +1416,10 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    use_macroblock_backend = (macroblocks.enabled != 0 && macroblocks.nentries > 0 &&
       !GpuHamiltonianCalculations::do_dm && !GpuHamiltonianCalculations::do_j_tensor &&
       GpuHamiltonianCalculations::do_aniso == 0);
+   if(use_macroblock_backend) {
+      std::printf(" GPU: macroblock Heisenberg backend enabled (%u blocks, %u block pairs, %u staged entries)\n",
+         macroblocks.nblocks, macroblocks.npairGroups, macroblocks.nentries);
+   }
 
    // Flag
    initiated = true;
