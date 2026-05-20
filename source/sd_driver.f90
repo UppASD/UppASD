@@ -1116,7 +1116,7 @@ contains
    !> - Moved to separate routine
    !---------------------------------------------------------------------------------
    subroutine sd_mphaseCUDA()
-#ifdef CUDA_V
+#if defined(CUDA_V) || defined(HIP_V)
       use Chelper
 #else
       use NoCuda
@@ -1131,7 +1131,7 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
-#ifdef CUDA_V
+#if defined(CUDA_V) || defined(HIP_V)
       call FortranData_Initiate(stt,btorque,sc,'M')
 #else
       call FortranData_Initiate(stt,btorque)
@@ -1144,7 +1144,7 @@ contains
       ! Start simulation
       whichsim=0
       whichphase=1
-#ifdef CUDA_V
+#if defined(CUDA_V) || defined(HIP_V)
       call gpuSim_initiateConstants()
       call gpuSim_initiateMatrices()
       call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
@@ -1170,7 +1170,7 @@ contains
    !> Reuses existing CUDA/C backend dispatch.
    !---------------------------------------------------------------------------------
    subroutine sd_mphaseGPU()
-#ifdef CUDA_V
+#if defined(CUDA_V) || defined(HIP_V)
       call sd_mphaseCUDA()
 #else
       call sd_mphase()
