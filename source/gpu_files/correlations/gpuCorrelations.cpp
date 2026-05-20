@@ -432,7 +432,7 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         GPUSwProjSum <<<blWp.blocks, threads >>> (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
+       // GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
         
         // Transfer time-domain correlations for Fortran reference
         if (p == 'p'){
@@ -442,7 +442,7 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
                 scp.qt.extent(3) == cpuCorrelations.m_kt_proj.extent(3)) {
 
                 cpuCorrelations.m_kt_proj.copy_sync(scp.qt);
-                //cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
+                cpuCorrelations.sc_tidx = static_cast<int>(scp.qt.extent(2));
             }
                     // Transfer frequency-domain correlations (m_kw)
             if (scp.qw.extent(0) == cpuCorrelations.m_kw_proj.extent(0) &&

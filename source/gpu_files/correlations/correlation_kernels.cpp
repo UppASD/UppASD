@@ -52,7 +52,7 @@ __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int
 __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -156,7 +156,7 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -230,7 +230,7 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -307,7 +307,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -390,7 +390,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -503,7 +503,7 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -579,7 +579,7 @@ __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real
                              GpuVector<int>aproj, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -690,7 +690,7 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -765,7 +765,7 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -843,7 +843,7 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -928,7 +928,7 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
                              unsigned int blockN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -958,6 +958,7 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
 
 
     gpu_complex sq_val;
+    
     // Fourier transform loop: unroll for performance
     #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
@@ -1055,7 +1056,7 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();

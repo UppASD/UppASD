@@ -397,8 +397,8 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
-    int qInd = blockIdx.y%nq;
-    int wInd = blockIdx.y/nq;
+    int qInd = blockIdx.y;
+    int wInd = blockIdx.z;
 
     int tid_in_X = blockIdx.x * blockDim.x + tid_in_block;
     int stride = gridDim.x * blockDim.x;
@@ -935,37 +935,43 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
 
+    int pInd = blockIdx.x / blockN;
+    int bInd = blockIdx.x % blockN;
+    
     int qInd = blockIdx.y;
     int wInd = blockIdx.z;
 
-    int tid_in_X =blockIdx.x * blockDim.x + tid_in_block;
-    int stride = gridDim.x * blockDim.x;
+    int tid_in_X = bInd * blockDim.x + threadIdx.x;
+    int stride   = blockN * blockDim.x;
 
     // Register-based accumulation: store real and imaginary parts separately
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    unsigned int tInd, cInd, pInd, bInd, ii;
+    unsigned int tInd, cInd, ii;
     __shared__ real shared_re[3][64];
     __shared__ real shared_im[3][64];
 
     // Fourier transform loop: unroll for performance
+    
     #pragma unroll 2
     for (int id = tid_in_X; id < tasks; id += stride) {
-        pInd = id / blockN;
-        ii = id % blockN;
-        tInd = ii / 3;
-        cInd = ii % 3;
-
+        cInd = id % 3;
+        ii = id / 3;
+        tInd = ii % sc_max_nstep;
 
         // 1. Calculate the real-valued phase: Phase = t * dt(t) * w(w)
         real phase = (real)tInd * dt(tInd) * w(wInd);
+       // real phase = 0;
 
         // 2. Hardware-accelerated sine and cosine
         real s, c;
         sincos(phase, &s, &c);
 
         // 3. Extract S(q,t) values
+        //gpu_complex sq_val = 0;
+       // printf("cInd = %i, pInd = %i, qInd = %i, tInd = %i, c = %i, p = %i, q = %i, t = %i\n",
+       //         cInd, pInd, qInd, tInd, sq.extent(0), sq.extent(1), sq.extent(2), sq.extent(3));
         gpu_complex sq_val = sq(cInd, pInd, qInd, tInd);
         real sq_re = GPU_CREAL(sq_val);
         real sq_im = GPU_CIMAG(sq_val);
@@ -977,6 +983,7 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
         // Result = ((sq_re*c - sq_im*s) + i*(sq_re*s + sq_im*c)) * win
         complexMulAdd(sum_re[cInd], sum_im[cInd], sq_re, sq_im, c*win, s*win);
     }
+    
     // #pragma unroll 2
     // for (int id = tid_in_X; id < tasks; id += stride) {
     //     tInd = id / 3;
@@ -996,6 +1003,7 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
 
     //     //  printf("tid = %i, mInd = %i, stride = %i, data_id = %i, mySum = %.3f\n", tid, mInd , stride, id + offsetM, mySum[id % 3]);
     // }
+
     warp.sync();
 
     // Warp-level reduction using register-based functions
@@ -1032,9 +1040,9 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
+        scblock(3 * bInd + 0, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scblock(3 * bInd + 1, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scblock(3 * bInd + 2, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
     }
 }
 
