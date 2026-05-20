@@ -100,6 +100,7 @@ struct hostHamiltonian {
    unsigned int                macroblock_nblocks = 0;
    unsigned int                macroblock_npair_groups = 0;
    unsigned int                macroblock_nentries = 0;
+   unsigned int                macroblock_max_block_atoms = 0;
    Tensor<unsigned int, 1>     macroblock_atom_to_block;
    Tensor<unsigned int, 1>     macroblock_block_atom_offset;
    Tensor<unsigned int, 1>     macroblock_block_atoms;
@@ -110,6 +111,8 @@ struct hostHamiltonian {
    Tensor<unsigned int, 1>     macroblock_entry_atom_j;
    Tensor<unsigned int, 1>     macroblock_entry_ih;
    Tensor<unsigned int, 1>     macroblock_entry_jslot;
+   Tensor<unsigned int, 1>     macroblock_entry_local_i;
+   Tensor<unsigned int, 1>     macroblock_entry_local_j;
 
 };
    
@@ -172,6 +175,7 @@ struct deviceHamiltonian {
    unsigned int                   macroblock_nblocks = 0;
    unsigned int                   macroblock_npair_groups = 0;
    unsigned int                   macroblock_nentries = 0;
+   unsigned int                   macroblock_max_block_atoms = 0;
    GpuTensor<unsigned int, 1>     macroblock_atom_to_block;
    GpuTensor<unsigned int, 1>     macroblock_block_atom_offset;
    GpuTensor<unsigned int, 1>     macroblock_block_atoms;
@@ -182,6 +186,8 @@ struct deviceHamiltonian {
    GpuTensor<unsigned int, 1>     macroblock_entry_atom_j;
    GpuTensor<unsigned int, 1>     macroblock_entry_ih;
    GpuTensor<unsigned int, 1>     macroblock_entry_jslot;
+   GpuTensor<unsigned int, 1>     macroblock_entry_local_i;
+   GpuTensor<unsigned int, 1>     macroblock_entry_local_j;
 }; 
    
 struct deviceLattice {

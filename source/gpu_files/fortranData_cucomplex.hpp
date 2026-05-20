@@ -156,6 +156,7 @@ public:
    static unsigned int* macroblock_nblocks;
    static unsigned int* macroblock_npair_groups;
    static unsigned int* macroblock_nentries;
+   static unsigned int* macroblock_max_block_atoms;
    static unsigned int* macroblock_atom_to_block;
    static unsigned int* macroblock_block_atom_offset;
    static unsigned int* macroblock_block_atoms;
@@ -166,6 +167,8 @@ public:
    static unsigned int* macroblock_entry_atom_j;
    static unsigned int* macroblock_entry_ih;
    static unsigned int* macroblock_entry_jslot;
+   static unsigned int* macroblock_entry_local_i;
+   static unsigned int* macroblock_entry_local_j;
 
    // Input
    static int* gpu_mode;
@@ -218,18 +221,21 @@ public:
     static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
                                    real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
                                    real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list);
-    static void setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p_nblocks,
-                                      unsigned int* p_npair_groups, unsigned int* p_nentries,
-                                      unsigned int* p_atom_to_block,
+   static void setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p_nblocks,
+                                       unsigned int* p_npair_groups, unsigned int* p_nentries,
+                                       unsigned int* p_max_block_atoms,
+                                       unsigned int* p_atom_to_block,
                                       unsigned int* p_block_atom_offset,
                                       unsigned int* p_block_atoms,
                                       unsigned int* p_pair_group_src,
                                       unsigned int* p_pair_group_dst,
-                                      unsigned int* p_pair_group_entry_offset,
-                                      unsigned int* p_entry_atom_i,
-                                      unsigned int* p_entry_atom_j,
-                                      unsigned int* p_entry_ih,
-                                      unsigned int* p_entry_jslot);
+                                       unsigned int* p_pair_group_entry_offset,
+                                       unsigned int* p_entry_atom_i,
+                                       unsigned int* p_entry_atom_j,
+                                       unsigned int* p_entry_ih,
+                                       unsigned int* p_entry_jslot,
+                                       unsigned int* p_entry_local_i,
+                                       unsigned int* p_entry_local_j);
 
     static void setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 

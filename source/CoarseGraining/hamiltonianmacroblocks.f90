@@ -20,6 +20,7 @@ module HamiltonianMacroBlocks
       integer(c_int) :: nblocks = 0
       integer(c_int) :: n_pair_groups = 0
       integer(c_int) :: n_entries = 0
+      integer(c_int) :: max_block_atoms = 0
       integer(c_int), allocatable :: atom_to_block(:)
       integer(c_int), allocatable :: block_atom_count(:)
       integer(c_int), allocatable :: block_atom_offset(:)
@@ -34,6 +35,8 @@ module HamiltonianMacroBlocks
       integer(c_int), allocatable :: entry_atom_j(:)
       integer(c_int), allocatable :: entry_ih(:)
       integer(c_int), allocatable :: entry_jslot(:)
+      integer(c_int), allocatable :: entry_local_i(:)
+      integer(c_int), allocatable :: entry_local_j(:)
    end type macroblock_layout_type
 
    type(macroblock_layout_type), public, save :: ham_macroblock_layout
@@ -62,11 +65,14 @@ contains
       if (allocated(layout%entry_atom_j)) deallocate(layout%entry_atom_j)
       if (allocated(layout%entry_ih)) deallocate(layout%entry_ih)
       if (allocated(layout%entry_jslot)) deallocate(layout%entry_jslot)
+      if (allocated(layout%entry_local_i)) deallocate(layout%entry_local_i)
+      if (allocated(layout%entry_local_j)) deallocate(layout%entry_local_j)
 
       layout%ready = .false.
       layout%nblocks = 0
       layout%n_pair_groups = 0
       layout%n_entries = 0
+      layout%max_block_atoms = 0
    end subroutine destroy_macroblock_layout
 
    logical function macroblock_layout_is_ready(layout)
@@ -91,6 +97,7 @@ contains
       integer :: nblocks, n_pair_groups, n_entries, n_block_neigh
       integer :: group_id, atom_pos, neigh_pos, entry_pos
       integer, allocatable :: pair_counts(:,:), pair_group_index(:,:), cursor(:)
+      integer, allocatable :: atom_local_index(:)
 
       call destroy_macroblock_layout(layout)
 
@@ -114,10 +121,12 @@ contains
       end do
 
       allocate(layout%block_atoms(Natom))
+      allocate(atom_local_index(Natom))
       atom_pos = 1
       do bi = 1, nblocks
          do slot = 1, macro_nlistsize(bi)
             layout%block_atoms(atom_pos) = int(macro_atom_nlist(bi, slot), c_int)
+            atom_local_index(macro_atom_nlist(bi, slot)) = slot - 1
             atom_pos = atom_pos + 1
          end do
       end do
@@ -151,10 +160,12 @@ contains
       layout%nblocks = int(nblocks, c_int)
       layout%n_pair_groups = int(n_pair_groups, c_int)
       layout%n_entries = int(n_entries, c_int)
+      layout%max_block_atoms = maxval(layout%block_atom_count)
 
       if (n_pair_groups == 0 .or. n_entries == 0) then
          deallocate(pair_counts)
          deallocate(pair_group_index)
+         deallocate(atom_local_index)
          return
       end if
 
@@ -168,6 +179,8 @@ contains
       allocate(layout%entry_atom_j(n_entries))
       allocate(layout%entry_ih(n_entries))
       allocate(layout%entry_jslot(n_entries))
+      allocate(layout%entry_local_i(n_entries))
+      allocate(layout%entry_local_j(n_entries))
 
       layout%block_neigh_offset(1) = 0_c_int
       do bi = 1, nblocks
@@ -215,6 +228,8 @@ contains
             layout%entry_atom_j(entry_pos) = int(jat, c_int)
             layout%entry_ih(entry_pos) = int(ih, c_int)
             layout%entry_jslot(entry_pos) = int(slot, c_int)
+            layout%entry_local_i(entry_pos) = int(atom_local_index(iat), c_int)
+            layout%entry_local_j(entry_pos) = int(atom_local_index(jat), c_int)
             cursor(group_id) = cursor(group_id) + 1
          end do
       end do
@@ -226,6 +241,7 @@ contains
       deallocate(cursor)
       deallocate(pair_counts)
       deallocate(pair_group_index)
+      deallocate(atom_local_index)
    end subroutine build_macroblock_layout
 
    subroutine print_macroblock_hamiltonian_map(layout, simid)
@@ -251,6 +267,7 @@ contains
       write(ofileno,'(a,1x,i0)') '# nblocks', layout%nblocks
       write(ofileno,'(a,1x,i0)') '# npair_groups', layout%n_pair_groups
       write(ofileno,'(a,1x,i0)') '# nentries', layout%n_entries
+      write(ofileno,'(a,1x,i0)') '# max_block_atoms', layout%max_block_atoms
       write(ofileno,'(a)') '#'
       write(ofileno,'(a)') '# block atom_count neigh_count first_atom last_atom'
 

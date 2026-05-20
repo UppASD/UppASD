@@ -126,6 +126,7 @@ unsigned int* FortranData::macroblock_enabled;
 unsigned int* FortranData::macroblock_nblocks;
 unsigned int* FortranData::macroblock_npair_groups;
 unsigned int* FortranData::macroblock_nentries;
+unsigned int* FortranData::macroblock_max_block_atoms;
 unsigned int* FortranData::macroblock_atom_to_block;
 unsigned int* FortranData::macroblock_block_atom_offset;
 unsigned int* FortranData::macroblock_block_atoms;
@@ -136,6 +137,8 @@ unsigned int* FortranData::macroblock_entry_atom_i;
 unsigned int* FortranData::macroblock_entry_atom_j;
 unsigned int* FortranData::macroblock_entry_ih;
 unsigned int* FortranData::macroblock_entry_jslot;
+unsigned int* FortranData::macroblock_entry_local_i;
+unsigned int* FortranData::macroblock_entry_local_j;
 
 // GPU stuff
 int* FortranData::gpu_mode;
@@ -452,6 +455,7 @@ void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
 
 void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p_nblocks,
                                         unsigned int* p_npair_groups, unsigned int* p_nentries,
+                                        unsigned int* p_max_block_atoms,
                                         unsigned int* p_atom_to_block,
                                         unsigned int* p_block_atom_offset,
                                         unsigned int* p_block_atoms,
@@ -461,11 +465,14 @@ void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p
                                         unsigned int* p_entry_atom_i,
                                         unsigned int* p_entry_atom_j,
                                         unsigned int* p_entry_ih,
-                                        unsigned int* p_entry_jslot) {
+                                        unsigned int* p_entry_jslot,
+                                        unsigned int* p_entry_local_i,
+                                        unsigned int* p_entry_local_j) {
    macroblock_enabled = p_enabled;
    macroblock_nblocks = p_nblocks;
    macroblock_npair_groups = p_npair_groups;
    macroblock_nentries = p_nentries;
+   macroblock_max_block_atoms = p_max_block_atoms;
    macroblock_atom_to_block = p_atom_to_block;
    macroblock_block_atom_offset = p_block_atom_offset;
    macroblock_block_atoms = p_block_atoms;
@@ -476,6 +483,8 @@ void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p
    macroblock_entry_atom_j = p_entry_atom_j;
    macroblock_entry_ih = p_entry_ih;
    macroblock_entry_jslot = p_entry_jslot;
+   macroblock_entry_local_i = p_entry_local_i;
+   macroblock_entry_local_j = p_entry_local_j;
 }
 
 // Fortran helpers
@@ -531,15 +540,17 @@ FortranData::setLatticePointers(
 }
 
 extern "C" void fortrandata_setmacroblocks_(unsigned int* p_enabled, unsigned int* p_nblocks,
-   unsigned int* p_npair_groups, unsigned int* p_nentries, unsigned int* p_atom_to_block,
+   unsigned int* p_npair_groups, unsigned int* p_nentries, unsigned int* p_max_block_atoms, unsigned int* p_atom_to_block,
    unsigned int* p_block_atom_offset, unsigned int* p_block_atoms,
    unsigned int* p_pair_group_src, unsigned int* p_pair_group_dst,
    unsigned int* p_pair_group_entry_offset, unsigned int* p_entry_atom_i,
-   unsigned int* p_entry_atom_j, unsigned int* p_entry_ih, unsigned int* p_entry_jslot) {
+   unsigned int* p_entry_atom_j, unsigned int* p_entry_ih, unsigned int* p_entry_jslot,
+   unsigned int* p_entry_local_i, unsigned int* p_entry_local_j) {
 FortranData::setMacroBlockPointers(
-   p_enabled, p_nblocks, p_npair_groups, p_nentries, p_atom_to_block,
+   p_enabled, p_nblocks, p_npair_groups, p_nentries, p_max_block_atoms, p_atom_to_block,
    p_block_atom_offset, p_block_atoms, p_pair_group_src, p_pair_group_dst,
-   p_pair_group_entry_offset, p_entry_atom_i, p_entry_atom_j, p_entry_ih, p_entry_jslot);
+   p_pair_group_entry_offset, p_entry_atom_i, p_entry_atom_j, p_entry_ih, p_entry_jslot,
+   p_entry_local_i, p_entry_local_j);
 }
 
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,

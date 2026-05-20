@@ -93,15 +93,17 @@ module Chelper
          integer(c_int), intent(inout) :: achtype(*)
       end subroutine FortranData_setCorrelations
 
-      subroutine FortranData_setMacroBlocks(enabled, nblocks, npair_groups, nentries, &
+      subroutine FortranData_setMacroBlocks(enabled, nblocks, npair_groups, nentries, max_block_atoms, &
             atom_to_block, block_atom_offset, block_atoms, pair_group_src, pair_group_dst, &
-            pair_group_entry_offset, entry_atom_i, entry_atom_j, entry_ih, entry_jslot) &
+            pair_group_entry_offset, entry_atom_i, entry_atom_j, entry_ih, entry_jslot, &
+            entry_local_i, entry_local_j) &
             bind(C, name="fortrandata_setmacroblocks_")
          import :: c_int
          integer(c_int), intent(in) :: enabled
          integer(c_int), intent(in) :: nblocks
          integer(c_int), intent(in) :: npair_groups
          integer(c_int), intent(in) :: nentries
+         integer(c_int), intent(in) :: max_block_atoms
          integer(c_int), intent(in) :: atom_to_block(*)
          integer(c_int), intent(in) :: block_atom_offset(*)
          integer(c_int), intent(in) :: block_atoms(*)
@@ -112,6 +114,8 @@ module Chelper
          integer(c_int), intent(in) :: entry_atom_j(*)
          integer(c_int), intent(in) :: entry_ih(*)
          integer(c_int), intent(in) :: entry_jslot(*)
+         integer(c_int), intent(in) :: entry_local_i(*)
+         integer(c_int), intent(in) :: entry_local_j(*)
       end subroutine FortranData_setMacroBlocks
    end interface
 
@@ -545,17 +549,18 @@ contains
 
       if (macroblock_layout_is_ready(ham_macroblock_layout)) then
          call FortranData_setMacroBlocks(gpu_bridge_one, ham_macroblock_layout%nblocks, &
-            ham_macroblock_layout%n_pair_groups, ham_macroblock_layout%n_entries, &
+            ham_macroblock_layout%n_pair_groups, ham_macroblock_layout%n_entries, ham_macroblock_layout%max_block_atoms, &
             ham_macroblock_layout%atom_to_block, ham_macroblock_layout%block_atom_offset, &
             ham_macroblock_layout%block_atoms, ham_macroblock_layout%pair_group_src, &
             ham_macroblock_layout%pair_group_dst, ham_macroblock_layout%pair_group_entry_offset, &
             ham_macroblock_layout%entry_atom_i, ham_macroblock_layout%entry_atom_j, &
-            ham_macroblock_layout%entry_ih, ham_macroblock_layout%entry_jslot)
+            ham_macroblock_layout%entry_ih, ham_macroblock_layout%entry_jslot, &
+            ham_macroblock_layout%entry_local_i, ham_macroblock_layout%entry_local_j)
       else
-         call FortranData_setMacroBlocks(gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, &
+         call FortranData_setMacroBlocks(gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, &
             gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
             gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
-            gpu_bridge_dummy_int, gpu_bridge_dummy_int)
+            gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int)
       end if
 
 

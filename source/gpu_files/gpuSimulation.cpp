@@ -175,6 +175,7 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuHamiltonian.macroblock_nblocks = (FortranData::macroblock_nblocks != nullptr) ? *FortranData::macroblock_nblocks : 0;
     cpuHamiltonian.macroblock_npair_groups = (FortranData::macroblock_npair_groups != nullptr) ? *FortranData::macroblock_npair_groups : 0;
     cpuHamiltonian.macroblock_nentries = (FortranData::macroblock_nentries != nullptr) ? *FortranData::macroblock_nentries : 0;
+    cpuHamiltonian.macroblock_max_block_atoms = (FortranData::macroblock_max_block_atoms != nullptr) ? *FortranData::macroblock_max_block_atoms : 0;
     if(cpuHamiltonian.macroblock_enabled != 0 && cpuHamiltonian.macroblock_nblocks > 0 &&
        cpuHamiltonian.macroblock_npair_groups > 0 && cpuHamiltonian.macroblock_nentries > 0) {
         cpuHamiltonian.macroblock_atom_to_block.set(FortranData::macroblock_atom_to_block, N);
@@ -194,6 +195,10 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuHamiltonian.macroblock_entry_ih.set(FortranData::macroblock_entry_ih,
             static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         cpuHamiltonian.macroblock_entry_jslot.set(FortranData::macroblock_entry_jslot,
+            static_cast <long int>(cpuHamiltonian.macroblock_nentries));
+        cpuHamiltonian.macroblock_entry_local_i.set(FortranData::macroblock_entry_local_i,
+            static_cast <long int>(cpuHamiltonian.macroblock_nentries));
+        cpuHamiltonian.macroblock_entry_local_j.set(FortranData::macroblock_entry_local_j,
             static_cast <long int>(cpuHamiltonian.macroblock_nentries));
     }
     cpuLattice.beff.set(FortranData::beff,  static_cast <long int>(3), N, M);
@@ -292,6 +297,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuHamiltonian.macroblock_nblocks = cpuHamiltonian.macroblock_nblocks;
     gpuHamiltonian.macroblock_npair_groups = cpuHamiltonian.macroblock_npair_groups;
     gpuHamiltonian.macroblock_nentries = cpuHamiltonian.macroblock_nentries;
+    gpuHamiltonian.macroblock_max_block_atoms = cpuHamiltonian.macroblock_max_block_atoms;
      if(Flags.do_jtensor != 0) {
         std::printf("\n GPU: jTensor has been initialized \n");
         gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
@@ -335,6 +341,8 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.macroblock_entry_atom_j.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         gpuHamiltonian.macroblock_entry_ih.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         gpuHamiltonian.macroblock_entry_jslot.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
+        gpuHamiltonian.macroblock_entry_local_i.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
+        gpuHamiltonian.macroblock_entry_local_j.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
     }
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
@@ -429,6 +437,8 @@ bool GpuSimulation::gpuHasNoData(){
                     (gpuHamiltonian.sb.empty() && (FortranData::sb != nullptr)) ||     
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_atom_to_block.empty()) ||
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_pair_group_entry_offset.empty()) ||
+                    ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_entry_local_i.empty()) ||
+                    ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_entry_local_j.empty()) ||
                     gpuHamiltonian.extfield.empty() || 
                     gpuLattice.beff.empty() || 
                     gpuLattice.b2eff.empty() ||
@@ -497,6 +507,8 @@ void GpuSimulation::release() {
         gpuHamiltonian.macroblock_entry_atom_j.Free();
         gpuHamiltonian.macroblock_entry_ih.Free();
         gpuHamiltonian.macroblock_entry_jslot.Free();
+        gpuHamiltonian.macroblock_entry_local_i.Free();
+        gpuHamiltonian.macroblock_entry_local_j.Free();
     }
      
     gpuHamiltonian.extfield.Free();  
@@ -565,6 +577,8 @@ void GpuSimulation::copyFromFortran() {
         gpuHamiltonian.macroblock_entry_atom_j.copy_sync(cpuHamiltonian.macroblock_entry_atom_j);
         gpuHamiltonian.macroblock_entry_ih.copy_sync(cpuHamiltonian.macroblock_entry_ih);
         gpuHamiltonian.macroblock_entry_jslot.copy_sync(cpuHamiltonian.macroblock_entry_jslot);
+        gpuHamiltonian.macroblock_entry_local_i.copy_sync(cpuHamiltonian.macroblock_entry_local_i);
+        gpuHamiltonian.macroblock_entry_local_j.copy_sync(cpuHamiltonian.macroblock_entry_local_j);
     }
    // printf("HERE - 6\n");
     gpuLattice.beff.copy_sync(cpuLattice.beff);  

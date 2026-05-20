@@ -51,6 +51,7 @@ private:
       unsigned int nblocks = 0;
       unsigned int npairGroups = 0;
       unsigned int nentries = 0;
+      unsigned int maxBlockAtoms = 0;
       GpuTensor<unsigned int, 1> atomToBlock;
       GpuTensor<unsigned int, 1> blockAtomOffset;
       GpuTensor<unsigned int, 1> blockAtoms;
@@ -61,6 +62,8 @@ private:
       GpuTensor<unsigned int, 1> entryAtomJ;
       GpuTensor<unsigned int, 1> entryIH;
       GpuTensor<unsigned int, 1> entryJslot;
+      GpuTensor<unsigned int, 1> entryLocalI;
+      GpuTensor<unsigned int, 1> entryLocalJ;
    };
 
 
@@ -77,6 +80,7 @@ private:
    int do_aniso = 0;
    int do_ene = 0;
    bool use_macroblock_backend = false;
+   bool use_macroblock_pair_backend = false;
 
    // Initiation flag
    bool initiated;
