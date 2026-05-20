@@ -154,6 +154,7 @@ contains
       integer :: i_stat, i_all
       integer :: ii, kk
       integer :: bnx, bny, bnz, nbins, ibin
+      integer :: nblkx, nblky, nblkz
       integer, dimension(:), allocatable :: bin_count, bin_to_macro, atom_bin
       real(dblprec) :: xmin, xmax, ymin, ymax, zmin, zmax
       real(dblprec) :: dx, dy, dz
@@ -180,7 +181,10 @@ contains
       use_regular_partition=(N1*N2*N3*NA==Natom .and. N1>1 .and. N2>1 .and. N3>1)
       if (use_regular_partition) then
          ! Existing fast path for regular supercells.
-         Num_macro=int(N3*N2*N1/(block_size_x*block_size_y*block_size_z))
+         nblkx=(N1+block_size_x-1)/block_size_x
+         nblky=(N2+block_size_y-1)/block_size_y
+         nblkz=(N3+block_size_z-1)/block_size_z
+         Num_macro=nblkx*nblky*nblkz
          max_num_atom_macro_cell=NA*(block_size_x*block_size_y*block_size_z)
          call allocate_macrocell(1,Natom,Mensemble)
 
@@ -211,6 +215,10 @@ contains
                enddo
             enddo
          enddo
+         if (kk/=Num_macro) then
+            write(*,'(2x,a,2(1x,i0))') 'Warning: expected/actual Num_macro mismatch:', Num_macro, kk
+            Num_macro=kk
+         end if
       else
          ! General path: coordinate-based spatial binning, independent of N1/N2/N3 ordering.
          bnx=max(1,block_size_x)
@@ -359,6 +367,7 @@ contains
             i=macro_atom_nlist(ii,a)
             do j=1,nlistsize(i)
                jj=nlist(j,i)
+               if (jj<1 .or. jj>Natom) cycle
                if (mark(jj)/=ii) then
                   mark(jj)=ii
                   kk=kk+1
@@ -386,6 +395,7 @@ contains
             i=macro_atom_nlist(ii,a)
             do j=1,nlistsize(i)
                jj=nlist(j,i)
+               if (jj<1 .or. jj>Natom) cycle
                if (mark(jj)/=ii+Num_macro) then
                   mark(jj)=ii+Num_macro
                   kk=kk+1
@@ -399,18 +409,23 @@ contains
          end do
          do a=1,macro_nlistsize(ii)
             i=macro_atom_nlist(ii,a)
-            macro_atom_local_nlistsize(ii,a)=nlistsize(i)
+            kk=0
             do j=1,nlistsize(i)
                jj=nlist(j,i)
-               macro_atom_local_nlist(ii,a,j)=mark(jj)
+               if (jj<1 .or. jj>Natom) cycle
+               kk=kk+1
+               macro_atom_local_nlist(ii,a,kk)=mark(jj)
             end do
+            macro_atom_local_nlistsize(ii,a)=kk
          end do
 
          cell_touched=0
          kk=0
          do j=1,macro_halo_nlistsize(ii)
             jj=macro_halo_to_global(ii,j)
+            if (jj<1 .or. jj>Natom) cycle
             a=cell_index(jj)
+            if (a<1 .or. a>Num_macro) cycle
             if (a/=ii .and. cell_mark(a)/=ii) then
                cell_mark(a)=ii
                kk=kk+1
@@ -432,7 +447,9 @@ contains
          kk=0
          do j=1,macro_halo_nlistsize(ii)
             jj=macro_halo_to_global(ii,j)
+            if (jj<1 .or. jj>Natom) cycle
             a=cell_index(jj)
+            if (a<1 .or. a>Num_macro) cycle
             if (a/=ii .and. cell_mark(a)/=ii) then
                cell_mark(a)=ii
                kk=kk+1
