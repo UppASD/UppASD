@@ -58,6 +58,8 @@ private:
       GpuTensor<unsigned int, 1> pairGroupSrc;
       GpuTensor<unsigned int, 1> pairGroupDst;
       GpuTensor<unsigned int, 1> pairGroupEntryOffset;
+      GpuTensor<unsigned int, 1> pairGroupSrcAtomOffset;
+      GpuTensor<unsigned int, 1> pairGroupLocalEntryOffset;
       GpuTensor<unsigned int, 1> entryAtomI;
       GpuTensor<unsigned int, 1> entryAtomJ;
       GpuTensor<unsigned int, 1> entryIH;

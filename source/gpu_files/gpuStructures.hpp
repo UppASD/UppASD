@@ -113,6 +113,8 @@ struct hostHamiltonian {
    Tensor<unsigned int, 1>     macroblock_pair_group_src;
    Tensor<unsigned int, 1>     macroblock_pair_group_dst;
    Tensor<unsigned int, 1>     macroblock_pair_group_entry_offset;
+   Tensor<unsigned int, 1>     macroblock_pair_group_src_atom_offset;
+   Tensor<unsigned int, 1>     macroblock_pair_group_local_entry_offset;
    Tensor<unsigned int, 1>     macroblock_entry_atom_i;
    Tensor<unsigned int, 1>     macroblock_entry_atom_j;
    Tensor<unsigned int, 1>     macroblock_entry_ih;
@@ -209,6 +211,8 @@ struct deviceHamiltonian {
    GpuTensor<unsigned int, 1>     macroblock_pair_group_src;
    GpuTensor<unsigned int, 1>     macroblock_pair_group_dst;
    GpuTensor<unsigned int, 1>     macroblock_pair_group_entry_offset;
+   GpuTensor<unsigned int, 1>     macroblock_pair_group_src_atom_offset;
+   GpuTensor<unsigned int, 1>     macroblock_pair_group_local_entry_offset;
    GpuTensor<unsigned int, 1>     macroblock_entry_atom_i;
    GpuTensor<unsigned int, 1>     macroblock_entry_atom_j;
    GpuTensor<unsigned int, 1>     macroblock_entry_ih;

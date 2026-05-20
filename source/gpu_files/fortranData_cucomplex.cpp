@@ -114,6 +114,8 @@ unsigned int* FortranData::macroblock_block_atoms;
 unsigned int* FortranData::macroblock_pair_group_src;
 unsigned int* FortranData::macroblock_pair_group_dst;
 unsigned int* FortranData::macroblock_pair_group_entry_offset;
+unsigned int* FortranData::macroblock_pair_group_src_atom_offset;
+unsigned int* FortranData::macroblock_pair_group_local_entry_offset;
 unsigned int* FortranData::macroblock_entry_atom_i;
 unsigned int* FortranData::macroblock_entry_atom_j;
 unsigned int* FortranData::macroblock_entry_ih;
@@ -398,6 +400,8 @@ void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p
                                         unsigned int* p_pair_group_src,
                                         unsigned int* p_pair_group_dst,
                                         unsigned int* p_pair_group_entry_offset,
+                                        unsigned int* p_pair_group_src_atom_offset,
+                                        unsigned int* p_pair_group_local_entry_offset,
                                         unsigned int* p_entry_atom_i,
                                         unsigned int* p_entry_atom_j,
                                         unsigned int* p_entry_ih,
@@ -415,6 +419,8 @@ void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p
    macroblock_pair_group_src = p_pair_group_src;
    macroblock_pair_group_dst = p_pair_group_dst;
    macroblock_pair_group_entry_offset = p_pair_group_entry_offset;
+   macroblock_pair_group_src_atom_offset = p_pair_group_src_atom_offset;
+   macroblock_pair_group_local_entry_offset = p_pair_group_local_entry_offset;
    macroblock_entry_atom_i = p_entry_atom_i;
    macroblock_entry_atom_j = p_entry_atom_j;
    macroblock_entry_ih = p_entry_ih;
@@ -474,13 +480,15 @@ extern "C" void fortrandata_setmacroblocks_(unsigned int* p_enabled, unsigned in
    unsigned int* p_npair_groups, unsigned int* p_nentries, unsigned int* p_max_block_atoms, unsigned int* p_atom_to_block,
    unsigned int* p_block_atom_offset, unsigned int* p_block_atoms,
    unsigned int* p_pair_group_src, unsigned int* p_pair_group_dst,
-   unsigned int* p_pair_group_entry_offset, unsigned int* p_entry_atom_i,
+   unsigned int* p_pair_group_entry_offset, unsigned int* p_pair_group_src_atom_offset,
+   unsigned int* p_pair_group_local_entry_offset, unsigned int* p_entry_atom_i,
    unsigned int* p_entry_atom_j, unsigned int* p_entry_ih, unsigned int* p_entry_jslot,
    unsigned int* p_entry_local_i, unsigned int* p_entry_local_j) {
 FortranData::setMacroBlockPointers(
    p_enabled, p_nblocks, p_npair_groups, p_nentries, p_max_block_atoms, p_atom_to_block,
    p_block_atom_offset, p_block_atoms, p_pair_group_src, p_pair_group_dst,
-   p_pair_group_entry_offset, p_entry_atom_i, p_entry_atom_j, p_entry_ih, p_entry_jslot,
+   p_pair_group_entry_offset, p_pair_group_src_atom_offset, p_pair_group_local_entry_offset,
+   p_entry_atom_i, p_entry_atom_j, p_entry_ih, p_entry_jslot,
    p_entry_local_i, p_entry_local_j);
 }
 

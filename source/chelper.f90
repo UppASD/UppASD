@@ -95,7 +95,8 @@ module Chelper
 
       subroutine FortranData_setMacroBlocks(enabled, nblocks, npair_groups, nentries, max_block_atoms, &
             atom_to_block, block_atom_offset, block_atoms, pair_group_src, pair_group_dst, &
-            pair_group_entry_offset, entry_atom_i, entry_atom_j, entry_ih, entry_jslot, &
+            pair_group_entry_offset, pair_group_src_atom_offset, pair_group_local_entry_offset, &
+            entry_atom_i, entry_atom_j, entry_ih, entry_jslot, &
             entry_local_i, entry_local_j) &
             bind(C, name="fortrandata_setmacroblocks_")
          import :: c_int
@@ -110,6 +111,8 @@ module Chelper
          integer(c_int), intent(in) :: pair_group_src(*)
          integer(c_int), intent(in) :: pair_group_dst(*)
          integer(c_int), intent(in) :: pair_group_entry_offset(*)
+         integer(c_int), intent(in) :: pair_group_src_atom_offset(*)
+         integer(c_int), intent(in) :: pair_group_local_entry_offset(*)
          integer(c_int), intent(in) :: entry_atom_i(*)
          integer(c_int), intent(in) :: entry_atom_j(*)
          integer(c_int), intent(in) :: entry_ih(*)
@@ -553,6 +556,7 @@ contains
             ham_macroblock_layout%atom_to_block, ham_macroblock_layout%block_atom_offset, &
             ham_macroblock_layout%block_atoms, ham_macroblock_layout%pair_group_src, &
             ham_macroblock_layout%pair_group_dst, ham_macroblock_layout%pair_group_entry_offset, &
+            ham_macroblock_layout%pair_group_src_atom_offset, ham_macroblock_layout%pair_group_local_entry_offset, &
             ham_macroblock_layout%entry_atom_i, ham_macroblock_layout%entry_atom_j, &
             ham_macroblock_layout%entry_ih, ham_macroblock_layout%entry_jslot, &
             ham_macroblock_layout%entry_local_i, ham_macroblock_layout%entry_local_j)
@@ -560,6 +564,7 @@ contains
          call FortranData_setMacroBlocks(gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, gpu_bridge_zero, &
             gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
             gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
+            gpu_bridge_dummy_int, gpu_bridge_dummy_int, &
             gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int, gpu_bridge_dummy_int)
       end if
 

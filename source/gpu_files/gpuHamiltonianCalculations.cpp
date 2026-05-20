@@ -83,18 +83,18 @@ __global__ void macroblock_heisenberg_entries_kernel(real* beff, real* eneff,
    atomicAdd(&eneff[field_offset + 2], Jij * emomM[spin_offset + 2]);
 }
 
-__global__ void macroblock_heisenberg_pair_kernel(real* beff, real* eneff,
-                                                  const real* coup,
-                                                  const real* emomM,
-                                                  const unsigned int* blockAtomOffset,
-                                                  const unsigned int* blockAtoms,
-                                                  const unsigned int* pairGroupSrc,
-                                                  const unsigned int* pairGroupDst,
-                                                  const unsigned int* pairGroupEntryOffset,
-                                                  const unsigned int* entryIH,
-                                                  const unsigned int* entryJslot,
-                                                  const unsigned int* entryLocalI,
-                                                  const unsigned int* entryLocalJ,
+__global__ void macroblock_heisenberg_pair_kernel(real* __restrict__ beff, real* __restrict__ eneff,
+                                                  const real* __restrict__ coup,
+                                                  const real* __restrict__ emomM,
+                                                  const unsigned int* __restrict__ blockAtomOffset,
+                                                  const unsigned int* __restrict__ blockAtoms,
+                                                  const unsigned int* __restrict__ pairGroupSrc,
+                                                  const unsigned int* __restrict__ pairGroupDst,
+                                                  const unsigned int* __restrict__ pairGroupSrcAtomOffset,
+                                                  const unsigned int* __restrict__ pairGroupLocalEntryOffset,
+                                                  const unsigned int* __restrict__ entryIH,
+                                                  const unsigned int* __restrict__ entryJslot,
+                                                  const unsigned int* __restrict__ entryLocalJ,
                                                   unsigned int maxBlockAtoms,
                                                   unsigned int N,
                                                   unsigned int NH) {
@@ -107,22 +107,15 @@ __global__ void macroblock_heisenberg_pair_kernel(real* beff, real* eneff,
    const unsigned int srcEnd = blockAtomOffset[srcBlock + 1];
    const unsigned int dstBegin = blockAtomOffset[dstBlock];
    const unsigned int dstEnd = blockAtomOffset[dstBlock + 1];
-   const unsigned int entryBegin = pairGroupEntryOffset[pair];
-   const unsigned int entryEnd = pairGroupEntryOffset[pair + 1];
    const unsigned int srcCount = srcEnd - srcBegin;
    const unsigned int dstCount = dstEnd - dstBegin;
+   const unsigned int srcAtomBase = pairGroupSrcAtomOffset[pair];
 
    extern __shared__ unsigned char shared_raw[];
    real* shDstSpins = reinterpret_cast<real*>(shared_raw);
-   real* shSrcField = shDstSpins + 3 * maxBlockAtoms;
-   unsigned int* shSrcAtoms = reinterpret_cast<unsigned int*>(shSrcField + 3 * maxBlockAtoms);
 
    for(unsigned int idx = tid; idx < 3 * maxBlockAtoms; idx += blockDim.x) {
       shDstSpins[idx] = (real)0.0;
-      shSrcField[idx] = (real)0.0;
-   }
-   for(unsigned int idx = tid; idx < maxBlockAtoms; idx += blockDim.x) {
-      shSrcAtoms[idx] = 0;
    }
    __syncthreads();
 
@@ -134,32 +127,31 @@ __global__ void macroblock_heisenberg_pair_kernel(real* beff, real* eneff,
       shDstSpins[3 * local + 2] = emomM[spin_offset + 2];
    }
    for(unsigned int local = tid; local < srcCount; local += blockDim.x) {
-      shSrcAtoms[local] = blockAtoms[srcBegin + local] - 1;
-   }
-   __syncthreads();
+      const unsigned int entryBegin = pairGroupLocalEntryOffset[srcAtomBase + local];
+      const unsigned int entryEnd = pairGroupLocalEntryOffset[srcAtomBase + local + 1];
+      real x = (real)0.0;
+      real y = (real)0.0;
+      real z = (real)0.0;
 
-   for(unsigned int entry = entryBegin + tid; entry < entryEnd; entry += blockDim.x) {
-      const unsigned int local_i = entryLocalI[entry];
-      const unsigned int local_j = entryLocalJ[entry];
-      const unsigned int ih = entryIH[entry] - 1;
-      const unsigned int slot = entryJslot[entry] - 1;
-      const real Jij = coup[ih + slot * NH];
+      for(unsigned int entry = entryBegin; entry < entryEnd; ++entry) {
+         const unsigned int local_j = entryLocalJ[entry];
+         const unsigned int ih = entryIH[entry] - 1;
+         const unsigned int slot = entryJslot[entry] - 1;
+         const real Jij = coup[ih + slot * NH];
 
-      atomicAdd(&shSrcField[3 * local_i + 0], Jij * shDstSpins[3 * local_j + 0]);
-      atomicAdd(&shSrcField[3 * local_i + 1], Jij * shDstSpins[3 * local_j + 1]);
-      atomicAdd(&shSrcField[3 * local_i + 2], Jij * shDstSpins[3 * local_j + 2]);
-   }
-   __syncthreads();
+         x += Jij * shDstSpins[3 * local_j + 0];
+         y += Jij * shDstSpins[3 * local_j + 1];
+         z += Jij * shDstSpins[3 * local_j + 2];
+      }
 
-   for(unsigned int local = tid; local < srcCount; local += blockDim.x) {
-      const unsigned int global_i = shSrcAtoms[local];
+      const unsigned int global_i = blockAtoms[srcBegin + local] - 1;
       const unsigned int field_offset = (ensemble * N + global_i) * 3;
-      atomicAdd(&beff[field_offset + 0], shSrcField[3 * local + 0]);
-      atomicAdd(&beff[field_offset + 1], shSrcField[3 * local + 1]);
-      atomicAdd(&beff[field_offset + 2], shSrcField[3 * local + 2]);
-      atomicAdd(&eneff[field_offset + 0], shSrcField[3 * local + 0]);
-      atomicAdd(&eneff[field_offset + 1], shSrcField[3 * local + 1]);
-      atomicAdd(&eneff[field_offset + 2], shSrcField[3 * local + 2]);
+      atomicAdd(&beff[field_offset + 0], x);
+      atomicAdd(&beff[field_offset + 1], y);
+      atomicAdd(&beff[field_offset + 2], z);
+      atomicAdd(&eneff[field_offset + 0], x);
+      atomicAdd(&eneff[field_offset + 1], y);
+      atomicAdd(&eneff[field_offset + 2], z);
    }
 }
 
@@ -1395,6 +1387,8 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       macroblocks.pairGroupSrc = gpuHamiltonian.macroblock_pair_group_src;
       macroblocks.pairGroupDst = gpuHamiltonian.macroblock_pair_group_dst;
       macroblocks.pairGroupEntryOffset = gpuHamiltonian.macroblock_pair_group_entry_offset;
+      macroblocks.pairGroupSrcAtomOffset = gpuHamiltonian.macroblock_pair_group_src_atom_offset;
+      macroblocks.pairGroupLocalEntryOffset = gpuHamiltonian.macroblock_pair_group_local_entry_offset;
       macroblocks.entryAtomI = gpuHamiltonian.macroblock_entry_atom_i;
       macroblocks.entryAtomJ = gpuHamiltonian.macroblock_entry_atom_j;
       macroblocks.entryIH = gpuHamiltonian.macroblock_entry_ih;
@@ -1529,21 +1523,20 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    if(use_macroblock_backend && !measure) {
       const unsigned int ensemble_count = static_cast<unsigned int>(gpuLattice.emomM.extent(2));
       const unsigned int total_elements = 3 * N * ensemble_count;
-      const unsigned int threads = use_macroblock_pair_backend ? 128 : 256;
+      const unsigned int threads = use_macroblock_pair_backend ? min(256u, ((macroblocks.maxBlockAtoms + 31u) / 32u) * 32u) : 256u;
       const unsigned int blocks_elements = (total_elements + threads - 1) / threads;
 
       gpuLattice.beff.zeros();
       gpuLattice.eneff.zeros();
       if(use_macroblock_pair_backend) {
          dim3 grid(macroblocks.npairGroups, ensemble_count, 1);
-         const size_t shared_bytes = static_cast<size_t>(macroblocks.maxBlockAtoms) *
-            (6 * sizeof(real) + sizeof(unsigned int));
+         const size_t shared_bytes = static_cast<size_t>(macroblocks.maxBlockAtoms) * 3 * sizeof(real);
          macroblock_heisenberg_pair_kernel<<<grid, threads, shared_bytes>>>(
             gpuLattice.beff.data(), gpuLattice.eneff.data(), ex.coupling.data(),
             gpuLattice.emomM.data(), macroblocks.blockAtomOffset.data(), macroblocks.blockAtoms.data(),
             macroblocks.pairGroupSrc.data(), macroblocks.pairGroupDst.data(),
-            macroblocks.pairGroupEntryOffset.data(), macroblocks.entryIH.data(),
-            macroblocks.entryJslot.data(), macroblocks.entryLocalI.data(),
+            macroblocks.pairGroupSrcAtomOffset.data(), macroblocks.pairGroupLocalEntryOffset.data(),
+            macroblocks.entryIH.data(), macroblocks.entryJslot.data(),
             macroblocks.entryLocalJ.data(), macroblocks.maxBlockAtoms, N, NH);
       } else {
          const unsigned int total_entries = macroblocks.nentries * ensemble_count;

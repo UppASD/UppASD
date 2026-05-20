@@ -31,12 +31,14 @@ module HamiltonianMacroBlocks
       integer(c_int), allocatable :: pair_group_src(:)
       integer(c_int), allocatable :: pair_group_dst(:)
       integer(c_int), allocatable :: pair_group_entry_offset(:)
+      integer(c_int), allocatable :: pair_group_src_atom_offset(:)
       integer(c_int), allocatable :: entry_atom_i(:)
       integer(c_int), allocatable :: entry_atom_j(:)
       integer(c_int), allocatable :: entry_ih(:)
       integer(c_int), allocatable :: entry_jslot(:)
       integer(c_int), allocatable :: entry_local_i(:)
       integer(c_int), allocatable :: entry_local_j(:)
+      integer(c_int), allocatable :: pair_group_local_entry_offset(:)
    end type macroblock_layout_type
 
    type(macroblock_layout_type), public, save :: ham_macroblock_layout
@@ -61,12 +63,14 @@ contains
       if (allocated(layout%pair_group_src)) deallocate(layout%pair_group_src)
       if (allocated(layout%pair_group_dst)) deallocate(layout%pair_group_dst)
       if (allocated(layout%pair_group_entry_offset)) deallocate(layout%pair_group_entry_offset)
+      if (allocated(layout%pair_group_src_atom_offset)) deallocate(layout%pair_group_src_atom_offset)
       if (allocated(layout%entry_atom_i)) deallocate(layout%entry_atom_i)
       if (allocated(layout%entry_atom_j)) deallocate(layout%entry_atom_j)
       if (allocated(layout%entry_ih)) deallocate(layout%entry_ih)
       if (allocated(layout%entry_jslot)) deallocate(layout%entry_jslot)
       if (allocated(layout%entry_local_i)) deallocate(layout%entry_local_i)
       if (allocated(layout%entry_local_j)) deallocate(layout%entry_local_j)
+      if (allocated(layout%pair_group_local_entry_offset)) deallocate(layout%pair_group_local_entry_offset)
 
       layout%ready = .false.
       layout%nblocks = 0
@@ -94,10 +98,11 @@ contains
       character(len=*), intent(in), optional :: simid
 
       integer :: bi, bj, iat, jat, ih, slot
-      integer :: nblocks, n_pair_groups, n_entries, n_block_neigh
+      integer :: nblocks, n_pair_groups, n_entries, n_block_neigh, n_pair_src_atoms
       integer :: group_id, atom_pos, neigh_pos, entry_pos
       integer, allocatable :: pair_counts(:,:), pair_group_index(:,:), cursor(:)
       integer, allocatable :: atom_local_index(:)
+      integer, allocatable :: local_entry_count(:)
 
       call destroy_macroblock_layout(layout)
 
@@ -153,8 +158,10 @@ contains
       n_entries = sum(pair_counts)
       n_pair_groups = count(pair_counts > 0)
       n_block_neigh = 0
+      n_pair_src_atoms = 0
       do bi = 1, nblocks
          n_block_neigh = n_block_neigh + count(pair_counts(bi, :) > 0)
+         n_pair_src_atoms = n_pair_src_atoms + count(pair_counts(bi, :) > 0) * int(layout%block_atom_count(bi))
       end do
 
       layout%nblocks = int(nblocks, c_int)
@@ -175,12 +182,16 @@ contains
       allocate(layout%pair_group_src(n_pair_groups))
       allocate(layout%pair_group_dst(n_pair_groups))
       allocate(layout%pair_group_entry_offset(n_pair_groups + 1))
+      allocate(layout%pair_group_src_atom_offset(n_pair_groups + 1))
       allocate(layout%entry_atom_i(n_entries))
       allocate(layout%entry_atom_j(n_entries))
       allocate(layout%entry_ih(n_entries))
       allocate(layout%entry_jslot(n_entries))
       allocate(layout%entry_local_i(n_entries))
       allocate(layout%entry_local_j(n_entries))
+      allocate(layout%pair_group_local_entry_offset(n_pair_src_atoms + 1))
+      allocate(local_entry_count(n_pair_src_atoms))
+      local_entry_count = 0
 
       layout%block_neigh_offset(1) = 0_c_int
       do bi = 1, nblocks
@@ -191,6 +202,7 @@ contains
       group_id = 0
       neigh_pos = 1
       entry_pos = 0
+      atom_pos = 0
       do bi = 1, nblocks
          do bj = 1, nblocks
             if (pair_counts(bi, bj) <= 0) cycle
@@ -199,12 +211,15 @@ contains
             layout%pair_group_src(group_id) = int(bi, c_int)
             layout%pair_group_dst(group_id) = int(bj, c_int)
             layout%pair_group_entry_offset(group_id) = int(entry_pos, c_int)
+            layout%pair_group_src_atom_offset(group_id) = int(atom_pos, c_int)
             entry_pos = entry_pos + pair_counts(bi, bj)
+            atom_pos = atom_pos + int(layout%block_atom_count(bi))
             layout%block_neigh_list(neigh_pos) = int(bj, c_int)
             neigh_pos = neigh_pos + 1
          end do
       end do
       layout%pair_group_entry_offset(n_pair_groups + 1) = int(entry_pos, c_int)
+      layout%pair_group_src_atom_offset(n_pair_groups + 1) = int(atom_pos, c_int)
 
       allocate(cursor(n_pair_groups))
       do group_id = 1, n_pair_groups
@@ -230,9 +245,22 @@ contains
             layout%entry_jslot(entry_pos) = int(slot, c_int)
             layout%entry_local_i(entry_pos) = int(atom_local_index(iat), c_int)
             layout%entry_local_j(entry_pos) = int(atom_local_index(jat), c_int)
+            local_entry_count(int(layout%pair_group_src_atom_offset(group_id)) + atom_local_index(iat) + 1) = &
+               local_entry_count(int(layout%pair_group_src_atom_offset(group_id)) + atom_local_index(iat) + 1) + 1
             cursor(group_id) = cursor(group_id) + 1
          end do
       end do
+
+      layout%pair_group_local_entry_offset(1) = 0_c_int
+      do group_id = 1, n_pair_groups
+         entry_pos = int(layout%pair_group_entry_offset(group_id))
+         atom_pos = int(layout%pair_group_src_atom_offset(group_id))
+         do slot = 1, int(layout%block_atom_count(int(layout%pair_group_src(group_id))))
+            layout%pair_group_local_entry_offset(atom_pos + slot) = int(entry_pos, c_int)
+            entry_pos = entry_pos + local_entry_count(atom_pos + slot)
+         end do
+      end do
+      layout%pair_group_local_entry_offset(n_pair_src_atoms + 1) = int(layout%n_entries, c_int)
 
       layout%ready = .true.
 
@@ -242,6 +270,7 @@ contains
       deallocate(pair_counts)
       deallocate(pair_group_index)
       deallocate(atom_local_index)
+      deallocate(local_entry_count)
    end subroutine build_macroblock_layout
 
    subroutine print_macroblock_hamiltonian_map(layout, simid)

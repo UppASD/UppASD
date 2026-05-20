@@ -189,6 +189,10 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
             static_cast <long int>(cpuHamiltonian.macroblock_npair_groups));
         cpuHamiltonian.macroblock_pair_group_entry_offset.set(FortranData::macroblock_pair_group_entry_offset,
             static_cast <long int>(cpuHamiltonian.macroblock_npair_groups + 1));
+        cpuHamiltonian.macroblock_pair_group_src_atom_offset.set(FortranData::macroblock_pair_group_src_atom_offset,
+            static_cast <long int>(cpuHamiltonian.macroblock_npair_groups + 1));
+        cpuHamiltonian.macroblock_pair_group_local_entry_offset.set(FortranData::macroblock_pair_group_local_entry_offset,
+            static_cast <long int>(cpuHamiltonian.macroblock_pair_group_src_atom_offset(cpuHamiltonian.macroblock_npair_groups) + 1));
         cpuHamiltonian.macroblock_entry_atom_i.set(FortranData::macroblock_entry_atom_i,
             static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         cpuHamiltonian.macroblock_entry_atom_j.set(FortranData::macroblock_entry_atom_j,
@@ -338,6 +342,8 @@ bool GpuSimulation::initiateMatrices() {
         gpuHamiltonian.macroblock_pair_group_src.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_npair_groups));
         gpuHamiltonian.macroblock_pair_group_dst.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_npair_groups));
         gpuHamiltonian.macroblock_pair_group_entry_offset.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_npair_groups + 1));
+        gpuHamiltonian.macroblock_pair_group_src_atom_offset.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_npair_groups + 1));
+        gpuHamiltonian.macroblock_pair_group_local_entry_offset.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_pair_group_src_atom_offset(cpuHamiltonian.macroblock_npair_groups) + 1));
         gpuHamiltonian.macroblock_entry_atom_i.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         gpuHamiltonian.macroblock_entry_atom_j.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
         gpuHamiltonian.macroblock_entry_ih.Allocate(static_cast <long int>(cpuHamiltonian.macroblock_nentries));
@@ -438,6 +444,8 @@ bool GpuSimulation::gpuHasNoData(){
                     (gpuHamiltonian.sb.empty() && (FortranData::sb != nullptr)) ||     
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_atom_to_block.empty()) ||
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_pair_group_entry_offset.empty()) ||
+                    ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_pair_group_src_atom_offset.empty()) ||
+                    ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_pair_group_local_entry_offset.empty()) ||
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_entry_local_i.empty()) ||
                     ((cpuHamiltonian.macroblock_enabled != 0) && gpuHamiltonian.macroblock_entry_local_j.empty()) ||
                     gpuHamiltonian.extfield.empty() || 
@@ -504,6 +512,8 @@ void GpuSimulation::release() {
         gpuHamiltonian.macroblock_pair_group_src.Free();
         gpuHamiltonian.macroblock_pair_group_dst.Free();
         gpuHamiltonian.macroblock_pair_group_entry_offset.Free();
+        gpuHamiltonian.macroblock_pair_group_src_atom_offset.Free();
+        gpuHamiltonian.macroblock_pair_group_local_entry_offset.Free();
         gpuHamiltonian.macroblock_entry_atom_i.Free();
         gpuHamiltonian.macroblock_entry_atom_j.Free();
         gpuHamiltonian.macroblock_entry_ih.Free();
@@ -574,6 +584,8 @@ void GpuSimulation::copyFromFortran() {
         gpuHamiltonian.macroblock_pair_group_src.copy_sync(cpuHamiltonian.macroblock_pair_group_src);
         gpuHamiltonian.macroblock_pair_group_dst.copy_sync(cpuHamiltonian.macroblock_pair_group_dst);
         gpuHamiltonian.macroblock_pair_group_entry_offset.copy_sync(cpuHamiltonian.macroblock_pair_group_entry_offset);
+        gpuHamiltonian.macroblock_pair_group_src_atom_offset.copy_sync(cpuHamiltonian.macroblock_pair_group_src_atom_offset);
+        gpuHamiltonian.macroblock_pair_group_local_entry_offset.copy_sync(cpuHamiltonian.macroblock_pair_group_local_entry_offset);
         gpuHamiltonian.macroblock_entry_atom_i.copy_sync(cpuHamiltonian.macroblock_entry_atom_i);
         gpuHamiltonian.macroblock_entry_atom_j.copy_sync(cpuHamiltonian.macroblock_entry_atom_j);
         gpuHamiltonian.macroblock_entry_ih.copy_sync(cpuHamiltonian.macroblock_entry_ih);
