@@ -1195,7 +1195,7 @@ contains
          ham_inp%qdip_files)
 
       if (do_macro_cells.eq.'Y'.or.ham_inp%do_dip.eq.2) then
-         call build_macro_halo_maps(Natom,ham%max_no_neigh,ham%nlist,ham%nlistsize)
+         call build_macro_halo_maps(Natom,ham%max_no_neigh,ham%nlist,ham%nlistsize,simid)
       end if
       
       !call setup_reduced_hamiltonian(Natom,NA,conf_num)

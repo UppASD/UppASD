@@ -54,8 +54,8 @@ contains
    ! SUBROUTINE: print_macrocell_neighbour_map
    !
    !> @brief Print macrocell membership map in row format:
-   !> i_cell  n_neighbours  j_neigh1 j_neigh2 ...
-   !> Here j_neigh* corresponds to atom indices belonging to i_cell.
+   !> i_cell  n_atoms  atom1 atom2 ...
+   !> Here atom* corresponds to atom indices belonging to i_cell.
    !----------------------------------------------------------------------------
    subroutine print_macrocell_neighbour_map(Num_macro, max_num_atom_macro_cell, &
          macro_nlistsize, macro_atom_nlist, simid)
@@ -71,17 +71,17 @@ contains
       integer :: ofileno, i_cell, j, n_neigh, i_err
       character(len=64) :: out_file
 
-      out_file = 'macro_neighbour_map.' // trim(simid) // '.out'
+      out_file = 'macro_cell_mapping.' // trim(simid) // '.out'
       open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
       if (i_err /= 0) then
-         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro neighbour map file:', trim(out_file), i_err
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro cell mapping file:', trim(out_file), i_err
          return
       end if
-      write(ofileno,'(a)') '# i_cell n_neighbours j_neigh1 j_neigh2 ...'
+      write(ofileno,'(a)') '# i_cell n_atoms atom1 atom2 ...'
 
       do i_cell = 1, Num_macro
          n_neigh = min(macro_nlistsize(i_cell), max_num_atom_macro_cell)
-         write(ofileno,'(i8,1x,i8)', advance='no') i_cell, n_neigh
+         write(ofileno,'(i8,1x,i8, 10x)', advance='no') i_cell, n_neigh
          do j = 1, n_neigh
             write(ofileno,'(1x,i8)', advance='no') macro_atom_nlist(i_cell, j)
          end do
@@ -89,9 +89,69 @@ contains
       end do
 
       close(ofileno)
-      write(*,'(2x,a,1x,a)') 'Wrote macro neighbour map:', trim(out_file)
+      write(*,'(2x,a,1x,a)') 'Wrote macro cell mapping:', trim(out_file)
 
    end subroutine print_macrocell_neighbour_map
+
+   subroutine print_macro_halo_mapping(Num_macro, max_macro_halo_size, macro_halo_nlistsize, macro_halo_to_global, simid)
+      implicit none
+      integer, intent(in) :: Num_macro
+      integer, intent(in) :: max_macro_halo_size
+      integer, dimension(Num_macro), intent(in) :: macro_halo_nlistsize
+      integer, dimension(Num_macro,max_macro_halo_size), intent(in) :: macro_halo_to_global
+      character(len=8), intent(in) :: simid
+      integer :: ofileno, i_cell, j, n_halo, i_err
+      character(len=64) :: out_file
+
+      out_file = 'macro_halo_mapping.' // trim(simid) // '.out'
+      open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
+      if (i_err /= 0) then
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro halo mapping file:', trim(out_file), i_err
+         return
+      end if
+      write(ofileno,'(a)') '# i_cell n_halo_atoms atom1 atom2 ...'
+      do i_cell = 1, Num_macro
+         n_halo = min(macro_halo_nlistsize(i_cell), max_macro_halo_size)
+         write(ofileno,'(i8,1x,i8, 10x)', advance='no') i_cell, n_halo
+         do j = 1, n_halo
+            write(ofileno,'(1x,i8)', advance='no') macro_halo_to_global(i_cell,j)
+         end do
+         write(ofileno,*)
+      end do
+      close(ofileno)
+      write(*,'(2x,a,1x,a)') 'Wrote macro halo mapping:', trim(out_file)
+   end subroutine print_macro_halo_mapping
+
+   subroutine print_macro_macro_mapping(Num_macro, max_macro_cell_neigh, macro_cell_nlistsize, macro_cell_nlist, simid)
+      implicit none
+      integer, intent(in) :: Num_macro
+      integer, intent(in) :: max_macro_cell_neigh
+      integer, dimension(Num_macro), intent(in) :: macro_cell_nlistsize
+      integer, dimension(Num_macro,max_macro_cell_neigh), intent(in) :: macro_cell_nlist
+      character(len=8), intent(in) :: simid
+      integer :: ofileno, i_cell, j, n_cell, i_err
+      character(len=64) :: out_file
+
+      out_file = 'macro_macro_mapping.' // trim(simid) // '.out'
+      open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
+      if (i_err /= 0) then
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro macro mapping file:', trim(out_file), i_err
+         return
+      end if
+      write(ofileno,'(a)') '#######################################################'
+      write(ofileno,'(a,1x,i8)') '# Number of macrocells:', Num_macro
+      write(ofileno,'(a,1x,i8)') '# Maximum num of macro-neighbours:', max_macro_cell_neigh
+      write(ofileno,'(a)') '#######################################################'
+      write(ofileno,'(a)') '#  icell jcell'
+      do i_cell = 1, Num_macro
+         n_cell = min(macro_cell_nlistsize(i_cell), max_macro_cell_neigh)
+         do j = 1, n_cell
+            write(ofileno,'(2i8)') i_cell, macro_cell_nlist(i_cell,j)
+         end do
+      end do
+      close(ofileno)
+      write(*,'(2x,a,1x,a)') 'Wrote macro macro mapping:', trim(out_file)
+   end subroutine print_macro_macro_mapping
 
    !----------------------------------------------------------------------------
    ! SUBROUTINE: init_macrocell
@@ -309,14 +369,15 @@ contains
 
    end subroutine create_macrocell
 
-   subroutine build_macro_halo_maps(Natom,mnn,nlist,nlistsize)
+   subroutine build_macro_halo_maps(Natom,mnn,nlist,nlistsize,simid)
       implicit none
       integer, intent(in) :: Natom
       integer, intent(in) :: mnn
       integer, dimension(mnn,Natom), intent(in) :: nlist
       integer, dimension(Natom), intent(in) :: nlistsize
+      character(len=8), intent(in) :: simid
       integer :: i, j, a, ii, jj, kk, i_stat, i_all
-      integer, allocatable :: mark(:), touched(:), cell_mark(:), cell_touched(:)
+      integer, allocatable :: mark(:), cell_mark(:), cell_touched(:)
 
       if (.not.allocated(macro_nlistsize) .or. .not.allocated(macro_atom_nlist)) return
 
@@ -351,7 +412,7 @@ contains
          call memocc(i_stat,i_all,'macro_cell_nlist','build_macro_halo_maps')
       end if
 
-      allocate(mark(Natom), touched(Natom), cell_mark(Num_macro), cell_touched(Num_macro), stat=i_stat)
+      allocate(mark(Natom), cell_mark(Num_macro), cell_touched(Num_macro), stat=i_stat)
       mark=0
       cell_mark=0
       max_macro_halo_size=0
@@ -362,14 +423,15 @@ contains
       macro_halo_nlistsize=0
 
       do ii=1,Num_macro
+         mark=0
          kk=0
          do a=1,macro_nlistsize(ii)
             i=macro_atom_nlist(ii,a)
             do j=1,nlistsize(i)
                jj=nlist(j,i)
                if (jj<1 .or. jj>Natom) cycle
-               if (mark(jj)/=ii) then
-                  mark(jj)=ii
+               if (mark(jj)==0) then
+                  mark(jj)=1
                   kk=kk+1
                end if
             end do
@@ -389,23 +451,19 @@ contains
       macro_atom_local_nlist=0
 
       do ii=1,Num_macro
+         mark=0
          kk=0
-         touched=0
          do a=1,macro_nlistsize(ii)
             i=macro_atom_nlist(ii,a)
             do j=1,nlistsize(i)
                jj=nlist(j,i)
                if (jj<1 .or. jj>Natom) cycle
-               if (mark(jj)/=ii+Num_macro) then
-                  mark(jj)=ii+Num_macro
+               if (mark(jj)==0) then
                   kk=kk+1
                   macro_halo_to_global(ii,kk)=jj
-                  touched(kk)=jj
+                  mark(jj)=kk
                end if
             end do
-         end do
-         do j=1,kk
-            mark(touched(j))=j
          end do
          do a=1,macro_nlistsize(ii)
             i=macro_atom_nlist(ii,a)
@@ -459,7 +517,10 @@ contains
          macro_cell_nlistsize(ii)=kk
       end do
 
-      deallocate(mark,touched,cell_mark,cell_touched,stat=i_stat)
+      deallocate(mark,cell_mark,cell_touched,stat=i_stat)
+
+      call print_macro_halo_mapping(Num_macro, max(1,max_macro_halo_size), macro_halo_nlistsize, macro_halo_to_global, simid)
+      call print_macro_macro_mapping(Num_macro, max(1,max_macro_cell_neigh), macro_cell_nlistsize, macro_cell_nlist, simid)
    end subroutine build_macro_halo_maps
 
    !-----------------------------------------------------------------------------
