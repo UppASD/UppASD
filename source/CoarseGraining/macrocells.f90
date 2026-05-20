@@ -42,6 +42,49 @@ module macrocells
 contains
 
    !----------------------------------------------------------------------------
+   ! SUBROUTINE: print_macrocell_neighbour_map
+   !
+   !> @brief Print macrocell membership map in row format:
+   !> i_cell  n_neighbours  j_neigh1 j_neigh2 ...
+   !> Here j_neigh* corresponds to atom indices belonging to i_cell.
+   !----------------------------------------------------------------------------
+   subroutine print_macrocell_neighbour_map(Num_macro, max_num_atom_macro_cell, &
+         macro_nlistsize, macro_atom_nlist, simid)
+
+      implicit none
+
+      integer, intent(in) :: Num_macro
+      integer, intent(in) :: max_num_atom_macro_cell
+      integer, dimension(Num_macro), intent(in) :: macro_nlistsize
+      integer, dimension(Num_macro, max_num_atom_macro_cell), intent(in) :: macro_atom_nlist
+      character(len=8), intent(in) :: simid
+
+      integer :: ofileno, i_cell, j, n_neigh, i_err
+      character(len=64) :: out_file
+
+      out_file = 'macro_neighbour_map.' // trim(simid) // '.out'
+      open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
+      if (i_err /= 0) then
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro neighbour map file:', trim(out_file), i_err
+         return
+      end if
+      write(ofileno,'(a)') '# i_cell n_neighbours j_neigh1 j_neigh2 ...'
+
+      do i_cell = 1, Num_macro
+         n_neigh = min(macro_nlistsize(i_cell), max_num_atom_macro_cell)
+         write(ofileno,'(i8,1x,i8)', advance='no') i_cell, n_neigh
+         do j = 1, n_neigh
+            write(ofileno,'(1x,i8)', advance='no') macro_atom_nlist(i_cell, j)
+         end do
+         write(ofileno,*)
+      end do
+
+      close(ofileno)
+      write(*,'(2x,a,1x,a)') 'Wrote macro neighbour map:', trim(out_file)
+
+   end subroutine print_macrocell_neighbour_map
+
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: init_macrocell
    !
    !> @brief Initialization routine for the default values for the macrocells.
@@ -150,7 +193,6 @@ contains
                            min_coord_macro(1,kk)=min(coord(1,ii),min_coord_macro(1,kk))
                            min_coord_macro(2,kk)=min(coord(2,ii),min_coord_macro(2,kk))
                            min_coord_macro(3,kk)=min(coord(3,ii),min_coord_macro(3,kk))
-                           !print *,kk,ii,coord(1,ii),coord(2,ii),coord(3,ii)
                         enddo
                      enddo
                   enddo
@@ -181,6 +223,9 @@ contains
       i_all=-product(shape(mid_coord_macro))*kind(mid_coord_macro)
       deallocate(mid_coord_macro,stat=i_stat)
       call memocc(i_stat,i_all,'mid_coord_macro','create_macrocell')
+
+      call print_macrocell_neighbour_map(Num_macro, max_num_atom_macro_cell,      &
+            macro_nlistsize, macro_atom_nlist, simid)
 
    end subroutine create_macrocell
 

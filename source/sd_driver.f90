@@ -1131,7 +1131,11 @@ contains
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
+#ifdef CUDA_V
       call FortranData_Initiate(stt,btorque,sc,'M')
+#else
+      call FortranData_Initiate(stt,btorque)
+#endif
       !!! TEMPORARY COMMENTED OUT
 
       ! Let the fortran timing think we are in Measurement
@@ -1140,10 +1144,14 @@ contains
       ! Start simulation
       whichsim=0
       whichphase=1
+#ifdef CUDA_V
       call gpuSim_initiateConstants()
       call gpuSim_initiateMatrices()
       call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
       call gpuSim_release()
+#else
+      call sd_mphase()
+#endif
       call timing(0,'Measurement   ','OF')
    end subroutine sd_mphaseCUDA
 
@@ -1162,7 +1170,11 @@ contains
    !> Reuses existing CUDA/C backend dispatch.
    !---------------------------------------------------------------------------------
    subroutine sd_mphaseGPU()
+#ifdef CUDA_V
       call sd_mphaseCUDA()
+#else
+      call sd_mphase()
+#endif
    end subroutine sd_mphaseGPU
 
    !---------------------------------------------------------------------------------
