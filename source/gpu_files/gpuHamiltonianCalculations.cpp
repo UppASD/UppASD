@@ -1496,7 +1496,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
    }
 
-   use_macroblock_backend = (macroblocks.enabled != 0 && macroblocks.nentries > 0 &&
+   use_macroblock_backend = (Flags.do_gpu_macroblocks && macroblocks.enabled != 0 && macroblocks.nentries > 0 &&
       !GpuHamiltonianCalculations::do_dm && !GpuHamiltonianCalculations::do_j_tensor &&
       GpuHamiltonianCalculations::do_aniso == 0);
    use_macroblock_pair_backend = (use_macroblock_backend && macroblocks.maxBlockAtoms > 0 &&

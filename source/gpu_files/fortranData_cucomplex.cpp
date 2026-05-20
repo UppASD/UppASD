@@ -65,6 +65,7 @@ char* FortranData::do_autocorr;
 unsigned int* FortranData::plotenergy;
 char* FortranData::do_skyno;
 char* FortranData::do_gpu_correlations;
+char* FortranData::do_gpu_macroblocks;
 
 // Matrices
 unsigned int * FortranData::aHam;
@@ -145,7 +146,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
                                   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
                                   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
                                   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
-                                 char* p_do_gpu_correlations){
+                                 char* p_do_gpu_correlations, char* p_do_gpu_macroblocks){
 
 
    do_dm = p_do_dm;
@@ -158,6 +159,7 @@ void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jten
    plotenergy = p_plotenergy;
    do_skyno = p_do_skyno;
    do_gpu_correlations = p_do_gpu_correlations;
+   do_gpu_macroblocks = p_do_gpu_macroblocks;
    do_sc = p_do_sc;
 }
 
@@ -425,10 +427,10 @@ void FortranData::setMacroBlockPointers(unsigned int* p_enabled, unsigned int* p
 extern "C" void fortrandata_setflags_(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy, 
    char* p_do_avrg, char* p_do_proj_avrg, char* p_do_cumu,
    unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
-   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc, char* p_do_gpu_correlations) {
+   unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc, char* p_do_gpu_correlations, char* p_do_gpu_macroblocks) {
 FortranData::setFlagPointers(
    p_do_dm, p_do_jtensor, p_do_anisotropy, p_do_avrg, p_do_proj_avrg, p_do_cumu,  p_plotenergy, 
-   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno, p_do_sc, p_do_gpu_correlations);
+   p_do_autocorr, p_do_tottraj, p_ntraj, p_do_cuda_measurements, p_do_skyno, p_do_sc, p_do_gpu_correlations, p_do_gpu_macroblocks);
 }
 
 extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,

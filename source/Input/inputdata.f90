@@ -273,6 +273,7 @@ module InputData
    integer :: gpu_rng      !< What CURAND RNG to use (0 = DEFAULT, 1 = XORWOW, 2 = MRG32K3A, 3 = MTGP32)
    integer :: gpu_rng_seed !< Seed for RNG. If 0, the current time will be used.
    character(len=1) :: gpu_mc_bf !< Use brute force GPU Monte Carlo (Y/N)
+   character(len=1) :: do_gpu_macroblocks !< Use macroblock Hamiltonian backend on GPU (Y/N)
    character(len=1) :: do_gpu !< Enable GPU functionalities (Y/N)
    character(len=1) :: do_gpu_llg !< Do LLG on GPU (Y/N)
    character(len=1) :: do_gpu_mc !< Do MC on GPU (Y/N)
@@ -539,6 +540,7 @@ contains
       gpu_rng           = 0
       gpu_rng_seed      = 0
       gpu_mc_bf         = 'N'
+      do_gpu_macroblocks = 'N'
       do_gpu            = 'N'
       do_gpu_llg        = 'Y'
       do_gpu_mc         = 'N'

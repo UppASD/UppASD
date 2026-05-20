@@ -24,6 +24,7 @@ struct Flag {
    char do_sc;
    bool do_gpu_correlations;
    bool do_gpu_measurements;
+   bool do_gpu_macroblocks;
    char do_sc_proj;
    char do_sc_projch;
    int do_ene;

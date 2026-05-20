@@ -125,6 +125,7 @@ public:
    static unsigned int* do_ene;             // Calculate and plot energy (0/1)
    static char* do_skyno;
    static char* do_gpu_correlations;
+   static char* do_gpu_macroblocks;
    static char* real_time_measure;
    static char* do_avrg_proj;
    static char* do_avrg_projch;
@@ -227,7 +228,7 @@ public:
                                 char* p_do_avrg, char* p_do_proj_avrg, char* p_do_projch_avrg, char* p_do_cumu,
                                 char*p_do_cumu_projo, unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
                                 unsigned int* p_ntraj, char* p_do_cuda_measurements, char* p_do_skyno, char* p_do_sc,
-                                char* p_do_gpu_correlations, char* p_real_time_measure, 
+                                char* p_do_gpu_correlations, char* p_do_gpu_macroblocks, char* p_real_time_measure, 
                                 char* p_do_sc_proj, char* p_do_sc_projch, unsigned int* p_do_ralloy);
 
     static void setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int* p_rstep, unsigned int* p_nstep,

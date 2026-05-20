@@ -508,7 +508,7 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_projch_avrg, do_cumu, do_cumu_proj, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure, &
+           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, do_gpu_macroblocks, real_time_measure, &
            cc%do_proj, cc%do_projch, do_ralloy)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &

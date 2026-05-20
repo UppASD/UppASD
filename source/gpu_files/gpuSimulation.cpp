@@ -45,6 +45,7 @@ void GpuSimulation::initiateConstants() {
 
     Flags.do_sc = *FortranData::do_sc;
     Flags.do_gpu_correlations = static_cast<bool>(*FortranData::do_gpu_correlations);
+    Flags.do_gpu_macroblocks = ((*FortranData::do_gpu_macroblocks == 'Y') ? true : false);
     Flags.do_sc_proj = *FortranData::do_sc_proj;
     Flags.do_sc_projch = *FortranData::do_sc_projch;
     Flags.do_ene = *FortranData::do_ene;

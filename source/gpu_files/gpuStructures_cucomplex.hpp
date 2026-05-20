@@ -25,6 +25,7 @@ struct Flag {
    bool do_mphase_now;    
    char do_sc;
    bool do_gpu_correlations;
+   bool do_gpu_macroblocks;
 };
 
 struct SimulationParameters {    
