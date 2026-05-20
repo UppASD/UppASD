@@ -23,7 +23,7 @@ module HamiltonianActions
 
    implicit none
 
-   logical, save :: cpu_macroblock_status_printed = .false.
+   integer, save :: cpu_macroblock_status_mode = 0
 
    interface effective_field
       module procedure effective_field_bare, effective_field_full, effective_field_energy, effective_field_hb
@@ -189,15 +189,34 @@ contains
           ham_inp%do_sa == 0 .and. ham_inp%do_pd == 0 .and. ham_inp%do_biqdm == 0 .and. &
           ham_inp%do_bq == 0 .and. ham_inp%do_ring == 0 .and. ham_inp%do_chir == 0 .and. &
           ham_inp%do_anisotropy == 0 .and. .not. OPT_flag) then
-         if (.not. cpu_macroblock_status_printed) then
+         if (cpu_macroblock_status_mode /= 1) then
             write(*,'(1x,a,1x,i0,a,1x,i0,a,1x,i0,a)') 'CPU: macroblock Heisenberg backend enabled (', &
                ham_macroblock_layout%nblocks, ' blocks,', ham_macroblock_layout%n_pair_groups,        &
                ' block pairs,', ham_macroblock_layout%n_entries, ' staged entries)'
-            cpu_macroblock_status_printed = .true.
+            cpu_macroblock_status_mode = 1
          end if
          call effective_field_macroblock_heisenberg_full(Natom, Mensemble, start_atom, stop_atom, emomM, &
             external_field, time_external_field, beff, beff1, beff2, energy)
          return
+      end if
+
+      if (do_cpu_macroblocks == 'Y') then
+         if (.not. macroblock_layout_is_ready(ham_macroblock_layout)) then
+            if (cpu_macroblock_status_mode /= 2) then
+               write(*,'(1x,a)') 'CPU: macroblock backend requested but no macroblock Hamiltonian layout is available'
+               cpu_macroblock_status_mode = 2
+            end if
+         else
+            if (cpu_macroblock_status_mode /= 3) then
+               write(*,'(1x,a)') 'CPU: macroblock backend requested but disabled for this run (only Heisenberg-only, non-dipolar kernels are currently supported)'
+               cpu_macroblock_status_mode = 3
+            end if
+         end if
+      else if (macroblock_layout_is_ready(ham_macroblock_layout)) then
+         if (cpu_macroblock_status_mode /= 4) then
+            write(*,'(1x,a)') 'CPU: macroblock Hamiltonian layout available but blocked backend disabled by do_cpu_macroblocks'
+            cpu_macroblock_status_mode = 4
+         end if
       end if
       !reduction(+:energy)
       !$omp parallel do default(shared) schedule(static) private(i,k,beff_s,beff_q,tfield,beff_m) collapse(2) reduction(+:energy)
