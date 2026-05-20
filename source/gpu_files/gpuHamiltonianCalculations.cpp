@@ -1503,6 +1503,16 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          std::printf(" GPU: macroblock Heisenberg entry backend enabled (%u blocks, %u block pairs, %u staged entries)\n",
             macroblocks.nblocks, macroblocks.npairGroups, macroblocks.nentries);
       }
+   } else if(Flags.do_gpu_macroblocks) {
+      if(macroblocks.enabled == 0 || macroblocks.nentries == 0) {
+         std::printf(" GPU: macroblock backend requested but no macroblock Hamiltonian layout is available\n");
+      } else if(GpuHamiltonianCalculations::do_dm || GpuHamiltonianCalculations::do_j_tensor || GpuHamiltonianCalculations::do_aniso != 0) {
+         std::printf(" GPU: macroblock backend requested but disabled for this run (only Heisenberg-only kernels are supported)\n");
+      } else {
+         std::printf(" GPU: macroblock backend requested but not enabled by runtime conditions\n");
+      }
+   } else if(macroblocks.enabled != 0 && macroblocks.nentries > 0) {
+      std::printf(" GPU: macroblock Hamiltonian layout available but blocked backend disabled by do_gpu_macroblocks\n");
    }
 
    // Flag
