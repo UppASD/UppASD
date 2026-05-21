@@ -66,9 +66,10 @@ module Chelper
    interface
          subroutine FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
                cell_index, macro_nlistsize, macro_atom_nlist, macro_halo_nlistsize, macro_halo_to_global, &
-               macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist) &
+               macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells) &
                 bind(C, name="fortrandata_setmacrohalo_")
          import :: c_int
+         import :: c_char
          integer(c_int), intent(inout) :: Num_macro
          integer(c_int), intent(inout) :: max_num_atom_macro_cell
          integer(c_int), intent(inout) :: max_macro_halo_size
@@ -82,6 +83,7 @@ module Chelper
          integer(c_int), intent(inout) :: macro_atom_local_nlist(*)
          integer(c_int), intent(inout) :: macro_cell_nlistsize(*)
          integer(c_int), intent(inout) :: macro_cell_nlist(*)
+         character(c_char), intent(inout) ::do_macro_cells
       end subroutine FortranData_setMacroHalo
 
          subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
@@ -525,7 +527,7 @@ contains
             allocated(macro_cell_nlistsize) .and. allocated(macro_cell_nlist)) then
          call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
             cell_index, macro_nlistsize, macro_atom_nlist, macro_halo_nlistsize, macro_halo_to_global, &
-            macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist)
+            macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells)
       end if
 
 

@@ -24,6 +24,8 @@ private:
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
     deviceEnergies gpuEnergies;
+    deviceMacrocell gpuMacro;
+    hostMacrocell cpuMacro;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;

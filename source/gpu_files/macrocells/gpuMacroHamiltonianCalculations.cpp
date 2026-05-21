@@ -1,0 +1,219 @@
+#pragma once
+#include "c_headers.hpp"
+#include "tensor.hpp"
+#include "real_type.h"
+#include "gpuStructures.hpp"
+#include <numeric>
+#include "gpu_wrappers.h"
+#include "gpuMacroHamiltonianCalculations.hpp"
+
+/*class GpuHamiltonianCalculations::HeisgeJijAniso : public ParallelizationHelper::AtomSiteEnsemble {
+private:
+   real* beff;
+   real* eneff;
+   //GpuTensor<real, 1> exchM;
+   //GpuTensor<real, 1> aniM;
+   //GpuTensor<real, 1> extM;
+   //GpuTensor<real, 1> totalM;
+   GpuTensor<real, 2> energyM;
+   const real* coup;
+   const unsigned int* pos;
+   const real* emomM;
+   const real* ext_f;
+   unsigned int mnn;
+   const real* kaniso;
+   const real* eaniso;
+   const unsigned int* taniso;
+   const real* sb;
+   const unsigned int* aham;
+   //int do_ene;
+   bool measure;
+
+public:
+   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, 
+                  const Exchange& ex, const DMinteraction& dm, const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
+             : energyM(p_energyM)
+    {
+      beff = p_beff.data();
+      eneff = p_eneff.data();
+      emomM = p_emomM.data();
+      ext_f = p_ext_f.data();
+
+      coup = ex.coupling.data();
+      pos = ex.neighbourPos.data();
+      mnn = ex.mnn;
+
+      kaniso = aniso.kaniso.data();
+      eaniso = aniso.eaniso.data();
+      taniso = aniso.taniso.data();
+      sb = aniso.sb.data();
+
+      aham = redHam.redNeibourCount.data();
+      //do_ene = p_do_ene;
+      measure = p_measure;
+
+   }
+
+   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
+      // Field
+      real x = (real)0.0;
+      real y = (real)0.0;
+      real z = (real)0.0;
+      real ax = (real)0.0;
+      real ay = (real)0.0;
+      real az = (real)0.0;
+      real ax_en = (real)0.0;
+      real ay_en = (real)0.0;
+      real az_en = (real)0.0;
+      real ex = (real)0.0;
+      real ey = (real)0.0;
+      real ez = (real)0.0;
+      const unsigned int type = taniso[site];  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
+
+      // Pointers with fixed indices
+      const unsigned int rsite = aham[site] - 1;
+      const real* site_coup = &coup[rsite];
+      const unsigned int* site_pos = &pos[site];
+      const real* my_emomM = &emomM[ensemble * N * 3];
+      // Exchange term loop
+      for(unsigned int i = 0; i < mnn; i++) {
+         const auto x_offset = site_pos[i * N] * 3;
+         const auto c = site_coup[i * NH];
+         // printf("%f\n", c);
+         x += c * my_emomM[x_offset + 0];
+         y += c * my_emomM[x_offset + 1];
+         z += c * my_emomM[x_offset + 2];
+      }
+
+      //Anisotropy
+      const real Sx = emomM[atom * 3 + 0];
+      const real Sy = emomM[atom * 3 + 1];
+      const real Sz = emomM[atom * 3 + 2];
+
+      // direction of uniaxial anisotropy
+      ex = eaniso[0 + site * 3];
+      ey = eaniso[1 + site * 3];
+      ez = eaniso[2 + site * 3];
+
+      // anisotropy constants
+      const real k1 = kaniso[0 + site * 2];
+      const real k2 = kaniso[1 + site * 2];
+
+      if(type == 1 || type == 7)  // uniaxial anisotropy
+      {
+         const real tt1 = Sx * ex + Sy * ey + Sz * ez;
+         const real tt2 = k1 + (real)2.0 * k2 * (1 - tt1 * tt1);
+         const real tt3 = (real)2.0 * tt1 * tt2;
+
+         const real tt2_en = k1 + k2 * ((real)2.0 - tt1 * tt1);
+         const real tt3_en = tt1 * tt2_en;
+
+         ax += -tt3 * ex;
+         ay += -tt3 * ey;
+         az += -tt3 * ez;
+
+         ax_en += -tt3_en * ex; //To Anders: sign????
+         ay_en += -tt3_en * ey;
+         az_en += -tt3_en * ez;
+      }
+      if(type == 2 || type == 7) {  // cubic anisotropy
+
+         real k1_cubic = k1;
+         real k2_cubic = k2;
+
+         if(type == 7) {  // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial
+                          // constant x sb
+            k1_cubic *= sb[site];
+            k2_cubic *= sb[site];
+         }
+
+         ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+      }
+
+      const real ext_x = ext_f[atom * 3 + 0];
+      const real ext_y = ext_f[atom * 3 + 1];
+      const real ext_z = ext_f[atom * 3 + 2];
+
+      // Save field
+      beff[atom * 3 + 0] = x + ax + ext_x;
+      beff[atom * 3 + 1] = y + ay + ext_y;
+      beff[atom * 3 + 2] = z + az + ext_z;
+
+      eneff[atom * 3 + 0] = x + ax_en + ext_x;
+      eneff[atom * 3 + 1] = y + ay_en + ext_y;
+      eneff[atom * 3 + 2] = z + az_en + ext_z;
+};*/
+__global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
+                const GpuTensor<unsigned int, 1> nlistsize, const GpuTensor<unsigned int, 2> nlist, const GpuTensor<real, 2> ncoup, 
+                const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb
+            
+            ){
+
+
+}
+
+GpuMacroHamiltonianCalculations::GpuMacroHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro)
+:   do_j_tensor(Flags.do_jtensor)
+,   do_dm(Flags.do_dm)
+,   do_aniso(Flags.do_aniso)
+,   do_ene(Flags.do_ene)
+,   N(SimParam.N)
+,   M(SimParam.M)
+,   NH(SimParam.NH)
+,   mnn(SimParam.mnn)
+,   mnndm(SimParam.mnndm)
+,   nlistsize(gpuHamiltonian.nlistsize)
+,   nlist(gpuHamiltonian.nlist)
+,   ncoup(gpuHamiltonian.ncoup)
+,   taniso(gpuHamiltonian.taniso)
+,   eaniso(gpuHamiltonian.eaniso)
+,   kaniso(gpuHamiltonian.kaniso)
+,   sb(gpuHamiltonian.sb)
+,   macro(gpuMacro)
+,   maxThreads(256)
+{
+    threads = {static_cast<uint32_t>(maxThreads), 1, 1};
+    blocks = {static_cast<uint32_t>(macro.Num_macro), static_cast<uint32_t>(M), 1};
+}
+
+
+// Destructor
+GpuMacroHamiltonianCalculations::~GpuMacroHamiltonianCalculations(){}
+
+void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice) {
+   if(do_j_tensor) {
+      if(do_aniso != 0) {
+        //tensor aniso
+      }
+      else {
+        //Tensor aniso
+      }
+    } 
+
+    else {
+        if(do_dm) {
+            if(do_aniso !=0) {
+                // Jij DM aniso
+            }
+            else{
+                //Jij DM
+            }
+        }
+        else{
+            if(do_aniso !=0) {
+                //Jij aniso
+            }
+            else {
+                //Jji
+            }     
+        }
+    }
+
+}
+ 

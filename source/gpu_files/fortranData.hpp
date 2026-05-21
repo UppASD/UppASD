@@ -148,6 +148,7 @@ public:
    static real* eaniso;
    static unsigned int* taniso;
    static real* sb;
+   static char* do_macro_cells;
    static unsigned int* Num_macro;
    static unsigned int* max_num_atom_macro_cell;
    static unsigned int* max_macro_halo_size;
@@ -257,7 +258,7 @@ public:
                                     unsigned int* p_macro_atom_nlist, unsigned int* p_macro_halo_nlistsize,
                                     unsigned int* p_macro_halo_to_global, unsigned int* p_macro_atom_local_nlistsize,
                                     unsigned int* p_macro_atom_local_nlist, unsigned int* p_macro_cell_nlistsize,
-                                    unsigned int* p_macro_cell_nlist);
+                                    unsigned int* p_macro_cell_nlist, char* p_do_macro_cells);
 
     static void setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 

@@ -120,7 +120,9 @@ if(current_compiler)
 endif()
 # add a `cuda` tag to the binary if used.
 if(USE_CUDA)
-   string(APPEND ASD_legacy_binary ".cuda")
+   string(APPEND ASD_binary ".cuda")
+elseif(USE_HIP)
+   string(APPEND ASD_binary ".hip")
 endif()
 SET(UppASD_EXE ${ASD_binary})
 message(STATUS "ASD_binary ${ASD_binary}.")
@@ -200,6 +202,13 @@ endif (USE_FFTW)
 include(CMakeDependentOption)
 OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
 OPTION(USE_CUDA "Compile with CUDA support" OFF)
+OPTION(USE_HIP "Compile with HIP support" OFF)
+if(USE_CUDA AND USE_HIP)
+  message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
+endif()
+CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
+CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
+
 OPTION(BUNDLE_LIBRARIES "Bundle runtime libraries with RPATH for portable distribution" OFF)
 OPTION(USE_STATIC_LIBGFORTRAN "Use static linking for libgfortran" OFF)
 OPTION(FORCE_NO_APP_BUNDLE "Force disable macOS app bundle creation for all generators" ON)
@@ -460,8 +469,7 @@ SET(VERSION ${gitversion})
 ##############################################################################################
 if (USE_CUDA) 
 
-   # ENABLE_LANGUAGE(C CUDA CXX)
-   ENABLE_LANGUAGE(C CXX CUDA)
+   ENABLE_LANGUAGE(C CUDA CXX)
    if (CMAKE_VERSION VERSION_LESS "3.17.0")
 	   find_package(CUDA)
    else ()
@@ -469,13 +477,14 @@ if (USE_CUDA)
    endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
-    set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp
-             ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp
-             ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp
-             ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp
-             ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp
-             ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
-             ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp ${SRC}/gpu_files/correlations/correlation_kernels.cpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
+                               ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  
+                               ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
+                               ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
+                               ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp 
+                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
+                               ${SRC}/gpu_files/correlations/correlation_kernels.cpp
+                               ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
@@ -497,11 +506,69 @@ if (USE_CUDA)
    string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
    string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
    SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
-   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+   # Workaround to avoid +PTX specification
+   if (CMAKE_CUDA_ARCHITECTURES MATCHES "^[__86+PTX]")
+     set(CMAKE_CUDA_ARCHITECTURES 86)
+     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES 86)
+   else()
+     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+   endif()
+   message(STATUS "CUDA_ARCH_LIST: __${CUDA_ARCH_LIST}__")
+   message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+elseif(USE_HIP)
+   find_package(HIP REQUIRED)
+   add_compile_definitions(HIP_V)
+   if(ON_LUMI)
+     add_compile_definitions(ON_LUMI)
+     message(STATUS "ON_LUMI: using Thrust complex for HIP correlations")
+   endif()
+
+   ENABLE_LANGUAGE(HIP C CXX)
+    set(CMAKE_HIP_COMPILER hipcc)
+    set(CMAKE_CXX_COMPILER hipcc)
+   #set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
+   #set(CMAKE_HIP_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
+message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
+   target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
+   add_subdirectory(${SRC}/gpu_files)
+  
+    # HIP include and compile flags
+   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -DDEBUG")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
+
+   set(PP_HIP_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
+   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
+   message(STATUS "HIP PPFLAG: __${PP_HIP_COMPILER_FLAG}__")
+   
+   
+    set(ROCM_ROOT $ENV{ROCM_PATH})
+    #link_directories("/opt/rocm/lib")
+    
+    target_include_directories(${UppASD_LIB} PRIVATE
+        ${ROCM_ROOT}/include
+    )
+    
+
+    # hiprand
+    find_library(HIPRAND_LIBRARY
+        NAMES hiprand
+        PATHS /opt/rocm/lib /opt/rocm/lib64
+        REQUIRED
+    )
+
+    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
+
+   if(NOT CMAKE_HIP_ARCHITECTURES)
+      set(CMAKE_HIP_ARCHITECTURES "gfx90a")
+   endif()
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${CMAKE_HIP_ARCHITECTURES}")
+   message(STATUS "HIP GPU architecture: ${CMAKE_HIP_ARCHITECTURES}")
 
 else ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Tools/nocuda.f90)
-endif (USE_CUDA)
+endif ()
 ##############################################################################################
 
 
@@ -881,6 +948,7 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         set(UppASD_links "-static-libgfortran -static-libgcc")
     endif()
 endif()
+
 
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PUBLIC
    # -static

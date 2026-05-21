@@ -126,6 +126,11 @@ switch(*FortranData::gpu_rng) {
 #endif
 
     SimParam.randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
+    gpuMacro.Num_macro = *FortranData::Num_macro;
+    gpuMacro.max_num_atom = *FortranData::max_num_atom_macro_cell;
+    gpuMacro.max_halo_size = *FortranData::max_macro_halo_size;
+    gpuMacro.max_cell_neigh = *FortranData::max_macro_cell_neigh;
+    gpuMacro.do_macro_cells = *FortranData::do_macro_cells;
    //printf("HERE - 1\n");
 
     
@@ -136,14 +141,18 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     long int N = static_cast <long int>( SimParam.N);
     long int  NH = static_cast <long int>( SimParam.NH);
     long int  M = static_cast <long int>( SimParam.M);
-   long int mnn = static_cast <long int>( SimParam.mnn);
+    long int mnn = static_cast <long int>( SimParam.mnn);
     long int  mnndm = static_cast <long int>( SimParam.mnndm);
-   long int ipnphase = static_cast <long int>( SimParam.ipnphase);
+    long int ipnphase = static_cast <long int>( SimParam.ipnphase);
     long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
     long int nq = static_cast <long int>( SimParam.nq);
     long int nw= static_cast <long int>( SimParam.nw);
     long int NT= static_cast <long int>( SimParam.NT);
     long int Nchmax= static_cast <long int>( SimParam.Nchmax);
+    long int Num_macro = static_cast <long int>(gpuMacro.Num_macro);
+    long int max_num_atom_macro_cell = static_cast <long int>(gpuMacro.max_num_atom);
+    long int max_macro_halo_size = static_cast <long int>(gpuMacro.max_halo_size);
+    long int max_macro_cell_neigh= static_cast <long int>(gpuMacro.max_cell_neigh);
 
 
     // Constants initiated?
@@ -213,20 +222,18 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         }
 
     }
-  // printf("HERE - 2\n");
+    if(gpuMacro.do_macro_cells == 'Y'){
+        cpuMacro.cell_index.set(FortranData::cell_index, N);
+        cpuMacro.nlistsize.set(FortranData::macro_nlistsize, Num_macro);
+        cpuMacro.atom_nlist.set(FortranData::macro_atom_nlist, Num_macro, max_num_atom_macro_cell);
+        cpuMacro.halo_nlistsize.set(FortranData::macro_halo_nlistsize, Num_macro);
+        cpuMacro.halo_to_global.set(FortranData::macro_halo_to_global, Num_macro, max_macro_halo_size);
+        cpuMacro.atom_local_nlistsize.set(FortranData::macro_atom_local_nlistsize, Num_macro, max_num_atom_macro_cell);
+        cpuMacro.atom_local_nlist.set(FortranData::macro_atom_local_nlist, Num_macro, max_num_atom_macro_cell, mnn);
+        cpuMacro.cell_nlistsize.set(FortranData::macro_cell_nlistsize, Num_macro);
+        cpuMacro.cell_nlist.set(FortranData::macro_cell_nlist, Num_macro, max_macro_cell_neigh);
+    }
 
-  //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
-
-   /* if (Flags.do_mphase_now != 0){
-        if (Flags.do_avrg !=0){
-            cpuMeasurables.mavg_buff.set(FortranData::mavrg_buff, SimParam.avrg_buff);
-            //cpuMeasurables.eavg_buff.set(FortranData::eavrg_buff, SimParam.avrg_buff);
-        }
-        if (Flags.do_cumu !=0){
-            cpuMeasurables.mcumu_buff.set(FortranData::mcumu_buff, SimParam.avrg_buff);
-            //cpuMeasurables.ecumu_buff.set(FortranData::ecumu_buff, SimParam.cumu_buff); 
-        }
-    }*/
         
 
     
@@ -243,6 +250,12 @@ bool GpuSimulation::initiateMatrices() {
     long int mnndm = static_cast <long int>( SimParam.mnndm);
     long int ipnphase = static_cast <long int>( SimParam.ipnphase);
     long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
+    long int Num_macro = static_cast <long int>(gpuMacro.Num_macro);
+    long int max_num_atom_macro_cell = static_cast <long int>(gpuMacro.max_num_atom);
+    long int max_macro_halo_size = static_cast <long int>(gpuMacro.max_halo_size);
+    long int max_macro_cell_neigh= static_cast <long int>(gpuMacro.max_cell_neigh);
+
+
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {
@@ -342,18 +355,18 @@ bool GpuSimulation::initiateMatrices() {
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M);}
-    //e.Allocate( static_cast <long int>(3), N, M);} 
 
-   /* if (Flags.do_mphase_now != 0){
-        if (Flags.do_avrg !=0){
-            gpuMeasurables.mavg_buff.Allocate(N, M);
-            //gpuMeasurables.eavg_buff.Allocate(N, M);
-        }
-        if (Flags.do_cumu !=0){
-            gpuMeasurables.mcumu_buff.Allocate(N, M);
-            //gpuMeasurables.ecumu_buff.Allocate(N, M); 
-        }
-    }*/
+    if(gpuMacro.do_macro_cells == 'Y'){
+        gpuMacro.cell_index.Allocate(N);
+        gpuMacro.nlistsize.Allocate(Num_macro);
+        gpuMacro.atom_nlist.Allocate(Num_macro, max_num_atom_macro_cell);
+        gpuMacro.halo_nlistsize.Allocate(Num_macro);
+        gpuMacro.halo_to_global.Allocate(Num_macro, max_macro_halo_size);
+        gpuMacro.atom_local_nlistsize.Allocate(Num_macro, max_num_atom_macro_cell);
+        gpuMacro.atom_local_nlist.Allocate(Num_macro, max_num_atom_macro_cell, mnn);
+        gpuMacro.cell_nlistsize.Allocate(Num_macro);
+        gpuMacro.cell_nlist.Allocate(Num_macro, max_macro_cell_neigh);
+    }
 
    // Did we get the memory?
     if(gpuHasNoData()){
@@ -455,13 +468,23 @@ void GpuSimulation::release() {
     gpuLattice.mmom0.Free();  
     gpuLattice.mmom2.Free();  
     gpuLattice.mmomi.Free();
-   // gpuLattice.ipTemp.Free();
-     if(FortranData::btorque) {gpuLattice.btorque.Free();  }
+    // gpuLattice.ipTemp.Free();
+    if(FortranData::btorque) {gpuLattice.btorque.Free();}
+    if(gpuMacro.do_macro_cells == 'Y'){
+        gpuMacro.cell_index.Free();
+        gpuMacro.nlistsize.Free();
+        gpuMacro.atom_nlist.Free();
+        gpuMacro.halo_nlistsize.Free();
+        gpuMacro.halo_to_global.Free();
+        gpuMacro.atom_local_nlistsize.Free();
+        gpuMacro.atom_local_nlist.Free();
+        gpuMacro.cell_nlistsize.Free();
+        gpuMacro.cell_nlist.Free();
+    }
 
     
 
-   // gpuMeasurables.mavg_buff.Free();  
-   // gpuMeasurables.mcumu_buff.Free();  
+
   
     TensorMemoryTracker::printResults();
     // TensorMemoryTracker::saveToFile();
@@ -514,6 +537,18 @@ void GpuSimulation::copyFromFortran() {
    // gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
    // printf("HERE - 10\n");
     if(FortranData::btorque) {gpuLattice.btorque.copy_sync(cpuLattice.btorque); } 
+    
+    if(gpuMacro.do_macro_cells == 'Y'){
+        gpuMacro.cell_index.copy_sync(cpuMacro.cell_index);
+        gpuMacro.nlistsize.copy_sync(cpuMacro.nlistsize);
+        gpuMacro.atom_nlist.copy_sync(cpuMacro.atom_nlist);
+        gpuMacro.halo_nlistsize.copy_sync(cpuMacro.halo_nlistsize);
+        gpuMacro.halo_to_global.copy_sync(cpuMacro.halo_to_global);
+        gpuMacro.atom_local_nlistsize.copy_sync(cpuMacro.atom_local_nlistsize);
+        gpuMacro.atom_local_nlist.copy_sync(cpuMacro.atom_local_nlist);
+        gpuMacro.cell_nlistsize.copy_sync(cpuMacro.cell_nlistsize);
+        gpuMacro.cell_nlist.copy_sync(cpuMacro.cell_nlist);
+    }
 
    // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);

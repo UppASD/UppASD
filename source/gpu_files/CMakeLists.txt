@@ -53,6 +53,7 @@ target_include_directories(${UppASD_LIB}
 
 add_subdirectory(measurement)
 add_subdirectory(correlations)
+add_subdirectory(macrocells)
 
 #common.cuh
 #cudaMatrix.hpp

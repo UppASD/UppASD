@@ -819,8 +819,7 @@ public:
       beff[atom * 3 + 1] = y + ay + ext_y;
       beff[atom * 3 + 2] = z + az + ext_z;
 
-      eneff[atom * 3 + 0//0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
-] = x + ax_en + ext_x;
+      eneff[atom * 3 + 0] = x + ax_en + ext_x;
       eneff[atom * 3 + 1] = y + ay_en + ext_y;
       eneff[atom * 3 + 2] = z + az_en + ext_z;
       

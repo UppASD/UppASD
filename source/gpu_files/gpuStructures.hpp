@@ -229,4 +229,35 @@ struct deviceEnergies {
 
 };
 
-   
+struct hostMacrocell {
+
+   Tensor<unsigned int, 1> cell_index;
+   Tensor<unsigned int, 1> nlistsize;
+   Tensor<unsigned int, 2> atom_nlist;
+   Tensor<unsigned int, 1> halo_nlistsize;
+   Tensor<unsigned int, 2> halo_to_global;
+   Tensor<unsigned int, 2> atom_local_nlistsize;
+   Tensor<unsigned int, 3> atom_local_nlist;
+   Tensor<unsigned int, 1> cell_nlistsize;
+   Tensor<unsigned int, 2> cell_nlist;
+  
+};   
+
+struct deviceMacrocell {
+
+   unsigned int Num_macro;
+   unsigned int max_num_atom;
+   unsigned int max_halo_size;
+   unsigned int max_cell_neigh;
+   char do_macro_cells;
+   GpuTensor<unsigned int, 1> cell_index;
+   GpuTensor<unsigned int, 1> nlistsize;
+   GpuTensor<unsigned int, 2> atom_nlist;
+   GpuTensor<unsigned int, 1> halo_nlistsize;
+   GpuTensor<unsigned int, 2> halo_to_global;
+   GpuTensor<unsigned int, 2> atom_local_nlistsize;
+   GpuTensor<unsigned int, 3> atom_local_nlist;
+   GpuTensor<unsigned int, 1> cell_nlistsize;
+   GpuTensor<unsigned int, 2> cell_nlist;
+  
+};   

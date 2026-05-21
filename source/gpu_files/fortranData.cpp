@@ -118,6 +118,7 @@ real* FortranData::kaniso;
 real* FortranData::eaniso;
 unsigned int* FortranData::taniso;
 real* FortranData::sb;
+char* FortranData::do_macro_cells;
 unsigned int* FortranData::Num_macro = nullptr;
 unsigned int* FortranData::max_num_atom_macro_cell = nullptr;
 unsigned int* FortranData::max_macro_halo_size = nullptr;
@@ -321,7 +322,7 @@ void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* 
                                        unsigned int* p_macro_atom_nlist, unsigned int* p_macro_halo_nlistsize,
                                        unsigned int* p_macro_halo_to_global, unsigned int* p_macro_atom_local_nlistsize,
                                        unsigned int* p_macro_atom_local_nlist, unsigned int* p_macro_cell_nlistsize,
-                                       unsigned int* p_macro_cell_nlist){
+                                       unsigned int* p_macro_cell_nlist, char* p_do_macro_cells){
    Num_macro = p_Num_macro;
    max_num_atom_macro_cell = p_max_num_atom_macro_cell;
    max_macro_halo_size = p_max_macro_halo_size;
@@ -335,6 +336,7 @@ void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* 
    macro_atom_local_nlist = p_macro_atom_local_nlist;
    macro_cell_nlistsize = p_macro_cell_nlistsize;
    macro_cell_nlist = p_macro_cell_nlist;
+   do_macro_cells = p_do_macro_cells;
 }
 
 //TODO:binderc, autocorr_buff, spinwait
@@ -390,80 +392,6 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
    m_kw_projch = reinterpret_cast<cpu_complex*>(p_m_kw_projch);
 
 }
-/*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
-                                      unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
-                                      real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
-                                      unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                      unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep,
-                                      unsigned int * p_ipnphase) {
-   stt = p1;
-   SDEalgh = p2;
-
-   rstep = p3;
-   nstep = p4;
-   Natom = p5;
-   nHam = p21;
-   Mensemble = p6;
-   max_no_neigh = p7;
-
-   delta_t = p8;
-   gamma = p9;
-   k_bolt = p10;
-   mub = p11;
-   damping = p12;
-
-   binderc = p13;
-   mavg = p14;
-
-   mompar = p15;
-   initexc = p16;
-
-   do_dm = p17;
-   max_no_dmneigh = p18;
-   do_jtensor = p19;
-   do_aniso = p20;
-   Temp = p_Temp;
-   ipnphase = p_ipnphase;
-   ipmcnphase = p_ipmcnphase;
-   mcnstep = p_mcnstep;
-}*/
-
-/*void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
-                                    real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
-                                    real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
-                                    unsigned int* p18, real* p19, real* p20, real* p21, unsigned int* p22,
-                                    real* p23, unsigned int* p24, real * p_ipTem   m_k_proj = p_m_k_proj;
-   m_k_projch = p_m_k_projch;p, unsigned int * p_ipmcnstep,
-                                    real * p_ipTemp_array, unsigned int* p_ipnstep) {
-   ncoup = p1;
-   nlist = p2;
-   nlistsize = p3;
-   beff = p4;
-   b2eff = p5;
-   emomM = p6;
-   emom = p7;
-   emom2 = p8;
-   external_field = p9;
-   mmom = p10;
-   btorque = p11;
-   temperature = p12;
-   mmom0 = p13;
-   mmom2 = p14;
-   mmomi = p15;
-   dmvect = p16;
-   dmlist = p17;
-   dmlistsize = p18;
-   j_tensor = p19;
-   kaniso = p20;
-   eaniso = p21;
-   taniso = p22;
-   sb = p23;
-   aHam = p24;
-   ipTemp = p_ipTemp;
-   ipmcnstep = p_ipmcnstep;
-   ipTemp_array = p_ipTemp_array;
-   ipnstep = p_ipnstep;
-}*/
 
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_mode = p1;
@@ -528,11 +456,12 @@ extern "C" void fortrandata_setmacrohalo_(unsigned int* p_Num_macro, unsigned in
    unsigned int* p_cell_index, unsigned int* p_macro_nlistsize, unsigned int* p_macro_atom_nlist,
    unsigned int* p_macro_halo_nlistsize, unsigned int* p_macro_halo_to_global,
    unsigned int* p_macro_atom_local_nlistsize, unsigned int* p_macro_atom_local_nlist,
-   unsigned int* p_macro_cell_nlistsize, unsigned int* p_macro_cell_nlist) {
+   unsigned int* p_macro_cell_nlistsize, unsigned int* p_macro_cell_nlist, char* p_do_macro_cells) {
 FortranData::setMacroHaloPointers(
    p_Num_macro, p_max_num_atom_macro_cell, p_max_macro_halo_size, p_max_macro_cell_neigh,
    p_cell_index, p_macro_nlistsize, p_macro_atom_nlist, p_macro_halo_nlistsize, p_macro_halo_to_global,
-   p_macro_atom_local_nlistsize, p_macro_atom_local_nlist, p_macro_cell_nlistsize, p_macro_cell_nlist);
+   p_macro_atom_local_nlistsize, p_macro_atom_local_nlist, p_macro_cell_nlistsize, 
+   p_macro_cell_nlist, p_do_macro_cells);
 }
 
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
