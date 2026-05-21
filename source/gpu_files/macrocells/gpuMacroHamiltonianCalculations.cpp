@@ -155,13 +155,14 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
                 const GpuTensor<unsigned int, 1> cell_index, const GpuTensor<unsigned int, 1> macro_nlistsize, const GpuTensor<unsigned int, 2> macro_atom_nlist,
                 const GpuTensor<unsigned int, 1> macro_halo_nlistsize, const GpuTensor<unsigned int, 2> macro_halo_to_global,
                 const GpuTensor<unsigned int, 2> macro_atom_local_nlistsize, const GpuTensor<unsigned int, 3> macro_atom_local_nlist, 
-                const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist)
+                const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist,
+                const unsigned int max_macro_halo_size, const unsigned int max_num_atom_macro_cell)
 {
    // threads = {maxThreads, 1, 1};
    // blocks = {Num_macro, M, 1};
    unsigned int tid = threadIdx.x;
    unsigned int threadNum = blockDim.x;
-   unsigned int mcInd = blockIdx.x //macrocell index
+   unsigned int mcInd = blockIdx.x; //macrocell index
    unsigned int mInd = blockIdx.y; //Mensemble index
 
    unsigned int unique_neigb_in_cell = macro_halo_nlistsize(mcInd);
@@ -273,14 +274,15 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice) {
         else{
             if(do_aniso !=0) {
                 //Jij aniso  
-                size_t shmem_size = sizeof(float) * (3 * max_macro_halo_size + 3 * max_num_atom_macro_cell);
+                size_t shmem_size = sizeof(float) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
 
                 JijAniso<<<blocks, threads, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
                                             nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
                                             macro.cell_index, macro.nlistsize, macro.atom_nlist,
                                             macro.halo_nlistsize, macro.halo_to_global,
                                             macro.atom_local_nlistsize, macro.atom_local_nlist, 
-                                            macro.cell_nlistsize, macro.cell_nlist);
+                                            macro.cell_nlistsize, macro.cell_nlist,
+                                            macro.max_halo_size, macro.max_num_atom);
             }
             else {
                 //Jji
