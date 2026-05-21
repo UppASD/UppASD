@@ -151,10 +151,52 @@ public:
 };*/
 __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
                 const GpuTensor<unsigned int, 1> nlistsize, const GpuTensor<unsigned int, 2> nlist, const GpuTensor<real, 2> ncoup, 
-                const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb
-            
-            ){
+                const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb,
+                const GpuTensor<unsigned int, 1> cell_index, const GpuTensor<unsigned int, 1> macro_nlistsize, const GpuTensor<unsigned int, 2> macro_atom_nlist,
+                const GpuTensor<unsigned int, 1> macro_halo_nlistsize, const GpuTensor<unsigned int, 2> macro_halo_to_global,
+                const GpuTensor<unsigned int, 2> macro_atom_local_nlistsize, const GpuTensor<unsigned int, 3> macro_atom_local_nlist, 
+                const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist)
+{
+   // threads = {maxThreads, 1, 1};
+   // blocks = {Num_macro, M, 1};
+   unsigned int tid = threadIdx.x;
+   unsigned int threadNum = blockDim.x;
+   unsigned int mcInd = blockIdx.x //macrocell index
+   unsigned int mInd = blockIdx.y; //Mensemble index
 
+   unsigned int unique_neigb_in_cell = macro_halo_nlistsize(mcInd);
+   unsigned int atoms_in_cell = macro_nlistsize(mcInd);
+   unsigned int tasks = unique_neigb_in_cell * atoms_in_cell;
+
+   //max_macro_halo_size     - max neighb
+   //max_num_atom_macro_cell - max atoms
+
+   __shared__ sh_neighb[3][max_macro_halo_size]; 
+   __shared__ sh_beff[3][max_num_atom_macro_cell]; 
+
+   for(unsigned int i = 0; i < tasks; i+= threadNum){
+    unsigned int loc_aInd = tasks / unique_neigb_in_cell;
+    unsigned int loc_nInd = tasks % unique_neigb_in_cell;
+    unsigned int global_nInd = macro_halo_to_global(mcInd, loc_nInd);
+   // macro_atom_local_nlist(Num_macro, max_num_atom_macro_cell, mnn)
+
+         /*for(unsigned int i = 0; i < mnn; i++) {
+         const auto x_offset = site_pos[i * N] * 3;
+         const auto c = site_coup[i * NH];
+         // printf("%f\n", c);
+         x += c * my_emomM[x_offset + 0];
+         y += c * my_emomM[x_offset + 1];
+         z += c * my_emomM[x_offset + 2];
+        }*/
+
+    sh_emom[0][loc_nInd] = emomM(0, global_nInd, mInd);
+    sh_emom[1][loc_nInd] = emomM(1, global_nInd, mInd);
+    sh_emom[2][loc_nInd] = emomM(2, global_nInd, mInd);
+
+
+
+
+    }
 
 }
 
@@ -175,6 +217,7 @@ GpuMacroHamiltonianCalculations::GpuMacroHamiltonianCalculations(const Flag Flag
 ,   eaniso(gpuHamiltonian.eaniso)
 ,   kaniso(gpuHamiltonian.kaniso)
 ,   sb(gpuHamiltonian.sb)
+,   extfield(gpuHamiltonian.extfield)
 ,   macro(gpuMacro)
 ,   maxThreads(256)
 {
@@ -208,6 +251,12 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice) {
         else{
             if(do_aniso !=0) {
                 //Jij aniso
+                JijAniso<<<blocks, threads>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                                            nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
+                                            macro.cell_index, macro.nlistsize, macro.atom_nlist,
+                                            macro.halo_nlistsize, macro.halo_to_global,
+                                            macro.atom_local_nlistsize, macro.atom_local_nlist, 
+                                            macro.cell_nlistsize, macro.cell_nlist);
             }
             else {
                 //Jji

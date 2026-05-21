@@ -31,6 +31,8 @@ private:
     const GpuTensor<real, 2> eaniso;
     const GpuTensor<real, 2> kaniso;
     const GpuTensor<real, 1> sb;
+    //Zeeman field
+    const GpuTensor<real, 3> extfield;
     //macrocells 
     const deviceMacrocell& macro;
 
