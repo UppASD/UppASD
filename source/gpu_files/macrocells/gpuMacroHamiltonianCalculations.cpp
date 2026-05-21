@@ -170,15 +170,35 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
 
    //max_macro_halo_size     - max neighb
    //max_num_atom_macro_cell - max atoms
+    //sh_neighb[3][max_macro_halo_size]; 
+    //sh_beff[3][max_num_atom_macro_cell]; 
 
-   __shared__ sh_neighb[3][max_macro_halo_size]; 
-   __shared__ sh_beff[3][max_num_atom_macro_cell]; 
+    extern __shared__ real shmem[];
+    real* sh_neighb = shmem;
+    real* sh_beff = sh_neighb + 3 * max_macro_halo_size;
 
-   for(unsigned int i = 0; i < tasks; i+= threadNum){
-    unsigned int loc_aInd = tasks / unique_neigb_in_cell;
-    unsigned int loc_nInd = tasks % unique_neigb_in_cell;
-    unsigned int global_nInd = macro_halo_to_global(mcInd, loc_nInd);
-   // macro_atom_local_nlist(Num_macro, max_num_atom_macro_cell, mnn)
+    #define SH_N(j,i) sh_neighb[(i)*max_macro_halo_size + (j)]
+    #define SH_B(j,i) sh_beff[(i)*max_num_atom_macro_cell + (j)]
+
+   for(unsigned int loc_nInd = 0; loc_nInd < unique_neigb_in_cell; loc_nInd+= threadNum){
+        unsigned int global_nInd = macro_halo_to_global(mcInd + 1, loc_nInd + 1) - 1;
+
+        SH_N(0, loc_nInd) = emomM(0, global_nInd, mInd);
+        SH_N(1, loc_nInd) = emomM(1, global_nInd, mInd);
+        SH_N(2, loc_nInd) = emomM(2, global_nInd, mInd);
+
+    }
+
+       for(unsigned int i = 0; i < tasks; i+= threadNum){
+        unsigned int loc_nInd = i % unique_neigb_in_cell; //neighbour index in halo
+        unsigned int loc_aInd = i / unique_neigb_in_cell; //atom index in cell
+
+        unsigned int global_nInd = macro_halo_to_global(mcInd + 1, loc_nInd + 1) - 1;
+        unsigned int global_aInd = 1;
+        //unsigned int global_aInd = macro_atom_to_global(mcInd + 1, loc_nInd + 1) - 1;//TODO
+        real c = ncoup(global_aInd, global_nInd);
+               
+        // macro_atom_local_nlist(Num_macro, max_num_atom_macro_cell, mnn)
 
          /*for(unsigned int i = 0; i < mnn; i++) {
          const auto x_offset = site_pos[i * N] * 3;
@@ -189,13 +209,10 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
          z += c * my_emomM[x_offset + 2];
         }*/
 
-    sh_emom[0][loc_nInd] = emomM(0, global_nInd, mInd);
-    sh_emom[1][loc_nInd] = emomM(1, global_nInd, mInd);
-    sh_emom[2][loc_nInd] = emomM(2, global_nInd, mInd);
 
-
-
-
+        SH_B(0, loc_aInd) += 0;
+        SH_B(1, loc_aInd) += 0;
+        SH_B(2, loc_aInd) += 0;
     }
 
 }
@@ -250,8 +267,10 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice) {
         }
         else{
             if(do_aniso !=0) {
-                //Jij aniso
-                JijAniso<<<blocks, threads>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                //Jij aniso  
+                size_t shmem_size = sizeof(float) * (3 * max_macro_halo_size + 3 * max_num_atom_macro_cell);
+
+                JijAniso<<<blocks, threads, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
                                             nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
                                             macro.cell_index, macro.nlistsize, macro.atom_nlist,
                                             macro.halo_nlistsize, macro.halo_to_global,
