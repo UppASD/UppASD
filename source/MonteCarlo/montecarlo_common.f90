@@ -430,8 +430,8 @@ contains
    !-----------------------------------------------------------------------------
    subroutine calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir, do_sa,&
          emomM, emom, mmom, iflip, newmom, extfield, de, k, &
-         mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-         macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,do_jtensor)
+         mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,&
+         macro_atom_alist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,do_jtensor)
 
       use Constants, only : mub
       use macrocells, only : calc_trial_macro_mom
@@ -467,8 +467,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emomM_macro !< The full vector of the macrocell magnetic moment
       integer, intent(out) :: icell
       real(dblprec), intent(out) :: macro_mag_trial
@@ -842,13 +842,13 @@ contains
       elseif(do_dip==2) then
          ! Calculation of the trial moment in the macrocell approach
          call calc_trial_macro_mom(k,iflip,Natom,Mensemble,Num_macro,max_num_atom_macro_cell,&
-            macro_nlistsize,macro_atom_nlist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
+            macro_alistsize,macro_atom_alist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
          icell=cell_index(iflip)
          do j=1, Num_macro
             do mu=1,3
                do nu=1,3
-                  e_c=e_c-emomM_macro(mu,icell,k)*ham%Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_nlistsize(icell)
-                  e_t=e_t-macro_trial(mu)*ham%Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_nlistsize(icell)
+                  e_c=e_c-emomM_macro(mu,icell,k)*ham%Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_alistsize(icell)
+                  e_t=e_t-macro_trial(mu)*ham%Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_alistsize(icell)
                enddo
             enddo
          enddo

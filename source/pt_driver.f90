@@ -194,7 +194,7 @@ contains
                lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, ham_inp%do_biqdm,ham_inp%do_bq, ham_inp%do_ring,    &
                ham_inp%do_chir, ham_inp%do_sa, ham_inp%mult_axis,iflip_a,pt_emomM(:,:,:,irep),pt_emom(:,:,:,irep), &
                pt_mmom(:,:,irep),ind_mom_flag,iphfield(1:3),ham_inp%do_dip,Num_macro,       &
-               max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist, &
+               max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist, &
                pt_emomM_macro(:,:,:,irep),pt_emom_macro(:,:,:,irep),                &
                pt_mmom_macro(:,:,irep),ham_inp%do_anisotropy)
 
@@ -208,7 +208,7 @@ contains
                   external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
                   constellations,constellationsNeighType,repene(irep),    &
-                  Num_macro,cell_index,pt_emomM_macro(:,:,:,irep),macro_nlistsize,  &
+                  Num_macro,cell_index,pt_emomM_macro(:,:,:,irep),macro_alistsize,  &
                   NA,N1,N2,N3)
 
 
@@ -287,7 +287,7 @@ contains
             time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,    &
             maxNoConstl,unitCellType,constlNCoup,constellations,                    &
             constellationsNeighType,repene(irep),Num_macro,cell_index,    &
-            pt_emomM_macro(:,:,:,irep),macro_nlistsize,NA,N1,N2,N3)
+            pt_emomM_macro(:,:,:,irep),macro_alistsize,NA,N1,N2,N3)
 
             call calc_mavrg(Natom,Mensemble,pt_emomM(:,:,:,irep),mavg)
 

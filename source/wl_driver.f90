@@ -81,7 +81,7 @@ contains
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
             constellations,constellationsNeighType,wl_totenergy,Num_macro,&
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          !
          write(*,'(1x,a)') 'One-sided minimization in progress'
@@ -113,8 +113,8 @@ contains
                lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd,  &
             ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir, ham_inp%do_sa,&
                ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,        &
-               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,        &
-               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,        &
+               macro_atom_alist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
 
             if(mod(ipmcstep,ipmcnstep(1)/10)==0) then
                ! Change order for Metropolis sweeps
@@ -130,7 +130,7 @@ contains
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
             constellations,constellationsNeighType,wl_totenergy,Num_macro,&
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          if(wl_emax.ne.0.0_dblprec.and.wl_emin.ne.0.0_dblprec) then
             print *,"Energy inverval for Wang-Landau given in input file. No initial phase information used."
@@ -302,7 +302,7 @@ contains
          external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
          constellationsNeighType,totenergy,Num_macro,cell_index,          &
-         emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
       !$omp barrier
 
@@ -324,7 +324,7 @@ contains
             ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
             ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
             ham_inp%mult_axis,iflip_a,wl_emomM,wl_emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,Num_macro,     &
-            max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,    &
+            max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist,    &
             emomM_macro,emom_macro,mmom_macro,wl_hist,wl_dos,totenergy,wl_mhist,    &
             m_avg,wl_lhist_min,wl_lhist_max,ham_inp%do_anisotropy,wl_stepsize)
 

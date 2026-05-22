@@ -50,7 +50,7 @@ contains
       Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,       &
       max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
       mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,            &
-      macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
+      macro_alistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
       constellationsNeighType,constlNCoup,constellations,tenergy,emomM,rx,&
       dene,NA,N1,N2,N3,mode,do_mom_legacy)
 
@@ -96,7 +96,7 @@ contains
       character(len=1), intent(in) :: lsf_interpolate !< Interpolate LSF or not
       logical, intent(in) :: OPT_flag  !< Optimization flag
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,nim), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Num_macro,nim), intent(in) :: emomM_macro    !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,nim), intent(in)     :: external_field !< External magnetic field
@@ -142,14 +142,14 @@ contains
          time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,     &
          maxNoConstl, unitCellType, constlNCoup, constellations,                     &
          constellationsNeighType,tenergy,Num_macro,cell_index,            &
-         emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+         emomM_macro,macro_alistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
 
       call calc_energy(nHam,1,Natom,Nchmax, &
          conf_num,nim,Natom,Num_macro,1,plotenergy,              &
          0.0_dblprec,delta_t,do_lsf,lsf_field,     &
-         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
+         lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,emom,emomM,       &
          emomM_macro,external_field,time_external_field,max_no_constellations,       &
          maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
          constellationsNeighType,tenergy,NA,N1,N2,N3)
@@ -323,7 +323,7 @@ contains
             time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,      &
             maxNoConstl, unitCellType, constlNCoup, constellations,                      &
             constellationsNeighType, tenergy,Num_macro,cell_index,             &
-            emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            emomM_macro,macro_alistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
          ! Calculation of the total energy
@@ -331,7 +331,7 @@ contains
          call calc_energy(nHam,itr,Natom,Nchmax,&
             conf_num,nim,Natom,Num_macro,1,plotenergy,               &
             0.0_dblprec,delta_t,do_lsf,lsf_field,      &
-            lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,        &
+            lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,emom,emomM,        &
             emomM_macro,external_field,time_external_field,max_no_constellations,        &
             maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                &
             constellationsNeighType,tenergy,NA,N1,N2,N3)
@@ -506,7 +506,7 @@ contains
       itrmax,Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,&
       max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
       mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag, cell_index,           &
-      macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
+      macro_alistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
       constellationsNeighType,constlNCoup,constellations,tenergy,emomM,ci,rx,&
       dene,NA,N1,N2,N3,mode,do_mom_legacy)
 
@@ -552,7 +552,7 @@ contains
       character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
       logical, intent(in) :: OPT_flag !< Optimization flag
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,nim), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Num_macro,nim), intent(in) :: emomM_macro    !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,nim), intent(in)     :: external_field !< External magnetic field
@@ -598,14 +598,14 @@ contains
          time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,        &
          maxNoConstl,unitCellType,constlNCoup,constellations,                        &
          constellationsNeighType,tenergy,Num_macro,cell_index,emomM_macro, &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
       ! Calculate the total energy of the system
       call calc_energy(nHam,1,Natom,Nchmax, &
          conf_num,nim,Natom,Num_macro,1,plotenergy,              &
          0.0_dblprec,delta_t,do_lsf,lsf_field,     &
-         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
+         lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,emom,emomM,       &
          emomM_macro,external_field,time_external_field,max_no_constellations,       &
          maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
          constellationsNeighType,tenergy,NA,N1,N2,N3)
@@ -805,14 +805,14 @@ contains
             time_external_field,beff, beff1, beff2, OPT_flag, max_no_constellations,    &
             maxNoConstl,unitCellType, constlNCoup, constellations,                      &
             constellationsNeighType, tenergy,Num_macro,cell_index,            &
-            emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            emomM_macro,macro_alistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
          ! Calculate the total energy per spin of the system
          call calc_energy(nHam,itr,Natom,Nchmax,  &
             conf_num,nim,Natom,Num_macro,1,plotenergy,   &
             0.0_dblprec,delta_t,do_lsf,lsf_field, &
-            lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,   &
+            lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,emom,emomM,   &
             emomM_macro,external_field,time_external_field,max_no_constellations,   &
             maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,           &
             constellationsNeighType,tenergy,NA,N1,N2,N3)

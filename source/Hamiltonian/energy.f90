@@ -66,7 +66,7 @@ contains
    subroutine calc_energy(nHam,mstep,Natom,Nchmax,         &
          conf_num,Mensemble,stop_atom,Num_macro,start_atom, &
       plotenergy,Temp,delta_t,do_lsf,lsf_field,    &
-      lsf_interpolate,real_time_measure,simid,cell_index,macro_nlistsize,mmom,emom,  &
+      lsf_interpolate,real_time_measure,simid,cell_index,macro_alistsize,mmom,emom,  &
       emomM,emomM_macro,external_field,time_external_field,max_no_constellations,    &
       maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                  &
       constellationsNeighType,totene,NA,N1,N2,N3)
@@ -95,7 +95,7 @@ contains
       character(len=1), intent(in) :: real_time_measure  !< Display measurements in real time
       character(len=8), intent(in) :: simid              !< Name of simulation
       integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
@@ -169,7 +169,7 @@ contains
          ! that the FFT approaches can be used in an appropriate way
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
-            Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,        &
+            Mensemble,stop_atom,start_atom,cell_index,macro_alistsize,emomM,        &
             emomM_macro,ham%Qdip,ham%Qdip_macro,energy_dip,bfield_dip)
       endif
 
@@ -298,7 +298,7 @@ contains
                   ! Macrocell method
                   else
                      call calc_macro_energy(ii,kk,bfield_dip(1:3,ii,kk),edip,Natom, &
-                        Num_macro,Mensemble,cell_index,emomM_macro,macro_nlistsize)
+                        Num_macro,Mensemble,cell_index,emomM_macro,macro_alistsize)
                   endif
                end if
 

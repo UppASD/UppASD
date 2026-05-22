@@ -42,7 +42,7 @@ contains
    subroutine vpo_min(nHam,every,Natom,Nchmax, &
       itrmax,OPT_flag,conf_num,Mensemble,Num_macro,plotenergy,  &
       max_no_constellations,ftol,mass,delta_t,simid,do_lsf,lsf_field, &
-      lsf_interpolate,cell_index,macro_nlistsize,mmom,emom,     &
+      lsf_interpolate,cell_index,macro_alistsize,mmom,emom,     &
       emomM_macro,external_field,maxNoConstl,unitCellType,constlNCoup,              &
       constellations,constellationsNeighType,energy,emomM,NA,N1,N2,N3,mode,         &
       do_mom_legacy)
@@ -74,7 +74,7 @@ contains
       character(len=1), intent(in) :: do_mom_legacy    !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: lsf_interpolate !< Interpolate LSF or not
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field !< External magnetic field
@@ -116,13 +116,13 @@ contains
          external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
 
       ! Calculation of the total energy
       call calc_energy(nHam,1,Natom,Nchmax,&
          conf_num,Mensemble,Natom,Num_macro,1,plotenergy,       &
          0.0_dblprec,delta_t,do_lsf,lsf_field,    &
-         lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,      &
+         lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,emom,emomM,      &
          emomM_macro,external_field,time_external_field,max_no_constellations,      &
          maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,              &
          constellationsNeighType,energy,NA,N1,N2,N3)
@@ -190,7 +190,7 @@ contains
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
             constellations,constellationsNeighType,energy,Num_macro,      &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          call convert_force(Natom,Mensemble,mmom,emom,beff)
          do ii=1,Mensemble
@@ -224,7 +224,7 @@ contains
             call calc_energy(nHam,itr,Natom,Nchmax,&
                conf_num,Mensemble,Natom,Num_macro,1,plotenergy, &
                0.0_dblprec,delta_t,do_lsf,        &
-               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
+               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom, &
                emom,emomM,emomM_macro,external_field,time_external_field,           &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
                constellations,OPT_flag,constellationsNeighType,energy,NA,N1,N2,N3)

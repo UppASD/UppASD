@@ -7,7 +7,7 @@
 !!!       do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
 !!!       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
 !!!       constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-!!!       macro_nlistsize,do_anisotropy)
+!!!       macro_alistsize,do_anisotropy)
 !!! 
 !!!       use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
 !!!       use Constants, only : mub, mry
@@ -53,7 +53,7 @@
 !!!       ! Internal effective field arising from the optimization of the Heissenberg exchange term
 !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
 !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-!!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+!!!       integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
 !!!       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
 !!!       !
 !!!       integer :: iq
@@ -325,7 +325,7 @@
 !!!                   do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
 !!!                   beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
 !!!                   constlNCoup,constellations,constellationsNeighType,mult_axis,         &
-!!!                   energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+!!!                   energy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 !!!                ! Anisotropy + external field to be added
 !!! 
 !!! !           end do
@@ -390,7 +390,7 @@
 !!!       do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
 !!!       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
 !!!       constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
-!!!       macro_nlistsize,do_anisotropy,simid)
+!!!       macro_alistsize,do_anisotropy,simid)
 !!! 
 !!!       use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
 !!!       use Constants, only : mub, mry
@@ -437,7 +437,7 @@
 !!!       ! Internal effective field arising from the optimization of the Heissenberg exchange term
 !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
 !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-!!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+!!!       integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
 !!!       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
 !!!       character(len=8), intent(in) :: simid  !< Name of simulation
 !!!       !
@@ -593,7 +593,7 @@
 !!!             do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
 !!!             beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
 !!!             constlNCoup,constellations,constellationsNeighType,mult_axis,         &
-!!!             energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+!!!             energy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 !!! 
 !!!          energy=energy/NA !/mry*mub/NA
 !!! 

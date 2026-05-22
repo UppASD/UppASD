@@ -1019,8 +1019,8 @@ contains
       if (do_macro_cells.eq.'Y'.or.ham_inp%do_dip.eq.2) then
          write(*,'(1x,a)',advance='no') ' Create macro cells '
          call create_macrocell(NA,N1,N2,N3,Natom,Mensemble,block_size,coord,        &
-            Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
-            macro_atom_nlist,simid)
+            Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,           &
+            macro_atom_alist,simid)
          write(*,'(a)') 'done'
       endif
 
@@ -1164,7 +1164,7 @@ contains
       !!!    do_cluster,do_anisotropy_clus,random_anisotropy_density_clus,              &
       !!!    anisotropytype_clus,anisotropytype_diff_clus,anisotropy_clus,              &
       !!!    anisotropy_diff_clus,random_anisotropy_clus,mult_axis_clus,Num_macro,      &
-      !!!    max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
+      !!!    max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,block_size,       &
       !!!    do_reduced,do_prnstruct,do_sortcoup,simid,print_dip_tensor,read_dipole,    &
       !!!    qdip_files)
       
@@ -1190,7 +1190,7 @@ contains
          do_cluster,do_anisotropy_clus,random_anisotropy_density_clus,              &
          anisotropytype_clus,anisotropytype_diff_clus,anisotropy_clus,              &
          anisotropy_diff_clus,random_anisotropy_clus,mult_axis_clus,Num_macro,      &
-         max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,block_size,       &
+         max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,block_size,       &
          do_reduced,do_prnstruct,do_sortcoup,simid,ham_inp%print_dip_tensor,ham_inp%read_dipole,    &
          ham_inp%qdip_files)
 
@@ -1259,12 +1259,12 @@ contains
       ! with the macro spin model
       if (ham_inp%do_dip==2) then
          call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,     &
-            macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,emom_macro, &
+            macro_alistsize,macro_atom_alist,mmom,emom,emomM,mmom_macro,emom_macro, &
             emomM_macro)
          if (prn_dip_subset.eq.'Y') then
             call read_dipole_subset()
             call calculate_dipole_subset(Natom,Mensemble,Num_macro,                 &
-               max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,emomM_macro,&
+               max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,emomM_macro,&
                ham%Qdip_macro,simid)
          endif
       endif
@@ -1732,7 +1732,7 @@ contains
          conf_num,Mensemble,Natom,Num_macro,1,         &
          plotenergy,Temp,delta_t,do_lsf,        &
          lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
-         macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
+         macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,              &
          time_external_field,max_no_constellations,maxNoConstl,                   &
          unitCellType,constlNCoup,constellations,OPT_flag,                        &
          constellationsNeighType,total_energy,NA,N1,N2,N3)

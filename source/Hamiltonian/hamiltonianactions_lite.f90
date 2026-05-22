@@ -62,7 +62,7 @@ contains
       character(len=1), intent(in) :: exc_inter !< Interpolation of Jij (Y/N)
       character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
       !integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      !integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      !integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       !real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment

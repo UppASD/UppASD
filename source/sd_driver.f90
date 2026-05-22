@@ -188,7 +188,7 @@ contains
                   emomM,mmom,external_field,time_external_field,beff,beff1,    & 
                   beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,      &
                   constlNCoup,constellations,constellationsNeighType,      &
-                  denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
+                  denergy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,  &
                   N3)
             end if
             call timing(0,'Hamiltonian   ','OF')
@@ -234,7 +234,7 @@ contains
                         max_no_constellations,maxNoConstl,                          &
                         unitCellType,constlNCoup,constellations,                    &
                         constellationsNeighType,denergy,Num_macro,        &
-                        cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+                        cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
                   end if
                   call timing(0,'Hamiltonian   ','OF')
                   call timing(0,'Evolution     ','ON')
@@ -277,7 +277,7 @@ contains
             !------------------------------------------------------------------------
             if (ham_inp%do_dip==2) then
                call calc_macro_mom(Natom,Num_macro,Mensemble,                       &
-                  max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,mmom,    &
+                  max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,mmom,    &
                   emom,emomM,mmom_macro,emom_macro,emomM_macro)
             endif
             !------------------------------------------------------------------------
@@ -429,7 +429,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
          end if
       end if
 
@@ -449,7 +449,7 @@ contains
                external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
                constellations,constellationsNeighType,totenergy,Num_macro,   &
-               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
             Temp_l = Temp_s !f_iontemp(Natom, Mensemble, mion, vvec)
             call threetemp_elec_init(simid,Temp,Temp_s,Temp_l,Temp_e)
@@ -568,7 +568,7 @@ contains
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
-                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
+                  macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,              &
                   time_external_field,max_no_constellations,maxNoConstl,                   &
                   unitCellType,constlNCoup,constellations,OPT_flag,                        &
                   constellationsNeighType,totene,NA,N1,N2,N3)
@@ -669,7 +669,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
          end if
 
          call timing(0,'Hamiltonian   ','OF')
@@ -737,7 +737,7 @@ contains
                   beff,beff1,beff2,OPT_flag,max_no_constellations,maxNoConstl,      &
                   unitCellType,constlNCoup,constellations,constellationsNeighType,  & 
                   totenergy,Num_macro,cell_index,emomM_macro,             &
-                  macro_nlistsize,NA,N1,N2,N3)
+                  macro_alistsize,NA,N1,N2,N3)
             end if
 
          end if
@@ -796,7 +796,7 @@ contains
          !----------------------------------------------------------------------------
          if (ham_inp%do_dip==2) then
             call calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,  &
-               macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,         &
+               macro_alistsize,macro_atom_alist,mmom,emom,emomM,mmom_macro,         &
                emom_macro,emomM_macro)
          endif
          !----------------------------------------------------------------------------
@@ -1018,7 +1018,7 @@ contains
 !                 emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
 !                 OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
 !                 constlNCoup,constellations,constellationsNeighType,mult_axis,     &
-!                 totenergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1, &
+!                 totenergy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1, &
 !                 N2,N3)
          !end if
 
@@ -1063,7 +1063,7 @@ contains
           !        emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
           !        OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
           !        constlNCoup,constellations,constellationsNeighType,mult_axis,     &
-          !        totenergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1, &
+          !        totenergy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1, &
           !        N2,N3)
 
          end if
@@ -1281,7 +1281,7 @@ contains
                emomM,mmom,external_field,time_external_field,beff,beff1,    & 
                beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,      &
                constlNCoup,constellations,constellationsNeighType,      &
-               denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
+               denergy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,  &
                N3)
          end if
 
@@ -1316,7 +1316,7 @@ contains
                   max_no_constellations,maxNoConstl,                          &
                   unitCellType,constlNCoup,constellations,                    &
                   constellationsNeighType,denergy,Num_macro,        &
-                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+                  cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             end if
          endif
 
@@ -1341,7 +1341,7 @@ contains
          !------------------------------------------------------------------------
          if (ham_inp%do_dip==2) then
             call calc_macro_mom(Natom,Num_macro,Mensemble,                       &
-               max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,mmom,    &
+               max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,mmom,    &
                emom,emomM,mmom_macro,emom_macro,emomM_macro)
          endif
          !------------------------------------------------------------------------

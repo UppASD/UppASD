@@ -919,14 +919,14 @@ contains
                !              extfield,do_dip,Qdip,ind_nlistsize,ind_nlist,&
                !              ind_list_full,       &
                !              sus_ind,max_no_neigh_ind,Num_macro,max_num_atom_macro_cell,       &
-               !              cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,          &
+               !              cell_index,macro_alistsize,macro_atom_alist,emomM_macro,          &
                !              Qdip_macro,icell,macro_mag_trial,macro_trial,de,do_anisotropy)
                !        else 
                !             ! Metropolis algorithm, either in Ising or Loop Algorithm form
                !             call calculate_energy(Natom, Mensemble, Natom, conf_num, do_dm , do_pd, do_biqdm, do_bq, 0,&
                !                emomM, emom, mmom, iflip_a(iatom), mom_work_i(1:3,iflip_a(iatom)), extfield, de, k, &
-               !                mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-               !                macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy)
+               !                mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,&
+               !                macro_atom_alist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy)
                !        endif
 
                if(mode=='D') then
@@ -968,7 +968,7 @@ contains
    !!!       taniso,taniso_diff,eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,&
    !!!       iflip,newmom,mmom,emomM,emom,extfield,do_dip,Qdip,ind_nlistsize,ind_nlist,    &
    !!!       ind_list_full,sus_ind,max_no_neigh_ind,Num_macro,max_num_atom_macro_cell,     &
-   !!!       cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,Qdip_macro,icell,     &
+   !!!       cell_index,macro_alistsize,macro_atom_alist,emomM_macro,Qdip_macro,icell,     &
    !!!       macro_mag_trial,macro_trial,de,do_anisotropy)
    !!! 
    !!!       use Constants, only : mub
@@ -1046,8 +1046,8 @@ contains
    !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
    !!!       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
    !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-   !!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-   !!!       integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+   !!!       integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+   !!!       integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
    !!!       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
    !!!       real(dblprec), dimension(3,3,Num_macro,Num_macro), intent(in) :: Qdip_macro !< Matrix for macro spin dipole-dipole
    !!!       ! Output variables
@@ -1296,13 +1296,13 @@ contains
    !!! !!!       elseif(do_dip==2) then
    !!! !!!          ! Calculation of the trial moment in the macrocell approach
    !!! !!!          call calc_trial_macro_mom(k,iflip,Natom,Mensemble,Num_macro,max_num_atom_macro_cell,&
-   !!! !!!             macro_nlistsize,macro_atom_nlist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
+   !!! !!!             macro_alistsize,macro_atom_alist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
    !!! !!!          icell=cell_index(iflip)
    !!! !!!          do j=1, Num_macro
    !!! !!!             do mu=1,3
    !!! !!!                do nu=1,3
-   !!! !!!                   e_c=e_c-emomM_macro(mu,icell,k)*Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_nlistsize(icell)
-   !!! !!!                   e_t=e_t-macro_trial(mu)*Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_nlistsize(icell)
+   !!! !!!                   e_c=e_c-emomM_macro(mu,icell,k)*Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_alistsize(icell)
+   !!! !!!                   e_t=e_t-macro_trial(mu)*Qdip_macro(nu,mu,j,icell)*emomM_macro(nu,j,k)/macro_alistsize(icell)
    !!! !!!                enddo
    !!! !!!             enddo
    !!! !!!          enddo
@@ -1333,7 +1333,7 @@ contains
    !!!       taniso,taniso_diff,eaniso,eaniso_diff,kaniso,kaniso_diff,sb,sb_diff,mult_axis,&
    !!!       iflip,newmom,mmom,emomM,emom,extfield,do_dip,Qdip,ind_nlistsize,ind_nlist,    &
    !!!       ind_list_full,sus_ind,max_no_neigh_ind,Num_macro,max_num_atom_macro_cell,     &
-   !!!       cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,Qdip_macro,icell,     &
+   !!!       cell_index,macro_alistsize,macro_atom_alist,emomM_macro,Qdip_macro,icell,     &
    !!!       macro_mag_trial,macro_trial,de,do_anisotropy)
    !!! 
    !!!       use Constants, only : mub
@@ -1412,8 +1412,8 @@ contains
    !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
    !!!       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
    !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-   !!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-   !!!       integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+   !!!       integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+   !!!       integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
    !!!       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
    !!!       real(dblprec), dimension(3,3,Num_macro,Num_macro), intent(in) :: Qdip_macro !< Matrix for macro spin dipole-dipole
    !!!       ! Output variables

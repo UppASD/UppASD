@@ -44,7 +44,7 @@ contains
       mult_axis,taniso_diff,eaniso_diff,kaniso_diff,sb_diff,&
       do_dip,Qdip,exc_inter,temperature,temprescale,&
       ind_nlistsize,ind_nlist,sus_ind,ind_mom_flag,ind_list_full,max_no_neigh_ind,&
-      Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,&
+      Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist,&
       mmom_macro,emom_macro,emomM_macro,Qdip_macro,do_anisotropy)
 
       use montecarlo_common
@@ -120,8 +120,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(Num_macro,Mensemble), intent(inout) :: mmom_macro
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emom_macro
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emomM_macro !< The full vector of the macrocell magnetic moment
@@ -170,8 +170,8 @@ contains
          do i=1, Natom
             call  calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, 0, do_chir,do_sa,&
             emomM, emom, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i)), extfield, de, k, &
-            mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-            macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,0)
+            mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,&
+            macro_atom_alist,emomM_macro,icell,macro_mag_trial,macro_trial, exc_inter,do_anisotropy,0)
 
             call flip_a(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),&
             newmom_a(1:3,iflip_a(i)),newmmom_a(iflip_a(i)),&

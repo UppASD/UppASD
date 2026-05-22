@@ -36,7 +36,7 @@ contains
       max_no_dmneigh,max_no_constellations,eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,   &
       mult_axis,exc_inter,lsf_field,do_hess_sp,do_hess_ini,do_hess_fin,             &
       lsf_interpolate,OPT_flag,aHam,taniso,nlistsize,dmlistsize,cell_index,         &
-      macro_nlistsize,nlist,dmlist,C1,C2,C3,ene0,im_ene,coord,eaniso,kaniso,emomsp, &
+      macro_alistsize,nlist,dmlist,C1,C2,C3,ene0,im_ene,coord,eaniso,kaniso,emomsp, &
       ncoup,mmom,emomM_macro,dm_vect,external_field,maxNoConstl,unitCellType,       &
       constellationsNeighType,constlNCoup,constellations,emomM,beff,beff1,beff2,NA, &
       emom)
@@ -86,7 +86,7 @@ contains
       integer, dimension(nHam), intent(in) :: nlistsize  !< Size of neighbour list for Heisenberg exchange couplings
       integer, dimension(nHam), intent(in) :: dmlistsize !< Size of neighbour list for DM
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       integer, dimension(max_no_neigh,Natom), intent(in) :: nlist    !< Neighbour list for Heisenberg exchange couplings
       integer, dimension(max_no_dmneigh,Natom), intent(in) :: dmlist !< List of neighbours for DM
       real(dblprec), dimension(3), intent(in) :: C1 !< First lattice vector
@@ -209,7 +209,7 @@ contains
             external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),   &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,      &
             constellations,constellationsNeighType,denergy,Num_macro,       &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
             eig_0,is_afm,simid,state,NNN,aham,taniso,nlistsize,dmlistsize,nlist,    &
@@ -231,7 +231,7 @@ contains
             external_field(:,:,nim:),tef(:,:,nim:),beff(:,:,nim:),beff1(:,:,nim:),beff2(:,:,nim:), &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,denergy,Num_macro,     &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
             eig_0,is_afm,simid,state,NNN,aham,taniso,nlistsize,dmlistsize,nlist,    &
@@ -253,7 +253,7 @@ contains
             external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),  &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,     &
             constellations,constellationsNeighType,denergy,Num_macro,      &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          ! Save effective fields at the SP
          beff_filn = 'beff_sp.'//trim(adjustl(simid))//'.out'

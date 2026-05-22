@@ -128,8 +128,8 @@ contains
                lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
                ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
                ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),ham_inp%do_dip,    &
-               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
-               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,           &
+               macro_atom_alist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
 
             ! Sample m, m2, m4 for second half of run (every tenth step)
             if(ipmcstep>ipmcnstep(i)/2.and.mod(ipmcstep-1,10)==0) then
@@ -336,7 +336,7 @@ contains
             call calc_energy(nHam,mcmstep,Natom,Nchmax,       &
                conf_num,Mensemble,Natom,Num_macro,1, &
                plotenergy,Temp,1.0_dblprec,do_lsf,    &
-               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
+               lsf_field,lsf_interpolate,'N',simid,cell_index,macro_alistsize,mmom,     &
                emom,emomM,emomM_macro,external_field,time_external_field,               &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
                constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
@@ -367,14 +367,14 @@ contains
                lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
                ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
                ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,ham_inp%do_dip,    &
-               Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
-               macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+               Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,           &
+               macro_atom_alist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
 
          !call mc_evolve(Natom,Nchmax,Mensemble,nHam,Temp,temprescale,mode,conf_num,       &
          !   lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,lsf_interpolate,             &
          !   do_jtensor,do_dm,do_pd,do_biqdm,do_bq,do_ring,do_chir,mult_axis,iflip_a,      &
          !   emomM,emom,mmom,ind_mom_flag,hfield,do_dip,Num_macro,max_num_atom_macro_cell, &
-         !   cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,           &
+         !   cell_index,macro_alistsize,macro_atom_alist,emomM_macro,emom_macro,           &
          !   mmom_macro,do_anisotropy)
 
          ! Calculate and print m_avg
@@ -538,8 +538,8 @@ contains
             lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, &
             ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_ring,ham_inp%do_chir,ham_inp%do_sa,&
             ham_inp%mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield(1:3),ham_inp%do_dip,    &
-            Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
-            macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
+            Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,           &
+            macro_atom_alist,emomM_macro,emom_macro,mmom_macro,ham_inp%do_anisotropy)
       enddo
 
       ! Copy equillibrated moments for use in measurement phase

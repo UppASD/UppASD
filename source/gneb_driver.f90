@@ -87,7 +87,7 @@ contains
          !!!    Nchmax,minitrmax,OPT_flag,do_biqdm,conf_num,2,Num_macro,do_jtensor,         &
          !!!    plotenergy,do_anisotropy,max_no_constellations,minftol,vpomass,vpodt,       &
          !!!    simid,do_lsf,lsf_field,exc_inter,mult_axis,lsf_interpolate,cell_index,      &
-         !!!    macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
+         !!!    macro_alistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
          !!!    emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
          !!!    external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
          !!!    constlNCoup,constellations,constellationsNeighType,energy,                  &
@@ -95,7 +95,7 @@ contains
          call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,OPT_flag,conf_num,2,     &
             Num_macro,plotenergy,max_no_constellations,minftol,vpomass,vpodt,           &
             simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
-            macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
+            macro_alistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
             emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
             external_field(:,:,1:Mensemble:(Mensemble-1)),maxNoConstl,unitCellType,     &
             constlNCoup,constellations,constellationsNeighType,energy,                  &
@@ -267,7 +267,7 @@ contains
                ham_inp%do_jtensor,plotenergy,ham_inp%do_anisotropy,max_no_constellations,vpomass,   &
                mepftol,spring,vpodt,simid,do_lsf,en_zero,fixed_if,ham_inp%mult_axis,        &
                ham_inp%exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
-               macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
+               macro_alistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
                unitCellType,constellationsNeighType,constlNCoup,constellations,     &
                denergy,emomM,rx,dene,NA,N1,N2,N3,mode,do_mom_legacy)
          end if
@@ -284,7 +284,7 @@ contains
                ham_inp%do_jtensor,plotenergy,ham_inp%do_anisotropy,max_no_constellations,vpomass,   &
                mepftol_ci,spring,vpodt,simid,do_lsf,en_zero,fixed_if,ham_inp%mult_axis,     &
                ham_inp%exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,             &
-               macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
+               macro_alistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,    &
                unitCellType,constellationsNeighType,constlNCoup,constellations,     &
                denergy,emomM,ci,rx,dene,NA,N1,N2,N3,mode,do_mom_legacy)
 
@@ -359,7 +359,7 @@ contains
          external_field,tef,beff,beff1,beff2,OPT_flag,max_no_constellations,        &
          maxNoConstl,unitCellType,constlNCoup,constellations,                       &
          constellationsNeighType,denergy,Num_macro,cell_index,emomM_macro,&
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
       if (prn_gneb_fields=='Y') then
@@ -386,7 +386,7 @@ contains
             ham%max_no_neigh,ham_inp%do_anisotropy,ham%max_no_dmneigh,max_no_constellations,&
             eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,ham_inp%mult_axis,ham_inp%exc_inter,lsf_field,    &
             do_hess_sp,do_hess_ini,do_hess_fin,lsf_interpolate,OPT_flag,ham%aHam,   &
-            ham%taniso,ham%nlistsize,ham%dmlistsize,cell_index,macro_nlistsize,     &
+            ham%taniso,ham%nlistsize,ham%dmlistsize,cell_index,macro_alistsize,     &
             ham%nlist,ham%dmlist,C1,C2,C3,ene0,ene%energy(:),coord,ham%eaniso,ham%kaniso,  &
             emomsp,ham%ncoup,mmom,emomM_macro,ham%dm_vect,external_field,           &
             maxNoConstl,unitCellType,constellationsNeighType,constlNCoup,           &

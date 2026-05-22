@@ -173,15 +173,15 @@ contains
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
    subroutine setup_macro_qdip(Natom,Num_macro,max_num_atom_macro_cell,             &
-      macro_nlistsize,macro_atom_nlist,coord,alat,Qdip_macro,simid,print_dip_tensor)
+      macro_alistsize,macro_atom_alist,coord,alat,Qdip_macro,simid,print_dip_tensor)
       !
       implicit none
       !
       integer, intent(in) :: Natom !< Number of atoms in system
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), intent(in) :: alat !< Lattice parameter
       real(dblprec), dimension(3,Natom), intent(in) :: coord !< Coordinates of atoms
       character(len=8), intent(in) :: simid !< Name of simulation
@@ -198,14 +198,14 @@ contains
       !$omp parallel do default(shared) private(ii,jj,iatom,jatom,isite,jsite,Rij)
       do ii=1,Num_macro
          do jj=1,Num_macro
-            do isite=1, macro_nlistsize(ii)
-               iatom=macro_atom_nlist(ii,isite)
-               do jsite=1, macro_nlistsize(jj)
-                  jatom=macro_atom_nlist(jj,jsite)
+            do isite=1, macro_alistsize(ii)
+               iatom=macro_atom_alist(ii,isite)
+               do jsite=1, macro_alistsize(jj)
+                  jatom=macro_atom_alist(jj,jsite)
                   if (iatom.ne.jatom) then
                      Rij=(coord(:,iatom)-coord(:,jatom))
                      Qdip_macro(:,:,ii,jj)=Qdip_macro(:,:,ii,jj)+&
-                        dipoleMatrix(alat,Rij)/(macro_nlistsize(ii)*macro_nlistsize(jj))
+                        dipoleMatrix(alat,Rij)/(macro_alistsize(ii)*macro_alistsize(jj))
                   endif
                enddo
             enddo

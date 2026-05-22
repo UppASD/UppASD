@@ -25,8 +25,8 @@ module macrocells
    character(len=20) :: dip_file      !< File containing the indexes of the cells where the macro-dipole field will be written
    integer, dimension(:), allocatable :: cell_index      !< Macrocell index for each atom
    integer, dimension(:), allocatable :: dipole_subset   !< List of the cells where the macrocell dipolar interaction is printed
-   integer, dimension(:), allocatable :: macro_nlistsize !< Number of atoms per macrocell
-   integer, dimension(:,:), allocatable :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+   integer, dimension(:), allocatable :: macro_alistsize !< Number of atoms per macrocell
+   integer, dimension(:,:), allocatable :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
    integer, dimension(:), allocatable :: atom_in_macro_pos !< Position of an atom within its macrocell
    integer :: max_macro_halo_size !< Maximum number of unique halo atoms for any macrocell
    integer :: max_macro_cell_neigh !< Maximum number of neighbouring macrocells for any macrocell
@@ -60,38 +60,38 @@ contains
    !> Here atom* corresponds to atom indices belonging to i_cell.
    !----------------------------------------------------------------------------
    subroutine print_macrocell_neighbour_map(Num_macro, max_num_atom_macro_cell, &
-         macro_nlistsize, macro_atom_nlist, simid)
+         macro_alistsize, macro_atom_alist, simid)
 
       implicit none
 
       integer, intent(in) :: Num_macro
       integer, intent(in) :: max_num_atom_macro_cell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist
       character(len=8), intent(in) :: simid
 
       integer :: ofileno, i_cell, j, n_neigh, i_err
       character(len=64) :: out_file
 
-      out_file = 'macro_cell_mapping.' // trim(simid) // '.out'
+      out_file = 'macro_cell_alist_mapping.' // trim(simid) // '.out'
       open(newunit=ofileno, file=out_file, status='replace', action='write', iostat=i_err)
       if (i_err /= 0) then
-         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro cell mapping file:', trim(out_file), i_err
+         write(*,'(2x,a,1x,a,1x,i0)') 'Warning: could not open macro cell alist mapping file:', trim(out_file), i_err
          return
       end if
       write(ofileno,'(a)') '# i_cell n_atoms atom1 atom2 ...'
 
       do i_cell = 1, Num_macro
-         n_neigh = min(macro_nlistsize(i_cell), max_num_atom_macro_cell)
+         n_neigh = min(macro_alistsize(i_cell), max_num_atom_macro_cell)
          write(ofileno,'(i8,1x,i8, 10x)', advance='no') i_cell, n_neigh
          do j = 1, n_neigh
-            write(ofileno,'(1x,i8)', advance='no') macro_atom_nlist(j, i_cell)
+            write(ofileno,'(1x,i8)', advance='no') macro_atom_alist(j, i_cell)
          end do
          write(ofileno,*)
       end do
 
       close(ofileno)
-      write(*,'(2x,a,1x,a)') 'Wrote macro cell mapping:', trim(out_file)
+      write(*,'(2x,a,1x,a)') 'Wrote macro cell alist mapping:', trim(out_file)
 
    end subroutine print_macrocell_neighbour_map
 
@@ -191,7 +191,7 @@ contains
    !> some type of Voronoi kind of construction.
    !----------------------------------------------------------------------------
    subroutine create_macrocell(NA,N1,N2,N3,Natom,Mensemble,block_size,coord,&
-         Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,simid)
+         Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist,simid)
 
       implicit none
 
@@ -208,8 +208,8 @@ contains
       integer, intent(inout) :: Num_macro  !< Number of macrocells in the system
       integer, intent(inout) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
       integer, dimension(:), allocatable, intent(inout) :: cell_index !< Macrocell index for each atom
-      integer, dimension(:), allocatable, intent(inout) :: macro_nlistsize  !< Number of atoms per macrocell
-      integer, dimension(:,:), allocatable, intent(inout) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(:), allocatable, intent(inout) :: macro_alistsize  !< Number of atoms per macrocell
+      integer, dimension(:,:), allocatable, intent(inout) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
 
       ! .. Local variables
       integer :: dim
@@ -261,10 +261,10 @@ contains
                         do I1=II1,min(II1+block_size_x-1,N1-1)
                            do I0=1, NA
                               ii=ii+1 ! Atom counter
-                              macro_nlistsize(kk)=macro_nlistsize(kk)+1
+                              macro_alistsize(kk)=macro_alistsize(kk)+1
                               cell_index(ii)=kk
-                              macro_atom_nlist(macro_nlistsize(kk),kk)=ii
-                              atom_in_macro_pos(ii)=macro_nlistsize(kk)
+                              macro_atom_alist(macro_alistsize(kk),kk)=ii
+                              atom_in_macro_pos(ii)=macro_alistsize(kk)
                               max_coord_macro(1,kk)=max(coord(1,ii),max_coord_macro(1,kk))
                               max_coord_macro(2,kk)=max(coord(2,ii),max_coord_macro(2,kk))
                               max_coord_macro(3,kk)=max(coord(3,ii),max_coord_macro(3,kk))
@@ -329,10 +329,10 @@ contains
 
          do ii=1,Natom
             kk=bin_to_macro(atom_bin(ii))
-            macro_nlistsize(kk)=macro_nlistsize(kk)+1
+            macro_alistsize(kk)=macro_alistsize(kk)+1
             cell_index(ii)=kk
-            macro_atom_nlist(macro_nlistsize(kk),kk)=ii
-            atom_in_macro_pos(ii)=macro_nlistsize(kk)
+            macro_atom_alist(macro_alistsize(kk),kk)=ii
+            atom_in_macro_pos(ii)=macro_alistsize(kk)
             max_coord_macro(1,kk)=max(coord(1,ii),max_coord_macro(1,kk))
             max_coord_macro(2,kk)=max(coord(2,ii),max_coord_macro(2,kk))
             max_coord_macro(3,kk)=max(coord(3,ii),max_coord_macro(3,kk))
@@ -368,7 +368,7 @@ contains
       call memocc(i_stat,i_all,'mid_coord_macro','create_macrocell')
 
       call print_macrocell_neighbour_map(Num_macro, max_num_atom_macro_cell,      &
-            macro_nlistsize, macro_atom_nlist, simid)
+            macro_alistsize, macro_atom_alist, simid)
 
    end subroutine create_macrocell
 
@@ -382,7 +382,7 @@ contains
       integer :: i, j, a, ii, jj, kk, i_stat, i_all, valid_count
       integer, allocatable :: mark(:), cell_mark(:), cell_touched(:)
 
-      if (.not.allocated(macro_nlistsize) .or. .not.allocated(macro_atom_nlist)) return
+      if (.not.allocated(macro_alistsize) .or. .not.allocated(macro_atom_alist)) return
 
       if (allocated(macro_halo_nlistsize)) then
          i_all=-product(shape(macro_halo_nlistsize))*kind(macro_halo_nlistsize)
@@ -428,8 +428,8 @@ contains
       do ii=1,Num_macro
          mark=0
          kk=0
-         do a=1,macro_nlistsize(ii)
-            i=macro_atom_nlist(a,ii)
+         do a=1,macro_alistsize(ii)
+            i=macro_atom_alist(a,ii)
             do j=1,nlistsize(i)
                jj=nlist(j,i)
                if (jj<1 .or. jj>Natom) cycle
@@ -448,8 +448,8 @@ contains
       macro_halo_to_global=0
       max_macro_atom_local_neigh=0
       do ii=1,Num_macro
-         do a=1,macro_nlistsize(ii)
-            i=macro_atom_nlist(a,ii)
+         do a=1,macro_alistsize(ii)
+            i=macro_atom_alist(a,ii)
             valid_count=0
             do j=1,nlistsize(i)
                jj=nlist(j,i)
@@ -472,8 +472,8 @@ contains
       do ii=1,Num_macro
          mark=0
          kk=0
-         do a=1,macro_nlistsize(ii)
-            i=macro_atom_nlist(a,ii)
+         do a=1,macro_alistsize(ii)
+            i=macro_atom_alist(a,ii)
             macro_atom_to_global(a,ii)=i
             do j=1,nlistsize(i)
                jj=nlist(j,i)
@@ -485,8 +485,8 @@ contains
                end if
             end do
          end do
-         do a=1,macro_nlistsize(ii)
-            i=macro_atom_nlist(a,ii)
+         do a=1,macro_alistsize(ii)
+            i=macro_atom_alist(a,ii)
             kk=0
             do j=1,nlistsize(i)
                jj=nlist(j,i)
@@ -550,7 +550,7 @@ contains
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
    subroutine calc_macro_mom(Natom,Num_macro,Mensemble,max_num_atom_macro_cell,&
-         macro_nlistsize,macro_atom_nlist,mmom,emom,emomM,mmom_macro,emom_macro,emomM_macro)
+         macro_alistsize,macro_atom_alist,mmom,emom,emomM,mmom_macro,emom_macro,emomM_macro)
 
       implicit none
 
@@ -558,8 +558,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
@@ -578,8 +578,8 @@ contains
       !$omp parallel do private(kk,ii,jj,iatom)
       do kk=1,Mensemble
          do ii=1, Num_macro
-            do jj=1, macro_nlistsize(ii)
-               iatom=macro_atom_nlist(jj,ii)
+            do jj=1, macro_alistsize(ii)
+               iatom=macro_atom_alist(jj,ii)
                mmom_macro(ii,kk)=mmom_macro(ii,kk)+mmom(iatom,kk)
                emom_macro(:,ii,kk)=emom_macro(:,ii,kk)+emom(:,iatom,kk)
                emomM_macro(:,ii,kk)=emomM_macro(:,ii,kk)+emomM(:,iatom,kk)
@@ -598,7 +598,7 @@ contains
    !> @author Jonathan Chico
    !-----------------------------------------------------------------------------
    subroutine calc_trial_macro_mom(kk,iatom,Natom,Mensemble,Num_macro,max_num_atom_macro_cell,&
-         macro_nlistsize,macro_atom_nlist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
+         macro_alistsize,macro_atom_alist,trialmom,emomM,emomM_macro,macro_mag_trial,macro_trial)
 
       implicit none
 
@@ -608,8 +608,8 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(3), intent(in) :: trialmom   !< Trial moment from the montecarlo update
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM !< Current magnetic moment vector
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
@@ -622,8 +622,8 @@ contains
       macro_trial=0.0_dblprec
 
       icell=cell_index(iatom)
-      do ii=1,macro_nlistsize(icell)
-         jatom=macro_atom_nlist(ii,icell)
+      do ii=1,macro_alistsize(icell)
+         jatom=macro_atom_alist(ii,icell)
          if (jatom.eq.iatom) then
             macro_trial(:)=macro_trial(:)+trialmom(:)
          else
@@ -682,7 +682,7 @@ contains
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
    subroutine calculate_dipole_subset(Natom,Mensemble,Num_macro,max_num_atom_macro_cell,&
-      macro_nlistsize,macro_atom_nlist,emomM_macro,Qdip_macro,simid)
+      macro_alistsize,macro_atom_alist,emomM_macro,Qdip_macro,simid)
 
       use Constants
 
@@ -692,8 +692,8 @@ contains
       integer, intent(in) :: Mensemble !< Number of ensembles
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,3,Num_macro,Num_macro), intent(in) :: Qdip_macro !< Matrix for macro spin dipole-dipole interaction
       character(len=8), intent(in) :: simid !< Name of simulation
@@ -758,8 +758,8 @@ contains
             endif
          enddo
          ! Print the field acting over each atom in the considered cell
-         do jj=1,macro_nlistsize(icell)
-            write(ofileno,'(i5,x,es16.8,x,es16.8,x,es16.8)') macro_atom_nlist(jj,icell), field(1),field(2),field(3)
+         do jj=1,macro_alistsize(icell)
+            write(ofileno,'(i5,x,es16.8,x,es16.8,x,es16.8)') macro_atom_alist(jj,icell), field(1),field(2),field(3)
          enddo
       enddo
       !$omp end parallel do
@@ -784,15 +784,15 @@ contains
       integer :: i_stat, i_all
 
       if (flag>0) then
-         allocate(macro_nlistsize(Num_macro), stat=i_stat)
-         call memocc(i_stat,product(shape(macro_nlistsize))*kind(macro_nlistsize),'macro_nlistsize','allocate_macrocell')
-         macro_nlistsize=0
+         allocate(macro_alistsize(Num_macro), stat=i_stat)
+         call memocc(i_stat,product(shape(macro_alistsize))*kind(macro_alistsize),'macro_alistsize','allocate_macrocell')
+         macro_alistsize=0
          allocate(cell_index(Natom),stat=i_stat)
          call memocc(i_stat,product(shape(cell_index))*kind(cell_index),'cell_index','allocate_macrocell')
          cell_index=0
-         allocate(macro_atom_nlist(max_num_atom_macro_cell,Num_macro),stat=i_stat)
-         call memocc(i_stat,product(shape(macro_atom_nlist))*kind(macro_atom_nlist),'macro_atom_nlist','allocate_macrocell')
-         macro_atom_nlist=0
+         allocate(macro_atom_alist(max_num_atom_macro_cell,Num_macro),stat=i_stat)
+         call memocc(i_stat,product(shape(macro_atom_alist))*kind(macro_atom_alist),'macro_atom_alist','allocate_macrocell')
+         macro_atom_alist=0
          allocate(max_coord_macro(3,Num_macro),stat=i_stat)
          call memocc(i_stat,product(shape(max_coord_macro))*kind(max_coord_macro),'max_coord_macro','allocate_macrocell')
          max_coord_macro=0.0_dblprec
@@ -820,13 +820,13 @@ contains
          deallocate(cell_index,stat=i_stat)
          call memocc(i_stat,i_all,'cell_index','allocate_macrocell')
 
-         i_all=-product(shape(macro_atom_nlist))*kind(macro_atom_nlist)
-         deallocate(macro_atom_nlist,stat=i_stat)
-         call memocc(i_stat,i_all,'macro_atom_nlist','allocate_macrocell')
+         i_all=-product(shape(macro_atom_alist))*kind(macro_atom_alist)
+         deallocate(macro_atom_alist,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_atom_alist','allocate_macrocell')
 
-         i_all=-product(shape(macro_nlistsize))*kind(macro_nlistsize)
-         deallocate(macro_nlistsize,stat=i_stat)
-         call memocc(i_stat,i_all,'macro_nlistsize','allocate_macrocell')
+         i_all=-product(shape(macro_alistsize))*kind(macro_alistsize)
+         deallocate(macro_alistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'macro_alistsize','allocate_macrocell')
          if (allocated(atom_in_macro_pos)) then
             i_all=-product(shape(atom_in_macro_pos))*kind(atom_in_macro_pos)
             deallocate(atom_in_macro_pos,stat=i_stat)

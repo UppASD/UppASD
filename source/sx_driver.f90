@@ -199,8 +199,8 @@ contains
                   external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
                   constellations,constellationsNeighType,repene(irep),    &
-                  !Num_macro,cell_index,sx_emomM_macro,macro_nlistsize,  &
-                  Num_macro,cell_index,sx_emomM_macro(:,:,:,imacro),macro_nlistsize,  &
+                  !Num_macro,cell_index,sx_emomM_macro,macro_alistsize,  &
+                  Num_macro,cell_index,sx_emomM_macro(:,:,:,imacro),macro_alistsize,  &
                   NA,N1,N2,N3)
 
                !repene_sum(irep) = repene(irep)/Natom
@@ -228,7 +228,7 @@ contains
             !   conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,                &
             !   lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_chir,mult_axis,&
             !   iflip_a,emomM,emom,mmom,ind_mom_flag,iphfield(1:3),do_dip,Num_macro,      &
-            !   max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist,      &
+            !   max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist,      &
             !   emomM_macro,emom_macro,mmom_macro,do_anisotropy)
 
             call choose_random_atom_x(Natom,iflip_a)
@@ -238,7 +238,7 @@ contains
                !!!    lsf_interpolate,ham_inp%do_jtensor,ham_inp%do_dm, ham_inp%do_pd, ham_inp%do_biqdm,ham_inp%do_bq, ham_inp%do_ring,    &
                !!!    ham_inp%do_chir, ham_inp%mult_axis,iflip_a,sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep), &
                !!!    sx_mmom(:,:,irep),ind_mom_flag,iphfield(1:3),ham_inp%do_dip,Num_macro,       &
-               !!!    max_num_atom_macro_cell,cell_index,macro_nlistsize,macro_atom_nlist, &
+               !!!    max_num_atom_macro_cell,cell_index,macro_alistsize,macro_atom_alist, &
                !!!    sx_emomM_macro(:,:,:,irep),sx_emom_macro(:,:,:,irep),                &
                !!!    sx_mmom_macro(:,:,irep),ham_inp%do_anisotropy)
                !call sd_minimal(sx_emomM(:,:,:,irep),sx_emom(:,:,:,irep),sx_mmom(:,:,irep),sx_step,66,ipTemp(irep))
@@ -341,7 +341,7 @@ contains
          !!!    time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,    &
          !!!    maxNoConstl,unitCellType,constlNCoup,constellations,                    &
          !!!    constellationsNeighType,repene(irep),Num_macro,cell_index,    &
-         !!!    sx_emomM_macro(:,:,:,irep),macro_nlistsize,NA,N1,N2,N3)
+         !!!    sx_emomM_macro(:,:,:,irep),macro_alistsize,NA,N1,N2,N3)
 
          call calc_mavrg(Natom,Mensemble,sx_emomM(:,:,:,irep),mavg)
 

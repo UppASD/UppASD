@@ -68,7 +68,7 @@ contains
          lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_ring,do_chir,do_sa,&
          mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,&
          extfield,do_dip,Num_macro,max_num_atom_macro_cell,&
-         cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,&
+         cell_index,macro_alistsize,macro_atom_alist,emomM_macro,emom_macro,mmom_macro,&
          hist,dos,wl_totenergy,m_hist,m_avg,wl_lhist_min,wl_lhist_max,do_anisotropy,stepsize)
          !hist,dos,wl_totenergy,ran_w,m_hist,m_avg)
       !
@@ -130,8 +130,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(Num_macro,Mensemble), intent(inout) :: mmom_macro !< Magnitude of the macrocell magnetic moments
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emom_macro !< Unit vector of the macrocell magnetic moment
@@ -177,7 +177,7 @@ contains
       !!!             do_bq,ham%nn_bq_tot,ham%bqlistsize,ham%bqlist,ham%j_bq,ham%taniso,ham%taniso_diff,ham%eaniso,ham%eaniso_diff,ham%kaniso,&
       !!!             ham%kaniso_diff,ham%sb,ham%sb_diff,mult_axis,mmom,emomM,emom,extfield,do_dip,ham%Qdip,&
       !!!             Num_macro,max_num_atom_macro_cell,&
-      !!!             cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,ham%Qdip_macro,emom_macro,mmom_macro,&
+      !!!             cell_index,macro_alistsize,macro_atom_alist,emomM_macro,ham%Qdip_macro,emom_macro,mmom_macro,&
       !!!             ham%ind_nlistsize,ham%ind_nlist,ham%ind_list_full,ham%sus_ind,do_lsf,lsf_metric,ind_mom_flag,ham%max_no_neigh_ind)
       !!!
       ! Here mode==E
@@ -215,8 +215,8 @@ contains
             ! Calculate the energy
             call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir,do_sa,&
                emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
-               mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
+               mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,&
+               macro_atom_alist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
       !     call effective_field_extralite(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,mmom,temp_ene,beff)
       !      call effective_field_lite(Natom,Mensemble,i,i,do_jtensor,      &
       !         do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
@@ -262,14 +262,14 @@ contains
    !   lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,&
    !   mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,hfield,&
    !   do_dip,Num_macro,max_num_atom_macro_cell,&
-   !   cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro)
+   !   cell_index,macro_alistsize,macro_atom_alist,emomM_macro,emom_macro,mmom_macro)
 
    subroutine wl_warmup(Natom,Nchmax,Mensemble,nHam,&
          mode,conf_num,lsf_metric,lsf_window,do_lsf,lsf_field,exc_inter,&
          lsf_interpolate,do_jtensor,do_dm, do_pd, do_biqdm,do_bq,do_ring,do_chir,do_sa,&
          mult_axis,iflip_a,emomM,emom,mmom,ind_mom_flag,&
          extfield,do_dip,Num_macro,max_num_atom_macro_cell,&
-         cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro,emom_macro,mmom_macro,&
+         cell_index,macro_alistsize,macro_atom_alist,emomM_macro,emom_macro,mmom_macro,&
          do_anisotropy)
       !
       use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussianP,use_vsl
@@ -327,8 +327,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
       integer, intent(in) :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist !< List containing the information of which atoms are in a given macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(Num_macro,Mensemble), intent(inout) :: mmom_macro !< Magnitude of the macrocell magnetic moments
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(inout) :: emom_macro !< Unit vector of the macrocell magnetic moment
@@ -393,8 +393,8 @@ contains
             ! Calculate the energy
             call calculate_energy(Natom, Mensemble, nHam, conf_num, do_dm , do_pd, do_biqdm, do_bq, do_ring, do_chir,do_sa,&
                emomM, emom, mmom, iflip_a(i), newmom_a(1:3,iflip_a(i),k), extfield, de, k, &
-               mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,&
-               macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
+               mult_axis, do_dip,Num_macro,max_num_atom_macro_cell,cell_index,macro_alistsize,&
+               macro_atom_alist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy, do_jtensor)
 
             call minimaxi(Natom, Mensemble, emom, emomM, mmom, iflip_a(i),newmom_a(1:3,iflip_a(i),k),newmmom_a(iflip_a(i),k), &
                de,do_lsf,k,flipprob_a(i,k),lsf_metric,ham%ind_nlistsize,&

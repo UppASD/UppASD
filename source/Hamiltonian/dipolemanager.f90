@@ -31,7 +31,7 @@ contains
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
    subroutine dipole_setup(NA,N1,N2,N3,Natom,do_dip,Num_macro,Mensemble,            &
-      max_num_atom_macro_cell,macro_nlistsize,macro_atom_nlist,alat,C1,C2,C3,Bas,   &
+      max_num_atom_macro_cell,macro_alistsize,macro_atom_alist,alat,C1,C2,C3,Bas,   &
       coord,simid,read_dipole,print_dip_tensor,qdip_files,Qdip,Qdip_macro)
 
       use HamiltonianData, only: allocate_dipole,allocate_macro_dipole
@@ -48,8 +48,8 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, intent(in) :: Mensemble
       integer, intent(in) :: max_num_atom_macro_cell  !< Maximum number of atoms in  a macrocell
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
-      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist  !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_alist  !< List containing the information of which atoms are in a given macrocell
       real(dblprec), intent(in) :: alat
       real(dblprec), dimension(3), intent(in) :: C1
       real(dblprec), dimension(3), intent(in) :: C2
@@ -81,7 +81,7 @@ contains
             call read_qdip(Num_macro,Qdip_macro,qdip_files)
          else
             call setup_macro_qdip(Natom,Num_macro,max_num_atom_macro_cell,          &
-               macro_nlistsize,macro_atom_nlist,coord,alat,Qdip_macro,simid,        &
+               macro_alistsize,macro_atom_alist,coord,alat,Qdip_macro,simid,        &
                print_dip_tensor)
          endif
          write(*,'(a)') '  done'
@@ -117,7 +117,7 @@ contains
    !> @author Jonathan Chico
    !----------------------------------------------------------------------------
    subroutine dipole_field_calculation(NA,N1,N2,N3,Natom,do_dip,Num_macro,          &
-      Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,emomM_macro,  &
+      Mensemble,stop_atom,start_atom,cell_index,macro_alistsize,emomM,emomM_macro,  &
       Qdip,Qdip_macro,energy,bfield)
 
       implicit none
@@ -133,7 +133,7 @@ contains
       integer, intent(in) :: stop_atom
       integer, intent(in) :: start_atom
       integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,3,Natom,Natom), intent(in) :: Qdip
@@ -167,7 +167,7 @@ contains
                ! Calculate the contribution to the energy comming from the macrocell treatment of the
                ! dipole-dipole interaction
                call calc_macro_energy(ii,kk,bfield(:,ii,kk),energy,Natom,Num_macro,Mensemble, &
-                  cell_index,emomM_macro,macro_nlistsize)
+                  cell_index,emomM_macro,macro_alistsize)
             enddo
          enddo
          !$omp end parallel do
@@ -192,7 +192,7 @@ contains
    !> way to be more efficient
    !-------------------------------------------------------------------------
    subroutine calc_macro_energy(i,k,field,energy,Natom,Num_macro,Mensemble,      &
-      cell_index,emomM_macro,macro_nlistsize)
+      cell_index,emomM_macro,macro_alistsize)
 
       implicit none
 
@@ -203,7 +203,7 @@ contains
       integer, intent(in) :: Mensemble    !< Number of ensembles
       real(dblprec), dimension(3), intent(in) :: field
       integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), intent(inout) :: energy
 
@@ -212,7 +212,7 @@ contains
 
       icell=cell_index(i)
       energy=energy-0.5_dblprec*(field(1)*emomM_macro(1,icell,k)+field(2)*emomM_macro(2,icell,k)+&
-         field(3)*emomM_macro(3,icell,k))/macro_nlistsize(icell)
+         field(3)*emomM_macro(3,icell,k))/macro_alistsize(icell)
 
    end subroutine calc_macro_energy
 

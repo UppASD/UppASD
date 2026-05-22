@@ -63,7 +63,7 @@ contains
       !
       use InputData!, only : Natom, Mensemble, NA
       use optimizationRoutines, only : OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup, constellations,constellationsNeighType
-      use macrocells, only : Num_macro,cell_index, emomM_macro,macro_nlistsize
+      use macrocells, only : Num_macro,cell_index, emomM_macro,macro_alistsize
       use MomentData, only : emom, emomM, mmom
       use SystemData, only : coord
       use Qvectors,   only : q, nq
@@ -80,7 +80,7 @@ contains
          call sweep_q2(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,Num_macro,cell_index,  &
-            emomM_macro,macro_nlistsize,simid,q,nq)
+            emomM_macro,macro_alistsize,simid,q,nq)
          call plot_q(Natom,Mensemble,coord,emom,emomM,mmom,simid)
       elseif (qmode=='Z') then
          ! Spin spiral minimization initial phase
@@ -89,21 +89,21 @@ contains
          call sweep_cube(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,Num_macro,cell_index,  &
-            emomM_macro,macro_nlistsize,simid,q,nq)
+            emomM_macro,macro_alistsize,simid,q,nq)
          call plot_cube(Natom,Mensemble,coord,emom,emomM,mmom,simid)
       elseif (qmode=='Y') then
          ! Spin spiral minimization initial phase
          call sweep_q3(Natom,Mensemble,NA,coord,emomM,mmom,iphfield,    &
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,Num_macro,cell_index,  &
-            emomM_macro,macro_nlistsize,simid,q,nq)
+            emomM_macro,macro_alistsize,simid,q,nq)
          call plot_q3(Natom,Mensemble,coord,emom,emomM,mmom,simid)
       elseif (mode=='S') then
          ! Spin spiral minimization measurement phase
          call qmc(Natom,Mensemble,NA,N1,N2,N3,coord, emomM,mmom,hfield,&
             OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
             constellations,constellationsNeighType,Num_macro,cell_index,  &
-            emomM_macro,macro_nlistsize)
+            emomM_macro,macro_alistsize)
          call plot_q(Natom, Mensemble, coord, emom, emomM, mmom,simid)
 
       end if
@@ -119,7 +119,7 @@ contains
    subroutine sweep_q2(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxnoconstl,unitcelltype,constlncoup,constellations,    &
       constellationsneightype,num_macro,cell_index,emomm_macro,           &
-      macro_nlistsize,simid,qpts,nq)
+      macro_alistsize,simid,qpts,nq)
 
       use randomnumbers, only: rng_uniform,rng_gaussian
       use inputdata, only : n1,n2,n3
@@ -158,7 +158,7 @@ contains
       ! internal effective field arising from the optimization of the heissenberg exchange term
       integer, intent(in) :: num_macro !< number of macrocells in the system
       integer, dimension(natom), intent(in) :: cell_index !< macrocell index for each atom
-      integer, dimension(num_macro), intent(in) :: macro_nlistsize !< number of atoms per macrocell
+      integer, dimension(num_macro), intent(in) :: macro_alistsize !< number of atoms per macrocell
       real(dblprec), dimension(3,num_macro,mensemble), intent(in) :: emomm_macro !< the full vector of the macrocell magnetic moment
       character(len=8), intent(in) :: simid  !< name of simulation
       integer, intent(in) :: nq  !< number of qpoints
@@ -399,7 +399,7 @@ contains
             emomm,mmom,external_field,time_external_field,beff,beff1,      &
             beff2,opt_flag,max_no_constellations,maxnoconstl,unitcelltype,        &
             constlncoup,constellations,constellationsneightype,         &
-            energy,num_macro,cell_index,emomm_macro,macro_nlistsize,na,n1,n2,n3)
+            energy,num_macro,cell_index,emomm_macro,macro_alistsize,na,n1,n2,n3)
 
          energy=energy/natom !/mub*mry !/mry*mub/na
          !  print '(a,3f12.6)' , 'ene  :', energy
@@ -494,7 +494,7 @@ contains
    subroutine sweep_q3(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,simid,qpts,nq)
+      macro_alistsize,simid,qpts,nq)
 
       use RandomNumbers, only: rng_uniform,rng_gaussian
       use InputData, only : N1,N2,N3
@@ -531,7 +531,7 @@ contains
       ! Internal effective field arising from the optimization of the Heissenberg exchange term
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       character(len=8), intent(in) :: simid  !< Name of simulation
       integer, intent(in) :: nq  !< number of qpoints
@@ -664,7 +664,7 @@ contains
             emomM,mmom,external_field,time_external_field,beff,beff1,      &
             beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
             constlNCoup,constellations,constellationsNeighType,         &
-            energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            energy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          energy=energy/Natom !/mub*mry !/mry*mub/NA
 
@@ -719,7 +719,7 @@ contains
    subroutine sweep_cube(Natom,Mensemble,NA,coord,emomM,mmom,hfield,OPT_flag,           &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize,simid,qpts,nq)
+      macro_alistsize,simid,qpts,nq)
 
       use RandomNumbers, only: rng_uniform,rng_gaussian
       use InputData, only : N1,N2,N3
@@ -753,7 +753,7 @@ contains
       ! Internal effective field arising from the optimization of the Heissenberg exchange term
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize !< Number of atoms per macrocell
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       character(len=8), intent(in) :: simid  !< Name of simulation
       integer, intent(in) :: nq  !< number of qpoints
@@ -913,7 +913,7 @@ contains
                emomM,mmom,external_field,time_external_field,beff,beff1,      &
                beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
                constlNCoup,constellations,constellationsNeighType,         &
-               energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               energy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
             energy=energy/Natom !/mub*mry !/mry*mub/NA
 
@@ -1250,7 +1250,7 @@ contains
       emomM,mmom,hfield,OPT_flag,     &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,Num_macro,cell_index,emomM_macro,           &
-      macro_nlistsize)
+      macro_alistsize)
       !
       use Constants, only: k_bolt, mub
       use InputData, only: Temp
@@ -1287,7 +1287,7 @@ contains
       integer, intent(in) :: Num_macro !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize
 
       ! .. Local variables
       integer :: iq
@@ -1343,7 +1343,7 @@ contains
          time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,       &
          maxNoConstl,unitCellType,constlNCoup,constellations,                       &
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
       old_energy=energy
       print *, 'Starting energy:',energy
       do iter=1,niter
@@ -1427,7 +1427,7 @@ contains
                   external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
                   max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
                   constellations,constellationsNeighType,energy,Num_macro,&
-                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+                  cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             end do
          end do
          ! Store best energy configuration

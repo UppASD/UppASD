@@ -65,7 +65,7 @@ module Chelper
 
    interface
          subroutine FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
-               cell_index, macro_nlistsize, macro_atom_nlist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
+               cell_index, macro_alistsize, macro_atom_alist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
                macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells) &
                 bind(C, name="fortrandata_setmacrohalo_")
          import :: c_int
@@ -75,8 +75,8 @@ module Chelper
          integer(c_int), intent(inout) :: max_macro_halo_size
          integer(c_int), intent(inout) :: max_macro_cell_neigh
          integer(c_int), intent(inout) :: cell_index(*)
-         integer(c_int), intent(inout) :: macro_nlistsize(*)
-         integer(c_int), intent(inout) :: macro_atom_nlist(*)
+         integer(c_int), intent(inout) :: macro_alistsize(*)
+         integer(c_int), intent(inout) :: macro_atom_alist(*)
          integer(c_int), intent(inout) :: macro_atom_to_global(*)
          integer(c_int), intent(inout) :: macro_halo_nlistsize(*)
          integer(c_int), intent(inout) :: macro_halo_to_global(*)
@@ -293,7 +293,7 @@ contains
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
-                  macro_nlistsize,ext_mmom,ext_emom,ext_emomM,emomM_macro,external_field,              &
+                  macro_alistsize,ext_mmom,ext_emom,ext_emomM,emomM_macro,external_field,              &
                   time_external_field,max_no_constellations,maxNoConstl,                   &
                   unitCellType,constlNCoup,constellations,OPT_flag,                        &
                   constellationsNeighType,totene,NA,N1,N2,N3)
@@ -527,7 +527,7 @@ contains
             allocated(macro_atom_local_nlistsize) .and. allocated(macro_atom_local_nlist) .and. &
             allocated(macro_cell_nlistsize) .and. allocated(macro_cell_nlist)) then
          call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
-            cell_index, macro_nlistsize, macro_atom_nlist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
+            cell_index, macro_alistsize, macro_atom_alist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
             macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells)
       end if
 

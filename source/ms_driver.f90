@@ -181,7 +181,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             
             call timing(0,'Hamiltonian   ','OF')
             call timing(0,'Initial       ','ON')
@@ -240,7 +240,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
                  
                   call timing(0,'Hamiltonian   ','OF')
                   call timing(0,'Evolution     ','ON')
@@ -470,7 +470,7 @@ contains
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
-                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
+                  macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,              &
                   time_external_field,max_no_constellations,maxNoConstl,                   &
                   unitCellType,constlNCoup,constellations,OPT_flag,                        &
                   constellationsNeighType,totene,NA,N1,N2,N3)
@@ -548,7 +548,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
         
             call dampingBandPreinterpolation(dampingBand,emom)
 
@@ -612,7 +612,7 @@ contains
                mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
                max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
                constellations, constellationsNeighType, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             
            
          

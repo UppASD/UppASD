@@ -45,7 +45,7 @@ contains
       use FieldData, only : external_field, time_external_field, beff, beff1, beff2
       use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
          constellations, constellationsNeighType, maxNoConstl
-      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_alistsize
       implicit none
 
       real(dblprec) :: energy
@@ -55,7 +55,7 @@ contains
          emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
 
    end subroutine effective_field_bare
 
@@ -65,7 +65,7 @@ contains
       use FieldData, only : external_field, time_external_field, beff, beff1, beff2
       use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
          constellations, constellationsNeighType, maxNoConstl
-      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_alistsize
       implicit none
 
       integer, intent(in) :: i_moment
@@ -77,7 +77,7 @@ contains
          emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
 
       out_field = beff(:, i_moment, i_ensemble)
 
@@ -89,7 +89,7 @@ contains
       use FieldData, only : external_field, time_external_field, beff, beff1, beff2
       use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
          constellations, constellationsNeighType, maxNoConstl
-      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
+      use macrocells, only : Num_macro, cell_index, emomM_macro, macro_alistsize
       implicit none
 
       real(dblprec), intent(out) :: energy
@@ -99,7 +99,7 @@ contains
          emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
          max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
          constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_alistsize,NA,N1,N2,N3)
 
       return
 
@@ -109,7 +109,7 @@ contains
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
-      macro_nlistsize,NA,N1,N2,N3)
+      macro_alistsize,NA,N1,N2,N3)
       !
       use Constants, only : mry,mub
       use DipoleManager, only : dipole_field_calculation
@@ -126,7 +126,7 @@ contains
       integer, intent(in) :: stop_atom    !< Atom to end loop for
       integer, intent(in) :: Num_macro    !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
@@ -174,7 +174,7 @@ contains
          call timing(0,'Hamiltonian   ','OF')
          call timing(0,'Dipolar Int.  ','ON')
          call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
-            Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,        &
+            Mensemble,stop_atom,start_atom,cell_index,macro_alistsize,emomM,        &
             emomM_macro,ham%Qdip,ham%Qdip_macro,energy,beff)
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
@@ -255,7 +255,7 @@ contains
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
       constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
-      macro_nlistsize,NA,N1,N2,N3)
+      macro_alistsize,NA,N1,N2,N3)
       !
       use Constants, only : mry,mub
       use DipoleManager, only : dipole_field_calculation
@@ -272,7 +272,7 @@ contains
       integer, intent(in) :: i_ensemble   !< Ensemble to calculate field for
       integer, intent(in) :: Num_macro    !< Number of macrocells in the system
       integer, dimension(Natom), intent(in) :: cell_index            !< Macrocell index for each atom
-      integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
+      integer, dimension(Num_macro), intent(in) :: macro_alistsize   !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
@@ -319,7 +319,7 @@ contains
          call timing(0,'Hamiltonian   ','OF')
          call timing(0,'Dipolar Int.  ','ON')
          call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
-            Mensemble,i_atom, i_atom,cell_index,macro_nlistsize,emomM,        &
+            Mensemble,i_atom, i_atom,cell_index,macro_alistsize,emomM,        &
             emomM_macro,ham%Qdip,ham%Qdip_macro,energy,beff)
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')

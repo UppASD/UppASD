@@ -613,7 +613,7 @@ contains
                external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
                constellations, constellationsNeighType,totenergy,           &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
             call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,&
                uvec,emomM,beff,beff3)
@@ -702,7 +702,7 @@ contains
                   emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
                   OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
                   constlNCoup,constellations,constellationsNeighType,               &
-                  totenergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1, &
+                  totenergy,Num_macro,cell_index,emomM_macro,macro_alistsize,NA,N1, &
                   N2,N3)
 
                call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,     &
@@ -991,7 +991,7 @@ contains
                external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
                constellations,constellationsNeighType,totenergy,Num_macro,   &
-               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
             Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
             Temp_l = f_iontemp(Natom, Mensemble, mion, vvec)
             call threetemp_elec_init(simid,Temp,Temp_s,Temp_l,Temp_e)
@@ -1084,7 +1084,7 @@ contains
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
             constellations,constellationsNeighType,totenergy,Num_macro,   &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,   &
             uvec,emomM,beff,beff3)
@@ -1115,7 +1115,7 @@ contains
                   conf_num,Mensemble,Natom,Num_macro,1,  &
                   plotenergy,Temp_s,delta_t,do_lsf, &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,     &
-                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,       &
+                  macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,       &
                   time_external_field,max_no_constellations,maxNoConstl,            &
                   unitCellType,constlNCoup,constellations,OPT_flag,                 &
                   constellationsNeighType,totenergy,NA,N1,N2,N3)
@@ -1292,7 +1292,7 @@ contains
                external_field,time_external_field,beff,beff1,beff2,OPT_flag,        &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
                constellations,constellationsNeighType,totenergy,Num_macro,&
-               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
             call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,&
                uvec,emomM,beff,beff3)
@@ -1441,7 +1441,7 @@ contains
                conf_num,Mensemble,Natom,Num_macro,1,     &
                plotenergy,Temp_s,delta_t,do_lsf,    &
                lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
-               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
+               macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,          &
                time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
                constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
                totenergy,NA,N1,N2,N3)
@@ -1720,7 +1720,7 @@ contains
             external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
             max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
             constellations,constellationsNeighType,denergy,Num_macro,     &
-            cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+            cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
          call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,   &
             uvec,emomM,beff,beff3)
@@ -1747,7 +1747,7 @@ contains
                   conf_num,Mensemble,nHam,Num_macro,1,   &
                   plotenergy,Temp,delta_t,do_lsf, &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,     &
-                  macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,       &
+                  macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,       &
                   time_external_field,max_no_constellations,maxNoConstl,            &
                   unitCellType,constlNCoup,constellations,OPT_flag,                 &
                   constellationsNeighType,totenergy,NA,N1,N2,N3)
@@ -1889,7 +1889,7 @@ contains
                external_field,time_external_field,beff,beff1,beff2,OPT_flag,        &
                max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
                constellations,constellationsNeighType,denergy,Num_macro,  &
-               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               cell_index,emomM_macro,macro_alistsize,NA,N1,N2,N3)
 
             ! Calculate spin transfer torque contributions to the local field
             if(stt=='A'.or.stt=='F'.or.do_she=='Y'.or.do_sot=='Y') then
@@ -1996,7 +1996,7 @@ contains
                conf_num,Mensemble,nHam,Num_macro,1,      &
                plotenergy,Temp,delta_t,do_lsf,    &
                lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
-               macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
+               macro_alistsize,mmom,emom,emomM,emomM_macro,external_field,          &
                time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
                constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
                totenergy,NA,N1,N2,N3)
