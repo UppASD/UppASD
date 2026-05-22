@@ -49,7 +49,7 @@ contains
       integer, intent(in) :: Mensemble
       integer, intent(in) :: max_num_atom_macro_cell  !< Maximum number of atoms in  a macrocell
       integer, dimension(Num_macro), intent(in) :: macro_nlistsize   !< Number of atoms per macrocell
-      integer, dimension(Num_macro,max_num_atom_macro_cell), intent(in) :: macro_atom_nlist  !< List containing the information of which atoms are in a given macrocell
+      integer, dimension(max_num_atom_macro_cell,Num_macro), intent(in) :: macro_atom_nlist  !< List containing the information of which atoms are in a given macrocell
       real(dblprec), intent(in) :: alat
       real(dblprec), dimension(3), intent(in) :: C1
       real(dblprec), dimension(3), intent(in) :: C2
