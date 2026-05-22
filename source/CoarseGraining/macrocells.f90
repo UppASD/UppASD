@@ -31,11 +31,12 @@ module macrocells
    integer :: max_macro_halo_size !< Maximum number of unique halo atoms for any macrocell
    integer :: max_macro_cell_neigh !< Maximum number of neighbouring macrocells for any macrocell
    integer, dimension(:), allocatable :: macro_halo_nlistsize !< Number of unique halo atoms per macrocell
-   integer, dimension(:,:), allocatable :: macro_halo_to_global !< Local-halo to global atom map
-   integer, dimension(:,:), allocatable :: macro_atom_local_nlistsize !< Number of neighbours for local atoms
-   integer, dimension(:,:,:), allocatable :: macro_atom_local_nlist !< Atom neighbour list in macrocell-local halo indices
+   integer, dimension(:,:), allocatable :: macro_halo_to_global !< Local-halo to global atom map (local_halo, macrocell)
+   integer, dimension(:,:), allocatable :: macro_atom_to_global !< Local-atom to global atom map (local_atom, macrocell)
+   integer, dimension(:,:), allocatable :: macro_atom_local_nlistsize !< Number of neighbours for local atoms (local_atom, macrocell)
+   integer, dimension(:,:,:), allocatable :: macro_atom_local_nlist !< Atom neighbour list in macrocell-local halo indices (mnn, local_atom, macrocell)
    integer, dimension(:), allocatable :: macro_cell_nlistsize !< Number of neighbouring macrocells per macrocell
-   integer, dimension(:,:), allocatable :: macro_cell_nlist !< Macrocell neighbour map
+   integer, dimension(:,:), allocatable :: macro_cell_nlist !< Macrocell neighbour map (local_cell_neigh, macrocell)
 
    real(dblprec), dimension(:,:), allocatable :: mmom_macro !< Magnitude of the macrocell magnetic moments
    real(dblprec), dimension(:,:), allocatable :: max_coord_macro !< Maximum value of the coordinates per cell
@@ -98,7 +99,7 @@ contains
       integer, intent(in) :: Num_macro
       integer, intent(in) :: max_macro_halo_size
       integer, dimension(Num_macro), intent(in) :: macro_halo_nlistsize
-      integer, dimension(Num_macro,max_macro_halo_size), intent(in) :: macro_halo_to_global
+      integer, dimension(max_macro_halo_size,Num_macro), intent(in) :: macro_halo_to_global
       character(len=8), intent(in) :: simid
       integer :: ofileno, i_cell, j, n_halo, i_err
       character(len=64) :: out_file
@@ -114,7 +115,7 @@ contains
          n_halo = min(macro_halo_nlistsize(i_cell), max_macro_halo_size)
          write(ofileno,'(i8,1x,i8, 10x)', advance='no') i_cell, n_halo
          do j = 1, n_halo
-            write(ofileno,'(1x,i8)', advance='no') macro_halo_to_global(i_cell,j)
+            write(ofileno,'(1x,i8)', advance='no') macro_halo_to_global(j,i_cell)
          end do
          write(ofileno,*)
       end do
@@ -127,7 +128,7 @@ contains
       integer, intent(in) :: Num_macro
       integer, intent(in) :: max_macro_cell_neigh
       integer, dimension(Num_macro), intent(in) :: macro_cell_nlistsize
-      integer, dimension(Num_macro,max_macro_cell_neigh), intent(in) :: macro_cell_nlist
+      integer, dimension(max_macro_cell_neigh,Num_macro), intent(in) :: macro_cell_nlist
       character(len=8), intent(in) :: simid
       integer :: ofileno, i_cell, j, n_cell, i_err
       character(len=64) :: out_file
@@ -146,7 +147,7 @@ contains
       do i_cell = 1, Num_macro
          n_cell = min(macro_cell_nlistsize(i_cell), max_macro_cell_neigh)
          do j = 1, n_cell
-            write(ofileno,'(2i8)') i_cell, macro_cell_nlist(i_cell,j)
+            write(ofileno,'(2i8)') i_cell, macro_cell_nlist(j,i_cell)
          end do
       end do
       close(ofileno)
@@ -440,13 +441,16 @@ contains
          max_macro_halo_size=max(max_macro_halo_size,kk)
       end do
 
-      allocate(macro_halo_to_global(Num_macro,max(1,max_macro_halo_size)),stat=i_stat)
+      allocate(macro_halo_to_global(max(1,max_macro_halo_size),Num_macro),stat=i_stat)
       call memocc(i_stat,product(shape(macro_halo_to_global))*kind(macro_halo_to_global),'macro_halo_to_global','build_macro_halo_maps')
       macro_halo_to_global=0
-      allocate(macro_atom_local_nlistsize(Num_macro,max_num_atom_macro_cell),stat=i_stat)
+      allocate(macro_atom_to_global(max_num_atom_macro_cell,Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(macro_atom_to_global))*kind(macro_atom_to_global),'macro_atom_to_global','build_macro_halo_maps')
+      macro_atom_to_global=0
+      allocate(macro_atom_local_nlistsize(max_num_atom_macro_cell,Num_macro),stat=i_stat)
       call memocc(i_stat,product(shape(macro_atom_local_nlistsize))*kind(macro_atom_local_nlistsize),'macro_atom_local_nlistsize','build_macro_halo_maps')
       macro_atom_local_nlistsize=0
-      allocate(macro_atom_local_nlist(Num_macro,max_num_atom_macro_cell,mnn),stat=i_stat)
+      allocate(macro_atom_local_nlist(mnn,max_num_atom_macro_cell,Num_macro),stat=i_stat)
       call memocc(i_stat,product(shape(macro_atom_local_nlist))*kind(macro_atom_local_nlist),'macro_atom_local_nlist','build_macro_halo_maps')
       macro_atom_local_nlist=0
 
@@ -455,12 +459,13 @@ contains
          kk=0
          do a=1,macro_nlistsize(ii)
             i=macro_atom_nlist(ii,a)
+            macro_atom_to_global(a,ii)=i
             do j=1,nlistsize(i)
                jj=nlist(j,i)
                if (jj<1 .or. jj>Natom) cycle
                if (mark(jj)==0) then
                   kk=kk+1
-                  macro_halo_to_global(ii,kk)=jj
+                  macro_halo_to_global(kk,ii)=jj
                   mark(jj)=kk
                end if
             end do
@@ -472,15 +477,15 @@ contains
                jj=nlist(j,i)
                if (jj<1 .or. jj>Natom) cycle
                kk=kk+1
-               macro_atom_local_nlist(ii,a,kk)=mark(jj)
+               macro_atom_local_nlist(kk,a,ii)=mark(jj)
             end do
-            macro_atom_local_nlistsize(ii,a)=kk
+            macro_atom_local_nlistsize(a,ii)=kk
          end do
 
          cell_touched=0
          kk=0
          do j=1,macro_halo_nlistsize(ii)
-            jj=macro_halo_to_global(ii,j)
+            jj=macro_halo_to_global(j,ii)
             if (jj<1 .or. jj>Natom) cycle
             a=cell_index(jj)
             if (a<1 .or. a>Num_macro) cycle
@@ -496,7 +501,7 @@ contains
       allocate(macro_cell_nlistsize(Num_macro),stat=i_stat)
       call memocc(i_stat,product(shape(macro_cell_nlistsize))*kind(macro_cell_nlistsize),'macro_cell_nlistsize','build_macro_halo_maps')
       macro_cell_nlistsize=0
-      allocate(macro_cell_nlist(Num_macro,max(1,max_macro_cell_neigh)),stat=i_stat)
+      allocate(macro_cell_nlist(max(1,max_macro_cell_neigh),Num_macro),stat=i_stat)
       call memocc(i_stat,product(shape(macro_cell_nlist))*kind(macro_cell_nlist),'macro_cell_nlist','build_macro_halo_maps')
       macro_cell_nlist=0
 
@@ -504,14 +509,14 @@ contains
       do ii=1,Num_macro
          kk=0
          do j=1,macro_halo_nlistsize(ii)
-            jj=macro_halo_to_global(ii,j)
+            jj=macro_halo_to_global(j,ii)
             if (jj<1 .or. jj>Natom) cycle
             a=cell_index(jj)
             if (a<1 .or. a>Num_macro) cycle
             if (a/=ii .and. cell_mark(a)/=ii) then
                cell_mark(a)=ii
                kk=kk+1
-               macro_cell_nlist(ii,kk)=a
+               macro_cell_nlist(kk,ii)=a
             end if
          end do
          macro_cell_nlistsize(ii)=kk
@@ -844,6 +849,11 @@ contains
             i_all=-product(shape(macro_atom_local_nlistsize))*kind(macro_atom_local_nlistsize)
             deallocate(macro_atom_local_nlistsize,stat=i_stat)
             call memocc(i_stat,i_all,'macro_atom_local_nlistsize','allocate_macrocell')
+         endif
+         if (allocated(macro_atom_to_global)) then
+            i_all=-product(shape(macro_atom_to_global))*kind(macro_atom_to_global)
+            deallocate(macro_atom_to_global,stat=i_stat)
+            call memocc(i_stat,i_all,'macro_atom_to_global','allocate_macrocell')
          endif
          if (allocated(macro_atom_local_nlist)) then
             i_all=-product(shape(macro_atom_local_nlist))*kind(macro_atom_local_nlist)
