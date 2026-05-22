@@ -220,6 +220,15 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
 
     }
 
+       for(unsigned int loc_aInd = 0; loc_aInd < atoms_in_cell; loc_aInd+= threadNum){
+        unsigned int global_aInd = macro_atom_to_global(loc_aInd, mcInd) - 1;
+
+        beff(0, global_aInd, mInd) = SH_B(0, loc_aInd);
+        beff(1, global_aInd, mInd) = SH_B(1, loc_aInd);
+        beff(2, global_aInd, mInd) = SH_B(2, loc_aInd);
+    
+    }
+
 }
 
 GpuMacroHamiltonianCalculations::GpuMacroHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro)
