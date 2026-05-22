@@ -136,10 +136,10 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
 
          // Apply Hamiltonian to obtain effective field
          //if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice);
+            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          //}
          //else{
-         //   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+         //   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
         // }
          stopwatch.add("hamiltonian");
 
@@ -149,10 +149,10 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
 
          // Apply Hamiltonian to obtain effective field
          //if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice);
+            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          //}
         // else{
-          //  hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+          //  hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          //}
          stopwatch.add("hamiltonian");
 
@@ -225,10 +225,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.gpuEnergies, mqueue, gpuSim.Flags.do_jtensor);
-   //CPU residing measurements
-   //CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom, 
-   //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
-    //               gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
    const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
             gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
@@ -281,10 +277,10 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
       // Apply Hamiltonian to obtain effective field
     //  if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice);
+            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
      // }
      // else{
-       //     hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+       //     hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
      // }
       stopwatch.add("hamiltonian");
 
@@ -295,13 +291,16 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
   
       // Apply Hamiltonian to obtain effective field
       //if(Flags.do_macro_cells == 'Y'){
-         hamCalc.calculate(gpuSim.gpuLattice);
+        measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
+            (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
+
+         hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
      // }
      // else{
       //   measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
        //     (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
 
-       //  hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+       //  hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       //}
       stopwatch.add("hamiltonian");
   
@@ -329,7 +328,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Final measure and print remaining measurements to file
 
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
-   //hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+   //hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);    
    correlation->measure(rstep + nstep + 1);  // TODO

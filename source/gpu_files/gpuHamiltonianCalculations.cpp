@@ -1247,8 +1247,12 @@ public:
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
-GpuHamiltonianCalculations::GpuHamiltonianCalculations() : parallel(ParallelizationHelperInstance) {
+GpuHamiltonianCalculations::GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) : parallel(ParallelizationHelperInstance) {
    initiated = false;
+   if(!initiate(Flags, SimParam, gpuHamiltonian)) {  
+       std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
+   return;
+   }
 }
 
 bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
@@ -1359,7 +1363,7 @@ else{
 }
 }
 
-void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) {
+void GpuHamiltonianCalculations::calculate(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
    if(measure){

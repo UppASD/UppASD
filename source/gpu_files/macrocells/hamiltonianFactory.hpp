@@ -5,11 +5,9 @@
 #include "real_type.h"
 #include "fortranData.hpp"
 #include "gpuStructures.hpp"
-#include "correlation.hpp"
-
-#include "fortranCorrelation.hpp"
-
-#include "gpuCorrelations.hpp"
+#include "hamiltonian.hpp"
+#include "gpuMacroHamiltonianCalculations.hpp"
+#include "gpuHamiltonianCalculations.hpp"
 #include "measurementQueue.hpp"
 #include <iostream>
 
@@ -18,26 +16,18 @@ class HamiltonianFactory
 public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
-    static std::unique_ptr<Hamiltonian> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, const Flag Flags, 
-                                            const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations, MeasurementQueue& mq)
+    static std::unique_ptr<Hamiltonian> create(const Flag Flags, const SimulationParameters SimParam, 
+                                        const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro)
     {
-        if (*FortranData::do_gpu_correlations == 'Y')
+        if (*FortranData::do_macro_cells == 'Y')
         {
-            std::cout << "GpuCorrelation used" << std::endl;
-            return std::make_unique<GpuCorrelations>(Flags, SimParam, gpuLattice, cpuCorrelations);
+            std::cout << "Macro cells used" << std::endl;
+            return std::make_unique<GpuMacroHamiltonianCalculations>(Flags, SimParam, gpuHamiltonian, gpuMacro);
         }
         else
         {
-            std::cout << "FortranCorrelation used" << std::endl;
-            return std::make_unique<FortranCorrelation>(
-                gpuLattice.emomM,
-                gpuLattice.emom,
-                gpuLattice.mmom,
-                cpuLattice.emomM,
-                cpuLattice.emom,
-                cpuLattice.mmom,
-                mq
-            );
+            std::cout << "Macro cells NOT used" << std::endl;
+            return std::make_unique<GpuHamiltonianCalculations>(Flags, SimParam, gpuHamiltonian,);
         }
     }
 };

@@ -27,7 +27,7 @@ contains
    !! @todo Check consistency of terms wrt the input parameters, especially the anisotropies
    !! @todo Replace moment unit vectors emom with full length vectors emomM
    !dm_vect !< DM vector \f$H_{DM}=\sum{D_{ij}\dot(m_i \times m_j)}\f$
-   subroutine heisge(Natom, Mensemble, max_no_neigh, ncoup, nlist, nlistsize, &
+   subroutine calculate(Natom, Mensemble, max_no_neigh, ncoup, nlist, nlistsize, &
          do_dm, max_no_dmneigh, dm_vect, dmlist, dmlistsize, &
          do_pd, nn_pd_tot, pd_vect, pdlist, pdlistsize, &
          do_biqdm, nn_biqdm_tot, biqdm_vect, biqdmlist, biqdmlistsize, & !for BIQDM

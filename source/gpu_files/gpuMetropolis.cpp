@@ -407,7 +407,7 @@ void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub
         task_num = subL_spnum_cpu(sub);
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
         MCSweep<<<blocks, threads>>>(d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
-        //hamCalc.heisge(gpuLattice);
+        //hamCalc.calculate(gpuLattice);
 
     
     

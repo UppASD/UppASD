@@ -224,8 +224,8 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     }
     if(gpuMacro.do_macro_cells == 'Y'){
         cpuMacro.cell_index.set(FortranData::cell_index, N);
-        cpuMacro.nlistsize.set(FortranData::macro_nlistsize, Num_macro);
-        cpuMacro.atom_nlist.set(FortranData::macro_atom_nlist, Num_macro, max_num_atom_macro_cell);
+        cpuMacro.alistsize.set(FortranData::macro_alistsize, Num_macro);
+        cpuMacro.atom_alist.set(FortranData::macro_atom_alist, Num_macro, max_num_atom_macro_cell);
         cpuMacro.halo_nlistsize.set(FortranData::macro_halo_nlistsize, Num_macro);
         cpuMacro.halo_to_global.set(FortranData::macro_halo_to_global, max_macro_halo_size,Num_macro);
         cpuMacro.atom_local_nlistsize.set(FortranData::macro_atom_local_nlistsize, max_num_atom_macro_cell, Num_macro);
@@ -359,8 +359,8 @@ bool GpuSimulation::initiateMatrices() {
 
     if(gpuMacro.do_macro_cells == 'Y'){
         gpuMacro.cell_index.Allocate(N);
-        gpuMacro.nlistsize.Allocate(Num_macro);
-        gpuMacro.atom_nlist.Allocate(Num_macro, max_num_atom_macro_cell);
+        gpuMacro.alistsize.Allocate(Num_macro);
+        gpuMacro.atom_alist.Allocate(Num_macro, max_num_atom_macro_cell);
         gpuMacro.halo_nlistsize.Allocate(Num_macro);
         gpuMacro.halo_to_global.Allocate(max_macro_halo_size, Num_macro);
         gpuMacro.atom_to_global.Allocate(max_num_atom_macro_cell, Num_macro);
@@ -475,8 +475,8 @@ void GpuSimulation::release() {
     if(FortranData::btorque) {gpuLattice.btorque.Free();}
     if(gpuMacro.do_macro_cells == 'Y'){
         gpuMacro.cell_index.Free();
-        gpuMacro.nlistsize.Free();
-        gpuMacro.atom_nlist.Free();
+        gpuMacro.alistsize.Free();
+        gpuMacro.atom_alist.Free();
         gpuMacro.halo_nlistsize.Free();
         gpuMacro.halo_to_global.Free();
         gpuMacro.atom_to_global.Free();
@@ -544,8 +544,8 @@ void GpuSimulation::copyFromFortran() {
     
     if(gpuMacro.do_macro_cells == 'Y'){
         gpuMacro.cell_index.copy_sync(cpuMacro.cell_index);
-        gpuMacro.nlistsize.copy_sync(cpuMacro.nlistsize);
-        gpuMacro.atom_nlist.copy_sync(cpuMacro.atom_nlist);
+        gpuMacro.alistsize.copy_sync(cpuMacro.alistsize);
+        gpuMacro.atom_alist.copy_sync(cpuMacro.atom_alist);
         gpuMacro.halo_nlistsize.copy_sync(cpuMacro.halo_nlistsize);
         gpuMacro.halo_to_global.copy_sync(cpuMacro.halo_to_global);
         gpuMacro.atom_to_global.copy_sync(cpuMacro.atom_to_global);

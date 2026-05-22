@@ -91,17 +91,14 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    GpuMetropolis gpuMC;
 
    // Hamiltonian calculations
-   GpuHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian);
    unsigned int num_subL = 0;
    //printf("HERE - 0\n");
 
    // Initiate MC and Hamiltonian
    num_subL = gpuMC.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
    //printf("HERE - 1\n");
-   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
-      std::fprintf(stderr, "GpuMCSimulation: Hamiltonian failed to initiate!\n");
-      return;
-   }
+
 
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -118,7 +115,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
    stopwatch.add("hamiltonian");
    //printf("HERE - 3\n");
 
@@ -134,7 +131,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    //printf("HERE - 4\n");
 
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
             stopwatch.add("hamiltonian");
          }
 
@@ -187,17 +184,14 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    GpuMetropolis gpuMC;
 
    // Hamiltonian calculations
-   GpuHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian);
    unsigned int num_subL = 0;
 
  
    // Initiate MC and Hamiltonian
    num_subL = gpuMC.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
 
-   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
-      std::fprintf(stderr, "GpuMCSimulation: Hamiltonian failed to initiate!\n");
-      return;
-   }
+
 
    //Queue
    MeasurementQueue mqueue;
@@ -225,7 +219,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       // Measure
       //printf("STEP = %i\n", mstep);
       measure_ene = ((mstep-1)%gpuSim.SimParam.ene_step == 0);
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       measurement->measure(mstep);
       correlation->measure(mstep);
 
@@ -235,13 +229,13 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-      //hamCalc.heisge(gpuSim.gpuLattice);
+      //hamCalc.calculate(gpuSim.gpuLattice);
       //stopwatch.add("hamiltonian");
       for(unsigned int sub = 0; sub < num_subL; sub++){
          // Perform Metropolis sweep
          gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+         hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
          stopwatch.add("hamiltonian");
 
 
@@ -262,7 +256,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    }  // End loop over simulation steps
 
    // Final measure
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
+   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
    measurement->measure(mcnstep + 1);  // TODO
    correlation->measure(mcnstep + 1);  // TODO
 
@@ -305,16 +299,13 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
    GpuMetropolis_bruteforce gpuMC_bf;
 
    // Hamiltonian calculations
-   GpuHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian);
    
 
    // Initiate MC and Hamiltonian
    //num_subL = cudaMC_bf.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
 
-   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
-      std::fprintf(stderr, "GpuMCSimulation: Hamiltonian failed to initiate!\n");
-      return;
-   }
+ 
 
    if(!gpuMC_bf.initiate(gpuSim.SimParam)) {
       std::fprintf(stderr, "GpuMCSimulation_bf: Hamiltonian failed to initiate!\n");
@@ -335,7 +326,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
    stopwatch.add("hamiltonian");
 
    //printf("mcs = %i\n", mcs);   
@@ -348,7 +339,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
             gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
             stopwatch.add("montecarlo");
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
             stopwatch.add("hamiltonian");
          
 
@@ -397,15 +388,12 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    GpuMetropolis_bruteforce gpuMC_bf;
 
    // Hamiltonian calculations
-   GpuHamiltonianCalculations hamCalc;
+   GpuHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian);
    unsigned int num_subL = 0;
 
  
    // Initiate MC and Hamiltonian
-   if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
-      std::fprintf(stderr, "GpuMCSimulation: Hamiltonian failed to initiate!\n");
-      return;
-   }
+
 
    if(!gpuMC_bf.initiate(gpuSim.SimParam)) {
       std::fprintf(stderr, "GpuMCSimulation_bf: Hamiltonian failed to initiate!\n");
@@ -447,14 +435,14 @@ const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cp
       printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-      //hamCalc.heisge(gpuSim.gpuLattice);
+      //hamCalc.calculate(gpuSim.gpuLattice);
       //stopwatch.add("hamiltonian");
 
          // Perform Metropolis sweep
          gpuMC_bf.MCrun(gpuSim.gpuLattice, beta);
          stopwatch.add("montecarlo");
          measure_ene = ((mstep)%gpuSim.SimParam.ene_step == 0);
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+         hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
          stopwatch.add("hamiltonian");
 
       measurement->updateAC(mstep);
@@ -475,7 +463,7 @@ const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cp
    }  // End loop over simulation steps
 
    // Final measure
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
+   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, true);
 
    measurement->measure(mcnstep + 1);
    correlation->measure(mcnstep + 1);  // TODO

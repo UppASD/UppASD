@@ -86,7 +86,7 @@ public:
    class HeisgeJijElement;
 
    // Constructor
-   GpuHamiltonianCalculations();
+   GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian);
 
    // Initiate
    bool initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian);
@@ -96,5 +96,5 @@ public:
       return initiated;
    }
    // Calculate "heisge"
-   void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure);
+   void calculate(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure);
 };

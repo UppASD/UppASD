@@ -154,8 +154,8 @@ public:
    static unsigned int* max_macro_halo_size;
    static unsigned int* max_macro_cell_neigh;
    static unsigned int* cell_index;
-   static unsigned int* macro_nlistsize;
-   static unsigned int* macro_atom_nlist;
+   static unsigned int* macro_alistsize;
+   static unsigned int* macro_atom_alist;
    static unsigned int* macro_atom_to_global;
    static unsigned int* macro_halo_nlistsize;
    static unsigned int* macro_halo_to_global;
@@ -255,8 +255,8 @@ public:
                                    real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list);
     static void setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
                                     unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
-                                    unsigned int* p_cell_index, unsigned int* p_macro_nlistsize,
-                                    unsigned int* p_macro_atom_nlist, unsigned int* p_macro_atom_to_global, unsigned int* p_macro_halo_nlistsize,
+                                    unsigned int* p_cell_index, unsigned int* p_macro_alistsize,
+                                    unsigned int* p_macro_atom_alist, unsigned int* p_macro_atom_to_global, unsigned int* p_macro_halo_nlistsize,
                                     unsigned int* p_macro_halo_to_global, unsigned int* p_macro_atom_local_nlistsize,
                                     unsigned int* p_macro_atom_local_nlist, unsigned int* p_macro_cell_nlistsize,
                                     unsigned int* p_macro_cell_nlist, char* p_do_macro_cells);

@@ -48,7 +48,7 @@ public:
     GpuMacroHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro);
     // Destructor
     ~GpuMacroHamiltonianCalculations();
-    void calculate(deviceLattice& gpuLattice);
+    void calculate(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure);
     // Initiator
    // bool initiate(const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations);
     // Releaser

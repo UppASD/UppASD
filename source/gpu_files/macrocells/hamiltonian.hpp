@@ -1,8 +1,7 @@
 class Hamiltonian
 {
 public:
-    virtual void measure(std::size_t mstep) = 0;
-    virtual void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) = 0;
+    virtual void calculate(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) = 0;
     // virtual void copyToFortran() = 0;
     virtual ~Hamiltonian() = default;
 
