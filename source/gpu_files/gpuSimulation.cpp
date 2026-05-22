@@ -227,11 +227,12 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuMacro.nlistsize.set(FortranData::macro_nlistsize, Num_macro);
         cpuMacro.atom_nlist.set(FortranData::macro_atom_nlist, Num_macro, max_num_atom_macro_cell);
         cpuMacro.halo_nlistsize.set(FortranData::macro_halo_nlistsize, Num_macro);
-        cpuMacro.halo_to_global.set(FortranData::macro_halo_to_global, Num_macro, max_macro_halo_size);
-        cpuMacro.atom_local_nlistsize.set(FortranData::macro_atom_local_nlistsize, Num_macro, max_num_atom_macro_cell);
-        cpuMacro.atom_local_nlist.set(FortranData::macro_atom_local_nlist, Num_macro, max_num_atom_macro_cell, mnn);
+        cpuMacro.halo_to_global.set(FortranData::macro_halo_to_global, max_macro_halo_size,Num_macro);
+        cpuMacro.atom_local_nlistsize.set(FortranData::macro_atom_local_nlistsize, max_num_atom_macro_cell, Num_macro);
+        cpuMacro.atom_local_nlist.set(FortranData::macro_atom_local_nlist, mnn, max_num_atom_macro_cell, Num_macro);
         cpuMacro.cell_nlistsize.set(FortranData::macro_cell_nlistsize, Num_macro);
-        cpuMacro.cell_nlist.set(FortranData::macro_cell_nlist, Num_macro, max_macro_cell_neigh);
+        cpuMacro.cell_nlist.set(FortranData::macro_cell_nlist,  max_macro_cell_neigh, Num_macro);
+        cpuMacro.atom_to_global.set(FortranData::macro_atom_to_global, max_num_atom_macro_cell, Num_macro);
     }
 
         
@@ -361,11 +362,13 @@ bool GpuSimulation::initiateMatrices() {
         gpuMacro.nlistsize.Allocate(Num_macro);
         gpuMacro.atom_nlist.Allocate(Num_macro, max_num_atom_macro_cell);
         gpuMacro.halo_nlistsize.Allocate(Num_macro);
-        gpuMacro.halo_to_global.Allocate(Num_macro, max_macro_halo_size);
-        gpuMacro.atom_local_nlistsize.Allocate(Num_macro, max_num_atom_macro_cell);
-        gpuMacro.atom_local_nlist.Allocate(Num_macro, max_num_atom_macro_cell, mnn);
+        gpuMacro.halo_to_global.Allocate(max_macro_halo_size, Num_macro);
+        gpuMacro.atom_to_global.Allocate(max_num_atom_macro_cell, Num_macro);
+        gpuMacro.atom_local_nlistsize.Allocate(max_num_atom_macro_cell, Num_macro);
+        gpuMacro.atom_local_nlist.Allocate(mnn, max_num_atom_macro_cell, Num_macro);
         gpuMacro.cell_nlistsize.Allocate(Num_macro);
-        gpuMacro.cell_nlist.Allocate(Num_macro, max_macro_cell_neigh);
+        gpuMacro.cell_nlist.Allocate(max_macro_cell_neigh, Num_macro);
+
     }
 
    // Did we get the memory?
@@ -476,6 +479,7 @@ void GpuSimulation::release() {
         gpuMacro.atom_nlist.Free();
         gpuMacro.halo_nlistsize.Free();
         gpuMacro.halo_to_global.Free();
+        gpuMacro.atom_to_global.Free();
         gpuMacro.atom_local_nlistsize.Free();
         gpuMacro.atom_local_nlist.Free();
         gpuMacro.cell_nlistsize.Free();
@@ -544,6 +548,7 @@ void GpuSimulation::copyFromFortran() {
         gpuMacro.atom_nlist.copy_sync(cpuMacro.atom_nlist);
         gpuMacro.halo_nlistsize.copy_sync(cpuMacro.halo_nlistsize);
         gpuMacro.halo_to_global.copy_sync(cpuMacro.halo_to_global);
+        gpuMacro.atom_to_global.copy_sync(cpuMacro.atom_to_global);
         gpuMacro.atom_local_nlistsize.copy_sync(cpuMacro.atom_local_nlistsize);
         gpuMacro.atom_local_nlist.copy_sync(cpuMacro.atom_local_nlist);
         gpuMacro.cell_nlistsize.copy_sync(cpuMacro.cell_nlistsize);

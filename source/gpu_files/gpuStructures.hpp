@@ -240,6 +240,7 @@ struct hostMacrocell {
    Tensor<unsigned int, 3> atom_local_nlist;
    Tensor<unsigned int, 1> cell_nlistsize;
    Tensor<unsigned int, 2> cell_nlist;
+   Tensor<unsigned int, 2> atom_to_global;
   
 };   
 
@@ -259,5 +260,7 @@ struct deviceMacrocell {
    GpuTensor<unsigned int, 3> atom_local_nlist;
    GpuTensor<unsigned int, 1> cell_nlistsize;
    GpuTensor<unsigned int, 2> cell_nlist;
+   GpuTensor<unsigned int, 2> atom_to_global;
+
   
 };   
