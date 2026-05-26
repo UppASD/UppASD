@@ -64,7 +64,7 @@ module Chelper
    real(dblprec), dimension(:,:,:,:), allocatable, target :: emomb_traj_bridge
 
    interface
-         subroutine FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
+         subroutine FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_atom_local_neigh, max_macro_halo_size, max_macro_cell_neigh, &
                cell_index, macro_alistsize, macro_atom_alist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
                macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells) &
                 bind(C, name="fortrandata_setmacrohalo_")
@@ -72,6 +72,7 @@ module Chelper
          import :: c_char
          integer(c_int), intent(inout) :: Num_macro
          integer(c_int), intent(inout) :: max_num_atom_macro_cell
+         integer(c_int), intent(inout) :: max_macro_atom_local_neigh
          integer(c_int), intent(inout) :: max_macro_halo_size
          integer(c_int), intent(inout) :: max_macro_cell_neigh
          integer(c_int), intent(inout) :: cell_index(*)
@@ -526,7 +527,7 @@ contains
       if (allocated(macro_atom_to_global) .and. allocated(macro_halo_nlistsize) .and. allocated(macro_halo_to_global) .and. &
             allocated(macro_atom_local_nlistsize) .and. allocated(macro_atom_local_nlist) .and. &
             allocated(macro_cell_nlistsize) .and. allocated(macro_cell_nlist)) then
-         call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_halo_size, max_macro_cell_neigh, &
+         call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_atom_local_neigh, max_macro_halo_size, max_macro_cell_neigh, &
             cell_index, macro_alistsize, macro_atom_alist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
             macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells)
       end if

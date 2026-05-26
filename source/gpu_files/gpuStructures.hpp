@@ -248,6 +248,7 @@ struct deviceMacrocell {
 
    unsigned int Num_macro;
    unsigned int max_num_atom;
+   unsigned int max_atom_local_neigh;
    unsigned int max_halo_size;
    unsigned int max_cell_neigh;
    char do_macro_cells;

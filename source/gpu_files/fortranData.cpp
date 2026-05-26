@@ -121,6 +121,7 @@ real* FortranData::sb;
 char* FortranData::do_macro_cells;
 unsigned int* FortranData::Num_macro = nullptr;
 unsigned int* FortranData::max_num_atom_macro_cell = nullptr;
+unsigned int* FortranData::max_macro_atom_local_neigh = nullptr;
 unsigned int* FortranData::max_macro_halo_size = nullptr;
 unsigned int* FortranData::max_macro_cell_neigh = nullptr;
 unsigned int* FortranData::cell_index = nullptr;
@@ -317,7 +318,7 @@ void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM,
    dxyz_list = p_dxyz_list;
 }
 
-void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
+void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell, unsigned int* p_max_macro_atom_local_neigh,
                                        unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
                                        unsigned int* p_cell_index, unsigned int* p_macro_alistsize,
                                        unsigned int* p_macro_atom_alist, unsigned int* p_macro_atom_to_global, unsigned int* p_macro_halo_nlistsize,
@@ -339,6 +340,7 @@ void FortranData::setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* 
    macro_cell_nlistsize = p_macro_cell_nlistsize;
    macro_cell_nlist = p_macro_cell_nlist;
    do_macro_cells = p_do_macro_cells;
+   max_macro_atom_local_neigh = p_max_macro_atom_local_neigh;
 }
 
 //TODO:binderc, autocorr_buff, spinwait
@@ -453,7 +455,7 @@ FortranData::setLatticePointers(
    p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list);
 }
 
-extern "C" void fortrandata_setmacrohalo_(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
+extern "C" void fortrandata_setmacrohalo_(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell, unsigned int* p_max_macro_atom_local_neigh,
    unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
    unsigned int* p_cell_index, unsigned int* p_macro_alistsize, unsigned int* p_macro_atom_alist,
    unsigned int* p_macro_atom_to_global,
@@ -461,7 +463,7 @@ extern "C" void fortrandata_setmacrohalo_(unsigned int* p_Num_macro, unsigned in
    unsigned int* p_macro_atom_local_nlistsize, unsigned int* p_macro_atom_local_nlist,
    unsigned int* p_macro_cell_nlistsize, unsigned int* p_macro_cell_nlist, char* p_do_macro_cells) {
 FortranData::setMacroHaloPointers(
-   p_Num_macro, p_max_num_atom_macro_cell, p_max_macro_halo_size, p_max_macro_cell_neigh,
+   p_Num_macro, p_max_num_atom_macro_cell, p_max_macro_atom_local_neigh, p_max_macro_halo_size, p_max_macro_cell_neigh,
    p_cell_index, p_macro_alistsize, p_macro_atom_alist, p_macro_atom_to_global, p_macro_halo_nlistsize, p_macro_halo_to_global,
    p_macro_atom_local_nlistsize, p_macro_atom_local_nlist, p_macro_cell_nlistsize, 
    p_macro_cell_nlist, p_do_macro_cells);

@@ -27,7 +27,7 @@ public:
         else
         {
             std::cout << "Macro cells NOT used" << std::endl;
-            return std::make_unique<GpuHamiltonianCalculations>(Flags, SimParam, gpuHamiltonian,);
+            return std::make_unique<GpuHamiltonianCalculations>(Flags, SimParam, gpuHamiltonian);
         }
     }
 };

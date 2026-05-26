@@ -126,11 +126,15 @@ switch(*FortranData::gpu_rng) {
 #endif
 
     SimParam.randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
-    gpuMacro.Num_macro = *FortranData::Num_macro;
-    gpuMacro.max_num_atom = *FortranData::max_num_atom_macro_cell;
-    gpuMacro.max_halo_size = *FortranData::max_macro_halo_size;
-    gpuMacro.max_cell_neigh = *FortranData::max_macro_cell_neigh;
     gpuMacro.do_macro_cells = *FortranData::do_macro_cells;
+    if(gpuMacro.do_macro_cells=='Y'){
+        gpuMacro.Num_macro = *FortranData::Num_macro;
+        gpuMacro.max_num_atom = *FortranData::max_num_atom_macro_cell;
+        gpuMacro.max_halo_size = *FortranData::max_macro_halo_size;
+        gpuMacro.max_cell_neigh = *FortranData::max_macro_cell_neigh;
+        gpuMacro.max_atom_local_neigh = *FortranData::max_macro_atom_local_neigh;
+    }
+
    //printf("HERE - 1\n");
 
     
@@ -152,7 +156,8 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     long int Num_macro = static_cast <long int>(gpuMacro.Num_macro);
     long int max_num_atom_macro_cell = static_cast <long int>(gpuMacro.max_num_atom);
     long int max_macro_halo_size = static_cast <long int>(gpuMacro.max_halo_size);
-    long int max_macro_cell_neigh= static_cast <long int>(gpuMacro.max_cell_neigh);
+    long int max_macro_cell_neigh = static_cast <long int>(gpuMacro.max_cell_neigh);
+    long int max_macro_atom_local_neigh = static_cast <long int>(gpuMacro.max_atom_local_neigh);
 
 
     // Constants initiated?
@@ -229,7 +234,7 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuMacro.halo_nlistsize.set(FortranData::macro_halo_nlistsize, Num_macro);
         cpuMacro.halo_to_global.set(FortranData::macro_halo_to_global, max_macro_halo_size,Num_macro);
         cpuMacro.atom_local_nlistsize.set(FortranData::macro_atom_local_nlistsize, max_num_atom_macro_cell, Num_macro);
-        cpuMacro.atom_local_nlist.set(FortranData::macro_atom_local_nlist, mnn, max_num_atom_macro_cell, Num_macro);
+        cpuMacro.atom_local_nlist.set(FortranData::macro_atom_local_nlist, max_macro_atom_local_neigh, max_num_atom_macro_cell, Num_macro);
         cpuMacro.cell_nlistsize.set(FortranData::macro_cell_nlistsize, Num_macro);
         cpuMacro.cell_nlist.set(FortranData::macro_cell_nlist,  max_macro_cell_neigh, Num_macro);
         cpuMacro.atom_to_global.set(FortranData::macro_atom_to_global, max_num_atom_macro_cell, Num_macro);
@@ -254,8 +259,8 @@ bool GpuSimulation::initiateMatrices() {
     long int Num_macro = static_cast <long int>(gpuMacro.Num_macro);
     long int max_num_atom_macro_cell = static_cast <long int>(gpuMacro.max_num_atom);
     long int max_macro_halo_size = static_cast <long int>(gpuMacro.max_halo_size);
-    long int max_macro_cell_neigh= static_cast <long int>(gpuMacro.max_cell_neigh);
-
+    long int max_macro_cell_neigh = static_cast <long int>(gpuMacro.max_cell_neigh);
+    long int max_macro_atom_local_neigh = static_cast <long int>(gpuMacro.max_atom_local_neigh);
 
 
    // Constants initiated?
@@ -365,7 +370,7 @@ bool GpuSimulation::initiateMatrices() {
         gpuMacro.halo_to_global.Allocate(max_macro_halo_size, Num_macro);
         gpuMacro.atom_to_global.Allocate(max_num_atom_macro_cell, Num_macro);
         gpuMacro.atom_local_nlistsize.Allocate(max_num_atom_macro_cell, Num_macro);
-        gpuMacro.atom_local_nlist.Allocate(mnn, max_num_atom_macro_cell, Num_macro);
+        gpuMacro.atom_local_nlist.Allocate(max_macro_atom_local_neigh, max_num_atom_macro_cell, Num_macro);
         gpuMacro.cell_nlistsize.Allocate(Num_macro);
         gpuMacro.cell_nlist.Allocate(max_macro_cell_neigh, Num_macro);
 

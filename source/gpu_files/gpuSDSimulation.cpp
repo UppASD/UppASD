@@ -3,7 +3,7 @@
 #include "c_helper.h"
 #include "gpuDepondtIntegrator.hpp"
 //#include "cudaGPUErrchk.hpp"
-#include "gpuHamiltonianCalculations.hpp"
+//#include "gpuHamiltonianCalculations.hpp"
 #include "gpuMeasurement.hpp"
 #include "gpuMomentUpdater.hpp"
 #include "gpuSimulation.hpp"
@@ -18,9 +18,10 @@
 #include "gpuParallelizationHelper.hpp"
 #include "measurementFactory.hpp"
 #include "correlationFactory.hpp"
+#include "hamiltonianFactory.hpp"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
-#include "gpuMacroHamiltonianCalculations.hpp"
+//#include "gpuMacroHamiltonianCalculations.hpp"
 
 #include "gpu_wrappers.h"
 #include "gpuCorrelations.hpp"
@@ -75,25 +76,17 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    GpuDepondtIntegrator integrator;
 
    // Hamiltonian calculations
-   //if(Flags.do_macro_cells == 'Y'){
-      GpuMacroHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian, gpuSim.gpuMacro);
-   //}
-  // else{
-    //  GpuHamiltonianCalculations hamCalc;
-  // }
+   const auto hamiltonian = HamiltonianFactory::create(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian, gpuSim.gpuMacro);
+
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
-
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {
       std::fprintf(stderr, "GpuSDSimulation: integrator failed to initiate!\n");
       return;
    }
-  // if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
- //     std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
- //     return;
- //  }
+
 
    // TEMPORARY PRINTING
    std::printf("\n");
@@ -135,12 +128,8 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          printMdStatus(mstep, gpuSim); //-- Do we need it in initial phase?
 
          // Apply Hamiltonian to obtain effective field
-         //if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-         //}
-         //else{
-         //   hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-        // }
+         hamiltonian->calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+
          stopwatch.add("hamiltonian");
 
          // Perform first step of SDE solver
@@ -148,12 +137,8 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          stopwatch.add("evolution");
 
          // Apply Hamiltonian to obtain effective field
-         //if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-         //}
-        // else{
-          //  hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-         //}
+         hamiltonian->calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+
          stopwatch.add("hamiltonian");
 
          // Perform second (corrector) step of SDE solver
@@ -212,12 +197,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    GpuDepondtIntegrator integrator;
 
    // Hamiltonian calculations
-  // if(Flags.do_macro_cells == 'Y'){
-      GpuMacroHamiltonianCalculations hamCalc(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian, gpuSim.gpuMacro);
-   //}
-  // else{
-   //   GpuHamiltonianCalculations hamCalc;
-  // }
+   const auto hamiltonian = HamiltonianFactory::create(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian, gpuSim.gpuMacro);
 
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
@@ -276,12 +256,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       printMdStatus(mstep, gpuSim);
 
       // Apply Hamiltonian to obtain effective field
-    //  if(Flags.do_macro_cells == 'Y'){
-            hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-     // }
-     // else{
-       //     hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-     // }
+      hamiltonian->calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
@@ -290,18 +265,11 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
   
       // Apply Hamiltonian to obtain effective field
-      //if(Flags.do_macro_cells == 'Y'){
-        measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
+      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
             (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
 
-         hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
-     // }
-     // else{
-      //   measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
-       //     (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
+      hamiltonian->calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
-       //  hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
-      //}
       stopwatch.add("hamiltonian");
   
 
@@ -328,7 +296,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Final measure and print remaining measurements to file
 
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
-   //hamCalc.calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+   hamiltonian->calculate(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);    
    correlation->measure(rstep + nstep + 1);  // TODO

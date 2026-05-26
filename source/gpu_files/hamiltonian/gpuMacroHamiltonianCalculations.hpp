@@ -5,8 +5,9 @@
 #include "gpuStructures.hpp"
 #include <numeric>
 #include "gpu_wrappers.h"
+#include "hamiltonian.hpp"
 
-class GpuMacroHamiltonianCalculations{
+class GpuMacroHamiltonianCalculations: public Hamiltonian{
 private:
     bool isallocated;
 
@@ -37,11 +38,14 @@ private:
     const deviceMacrocell& macro;
 
 
-    unsigned int maxThreads;
+    unsigned int maxThreads_jij;
+    unsigned int maxThreads_ani;
     unsigned int numThreads;
     unsigned int numBlocks;
-    dim3 threads;
-    dim3 blocks;
+    dim3 threads_jij;
+    dim3 blocks_jij;
+    dim3 threads_ani;
+    dim3 blocks_ani;
 
 public:
     // Constructor

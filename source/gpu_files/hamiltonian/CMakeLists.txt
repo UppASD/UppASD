@@ -1,6 +1,8 @@
 target_sources(${UppASD_LIB} PRIVATE
         gpuMacroHamiltonianCalculations.hpp
         gpuMacroHamiltonianCalculations.cpp
+        gpuHamiltonianCalculations.hpp
+        gpuHamiltonianCalculations.cpp
         hamiltonianFactory.hpp
         hamiltonian.hpp
 )

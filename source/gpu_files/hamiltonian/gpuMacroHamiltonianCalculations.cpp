@@ -149,7 +149,7 @@ public:
       eneff[atom * 3 + 1] = y + ay_en + ext_y;
       eneff[atom * 3 + 2] = z + az_en + ext_z;
 };*/
-__global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
+__global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
                 const GpuTensor<unsigned int, 1> nlistsize, const GpuTensor<unsigned int, 2> nlist, const GpuTensor<real, 2> ncoup, 
                 const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb,
                 const GpuTensor<unsigned int, 1> cell_index, const GpuTensor<unsigned int, 1> macro_alistsize, const GpuTensor<unsigned int, 2> macro_atom_alist,
@@ -158,6 +158,7 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
                 const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist,
                 const unsigned int max_macro_halo_size, const unsigned int max_num_atom_macro_cell)
 {
+    //TODO: ADD MACROCELLS <= blockIdx.y check
    // threads = {maxThreads, 1, 1};
    // blocks = {Num_macro, M, 1};
    unsigned int tid = threadIdx.x;
@@ -226,9 +227,97 @@ __global__ void JijAniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, cons
         beff(0, global_aInd, mInd) = SH_B(0, loc_aInd);
         beff(1, global_aInd, mInd) = SH_B(1, loc_aInd);
         beff(2, global_aInd, mInd) = SH_B(2, loc_aInd);
+
+        //eneff(0, global_aInd, mInd) = SH_B(0, loc_aInd);
+        //eneff(1, global_aInd, mInd) = SH_B(1, loc_aInd);
+        //eneff(2, global_aInd, mInd) = SH_B(2, loc_aInd);
     
     }
 
+}
+
+__global__ void aniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
+                const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb,
+                unsigned int N)
+{
+    unsigned int nInd = blockIdx.x * blockDim.x + threadIdx.x;
+    if(nInd < N){
+      unsigned int mInd = blockIdx.y; //Mensemble index
+      real ax = (real)0.0;
+      real ay = (real)0.0;
+      real az = (real)0.0;
+      real ax_en = (real)0.0;
+      real ay_en = (real)0.0;
+      real az_en = (real)0.0;
+      real ex = (real)0.0;
+      real ey = (real)0.0;
+      real ez = (real)0.0;
+      const unsigned int type = taniso(nInd);  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
+
+      //Anisotropy
+      const real Sx = emomM(0, nInd, mInd);
+      const real Sy = emomM(1, nInd, mInd);
+      const real Sz = emomM(2, nInd, mInd);
+
+      // direction of uniaxial anisotropy
+      ex = eaniso(0, nInd);
+      ey = eaniso(1, nInd);
+      ez = eaniso(2, nInd);
+
+      // anisotropy constants
+      const real k1 = kaniso(0, nInd);
+      const real k2 = kaniso(1, nInd);
+
+      if(type == 1 || type == 7)  // uniaxial anisotropy
+      {
+         const real tt1 = Sx * ex + Sy * ey + Sz * ez;
+         const real tt2 = k1 + (real)2.0 * k2 * (1 - tt1 * tt1);
+         const real tt3 = (real)2.0 * tt1 * tt2;
+
+         const real tt2_en = k1 + k2 * ((real)2.0 - tt1 * tt1);
+         const real tt3_en = tt1 * tt2_en;
+
+         ax += -tt3 * ex;
+         ay += -tt3 * ey;
+         az += -tt3 * ez;
+
+         ax_en += -tt3_en * ex; //To Anders: sign????
+         ay_en += -tt3_en * ey;
+         az_en += -tt3_en * ez;
+      }
+      if(type == 2 || type == 7) {  // cubic anisotropy
+
+         real k1_cubic = k1;
+         real k2_cubic = k2;
+
+         if(type == 7) {  // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial
+                          // constant x sb
+            k1_cubic *= sb(nInd);
+            k2_cubic *= sb(nInd);
+         }
+
+         ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+      }
+
+      const real ext_x = ext_f(0, nInd, mInd);
+      const real ext_y = ext_f(1, nInd, mInd);
+      const real ext_z = ext_f(2, nInd, mInd);
+
+      // Save field
+      beff(0, nInd, mInd) += ax + ext_x;
+      beff(1, nInd, mInd) += ay + ext_y;
+      beff(2, nInd, mInd) += az + ext_z;
+
+      eneff(0, nInd, mInd) += ax_en + ext_x;
+      eneff(1, nInd, mInd) += ay_en + ext_y;
+      eneff(2, nInd, mInd) += az_en + ext_z;
+    }  
 }
 
 GpuMacroHamiltonianCalculations::GpuMacroHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro)
@@ -250,10 +339,14 @@ GpuMacroHamiltonianCalculations::GpuMacroHamiltonianCalculations(const Flag Flag
 ,   sb(gpuHamiltonian.sb)
 ,   extfield(gpuHamiltonian.extfield)
 ,   macro(gpuMacro)
-,   maxThreads(256)
+,   maxThreads_jij(256)
+,   maxThreads_ani(512)
 {
-    threads = {static_cast<uint32_t>(maxThreads), 1, 1};
-    blocks = {static_cast<uint32_t>(macro.Num_macro), static_cast<uint32_t>(M), 1};
+    threads_jij = {static_cast<uint32_t>(maxThreads_jij), 1, 1};
+    blocks_jij = {static_cast<uint32_t>(macro.Num_macro), static_cast<uint32_t>(M), 1};
+
+    threads_ani = {static_cast<uint32_t>(maxThreads_ani), 1, 1};
+    blocks_ani = {static_cast<uint32_t>((N + maxThreads_ani - 1)/maxThreads_ani), static_cast<uint32_t>(M), 1};
 }
 
 
@@ -284,16 +377,27 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice, devic
                 //Jij aniso  
                 size_t shmem_size = sizeof(float) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
 
-                JijAniso<<<blocks, threads, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                Jij<<<blocks_jij, threads_jij, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
                                             nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
                                             macro.cell_index, macro.alistsize, macro.atom_alist,
                                             macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
                                             macro.atom_local_nlistsize, macro.atom_local_nlist, 
                                             macro.cell_nlistsize, macro.cell_nlist,
                                             macro.max_halo_size, macro.max_num_atom);
+                aniso<<<blocks_ani, threads_ani, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                                            taniso, eaniso, kaniso, sb, N);
             }
             else {
                 //Jji
+                size_t shmem_size = sizeof(float) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
+
+                Jij<<<blocks_jij, threads_jij, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                                            nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
+                                            macro.cell_index, macro.alistsize, macro.atom_alist,
+                                            macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
+                                            macro.atom_local_nlistsize, macro.atom_local_nlist, 
+                                            macro.cell_nlistsize, macro.cell_nlist,
+                                            macro.max_halo_size, macro.max_num_atom);
             }     
         }
     }

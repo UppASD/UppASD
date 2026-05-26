@@ -153,6 +153,7 @@ public:
    static unsigned int* max_num_atom_macro_cell;
    static unsigned int* max_macro_halo_size;
    static unsigned int* max_macro_cell_neigh;
+   static unsigned int* max_macro_atom_local_neigh;
    static unsigned int* cell_index;
    static unsigned int* macro_alistsize;
    static unsigned int* macro_atom_alist;
@@ -253,7 +254,7 @@ public:
     static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
                                    real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
                                    real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list);
-    static void setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell,
+    static void setMacroHaloPointers(unsigned int* p_Num_macro, unsigned int* p_max_num_atom_macro_cell, unsigned int* p_max_macro_atom_local_neigh,
                                     unsigned int* p_max_macro_halo_size, unsigned int* p_max_macro_cell_neigh,
                                     unsigned int* p_cell_index, unsigned int* p_macro_alistsize,
                                     unsigned int* p_macro_atom_alist, unsigned int* p_macro_atom_to_global, unsigned int* p_macro_halo_nlistsize,
@@ -276,21 +277,6 @@ public:
                                        void* p_m_k_projch, void* p_m_kt_proj, void* p_m_kt_projch, void* p_m_kw_proj, 
                                        void* p_m_kw_projch);
 
-    
-   
-    /*static void setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
-                                   unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
-                                   real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
-                                   unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                   unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep, unsigned int* ipnphase);
-    */
-
-    /*static void setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5, real* p6,
-                                 real* p7, real* p8, real* p9, real* p10, real* p11, real* p12, real* p13,
-                                 real* p14, real* p15, real* p16, unsigned int* p17, unsigned int* p18,
-                                 real* p19, real* p20, real* p21, unsigned int* p22, real* p23, unsigned int* p24, 
-                                 real* p_ipTemp, unsigned int * p_ipmcnstep, real* ipTemp_array, unsigned int* ipnstep);
-    */
 
    static void setInputDataPointers(int* p1, int* p2, int* p3);
 };

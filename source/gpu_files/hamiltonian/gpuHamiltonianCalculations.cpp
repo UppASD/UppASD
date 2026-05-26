@@ -1247,7 +1247,7 @@ public:
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
 
-GpuHamiltonianCalculations::GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) : parallel(ParallelizationHelperInstance) {
+GpuHamiltonianCalculations::GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian) : parallel(ParallelizationHelperInstance) {
    initiated = false;
    if(!initiate(Flags, SimParam, gpuHamiltonian)) {  
        std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
@@ -1255,7 +1255,7 @@ GpuHamiltonianCalculations::GpuHamiltonianCalculations(const Flag Flags, const S
    }
 }
 
-bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
+bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian) {
    N = SimParam.N;   // Number of atoms
    NH = SimParam.NH;    // Number of reduced atoms
    mnn = SimParam.mnn;

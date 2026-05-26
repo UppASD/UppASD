@@ -14,8 +14,8 @@ gpuDepondtIntegrator.cpp
 gpuDepondtIntegrator.hpp
 gpuEventPool.cpp
 gpuEventPool.hpp
-gpuHamiltonianCalculations.cpp
-gpuHamiltonianCalculations.hpp
+#gpuHamiltonianCalculations.cpp
+#gpuHamiltonianCalculations.hpp
 gpuSimulation.cpp
 gpuSimulation.hpp
 gpuSDSimulation.cpp
@@ -53,7 +53,7 @@ target_include_directories(${UppASD_LIB}
 
 add_subdirectory(measurement)
 add_subdirectory(correlations)
-add_subdirectory(macrocells)
+add_subdirectory(hamiltonian)
 
 #common.cuh
 #cudaMatrix.hpp

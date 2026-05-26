@@ -5,12 +5,13 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
+#include "hamiltonian.hpp"
 
 using ParallelizationHelper = GpuParallelizationHelper;
 
 
 
-class GpuHamiltonianCalculations {
+class GpuHamiltonianCalculations : public Hamiltonian{
 private:
    // Local matrices
   struct Exchange {
@@ -86,10 +87,10 @@ public:
    class HeisgeJijElement;
 
    // Constructor
-   GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian);
+   GpuHamiltonianCalculations(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian);
 
    // Initiate
-   bool initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian);
+   bool initiate(const Flag Flags, const SimulationParameters SimParam, const deviceHamiltonian& gpuHamiltonian);
 
    // Initiated
    bool isInitiated() {
