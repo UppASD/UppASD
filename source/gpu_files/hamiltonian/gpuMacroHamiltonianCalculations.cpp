@@ -156,7 +156,7 @@ __global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const Gpu
                 const GpuTensor<unsigned int, 1> macro_halo_nlistsize, const GpuTensor<unsigned int, 2> macro_halo_to_global, const GpuTensor<unsigned int, 2> macro_atom_to_global,
                 const GpuTensor<unsigned int, 2> macro_atom_local_nlistsize, const GpuTensor<unsigned int, 3> macro_atom_local_nlist, 
                 const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist,
-                const unsigned int max_macro_halo_size, const unsigned int max_num_atom_macro_cell)
+                const unsigned int max_macro_halo_size, const unsigned int max_num_atom_macro_cell, const unsigned int max_macro_atom_local_neigh)
 {
     //TODO: ADD MACROCELLS <= blockIdx.y check
    // threads = {maxThreads, 1, 1};
@@ -168,8 +168,8 @@ __global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const Gpu
 
    unsigned int unique_neigb_in_cell = macro_halo_nlistsize(mcInd);
    unsigned int atoms_in_cell = macro_alistsize(mcInd);
-   unsigned int local_neighb = macro_atom_local_nlistsize();
-   unsigned int tasks = unique_neigb_in_cell * atoms_in_cell;
+   //unsigned int local_neighb = macro_atom_local_nlistsize();
+   unsigned int tasks = max_macro_atom_local_neigh * atoms_in_cell;
 
    //max_macro_halo_size     - max neighb
    //max_num_atom_macro_cell - max atoms
@@ -208,15 +208,22 @@ __global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const Gpu
 
     for(unsigned int i = tid; i < tasks; i+= threadNum){
         if(i >= tasks) break;
-        unsigned int loc_nInd = i % unique_neigb_in_cell; //neighbour index in halo
-        unsigned int loc_aInd = i / unique_neigb_in_cell; //atom index in cell
+        unsigned int loc_nInd = i % max_macro_atom_local_neigh; //neighbour index in halo
+        unsigned int loc_aInd = i / max_macro_atom_local_neigh; //atom index in cell
 
         unsigned int global_nInd = macro_halo_to_global(loc_nInd, mcInd) - 1;
         unsigned int global_aInd = macro_atom_to_global(loc_aInd, mcInd) - 1;
-        //real c = ncoup(global_aInd, global_nInd);
-        real c = 1;
 
-        if(loc_nInd >= macro_atom_local_nlist.extent(0) ||
+        printf("ga=%u gn=%u ncoup=(%u,%u)\n",
+       global_aInd,
+       global_nInd,
+       ncoup.extent(0),
+       ncoup.extent(1));
+       
+        real c = ncoup(global_aInd, global_nInd);
+        //real c = 1;
+
+        /*if(loc_nInd >= macro_atom_local_nlist.extent(0) ||
         loc_aInd >= macro_atom_local_nlist.extent(1) ||
         mcInd >= macro_atom_local_nlist.extent(2))
         {
@@ -230,7 +237,7 @@ __global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const Gpu
 
             printf("OUT OF BOUNDS!\n");
             return;
-        }
+        }*/
 
         unsigned int nn = macro_atom_local_nlist(loc_nInd, loc_aInd, mcInd) - 1;
         //unsigned int nn = 1;
@@ -417,7 +424,7 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice, devic
                                             macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
                                             macro.atom_local_nlistsize, macro.atom_local_nlist, 
                                             macro.cell_nlistsize, macro.cell_nlist,
-                                            macro.max_halo_size, macro.max_num_atom);
+                                            macro.max_halo_size, macro.max_num_atom, macro.max_atom_local_neigh);
                 aniso<<<blocks_ani, threads_ani, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
                                             taniso, eaniso, kaniso, sb, N);
             }
@@ -431,7 +438,7 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice, devic
                                             macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
                                             macro.atom_local_nlistsize, macro.atom_local_nlist, 
                                             macro.cell_nlistsize, macro.cell_nlist,
-                                            macro.max_halo_size, macro.max_num_atom);*/
+                                            macro.max_halo_size, macro.max_num_atom, macro.max_atom_local_neigh);*/
             }     
         }
     }
