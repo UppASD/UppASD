@@ -126,7 +126,11 @@ switch(*FortranData::gpu_rng) {
 #endif
 
     SimParam.randomSeed = (unsigned long long)*FortranData::gpu_rng_seed;
-    gpuMacro.do_macro_cells = *FortranData::do_macro_cells;
+    if(FortranData::do_macro_cells == nullptr) {
+        gpuMacro.do_macro_cells = 'N';
+    } else {
+        gpuMacro.do_macro_cells = *FortranData::do_macro_cells;
+    }
     if(gpuMacro.do_macro_cells=='Y'){
         gpuMacro.Num_macro = *FortranData::Num_macro;
         gpuMacro.max_num_atom = *FortranData::max_num_atom_macro_cell;

@@ -35,7 +35,7 @@ module macrocells
    integer, dimension(:,:), allocatable :: macro_halo_to_global !< Local-halo to global atom map (local_halo, macrocell)
    integer, dimension(:,:), allocatable :: macro_atom_to_global !< Local-atom to global atom map (local_atom, macrocell)
    integer, dimension(:,:), allocatable :: macro_atom_local_nlistsize !< Number of neighbours for local atoms (local_atom, macrocell)
-   integer, dimension(:,:,:), allocatable :: macro_atom_local_nlist !< Atom neighbour list in macrocell-local halo indices (mnn, local_atom, macrocell)
+   integer, dimension(:,:,:), allocatable :: macro_atom_local_nlist !< Atom neighbour list in macrocell-local halo indices (max_macro_atom_local_neigh, local_atom, macrocell)
    integer, dimension(:), allocatable :: macro_cell_nlistsize !< Number of neighbouring macrocells per macrocell
    integer, dimension(:,:), allocatable :: macro_cell_nlist !< Macrocell neighbour map (local_cell_neigh, macrocell)
 
@@ -169,11 +169,15 @@ contains
       do_macro_cells='N'
       prn_dip_subset='N'
       dip_file='dip_file.dat'
+      Num_dip=0
       Num_macro=0
       max_num_atom_macro_cell=0
       max_macro_halo_size=0
       max_macro_cell_neigh=0
       max_macro_atom_local_neigh=0
+      block_size_x=1
+      block_size_y=1
+      block_size_z=1
 
    end subroutine init_macrocell
 

@@ -524,9 +524,7 @@ contains
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
          dxyz_vec, dxyz_atom, dxyz_list)
 
-      if (allocated(macro_atom_to_global) .and. allocated(macro_halo_nlistsize) .and. allocated(macro_halo_to_global) .and. &
-            allocated(macro_atom_local_nlistsize) .and. allocated(macro_atom_local_nlist) .and. &
-            allocated(macro_cell_nlistsize) .and. allocated(macro_cell_nlist)) then
+      if (do_macro_cells=='Y') then
          call FortranData_setMacroHalo(Num_macro, max_num_atom_macro_cell, max_macro_atom_local_neigh, max_macro_halo_size, max_macro_cell_neigh, &
             cell_index, macro_alistsize, macro_atom_alist, macro_atom_to_global, macro_halo_nlistsize, macro_halo_to_global, &
             macro_atom_local_nlistsize, macro_atom_local_nlist, macro_cell_nlistsize, macro_cell_nlist, do_macro_cells)

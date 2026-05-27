@@ -19,7 +19,7 @@ public:
     static std::unique_ptr<Hamiltonian> create(const Flag Flags, const SimulationParameters SimParam, 
                                         const deviceHamiltonian& gpuHamiltonian, const deviceMacrocell& gpuMacro)
     {
-        if (*FortranData::do_macro_cells == 'Y')
+        if (gpuMacro.do_macro_cells == 'Y')
         {
             std::cout << "Macro cells used" << std::endl;
             return std::make_unique<GpuMacroHamiltonianCalculations>(Flags, SimParam, gpuHamiltonian, gpuMacro);
