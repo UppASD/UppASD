@@ -1,5 +1,6 @@
 
 #include "c_headers.hpp"
+#include "gpuHamiltonianDeviceOps.hpp"
 #include "gpuHamiltonianCalculations.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
@@ -9,6 +10,7 @@
 #include "measurementData.h"
 
 using ParallelizationHelper = GpuParallelizationHelper;
+namespace hamdev = gpu::hamiltonian;
 
 __device__ void sum_warp_energy(real& val){
 
@@ -384,6 +386,9 @@ public:
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
+      real dm_x = (real)0.0;
+      real dm_y = (real)0.0;
+      real dm_z = (real)0.0;
       real c = (real)0.0;
       unsigned int x_offset = (unsigned int)0;
       real Sx = (real)0.0;
@@ -421,10 +426,15 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         x += -Dz * Sy + Dy * Sz;
-         y += -Dx * Sz + Dz * Sx;
-         z += -Dy * Sx + Dx * Sy;
+         const auto dm_term = hamdev::dm_field(hamdev::make_vec3(Dx, Dy, Dz), hamdev::make_vec3(Sx, Sy, Sz));
+         dm_x += dm_term.x;
+         dm_y += dm_term.y;
+         dm_z += dm_term.z;
       }
+
+      x += dm_x;
+      y += dm_y;
+      z += dm_z;
 
       const real ext_x = ext_f[atom * 3 + 0];
       const real ext_y = ext_f[atom * 3 + 1];
@@ -447,8 +457,9 @@ public:
       Sy = emomM[atom * 3 + 1];
       Sz = emomM[atom * 3 + 2];
 
-      real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real DM = ((-Dz * Sy + Dy * Sz)*Sx + (-Dx * Sz + Dz * Sx) * Sy + (-Dy * Sx + Dx * Sy)*Sz)* (real)-0.5;
+      const auto spin = hamdev::make_vec3(Sx, Sy, Sz);
+      real exchange = hamdev::dot(hamdev::make_vec3(x - dm_x, y - dm_y, z - dm_z), spin) * (real)-0.5;
+      real DM = hamdev::dot(hamdev::make_vec3(dm_x, dm_y, dm_z), spin) * (real)-0.5;
       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
 
       sum_warp_energy(exchange);
@@ -706,6 +717,9 @@ public:
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
+      real dm_x = (real)0.0;
+      real dm_y = (real)0.0;
+      real dm_z = (real)0.0;
       real c = (real)0.0;
       unsigned int x_offset = (unsigned int) 0;
       unsigned int neighborPosIndex = (unsigned int) 0;
@@ -753,10 +767,15 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         x += -Dz * Sy + Dy * Sz;
-         y += -Dx * Sz + Dz * Sx;
-         z += -Dy * Sx + Dx * Sy;
+         const auto dm_term = hamdev::dm_field(hamdev::make_vec3(Dx, Dy, Dz), hamdev::make_vec3(Sx, Sy, Sz));
+         dm_x += dm_term.x;
+         dm_y += dm_term.y;
+         dm_z += dm_term.z;
       }
+
+      x += dm_x;
+      y += dm_y;
+      z += dm_z;
 
       //Anisotropy
       Sx = emomM[atom * 3 + 0];
@@ -827,9 +846,10 @@ public:
       if(!measure) return;
       int mInd = blockIdx.y;
 
-      real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-      real DM = ((-Dz * Sy + Dy * Sz)*Sx + (-Dx * Sz + Dz * Sx) * Sy + (-Dy * Sx + Dx * Sy)*Sz)* (real)-0.5;
+      const auto spin = hamdev::make_vec3(Sx, Sy, Sz);
+      real exchange = hamdev::dot(hamdev::make_vec3(x - dm_x, y - dm_y, z - dm_z), spin) * (real)-0.5;
+      real anisotropy = hamdev::dot(hamdev::make_vec3(ax_en, ay_en, az_en), spin) * (real)-0.5;
+      real DM = hamdev::dot(hamdev::make_vec3(dm_x, dm_y, dm_z), spin) * (real)-0.5;
       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
 
       sum_warp_energy(exchange);
@@ -1252,6 +1272,32 @@ GpuHamiltonianCalculations::GpuHamiltonianCalculations() : parallel(Parallelizat
    initiated = false;
 }
 
+bool GpuHamiltonianCalculations::canUseLatticeConvolution(const Flag Flags, const SimulationParameters SimParam,
+                                                          const deviceHamiltonian& gpuHamiltonian) const {
+   (void)Flags;
+   (void)SimParam;
+   (void)gpuHamiltonian;
+
+   // Future backend selection:
+   // - regular FFT-addressable lattice with known dimensions and boundary conditions
+   // - translationally invariant Jij/Dij kernel after reduced-Hamiltonian mapping
+   // - cuFFT for CUDA, hipFFT/rocFFT for HIP behind a common plan wrapper
+   return false;
+}
+
+bool GpuHamiltonianCalculations::canUseMultiscaleDipole(const Flag Flags, const SimulationParameters SimParam,
+                                                        const deviceHamiltonian& gpuHamiltonian) const {
+   (void)Flags;
+   (void)SimParam;
+   (void)gpuHamiltonian;
+
+   // Future backend selection:
+   // - atom-to-cell and cell-to-atom interpolation data available
+   // - coarse demag/dipole grid dimensions known
+   // - additive field contribution can be accumulated before integration
+   return false;
+}
+
 bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
    N = SimParam.N;   // Number of atoms
    NH = SimParam.NH;    // Number of reduced atoms
@@ -1260,6 +1306,16 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    redHam.redNeibourCount = gpuHamiltonian.aHam;
    external_field=gpuHamiltonian.extfield;
    do_ene = Flags.do_ene;
+   backend = {};
+   backend.convolution_ready = canUseLatticeConvolution(Flags, SimParam, gpuHamiltonian);
+   backend.multiscale_ready = canUseMultiscaleDipole(Flags, SimParam, gpuHamiltonian);
+   if(backend.convolution_ready) {
+      backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
+      backend.dmi = GpuHamiltonianBackend::LatticeConvolution;
+   }
+   if(backend.multiscale_ready) {
+      backend.dipole = GpuHamiltonianBackend::MultiscaleDipole;
+   }
 
    if(redHam.redNeibourCount.empty()) {
       initiated = false;
@@ -1366,7 +1422,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    if(measure){
       //gpuEnergies.totalM.zeros();
       //gpuEnergies.extM.zeros();
-      gpuEnergies.energyM.zeros();
+      gpuEnergies.energyM.zeros_async(parallel.getWorkStream());
    }
 
 

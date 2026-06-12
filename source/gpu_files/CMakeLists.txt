@@ -1,10 +1,9 @@
 if(USE_HIP)
-set(GPU_PARALLEL hipParallelizationHelper.tpp)
 set(GPU_TOOLS hipThermfield.cpp hipThermfield.hpp)
 elseif(USE_CUDA)
-set(GPU_PARALLEL cudaParallelizationHelper.tpp)
 set(GPU_TOOLS cudaThermfield.cu cudaThermfield.hpp)
 endif()
+set(GPU_PARALLEL gpuParallelizationHelper.tpp)
 target_sources(${UppASD_LIB} PRIVATE c_helper.h
 base.hpp
 ${GPU_PARALLEL}
@@ -14,8 +13,10 @@ gpuDepondtIntegrator.cpp
 gpuDepondtIntegrator.hpp
 gpuEventPool.cpp
 gpuEventPool.hpp
+gpuHamiltonianBackend.hpp
 gpuHamiltonianCalculations.cpp
 gpuHamiltonianCalculations.hpp
+gpuHamiltonianDeviceOps.hpp
 gpuSimulation.cpp
 gpuSimulation.hpp
 gpuSDSimulation.cpp
@@ -76,7 +77,5 @@ add_subdirectory(correlations)
 
 #thermfield.cpp
 #thermfield.hpp
-
-
 
 

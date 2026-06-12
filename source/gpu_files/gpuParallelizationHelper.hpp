@@ -123,8 +123,4 @@ extern GpuParallelizationHelper ParallelizationHelperInstance;
 
 
 
-#if defined(HIP_V)
-#include "hipParallelizationHelper.tpp"
-#elif defined(CUDA_V)
-#include "cudaParallelizationHelper.tpp"
-#endif
+#include "gpuParallelizationHelper.tpp"

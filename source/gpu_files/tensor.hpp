@@ -505,6 +505,10 @@ public:
       ASSERT_GPU(GPU_MEMSET(data(), 0, size() * sizeof(T)));
    }
 
+   void zeros_async(GPU_STREAM_T stream = 0) {
+      ASSERT_GPU(GPU_MEMSET_ASYNC(data(), 0, size() * sizeof(T), stream));
+   }
+
 
 private:
    T* data_{};

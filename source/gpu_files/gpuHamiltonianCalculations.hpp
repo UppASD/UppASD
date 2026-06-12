@@ -2,6 +2,7 @@
 
 #include "tensor.hpp"
 #include "real_type.h"
+#include "gpuHamiltonianBackend.hpp"
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
@@ -53,6 +54,7 @@ private:
    Anisotropy aniso;
    HamRed redHam;
    GpuTensor<real, 3> external_field;
+   GpuHamiltonianBackendSelection backend;
 
    bool do_j_tensor = false;
    bool do_dm = false;
@@ -70,6 +72,11 @@ private:
 
    // Parallelization helper
    ParallelizationHelper& parallel;
+
+   bool canUseLatticeConvolution(const Flag Flags, const SimulationParameters SimParam,
+                                 const deviceHamiltonian& gpuHamiltonian) const;
+   bool canUseMultiscaleDipole(const Flag Flags, const SimulationParameters SimParam,
+                               const deviceHamiltonian& gpuHamiltonian) const;
 
 public:
    // Parallelization helpers
