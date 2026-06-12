@@ -18,6 +18,11 @@ contains
       return
    end subroutine fortrandata_setconstants
 
+   subroutine fortrandata_setgpugeometry()
+      implicit none
+      return
+   end subroutine fortrandata_setgpugeometry
+
    subroutine fortrandata_sethamiltonian()
       implicit none
       return
@@ -90,4 +95,3 @@ contains
 
 
 end module nocuda
-

@@ -1367,6 +1367,10 @@ contains
                read(ifile,*,iostat=i_err) do_gpu_correlations
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_gpu_convolution')
+               read(ifile,*,iostat=i_err) do_gpu_convolution
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_gpu_measurements')
                read(ifile,*,iostat=i_err) do_gpu_measurements
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

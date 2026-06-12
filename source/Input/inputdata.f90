@@ -277,6 +277,7 @@ module InputData
    character(len=1) :: do_gpu_mc   !< Do eventual MC on GPU (Y/N)
    character(len=1) :: do_gpu_measurements   !< Do measurements on GPU (Y/N)
    character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
+   character(len=1) :: do_gpu_convolution     !< Use FFT convolution Hamiltonian on GPU when supported (Y/N)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -538,6 +539,7 @@ contains
       do_gpu_mc         = 'N'
       do_gpu_measurements = 'Y'
       do_gpu_correlations = 'N'
+      do_gpu_convolution = 'N'
 
 
       ! I/O OVF

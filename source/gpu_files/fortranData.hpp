@@ -58,6 +58,17 @@ public:
    static unsigned int* ipnphase;
    static unsigned int* NA;
    static unsigned int* Natom_full;
+   static unsigned int* N1;
+   static unsigned int* N2;
+   static unsigned int* N3;
+   static char* do_gpu_convolution;
+   static char* BC1;
+   static char* BC2;
+   static char* BC3;
+   static real* C1;
+   static real* C2;
+   static real* C3;
+   static real* Bas;
    
 
    static unsigned int* nq;
@@ -226,6 +237,11 @@ public:
                                     unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry,
                                     unsigned int* p_NA, unsigned int* p_Natom_full);
 
+    static void setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3,
+                                       unsigned int* p_NA, char* p_BC1, char* p_BC2, char* p_BC3,
+                                       real* p_C1, real* p_C2, real* p_C3, real* p_Bas,
+                                       char* p_do_gpu_convolution);
+
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
                                        real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -272,4 +288,3 @@ public:
 
    static void setInputDataPointers(int* p1, int* p2, int* p3);
 };
-

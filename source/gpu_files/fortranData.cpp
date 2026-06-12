@@ -20,6 +20,17 @@ unsigned int* FortranData::mcnstep;
 unsigned int* FortranData::ipnphase;
 unsigned int* FortranData::NA;
 unsigned int* FortranData::Natom_full;
+unsigned int* FortranData::N1 = nullptr;
+unsigned int* FortranData::N2 = nullptr;
+unsigned int* FortranData::N3 = nullptr;
+char* FortranData::do_gpu_convolution = nullptr;
+char* FortranData::BC1 = nullptr;
+char* FortranData::BC2 = nullptr;
+char* FortranData::BC3 = nullptr;
+real* FortranData::C1 = nullptr;
+real* FortranData::C2 = nullptr;
+real* FortranData::C3 = nullptr;
+real* FortranData::Bas = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -248,6 +259,24 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    Natom_full = p_Natom_full;
 }
 
+void FortranData::setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3,
+                                         unsigned int* p_NA, char* p_BC1, char* p_BC2, char* p_BC3,
+                                         real* p_C1, real* p_C2, real* p_C3, real* p_Bas,
+                                         char* p_do_gpu_convolution) {
+   N1 = p_N1;
+   N2 = p_N2;
+   N3 = p_N3;
+   NA = p_NA;
+   BC1 = p_BC1;
+   BC2 = p_BC2;
+   BC3 = p_BC3;
+   C1 = p_C1;
+   C2 = p_C2;
+   C3 = p_C3;
+   Bas = p_Bas;
+   do_gpu_convolution = p_do_gpu_convolution;
+}
+
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                          real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
                                          real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -468,6 +497,13 @@ FortranData::setConstantPointers(
    p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax, p_mry, p_NA, p_Natom_full);
 }
 
+extern "C" void fortrandata_setgpugeometry_(unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3,
+   unsigned int* p_NA, char* p_BC1, char* p_BC2, char* p_BC3,
+   real* p_C1, real* p_C2, real* p_C3, real* p_Bas, char* p_do_gpu_convolution) {
+FortranData::setGpuGeometryPointers(p_N1, p_N2, p_N3, p_NA, p_BC1, p_BC2, p_BC3,
+                                    p_C1, p_C2, p_C3, p_Bas, p_do_gpu_convolution);
+}
+
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
    real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
    real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -561,4 +597,3 @@ FortranData::setCorrelationPointers(
 extern "C" void fortrandata_setinputdata_(int* p1, int* p2, int* p3) {
    FortranData::setInputDataPointers(p1, p2, p3);
 }
-

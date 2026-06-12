@@ -40,6 +40,18 @@ struct SimulationParameters {
    std::size_t M;
    std::size_t mnn;
    std::size_t mnndm;
+   std::size_t N1 = 0;
+   std::size_t N2 = 0;
+   std::size_t N3 = 0;
+   std::size_t NA = 0;
+   bool do_gpu_convolution = false;
+   char BC1 = '0';
+   char BC2 = '0';
+   char BC3 = '0';
+   const real* C1 = nullptr;
+   const real* C2 = nullptr;
+   const real* C3 = nullptr;
+   const real* Bas = nullptr;
    unsigned int ipnphase;
    unsigned int ipmcnphase;
    unsigned int mcnstep;

@@ -76,6 +76,23 @@ module Chelper
          integer(c_int), intent(inout) :: atype(*)
          integer(c_int), intent(inout) :: achtype(*)
       end subroutine FortranData_setCorrelations
+
+      subroutine FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution) &
+               bind(C, name="fortrandata_setgpugeometry_")
+         import :: c_int, c_char, c_double
+         integer(c_int), intent(inout) :: N1
+         integer(c_int), intent(inout) :: N2
+         integer(c_int), intent(inout) :: N3
+         integer(c_int), intent(inout) :: NA
+         character(c_char), intent(inout) :: BC1
+         character(c_char), intent(inout) :: BC2
+         character(c_char), intent(inout) :: BC3
+         real(c_double), intent(inout) :: C1(*)
+         real(c_double), intent(inout) :: C2(*)
+         real(c_double), intent(inout) :: C3(*)
+         real(c_double), intent(inout) :: Bas(*)
+         character(c_char), intent(inout) :: do_gpu_convolution
+      end subroutine FortranData_setGpuGeometry
    end interface
 
 
@@ -412,6 +429,8 @@ contains
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
          NT_meta, Nchmax, mry, NA, Natom_full)
+
+      call FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &

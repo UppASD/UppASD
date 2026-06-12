@@ -235,18 +235,18 @@ public:
 // Added DM effect 2014/09/23
 class GpuHamiltonianCalculations::HeisgeJij : public ParallelizationHelper::AtomSiteEnsemble {
 private:
-   real* beff;
-   real* eneff;
+   real* __restrict__ beff;
+   real* __restrict__ eneff;
    //GpuTensor<real, 1> exchM;
    //GpuTensor<real, 1> extM;
    //GpuTensor<real, 1> totalM;
    GpuTensor<real, 2> energyM;
-   const real* coup;
-   const unsigned int* pos;
-   const real* emomM;
-   const real* ext_f;
+   const real* __restrict__ coup;
+   const unsigned int* __restrict__ pos;
+   const real* __restrict__ emomM;
+   const real* __restrict__ ext_f;
    unsigned int mnn;
-   const unsigned int* aham;
+   const unsigned int* __restrict__ aham;
    //int do_ene;
    bool measure;
 
@@ -281,9 +281,9 @@ public:
 
       // Pointers with fixed indices
       const unsigned int rsite = aham[site] - 1;
-      const real* site_coup = &coup[rsite];
-      const unsigned int* site_pos = &pos[site];
-      const real* my_emomM = &emomM[ensemble * N * 3];
+      const real* __restrict__ site_coup = &coup[rsite];
+      const unsigned int* __restrict__ site_pos = &pos[site];
+      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
          unsigned int x_offset = site_pos[i * N] * 3;
@@ -338,22 +338,22 @@ public:
 
 class GpuHamiltonianCalculations::HeisgeJijDM : public ParallelizationHelper::AtomSiteEnsemble {
 private:
-   real* beff;
-   real* eneff;
+   real* __restrict__ beff;
+   real* __restrict__ eneff;
    //GpuTensor<real, 1> exchM;
    //GpuTensor<real, 1> dmM;
    //GpuTensor<real, 1> extM;
    //GpuTensor<real, 1> totalM;
    GpuTensor<real,  2> energyM;
-   const real* coup;
-   const unsigned int* pos;
-   const real* emomM;
-   const real* ext_f;
+   const real* __restrict__ coup;
+   const unsigned int* __restrict__ pos;
+   const real* __restrict__ emomM;
+   const real* __restrict__ ext_f;
    unsigned int mnn;
-   const real* dmcoup;
-   const unsigned int* dmpos;
+   const real* __restrict__ dmcoup;
+   const unsigned int* __restrict__ dmpos;
    unsigned int dmmnn;
-   const unsigned int* aham;
+   const unsigned int* __restrict__ aham;
    //int do_ene;
    bool measure;
 
@@ -401,9 +401,9 @@ public:
 
       // Pointers with fixed indices
       const unsigned int rsite = aham[site] - 1;
-      const real* site_coup = &coup[rsite];
-      const unsigned int* site_pos = &pos[site];
-      const real* my_emomM = &emomM[ensemble * N * 3];
+      const real* __restrict__ site_coup = &coup[rsite];
+      const unsigned int* __restrict__ site_pos = &pos[site];
+      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
          x_offset = site_pos[i * N] * 3;
@@ -658,27 +658,27 @@ public:
 
 class GpuHamiltonianCalculations::HeisgeJijDMAniso : public ParallelizationHelper::AtomSiteEnsemble {
 private:
-   real* beff;
-   real* eneff;
+   real* __restrict__ beff;
+   real* __restrict__ eneff;
    GpuTensor<real, 2> energyM;
    //GpuTensor<real, 1> exchM;
    //GpuTensor<real, 1> dmM;
    //GpuTensor<real, 1> aniM;
    //GpuTensor<real, 1> extM;
    //GpuTensor<real, 1> totalM;
-   const real* coup;
-   const unsigned int* pos;
-   const real* emomM;
-   const real* ext_f;
+   const real* __restrict__ coup;
+   const unsigned int* __restrict__ pos;
+   const real* __restrict__ emomM;
+   const real* __restrict__ ext_f;
    unsigned int mnn;
-   const real* dmcoup;
-   const unsigned int* dmpos;
+   const real* __restrict__ dmcoup;
+   const unsigned int* __restrict__ dmpos;
    unsigned int dmmnn;
-   const real* kaniso;
-   const real* eaniso;
-   const unsigned int* taniso;
-   const real* sb;
-   const unsigned int* aham;
+   const real* __restrict__ kaniso;
+   const real* __restrict__ eaniso;
+   const unsigned int* __restrict__ taniso;
+   const real* __restrict__ sb;
+   const unsigned int* __restrict__ aham;
    //int do_ene;
    bool measure;
 
@@ -742,9 +742,9 @@ public:
 
       // Pointers with fixed indices
       const unsigned int rsite = aham[site] - 1;
-      const real* site_coup = &coup[rsite];
-      const unsigned int* site_pos = &pos[site];
-      const real* my_emomM = &emomM[ensemble * N * 3];
+      const real* __restrict__ site_coup = &coup[rsite];
+      const unsigned int* __restrict__ site_pos = &pos[site];
+      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
       // Exchange term loop
       for(unsigned int i = 0; i < mnn; i++) {
          x_offset = site_pos[i * N] * 3;
@@ -1272,17 +1272,25 @@ GpuHamiltonianCalculations::GpuHamiltonianCalculations() : parallel(Parallelizat
    initiated = false;
 }
 
+GpuHamiltonianCalculations::~GpuHamiltonianCalculations() {
+   convolution.release();
+}
+
 bool GpuHamiltonianCalculations::canUseLatticeConvolution(const Flag Flags, const SimulationParameters SimParam,
                                                           const deviceHamiltonian& gpuHamiltonian) const {
-   (void)Flags;
-   (void)SimParam;
-   (void)gpuHamiltonian;
+   if(!SimParam.do_gpu_convolution) return false;
+   if(SimParam.N1 == 0 || SimParam.N2 == 0 || SimParam.N3 == 0 || SimParam.NA == 0) return false;
+   if(SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 * SimParam.NA) return false;
+   if(SimParam.NH != SimParam.NA) return false;
+   if(gpuHamiltonian.nlist.empty() || gpuHamiltonian.nlistsize.empty()) return false;
+   if(Flags.do_aniso != 0 &&
+      (gpuHamiltonian.kaniso.empty() || gpuHamiltonian.eaniso.empty() || gpuHamiltonian.taniso.empty())) return false;
 
-   // Future backend selection:
-   // - regular FFT-addressable lattice with known dimensions and boundary conditions
-   // - translationally invariant Jij/Dij kernel after reduced-Hamiltonian mapping
-   // - cuFFT for CUDA, hipFFT/rocFFT for HIP behind a common plan wrapper
-   return false;
+   if(Flags.do_jtensor) {
+      return !gpuHamiltonian.j_tensor.empty();
+   }
+
+   return !gpuHamiltonian.ncoup.empty();
 }
 
 bool GpuHamiltonianCalculations::canUseMultiscaleDipole(const Flag Flags, const SimulationParameters SimParam,
@@ -1306,13 +1314,13 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    redHam.redNeibourCount = gpuHamiltonian.aHam;
    external_field=gpuHamiltonian.extfield;
    do_ene = Flags.do_ene;
+   do_j_tensor = false;
+   do_dm = false;
+   do_aniso = 0;
+   convolution.release();
    backend = {};
    backend.convolution_ready = canUseLatticeConvolution(Flags, SimParam, gpuHamiltonian);
    backend.multiscale_ready = canUseMultiscaleDipole(Flags, SimParam, gpuHamiltonian);
-   if(backend.convolution_ready) {
-      backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
-      backend.dmi = GpuHamiltonianBackend::LatticeConvolution;
-   }
    if(backend.multiscale_ready) {
       backend.dipole = GpuHamiltonianBackend::MultiscaleDipole;
    }
@@ -1370,6 +1378,31 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
      
 
       }
+      if(backend.convolution_ready) {
+         GpuLatticeConvolutionDescriptor conv_desc{};
+         conv_desc.n1 = static_cast<unsigned int>(SimParam.N1);
+         conv_desc.n2 = static_cast<unsigned int>(SimParam.N2);
+         conv_desc.n3 = static_cast<unsigned int>(SimParam.N3);
+         conv_desc.basis = static_cast<unsigned int>(SimParam.NA);
+         conv_desc.ensembles = static_cast<unsigned int>(SimParam.M);
+         conv_desc.bc1 = SimParam.BC1;
+         conv_desc.bc2 = SimParam.BC2;
+         conv_desc.bc3 = SimParam.BC3;
+         conv_desc.c1 = SimParam.C1;
+         conv_desc.c2 = SimParam.C2;
+         conv_desc.c3 = SimParam.C3;
+         conv_desc.basis_positions = SimParam.Bas;
+         backend.convolution_ready = convolution.initiate(conv_desc, parallel.getWorkStream());
+         if(backend.convolution_ready) {
+            backend.convolution_kernel_ready =
+               convolution.buildTensorKernel(tenEx.tensor, tenEx.neighbourPos, tenEx.mnn,
+                                             aniso.kaniso, aniso.eaniso, aniso.taniso,
+                                             do_aniso != 0, parallel.getWorkStream());
+            if(backend.convolution_kernel_ready) {
+               backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
+            }
+         }
+      }
       // Flag
       initiated = true;
       return true;
@@ -1410,6 +1443,34 @@ else{
       parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
    }
 
+   if(backend.convolution_ready) {
+      GpuLatticeConvolutionDescriptor conv_desc{};
+      conv_desc.n1 = static_cast<unsigned int>(SimParam.N1);
+      conv_desc.n2 = static_cast<unsigned int>(SimParam.N2);
+      conv_desc.n3 = static_cast<unsigned int>(SimParam.N3);
+      conv_desc.basis = static_cast<unsigned int>(SimParam.NA);
+      conv_desc.ensembles = static_cast<unsigned int>(SimParam.M);
+      conv_desc.bc1 = SimParam.BC1;
+      conv_desc.bc2 = SimParam.BC2;
+      conv_desc.bc3 = SimParam.BC3;
+      conv_desc.c1 = SimParam.C1;
+      conv_desc.c2 = SimParam.C2;
+      conv_desc.c3 = SimParam.C3;
+      conv_desc.basis_positions = SimParam.Bas;
+      backend.convolution_ready = convolution.initiate(conv_desc, parallel.getWorkStream());
+      if(backend.convolution_ready) {
+         backend.convolution_kernel_ready =
+            convolution.buildIsotropicDmKernel(ex.coupling, ex.neighbourPos, ex.mnn,
+                                               dm.interaction, dm.neighbourPos, dm.mnn,
+                                               do_dm, aniso.kaniso, aniso.eaniso, aniso.taniso,
+                                               do_aniso != 0, parallel.getWorkStream());
+         if(backend.convolution_kernel_ready) {
+            backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
+            backend.dmi = do_dm ? GpuHamiltonianBackend::LatticeConvolution : GpuHamiltonianBackend::DirectSparse;
+         }
+      }
+   }
+
    // Flag
    initiated = true;
    return true;
@@ -1419,6 +1480,11 @@ else{
 void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
+   if(!measure && backend.convolution_ready && backend.convolution_kernel_ready) {
+      convolution.apply(gpuLattice, external_field, parallel.getWorkStream());
+      return;
+   }
+
    if(measure){
       //gpuEnergies.totalM.zeros();
       //gpuEnergies.extM.zeros();

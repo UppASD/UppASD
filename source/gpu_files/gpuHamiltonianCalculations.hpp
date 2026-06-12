@@ -3,6 +3,7 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include "gpuHamiltonianBackend.hpp"
+#include "gpuLatticeConvolutionHamiltonian.hpp"
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
@@ -55,6 +56,7 @@ private:
    HamRed redHam;
    GpuTensor<real, 3> external_field;
    GpuHamiltonianBackendSelection backend;
+   GpuLatticeConvolutionHamiltonian convolution;
 
    bool do_j_tensor = false;
    bool do_dm = false;
@@ -94,6 +96,7 @@ public:
 
    // Constructor
    GpuHamiltonianCalculations();
+   ~GpuHamiltonianCalculations();
 
    // Initiate
    bool initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian);

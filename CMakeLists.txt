@@ -348,6 +348,7 @@ if (USE_CUDA)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
   set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
+                               ${SRC}/gpu_files/gpuLatticeConvolutionHamiltonian.cpp
                                ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  
                                ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
                                ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 

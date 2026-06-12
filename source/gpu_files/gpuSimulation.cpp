@@ -57,6 +57,18 @@ void GpuSimulation::initiateConstants() {
     SimParam.M = *FortranData::Mensemble;
     SimParam.mnn = *FortranData::max_no_neigh;
     SimParam.mnndm = *FortranData::max_no_dmneigh;
+    SimParam.N1 = FortranData::N1 ? *FortranData::N1 : 0;
+    SimParam.N2 = FortranData::N2 ? *FortranData::N2 : 0;
+    SimParam.N3 = FortranData::N3 ? *FortranData::N3 : 0;
+    SimParam.NA = FortranData::NA ? *FortranData::NA : 0;
+    SimParam.do_gpu_convolution = FortranData::do_gpu_convolution && *FortranData::do_gpu_convolution == 'Y';
+    SimParam.BC1 = FortranData::BC1 ? *FortranData::BC1 : '0';
+    SimParam.BC2 = FortranData::BC2 ? *FortranData::BC2 : '0';
+    SimParam.BC3 = FortranData::BC3 ? *FortranData::BC3 : '0';
+    SimParam.C1 = FortranData::C1;
+    SimParam.C2 = FortranData::C2;
+    SimParam.C3 = FortranData::C3;
+    SimParam.Bas = FortranData::Bas;
     SimParam.ipmcnphase = *FortranData::ipmcnphase;
     SimParam.ipnphase = *FortranData::ipnphase;
     if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
