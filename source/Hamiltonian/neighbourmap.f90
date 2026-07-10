@@ -26,10 +26,451 @@ contains
 
    !----------------------------------------------------------------------------
    ! SUBROUTINE: setup_nm
-   !> Set up the neighbour maps for pair wise interactions taking into consideration
-   !> boundary conditions
+   !> Set up the neighbour maps for pair-wise interactions, taking boundary
+   !> conditions into consideration.
+   !
+   !> This version preserves the original compressed unit-cell mapping, but
+   !> replaces the fragile floor-based folding by an explicit lattice-equivalence
+   !> test:
+   !>
+   !>     cvec - Bas(:,ia) = n1*C1 + n2*C2 + n3*C3 + residual
+   !>
+   !> The candidate basis atom is accepted only when the Cartesian residual is
+   !> smaller than map_tol. Exactly one basis atom must match each generated
+   !> neighbour coordinate.
    !----------------------------------------------------------------------------
    subroutine setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+      Bas,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,          &
+      do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
+      !
+      use macrocells, only : block_size_x, block_size_y, block_size_z
+      !
+      implicit none
+      !
+      integer, intent(in) :: NT
+      integer, intent(in) :: NA
+      integer, intent(in) :: N1
+      integer, intent(in) :: N2
+      integer, intent(in) :: N3
+      integer, intent(in) :: sym
+      integer, intent(in) :: Natom
+      integer, intent(in) :: Natom_full
+      integer, intent(in) :: block_size
+      integer, intent(in) :: max_no_shells
+      integer, dimension(NT), intent(in) :: nn
+      integer, dimension(Natom), intent(in) :: atype
+      character(len=1), intent(in) :: BC1
+      character(len=1), intent(in) :: BC2
+      character(len=1), intent(in) :: BC3
+      real(dblprec), dimension(3), intent(in) :: C1
+      real(dblprec), dimension(3), intent(in) :: C2
+      real(dblprec), dimension(3), intent(in) :: C3
+      real(dblprec), dimension(3,NA), intent(in) :: Bas
+      real(dblprec), dimension(NT,max_no_shells,3), intent(in) :: redcoord
+      !
+      integer, intent(out) :: max_no_neigh
+      integer, intent(out) :: max_no_equiv
+      integer, dimension(:,:,:), allocatable, intent(out) :: nm
+      integer, dimension(:,:), allocatable, intent(out) :: nmdim
+      !
+      integer, intent(in), optional :: do_ralloy
+      integer, dimension(Natom_full), optional, intent(in) :: acellnumb
+      integer, dimension(Natom_full), optional, intent(in) :: atype_ch
+      integer, dimension(NT,max_no_shells), optional, intent(in) :: nntype
+      !
+      integer :: i0
+      integer :: i
+      integer :: nelem
+      integer :: i_stat, i_all
+      integer :: nndim
+      integer :: ix, iy, iz
+      integer :: xc_hop, yc_hop, zc_hop
+      integer :: ia, counter, ishell, itype, jtype, inei
+      integer :: iat, jat, j0, jx, jy, jz
+      integer :: iix, iiy, iiz
+      integer :: ralloy
+      integer :: nmatch, best_ia
+      integer, dimension(3) :: itrans, best_trans
+      real(dblprec) :: detmatrix
+      real(dblprec) :: res2, best_res2
+      real(dblprec), parameter :: map_tol  = 1.0d-5
+      real(dblprec), parameter :: map_tol2 = map_tol*map_tol
+      real(dblprec), dimension(3,3) :: invmatrix
+      real(dblprec), dimension(3) :: cvec
+      real(dblprec), dimension(3) :: dcart, dfrac, rescart
+      real(dblprec), dimension(:,:,:,:), allocatable :: nncoord
+      integer, dimension(:,:,:), allocatable :: nm_cell
+      integer, dimension(:,:,:,:), allocatable :: nm_trunk
+      integer, dimension(:,:), allocatable :: nnm_cell
+      logical :: is_periodic, is_dilute
+      logical :: typematch
+      !
+      nelem = 1
+      ralloy = 0
+      if (present(do_ralloy)) ralloy = do_ralloy
+      !
+      if (ralloy /= 0 .and. ralloy /= 1) then
+         error stop 'setup_nm: do_ralloy must be 0 or 1'
+      end if
+      if (ralloy == 1) then
+         if (.not. present(acellnumb)) then
+            error stop 'setup_nm: acellnumb is required for random alloys'
+         end if
+         if (.not. present(atype_ch)) then
+            error stop 'setup_nm: atype_ch is required for random alloys'
+         end if
+      end if
+      !
+      if (present(nntype)) print *, 'nntype', shape(nntype)
+      !
+      ! Calculate maximum number of neighbour shells used by any basis atom.
+      nndim = 0
+      do i = 1, NA
+         nndim = max(nndim, NN(atype(i)))
+      end do
+      !
+      ! Calculate inverse of the lattice-vector matrix. The lattice vectors are
+      ! represented by C1, C2, C3 using the same convention as in the original
+      ! routine.
+      detmatrix = C1(1)*C2(2)*C3(3) - C1(1)*C2(3)*C3(2) + &
+                  C1(2)*C2(3)*C3(1) - C1(2)*C2(1)*C3(3) + &
+                  C1(3)*C2(1)*C3(2) - C1(3)*C2(2)*C3(1)
+      invmatrix = 0.0_dblprec
+      !
+      if (abs(detmatrix) <= dbl_tolerance) then
+         error stop 'setup_nm: singular or nearly singular lattice matrix'
+      end if
+      !
+      invmatrix(1,1) = (C2(2)*C3(3)-C3(2)*C2(3))/detmatrix
+      invmatrix(1,2) = (C1(3)*C3(2)-C3(3)*C1(2))/detmatrix
+      invmatrix(1,3) = (C1(2)*C2(3)-C2(2)*C1(3))/detmatrix
+      invmatrix(2,1) = (C2(3)*C3(1)-C3(3)*C2(1))/detmatrix
+      invmatrix(2,2) = (C1(1)*C3(3)-C3(1)*C1(3))/detmatrix
+      invmatrix(2,3) = (C1(3)*C2(1)-C2(3)*C1(1))/detmatrix
+      invmatrix(3,1) = (C2(1)*C3(2)-C3(1)*C2(2))/detmatrix
+      invmatrix(3,2) = (C1(2)*C3(1)-C3(2)*C1(1))/detmatrix
+      invmatrix(3,3) = (C1(1)*C2(2)-C2(1)*C1(2))/detmatrix
+      !
+      max_no_neigh = 0
+      !
+      allocate(nsym(NT), stat=i_stat)
+      call memocc(i_stat, product(shape(nsym))*kind(nsym), 'nsym', 'setup_nm')
+      nsym = 0
+      !
+      ! Create all symmetry matrices with respect to symmetry type.
+      call get_symops(sym,NT)
+      !
+      ! Allocate arrays.
+      max_no_equiv = maxval(nsym)
+      !
+      allocate(nncoord(3,max_no_equiv,max_no_shells,NT), stat=i_stat)
+      call memocc(i_stat, product(shape(nncoord))*kind(nncoord), 'nncoord', 'setup_nm')
+      nncoord = 0.0_dblprec
+      !
+      allocate(nm_cell(max_no_equiv,max_no_shells,NA), stat=i_stat)
+      call memocc(i_stat, product(shape(nm_cell))*kind(nm_cell), 'nm_cell', 'setup_nm')
+      nm_cell = 0
+      !
+      is_periodic = (BC1 == 'P' .or. BC2 == 'P' .or. BC3 == 'P')
+      is_dilute   = (N1*N2*N3 > 1 .and. is_periodic)
+      !
+      if (N1*N2*N3 > 1) then
+         allocate(nm_trunk(3,max_no_equiv,max_no_shells,NA), stat=i_stat)
+         call memocc(i_stat, product(shape(nm_trunk))*kind(nm_trunk), &
+                     'nm_trunk', 'setup_nm')
+         nm_trunk = 0
+      end if
+      !
+      allocate(nnm_cell(max_no_shells,NA), stat=i_stat)
+      call memocc(i_stat, product(shape(nnm_cell))*kind(nnm_cell), &
+                  'nnm_cell', 'setup_nm')
+      nnm_cell = 0
+      !
+      allocate(nmdim(maxval(NN),Natom), stat=i_stat)
+      call memocc(i_stat, product(shape(nmdim))*kind(nmdim), 'nmdim', 'setup_nm')
+      !
+      allocate(nmdimt(maxval(NN),NA), stat=i_stat)
+      call memocc(i_stat, product(shape(nmdimt))*kind(nmdimt), 'nmdimt', 'setup_nm')
+      !
+      nmdim  = 0
+      nmdimt = 0
+      !
+      ! Create the full neighbour list according to symmetry. This routine also
+      ! establishes nmdimt for the symmetry-expanded shells.
+      call get_fullnnlist(NT,NN,nelem,max_no_shells,redcoord,max_no_equiv,nncoord)
+      !
+      if (do_hoc_debug == 1) then
+         write(*,*) 'Constructs nm_cell and nm_trunk'
+      end if
+      !
+      !$omp parallel do default(shared) &
+      !$omp private(i0,itype,jtype,ishell,counter,inei,cvec,ia,typematch,       &
+      !$omp         dcart,dfrac,itrans,rescart,res2,nmatch,best_res2,best_ia,  &
+      !$omp         best_trans)
+      do i0 = 1, NA
+         itype = atype(i0)
+         !
+         if (do_hoc_debug == 1) then
+            write(*,'(a,i4,a)') '------- i0 ', i0, ' -------'
+         end if
+         !
+         do ishell = 1, NN(itype)
+            counter = 0
+            !
+            if (do_hoc_debug == 1) then
+               write(*,'(a,i4)') '   ishell ', ishell
+            end if
+            !
+            do inei = 1, nmdimt(ishell,itype)
+               !
+               ! Cartesian coordinate of the requested neighbour relative to the
+               ! global origin.
+               cvec(:) = Bas(:,i0) + nncoord(:,inei,ishell,itype)
+               !
+               if (do_hoc_debug == 1) then
+                  write(*,'(a,3f16.8)') 'cvec  ', cvec(:)
+               end if
+               !
+               nmatch     = 0
+               best_res2  = huge(1.0_dblprec)
+               best_ia    = 0
+               best_trans = 0
+               !
+               ! Find the unique basis atom ia for which cvec-Bas(:,ia) is an
+               ! integer lattice translation.
+               do ia = 1, NA
+                  jtype = atype(ia)
+                  typematch = .true.
+                  !
+                  if (present(nntype) .and. ralloy == 0) then
+                     typematch = (jtype == nntype(atype(i0),ishell))
+                  end if
+                  if (.not. typematch) cycle
+                  !
+                  dcart(:) = cvec(:) - Bas(:,ia)
+                  !
+                  dfrac(1) = dcart(1)*invmatrix(1,1) + &
+                             dcart(2)*invmatrix(2,1) + &
+                             dcart(3)*invmatrix(3,1)
+                  dfrac(2) = dcart(1)*invmatrix(1,2) + &
+                             dcart(2)*invmatrix(2,2) + &
+                             dcart(3)*invmatrix(3,2)
+                  dfrac(3) = dcart(1)*invmatrix(1,3) + &
+                             dcart(2)*invmatrix(2,3) + &
+                             dcart(3)*invmatrix(3,3)
+                  !
+                  itrans(:) = nint(dfrac(:))
+                  !
+                  rescart(1) = dcart(1) - real(itrans(1),dblprec)*C1(1) &
+                                         - real(itrans(2),dblprec)*C2(1) &
+                                         - real(itrans(3),dblprec)*C3(1)
+                  rescart(2) = dcart(2) - real(itrans(1),dblprec)*C1(2) &
+                                         - real(itrans(2),dblprec)*C2(2) &
+                                         - real(itrans(3),dblprec)*C3(2)
+                  rescart(3) = dcart(3) - real(itrans(1),dblprec)*C1(3) &
+                                         - real(itrans(2),dblprec)*C2(3) &
+                                         - real(itrans(3),dblprec)*C3(3)
+                  !
+                  res2 = dot_product(rescart,rescart)
+                  !
+                  if (res2 < map_tol2) then
+                     nmatch = nmatch + 1
+                     if (res2 < best_res2) then
+                        best_res2     = res2
+                        best_ia       = ia
+                        best_trans(:) = itrans(:)
+                     end if
+                  end if
+               end do
+               !
+               if (nmatch == 0) then
+                  !$omp critical(setup_nm_error_output)
+                  write(*,'(a,3i8)') &
+                     'setup_nm: no basis match for i0, shell, inei =', &
+                     i0, ishell, inei
+                  write(*,'(a,3es24.14)') '  cvec   =', cvec
+                  write(*,'(a,3es24.14)') '  nncoord=', &
+                     nncoord(:,inei,ishell,itype)
+                  write(*,'(a,es24.14)') '  map_tol =', map_tol
+                  !$omp end critical(setup_nm_error_output)
+                  error stop 'setup_nm: neighbour could not be mapped'
+               else if (nmatch > 1) then
+                  !$omp critical(setup_nm_error_output)
+                  write(*,'(a,4i8)') &
+                     'setup_nm: ambiguous basis match for i0, shell, inei, nmatch =', &
+                     i0, ishell, inei, nmatch
+                  write(*,'(a,3es24.14)') '  cvec         =', cvec
+                  write(*,'(a,i8)')       '  best_ia      =', best_ia
+                  write(*,'(a,3i8)')      '  best_trans   =', best_trans
+                  write(*,'(a,es24.14)')  '  best residual=', sqrt(best_res2)
+                  write(*,'(a,es24.14)')  '  map_tol      =', map_tol
+                  !$omp end critical(setup_nm_error_output)
+                  error stop 'setup_nm: ambiguous neighbour mapping'
+               end if
+               !
+               counter = counter + 1
+               if (counter > max_no_equiv) then
+                  error stop 'setup_nm: max_no_equiv is too small'
+               end if
+               !
+               nm_cell(counter,ishell,i0) = best_ia
+               if (N1*N2*N3 > 1) then
+                  nm_trunk(:,counter,ishell,i0) = best_trans(:)
+               end if
+               !
+               if (do_hoc_debug == 1) then
+                  write(*,'(a,i6,a,3i6,a,es14.5)') &
+                     'hit: ia=', best_ia, ' translation=', best_trans, &
+                     ' residual=', sqrt(best_res2)
+               end if
+            end do
+            !
+            nnm_cell(ishell,i0) = counter
+            !
+            ! A symmetry-expanded shell must map completely. Do not let downstream
+            ! routines use nmdimt entries when only a smaller number was populated.
+            if (counter /= nmdimt(ishell,itype)) then
+               !$omp critical(setup_nm_error_output)
+               write(*,'(a,4i8)') &
+                  'setup_nm: shell-size mismatch for i0, type, shell, found =', &
+                  i0, itype, ishell, counter
+               write(*,'(a,i8)') '  expected =', nmdimt(ishell,itype)
+               !$omp end critical(setup_nm_error_output)
+               error stop 'setup_nm: incomplete neighbour shell'
+            end if
+         end do
+      end do
+      !$omp end parallel do
+      !
+      i_all = -product(shape(nncoord))*kind(nncoord)
+      deallocate(nncoord, stat=i_stat)
+      call memocc(i_stat, i_all, 'nncoord', 'setup_nm')
+      !
+      allocate(nm(Natom,maxval(NN),max_no_equiv), stat=i_stat)
+      call memocc(i_stat, product(shape(nm))*kind(nm), 'nm', 'setup_nm')
+      nm = 0
+      !
+      ! Expand the compressed unit-cell map over the full simulation cell.
+      do iiz = 0, N3-1, block_size_z
+         do iiy = 0, N2-1, block_size_y
+            do iix = 0, N1-1, block_size_x
+               do iz = iiz, min(iiz+block_size_z-1,N3-1)
+                  do iy = iiy, min(iiy+block_size_y-1,N2-1)
+                     do ix = iix, min(iix+block_size_x-1,N1-1)
+                        do i0 = 1, NA
+                           itype = atype(i0)
+                           iat = i0 + ix*NA + iy*N1*NA + iz*N2*N1*NA
+                           !
+                           if (ralloy == 1) then
+                              iat = acellnumb(iat)
+                              if (iat /= 0) itype = atype_ch(iat)
+                           end if
+                           !
+                           if (iat /= 0) then
+                              do ishell = 1, NN(itype)
+                                 if (ralloy == 1) then
+                                    nmdim(ishell,iat) = nmdimt(ishell,atype_ch(iat))
+                                 else
+                                    nmdim(ishell,iat) = nnm_cell(ishell,i0)
+                                 end if
+                                 !
+                                 do inei = 1, nnm_cell(ishell,i0)
+                                    if (N1*N2*N3 > 1) then
+                                       xc_hop = nm_trunk(1,inei,ishell,i0)
+                                       yc_hop = nm_trunk(2,inei,ishell,i0)
+                                       zc_hop = nm_trunk(3,inei,ishell,i0)
+                                    else
+                                       xc_hop = 0
+                                       yc_hop = 0
+                                       zc_hop = 0
+                                    end if
+                                    !
+                                    j0 = nm_cell(inei,ishell,i0)
+                                    !
+                                    jx = xc_hop + ix
+                                    if (BC1 == 'P') then
+                                       jx = modulo(jx,N1)
+                                    else if (N1*N2*N3 <= 1) then
+                                       jx = 0
+                                    end if
+                                    !
+                                    jy = yc_hop + iy
+                                    if (BC2 == 'P') then
+                                       jy = modulo(jy,N2)
+                                    else if (N1*N2*N3 <= 1) then
+                                       jy = 0
+                                    end if
+                                    !
+                                    jz = zc_hop + iz
+                                    if (BC3 == 'P') then
+                                       jz = modulo(jz,N3)
+                                    else if (N1*N2*N3 <= 1) then
+                                       jz = 0
+                                    end if
+                                    !
+                                    if (jx >= 0 .and. jx < N1 .and. &
+                                        jy >= 0 .and. jy < N2 .and. &
+                                        jz >= 0 .and. jz < N3) then
+                                       jat = j0 + jx*NA + jy*N1*NA + jz*N2*N1*NA
+                                       if (ralloy == 1) jat = acellnumb(jat)
+                                       nm(iat,ishell,inei) = jat
+                                    end if
+                                 end do
+                              end do
+                           end if
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do
+      end do
+      !
+      i_all = -product(shape(nsym))*kind(nsym)
+      deallocate(nsym, stat=i_stat)
+      call memocc(i_stat, i_all, 'nsym', 'setup_nm')
+      !
+      if (N1*N2*N3 > 1) then
+         i_all = -product(shape(nm_trunk))*kind(nm_trunk)
+         deallocate(nm_trunk, stat=i_stat)
+         call memocc(i_stat, i_all, 'nm_trunk', 'setup_nm')
+      end if
+      !
+      i_all = -product(shape(nm_cell))*kind(nm_cell)
+      deallocate(nm_cell, stat=i_stat)
+      call memocc(i_stat, i_all, 'nm_cell', 'setup_nm')
+      !
+      i_all = -product(shape(sym_mats))*kind(sym_mats)
+      deallocate(sym_mats, stat=i_stat)
+      call memocc(i_stat, i_all, 'sym_mats', 'setup_nm')
+      !
+      max_no_neigh = 1
+      do i0 = 1, NA
+         itype = atype(i0)
+         counter = 0
+         do ishell = 1, NN(itype)
+            counter = counter + nnm_cell(ishell,i0)
+         end do
+         max_no_neigh = max(max_no_neigh,counter)
+      end do
+      !
+      i_all = -product(shape(nnm_cell))*kind(nnm_cell)
+      deallocate(nnm_cell, stat=i_stat)
+      call memocc(i_stat, i_all, 'nnm_cell', 'setup_nm')
+      !
+      i_all = -product(shape(nmdimt))*kind(nmdimt)
+      deallocate(nmdimt, stat=i_stat)
+      call memocc(i_stat, i_all, 'nmdimt', 'setup_nm')
+      !
+   end subroutine setup_nm
+   
+
+   !----------------------------------------------------------------------------
+   ! SUBROUTINE: setup_nm_old
+   !> Set up the neighbour maps for pair wise interactions taking into consideration
+   !> boundary conditions. Previous version..
+   !----------------------------------------------------------------------------
+   subroutine setup_nm_old(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
       Bas,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,         &
       do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
       !
@@ -356,7 +797,7 @@ contains
       deallocate(nmdimt,stat=i_stat)
       call memocc(i_stat,i_all,'nmdimt','setup_nm')
       !
-   end subroutine setup_nm
+   end subroutine setup_nm_old
 
    !> Find possible symmetry operations depending on assumed symmetry
    subroutine get_symops(isym,NT)

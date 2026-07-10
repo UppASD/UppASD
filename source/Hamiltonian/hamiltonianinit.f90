@@ -1170,7 +1170,7 @@ contains
             allocate(nind(maxval(fs_nlistsize),Natom),stat=i_stat)
             call memocc(i_stat,product(shape(nind))*kind(nind),'nind','setup_neighbour_hamiltonian')
          endif
-         !$omp parallel do default(shared) private(i)
+         !$omp parallel do default(shared) private(i, j, k)
          do i = 1,Natom
             do j=1,fs_nlistsize(i)
                do k = 1, nlistsize(i)
