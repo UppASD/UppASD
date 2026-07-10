@@ -144,13 +144,9 @@ contains
       use omp_lib
       integer :: nprocs
 
-      !$omp parallel
-      !$omp master
-      nprocs=omp_get_num_threads()
+      nprocs = omp_get_max_threads()
       !write(*,'(1x,a18,i2,a16,i3,a10)') &
       !   "Using OpenMP with ",nprocs," threads out of",OMP_GET_NUM_PROCS(),"possible."
-      !$omp end master
-      !$omp end parallel
    end function number_of_active_processors
 
 
@@ -1172,9 +1168,9 @@ contains
       write(*,'(1x,a,a)') 'DEBUG: do_sfc value = ', do_sfc
       ! Hamiltonian setup - unified approach with conditional neighbor mapping
       if (do_sfc == 'Y') then
-         write(*,'(a)') 'Using SFC coordinate-based neighbor mapping (O(N log N))'
+         write(*,'(a)') 'Using SFC coordinate-based neighbor mapping'
       else
-         write(*,'(a)') 'Using traditional supercell-based neighbor mapping (O(N²))'
+         write(*,'(a)') 'Using traditional supercell-based neighbor mapping'
       end if
          
       call setup_hamiltonian(NT,NA,N1,N2,N3,Nchmax,do_ralloy,Natom_full,Mensemble,  &
@@ -1603,13 +1599,8 @@ contains
       write (*,'(1x, a)')    "--------------------------------------------------------------"
 
       ! Print OpenMP information
-      !$omp parallel
-      !$omp master
-      !nprocs=omp_get_num_threads()
       write(*,'(1x,a18,i2,a16,i3,a10)') &
-         "Using OpenMP with ",omp_get_num_threads()," threads out of",OMP_GET_NUM_PROCS(),"possible."
-      !$omp end master
-      !$omp end parallel
+         "Using OpenMP with ",omp_get_max_threads()," threads out of",OMP_GET_NUM_PROCS(),"possible."
       write (*,'(1x, a)')    "--------------------------------------------------------------"
 
       10010 format(1x,a,i0.2,a,i0.2,a,i4,2x,a,i0.2,a,i0.2,a,i0.2,a,i0.3)
