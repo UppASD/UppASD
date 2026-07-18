@@ -28,6 +28,9 @@ GpuParallelizationHelper ParallelizationHelperInstance;
 
    // Initiate
    void GpuParallelizationHelper::initiate(unsigned int Natom, unsigned int Mensemble, unsigned int nHam) {
+      // Query the active device after GPU initialization, not during static construction.
+      gridHelper.initiate();
+
       // System size
       N = Natom;
       M = Mensemble;

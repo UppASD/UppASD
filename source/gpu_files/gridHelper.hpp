@@ -8,6 +8,7 @@
  */
 
 #include "c_headers.hpp"
+#include "base.hpp"
 #include "real_type.h"
 
 #if defined(HIP_V)
@@ -33,11 +34,14 @@ public:
    // Types for template parameters
    enum Type { Small = false, Big = true };
 
-   GridHelper() {
+   GridHelper() : maxGridSize1(0) {
+   }
+
+   void initiate() {
       int device;
       GRIDHELPER_DEVICE_PROP prop;
-      GRIDHELPER_GET_DEVICE(&device);
-      GRIDHELPER_GET_PROP(&prop, device);
+      ASSERT_GPU(GRIDHELPER_GET_DEVICE(&device));
+      ASSERT_GPU(GRIDHELPER_GET_PROP(&prop, device));
       maxGridSize1 = prop.maxGridSize[0];
    }
 
@@ -202,4 +206,3 @@ public:
       }
    }
 };
-
