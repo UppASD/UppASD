@@ -22,6 +22,7 @@ private:
 
    // Data
    GpuTensor<real, 3> field;
+   GpuVector<real> randomValues;
    GpuTensor<real, 1> sigmaFactor;  // = sqrt(Dp*temperature(i))
 
    // Timer
@@ -60,4 +61,3 @@ public:
    // Randomize
    void randomize(const GpuTensor<real, 2>& mmom);
 };
-

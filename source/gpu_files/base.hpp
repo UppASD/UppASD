@@ -28,6 +28,11 @@ using index_t = long int;
       }                                                  \
    }
 
+#define ASSERT_CURAND(randCall)                         \
+   { const auto status = randCall;                       \
+     if(status != GPU_RAND_STATUS_SUCCESS)               \
+       throw std::runtime_error("GPU random-generator error: " + std::to_string(static_cast<int>(status))); }
+
 
 template <index_t dim>
 struct Extents {

@@ -34,21 +34,21 @@ public:
 class CudaThermfield::SetupField : public GpuParallelizationHelper::AtomSite {
 private:
    real* field;
+   const real* randomValues;
    const real* sigma_factor;
    const real* mmom;
 
 public:
-   SetupField(GpuTensor<real, 3>&  p1, const GpuTensor<real, 1>& p2, const GpuTensor<real, 2>& p3) {
+   SetupField(GpuTensor<real, 3>& p1, const GpuVector<real>& p2, const GpuTensor<real, 1>& p3, const GpuTensor<real, 2>& p4) {
       field = p1.data();
-      sigma_factor = p2.data();
-      mmom = p3.data();
+      randomValues = p2.data(); sigma_factor = p3.data(); mmom = p4.data();
    }
 
    __device__ void each(unsigned int atom, unsigned int site) {
       real sigma = sigma_factor[site] * rsqrt(mmom[atom]);
-      field[atom * 3 + 0] *= sigma;
-      field[atom * 3 + 1] *= sigma;
-      field[atom * 3 + 2] *= sigma;
+      field[atom * 3 + 0] = randomValues[atom * 3 + 0] * sigma;
+      field[atom * 3 + 1] = randomValues[atom * 3 + 1] * sigma;
+      field[atom * 3 + 2] = randomValues[atom * 3 + 2] * sigma;
    }
 };
 
@@ -66,6 +66,7 @@ CudaThermfield::CudaThermfield()
 CudaThermfield::~CudaThermfield() {
    if(dataInitiated) {
       curandDestroyGenerator(gen);
+      randomValues.Free();
    }
 }
 
@@ -78,18 +79,28 @@ bool CudaThermfield::initiate(std::size_t N, std::size_t M, curandRngType_t rngT
 
    stopwatch.skip();
    field.Allocate(3, N, M);
+   randomValues.Allocate(static_cast<long int>(field.size() + (field.size() & 1)));
    sigmaFactor.Allocate(N);
-   if(!field.empty() && !sigmaFactor.empty()) {
+   if(!field.empty() && !randomValues.empty() && !sigmaFactor.empty()) {
       if(curandCreateGenerator(&gen, rngType) == CURAND_STATUS_SUCCESS) {
          if(seed == 0ULL) {
             seed = time(nullptr);
          }
-         curandSetPseudoRandomGeneratorSeed(gen, seed);
-         curandSetStream(gen, parallel.getWorkStream());
-         dataInitiated = true;
+         try {
+            ASSERT_CURAND(curandSetPseudoRandomGeneratorSeed(gen, seed));
+            ASSERT_CURAND(curandSetStream(gen, parallel.getWorkStream()));
+            dataInitiated = true;
+         } catch(...) {
+            curandDestroyGenerator(gen);
+            field.Free();
+            sigmaFactor.Free();
+            randomValues.Free();
+            throw;
+         }
       } else {
          field.Free();
          sigmaFactor.Free();
+         randomValues.Free();
       }
    }
    stopwatch.add("initiate");
@@ -141,14 +152,13 @@ void CudaThermfield::randomize(const GpuTensor<real, 2>& mmom) {
 
 // Generate random vector
 #ifdef SINGLE_PREC
-   curandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0);
+   ASSERT_CURAND(curandGenerateNormal(gen, randomValues.data(), randomValues.size(), 0.0f, 1.0f));
 #else
-   curandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0);
+   ASSERT_CURAND(curandGenerateNormalDouble(gen, randomValues.data(), randomValues.size(), 0.0, 1.0));
 #endif
    stopwatch.add("RNG");
 
    // Expand thermal field
-   parallel.gpuAtomSiteCall(SetupField(field, sigmaFactor, mmom));
+   parallel.gpuAtomSiteCall(SetupField(field, randomValues, sigmaFactor, mmom));
    stopwatch.add("loop");
 }
-

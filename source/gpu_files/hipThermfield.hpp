@@ -17,6 +17,7 @@ private:
    bool constantsInitiated;
    // Data
    GpuTensor<real, 3> field;
+   GpuVector<real> randomValues;
    GpuTensor<real, 1> sigmaFactor;  // = sqrt(Dp*temperature(i))
    // Timer
    StopwatchDeviceSync stopwatch;
