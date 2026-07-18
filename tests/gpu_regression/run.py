@@ -80,6 +80,9 @@ def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> Non
     steps = str(case.get("steps", defaults.get("steps", 100)))
     # T=0 and a short fixed trajectory make the CPU/GPU comparison reproducible.
     controlled = {
+        # GPU SD currently implements the Depondt integrator; use the same
+        # algorithm for the Fortran reference rather than comparing integrators.
+        "SDEalgh": "5",
         "temp": "0.0",
         "ip_temp": "0.0",
         "Nstep": steps,
