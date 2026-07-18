@@ -63,14 +63,15 @@ message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 # Defines the directories for source, modules and object filed
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
 SET(MOD ${CMAKE_BINARY_DIR}/mod)
-SET(BIN ${CMAKE_SOURCE_DIR}/bin)
+SET(BIN ${CMAKE_BINARY_DIR}/bin)
 # Keep generated Fortran modules inside the active build tree.  Writing these
 # files to source/mod makes concurrent builds and different compiler builds
 # corrupt one another's module cache.
 file(MAKE_DIRECTORY ${MOD})
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
 # Have the .o files placed in the bin folder
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+file(MAKE_DIRECTORY ${BIN})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN})
 ##############################################################################################
 
 
@@ -748,7 +749,7 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
+set(TestBinary ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
 add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
