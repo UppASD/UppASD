@@ -198,7 +198,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
-            atype_cpu.set(FortranData::atype, static_cast<long int>(N));
+            atype_cpu.set(FortranData::lattice_atype, static_cast<long int>(N));
             atype_gpu.copy_sync(atype_cpu);
 
             if((!asitealloc)&&(!do_ralloy)){

@@ -88,6 +88,9 @@ public:
    static real* coord;
    static real* w;
    static int* atype;
+   // Atomic types for lattice measurements.  This is distinct from the
+   // correlation-grid type array, which may have a different extent.
+   static int* lattice_atype;
    static int* achtype;
 
    static real* deltat_corr;
@@ -253,7 +256,7 @@ public:
 
     static void setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
                                    real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
-                                   real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list);
+                                   real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list, int* p_atype);
 
     static void setMeasurablePointers(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 

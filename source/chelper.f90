@@ -441,7 +441,7 @@ contains
           ipTemp, ipmcnstep, ipTemp_array, ipnstep, ipdelta_t, iplambda1)
 
       call FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
-         dxyz_vec, dxyz_atom, dxyz_list)
+         dxyz_vec, dxyz_atom, dxyz_list, atype)
 
 
       call FortranData_setMeasurables( &

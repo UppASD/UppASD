@@ -48,6 +48,7 @@ real* FortranData::q;
 real* FortranData::coord;
 real* FortranData::w;
 int* FortranData::atype;
+int* FortranData::lattice_atype;
 int* FortranData::achtype;
 cpu_complex* FortranData::m_k = nullptr;
 cpu_complex* FortranData::m_kw = nullptr;
@@ -311,7 +312,7 @@ void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, u
 
 void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
                                      real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi,
-                                     real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list){
+                                     real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list, int* p_atype){
 
 
    beff = p_beff;
@@ -328,6 +329,7 @@ void FortranData::setLatticePointers(real* p_beff, real* p_b2eff, real* p_emomM,
 
    dxyz_atom = p_dxyz_atom;
    dxyz_list = p_dxyz_list;
+   lattice_atype = p_atype;
 }
 
 //TODO:binderc, autocorr_buff, spinwait
@@ -518,9 +520,11 @@ FortranData::setHamiltonianPointers(
 }
 
 extern "C" void fortrandata_setlattice_(real* p_beff, real* p_b2eff, real* p_emomM, real* p_emom, real* p_emom2, 
-   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi, real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list) {
+   real* p_mmom, real* p_mmom0, real* p_mmom2, real* p_mmomi, real* p_dxyz_vec, int* p_dxyz_atom, int* p_dxyz_list,
+   int* p_atype) {
 FortranData::setLatticePointers(
-   p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list);
+   p_beff, p_b2eff, p_emomM, p_emom, p_emom2, p_mmom, p_mmom0, p_mmom2, p_mmomi, p_dxyz_vec, p_dxyz_atom, p_dxyz_list,
+   p_atype);
 }
 
 extern "C" void fortrandata_setmeasurables_(real* p_mavg_buff, real* p_mavg2_buff, real* p_mavg4_buff,
