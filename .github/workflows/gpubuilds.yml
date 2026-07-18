@@ -1,0 +1,49 @@
+name: GPU compile-only builds
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cuda:
+    name: CUDA compile-only
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:13.3.0-devel-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cmake gfortran make libopenblas-dev liblapack-dev libfftw3-dev
+      - name: Configure
+        run: >-
+          cmake -S . -B build-cuda -DUSE_CUDA=ON -DUSE_HIP=OFF
+          -DCMAKE_CUDA_ARCHITECTURES=80 -DBUILD_TESTING=OFF -DRUN_ASD_TESTS=OFF
+          -DRUN_REG_TESTS=OFF -DRUN_CUDA_TESTS=OFF
+      - name: Build
+        run: cmake --build build-cuda --parallel 1
+
+  hip:
+    name: HIP compile-only
+    runs-on: ubuntu-latest
+    container: rocm/dev-ubuntu-24.04:latest
+    env:
+      ROCM_PATH: /opt/rocm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cmake gfortran make libopenblas-dev liblapack-dev libfftw3-dev
+      - name: Configure
+        run: >-
+          cmake -S . -B build-hip -DUSE_CUDA=OFF -DUSE_HIP=ON
+          -DCMAKE_HIP_ARCHITECTURES=gfx90a -DBUILD_TESTING=OFF -DRUN_ASD_TESTS=OFF
+          -DRUN_REG_TESTS=OFF
+      - name: Build
+        run: cmake --build build-hip --parallel 1

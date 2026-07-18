@@ -1,4 +1,3 @@
-#pragma once
 
 #include "gpuHamiltonianCalculations.hpp"
 #include "c_headers.hpp"

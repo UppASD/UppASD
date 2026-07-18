@@ -44,19 +44,6 @@ namespace
         return out; // valid when threadIdx.x==0
     }
 
-        __device__ __forceinline__ real ene_block_reduce(real v, real* shared)
-    {
-        v = warp_reduce_sum(v);
-        int lane  = threadIdx.x & (WARPSIZE - 1);       
-        int wid   = threadIdx.x >> (WARPSIZE == 32 ? 5 : 6); 
-        int nwarp = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
-        if (lane == 0) shared[wid] = v;
-        __syncthreads();
-        real out = (threadIdx.x < nwarp) ? shared[threadIdx.x] : real(0);
-        if (wid == 0) out = warp_reduce_sum(out);
-        return out; // valid when threadIdx.x==0
-    }
-
     __device__ __forceinline__ real vnorm3(real x, real y, real z) { return sqrt(x*x + y*y + z*z); }
 
 } // anon
@@ -491,8 +478,6 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
         real m4     = local4[MAGCUM];
 
         real exch1  = local[EXCHCUM];
-        real exch2  = local2[EXCHCUM];
-
         real total1 = local[TOTALCUM];
         real total2 = local2[TOTALCUM];
 
@@ -504,8 +489,6 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
         const real avrgm4_b = m4 / w_new;
 
         const real exch_mean  = exch1 / w_new;
-        const real exch2_mean = exch2 / w_new;
-
         const real total_mean  = total1 / w_new;
         const real total2_mean = total2 / w_new;
 

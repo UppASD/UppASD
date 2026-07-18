@@ -298,7 +298,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
          GPU_DEVICE_RESET();
          std::exit(EXIT_FAILURE);
-      }    real cv{};            // Specific heat
+      }
 
 
    }  // End loop over simulation steps

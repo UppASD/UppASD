@@ -42,7 +42,7 @@ public:
    Extents& operator=(const Extents&) = default;
 
    template <typename... Ints>
-   __host__ __device__ Extents(Ints... ext) : x{ext...} {
+   __host__ __device__ Extents(Ints... ext) : x{static_cast<index_t>(ext)...} {
       static_assert(static_cast<index_t>(sizeof...(ext)) == dim, "");
    }
 

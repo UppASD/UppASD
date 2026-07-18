@@ -1,4 +1,3 @@
-#pragma once
 #include "fortranData.hpp"
 
 #include "real_type.h"

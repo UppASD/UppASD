@@ -1,4 +1,3 @@
-#pragma once
 #include "autocorrelation_kernels.hpp"
 
 __global__ void fill_spinwait(GpuTensor<real, 4> spinwait, const GpuTensor<real, 3> emom, const int taskNum, const int swIdx){
@@ -24,7 +23,6 @@ __global__ void calc_autocorr_block(GpuTensor<real, 2> ac_block, const GpuTensor
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tid_in_block = threadIdx.x;
@@ -92,7 +90,6 @@ __global__ void calc_autocorr_final(GpuTensor<real, 2> ac_block, GpuTensor<real,
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();

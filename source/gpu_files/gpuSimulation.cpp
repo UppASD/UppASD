@@ -253,8 +253,6 @@ bool GpuSimulation::initiateMatrices() {
     long int M = static_cast <long int>( SimParam.M);
     long int mnn = static_cast <long int>( SimParam.mnn);
     long int mnndm = static_cast <long int>( SimParam.mnndm);
-    long int ipnphase = static_cast <long int>( SimParam.ipnphase);
-    long int ipmcnphase = static_cast <long int>( SimParam.ipmcnphase);
 
    // Constants initiated?
    if(N == 0 || M == 0 || NH == 0) {

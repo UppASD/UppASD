@@ -316,7 +316,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
         
         sw_curIdx = 0;
-        printf("\n do_ac = %c, swtt size = %i\n ", do_autocorr, spinwaittable_cpu.extent(0));
+        printf("\n do_ac = %c, swtt size = %ld\n ", do_autocorr,
+               static_cast<long>(spinwaittable_cpu.extent(0)));
         sw_next = spinwaittable_cpu(0);
         sw_curr = 0;
 
@@ -755,7 +756,7 @@ void GpuMeasurement::updateAC(std::size_t mstep)
 {
  
     if ((mstep == sw_next)&&(sw_curIdx < (spinwaittable_cpu.extent(0) - 1) )){
-        printf("sw_next = %i, mstep = %i, swId = %i, \n\n", sw_next,  mstep, sw_curIdx);
+        printf("sw_next = %i, mstep = %zu, swId = %i, \n\n", sw_next, mstep, sw_curIdx);
 
         sw_curIdx++;
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);

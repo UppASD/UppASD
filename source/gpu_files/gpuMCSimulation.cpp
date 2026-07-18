@@ -1,4 +1,3 @@
-#pragma once
 #include "c_headers.hpp"
 #include "c_helper.h"
 //#include "cudaGPUErrchk.hpp"
@@ -190,7 +189,6 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    GpuHamiltonianCalculations hamCalc;
    unsigned int num_subL = 0;
 
- 
    // Initiate MC and Hamiltonian
    num_subL = gpuMC.initiate(gpuSim.SimParam, gpuSim.cpuHamiltonian, gpuSim.cpuLattice);
 
@@ -398,9 +396,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
 
    // Hamiltonian calculations
    GpuHamiltonianCalculations hamCalc;
-   unsigned int num_subL = 0;
 
- 
+
    // Initiate MC and Hamiltonian
    if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
       std::fprintf(stderr, "GpuMCSimulation: Hamiltonian failed to initiate!\n");

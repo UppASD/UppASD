@@ -1,4 +1,3 @@
-#pragma once
 
 #include "c_headers.hpp"
 #include "tensor.hpp"
@@ -340,7 +339,6 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
 
 
 void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations) {
-    int tasks; int bl;
     switch (do_sc) {
     case 'C': {
         cpuCorrelations.m_k.copy_sync(sc.q);
@@ -412,7 +410,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
 }
 
 void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type) {
-    int tasks; int bl;
+    int tasks;
     
     switch (sc_type) {
     case 'C': {
@@ -591,9 +589,6 @@ void GpuCorrelations::publishSamplingInfo(hostCorrelations& cpuCorrelations) {
         *FortranData::sc_tidx_ptr = static_cast<int>(t_cur);
     }
 }
-
-
-
 
 
 

@@ -1,4 +1,3 @@
-#pragma once
 
 #include "c_headers.hpp"
 #include "tensor.hpp"
@@ -56,7 +55,6 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
@@ -160,7 +158,6 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -234,7 +231,6 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -311,7 +307,6 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -394,7 +389,6 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
@@ -409,7 +403,7 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
     real sum_re[3] = {0.0, 0.0, 0.0};
     real sum_im[3] = {0.0, 0.0, 0.0};
     
-    unsigned int tInd, cInd, ii;
+    unsigned int tInd, cInd;
     __shared__ real shared_re[3][32];
     __shared__ real shared_im[3][32];
 
@@ -507,7 +501,6 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -583,7 +576,6 @@ __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
@@ -694,7 +686,6 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -769,7 +760,6 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -847,7 +837,6 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();
@@ -932,7 +921,6 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tid_in_block = block.thread_rank();
@@ -1059,7 +1047,6 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
-    int wSize = warp.size();
     int wNum = warp.meta_group_size();
     int tid = grid.thread_rank();
     int tNum = block.size();

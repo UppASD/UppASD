@@ -1,4 +1,3 @@
-#pragma once
 #include "gpuParallelizationHelper.hpp"
 #include "gpu_wrappers.h"
 
@@ -61,4 +60,3 @@ GpuParallelizationHelper ParallelizationHelperInstance;
    GPU_STREAM_T GpuParallelizationHelper::getCopyStream() {
       return copyStream;
    }
-
