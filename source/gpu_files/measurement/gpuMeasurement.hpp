@@ -62,20 +62,18 @@ private:
     const uint N;
     const uint M;
     const uint NX, NY, NZ, NT;
-    const uint NA, Natom_full, Nchmax;
+    const uint NA, Nchmax;
     const char do_avrg_proj;
     const bool do_avrg_projch;
     const char do_cumu_proj;
     const bool do_cumu_projch;
 
     bool do_jtensor;
-    const int do_ralloy;
     GPU_STREAM_T workStream;
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
 
 
-    bool asitealloc;
 
     // Average magnetization
     const bool do_avrg;
@@ -97,10 +95,8 @@ private:
     dim3 mavg_projch_kernel_blocks;
     size_t mavg_count = 0;
     GpuVector<int> achem_ch_gpu;
-    GpuVector<int> asite_ch_gpu;
     GpuVector<int> atype_gpu;
     Vector<int> achem_ch_cpu;
-    Vector<int> asite_ch_cpu;
     Vector<int> atype_cpu;
 
 
@@ -231,4 +227,3 @@ private:
     unsigned int sw_blocks;
 
 };
-
