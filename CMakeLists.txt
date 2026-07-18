@@ -170,6 +170,14 @@ OPTION(USE_HIP "Compile with HIP support" OFF)
 if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
+# Keep option-dependent Fortran objects from being reused after a build tree is
+# reconfigured.  In particular this invalidates objects compiled with the old
+# __INTEL_MKL__ sparse path, and distinguishes CUDA/HIP/no-GPU variants.
+target_compile_definitions(${UppASD_LIB} PRIVATE
+   UPPASD_CMAKE_CONFIG_STAMP=1
+   UPPASD_CMAKE_USE_CUDA=${USE_CUDA}
+   UPPASD_CMAKE_USE_HIP=${USE_HIP}
+   UPPASD_MKL_LEGACY_SPARSE=0)
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
 # Linear algebra providers are selected explicitly; merely having oneAPI in the
