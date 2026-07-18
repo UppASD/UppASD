@@ -206,982 +206,167 @@ public:
 // Calculating the magnetic field from various effects
 // such as the heisenberg field and DM interactions
 // Added DM effect 2014/09/23
-class GpuHamiltonianCalculations::HeisgeJij : public ParallelizationHelper::AtomSiteEnsemble {
+template<bool HasDM, bool HasAniso, bool HasTensor, bool Measure>
+class GpuHamiltonianCalculations::Heisge : public ParallelizationHelper::AtomSiteEnsemble {
 private:
    real* __restrict__ beff;
    real* __restrict__ eneff;
-   //GpuTensor<real, 1> exchM;
-   //GpuTensor<real, 1> extM;
-   //GpuTensor<real, 1> totalM;
    GpuTensor<real, 2> energyM;
    const real* __restrict__ coup;
    const unsigned int* __restrict__ pos;
-   const real* __restrict__ emomM;
-   const real* __restrict__ ext_f;
-   unsigned int mnn;
-   const unsigned int* __restrict__ aham;
-   //int do_ene;
-   bool measure;
-
-public:
-   HeisgeJij(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM,
-             const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, 
-             const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : energyM(p_energyM)
-   {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-      coup = ex.coupling.data();
-      pos = ex.neighbourPos.data();
-      mnn = ex.mnn;
-      aham = redHam.redNeibourCount.data();
-      //do_ene = p_do_ene;
-      measure = p_measure;
-
-   }
-
-   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
-      // printf("here\n");
-      real x = (real)0.0;
-      real y = (real)0.0;
-      real z = (real)0.0;
-      real Sx = (real)0.0;
-      real Sy = (real)0.0;
-      real Sz = (real)0.0;
-
-      // Pointers with fixed indices
-      const unsigned int rsite = aham[site] - 1;
-      const real* __restrict__ site_coup = &coup[rsite];
-      const unsigned int* __restrict__ site_pos = &pos[site];
-      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
-      // Exchange term loop
-      for(unsigned int i = 0; i < mnn; i++) {
-         unsigned int x_offset = site_pos[i * N] * 3;
-         real c = site_coup[i * NH];
-         // printf("%f\n", c);
-         x += c * my_emomM[x_offset + 0];
-         y += c * my_emomM[x_offset + 1];
-         z += c * my_emomM[x_offset + 2];
-      }
-
-      const real ext_x = ext_f[atom * 3 + 0];
-      const real ext_y = ext_f[atom * 3 + 1];
-      const real ext_z = ext_f[atom * 3 + 2];
-
-      // Save field
-      beff[atom * 3 + 0] = x + ext_x;
-      beff[atom * 3 + 1] = y + ext_y;
-      beff[atom * 3 + 2] = z + ext_z;
-
-      eneff[atom * 3 + 0] = x + ext_x;
-      eneff[atom * 3 + 1] = y + ext_y;
-      eneff[atom * 3 + 2] = z + ext_z;
-
-      if(!measure) return;
-
-      int mInd = ensemble;
-
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-       sum_warp_energy(exchange);
-       sum_warp_energy(external);
-
-       //const real mub = 9.274009994e-24;
-       //const real mry = 2.179872325e-21;
-       //const real fcinv = mub / mry;
-       if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           exchange = exchange / static_cast<real>(N);
-           external = external / static_cast<real>(N);
-           const real total = exchange + external;
-           atomicAdd(&energyM(mInd, 0), exchange);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       } 
-   }
-};
-
-class GpuHamiltonianCalculations::HeisgeJijDM : public ParallelizationHelper::AtomSiteEnsemble {
-private:
-   real* __restrict__ beff;
-   real* __restrict__ eneff;
-   //GpuTensor<real, 1> exchM;
-   //GpuTensor<real, 1> dmM;
-   //GpuTensor<real, 1> extM;
-   //GpuTensor<real, 1> totalM;
-   GpuTensor<real,  2> energyM;
-   const real* __restrict__ coup;
-   const unsigned int* __restrict__ pos;
-   const real* __restrict__ emomM;
-   const real* __restrict__ ext_f;
    unsigned int mnn;
    const real* __restrict__ dmcoup;
    const unsigned int* __restrict__ dmpos;
    unsigned int dmmnn;
-   const unsigned int* __restrict__ aham;
-   //int do_ene;
-   bool measure;
-
-public:
-   HeisgeJijDM(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM, 
-             const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-             const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : energyM(p_energyM)
-   {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-
-      coup = ex.coupling.data();
-      pos = ex.neighbourPos.data();
-      mnn = ex.mnn;
-
-      dmcoup = dm.interaction.data();
-      dmpos = dm.neighbourPos.data();
-      dmmnn = dm.mnn;
-      aham = redHam.redNeibourCount.data();
-      //do_ene = p_do_ene;
-      measure = p_measure;
-
-   }
-
-   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
-      real x = (real)0.0;
-      real y = (real)0.0;
-      real z = (real)0.0;
-      real dm_x = (real)0.0;
-      real dm_y = (real)0.0;
-      real dm_z = (real)0.0;
-      real c = (real)0.0;
-      unsigned int x_offset = (unsigned int)0;
-      real Sx = (real)0.0;
-      real Sy = (real)0.0;
-      real Sz = (real)0.0;
-      real Dx = (real)0.0;
-      real Dy = (real)0.0;
-      real Dz = (real)0.0;
-      unsigned int neighborPosIndex = (unsigned int)0;
-
-      // Pointers with fixed indices
-      const unsigned int rsite = aham[site] - 1;
-      const real* __restrict__ site_coup = &coup[rsite];
-      const unsigned int* __restrict__ site_pos = &pos[site];
-      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
-      // Exchange term loop
-      for(unsigned int i = 0; i < mnn; i++) {
-         x_offset = site_pos[i * N] * 3;
-         c = site_coup[i * NH];
-         // printf("%f\n", c);
-         x += c * my_emomM[x_offset + 0];
-         y += c * my_emomM[x_offset + 1];
-         z += c * my_emomM[x_offset + 2];
-      }
-
-      // Phil's DM interaction implementation (still only incorporated into the isotropic Heisenberg exchange)
-      for(unsigned int i = 0; i < dmmnn; i++) {
-         neighborPosIndex = dmpos[site * dmmnn + i];  // neighbor position in the site enemble given in 0,1,2,...,N-1
-         x_offset = neighborPosIndex * 3;
-
-         Sx = my_emomM[x_offset + 0];
-         Sy = my_emomM[x_offset + 1];
-         Sz = my_emomM[x_offset + 2];
-         Dx = dmcoup[0 + 3 * i + rsite * dmmnn * 3];
-         Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
-         Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
-
-         const auto dm_term = hamdev::dm_field(hamdev::make_vec3(Dx, Dy, Dz), hamdev::make_vec3(Sx, Sy, Sz));
-         dm_x += dm_term.x;
-         dm_y += dm_term.y;
-         dm_z += dm_term.z;
-      }
-
-      x += dm_x;
-      y += dm_y;
-      z += dm_z;
-
-      const real ext_x = ext_f[atom * 3 + 0];
-      const real ext_y = ext_f[atom * 3 + 1];
-      const real ext_z = ext_f[atom * 3 + 2];
-
-      // Save field
-      beff[atom * 3 + 0] = x + ext_x;
-      beff[atom * 3 + 1] = y + ext_y;
-      beff[atom * 3 + 2] = z + ext_z;
-
-      eneff[atom * 3 + 0] = x + ext_x;
-      eneff[atom * 3 + 1] = y + ext_y;
-      eneff[atom * 3 + 2] = z + ext_z;
-
-      if(!measure) return;
-
-      int mInd = ensemble;
-
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-      const auto spin = hamdev::make_vec3(Sx, Sy, Sz);
-      real exchange = hamdev::dot(hamdev::make_vec3(x - dm_x, y - dm_y, z - dm_z), spin) * (real)-0.5;
-      real DM = hamdev::dot(hamdev::make_vec3(dm_x, dm_y, dm_z), spin) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-      sum_warp_energy(exchange);
-      sum_warp_energy(DM);
-      sum_warp_energy(external);
-
-      //const real mub = 9.274009994e-24;
-      //const real mry = 2.179872325e-21;
-      //const real fcinv = mub / mry;
-      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           exchange = exchange / static_cast<real>(N);
-           DM = DM / static_cast<real>(N); 
-           external = external / static_cast<real> (N);
-           const real total = exchange + DM + external;
-           atomicAdd(&energyM(mInd, 0), exchange);
-           atomicAdd(&energyM(mInd, 2), DM);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       } 
-   }
-};
-
-class GpuHamiltonianCalculations::HeisgeJijAniso : public ParallelizationHelper::AtomSiteEnsemble {
-private:
-   real* beff;
-   real* eneff;
-   //GpuTensor<real, 1> exchM;
-   //GpuTensor<real, 1> aniM;
-   //GpuTensor<real, 1> extM;
-   //GpuTensor<real, 1> totalM;
-   GpuTensor<real, 2> energyM;
-   const real* coup;
-   const unsigned int* pos;
-   const real* emomM;
-   const real* ext_f;
-   unsigned int mnn;
-   const real* kaniso;
-   const real* eaniso;
-   const unsigned int* taniso;
-   const real* sb;
-   const unsigned int* aham;
-   //int do_ene;
-   bool measure;
-
-public:
-   HeisgeJijAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM, const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, 
-                  const Exchange& ex, const DMinteraction& dm, const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : energyM(p_energyM)
-    {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-
-      coup = ex.coupling.data();
-      pos = ex.neighbourPos.data();
-      mnn = ex.mnn;
-
-      kaniso = aniso.kaniso.data();
-      eaniso = aniso.eaniso.data();
-      taniso = aniso.taniso.data();
-      sb = aniso.sb.data();
-
-      aham = redHam.redNeibourCount.data();
-      //do_ene = p_do_ene;
-      measure = p_measure;
-
-   }
-
-   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
-      real x = (real)0.0;
-      real y = (real)0.0;
-      real z = (real)0.0;
-      real ax = (real)0.0;
-      real ay = (real)0.0;
-      real az = (real)0.0;
-      real ax_en = (real)0.0;
-      real ay_en = (real)0.0;
-      real az_en = (real)0.0;
-      real ex = (real)0.0;
-      real ey = (real)0.0;
-      real ez = (real)0.0;
-      const unsigned int type = taniso[site];  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
-
-      // Pointers with fixed indices
-      const unsigned int rsite = aham[site] - 1;
-      const real* site_coup = &coup[rsite];
-      const unsigned int* site_pos = &pos[site];
-      const real* my_emomM = &emomM[ensemble * N * 3];
-      // Exchange term loop
-      for(unsigned int i = 0; i < mnn; i++) {
-         const auto x_offset = site_pos[i * N] * 3;
-         const auto c = site_coup[i * NH];
-         // printf("%f\n", c);
-         x += c * my_emomM[x_offset + 0];
-         y += c * my_emomM[x_offset + 1];
-         z += c * my_emomM[x_offset + 2];
-      }
-
-      //Anisotropy
-      const real Sx = emomM[atom * 3 + 0];
-      const real Sy = emomM[atom * 3 + 1];
-      const real Sz = emomM[atom * 3 + 2];
-
-      // direction of uniaxial anisotropy
-      ex = eaniso[0 + site * 3];
-      ey = eaniso[1 + site * 3];
-      ez = eaniso[2 + site * 3];
-
-      // anisotropy constants
-      const real k1 = kaniso[0 + site * 2];
-      const real k2 = kaniso[1 + site * 2];
-
-      if(type == 1 || type == 7)  // uniaxial anisotropy
-      {
-         const real tt1 = Sx * ex + Sy * ey + Sz * ez;
-         const real tt2 = k1 + (real)2.0 * k2 * (1 - tt1 * tt1);
-         const real tt3 = (real)2.0 * tt1 * tt2;
-
-         const real tt2_en = k1 + k2 * ((real)2.0 - tt1 * tt1);
-         const real tt3_en = tt1 * tt2_en;
-
-         ax += -tt3 * ex;
-         ay += -tt3 * ey;
-         az += -tt3 * ez;
-
-         ax_en += -tt3_en * ex; //To Anders: sign????
-         ay_en += -tt3_en * ey;
-         az_en += -tt3_en * ez;
-      }
-      if(type == 2 || type == 7) {  // cubic anisotropy
-
-         real k1_cubic = k1;
-         real k2_cubic = k2;
-
-         if(type == 7) {  // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial
-                          // constant x sb
-            k1_cubic *= sb[site];
-            k2_cubic *= sb[site];
-         }
-
-         ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
-
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
-      }
-
-      const real ext_x = ext_f[atom * 3 + 0];
-      const real ext_y = ext_f[atom * 3 + 1];
-      const real ext_z = ext_f[atom * 3 + 2];
-
-      // Save field
-      beff[atom * 3 + 0] = x + ax + ext_x;
-      beff[atom * 3 + 1] = y + ay + ext_y;
-      beff[atom * 3 + 2] = z + az + ext_z;
-
-      eneff[atom * 3 + 0] = x + ax_en + ext_x;
-      eneff[atom * 3 + 1] = y + ay_en + ext_y;
-      eneff[atom * 3 + 2] = z + az_en + ext_z;
-
-      if(!measure) return;
-
-      int mInd = ensemble;
-
-       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-       real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-       sum_warp_energy(exchange);
-       sum_warp_energy(anisotropy);
-       sum_warp_energy(external);
-
-       //printf("mInd = %i, extent = %i\n", mInd, extM.extent(0));
-
-       //const real mub = 9.274009994e-24;
-       //const real mry = 2.179872325e-21;
-       //const real fcinv = mub / mry;
-       if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           exchange = exchange / static_cast<real>(N);
-           anisotropy = anisotropy / static_cast<real>(N);
-           external = external / static_cast<real>(N);
-           const real total = exchange + anisotropy + external;
-           atomicAdd(&energyM(mInd, 0), exchange);
-           atomicAdd(&energyM(mInd, 1), anisotropy);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       }     
-   }
-};
-
-class GpuHamiltonianCalculations::HeisgeJijDMAniso : public ParallelizationHelper::AtomSiteEnsemble {
-private:
-   real* __restrict__ beff;
-   real* __restrict__ eneff;
-   GpuTensor<real, 2> energyM;
-   //GpuTensor<real, 1> exchM;
-   //GpuTensor<real, 1> dmM;
-   //GpuTensor<real, 1> aniM;
-   //GpuTensor<real, 1> extM;
-   //GpuTensor<real, 1> totalM;
-   const real* __restrict__ coup;
-   const unsigned int* __restrict__ pos;
+   const real* __restrict__ tensor;
+   const unsigned int* __restrict__ tensorpos;
+   unsigned int tensormnn;
    const real* __restrict__ emomM;
    const real* __restrict__ ext_f;
-   unsigned int mnn;
-   const real* __restrict__ dmcoup;
-   const unsigned int* __restrict__ dmpos;
-   unsigned int dmmnn;
    const real* __restrict__ kaniso;
    const real* __restrict__ eaniso;
    const unsigned int* __restrict__ taniso;
    const real* __restrict__ sb;
    const unsigned int* __restrict__ aham;
-   //int do_ene;
-   bool measure;
 
 public:
-   HeisgeJijDMAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM,
-      const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const Exchange& ex, const DMinteraction& dm,
-      const Anisotropy& aniso, const HamRed& redHam, const int p_do_ene, const bool p_measure)
-             : energyM(p_energyM)
-   {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-
-      coup = ex.coupling.data();
-      pos = ex.neighbourPos.data();
-      mnn = ex.mnn;
-
-      dmcoup = dm.interaction.data();
-      dmpos = dm.neighbourPos.data();
-      dmmnn = dm.mnn;
-
-      kaniso = aniso.kaniso.data();
-      eaniso = aniso.eaniso.data();
-      taniso = aniso.taniso.data();
-      sb = aniso.sb.data();
-
-      aham = redHam.redNeibourCount.data();
-      //do_ene = p_do_ene;
-      measure = p_measure;
-
-   }
+   Heisge(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM,
+          const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f,
+          const Exchange& p_ex, const DMinteraction& p_dm, const TensorialExchange& p_tenEx,
+          const Anisotropy& p_aniso, const HamRed& p_redHam)
+       : energyM(p_energyM), beff(p_beff.data()), eneff(p_eneff.data()), emomM(p_emomM.data()),
+         ext_f(p_ext_f.data()), coup(p_ex.coupling.data()), pos(p_ex.neighbourPos.data()), mnn(p_ex.mnn),
+         dmcoup(p_dm.interaction.data()), dmpos(p_dm.neighbourPos.data()), dmmnn(p_dm.mnn),
+         tensor(p_tenEx.tensor.data()), tensorpos(p_tenEx.neighbourPos.data()), tensormnn(p_tenEx.mnn),
+         kaniso(p_aniso.kaniso.data()), eaniso(p_aniso.eaniso.data()), taniso(p_aniso.taniso.data()),
+         sb(p_aniso.sb.data()), aham(p_redHam.redNeibourCount.data()) {}
 
    __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
       real x = (real)0.0;
       real y = (real)0.0;
       real z = (real)0.0;
       real dm_x = (real)0.0;
       real dm_y = (real)0.0;
       real dm_z = (real)0.0;
-      real c = (real)0.0;
-      unsigned int x_offset = (unsigned int) 0;
-      unsigned int neighborPosIndex = (unsigned int) 0;
-      real Sx = (real)0.0;
-      real Sy = (real)0.0;
-      real Sz = (real)0.0;
-      real Dx = (real)0.0;
-      real Dy = (real)0.0;
-      real Dz = (real)0.0;
+      const unsigned int rsite = aham[site] - 1;
+      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
+
+      if constexpr (HasTensor) {
+         for(unsigned int i = 0; i < tensormnn; i++) {
+            const unsigned int neighbor = tensorpos[site * tensormnn + i];
+            const unsigned int offset = neighbor * 3;
+            const unsigned int base = 9 * (i + tensormnn * rsite);
+            const real Sx = my_emomM[offset + 0];
+            const real Sy = my_emomM[offset + 1];
+            const real Sz = my_emomM[offset + 2];
+            x += tensor[base + 0] * Sx + tensor[base + 3] * Sy + tensor[base + 6] * Sz;
+            y += tensor[base + 1] * Sx + tensor[base + 4] * Sy + tensor[base + 7] * Sz;
+            z += tensor[base + 2] * Sx + tensor[base + 5] * Sy + tensor[base + 8] * Sz;
+         }
+      } else {
+         const real* __restrict__ site_coup = &coup[rsite];
+         const unsigned int* __restrict__ site_pos = &pos[site];
+         for(unsigned int i = 0; i < mnn; i++) {
+            const unsigned int offset = site_pos[i * N] * 3;
+            const real c = site_coup[i * NH];
+            x += c * my_emomM[offset + 0];
+            y += c * my_emomM[offset + 1];
+            z += c * my_emomM[offset + 2];
+         }
+      }
+
+      if constexpr (HasDM) {
+         for(unsigned int i = 0; i < dmmnn; i++) {
+            const unsigned int offset = dmpos[site * dmmnn + i] * 3;
+            const auto dm_term = hamdev::dm_field(
+                hamdev::make_vec3(dmcoup[3 * i + rsite * dmmnn * 3],
+                                  dmcoup[1 + 3 * i + rsite * dmmnn * 3],
+                                  dmcoup[2 + 3 * i + rsite * dmmnn * 3]),
+                hamdev::make_vec3(my_emomM[offset + 0], my_emomM[offset + 1], my_emomM[offset + 2]));
+            dm_x += dm_term.x;
+            dm_y += dm_term.y;
+            dm_z += dm_term.z;
+         }
+         x += dm_x;
+         y += dm_y;
+         z += dm_z;
+      }
+
       real ax = (real)0.0;
       real ay = (real)0.0;
       real az = (real)0.0;
       real ax_en = (real)0.0;
       real ay_en = (real)0.0;
       real az_en = (real)0.0;
-      real ex = (real)0.0;
-      real ey = (real)0.0;
-      real ez = (real)0.0;
-      const unsigned int type = taniso[site];  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
-
-      // Pointers with fixed indices
-      const unsigned int rsite = aham[site] - 1;
-      const real* __restrict__ site_coup = &coup[rsite];
-      const unsigned int* __restrict__ site_pos = &pos[site];
-      const real* __restrict__ my_emomM = &emomM[ensemble * N * 3];
-      // Exchange term loop
-      for(unsigned int i = 0; i < mnn; i++) {
-         x_offset = site_pos[i * N] * 3;
-         c = site_coup[i * NH];
-         // printf("%f\n", c);
-         x += c * my_emomM[x_offset + 0];
-         y += c * my_emomM[x_offset + 1];
-         z += c * my_emomM[x_offset + 2];
+      real Sx = (real)0.0;
+      real Sy = (real)0.0;
+      real Sz = (real)0.0;
+      if constexpr (HasAniso || Measure) {
+         Sx = emomM[atom * 3 + 0];
+         Sy = emomM[atom * 3 + 1];
+         Sz = emomM[atom * 3 + 2];
       }
-
-      // Phil's DM interaction implementation (still only incorporated into the isotropic Heisenberg exchange)
-      for(unsigned int i = 0; i < dmmnn; i++) {
-         neighborPosIndex = dmpos[site * dmmnn + i];  // neighbor position in the site enemble given in 0,1,2,...,N-1
-         x_offset = neighborPosIndex * 3;
-
-         Sx = my_emomM[x_offset + 0];
-         Sy = my_emomM[x_offset + 1];
-         Sz = my_emomM[x_offset + 2];
-         Dx = dmcoup[0 + 3 * i + rsite * dmmnn * 3];
-         Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
-         Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
-
-         const auto dm_term = hamdev::dm_field(hamdev::make_vec3(Dx, Dy, Dz), hamdev::make_vec3(Sx, Sy, Sz));
-         dm_x += dm_term.x;
-         dm_y += dm_term.y;
-         dm_z += dm_term.z;
-      }
-
-      x += dm_x;
-      y += dm_y;
-      z += dm_z;
-
-      //Anisotropy
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-      // direction of uniaxial anisotropy
-      ex = eaniso[0 + site * 3];
-      ey = eaniso[1 + site * 3];
-      ez = eaniso[2 + site * 3];
-
-      // anisotropy constants
-      const real k1 = kaniso[0 + site * 2];
-      const real k2 = kaniso[1 + site * 2];
-
-      if(type == 1 || type == 7)  // uniaxial anisotropy
-      {
-         const real tt1 = Sx * ex + Sy * ey + Sz * ez;
-         const real tt2 = k1 + (real)2.0 * k2 * (1 - tt1 * tt1);
-         const real tt3 = (real)2.0 * tt1 * tt2;
-
-         const real tt2_en = k1 + k2 * ((real)2.0 - tt1 * tt1);
-         const real tt3_en = tt1 * tt2_en;
-
-         ax += -tt3 * ex;
-         ay += -tt3 * ey;
-         az += -tt3 * ez;
-
-         ax_en += -tt3_en * ex; //To Anders: sign????
-         ay_en += -tt3_en * ey;
-         az_en += -tt3_en * ez;
-      }
-      if(type == 2 || type == 7) {  // cubic anisotropy
-
-         real k1_cubic = k1;
-         real k2_cubic = k2;
-
-         if(type == 7) {  // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial
-                          // constant x sb
-            k1_cubic *= sb[site];
-            k2_cubic *= sb[site];
+      if constexpr (HasAniso) {
+         const unsigned int type = taniso[site];
+         const real ex = eaniso[site * 3 + 0];
+         const real ey = eaniso[site * 3 + 1];
+         const real ez = eaniso[site * 3 + 2];
+         const real k1 = kaniso[site * 2 + 0];
+         const real k2 = kaniso[site * 2 + 1];
+         if(type == 1 || type == 7) {
+            const real tt1 = Sx * ex + Sy * ey + Sz * ez;
+            const real tt3 = (real)2.0 * tt1 * (k1 + (real)2.0 * k2 * ((real)1.0 - tt1 * tt1));
+            const real tt3_en = tt1 * (k1 + k2 * ((real)2.0 - tt1 * tt1));
+            ax -= tt3 * ex; ay -= tt3 * ey; az -= tt3 * ez;
+            ax_en -= tt3_en * ex; ay_en -= tt3_en * ey; az_en -= tt3_en * ez;
          }
-
-         ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
-
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+         if(type == 2 || type == 7) {
+            real k1_cubic = k1;
+            real k2_cubic = k2;
+            if(type == 7) { k1_cubic *= sb[site]; k2_cubic *= sb[site]; }
+            ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+            ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+            az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+            ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) / (real)2.0 + k2_cubic * Sx * Sy * Sy * Sz * Sz / (real)3.0;
+            ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) / (real)2.0 + k2_cubic * Sy * Sz * Sz * Sx * Sx / (real)3.0;
+            az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) / (real)2.0 + k2_cubic * Sz * Sx * Sx * Sy * Sy / (real)3.0;
+         }
       }
 
-
-      // Save field
       const real ext_x = ext_f[atom * 3 + 0];
       const real ext_y = ext_f[atom * 3 + 1];
       const real ext_z = ext_f[atom * 3 + 2];
-
       beff[atom * 3 + 0] = x + ax + ext_x;
       beff[atom * 3 + 1] = y + ay + ext_y;
       beff[atom * 3 + 2] = z + az + ext_z;
-
-      eneff[atom * 3 + 0//0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
-] = x + ax_en + ext_x;
+      eneff[atom * 3 + 0] = x + ax_en + ext_x;
       eneff[atom * 3 + 1] = y + ay_en + ext_y;
       eneff[atom * 3 + 2] = z + az_en + ext_z;
-      
-      if(!measure) return;
-      int mInd = ensemble;
 
-      const auto spin = hamdev::make_vec3(Sx, Sy, Sz);
-      real exchange = hamdev::dot(hamdev::make_vec3(x - dm_x, y - dm_y, z - dm_z), spin) * (real)-0.5;
-      real anisotropy = hamdev::dot(hamdev::make_vec3(ax_en, ay_en, az_en), spin) * (real)-0.5;
-      real DM = hamdev::dot(hamdev::make_vec3(dm_x, dm_y, dm_z), spin) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-      sum_warp_energy(exchange);
-      sum_warp_energy(anisotropy);
-      sum_warp_energy(DM);
-      sum_warp_energy(external);
-
-
-      //const real mub = 9.274009994e-24;
-      //const real mry = 2.179872325e-21;
-      //const real fcinv = mub / mry;
-      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           exchange =exchange / static_cast<real>(N);
-           anisotropy = anisotropy / static_cast<real>(N);
-           DM = DM / static_cast<real>(N); 
-           external = external / static_cast<real>(N); 
-           const real total = exchange + anisotropy + DM + external;
-           atomicAdd(&energyM(mInd, 0), exchange);
-           atomicAdd(&energyM(mInd, 2), DM);
-           atomicAdd(&energyM(mInd, 1), anisotropy);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       } 
-   }
-};
-
-
-class GpuHamiltonianCalculations::HeisgeJijTensor : public ParallelizationHelper::AtomSiteEnsemble {
-private:
-   real* beff;
-   real* eneff;
-   const real* tensor;
-   const unsigned int* pos;
-   const unsigned int* size;
-   const real* emomM;
-   const real* ext_f;
-   unsigned int mnn;
-   const unsigned int* aham;
-   //GpuTensor<real, 1> tensorM;
-   //GpuTensor<real, 1> extM;
-   //GpuTensor<real, 1> totalM;
-   GpuTensor<real, 2> energyM;
-   bool measure;
-
-public:
-   HeisgeJijTensor(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM,
-                     const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, 
-                     const TensorialExchange& tenEx, const HamRed& redHam, const bool p_measure) 
-                  : energyM(p_energyM)  
-   {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-
-      tensor = tenEx.tensor.data();
-      pos = tenEx.neighbourPos.data();
-      size = tenEx.neighbourCount.data();
-      mnn = tenEx.mnn;
-      aham = redHam.redNeibourCount.data();
-      measure = p_measure;
-   }
-
-   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
-      real x = (real)0.0;
-      real y = (real)0.0;
-      real z = (real)0.0;
-
-      real Sx, Sy, Sz;
-
-      // Pointers with fixed indices
-      const real* my_emomM = &emomM[ensemble * N * 3];
-      const unsigned int rsite = aham[site] - 1;
-      // emomM <--> (3,N,M)
-      // tensor <---> (3,3,mnn,N)
-      // pos   <--> (mnn,N)
-
-      // Tensorial exchange coupling
-      for(unsigned int i = 0; i < mnn; i++) {
-         unsigned int neighborPosIndex
-             = pos[site * mnn + i];  // neighbor position in the site enemble given in 0,1,2,...,N-1
-
-         unsigned int x_offset = neighborPosIndex * 3;
-
-         unsigned int k = i;
-         unsigned int l = rsite;
-
-         real J11 = tensor[0 + 3 * (0 + 3 * (k + mnn * l))];  // i=0,j=0
-         real J12 = tensor[0 + 3 * (1 + 3 * (k + mnn * l))];  // i=0,j=1
-         real J13 = tensor[0 + 3 * (2 + 3 * (k + mnn * l))];  // i=0,j=2
-         real J21 = tensor[1 + 3 * (0 + 3 * (k + mnn * l))];  // i=1,j=0
-         real J22 = tensor[1 + 3 * (1 + 3 * (k + mnn * l))];  // i=1,j=1
-         real J23 = tensor[1 + 3 * (2 + 3 * (k + mnn * l))];  // i=1,j=2
-         real J31 = tensor[2 + 3 * (0 + 3 * (k + mnn * l))];  // i=2,j=0
-         real J32 = tensor[2 + 3 * (1 + 3 * (k + mnn * l))];  // i=2,j=1
-         real J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))];  // i=2,j=2
-
-         // magnetic moment of current neighbor
-         Sx = my_emomM[x_offset + 0];
-         Sy = my_emomM[x_offset + 1];
-         Sz = my_emomM[x_offset + 2];
-
-         x += J11 * Sx + J12 * Sy + J13 * Sz;
-         y += J21 * Sx + J22 * Sy + J23 * Sz;
-         z += J31 * Sx + J32 * Sy + J33 * Sz;
-      }
-
-      real ext_x = ext_f[atom * 3 + 0];
-      real ext_y = ext_f[atom * 3 + 1];
-      real ext_z = ext_f[atom * 3 + 2];
-
-      // Save field
-      beff[atom * 3 + 0] = x + ext_x;
-      beff[atom * 3 + 1] = y + ext_y;
-      beff[atom * 3 + 2] = z + ext_z;
-
-      eneff[atom * 3 + 0] = x + ext_x;
-      eneff[atom * 3 + 1] = y + ext_y;
-      eneff[atom * 3 + 2] = z + ext_z;
-
-      if(!measure) return;
-
-      int mInd = ensemble;
-
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-      real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-      sum_warp_energy(tensor);
-      sum_warp_energy(external);
-
-       //const real mub = 9.274009994e-24;
-       //const real mry = 2.179872325e-21;
-       //const real fcinv = mub / mry;
-      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           tensor = tensor / static_cast<real>(N);
-           external = external / static_cast<real>(N);
-           const real total = tensor + external;
-           atomicAdd(&energyM(mInd, 3), tensor);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       } 
-   }
-};
-
-class GpuHamiltonianCalculations::HeisgeJijTensorAniso : public ParallelizationHelper::AtomSiteEnsemble {
-private:
-   real* beff;
-   real* eneff;
-   const real* tensor;
-   const unsigned int* pos;
-   const unsigned int* size;
-   const real* emomM;
-   const real* ext_f;
-   unsigned int mnn;
-   const unsigned int* aham;
-   const real* kaniso;
-   const real* eaniso;
-   const unsigned int* taniso;
-   const real* sb;
-   GpuTensor<real, 2> energyM;
-
-  // GpuTensor<real, 1> tensorM;
-  // GpuTensor<real, 1> aniM;
-  // GpuTensor<real, 1> extM;
-  // GpuTensor<real, 1> totalM;
-   bool measure;
-
-public:
-   HeisgeJijTensorAniso(GpuTensor<real, 3>& p_beff, GpuTensor<real, 3>& p_eneff, GpuTensor<real, 2> p_energyM,
-                        const GpuTensor<real, 3>& p_emomM, const GpuTensor<real, 3>& p_ext_f, const TensorialExchange& tenEx,
-                        const Anisotropy& aniso, const HamRed& redHam, const bool p_measure) 
-                     : energyM(p_energyM)
-   {
-      beff = p_beff.data();
-      eneff = p_eneff.data();
-      emomM = p_emomM.data();
-      ext_f = p_ext_f.data();
-
-      tensor = tenEx.tensor.data();
-      pos = tenEx.neighbourPos.data();
-      size = tenEx.neighbourCount.data();
-      mnn = tenEx.mnn;
-      aham = redHam.redNeibourCount.data();
-
-      kaniso = aniso.kaniso.data();
-      eaniso = aniso.eaniso.data();
-      taniso = aniso.taniso.data();
-      sb = aniso.sb.data();
-      measure = p_measure;
-   }
-
-   __device__ void each(unsigned int atom, unsigned int site, unsigned int ensemble) {
-      // Field
-      real x = (real)0.0;
-      real y = (real)0.0;
-      real z = (real)0.0;
-
-      real ax = (real)0.0;
-      real ay = (real)0.0;
-      real az = (real)0.0;
-
-      real ax_en = (real)0.0;
-      real ay_en = (real)0.0;
-      real az_en = (real)0.0;
-      // Magnetic moment at current site/atom
-      real Sx = (real)0.0;
-      real Sy = (real)0.0;
-      real Sz = (real)0.0;
-      // Uniaxial anisotropy unit vector
-      real ex = (real)0.0;
-      real ey = (real)0.0;
-      real ez = (real)0.0;
-
-
-      unsigned int neighborPosIndex = (unsigned int)0;
-      unsigned int x_offset = (unsigned int)0;
-
-      unsigned int k = (unsigned int)0;
-      unsigned int l = (unsigned int)0;
-
-      real J11 = (real)0.0; real J12 = (real)0.0; real J13 = (real)0.0;
-      real J21 = (real)0.0; real J22 = (real)0.0; real J23 = (real)0.0;
-      real J31 = (real)0.0; real J32 = (real)0.0; real J33 = (real)0.0;
-
-      const unsigned int type = taniso[site];  // type of the anisotropy: 0 = none, 1 = uniaxial, 2 = cubic
-
-      // Pointers with fixed indices
-      const real* my_emomM = &emomM[ensemble * N * 3];
-      const unsigned int rsite = aham[site] - 1;
-      // emomM <--> (3,N,M)
-      // tensor <---> (3,3,mnn,N)
-      // pos   <--> (mnn,N)
-
-      // Tensorial exchange coupling
-      for(unsigned int i = 0; i < mnn; i++) {
-         neighborPosIndex = pos[site * mnn + i];  // neighbor position in the site enemble given in 0,1,2,...,N-1
-         x_offset = neighborPosIndex * 3;
-
-         k = i;
-         l = rsite;
-
-         J11 = tensor[0 + 3 * (0 + 3 * (k + mnn * l))];  // i=0,j=0
-         J12 = tensor[0 + 3 * (1 + 3 * (k + mnn * l))];  // i=0,j=1
-         J13 = tensor[0 + 3 * (2 + 3 * (k + mnn * l))];  // i=0,j=2
-         J21 = tensor[1 + 3 * (0 + 3 * (k + mnn * l))];  // i=1,j=0
-         J22 = tensor[1 + 3 * (1 + 3 * (k + mnn * l))];  // i=1,j=1
-         J23 = tensor[1 + 3 * (2 + 3 * (k + mnn * l))];  // i=1,j=2
-         J31 = tensor[2 + 3 * (0 + 3 * (k + mnn * l))];  // i=2,j=0
-         J32 = tensor[2 + 3 * (1 + 3 * (k + mnn * l))];  // i=2,j=1
-         J33 = tensor[2 + 3 * (2 + 3 * (k + mnn * l))];  // i=2,j=2
-
-         // magnetic moment of current neighbor
-         Sx = my_emomM[x_offset + 0];
-         Sy = my_emomM[x_offset + 1];
-         Sz = my_emomM[x_offset + 2];
-
-         x += J11 * Sx + J12 * Sy + J13 * Sz;
-         y += J21 * Sx + J22 * Sy + J23 * Sz;
-         z += J31 * Sx + J32 * Sy + J33 * Sz;
-      }
-
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-      // direction of uniaxial anisotropy
-      ex = eaniso[0 + site * 3];
-      ey = eaniso[1 + site * 3];
-      ez = eaniso[2 + site * 3];
-
-      // anisotropy constants
-      const real k1 = kaniso[0 + site * 2];
-      const real k2 = kaniso[1 + site * 2];
-
-      if(type == 1 || type == 7)  // uniaxial anisotropy
-      {
-         const real tt1 = Sx * ex + Sy * ey + Sz * ez;
-         const real tt2 = k1 + (real)2.0 * k2 * (1 - tt1 * tt1);
-         const real tt3 = (real)2.0 * tt1 * tt2;
-
-         const real tt2_en = k1 + k2 * ((real)2.0 - tt1 * tt1);
-         const real tt3_en = tt1 * tt2_en;
-
-         ax += -tt3 * ex;
-         ay += -tt3 * ey;
-         az += -tt3 * ez;
-
-         ax_en += -tt3_en * ex; //To Anders: sign????
-         ay_en += -tt3_en * ey;
-         az_en += -tt3_en * ez;
-      }
-      if(type == 2 || type == 7) {  // cubic anisotropy
-
-         real k1_cubic = k1;
-         real k2_cubic = k2;
-
-         if(type == 7) {  // Apply uniaxial and cubic anisotropy: The Cubic Anisotropy constant = Uniaxial
-                          // constant x sb
-            k1_cubic *= sb[site];
-            k2_cubic *= sb[site];
+      if constexpr (Measure) {
+         real interaction = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
+         if constexpr (HasDM) interaction = ((x - dm_x) * Sx + (y - dm_y) * Sy + (z - dm_z) * Sz) * (real)-0.5;
+         real dm_energy = (dm_x * Sx + dm_y * Sy + dm_z * Sz) * (real)-0.5;
+         real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+         real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+         sum_warp_energy(interaction);
+         if constexpr (HasDM) sum_warp_energy(dm_energy);
+         if constexpr (HasAniso) sum_warp_energy(anisotropy);
+         sum_warp_energy(external);
+         if((threadIdx.x & (WARPSIZE - 1)) == 0) {
+            interaction /= static_cast<real>(N);
+            dm_energy /= static_cast<real>(N);
+            anisotropy /= static_cast<real>(N);
+            external /= static_cast<real>(N);
+            const real total = interaction + (HasDM ? dm_energy : (real)0.0) +
+                               (HasAniso ? anisotropy : (real)0.0) + external;
+            atomicAdd(&energyM(ensemble, HasTensor ? 3 : 0), interaction);
+            if constexpr (HasDM) atomicAdd(&energyM(ensemble, 2), dm_energy);
+            if constexpr (HasAniso) atomicAdd(&energyM(ensemble, 1), anisotropy);
+            atomicAdd(&energyM(ensemble, 4), external);
+            atomicAdd(&energyM(ensemble, 5), total);
          }
-
-         ax += (real)2.0 * k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
-
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
       }
-
-      // Save field
-      real ext_x = ext_f[atom * 3 + 0];
-      real ext_y = ext_f[atom * 3 + 1];
-      real ext_z = ext_f[atom * 3 + 2];
-
-      beff[atom * 3 + 0] = x + ax + ext_x;
-      beff[atom * 3 + 1] = y + ay + ext_y;
-      beff[atom * 3 + 2] = z + az + ext_z;
-
-      eneff[atom * 3 + 0] = x + ax_en + ext_f[atom * 3 + 0];
-      eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
-      eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
-
-      int mInd = ensemble;
-
-      Sx = emomM[atom * 3 + 0];
-      Sy = emomM[atom * 3 + 1];
-      Sz = emomM[atom * 3 + 2];
-
-      real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
-
-      sum_warp_energy(tensor);
-      sum_warp_energy(anisotropy);
-      sum_warp_energy(external);
-
-       //const real mub = 9.274009994e-24;
-       //const real mry = 2.179872325e-21;
-       //const real fcinv = mub / mry;
-      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
-       {
-           tensor = tensor / static_cast<real>(N);
-           anisotropy = anisotropy / static_cast<real>(N);
-           external = external / static_cast<real>(N);
-           const real total = tensor + anisotropy + external;
-           atomicAdd(&energyM(mInd, 3), tensor);
-           atomicAdd(&energyM(mInd, 1), anisotropy);
-           atomicAdd(&energyM(mInd, 4), external);
-           atomicAdd(&energyM(mInd, 5), total);
-       }
    }
 };
 
@@ -1485,12 +670,16 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
 
       if(do_aniso != 0 && includeAnisotropy) {
          //if(measure) gpuEnergies.aniM.zeros();
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                          gpuLattice.emomM,external_field, tenEx, aniso, redHam, measure));
+         if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<false, true, true, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                          gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+         else parallel.gpuAtomSiteEnsembleCall(Heisge<false, true, true, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                          gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
       }
       else{
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                          gpuLattice.emomM, external_field, tenEx, redHam, measure));
+         if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<false, false, true, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                          gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+         else parallel.gpuAtomSiteEnsembleCall(Heisge<false, false, true, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                          gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
       }
 
    } 
@@ -1500,13 +689,17 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
         //if(measure) gpuEnergies.dmM.zeros();
          if(do_aniso != 0 && includeAnisotropy){
             //if(measure) gpuEnergies.aniM.zeros();
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                             gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
+            if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<true, true, false, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+            else parallel.gpuAtomSiteEnsembleCall(Heisge<true, true, false, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
             //printf("dmaniso\n");
          }
          else{
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                            gpuLattice.emomM, external_field, ex, dm, redHam, do_ene, measure));
+            if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<true, false, false, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                            gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+            else parallel.gpuAtomSiteEnsembleCall(Heisge<true, false, false, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                            gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
          
             //printf("dm\n");
                                           }
@@ -1514,14 +707,18 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       else{
          if(do_aniso != 0 && includeAnisotropy){
             //if(measure) gpuEnergies.aniM.zeros();
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                             gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
+            if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<false, true, false, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+            else parallel.gpuAtomSiteEnsembleCall(Heisge<false, true, false, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
          
             //printf("aniso\n");
                                           }
          else{
-            parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
-                                             gpuLattice.emomM, external_field, ex, redHam, do_ene, measure));
+            if(measure) parallel.gpuAtomSiteEnsembleCall(Heisge<false, false, false, true>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
+            else parallel.gpuAtomSiteEnsembleCall(Heisge<false, false, false, false>(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
+                                             gpuLattice.emomM, external_field, ex, dm, tenEx, aniso, redHam));
          
             //printf("plain\n");
                                           }

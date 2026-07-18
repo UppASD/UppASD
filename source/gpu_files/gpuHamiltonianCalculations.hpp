@@ -86,12 +86,8 @@ public:
    class SetupNeighbourListDM;
    class SetupNeighbourListExchangeTensor;
    class SetupAnisotropy;
-   class HeisgeJij;
-   class HeisgeJijDM;
-   class HeisgeJijAniso;
-   class HeisgeJijDMAniso;
-   class HeisgeJijTensor;
-   class HeisgeJijTensorAniso;
+   template<bool HasDM, bool HasAniso, bool HasTensor, bool Measure>
+   class Heisge;
    class HeisgeJijElement;
 
    // Constructor
