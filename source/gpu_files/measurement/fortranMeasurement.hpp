@@ -35,7 +35,7 @@ class FortranMeasurement : public Measurable {
    };
 
    // Queue callback
-   static void queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data);
+   static void queue_callback(void* data);
 
    // Temporary device storage vectors
    GpuTensor<real, 3> tmp_emomM;
@@ -90,4 +90,3 @@ public:
    void updateAC(size_t mstep) override;
    void flushMeasurements(std::size_t mstep) override;
 };
-

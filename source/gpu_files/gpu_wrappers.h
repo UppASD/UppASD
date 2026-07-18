@@ -29,7 +29,7 @@
   #define GPU_SUCCESS hipSuccess
   #define GPU_RAND_STATE hiprandState_t
   #define GPU_STREAM_T hipStream_t
-  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 hipStreamAddCallback(stream, callback, userData, flags)	
+  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData) hipLaunchHostFunc(stream, callback, userData)
   #define GPU_STREAM_CREATE(stream) hipStreamCreate(stream)
   #define GPU_STREAM_DESTROY(stream) hipStreamDestroy(stream)
   #define GPU_STREAM_SYNC(stream) hipStreamSynchronize(stream)
@@ -83,7 +83,7 @@
   #define GPU_SUCCESS cudaSuccess
   #define GPU_RAND_STATE curandState
   #define GPU_STREAM_T cudaStream_t
-  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 cudaStreamAddCallback(stream, callback, userData, flags)	
+  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData) cudaLaunchHostFunc(stream, callback, userData)
   #define GPU_STREAM_CREATE(stream) cudaStreamCreate(stream)
   #define GPU_STREAM_DESTROY(stream) cudaStreamDestroy(stream)
   #define GPU_STREAM_SYNC(stream) cudaStreamSynchronize(stream)

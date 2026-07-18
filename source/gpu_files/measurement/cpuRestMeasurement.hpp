@@ -34,7 +34,7 @@ class CpuRestMeasurement {
    };
 
    // Queue callback
-   static void queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data);
+   static void queue_callback(void* data);
 
    //ext_emomM, ext_emom, ext_mmom, ext_beff, ext_mstep
 

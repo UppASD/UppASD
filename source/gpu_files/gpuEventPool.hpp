@@ -20,7 +20,7 @@ public:
       friend GpuEventPool;
       bool active;
       GPU_EVENT_T _event;
-      static void deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e);
+      static void deactivate_callback(void *e);
 
    public:
       Event();
@@ -39,5 +39,4 @@ public:
    // Destructor
    ~GpuEventPool();
 };
-
 

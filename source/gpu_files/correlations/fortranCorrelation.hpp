@@ -36,7 +36,7 @@ class FortranCorrelation : public Correlation {
    };
 
    // Queue callback
-   static void queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data);
+   static void queue_callback(void* data);
 
    // Temporary device storage vectors
    GpuTensor<real, 3> tmp_emomM;
@@ -90,4 +90,3 @@ public:
    void measure(std::size_t mstep) override;
    void flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) override;
 };
-

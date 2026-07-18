@@ -32,7 +32,7 @@ void GpuEventPool::Event::deactivate() {
    active = false;
 }
 
-void GpuEventPool::Event::deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e) {
+void GpuEventPool::Event::deactivate_callback(void *e) {
 #ifdef NVPROF
    nvtxRangePush("deactivate_callback");
 #endif
@@ -43,7 +43,7 @@ void GpuEventPool::Event::deactivate_callback(GPU_STREAM_T, GPU_ERROR_T, void *e
 }
 
 void GpuEventPool::Event::addDeactivateCallback(GPU_STREAM_T stream) {
-   GPU_STREAM_ADD_CALLBACK(stream, deactivate_callback, this, 0);
+   GPU_STREAM_ADD_CALLBACK(stream, deactivate_callback, this);
 }
 
 // Pool class methods
@@ -69,4 +69,3 @@ GpuEventPool::~GpuEventPool() {
       delete *it;
    }
 }
-

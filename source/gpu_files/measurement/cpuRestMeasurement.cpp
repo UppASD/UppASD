@@ -89,7 +89,7 @@ CpuRestMeasurement::~CpuRestMeasurement() {
 }
 
 // Callback
-void CpuRestMeasurement::queue_callback(GPU_STREAM_T, GPU_ERROR_T, void* data) {
+void CpuRestMeasurement::queue_callback(void* data) {
 #ifdef NVPROF
    nvtxRangePush("queue_callback");
 #endif
@@ -118,6 +118,7 @@ void CpuRestMeasurement::copyQueueFast(std::size_t mstep) {
    // Create new events
    GpuEventPool::Event& workDone = eventPool.get();
    GpuEventPool::Event& copyDone = eventPool.get();
+   GpuEventPool::Event& d2hDone = eventPool.get();
 
    // The copying must wait for the work stream to finish
    GPU_EVENT_RECORD(workDone.event(), workStream);
@@ -137,14 +138,16 @@ void CpuRestMeasurement::copyQueueFast(std::size_t mstep) {
    pinned_emom.copy_async(tmp_emom, copyStream);
    pinned_mmom.copy_async(tmp_mmom, copyStream);
    pinned_beff.copy_async(tmp_beff, copyStream);
+   GPU_EVENT_RECORD(d2hDone.event(), copyStream);
 
-   // Make the work stream wait out the copying
+   // Release the work stream after the D2D staging copy completes.
    GPU_STREAM_WAIT_EVENT(workStream, copyDone.event(), 0);
    copyDone.addDeactivateCallback(workStream);
    workDone.addDeactivateCallback(workStream);
 
-   // Push to measure queue when done
-   GPU_STREAM_ADD_CALLBACK(workStream, queue_callback, new queue_callback_data(this, mstep), 0);
+   // Deactivate d2hDone and queue the consumer after the D2H transfers.
+   d2hDone.addDeactivateCallback(copyStream);
+   GPU_STREAM_ADD_CALLBACK(copyStream, queue_callback, new queue_callback_data(this, mstep));
 }
 
 // Slow copying (D -> H)fortran
