@@ -14,12 +14,16 @@ using GpuFftHandle = cufftHandle;
 using GpuFftResult = cufftResult;
 #ifdef SINGLE_PREC
 using GpuFftComplex = cufftComplex;
-#define GPUFFT_C2C CUFFT_C2C
-#define GPUFFT_EXEC_C2C cufftExecC2C
+#define GPUFFT_R2C CUFFT_R2C
+#define GPUFFT_C2R CUFFT_C2R
+#define GPUFFT_EXEC_R2C cufftExecR2C
+#define GPUFFT_EXEC_C2R cufftExecC2R
 #else
 using GpuFftComplex = cufftDoubleComplex;
-#define GPUFFT_C2C CUFFT_Z2Z
-#define GPUFFT_EXEC_C2C cufftExecZ2Z
+#define GPUFFT_R2C CUFFT_D2Z
+#define GPUFFT_C2R CUFFT_Z2D
+#define GPUFFT_EXEC_R2C cufftExecD2Z
+#define GPUFFT_EXEC_C2R cufftExecZ2D
 #endif
 #define GPUFFT_SUCCESS CUFFT_SUCCESS
 #define GPUFFT_FORWARD CUFFT_FORWARD
@@ -32,12 +36,16 @@ using GpuFftHandle = hipfftHandle;
 using GpuFftResult = hipfftResult;
 #ifdef SINGLE_PREC
 using GpuFftComplex = hipfftComplex;
-#define GPUFFT_C2C HIPFFT_C2C
-#define GPUFFT_EXEC_C2C hipfftExecC2C
+#define GPUFFT_R2C HIPFFT_R2C
+#define GPUFFT_C2R HIPFFT_C2R
+#define GPUFFT_EXEC_R2C hipfftExecR2C
+#define GPUFFT_EXEC_C2R hipfftExecC2R
 #else
 using GpuFftComplex = hipfftDoubleComplex;
-#define GPUFFT_C2C HIPFFT_Z2Z
-#define GPUFFT_EXEC_C2C hipfftExecZ2Z
+#define GPUFFT_R2C HIPFFT_D2Z
+#define GPUFFT_C2R HIPFFT_Z2D
+#define GPUFFT_EXEC_R2C hipfftExecD2Z
+#define GPUFFT_EXEC_C2R hipfftExecZ2D
 #endif
 #define GPUFFT_SUCCESS HIPFFT_SUCCESS
 #define GPUFFT_FORWARD HIPFFT_FORWARD

@@ -79,11 +79,14 @@ private:
    bool allocated;
    bool geometry_allocated;
    bool rij_allocated;
-   GpuFftHandle plan;
+   GpuFftHandle forward_plan;
+   GpuFftHandle backward_plan;
    GpuFftHandle kernel_plan;
+   GpuTensor<real, 2> field_real;
    GpuTensor<GpuFftComplex, 2> spin_fft;
    GpuTensor<GpuFftComplex, 2> field_fft;
    GpuTensor<GpuFftComplex, 2> kernel_fft;
+   GpuTensor<real, 2> kernel_real;
    GpuTensor<real, 2> cell_vectors;
    GpuTensor<real, 2> basis_positions;
    GpuTensor<real, 2> interaction_rij;

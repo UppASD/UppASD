@@ -116,8 +116,8 @@ __device__ inline void wrapped_coord_diff(const DeviceCellGeometry& geom,
    }
 }
 
-__global__ void pack_spins_to_fft(const real* __restrict__ emomM,
-                                  GpuFftComplex* __restrict__ spin_fft,
+__global__ void pack_spins_to_real(const real* __restrict__ emomM,
+                                  real* __restrict__ spin_real,
                                   unsigned int grid_size,
                                   unsigned int basis_count,
                                   unsigned int ensembles) {
@@ -133,21 +133,21 @@ __global__ void pack_spins_to_fft(const real* __restrict__ emomM,
    const unsigned int atoms = grid_size * basis_count;
    const unsigned int atom = ensemble * atoms + k * basis_count + basis;
 
-   spin_fft[id] = make_fft_complex(emomM[atom * 3 + axis], (real)0.0);
+   spin_real[id] = emomM[atom * 3 + axis];
 }
 
 __global__ void multiply_spectral_kernel(const GpuFftComplex* __restrict__ spin_fft,
                                          GpuFftComplex* __restrict__ field_fft,
                                          const GpuFftComplex* __restrict__ kernel_fft,
-                                         unsigned int grid_size,
+                                         unsigned int spectral_size,
                                          unsigned int basis_count,
                                          unsigned int ensembles) {
-   const unsigned int total = grid_size * basis_count * ensembles * 3;
+   const unsigned int total = spectral_size * basis_count * ensembles * 3;
    const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
    if(id >= total) return;
 
-   const unsigned int k = id % grid_size;
-   const unsigned int component = id / grid_size;
+   const unsigned int k = id % spectral_size;
+   const unsigned int component = id / spectral_size;
    const unsigned int axis_out = component % 3;
    const unsigned int basis_out = (component / 3) % basis_count;
    const unsigned int ensemble = component / (3 * basis_count);
@@ -158,15 +158,15 @@ __global__ void multiply_spectral_kernel(const GpuFftComplex* __restrict__ spin_
          const unsigned int spin_component = axis_in + 3 * (basis_in + basis_count * ensemble);
          const unsigned int kernel_component = axis_out + 3 * (axis_in + 3 * (basis_out + basis_count * basis_in));
          value = complex_add(value,
-                             complex_mul(kernel_fft[k + grid_size * kernel_component],
-                                         spin_fft[k + grid_size * spin_component]));
+                             complex_mul(kernel_fft[k + spectral_size * kernel_component],
+                                         spin_fft[k + spectral_size * spin_component]));
       }
    }
 
    field_fft[id] = value;
 }
 
-__global__ void fill_isotropic_dm_kernel(GpuFftComplex* __restrict__ kernel_fft,
+__global__ void fill_isotropic_dm_kernel(real* __restrict__ kernel_real,
                                          const real* __restrict__ exchange,
                                          const unsigned int* __restrict__ exchange_pos,
                                          unsigned int exchange_mnn,
@@ -205,9 +205,9 @@ __global__ void fill_isotropic_dm_kernel(GpuFftComplex* __restrict__ kernel_fft,
       const unsigned int xx = 0 + 3 * (0 + 3 * (basis_out + basis_count * basis_in));
       const unsigned int yy = 1 + 3 * (1 + 3 * (basis_out + basis_count * basis_in));
       const unsigned int zz = 2 + 3 * (2 + 3 * (basis_out + basis_count * basis_in));
-      atomicAdd(&kernel_fft[cell + grid_size * xx].x, j);
-      atomicAdd(&kernel_fft[cell + grid_size * yy].x, j);
-      atomicAdd(&kernel_fft[cell + grid_size * zz].x, j);
+      atomicAdd(&kernel_real[cell + grid_size * xx], j);
+      atomicAdd(&kernel_real[cell + grid_size * yy], j);
+      atomicAdd(&kernel_real[cell + grid_size * zz], j);
       return;
    }
 
@@ -239,15 +239,15 @@ __global__ void fill_isotropic_dm_kernel(GpuFftComplex* __restrict__ kernel_fft,
    const unsigned int zx = 2 + 3 * (0 + 3 * (basis_out + basis_count * basis_in));
    const unsigned int zy = 2 + 3 * (1 + 3 * (basis_out + basis_count * basis_in));
 
-   atomicAdd(&kernel_fft[cell + grid_size * xy].x, -dz);
-   atomicAdd(&kernel_fft[cell + grid_size * xz].x, dy);
-   atomicAdd(&kernel_fft[cell + grid_size * yx].x, dz);
-   atomicAdd(&kernel_fft[cell + grid_size * yz].x, -dx);
-   atomicAdd(&kernel_fft[cell + grid_size * zx].x, -dy);
-   atomicAdd(&kernel_fft[cell + grid_size * zy].x, dx);
+   atomicAdd(&kernel_real[cell + grid_size * xy], -dz);
+   atomicAdd(&kernel_real[cell + grid_size * xz], dy);
+   atomicAdd(&kernel_real[cell + grid_size * yx], dz);
+   atomicAdd(&kernel_real[cell + grid_size * yz], -dx);
+   atomicAdd(&kernel_real[cell + grid_size * zx], -dy);
+   atomicAdd(&kernel_real[cell + grid_size * zy], dx);
 }
 
-__global__ void fill_tensor_kernel(GpuFftComplex* __restrict__ kernel_fft,
+__global__ void fill_tensor_kernel(real* __restrict__ kernel_real,
                                    const real* __restrict__ exchange_tensor,
                                    const unsigned int* __restrict__ exchange_pos,
                                    unsigned int exchange_mnn,
@@ -281,10 +281,10 @@ __global__ void fill_tensor_kernel(GpuFftComplex* __restrict__ kernel_fft,
 
    const real j = exchange_tensor[axis_out + 3 * (axis_in + 3 * (neighbor + exchange_mnn * basis_out))];
    const unsigned int kernel_component = axis_out + 3 * (axis_in + 3 * (basis_out + basis_count * basis_in));
-   atomicAdd(&kernel_fft[cell + grid_size * kernel_component].x, j);
+   atomicAdd(&kernel_real[cell + grid_size * kernel_component], j);
 }
 
-__global__ void add_uniaxial_anisotropy_kernel(GpuFftComplex* __restrict__ kernel_fft,
+__global__ void add_uniaxial_anisotropy_kernel(real* __restrict__ kernel_real,
                                                const real* __restrict__ anisotropy_k,
                                                const real* __restrict__ anisotropy_axis,
                                                const unsigned int* __restrict__ anisotropy_type,
@@ -312,12 +312,12 @@ __global__ void add_uniaxial_anisotropy_kernel(GpuFftComplex* __restrict__ kerne
    for(unsigned int axis_out = 0; axis_out < 3; ++axis_out) {
       for(unsigned int axis_in = 0; axis_in < 3; ++axis_in) {
          const unsigned int kernel_component = axis_out + 3 * (axis_in + 3 * (basis + basis_count * basis));
-         atomicAdd(&kernel_fft[grid_size * kernel_component].x, pref * e[axis_out] * e[axis_in]);
+         atomicAdd(&kernel_real[grid_size * kernel_component], pref * e[axis_out] * e[axis_in]);
       }
    }
 }
 
-__global__ void unpack_fft_field(const GpuFftComplex* __restrict__ field_fft,
+__global__ void unpack_real_field(const real* __restrict__ field_real,
                                  const real* __restrict__ ext_f,
                                  real* __restrict__ beff,
                                  real* __restrict__ eneff,
@@ -337,8 +337,8 @@ __global__ void unpack_fft_field(const GpuFftComplex* __restrict__ field_fft,
    const unsigned int atoms = grid_size * basis_count;
    const unsigned int atom = ensemble * atoms + k * basis_count + basis;
    const unsigned int element = atom * 3 + axis;
-   const unsigned int spectral_id = k + grid_size * component;
-   const real value = field_fft[spectral_id].x * scale + ext_f[element];
+   const unsigned int field_id = k + grid_size * component;
+   const real value = field_real[field_id] * scale + ext_f[element];
 
    beff[element] = value;
    eneff[element] = value;
@@ -347,7 +347,8 @@ __global__ void unpack_fft_field(const GpuFftComplex* __restrict__ field_fft,
 } // namespace
 
 GpuLatticeConvolutionHamiltonian::GpuLatticeConvolutionHamiltonian()
-   : initiated(false), allocated(false), geometry_allocated(false), rij_allocated(false), plan{}, kernel_plan{} {
+   : initiated(false), allocated(false), geometry_allocated(false), rij_allocated(false),
+     forward_plan{}, backward_plan{}, kernel_plan{} {
 }
 
 GpuLatticeConvolutionHamiltonian::~GpuLatticeConvolutionHamiltonian() {
@@ -370,12 +371,15 @@ bool GpuLatticeConvolutionHamiltonian::initiate(const GpuLatticeConvolutionDescr
    const long int grid_size = static_cast<long int>(desc.cells());
    const long int field_batches = static_cast<long int>(3 * desc.basis * desc.ensembles);
    const long int kernel_batches = static_cast<long int>(9 * desc.basis * desc.basis);
+   const long int spectral_size = static_cast<long int>((desc.n1 / 2 + 1) * desc.n2 * desc.n3);
 
-   spin_fft.Allocate(grid_size, field_batches);
-   field_fft.Allocate(grid_size, field_batches);
-   kernel_fft.Allocate(grid_size, kernel_batches);
+   field_real.Allocate(grid_size, field_batches);
+   spin_fft.Allocate(spectral_size, field_batches);
+   field_fft.Allocate(spectral_size, field_batches);
+   kernel_fft.Allocate(spectral_size, kernel_batches);
+   kernel_real.Allocate(grid_size, kernel_batches);
    allocated = true;
-   kernel_fft.zeros();
+   kernel_real.zeros();
 
    if(desc.c1 && desc.c2 && desc.c3 && desc.basis_positions) {
       cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
@@ -393,16 +397,21 @@ bool GpuLatticeConvolutionHamiltonian::initiate(const GpuLatticeConvolutionDescr
    const int istride = 1;
    const int ostride = 1;
    const int idist = static_cast<int>(grid_size);
-   const int odist = static_cast<int>(grid_size);
+   const int odist = static_cast<int>(spectral_size);
    int* inembed = n;
-   int* onembed = n;
+   int onembed[] = {static_cast<int>(desc.n3), static_cast<int>(desc.n2),
+                    static_cast<int>(desc.n1 / 2 + 1)};
 
-   assertGpuFft(GPUFFT_PLAN_MANY(&plan, rank, n, inembed, istride, idist,
-                                 onembed, ostride, odist, GPUFFT_C2C,
+   assertGpuFft(GPUFFT_PLAN_MANY(&forward_plan, rank, n, inembed, istride, idist,
+                                 onembed, ostride, odist, GPUFFT_R2C,
                                  static_cast<int>(field_batches)));
-   assertGpuFft(GPUFFT_SET_STREAM(plan, stream));
+   assertGpuFft(GPUFFT_SET_STREAM(forward_plan, stream));
+   assertGpuFft(GPUFFT_PLAN_MANY(&backward_plan, rank, n, onembed, ostride, odist,
+                                 inembed, istride, idist, GPUFFT_C2R,
+                                 static_cast<int>(field_batches)));
+   assertGpuFft(GPUFFT_SET_STREAM(backward_plan, stream));
    assertGpuFft(GPUFFT_PLAN_MANY(&kernel_plan, rank, n, inembed, istride, idist,
-                                 onembed, ostride, odist, GPUFFT_C2C,
+                                 onembed, ostride, odist, GPUFFT_R2C,
                                  static_cast<int>(kernel_batches)));
    assertGpuFft(GPUFFT_SET_STREAM(kernel_plan, stream));
 
@@ -412,16 +421,20 @@ bool GpuLatticeConvolutionHamiltonian::initiate(const GpuLatticeConvolutionDescr
 
 void GpuLatticeConvolutionHamiltonian::release() {
    if(initiated) {
-      GPUFFT_DESTROY(plan);
+      GPUFFT_DESTROY(forward_plan);
+      GPUFFT_DESTROY(backward_plan);
       GPUFFT_DESTROY(kernel_plan);
       initiated = false;
-      plan = {};
+      forward_plan = {};
+      backward_plan = {};
       kernel_plan = {};
    }
    if(allocated) {
+      field_real.Free();
       spin_fft.Free();
       field_fft.Free();
       kernel_fft.Free();
+      kernel_real.Free();
       allocated = false;
    }
    if(geometry_allocated) {
@@ -465,7 +478,7 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
                                                               GPU_STREAM_T stream) {
    if(!initiated) return false;
 
-   kernel_fft.zeros_async(stream);
+   kernel_real.zeros_async(stream);
    if(rij_allocated) {
       interaction_rij.Free();
       rij_allocated = false;
@@ -487,7 +500,7 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
       interaction_rij.Allocate(static_cast<long int>(3), static_cast<long int>(desc.basis * total));
       rij_allocated = true;
       const dim3 blocks((total + threads - 1) / threads, desc.basis);
-      fill_isotropic_dm_kernel<<<blocks, threads, 0, stream>>>(kernel_fft.data(),
+      fill_isotropic_dm_kernel<<<blocks, threads, 0, stream>>>(kernel_real.data(),
                                                                exchange.data(),
                                                                exchange_pos.data(),
                                                                exchange_mnn,
@@ -508,7 +521,7 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
       unsupported.Allocate(static_cast<long int>(1));
       unsupported.zeros_async(stream);
       const dim3 blocks((desc.basis + threads - 1) / threads);
-      add_uniaxial_anisotropy_kernel<<<blocks, threads, 0, stream>>>(kernel_fft.data(),
+      add_uniaxial_anisotropy_kernel<<<blocks, threads, 0, stream>>>(kernel_real.data(),
                                                                      anisotropy_k.data(),
                                                                      anisotropy_axis.data(),
                                                                      anisotropy_type.data(),
@@ -525,7 +538,7 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
       }
    }
 
-   assertGpuFft(GPUFFT_EXEC_C2C(kernel_plan, kernel_fft.data(), kernel_fft.data(), GPUFFT_FORWARD));
+   assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
    return true;
 }
 
@@ -539,7 +552,7 @@ bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4
                                                          GPU_STREAM_T stream) {
    if(!initiated || exchange_mnn == 0) return false;
 
-   kernel_fft.zeros_async(stream);
+   kernel_real.zeros_async(stream);
    if(rij_allocated) {
       interaction_rij.Free();
       rij_allocated = false;
@@ -559,7 +572,7 @@ bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4
    geom.bc1 = desc.bc1;
    geom.bc2 = desc.bc2;
    geom.bc3 = desc.bc3;
-   fill_tensor_kernel<<<grid, threads, 0, stream>>>(kernel_fft.data(),
+   fill_tensor_kernel<<<grid, threads, 0, stream>>>(kernel_real.data(),
                                                     exchange_tensor.data(),
                                                     exchange_pos.data(),
                                                     exchange_mnn,
@@ -572,7 +585,7 @@ bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4
       unsupported.Allocate(static_cast<long int>(1));
       unsupported.zeros_async(stream);
       const dim3 ani_grid((desc.basis + threads - 1) / threads);
-      add_uniaxial_anisotropy_kernel<<<ani_grid, threads, 0, stream>>>(kernel_fft.data(),
+      add_uniaxial_anisotropy_kernel<<<ani_grid, threads, 0, stream>>>(kernel_real.data(),
                                                                        anisotropy_k.data(),
                                                                        anisotropy_axis.data(),
                                                                        anisotropy_type.data(),
@@ -588,7 +601,7 @@ bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4
          return false;
       }
    }
-   assertGpuFft(GPUFFT_EXEC_C2C(kernel_plan, kernel_fft.data(), kernel_fft.data(), GPUFFT_FORWARD));
+   assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
    return true;
 }
 
@@ -602,17 +615,21 @@ void GpuLatticeConvolutionHamiltonian::apply(deviceLattice& gpuLattice,
    const unsigned int packed_total = grid_size * desc.basis * desc.ensembles * 3;
    const dim3 packed_grid((packed_total + threads - 1) / threads);
 
-   pack_spins_to_fft<<<packed_grid, threads, 0, stream>>>(gpuLattice.emomM.data(), spin_fft.data(),
+   // This real buffer is reusable: R2C has consumed the packed spins before
+   // the inverse transform writes the real field back into it.
+   pack_spins_to_real<<<packed_grid, threads, 0, stream>>>(gpuLattice.emomM.data(), field_real.data(),
                                                           grid_size, desc.basis, desc.ensembles);
-   assertGpuFft(GPUFFT_EXEC_C2C(plan, spin_fft.data(), spin_fft.data(), GPUFFT_FORWARD));
+   assertGpuFft(GPUFFT_EXEC_R2C(forward_plan, field_real.data(), spin_fft.data()));
 
-   multiply_spectral_kernel<<<packed_grid, threads, 0, stream>>>(spin_fft.data(), field_fft.data(),
-                                                                 kernel_fft.data(), grid_size,
+   const unsigned int spectral_size = (desc.n1 / 2 + 1) * desc.n2 * desc.n3;
+   const dim3 spectral_grid((spectral_size * desc.basis * desc.ensembles * 3 + threads - 1) / threads);
+   multiply_spectral_kernel<<<spectral_grid, threads, 0, stream>>>(spin_fft.data(), field_fft.data(),
+                                                                 kernel_fft.data(), spectral_size,
                                                                  desc.basis, desc.ensembles);
-   assertGpuFft(GPUFFT_EXEC_C2C(plan, field_fft.data(), field_fft.data(), GPUFFT_BACKWARD));
+   assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, field_fft.data(), field_real.data()));
 
    const real scale = (real)1.0 / static_cast<real>(grid_size);
-   unpack_fft_field<<<packed_grid, threads, 0, stream>>>(field_fft.data(), external_field.data(),
+   unpack_real_field<<<packed_grid, threads, 0, stream>>>(field_real.data(), external_field.data(),
                                                          gpuLattice.beff.data(), gpuLattice.eneff.data(),
                                                          grid_size, desc.basis, desc.ensembles, scale);
 }
