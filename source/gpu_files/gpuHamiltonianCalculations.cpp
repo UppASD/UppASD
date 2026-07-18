@@ -1342,7 +1342,9 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       //	std::printf("\n");
       // }
 
-      parallel.gpuSiteCall(SetupNeighbourListExchangeTensor(tenEx, redHam));
+      if(!gpuHamiltonian.neighbourListsPrepared) {
+         parallel.gpuSiteCall(SetupNeighbourListExchangeTensor(tenEx, redHam));
+      }
 
       // Did we get the memory?
       if(tenEx.tensor.empty() || tenEx.neighbourCount.empty() || tenEx.neighbourPos.empty()) {
@@ -1376,6 +1378,8 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
             }
          }
       }
+      gpuHamiltonian.neighbourListsPrepared = true;
+
       // Flag
       initiated = true;
       return true;
@@ -1394,7 +1398,9 @@ else{
    }
 
    // List setup kernel call
-   parallel.gpuSiteCall(SetupNeighbourList(ex, redHam));
+   if(!gpuHamiltonian.neighbourListsPrepared) {
+      parallel.gpuSiteCall(SetupNeighbourList(ex, redHam));
+   }
 
    //------- DM Interaction -------//
    dm.mnn = 0;
@@ -1413,7 +1419,9 @@ else{
 
          return false;
       }
-      parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
+      if(!gpuHamiltonian.neighbourListsPrepared) {
+         parallel.gpuSiteCall(SetupNeighbourListDM(dm, redHam));
+      }
    }
 
    if(backend.convolution_ready) {
@@ -1443,6 +1451,8 @@ else{
          }
       }
    }
+
+   gpuHamiltonian.neighbourListsPrepared = true;
 
    // Flag
    initiated = true;

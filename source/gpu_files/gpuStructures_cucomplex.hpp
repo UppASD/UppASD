@@ -141,6 +141,7 @@ struct hostCorrelations {
 };
    
 struct deviceHamiltonian {
+   bool neighbourListsPrepared = false;
    GpuTensor<unsigned int, 1>     aHam;                             //reduced Hamiltonian
    GpuTensor<real, 2>             ncoup;            //Jij
    GpuTensor<unsigned int, 2>     nlist;

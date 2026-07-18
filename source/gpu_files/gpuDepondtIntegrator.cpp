@@ -84,6 +84,13 @@ public:
       real z = my_bdup[2];
       real norm = sqrt(x * x + y * y + z * z);
 
+      if(norm == (real)0.0) {
+         my_mrod[0] = my_emom[0];
+         my_mrod[1] = my_emom[1];
+         my_mrod[2] = my_emom[2];
+         return;
+      }
+
       // Normalize components
       x /= norm;
       y /= norm;
@@ -267,7 +274,7 @@ void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
 }
 
 void GpuDepondtIntegrator::rotate(const GpuTensor<real, 3>& emom, real delta_t) {
-   parallel.gpuAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
+   parallel.gpuAtomCall(Rotate(mrod, emom, bdup, delta_t, gamma, damping));
 }
 
 // Constructs the effective field (including damping term)
@@ -280,4 +287,3 @@ void GpuDepondtIntegrator::buildbeff(const GpuTensor<real, 3>& emom,
       parallel.gpuElementCall(GpuCommon::AddTo(bdup, btorque));
    }
 }
-

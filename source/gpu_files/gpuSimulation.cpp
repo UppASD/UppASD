@@ -417,7 +417,8 @@ void GpuSimulation::release() {
     if(isInitiated && !isFreed)
     isInitiated = false;
     isFreed = true;
-    gpuHamiltonian.aHam.Free();                         
+    gpuHamiltonian.neighbourListsPrepared = false;
+    gpuHamiltonian.aHam.Free();
          
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
@@ -482,7 +483,9 @@ void GpuSimulation::copyFromFortran() {
    if(isInitiated) {
    //printf("HERE - 5\n");
 
-    gpuHamiltonian.aHam.copy_sync(cpuHamiltonian.aHam);     
+    gpuHamiltonian.neighbourListsPrepared = false;
+
+    gpuHamiltonian.aHam.copy_sync(cpuHamiltonian.aHam);
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.copy_sync(cpuHamiltonian.j_tensor);            
         gpuHamiltonian.nlist.copy_sync(cpuHamiltonian.nlist);  
