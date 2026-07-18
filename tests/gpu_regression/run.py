@@ -57,7 +57,7 @@ def load_cases(path: Path) -> tuple[dict, list[dict]]:
 def set_input_value(text: str, key: str, value: str) -> str:
     """Replace active input records for key, or append an input record."""
     pattern = re.compile(rf"^(\s*)({re.escape(key)})(\s+).*$", re.IGNORECASE | re.MULTILINE)
-    replacement = rf"\1{key}\3{value}"
+    replacement = rf"\g<1>{key}\g<3>{value}"
     text, count = pattern.subn(replacement, text)
     return text if count else f"{text.rstrip()}\n{key} {value}\n"
 
