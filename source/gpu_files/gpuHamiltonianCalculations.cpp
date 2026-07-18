@@ -13,37 +13,10 @@ using ParallelizationHelper = GpuParallelizationHelper;
 namespace hamdev = gpu::hamiltonian;
 
 __device__ void sum_warp_energy(real& val){
-
-   __shared__ real warp_sums[32];
-   int tid  = threadIdx.x;
-   int lane = tid & (WARPSIZE - 1);
-   int warp = tid / WARPSIZE;
-
    #pragma unroll
    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
    {
       val += SHFL_DOWN(val, offset);
-   }
-
-   if (lane == 0)
-   {
-      warp_sums[warp] = val;
-   }
-
-   __syncthreads();
-
-   if (warp == 0)
-   {
-      int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
-
-      val = (lane < num_warps) ? warp_sums[lane] : (real)0;
-
-      #pragma unroll
-      for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-      {
-         val += SHFL_DOWN(val, offset);
-      }
-
    }
 
 }
@@ -309,7 +282,7 @@ public:
 
       if(!measure) return;
 
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
       Sx = emomM[atom * 3 + 0];
       Sy = emomM[atom * 3 + 1];
@@ -324,7 +297,7 @@ public:
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
        //const real fcinv = mub / mry;
-       if (threadIdx.x == 0)
+       if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            exchange = exchange / static_cast<real>(N);
            external = external / static_cast<real>(N);
@@ -451,7 +424,7 @@ public:
 
       if(!measure) return;
 
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
       Sx = emomM[atom * 3 + 0];
       Sy = emomM[atom * 3 + 1];
@@ -469,7 +442,7 @@ public:
       //const real mub = 9.274009994e-24;
       //const real mry = 2.179872325e-21;
       //const real fcinv = mub / mry;
-      if (threadIdx.x == 0)
+      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            exchange = exchange / static_cast<real>(N);
            DM = DM / static_cast<real>(N); 
@@ -627,7 +600,7 @@ public:
 
       if(!measure) return;
 
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
        real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
@@ -642,7 +615,7 @@ public:
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
        //const real fcinv = mub / mry;
-       if (threadIdx.x == 0)
+       if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            exchange = exchange / static_cast<real>(N);
            anisotropy = anisotropy / static_cast<real>(N);
@@ -844,7 +817,7 @@ public:
       eneff[atom * 3 + 2] = z + az_en + ext_z;
       
       if(!measure) return;
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
       const auto spin = hamdev::make_vec3(Sx, Sy, Sz);
       real exchange = hamdev::dot(hamdev::make_vec3(x - dm_x, y - dm_y, z - dm_z), spin) * (real)-0.5;
@@ -861,7 +834,7 @@ public:
       //const real mub = 9.274009994e-24;
       //const real mry = 2.179872325e-21;
       //const real fcinv = mub / mry;
-      if (threadIdx.x == 0)
+      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            exchange =exchange / static_cast<real>(N);
            anisotropy = anisotropy / static_cast<real>(N);
@@ -974,7 +947,7 @@ public:
 
       if(!measure) return;
 
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
       Sx = emomM[atom * 3 + 0];
       Sy = emomM[atom * 3 + 1];
@@ -989,7 +962,7 @@ public:
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
        //const real fcinv = mub / mry;
-       if (threadIdx.x == 0)
+      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            tensor = tensor / static_cast<real>(N);
            external = external / static_cast<real>(N);
@@ -1181,7 +1154,7 @@ public:
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
 
-      int mInd = blockIdx.y;
+      int mInd = ensemble;
 
       Sx = emomM[atom * 3 + 0];
       Sy = emomM[atom * 3 + 1];
@@ -1198,7 +1171,7 @@ public:
        //const real mub = 9.274009994e-24;
        //const real mry = 2.179872325e-21;
        //const real fcinv = mub / mry;
-       if (threadIdx.x == 0)
+      if ((threadIdx.x & (WARPSIZE - 1)) == 0)
        {
            tensor = tensor / static_cast<real>(N);
            anisotropy = anisotropy / static_cast<real>(N);
