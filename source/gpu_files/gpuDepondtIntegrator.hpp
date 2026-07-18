@@ -46,6 +46,7 @@ public:
    // Parallelization helpers
    class Rotate;
    class BuildEffectiveField;
+   class EvolveFirst;
 
    // Constructor
    GpuDepondtIntegrator();

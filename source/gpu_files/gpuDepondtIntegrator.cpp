@@ -119,6 +119,104 @@ public:
    }
 };
 
+// Predictor-only fused pass.  blocal must remain available after this launch:
+// evolveSecond uses the same thermal field when constructing its corrected
+// effective field.  bdup and mrod are deliberately written to the same
+// temporary buffers as the former individual passes, so their swaps below
+// retain their original ownership semantics.
+class GpuDepondtIntegrator::EvolveFirst : public ParallelizationHelper::Atom {
+private:
+   real* mrod;
+   real* blocal;
+   real* bdup;
+   real* emomM;
+   const real* emom;
+   const real* beff;
+   const real* thermalField;
+   const real* btorque;
+   const real* mmom;
+   real timestep;
+   real gamma;
+   real damping;
+   bool addStt;
+
+public:
+   EvolveFirst(GpuTensor<real, 3>& pMrod,
+               GpuTensor<real, 3>& pLocal,
+               GpuTensor<real, 3>& pBdup,
+               GpuTensor<real, 3>& pEmomM,
+               const GpuTensor<real, 3>& pEmom,
+               const GpuTensor<real, 3>& pBeff,
+               const GpuTensor<real, 3>& pThermalField,
+               const GpuTensor<real, 3>& pTorque,
+               const GpuTensor<real, 2>& pMom,
+               real pTimestep, real pGamma, real pDamping, bool pAddStt)
+       : mrod(pMrod.data()), blocal(pLocal.data()), bdup(pBdup.data()),
+         emomM(pEmomM.data()), emom(pEmom.data()), beff(pBeff.data()),
+         thermalField(pThermalField.data()), btorque(pTorque.data()),
+         mmom(pMom.data()), timestep(pTimestep), gamma(pGamma),
+         damping(pDamping), addStt(pAddStt) {}
+
+   __device__ void each(unsigned int atom) {
+      const unsigned int element = atom * 3;
+      const real bx = beff[element] + thermalField[element];
+      const real by = beff[element + 1] + thermalField[element + 1];
+      const real bz = beff[element + 2] + thermalField[element + 2];
+      blocal[element] = bx;
+      blocal[element + 1] = by;
+      blocal[element + 2] = bz;
+
+      const real mx = emom[element];
+      const real my = emom[element + 1];
+      const real mz = emom[element + 2];
+      real x = bx + damping * (my * bz - mz * by);
+      real y = by + damping * (mz * bx - mx * bz);
+      real z = bz + damping * (mx * by - my * bx);
+      if(addStt) {
+         x += btorque[element];
+         y += btorque[element + 1];
+         z += btorque[element + 2];
+      }
+      bdup[element] = x;
+      bdup[element + 1] = y;
+      bdup[element + 2] = z;
+
+      const real norm = sqrt(x * x + y * y + z * z);
+      if(norm == real(0.0)) {
+         mrod[element] = mx;
+         mrod[element + 1] = my;
+         mrod[element + 2] = mz;
+      } else {
+         x /= norm;
+         y /= norm;
+         z /= norm;
+         real angle = norm * timestep * gamma;
+         angle *= real(1.0) / (real(1.0) + damping * damping);
+         real cosv, sinv;
+         sincos(angle, &sinv, &cosv);
+         const real u = real(1.0) - cosv;
+
+         const real r0 = mx * (x * x * u + cosv) +
+                         my * (x * y * u - z * sinv) +
+                         mz * (x * z * u + y * sinv);
+         const real r1 = mx * (x * y * u + z * sinv) +
+                         my * (y * y * u + cosv) +
+                         mz * (y * z * u - x * sinv);
+         const real r2 = mx * (x * z * u - y * sinv) +
+                         my * (z * y * u + x * sinv) +
+                         mz * (z * z * u + cosv);
+         mrod[element] = r0;
+         mrod[element + 1] = r1;
+         mrod[element + 2] = r2;
+      }
+
+      const real moment = mmom[atom];
+      emomM[element] = mrod[element] * moment;
+      emomM[element + 1] = mrod[element + 1] * moment;
+      emomM[element + 2] = mrod[element + 2] * moment;
+   }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,25 +306,16 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    thermfield.randomize(gpuLattice.mmom);
    stopwatch.add("thermfield");
 
-   GpuCommon::Add cm(blocal, gpuLattice.beff, thermfield.getField());
+   // Fuse the predictor's independent per-atom passes on workStream.  The
+   // helper preserves the explicit-stream ordering with thermfield.randomize.
+   parallel.gpuAtomCall(EvolveFirst(mrod, blocal, bdup, gpuLattice.emomM,
+                                    gpuLattice.emom, gpuLattice.beff,
+                                    thermfield.getField(), gpuLattice.btorque,
+                                    gpuLattice.mmom, timestep, gamma, damping,
+                                    stt != 'N'));
+   stopwatch.add("predictor");
 
-   //_dpr;
-   // Construct local field
-   parallel.gpuElementCall(GpuCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
-   stopwatch.add("localfield");
-
-   //_dpr;
-   // Construct effective field (including damping term)
-   buildbeff(gpuLattice.emom, gpuLattice.btorque);
-   stopwatch.add("buildbeff");
-
-   //_dpr;
-   // Set up rotation matrices and perform rotations
-   rotate(gpuLattice.emom, timestep);
-   stopwatch.add("rotate");
-
-   // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
-   parallel.gpuElementCall(GpuCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
+   // Preserve the original buffer ownership and predictor/corrector sequence.
    gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed
    gpuLattice.emom.swap(mrod);   // Previous mrod will not be needed
    gpuLattice.b2eff.swap(bdup);  // Previous bdup will not be needed
