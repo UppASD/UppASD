@@ -633,7 +633,7 @@ contains
       integer ::ntmp
 
       !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
-      whichsim = 0
+      whichsim = 1
       whichphase = 1
       !cgk_flag = 0
 

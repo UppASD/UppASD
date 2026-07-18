@@ -83,8 +83,8 @@ public:
     void release();
 
     // Algorithm
-    void MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub);
+    void MCrun(deviceLattice& gpuLattice, const deviceHamiltonian& gpuHamiltonian,
+               bool doAnisotropy, real beta, unsigned int sub);
     void mom_update(deviceLattice& gpuLattice);
 
 };
-

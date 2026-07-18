@@ -75,8 +75,8 @@ def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> Non
     controlled = {
         "temp": "0.0",
         "ip_temp": "0.0",
-        "Nstep": steps,
         "mcnstep": steps,
+        "Nstep": steps,
         "plotenergy": "1",
         "do_gpu": "Y" if gpu else "N",
         "do_gpu_llg": "Y",
@@ -111,6 +111,18 @@ def numeric_rows(path: Path, columns: slice | None = None) -> list[float]:
             continue
         values.extend(row[columns] if columns else row)
     return values
+
+
+def numeric_table(path: Path) -> list[list[float]]:
+    rows: list[list[float]] = []
+    for line in path.read_text().splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        try:
+            rows.append([float(token.replace("D", "E").replace("d", "e")) for token in line.split()])
+        except ValueError:
+            continue
+    return rows
 
 
 def compare_values(label: str, cpu: Iterable[float], gpu: Iterable[float], rtol: float, atol: float) -> Difference:
@@ -153,6 +165,20 @@ def compare_outputs(case: dict, defaults: dict, cpu_dir: Path, gpu_dir: Path) ->
     return result
 
 
+def assert_easy_axis(case: dict, directory: Path) -> Difference:
+    """Check the final single-spin state has relaxed to either easy-axis pole."""
+    threshold = float(case["minimum_abs_mz"])
+    rows = numeric_table(single_file(directory, "restart.*.out", case["name"]))
+    if not rows or len(rows[-1]) < 7:
+        raise AssertionError(f"{case['name']}: restart output lacks a final moment row")
+    mz = abs(rows[-1][6])
+    if not math.isfinite(mz):
+        raise AssertionError(f"{case['name']}: final m_z is non-finite ({rows[-1][6]!r})")
+    if mz < threshold:
+        raise AssertionError(f"{case['name']}: |m_z|={mz:.6f}, expected at least {threshold:.6f}")
+    return Difference("easy-axis |m_z|", 1.0 - mz, 0.0, 1)
+
+
 def main() -> int:
     args = parse_args()
     defaults, cases = load_cases(args.cases)
@@ -180,6 +206,8 @@ def main() -> int:
                 run(binary, cpu_dir)
                 run(binary, gpu_dir)
                 diffs = compare_outputs(case, defaults, cpu_dir, gpu_dir)
+                if "minimum_abs_mz" in case:
+                    diffs.extend((assert_easy_axis(case, cpu_dir), assert_easy_axis(case, gpu_dir)))
                 summary = "; ".join(f"{d.label}: n={d.count}, abs={d.max_abs:.2e}, rel={d.max_rel:.2e}" for d in diffs)
                 print(f"PASS {case['name']}: {summary}")
             except Exception as error:  # Keep running so a GPU session gets a complete table.

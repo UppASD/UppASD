@@ -1,0 +1,28 @@
+simid single_spin_uniaxial_mc
+ncell 1 1 1
+BC 0 0 0
+cell 0.0 0.0 0.0
+     0.0 0.0 0.0
+     0.0 0.0 0.0
+Sym 0
+
+posfile ./posfile
+exchange ./jfile
+momfile ./momfile
+anisotropy ./kfile
+
+Mensemble 1
+Initmag 3
+ip_mode N
+
+mode M
+temp 0.0
+mcnstep 1000
+Nstep 1000
+
+do_avrg N
+do_cumu N
+do_tottraj N
+plotenergy 1
+
+do_gpu_mc Y

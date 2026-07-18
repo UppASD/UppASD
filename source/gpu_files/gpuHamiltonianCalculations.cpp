@@ -1450,7 +1450,8 @@ else{
 }
 }
 
-void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure) {
+void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies,
+                                        bool measure, bool includeAnisotropy) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
    if(!measure && backend.convolution_ready && backend.convolution_kernel_ready) {
@@ -1469,7 +1470,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    if(do_j_tensor) {
      //if(measure) gpuEnergies.tensorM.zeros();
 
-      if(do_aniso != 0) {
+      if(do_aniso != 0 && includeAnisotropy) {
          //if(measure) gpuEnergies.aniM.zeros();
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
                                           gpuLattice.emomM,external_field, tenEx, aniso, redHam, measure));
@@ -1484,7 +1485,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
      // if(measure) gpuEnergies.exchM.zeros();
       if(do_dm){
         //if(measure) gpuEnergies.dmM.zeros();
-         if(do_aniso !=0){
+         if(do_aniso != 0 && includeAnisotropy){
             //if(measure) gpuEnergies.aniM.zeros();
             parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));
@@ -1498,7 +1499,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
                                           }
       }
       else{
-         if(do_aniso !=0){
+         if(do_aniso != 0 && includeAnisotropy){
             //if(measure) gpuEnergies.aniM.zeros();
             parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.energyM,
                                              gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, measure));

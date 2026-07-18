@@ -23,6 +23,32 @@
 #include "gpuCorrelations.hpp"
 using ParallelizationHelper = GpuParallelizationHelper;
 
+namespace {
+void requireSupportedMcHamiltonian(unsigned int doAniso,
+                                   const Tensor<unsigned int, 1>& taniso,
+                                   bool supportsUniaxial) {
+   if(!doAniso) return;
+
+   for(long int site = 0; site < taniso.extent(0); ++site) {
+      if(taniso(site) == 2 || taniso(site) == 7) {
+         std::fprintf(stderr,
+                      "GPU Monte Carlo does not yet support cubic anisotropy; use the CPU Monte Carlo path.\n");
+         std::exit(EXIT_FAILURE);
+      }
+      if(taniso(site) != 0 && taniso(site) != 1) {
+         std::fprintf(stderr, "GPU Monte Carlo encountered unsupported anisotropy type %u.\n", taniso(site));
+         std::exit(EXIT_FAILURE);
+      }
+   }
+
+   if(!supportsUniaxial) {
+      std::fprintf(stderr,
+                   "GPU brute-force Monte Carlo does not yet support anisotropy; use the CPU Monte Carlo path.\n");
+      std::exit(EXIT_FAILURE);
+   }
+}
+}
+
 GpuSimulation::GpuMCSimulation::GpuMCSimulation() {
    // isInitiatedSD = false;
 }
@@ -79,6 +105,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
+   requireSupportedMcHamiltonian(gpuSim.Flags.do_aniso, gpuSim.cpuHamiltonian.taniso, true);
 
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
@@ -117,7 +144,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
    mcs = gpuSim.cpuLattice.ipmcnstep(it);
    beta = 1/(gpuSim.cpuLattice.ipTemp(it) * gpuSim.SimParam.k_bolt);
    // Apply Hamiltonian to obtain effective field
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false, false);
    stopwatch.add("hamiltonian");
    //printf("HERE - 3\n");
 
@@ -128,12 +155,12 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
       //printMdStatus(mstep, gpuSim);
          // Perform Metropolis sweep
          for(std::size_t sub = 0; sub < num_subL; sub++){
-            gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
+            gpuMC.MCrun(gpuSim.gpuLattice, gpuSim.gpuHamiltonian, gpuSim.Flags.do_aniso, beta, sub);
             stopwatch.add("montecarlo");
    //printf("HERE - 4\n");
 
              // Apply Hamiltonian to obtain effective field
-            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+            hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false, false);
             stopwatch.add("hamiltonian");
          }
 
@@ -177,6 +204,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
+   requireSupportedMcHamiltonian(gpuSim.Flags.do_aniso, gpuSim.cpuHamiltonian.taniso, true);
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
    // Timer
@@ -223,9 +251,13 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       // Measure
       //printf("STEP = %i\n", mstep);
       measure_ene = ((mstep-1)%gpuSim.SimParam.ene_step == 0);
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene, measure_ene);
       measurement->measure(mstep);
       correlation->measure(mstep);
+
+      if(measure_ene && gpuSim.Flags.do_aniso) {
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false, false);
+      }
 
       stopwatch.add("measurement");
 
@@ -237,9 +269,9 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       //stopwatch.add("hamiltonian");
       for(unsigned int sub = 0; sub < num_subL; sub++){
          // Perform Metropolis sweep
-         gpuMC.MCrun(gpuSim.gpuLattice, beta, sub);
+         gpuMC.MCrun(gpuSim.gpuLattice, gpuSim.gpuHamiltonian, gpuSim.Flags.do_aniso, beta, sub);
          stopwatch.add("montecarlo");
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false, false);
          stopwatch.add("hamiltonian");
 
 
@@ -292,6 +324,7 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
+   requireSupportedMcHamiltonian(gpuSim.Flags.do_aniso, gpuSim.cpuHamiltonian.taniso, false);
 
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
@@ -386,6 +419,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSimulation: not initiated!\n");
       return;
    }
+   requireSupportedMcHamiltonian(gpuSim.Flags.do_aniso, gpuSim.cpuHamiltonian.taniso, false);
    // Initiate default parallelization helper
    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
    // Timer

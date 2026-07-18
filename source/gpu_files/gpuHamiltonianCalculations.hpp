@@ -106,5 +106,6 @@ public:
       return initiated;
    }
    // Calculate "heisge"
-   void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure);
+   void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure,
+               bool includeAnisotropy = true);
 };

@@ -54,7 +54,13 @@ __global__ void InitGenerator(GPU_RAND_STATE* state, unsigned long long seed, un
         GPU_RAND_INIT(seed, idx, 0, &state[idx]);
 }
 
-__global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom, GpuTensor<real, 3> eneff, GpuTensor<unsigned int, 2> subLIdx, real beta, unsigned int N, unsigned int tasknum, unsigned int subL, unsigned int max_spins, real k_bolt, real mub) {
+__global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2> mmom,
+                        GpuTensor<real, 3> emomM, GpuTensor<real, 3> emom,
+                        GpuTensor<real, 3> eneff, GpuTensor<real, 2> kaniso,
+                        GpuTensor<real, 2> eaniso, GpuTensor<unsigned int, 1> taniso,
+                        GpuTensor<unsigned int, 2> subLIdx,
+                        bool doAnisotropy, real beta, unsigned int N, unsigned int tasknum, unsigned int subL,
+                        unsigned int max_spins, real mub) {
     int idx = threadIdx.x + blockDim.x * blockIdx.x;
     if (idx < tasknum) {
         unsigned int mInd = blockIdx.y;
@@ -75,8 +81,21 @@ __global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2>
 
         real hamOld = fx * emomM(0, nInd, mInd) + fy * emomM(1, nInd, mInd) + fz * emomM(2, nInd, mInd);
         real hamNew = fx * xNew + fy * yNew + fz * zNew;
-       // printf("exp = %lf\n", -beta * mub*(hamNew - hamOld));
-        if (exp(beta * mub*(hamNew - hamOld)) < GPU_RAND_UNIFORM_DOUBLE(d_state.data() + dIdx)) {
+        real anisotropyDelta = (real)0.0;
+        if(doAnisotropy && taniso(nInd) == 1) {
+            const real ex = eaniso(0, nInd);
+            const real ey = eaniso(1, nInd);
+            const real ez = eaniso(2, nInd);
+            const real oldProjection = emomM(0, nInd, mInd) * ex + emomM(1, nInd, mInd) * ey + emomM(2, nInd, mInd) * ez;
+            const real newProjection = xNew * ex + yNew * ey + zNew * ez;
+            const real oldProjection2 = oldProjection * oldProjection;
+            const real newProjection2 = newProjection * newProjection;
+            anisotropyDelta = kaniso(0, nInd) * (newProjection2 - oldProjection2) +
+                              kaniso(1, nInd) * (newProjection2 * newProjection2 - oldProjection2 * oldProjection2);
+        }
+        // eneff deliberately excludes anisotropy in GPU-MC.  The on-site term above
+        // matches MonteCarlo/montecarlo_common.f90 exactly, rather than linearizing it.
+        if (exp(beta * mub * (hamNew - hamOld - anisotropyDelta)) < GPU_RAND_UNIFORM_DOUBLE(d_state.data() + dIdx)) {
           //  printf("NOT sweeped\n");
 
             return;
@@ -398,14 +417,18 @@ void GpuMetropolis::release() {
 
 }
 
-void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub) {
+void GpuMetropolis::MCrun(deviceLattice& gpuLattice, const deviceHamiltonian& gpuHamiltonian,
+                          bool doAnisotropy, real beta, unsigned int sub) {
 
     
         
         blocks = { static_cast <unsigned int>(block_subL_cpu(sub)),  static_cast <unsigned int>(M), static_cast <unsigned int>(1) };
         task_num = subL_spnum_cpu(sub);
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
-        MCSweep<<<blocks, threads>>>(d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
+        MCSweep<<<blocks, threads>>>(d_state, gpuLattice.mmom, gpuLattice.emomM,
+                                     gpuLattice.emom, gpuLattice.eneff,
+                                     gpuHamiltonian.kaniso, gpuHamiltonian.eaniso, gpuHamiltonian.taniso,
+                                     subIdx_gpu, doAnisotropy, beta, N, task_num, sub, max_spins, mub);
         //hamCalc.heisge(gpuLattice);
 
     
