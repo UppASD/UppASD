@@ -76,8 +76,6 @@ endif()
 #fortMatrix.hpp
 #hamiltonianCalculations.cpp
 #hamiltonianCalculations.hpp
-#hipParallelizationHelper.hip.cpp
-#hipParallelizationHelper.hpp
 #hostMatrix.hpp
 #matrix.hpp
 #mdSimulation.cpp
