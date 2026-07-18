@@ -20,6 +20,7 @@ private:
     const GpuTensor<real, 3>& emomM;
     const GpuTensor<real, 3>& emom;
     const GpuTensor<real, 2>& mmom;
+    GPU_STREAM_T workStream;
 
     const std::size_t N;
     const std::size_t M;

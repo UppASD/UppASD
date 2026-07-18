@@ -310,7 +310,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         spinwaittable_cpu.set(FortranData::spinwaittable, nspinwait);
         spinwait_gpu.Allocate(3, N, M, nspinwait);
         spinwait_gpu.zeros();
-        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
+        fill_spinwait<<<sw_blocks, sw_threads, 0, workStream>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
         
         sw_curIdx = 0;
         printf("\n do_ac = %c, swtt size = %ld\n ", do_autocorr,
@@ -500,10 +500,6 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     
 
-    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-      release();
-    }
-
 }
 
 
@@ -565,10 +561,6 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     cpuMeas.flushMeasurements(mstep + 1); 
 
-    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
-    {
-        release();
-    }
 }
 
 
@@ -620,11 +612,11 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
     {
         //throw std::invalid_argument("Not yet implemented.");
 
-        mm::binderCumulantEnergy_partial<<<cumu_ene_kernel_blocks, cumu_ene_kernel_threads>>>(
+        mm::binderCumulantEnergy_partial<<<cumu_ene_kernel_blocks, cumu_ene_kernel_threads, 0, workStream>>>(
                 emomMEnsembleSums, gpuEnergies.energyM, N, M, cumu_ene_partial_buff.data()
         );
 
-        mm::binderCumulantEnergy_finalize<<<1, cumu_ene_maxBlocks>>>(
+        mm::binderCumulantEnergy_finalize<<<1, cumu_ene_maxBlocks, 0, workStream>>>(
                                                                         cumu_ene_partial_buff.data(),
                                                                         cumu_ene_kernel_blocks.x,
                                                                         N,
@@ -696,9 +688,9 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads, 0, workStream>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
 
-    mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
+    mm::averageEnergy_final<<<1, ene_maxBlocks, 0, workStream>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
 
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
@@ -725,8 +717,8 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
         //if (mstep == sw_curr) printf("HERE!\n");
 
 
-        calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
-        calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+        calc_autocorr_block<<<ac_blocks, ac_threads, 0, workStream>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
+        calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks, 0, workStream>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
     
 
         fill_index(indxb_ac, mstep + 1, ac_count);
@@ -748,11 +740,11 @@ void GpuMeasurement::updateAC(std::size_t mstep)
         printf("sw_next = %i, mstep = %zu, swId = %i, \n\n", sw_next, mstep, sw_curIdx);
 
         sw_curIdx++;
-        fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);
+        fill_spinwait<<<sw_blocks, sw_threads, 0, workStream>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);
         sw_curr = sw_next;
         sw_next = spinwaittable_cpu(sw_curIdx); 
     }
-   
+
 }
    
 
@@ -778,6 +770,10 @@ void GpuMeasurement::calculateEmomMSum()
 
 void GpuMeasurement::saveToFile(MeasurementType mtype)
 {
+    // A host writer consumes these buffers.  Do not make unrelated streams
+    // wait; all producers above are ordered on workStream.
+    GPU_STREAM_SYNC(workStream);
+
     switch (mtype)
     {
     case MeasurementType::AverageMagnetization:
@@ -789,7 +785,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 mavg_count
         );
 
-        mavg_buff_gpu.zeros();
+        mavg_buff_gpu.zeros_async(workStream);
         mavg_buff_cpu.zeros();
         mavg_count = 0;
         mavg_iter.zeros();
@@ -814,7 +810,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 skyno_count
         );
 
-        skyno_buff_gpu.zeros();
+        skyno_buff_gpu.zeros_async(workStream);
         skyno_buff_cpu.zeros();
         skyno_iter.zeros();
         skyno_count = 0;
@@ -834,7 +830,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
             energy_count
         );
 
-        energy_buff_gpu.zeros();
+        energy_buff_gpu.zeros_async(workStream);
         energy_buff_cpu.zeros();
         energy_iter.zeros();
         energy_count = 0;
@@ -855,7 +851,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
             measurementWriter.write(&indxb_ac[i], &row, 1);
 
         }
-        autocorr_buff_gpu.zeros();
+        autocorr_buff_gpu.zeros_async(workStream);
         autocorr_buff_cpu.zeros();
         indxb_ac.zeros();
         ac_count = 0;

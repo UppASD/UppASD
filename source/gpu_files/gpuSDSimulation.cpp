@@ -166,7 +166,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
       }  
       
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream());
    // Explicitly export final initial-phase moments (emom/emom2/emomM/mmom/mmom2/mmomi)
    // so measurement phase can restart from this exact state.
    gpuSim.copyToFortran();
@@ -331,8 +331,10 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    stopwatch.add("flush measurement");
 
 
-   // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   // Finish computation and the fast-copy callback path before measurement
+   // objects and their pinned buffers are released.
+   GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream());
+   GPU_STREAM_SYNC(ParallelizationHelperInstance.getCopyStream());
    stopwatch.add("final synchronize");
 }
 
