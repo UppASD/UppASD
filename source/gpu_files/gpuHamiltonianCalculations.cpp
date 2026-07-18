@@ -1464,6 +1464,9 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
                                         bool measure, bool includeAnisotropy) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
+   // The FFT backend produces fields only. Energy reductions use the sparse
+   // kernels below, so their Hamiltonian buffers must remain resident even
+   // when convolution is selected for ordinary field evaluations.
    if(!measure && backend.convolution_ready && backend.convolution_kernel_ready) {
       convolution.apply(gpuLattice, external_field, parallel.getWorkStream());
       return;
