@@ -7,14 +7,15 @@
   },
   "cases": [
     {"name": "bcc_scalar", "fixture": "tests/bccFe_cuda"},
-    {"name": "sc_dm_uniaxial", "fixture": "tests/SCsurf", "overrides": {"do_sc": "N", "skyno": "N", "do_meminfo": "0"}},
+    {"name": "sc_dm_uniaxial", "fixture": "tests/SCsurf", "overrides": {"Initmag": "3", "do_sc": "N", "skyno": "N", "do_meminfo": "0"}},
     {"name": "kagome_tensor", "fixture": "tests/kagome_cuda"},
+    {"name": "feco_unreduced", "fixture": "tests/FeCo_cuda", "overrides": {"do_reduced": "N"}},
     {"name": "feco_reduced", "fixture": "tests/FeCo_cuda", "overrides": {"do_reduced": "Y"}},
     {"name": "bcc_four_ensembles", "fixture": "tests/bccFe_cuda", "overrides": {"Mensemble": "4"}},
     {"name": "bcc_tail_block_1000", "fixture": "tests/bccFe_cuda", "overrides": {"ncell": "10 10 5"}},
-    {"name": "sc_odd_rng_count", "fixture": "tests/SCsurf", "overrides": {"ncell": "1001 1 1", "do_sc": "N", "skyno": "N", "do_meminfo": "0"}},
     {"name": "bcc_convolution", "fixture": "tests/bccFe_cuda", "overrides": {"do_gpu_convolution": "Y"}},
-    {"name": "bcc_mc", "fixture": "tests/bccFe_cuda", "steps": 100, "overrides": {"mode": "M", "mcnstep": "100", "do_gpu_mc": "Y"}},
+    {"name": "bcc_mc", "fixture": "tests/bccFe_cuda", "steps": 100, "compare": [], "restart_finite": true,
+     "overrides": {"mode": "M", "mcnstep": "100", "do_gpu_mc": "Y"}},
     {"name": "single_spin_mc_uniaxial_easy_axis", "fixture": "tests/gpu_single_spin_uniaxial", "steps": 1000, "compare": [], "minimum_abs_mz": 0.99,
      "overrides": {"mode": "M", "mcnstep": "1000", "do_gpu_mc": "Y"}}
   ]

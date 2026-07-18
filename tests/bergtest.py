@@ -119,11 +119,13 @@ def runexternal(runcmd, wd):
         args=popenargs,
         cwd=wd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+        text=True,
+        errors='replace')
     out, err = com = sp.communicate()
     # print the output if needed
     # for elem in com: pprint(elem.split("\n"))
-    return com
+    return out, err, sp.returncode
 
 
 def extractandcompare(test, outfile, headers=None, skiprows=None):
@@ -167,7 +169,7 @@ def extractandcompare(test, outfile, headers=None, skiprows=None):
             ),
             outfilevalue)
     else:
-        return None
+        return [False], []
 
 
 def execcase(case, externallabel=None, reallyrun=True):
@@ -193,10 +195,13 @@ def execcase(case, externallabel=None, reallyrun=True):
     if path_to_executable and reallyrun:
         # may wish to add args here for some cases
         runcmd = (path_to_executable)
-        out, err = runexternal(runcmd, wd)
+        out, err, returncode = runexternal(runcmd, wd)
         if err:
             print("Something fishy")
-            map(pprint, ("===== Error(s) occured: =====", err.split("\n"), "-"*25))
+            for message in ("===== Error(s) occurred: =====", err.split("\n"), "-"*25):
+                pprint(message)
+        if returncode:
+            print("Command failed with exit status %d" % returncode)
 
     ccoms = case['comparisons']
 
@@ -381,7 +386,7 @@ if __name__ == "__main__":
 
     if not args.dirty:
         print("\nCleaning up directories and examples")
-        execstr = "rm -f */*.out */meminfo */fort.* */tempfile */*.yaml */*.json"
+        execstr = "rm -f */*.out */meminfo */fort.* */tempfile */uppasd.*.yaml */inp.*.json"
         os.system(execstr)
         execstr = "rm -f */out* */averages.* */totenergy.* */cumulants.* "
         os.system(execstr)

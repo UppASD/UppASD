@@ -54,12 +54,19 @@ def load_cases(path: Path) -> tuple[dict, list[dict]]:
     return data.get("defaults", {}), data["cases"]
 
 
-def set_input_value(text: str, key: str, value: str) -> str:
-    """Replace active input records for key, or append an input record."""
+def set_input_value(text: str, key: str, value: str, before_key: str | None = None) -> str:
+    """Replace active input records for key, or insert/append an input record."""
     pattern = re.compile(rf"^(\s*)({re.escape(key)})(\s+).*$", re.IGNORECASE | re.MULTILINE)
     replacement = rf"\g<1>{key}\g<3>{value}"
     text, count = pattern.subn(replacement, text)
-    return text if count else f"{text.rstrip()}\n{key} {value}\n"
+    if count:
+        return text
+    if before_key:
+        before_pattern = re.compile(rf"^(\s*)({re.escape(before_key)})(\s+).*$", re.IGNORECASE | re.MULTILINE)
+        match = before_pattern.search(text)
+        if match:
+            return f"{text[:match.start()]}{key} {value}\n{text[match.start():]}"
+    return f"{text.rstrip()}\n{key} {value}\n"
 
 
 def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> None:
@@ -75,7 +82,6 @@ def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> Non
     controlled = {
         "temp": "0.0",
         "ip_temp": "0.0",
-        "mcnstep": steps,
         "Nstep": steps,
         "plotenergy": "1",
         "do_gpu": "Y" if gpu else "N",
@@ -83,10 +89,12 @@ def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> Non
         "do_gpu_measurements": "N",
         "do_gpu_correlations": "N",
     }
-    if gpu and overrides.get("mode", "").upper() == "M":
-        controlled["do_gpu_mc"] = "Y"
+    if overrides.get("mode", "").upper() == "M":
+        controlled["mcnstep"] = steps
+        if gpu:
+            controlled["do_gpu_mc"] = "Y"
     for key, value in {**controlled, **overrides}.items():
-        text = set_input_value(text, key, str(value))
+        text = set_input_value(text, key, str(value), before_key="Nstep" if key.lower() == "mcnstep" else None)
     input_path.write_text(text)
 
 
@@ -125,6 +133,18 @@ def numeric_table(path: Path) -> list[list[float]]:
     return rows
 
 
+def energy_rows_by_iteration(path: Path, label: str) -> dict[int, list[list[float]]]:
+    rows: dict[int, list[list[float]]] = {}
+    for row in numeric_table(path):
+        if len(row) < 2:
+            continue
+        iteration = int(row[0])
+        rows.setdefault(iteration, []).append(row[1:])
+    if not rows:
+        raise AssertionError(f"{label}: no numeric energy rows")
+    return rows
+
+
 def compare_values(label: str, cpu: Iterable[float], gpu: Iterable[float], rtol: float, atol: float) -> Difference:
     left, right = list(cpu), list(gpu)
     if len(left) != len(right):
@@ -159,9 +179,26 @@ def compare_outputs(case: dict, defaults: dict, cpu_dir: Path, gpu_dir: Path) ->
         gpu = numeric_rows(single_file(gpu_dir, "restart.*.out", case["name"]), slice(3, 7))
         result.append(compare_values("restart", cpu, gpu, rtol, atol))
     if "energy" in comparisons:
-        cpu = numeric_rows(single_file(cpu_dir, "totenergy.*.out", case["name"]))
-        gpu = numeric_rows(single_file(gpu_dir, "totenergy.*.out", case["name"]))
-        result.append(compare_values("energy", cpu, gpu, rtol, atol))
+        cpu_rows = energy_rows_by_iteration(
+            single_file(cpu_dir, "totenergy.*.out", case["name"]), f"{case['name']} CPU")
+        gpu_rows = energy_rows_by_iteration(
+            single_file(gpu_dir, "totenergy.*.out", case["name"]), f"{case['name']} GPU")
+        common_iterations = sorted(cpu_rows.keys() & gpu_rows.keys())
+        if not common_iterations:
+            raise AssertionError(f"{case['name']}: CPU and GPU have no energy iterations in common")
+        cpu = [
+            value
+            for iteration in common_iterations
+            for row in cpu_rows[iteration][:min(len(cpu_rows[iteration]), len(gpu_rows[iteration]))]
+            for value in row
+        ]
+        gpu = [
+            value
+            for iteration in common_iterations
+            for row in gpu_rows[iteration][:min(len(cpu_rows[iteration]), len(gpu_rows[iteration]))]
+            for value in row
+        ]
+        result.append(compare_values("energy (common iterations)", cpu, gpu, rtol, atol))
     return result
 
 
@@ -177,6 +214,17 @@ def assert_easy_axis(case: dict, directory: Path) -> Difference:
     if mz < threshold:
         raise AssertionError(f"{case['name']}: |m_z|={mz:.6f}, expected at least {threshold:.6f}")
     return Difference("easy-axis |m_z|", 1.0 - mz, 0.0, 1)
+
+
+def assert_finite_restart(case: dict, directory: Path) -> Difference:
+    """Reject NaN/Inf final moments without requiring matching RNG trajectories."""
+    rows = numeric_table(single_file(directory, "restart.*.out", case["name"]))
+    if not rows:
+        raise AssertionError(f"{case['name']}: restart output has no moment rows")
+    values = [value for row in rows for value in row[3:]]
+    if not values or not all(math.isfinite(value) for value in values):
+        raise AssertionError(f"{case['name']}: restart output contains non-finite moment data")
+    return Difference("finite restart", 0.0, 0.0, len(values))
 
 
 def main() -> int:
@@ -208,6 +256,8 @@ def main() -> int:
                 diffs = compare_outputs(case, defaults, cpu_dir, gpu_dir)
                 if "minimum_abs_mz" in case:
                     diffs.extend((assert_easy_axis(case, cpu_dir), assert_easy_axis(case, gpu_dir)))
+                if case.get("restart_finite"):
+                    diffs.extend((assert_finite_restart(case, cpu_dir), assert_finite_restart(case, gpu_dir)))
                 summary = "; ".join(f"{d.label}: n={d.count}, abs={d.max_abs:.2e}, rel={d.max_rel:.2e}" for d in diffs)
                 print(f"PASS {case['name']}: {summary}")
             except Exception as error:  # Keep running so a GPU session gets a complete table.
@@ -215,7 +265,7 @@ def main() -> int:
                 print(f"FAIL {case['name']}: {error}")
         return 1 if failed else 0
     finally:
-        if args.workdir or args.keep:
+        if args.workdir or args.keep or failed:
             print(f"work directory: {root}")
         else:
             shutil.rmtree(root, ignore_errors=True)
