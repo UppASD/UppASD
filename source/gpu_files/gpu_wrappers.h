@@ -46,7 +46,10 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) hiprand_uniform_double(state)
 
-  #define WARPSIZE warpSize
+  // HIP exposes the wavefront width for the compilation target.  This is 32
+  // on RDNA wave32 targets and 64 on wave64 targets.
+  #define GPU_WAVEFRONT_SIZE warpSize
+  #define WARPSIZE GPU_WAVEFRONT_SIZE
   #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 
 
@@ -100,7 +103,8 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) curand_uniform_double(state)
 
-  #define WARPSIZE 32
+  #define GPU_WAVEFRONT_SIZE 32
+  #define WARPSIZE GPU_WAVEFRONT_SIZE
   #define FULL_MASK 0xffffffff
   #define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
 

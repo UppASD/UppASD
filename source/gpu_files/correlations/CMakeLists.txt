@@ -15,7 +15,8 @@ if(USE_HIP)
   else()
     message(STATUS "GPU Correlations: HIP with native hipComplex")
   endif()
-  set(GPU_TOOLS correlation_kernels.hip.cpp)
+  set(GPU_TOOLS correlation_kernels.cpp)
+  set_source_files_properties(correlation_kernels.cpp PROPERTIES LANGUAGE HIP)
 elseif(USE_CUDA)
   message(STATUS "GPU Correlations: CUDA with Thrust complex")
   set(GPU_TOOLS  correlation_kernels.cpp)
@@ -40,5 +41,4 @@ target_include_directories(${UppASD_LIB}
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
-
 

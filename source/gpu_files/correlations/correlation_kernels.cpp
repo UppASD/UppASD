@@ -4,7 +4,6 @@
 #include "real_type.h"
 #include <numeric>
 #include "gpu_wrappers.h"
-#include <thrust/complex.h>
 #include <correlation_kernels.hpp>
 
 namespace cg = cooperative_groups;
@@ -51,7 +50,7 @@ __device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int
 __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -145,16 +144,16 @@ __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2>
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd) = gpu_complex(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, qInd) = gpu_complex(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, qInd) = gpu_complex(sum_re[2], sum_im[2]);
+        scblock(3 * block.group_index().x + 0, qInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
     }
 }
 __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<gpu_complex, 2> scsum, int numBlocks)
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -176,8 +175,8 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -212,9 +211,9 @@ __global__ void GPUSqFinalSum_stat(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     }
 
     if (tid_in_block == 0) {
-        scsum(0, qInd) += gpu_complex(sum_re[0], sum_im[0]);
-        scsum(1, qInd) += gpu_complex(sum_re[1], sum_im[1]);
-        scsum(2, qInd) += gpu_complex(sum_re[2], sum_im[2]);
+        scsum(0, qInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scsum(1, qInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scsum(2, qInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
 
         /*mblock_gpu[block.group_index().x] += mySum[0];
         mblock_gpu[block.group_index().x + grid.group_dim().x] += mySum[1];
@@ -227,7 +226,7 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -249,8 +248,8 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -286,9 +285,9 @@ __global__ void GPUSqFinalSum_dyn(GpuTensor<gpu_complex, 2> scblock, GpuTensor<g
 
     if (tid_in_block == 0) {
             // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
-            scsum(0, qInd, t_cur) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum(1, qInd, t_cur) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum(2, qInd, t_cur) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum(0, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum(1, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum(2, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         
         //printf("qInd = %i, t_cur = %i, Re = %.3lf, Im = %.3lf\n", qInd, t_cur, mySum[2].real(), mySum[2].imag());
 
@@ -303,7 +302,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -325,8 +324,8 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -362,15 +361,15 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 
     if (tid_in_block == 0) {
         if ((both_flag == 1) || (both_flag == 2)) {
-            scsum_qt(0, qInd, t_cur) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum_qt(1, qInd, t_cur) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum_qt(2, qInd, t_cur) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum_qt(0, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum_qt(1, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum_qt(2, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         }
 
         if ((both_flag == 0) || (both_flag == 2)) {
-            scsum_q(0, qInd) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum_q(1, qInd) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum_q(2, qInd) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum_q(0, qInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum_q(1, qInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum_q(2, qInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         }
 
         //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
@@ -385,7 +384,7 @@ __global__ void GPUSqFinalSum_both(GpuTensor<gpu_complex, 2> scblock, GpuTensor<
 __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -422,8 +421,8 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
 
         // 3. Extract S(q,t) values
         gpu_complex sq_val = sq(cInd, qInd, tInd);
-        real sq_re = sq_val.real();
-        real sq_im = sq_val.imag();
+        real sq_re = GPU_CREAL(sq_val);
+        real sq_im = GPU_CIMAG(sq_val);
         
         // 4. Windowing function
         real win = sc_window_fac(sc_window_fun, (tInd + 1), sc_max_nstep);
@@ -487,9 +486,9 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, qInd, wInd) = gpu_complex(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, qInd, wInd) = gpu_complex(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, qInd, wInd) = gpu_complex(sum_re[2], sum_im[2]);
+        scblock(3 * block.group_index().x + 0, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
     }
 }
 
@@ -497,7 +496,7 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -521,8 +520,8 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
         // Load and sum block results
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, qInd, wInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -562,9 +561,9 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
 
     // Accumulate results (reconstruct complex only at final write)
     if (tid_in_block == 0) {
-        scsum(0, qInd, wInd) += gpu_complex(sum_re[0], sum_im[0]);
-        scsum(1, qInd, wInd) += gpu_complex(sum_re[1], sum_im[1]);
-        scsum(2, qInd, wInd) += gpu_complex(sum_re[2], sum_im[2]);
+        scsum(0, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scsum(1, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scsum(2, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
     }
 }
 
@@ -572,7 +571,7 @@ __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real
                              GpuVector<int>aproj, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -672,9 +671,9 @@ __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-        scblock(3 * block.group_index().x + 0, pInd, qInd) = gpu_complex(sum_re[0], sum_im[0]);
-        scblock(3 * block.group_index().x + 1, pInd, qInd) = gpu_complex(sum_re[1], sum_im[1]);
-        scblock(3 * block.group_index().x + 2, pInd, qInd) = gpu_complex(sum_re[2], sum_im[2]);
+        scblock(3 * block.group_index().x + 0, pInd, qInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scblock(3 * block.group_index().x + 1, pInd, qInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scblock(3 * block.group_index().x + 2, pInd, qInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
     }
 }
 
@@ -682,7 +681,7 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -705,8 +704,8 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, pInd, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -741,9 +740,9 @@ __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTen
     }
 
     if (tid_in_block == 0) {
-        scsum(0, pInd, qInd) += gpu_complex(sum_re[0], sum_im[0]);
-        scsum(1, pInd, qInd) += gpu_complex(sum_re[1], sum_im[1]);
-        scsum(2, pInd, qInd) += gpu_complex(sum_re[2], sum_im[2]);
+        scsum(0, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scsum(1, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scsum(2, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
 
         /*mblock_gpu[block.group_index().x] += mySum[0];
         mblock_gpu[block.group_index().x + grid.group_dim().x] += mySum[1];
@@ -756,7 +755,7 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -779,8 +778,8 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, pInd, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -816,9 +815,9 @@ __global__ void GPUSqProjFinalSum_dyn(GpuTensor<gpu_complex, 3> scblock, GpuTens
 
     if (tid_in_block == 0) {
             // sc_qt_gpu is now (3, nq, sc_max_nstep) so index is (component, qInd, t_cur)
-            scsum(0, pInd, qInd, t_cur) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum(1, pInd, qInd, t_cur) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum(2, pInd, qInd, t_cur) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum(0, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum(1, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum(2, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         
         //printf("qInd = %i, t_cur = %i, Re = %.3lf, Im = %.3lf\n", qInd, t_cur, mySum[2].real(), mySum[2].imag());
 
@@ -833,7 +832,7 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -856,8 +855,8 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
     if (tid_in_Q < numBlocks) {
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, pInd, qInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -893,15 +892,15 @@ __global__ void GPUSqProjFinalSum_both(GpuTensor<gpu_complex, 3> scblock, GpuTen
 
     if (tid_in_block == 0) {
         if ((both_flag == 1) || (both_flag == 2)) {
-            scsum_qt(0, pInd, qInd, t_cur) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum_qt(1, pInd, qInd, t_cur) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum_qt(2, pInd, qInd, t_cur) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum_qt(0, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum_qt(1, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum_qt(2, pInd, qInd, t_cur) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         }
 
         if ((both_flag == 0) || (both_flag == 2)) {
-            scsum_q(0, pInd, qInd) += gpu_complex(sum_re[0], sum_im[0]);
-            scsum_q(1, pInd, qInd) += gpu_complex(sum_re[1], sum_im[1]);
-            scsum_q(2, pInd, qInd) += gpu_complex(sum_re[2], sum_im[2]);
+            scsum_q(0, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+            scsum_q(1, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+            scsum_q(2, pInd, qInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
         }
 
         //printf("Re = %.3lf, Im = %.3lf\n", mySum[1].real(), mySum[1].imag());
@@ -917,7 +916,7 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
                              unsigned int blockN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -967,8 +966,8 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
         // 3. Extract S(q,t) values
         sq_val = sq(cInd, pInd, qInd, tInd);
        //sq_val = gpu_complex(0,0);
-        real sq_re = sq_val.real();
-        real sq_im = sq_val.imag();
+        real sq_re = GPU_CREAL(sq_val);
+        real sq_im = GPU_CIMAG(sq_val);
         
         // 4. Windowing function
         real win = sc_window_fac(sc_window_fun, (tInd + 1), sc_max_nstep);
@@ -1032,9 +1031,9 @@ __global__ void GPUSwProjSum(const GpuTensor<gpu_complex, 4> sq, const GpuTensor
 
     // Reconstruct complex objects and write only at final step
     if (tid_in_block == 0) {
-       scblock(3 * bInd + 0, pInd, qInd, wInd) = gpu_complex(sum_re[0], sum_im[0]);
-       scblock(3 * bInd + 1, pInd, qInd, wInd) = gpu_complex(sum_re[1], sum_im[1]);
-       scblock(3 * bInd + 2, pInd, qInd, wInd) = gpu_complex(sum_re[2], sum_im[2]);
+       scblock(3 * bInd + 0, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+       scblock(3 * bInd + 1, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+       scblock(3 * bInd + 2, pInd, qInd, wInd) = MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
        //printf("pInd = %i, scblock = %.4lf\n", pInd, scblock(3 * bInd + 0, pInd, qInd, wInd).real());
     }
 }
@@ -1043,7 +1042,7 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
 {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();
-    auto warp = cg::tiled_partition<32>(block);
+    auto warp = cg::tiled_partition<GPU_WAVEFRONT_SIZE>(block);
 
     int lane = warp.thread_rank();
     int wid = warp.meta_group_rank();
@@ -1069,8 +1068,8 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
         // Load and sum block results
         for (int k = 0; k < 3; k++) {
             gpu_complex val = scblock(3 * tid_in_Q + k, pInd, qInd, wInd);
-            sum_re[k] += val.real();
-            sum_im[k] += val.imag();
+            sum_re[k] += GPU_CREAL(val);
+            sum_im[k] += GPU_CIMAG(val);
         }
     }
 
@@ -1110,9 +1109,9 @@ __global__ void GPUSwProjFinalSum(GpuTensor<gpu_complex, 4> scblock, GpuTensor<g
 
     // Accumulate results (reconstruct complex only at final write)
     if (tid_in_block == 0) {
-        scsum(0, pInd, qInd, wInd) += gpu_complex(sum_re[0], sum_im[0]);
-        scsum(1, pInd, qInd, wInd) += gpu_complex(sum_re[1], sum_im[1]);
-        scsum(2, pInd, qInd, wInd) += gpu_complex(sum_re[2], sum_im[2]);
+        scsum(0, pInd, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[0], sum_im[0]);
+        scsum(1, pInd, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[1], sum_im[1]);
+        scsum(2, pInd, qInd, wInd) += MAKE_GPU_COMPLEX(sum_re[2], sum_im[2]);
        // printf("p = %i, scsum = %.4lf, %.4lf\n", pInd, scsum(0, pInd, qInd, wInd).real(), scsum(0, pInd, qInd, wInd).imag());
     }
 }

@@ -17,7 +17,7 @@ __inline__ __device__
 void warpReduceSum(real &sum_re, real &sum_im)
 {
     #pragma unroll
-    for (int offset = warpSize / 2; offset > 0; offset >>= 1)
+    for (int offset = GPU_WAVEFRONT_SIZE / 2; offset > 0; offset >>= 1)
     {
         sum_re += SHFL_DOWN(sum_re, offset);
         sum_im += SHFL_DOWN(sum_im, offset);
