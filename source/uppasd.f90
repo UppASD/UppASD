@@ -169,7 +169,6 @@ contains
    !> - Moved to separate function
    !---------------------------------------------------------------------------------
    subroutine run_initial_phase()
-      use InputData, only : ipmode, iphfield
       use QMinimizer
       use InputData
       implicit none
@@ -659,7 +658,6 @@ contains
       use prn_averages, only : read_parameters_averages,zero_cumulant_counters, avrg_init
       use MetaTypes
       use DemagField
-      use SpinTorques, only : btorque, stt
 
       
       implicit none

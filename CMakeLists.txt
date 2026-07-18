@@ -151,9 +151,6 @@ target_include_directories(${UppASD_EXE} PRIVATE "${MOD}")
 
 
 ##############################################################################################
-set(MKL_LINK static)
-find_package(MKL CONFIG)
-
 include(${CMAKE_MODULE_PATH}/FindFFTW.cmake)
 if (FFTW_FOUND)
    message(STATUS "FFTW found ${FFTW_FOUND} ${FFTW_INCLUDES} ${FFTW_INCLUDE_DIR}")
@@ -175,18 +172,12 @@ if(USE_CUDA AND USE_HIP)
 endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
-# Uncomment below to make gnu defaults without MKL
-if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-   CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
-   CMAKE_DEPENDENT_OPTION(USE_VSL "Use Intel VSL (needs MKL)" OFF "MKL_FOUND" OFF)
-   CMAKE_DEPENDENT_OPTION(USE_MKL_FFT "Use Intel MKL for FFT" OFF "MKL_FOUND"  OFF)
-   CMAKE_DEPENDENT_OPTION(USE_FFTW "Use FFTW for FFT" OFF "FFTW_FOUND" OFF)
-else()
-   CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" ON "MKL_FOUND" OFF)
-   CMAKE_DEPENDENT_OPTION(USE_VSL "Use Intel VSL (needs MKL)" ON "MKL_FOUND" OFF)
-   CMAKE_DEPENDENT_OPTION(USE_MKL_FFT "Use Intel MKL for FFT" ON "MKL_FOUND"  OFF)
-   CMAKE_DEPENDENT_OPTION(USE_FFTW "Use FFTW for FFT" OFF "FFTW_FOUND" OFF)
-endif()
+# Linear algebra providers are selected explicitly; merely having oneAPI in the
+# environment must not make a non-MKL build compile or link against MKL.
+OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF)
+CMAKE_DEPENDENT_OPTION(USE_VSL "Use Intel VSL (needs MKL)" OFF "USE_MKL" OFF)
+CMAKE_DEPENDENT_OPTION(USE_MKL_FFT "Use Intel MKL for FFT" OFF "USE_MKL" OFF)
+CMAKE_DEPENDENT_OPTION(USE_FFTW "Use FFTW for FFT" OFF "FFTW_FOUND" OFF)
 CMAKE_DEPENDENT_OPTION(BUILD_CUDA_DOCS "Build LaTeX notes of the CUDA implementation" OFF "BUILD_MANUAL" OFF) 
 ####### for hip here???
 CMAKE_DEPENDENT_OPTION(BUILD_GNEB_DOCS "Build LaTeX notes of the GNEB implementation" OFF "BUILD_MANUAL" OFF) 
@@ -278,47 +269,32 @@ endif()
 
 
 ##############################################################################################
-# If MKL/VSL is requested. First checks here to set the linear algebra packages
+# Select exactly one linear algebra provider.  The LP64 interface matches
+# UppASD's default Fortran INTEGER kind on every supported compiler.
 ##############################################################################################
-#if(USE_VSL OR USE_MKL OR USE_MKL_FFT)
-#
-#   set(BLA_DEFINITIONS)
-#
-#   if (BLA_VENDOR MATCHES "_seq")
-#      set(MKL_USE_parallel OFF)
-#   else()
-#      set(MKL_USE_parallel ON)
-#   endif()
-#
-#   if (MKL_FOUND)
-#      message( STATUS "MKL_FOUND condition true")
-#      set(BLA_INCLUDE_DIR ${MKL_INCLUDE_DIR})
-#      set(BLAS_LIBRARIES ${MKL_LIBRARIES})
-#      set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
-#      set(BLA_DEFINITIONS USE_MKL)
-#      set(MKL_INTERFACE_FULL "lp64")
-#   else()
-#      #include(FindBLAS)
-#      #include(FindLAPACK)
-#      find_package(BLAS)
-#      find_package(LAPACK REQUIRED)
-#   endif()
-#   message(STATUS "mkl-location: ${MKL_LIBRARY_DIR}")
-#   message(STATUS "mkl-includes: ${MKL_INCLUDE}")
-#   link_directories(${MKL_LIBRARY_DIR})
-#
-#else()
-#   find_package(BLAS)
-#   find_package(LAPACK REQUIRED)
-#endif()
-#set(BLA_STATIC ON)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-message(STATUS "Math libs: 
-BLAS:${BLAS_FOUND} ${BLAS_LIBRARIES}  ${BLAS_LINKER_FLAGS}
-LAPACK:${LAPACK_FOUND} ${LAPACK_LIBRARIES}  ${LAPACK_LINKER_FLAGS}
-MKL:${MKL_FOUND} ${MKL_LIBRARIES} ${MKL_LINKER_FLAGS}"
-)
+set(UPPASD_LINALG_LIBRARIES)
+if(USE_MKL)
+   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+      set(_uppasd_mkl_interface gf_lp64)
+   else()
+      set(_uppasd_mkl_interface intel_lp64)
+   endif()
+   set(MKL_INTERFACE_FULL "${_uppasd_mkl_interface}" CACHE STRING "MKL Fortran interface" FORCE)
+   find_package(MKL CONFIG REQUIRED)
+   if(NOT TARGET MKL::MKL)
+      message(FATAL_ERROR "USE_MKL=ON requires the MKL::MKL imported target")
+   endif()
+   list(APPEND UPPASD_LINALG_LIBRARIES MKL::MKL)
+   message(STATUS "Linear algebra provider: Intel MKL (${MKL_INTERFACE_FULL})")
+else()
+   if(NOT DEFINED BLA_VENDOR OR BLA_VENDOR STREQUAL "")
+      set(BLA_VENDOR Generic CACHE STRING "BLAS/LAPACK implementation when USE_MKL=OFF")
+   endif()
+   find_package(BLAS REQUIRED)
+   find_package(LAPACK REQUIRED)
+   list(APPEND UPPASD_LINALG_LIBRARIES ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+   message(STATUS "Linear algebra provider: ${BLA_VENDOR}")
+endif()
 ##############################################################################################
 
 
@@ -478,14 +454,14 @@ ENDIF(USE_OVF)
 ##############################################################################################
 
 ##############################################################################################
-# MKL edits in case of GNU compiler
+# MKL support for BLAS/LAPACK
 ##############################################################################################
 if(USE_MKL)
-   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
-      target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
-   endif()
-   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
-
+   target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
+   # The legacy mkl_dbsrmv/mkl_dcsrmm entry points used by sparse.f90 are
+   # not exported by current oneMKL releases.  Do not enable that code path:
+   # the portable OpenMP sparse implementation remains available while MKL
+   # continues to provide the BLAS/LAPACK routines selected above.
 endif()
 ##############################################################################################
 
@@ -507,7 +483,7 @@ endif()
 if(USE_MKL_FFT AND MKL_FOUND)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Hamiltonian/fftdipole_mkl.f90)
    add_compile_definitions(USE_MKL_FFT)
-   include_directories(${BLA_INCLUDE_DIR})
+   target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    #message(STATUS "FFT-> ${USE_MKL_FFT} ")
 elseif(USE_FFTW)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/Hamiltonian/fftdipole_fftw.f90)
@@ -673,9 +649,7 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 ########hip here?????
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
-   -lgfortran
-   ${BLAS_LIBRARIES}
-   ${LAPACK_LIBRARIES}
+   ${UPPASD_LINALG_LIBRARIES}
    ${CMAKE_THREAD_LIBS_INIT} 
    ${OVF_LIB} 
    ${FFTW_LIB}  
@@ -686,10 +660,8 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    )
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
-   -lgfortran
    ${UppASD_LIB}
-   ${BLAS_LIBRARIES}
-   ${LAPACK_LIBRARIES}
+   ${UPPASD_LINALG_LIBRARIES}
    ${CMAKE_THREAD_LIBS_INIT} 
    ${OVF_LIB} 
    ${FFTW_LIB}  

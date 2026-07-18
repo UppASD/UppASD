@@ -181,12 +181,15 @@ SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
              #                         "-Mipa=fast"    # Portland Group
              #)
 
-# Single-file optimizations
-SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
-                 Fortran "-ip"  # Intel
-                 "-Mnoipa"    # Portland
-                 "/Qip" # Intel Windows
-                )
+# Single-file optimizations.  ifx accepts -ip only as a warning and ignores it;
+# retain it for classic ifort but do not pass it to the LLVM-based compiler.
+if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
+   SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
+                    Fortran "-ip"  # Intel classic
+                            "-Mnoipa"    # Portland
+                            "/Qip" # Intel Windows
+                   )
+endif()
 
 # Vectorize code
 SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
