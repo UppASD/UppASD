@@ -6,8 +6,17 @@
 #include "gpu_wrappers.h"
 
 #include "measurementQueue.hpp"
+#include <stdexcept>
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
+
+namespace {
+void requireFortranPointer(const void* pointer, const char* name)
+{
+    if (pointer == nullptr)
+        throw std::runtime_error(std::string("GPU measurement requires initialized Fortran array: ") + name);
+}
+}
 
 GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                 const deviceEnergies& gpuEnergies,
@@ -198,11 +207,13 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
+            requireFortranPointer(FortranData::lattice_atype, "atype");
             atype_cpu.set(FortranData::lattice_atype, static_cast<long int>(N));
             atype_gpu.copy_sync(atype_cpu);
 
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
+                requireFortranPointer(FortranData::asite_ch, "asite_ch");
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
                 asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
@@ -216,6 +227,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNASums_partial.zeros();
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
+                requireFortranPointer(FortranData::asite_ch, "asite_ch");
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
                 asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
@@ -228,6 +240,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums_partial.Allocate(sumOverAtoms_NC_kernel_blocks.x, 3, Nchmax, M);
             emomMEnsembleNCSums_partial.zeros();
             achem_ch_gpu.Allocate(N);
+            requireFortranPointer(FortranData::achem_ch, "achem_ch");
             achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
             achem_ch_gpu.copy_sync(achem_ch_cpu);
             
@@ -252,6 +265,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
     if (do_skyno == SkyrmionMethod::BruteForce)
     {
+        requireFortranPointer(FortranData::dxyz_vec, "dxyz_vec");
+        requireFortranPointer(FortranData::dxyz_atom, "dxyz_atom");
+        requireFortranPointer(FortranData::dxyz_list, "dxyz_list");
         Tensor<real, 3> dxyz_vec_fortran(FortranData::dxyz_vec, 3, 26, N);
         dxyz_vec.Allocate(3, 26, N);
         dxyz_vec.copy_sync(dxyz_vec_fortran);

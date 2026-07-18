@@ -287,6 +287,13 @@ if(USE_MKL)
    else()
       set(_uppasd_mkl_interface intel_lp64)
    endif()
+   # Let UppASD own OpenMP parallelism.  This avoids loading a second
+   # libiomp5 from an MKL installation that differs from the compiler's
+   # oneAPI release.  Advanced users can select intel_thread explicitly.
+   set(UPPASD_MKL_THREADING "sequential" CACHE STRING
+       "MKL threading layer (sequential, intel_thread, or gnu_thread)")
+   set_property(CACHE UPPASD_MKL_THREADING PROPERTY STRINGS sequential intel_thread gnu_thread)
+   set(MKL_THREADING "${UPPASD_MKL_THREADING}" CACHE STRING "MKL threading layer" FORCE)
    set(MKL_INTERFACE_FULL "${_uppasd_mkl_interface}" CACHE STRING "MKL Fortran interface" FORCE)
    find_package(MKL CONFIG REQUIRED)
    if(NOT TARGET MKL::MKL)
