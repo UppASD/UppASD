@@ -39,11 +39,9 @@ module Chelper
    use Correlation_core
    use Correlation_Print
    use Correlation_type
-   use Correlation_utils, only: find_rmid
    use Omegas
    use Qvectors
    use Correlation_utils
-   use AutoCorrelation,  only : autocorr_sample, do_autocorr, spinwait, autocorr_buff, indxb_ac
    use ChemicalData, only : achtype
    use MetaTypes
    use macrocells
