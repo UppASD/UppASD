@@ -8,16 +8,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "gpuStructures.hpp"
 #include "gpuParallelizationHelper.hpp"
-#include "gpu_wrappers.h"
-#if defined(HIP_V)
-#include <hiprand/hiprand.h>
-#include "hipThermfield.hpp"
-using GpuThermfield = HipThermfield;
-#elif defined(CUDA_V)
-#include <curand.h>
-#include "cudaThermfield.hpp"
-using GpuThermfield = CudaThermfield;
-#endif
+#include "gpuThermfield.hpp"
 using ParallelizationHelper = GpuParallelizationHelper;
 
 class GpuDepondtIntegrator {
@@ -77,4 +68,3 @@ public:
 
    void evolveSecond(deviceLattice& gpuLattice);
 };
-

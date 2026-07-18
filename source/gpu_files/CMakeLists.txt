@@ -1,7 +1,5 @@
-if(USE_HIP)
-set(GPU_TOOLS hipThermfield.cpp hipThermfield.hpp)
-elseif(USE_CUDA)
-set(GPU_TOOLS cudaThermfield.cu cudaThermfield.hpp)
+if(USE_HIP OR USE_CUDA)
+set(GPU_TOOLS gpuThermfield.cpp gpuThermfield.hpp)
 endif()
 set(GPU_PARALLEL gpuParallelizationHelper.tpp)
 target_sources(${UppASD_LIB} PRIVATE c_helper.h
