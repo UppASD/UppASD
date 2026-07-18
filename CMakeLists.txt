@@ -62,10 +62,12 @@ message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 ##############################################################################################
 # Defines the directories for source, modules and object filed
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
-SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
-#SET(MOD ${CMAKE_BINARY_DIR}/mod)
+SET(MOD ${CMAKE_BINARY_DIR}/mod)
 SET(BIN ${CMAKE_SOURCE_DIR}/bin)
-# Have the .mod files placed in the lib folder
+# Keep generated Fortran modules inside the active build tree.  Writing these
+# files to source/mod makes concurrent builds and different compiler builds
+# corrupt one another's module cache.
+file(MAKE_DIRECTORY ${MOD})
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
 # Have the .o files placed in the bin folder
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
@@ -140,6 +142,10 @@ if (BUILD_PYTHON)
 endif(BUILD_PYTHON)
 message(STATUS " LIB INFO: ${UppASD_LIB} ${lib_type} ${SRC}")
 ADD_LIBRARY(${UppASD_LIB} ${lib_type})
+set_target_properties(${UppASD_LIB} PROPERTIES Fortran_MODULE_DIRECTORY "${MOD}")
+set_target_properties(${UppASD_EXE} PROPERTIES Fortran_MODULE_DIRECTORY "${MOD}")
+target_include_directories(${UppASD_LIB} PUBLIC "${MOD}")
+target_include_directories(${UppASD_EXE} PRIVATE "${MOD}")
 ##############################################################################################
 
 
