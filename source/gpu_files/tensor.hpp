@@ -10,6 +10,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "base.hpp"
 #include "gpu_wrappers.h"
@@ -211,6 +212,9 @@ public:
 
 
    void transpose();
+
+
+   void transposed_copy_to(GpuTensor<T, 2>& destination) const;
 
 
    void zeros() {
@@ -529,4 +533,22 @@ void Tensor<T, dim>::copy_async(const GpuTensor<T, dim>& A, GPU_STREAM_T stream)
    TensorDataMovementTracker::add_d2h_async(static_cast<size_t>(size()) * sizeof(T));
    ASSERT_GPU(
       GPU_MEMCPY_ASYNC(data(), A.data(), size() * sizeof(T), GPU_MEMCPY_DEVICE_TO_HOST, stream));
+}
+
+
+template <typename T, index_t dim>
+void Tensor<T, dim>::transposed_copy_to(GpuTensor<T, 2>& destination) const {
+   static_assert(dim == 2, "transposed_copy_to is only valid for rank-2 tensors");
+   assert(destination.extent(0) == extent(1));
+   assert(destination.extent(1) == extent(0));
+
+   std::vector<T> transposed(static_cast<size_t>(size()));
+   for(index_t i = 0; i < extent(0); ++i) {
+      for(index_t j = 0; j < extent(1); ++j) {
+         transposed[static_cast<size_t>(j + i * destination.extent(0))] = (*this)(i, j);
+      }
+   }
+
+   Tensor<T, 2> staging(transposed.data(), destination.extents());
+   destination.copy_sync(staging);
 }

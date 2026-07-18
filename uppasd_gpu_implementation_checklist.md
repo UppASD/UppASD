@@ -66,6 +66,8 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 **Task:** `curand/hiprandGenerateNormal[Double]` require an even sample count; `field.size() = 3·N·M` can be odd and the status is unchecked. Allocate the field buffer with one element of slack when `size()` is odd (`n_gen = size + (size & 1)`), generate `n_gen` values, and wrap **every** `curand*/hiprand*` call in a status check macro (add `ASSERT_CURAND`/`ASSERT_HIPRAND` next to `ASSERT_GPU` in `base.hpp`, throwing with the status code). Do the same for the generator creation/seed/stream calls in `initiate`.
 **Acceptance:** A run with N·M odd (e.g. N=1001, M=1) at finite temperature produces a fluctuating thermal field (compare magnetization variance against the Fortran run statistically); status-check macro verified by forcing an error in a scratch test.
 
+> Test note, 2026-07-18: the former `sc_odd_rng_count` GPU-regression case ran at `temp=0` and changed the fixture geometry to 1001×1×1, so it was removed from the default suite rather than serving as F2 coverage. Replace it with an odd-sized finite-temperature statistical case when GPU-MC/thermal validation is revisited.
+
 ### - [x] F3 — `chelper.f90` USE statement  (P0, S) — audit C3
 **Files:** `source/chelper.f90` line ~20.
 **Task:** `use prn_averages,` has a trailing comma and no only-list — invalid Fortran. Determine what symbols from `prn_averages` are actually referenced in `Chelper` (grep the module; likely the measurement buffer arrays passed in `FortranData_setMeasurables`: `mavg_buff`, `mavg2_buff`, `mavg4_buff`, `mavg_buff_proj`, `indxb_ac`-style arrays — check `prn_averages` module contents) and restore `use prn_averages, only : <list>`. Compile with gfortran under `-DUSE_CUDA=ON` to verify.
@@ -85,9 +87,13 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 
 > Progress, 2026-07-18: strict GPU-MC now uses the Fortran `calculate_energy` uniaxial convention, `K1(S·e)^2 + K2(S·e)^4`, for the exact on-site trial-spin ΔE and obtains its field term without anisotropy. Cubic (`taniso=2`) and combined (`taniso=7`) anisotropy are rejected before GPU-MC initialization. The brute-force GPU-MC path still rejects all anisotropy.
 
+> **Deferred / WIP:** Revisit GPU-MC as a complete unit before declaring this task finished: reconcile GPU anisotropy measurement energies with the Fortran convention, support or explicitly scope the remaining anisotropy modes, add the finite-temperature statistical CPU-vs-GPU regression, and complete the linked F6/PF1/PF2 work.
+
 **Acceptance:** New V2 case: MC at low finite T with uniaxial anisotropy, compare equilibrium ⟨m_z⟩ and energy against Fortran MC statistically (same T, enough steps; 3σ agreement). Note this task naturally merges with performance task PF1 (local ΔE) — if PF1 is done first, F5 becomes "add the on-site terms to the local ΔE", which is the preferred order.
 
 ### - [ ] F6 — MC sublattice coloring on union of neighbor lists  (P1, S) — audit C6
+
+> **Deferred / WIP:** Revisit together with the rest of the GPU-MC path (F5/PF1/PF2).
 **Files:** `gpu_files/gpuMetropolis.cpp` (`split_lattice` and its callers).
 **Task:** Build the independence graph from the union of `nlist` and `dmlist` (and any future lists) so that parallel updates never touch interacting pairs. Combine with PF2 (coloring rewrite) if convenient.
 **Acceptance:** A test system with DM neighbors ⊄ exchange neighbors (construct via input with different cutoffs) yields a coloring where no sublattice contains a DM-coupled pair (assert in a debug check).
@@ -95,6 +101,8 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 ### - [ ] F7 — Upload staging: kill the in-place transpose  (P1, M) — audit C4 (pairs with PR2)
 **Files:** `gpu_files/gpuSimulation.cpp` (`copyFromFortran`), `gpu_files/tensor.hpp` (new helper), later `real_type.h`.
 **Task:** Add a `Tensor<T,2>::transposed_copy_to(GpuTensor<T,2>&)` (host-side transpose into a scratch `std::vector`/pinned buffer, then upload) or a small device transpose kernel; use it for `ncoup`/`nlist` so the Fortran-owned arrays are **never mutated**. Delete the transpose/upload/transpose-back dance. Design the helper signature so PR2 (precision conversion on upload) can extend it with a source/destination type pair.
+
+> Progress, 2026-07-18: `transposed_copy_to` now stages the transposed rank-2 data in a host vector and uploads it directly; `copyFromFortran` no longer mutates `ncoup` or `nlist`.
 **Acceptance:** V2 passes; add an assertion test that `ham%ncoup` on the Fortran side is bit-identical before/after `gpuSim_initiateMatrices` (e.g., checksum printed from Fortran around the call in a debug run).
 
 ### - [ ] F8 — `fastCopy` event ordering  (P1, S) — audit C8
@@ -290,11 +298,15 @@ Semantics of the three modes:
 ## Phase 6 — Performance (audit P1–P8, minus items absorbed above)
 
 ### - [ ] PF1 — MC: local ΔE in `MCSweep`, drop per-sublattice heisge  (P1, L) — audit P1, pairs with F5
+
+> **Deferred / WIP:** Revisit together with F5/F6/PF2 after the remaining GPU-MC correctness work is scoped.
 **Files:** `gpu_files/gpuMetropolis.cpp`, `gpu_files/gpuMCSimulation.cpp`.
 **Task:** Rewrite `MCSweep` to gather the trial spin's neighbors from `nlist/ncoup` (+ `dmlist/dmvect`) directly and compute ΔE = ΔE_exch + ΔE_DM + ΔE_Zeeman + ΔE_aniso(exact, from F5) in-kernel. Remove the `hamCalc.heisge` call from the per-sublattice loop; call `heisge` once per MC step only when a measurement needs `beff`/energies that step. The neighbor gather uses the transposed layout (`pos[site + i·N]`, `coup[rsite + i·NH]`) for coalescing, same as the field kernels. Keep the old path behind the existing `bruteforce` toggle until validated, then delete.
 **Acceptance:** V2 MC cases statistically match Fortran across the T sweep; wall-clock per MC step improves by ≈ `num_subL`× on the benchmark system (report numbers).
 
 ### - [ ] PF2 — O(N·mnn) coloring, silent  (P1, S) — audit P5, with F6
+
+> **Deferred / WIP:** Revisit together with F5/F6/PF1.
 **Files:** `gpu_files/gpuMetropolis.cpp` (`split_lattice` + helpers `fillneighbours_in_play` etc. — delete them).
 **Task:** Replace with greedy graph coloring: iterate sites, mark colors of already-colored neighbors (union list per F6) in a small bitset/array, assign the lowest free color; then bucket site indices by color into `subIdx`. Remove all `printf`s of the table and the O(N²) scans.
 **Acceptance:** Same or fewer colors than the old code on V2 systems (assert independence property in a debug check); startup time for a 10⁶-site system < 1 s.

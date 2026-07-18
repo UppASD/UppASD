@@ -487,15 +487,11 @@ void GpuSimulation::copyFromFortran() {
         gpuHamiltonian.j_tensor.copy_sync(cpuHamiltonian.j_tensor);            
         gpuHamiltonian.nlist.copy_sync(cpuHamiltonian.nlist);  
         gpuHamiltonian.nlistsize.copy_sync(cpuHamiltonian.nlistsize);         
-    }     
-    else { 
-        cpuHamiltonian.ncoup.transpose();
-        cpuHamiltonian.nlist.transpose();                      
-        gpuHamiltonian.ncoup.copy_sync(cpuHamiltonian.ncoup);            
-        gpuHamiltonian.nlist.copy_sync(cpuHamiltonian.nlist);  
-        gpuHamiltonian.nlistsize.copy_sync(cpuHamiltonian.nlistsize); 
-        cpuHamiltonian.ncoup.transpose();
-        cpuHamiltonian.nlist.transpose();
+    }
+    else {
+        cpuHamiltonian.ncoup.transposed_copy_to(gpuHamiltonian.ncoup);
+        cpuHamiltonian.nlist.transposed_copy_to(gpuHamiltonian.nlist);
+        gpuHamiltonian.nlistsize.copy_sync(cpuHamiltonian.nlistsize);
         if(Flags.do_dm != 0) {
             gpuHamiltonian.dmvect.copy_sync(cpuHamiltonian.dmvect);  
             gpuHamiltonian.dmlist.copy_sync(cpuHamiltonian.dmlist);     
