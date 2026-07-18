@@ -258,6 +258,15 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+      // Match the CPU convention: measure the state at the start of this step.
+      measure_ene = ((gpuSim.Flags.do_ene > 0) && gpuSim.Flags.do_gpu_measurements &&
+            (((mstep - 1) % gpuSim.SimParam.ene_step == 0) ||
+             (gpuSim.Flags.do_cumu && ((mstep - 1) % gpuSim.SimParam.cumu_step == 0))));
+
+      // Apply the Hamiltonian to the measured configuration.
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      stopwatch.add("hamiltonian");
+
       // Measure
       measurement->measure(mstep);
       correlation->measure(mstep);
@@ -267,19 +276,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Print simulation status for each 5% of the simulation length
       printMdStatus(mstep, gpuSim);
 
-      // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-      stopwatch.add("hamiltonian");
-
       // Perform first step of SDE solver
       integrator.evolveFirst(gpuSim.gpuLattice);
       stopwatch.add("evolution");
 
-      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
-            (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
-
-      // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      // Apply the predictor field needed by the corrector without measuring it.
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
       stopwatch.add("hamiltonian");
   
 
