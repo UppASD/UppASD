@@ -44,9 +44,9 @@ contains
     integer, intent(in) :: obs_step !< Interval for sampling the observable
     integer, intent(in) :: obs_buff !< Buffer size for storing the observable
     integer, intent(in) :: obs_dim !< Number of columns for the observable
-    real(dblprec), dimension(:), allocatable      :: indxb_obs   !< Step counter for the buffer of the observable
-    real(dblprec), dimension(:,:,:), allocatable  :: obs_buffer  !< Buffer for the observable
-    character(len=16), dimension(:), allocatable  :: obs_label   !< Labels for the components of the observable
+    real(dblprec), dimension(:), intent(inout) :: indxb_obs   !< Step counter for the buffer of the observable
+    real(dblprec), dimension(:,:,:), intent(in) :: obs_buffer  !< Buffer for the observable
+    character(len=16), dimension(:), intent(in) :: obs_label   !< Labels for the components of the observable
     character(len=1), intent(in) :: real_time_measure !< Measurement performed in real time
     real(dblprec), intent(in) :: delta_t !< Current time step
     integer, intent(in) :: mstep !< Current simulation step

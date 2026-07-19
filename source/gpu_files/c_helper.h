@@ -30,8 +30,9 @@ extern "C" {
 #endif
 
 // Fortran definition
-extern void FORTNAME(chelper, fortran_print_measurables)(const std::size_t*obs_step, const std::size_t*obs_buff,
-                                                         const char *obs_label, const std::size_t*obs_dim, const real* obs_buffer,  const std::size_t*mstep);
+extern void fortran_print_measurables(const int* obs_step, const int* obs_buff, void* indxb_obs,
+                                      const char* obs_name, const char* obs_label, const int* obs_dim,
+                                      const void* obs_buffer, const int* mstep);
 extern void FORTNAME(chelper, fortran_measure)(const std::size_t* mstep);
 extern void FORTNAME(chelper, fortran_do_measurements)(const std::size_t* mstep, int* do_copy);
 extern void FORTNAME(chelper, fortran_moment_update)();
@@ -50,9 +51,10 @@ extern void FORTNAME(chelper, fortran_measure_moment)(const real* emomM, const r
 extern void fortran_calc_simulation_status_variables(real* mavg);
 
 // Short name wrappers
-inline void fortran_print_measurables(std::size_t obs_step, std::size_t obs_buff,
-                              char obs_label,  const std::size_t obs_dim, real* obs_buffer, std::size_t mstep) {
-   FORTNAME(chelper, fortran_print_measurables)(&obs_step, &obs_buff, &obs_label, &obs_dim, obs_buffer, &mstep);
+inline void call_fortran_print_measurables(int obs_step, int obs_buff, void* indxb_obs,
+                              const char* obs_name, const char* obs_label, int obs_dim,
+                              const void* obs_buffer, int mstep) {
+   ::fortran_print_measurables(&obs_step, &obs_buff, indxb_obs, obs_name, obs_label, &obs_dim, obs_buffer, &mstep);
 }
 
 

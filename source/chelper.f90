@@ -541,16 +541,35 @@ contains
 
        ! Print measurables calculated in CUDA
    subroutine fortran_print_measurables(obs_step, obs_buff, indxb_obs, obs_name, &
-        obs_label, obs_dim, obs_buffer, mstep)
+        obs_label, obs_dim, obs_buffer, mstep) bind(C, name="fortran_print_measurables")
       implicit none
-      integer, intent(in) :: obs_step, obs_buff, obs_dim
-      real(dblprec), dimension(:), allocatable, intent(in) :: indxb_obs
-      real(dblprec), dimension(:,:,:), allocatable, intent(in) :: obs_buffer
-      character(len=16), intent(in) :: obs_name !< Observable name
-      character(len=16), dimension(:), allocatable, intent(in) :: obs_label
-      integer, intent(in) :: mstep !< Current simulation step
-      call print_observable(simid, Mensemble, obs_name, obs_step, obs_buff, &
-      obs_dim, indxb_obs, obs_buffer, obs_label, real_time_measure, delta_t, mstep)
+      integer(c_int), intent(in) :: obs_step, obs_buff, obs_dim, mstep
+      type(c_ptr), value :: indxb_obs
+      character(c_char), intent(in) :: obs_name(*), obs_label(*)
+      type(c_ptr), value :: obs_buffer
+      real(c_double), pointer :: f_indxb_obs(:)
+      real(c_double), pointer :: f_obs_buffer(:,:,:)
+      character(len=16) :: f_obs_name
+      character(len=16), allocatable :: f_obs_label(:)
+      integer :: i, j
+
+      f_obs_name = ''
+      do i = 1, len(f_obs_name)
+         f_obs_name(i:i) = obs_name(i)
+      end do
+
+      allocate(f_obs_label(obs_dim))
+      do i = 1, obs_dim
+         f_obs_label(i) = ''
+         do j = 1, len(f_obs_label(i))
+            f_obs_label(i)(j:j) = obs_label((i - 1) * len(f_obs_label(i)) + j)
+         end do
+      end do
+
+      call c_f_pointer(indxb_obs, f_indxb_obs, [obs_buff])
+      call c_f_pointer(obs_buffer, f_obs_buffer, [obs_dim, obs_buff, Mensemble])
+      call print_observable(simid, Mensemble, f_obs_name, obs_step, obs_buff, &
+         obs_dim, f_indxb_obs, f_obs_buffer, f_obs_label, real_time_measure, delta_t, mstep)
    end subroutine fortran_print_measurables
 
 
