@@ -53,6 +53,81 @@ module Chelper
    implicit none
 
    interface
+      subroutine FortranData_setFlags(do_dm, do_jtensor, do_anisotropy, do_avrg, do_proj_avrg, do_projch_avrg, &
+            do_cumu, do_cumu_proj, plotenergy, do_autocorr, do_tottraj, ntraj, do_gpu_measurements, skyno, &
+            do_sc, do_gpu_correlations, real_time_measure, do_sc_proj, do_sc_projch, do_ralloy) &
+            bind(C, name="fortrandata_setflags_")
+         import :: c_int, c_char
+         integer(c_int), intent(inout) :: do_dm, do_jtensor, do_anisotropy
+         character(c_char), intent(inout) :: do_avrg, do_proj_avrg, do_projch_avrg
+         character(c_char), intent(inout) :: do_cumu, do_cumu_proj
+         integer(c_int), intent(inout) :: plotenergy
+         character(c_char), intent(inout) :: do_autocorr, do_tottraj
+         integer(c_int), intent(inout) :: ntraj
+         character(c_char), intent(inout) :: do_gpu_measurements, skyno, do_sc, do_gpu_correlations
+         character(c_char), intent(inout) :: real_time_measure, do_sc_proj, do_sc_projch
+         integer(c_int), intent(inout) :: do_ralloy
+      end subroutine FortranData_setFlags
+
+      subroutine FortranData_setConstants(stt, SDEalgh, rstep, nstep, Natom, Mensemble, max_no_neigh, &
+            delta_t, gamma, k_bolt, mub, mplambda1, binderc, mavg, mompar, initexc, max_no_dmneigh, nHam, &
+            Temp, ipmcnphase, mcnstep, ipnphase, avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
+            tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, nw, sc_sep, sc_step, &
+            sc_max_nstep, nspinwait, ac_step, ac_buff, nt, Nchmax, mry, NA, Natom_full) &
+            bind(C, name="fortrandata_setconstants_")
+         import :: c_int, c_char, c_double
+         character(c_char), intent(in) :: stt
+         character(c_char), intent(inout) :: initexc
+         integer(c_int), intent(inout) :: SDEalgh, rstep, nstep, Natom, Mensemble, max_no_neigh
+         real(c_double), intent(inout) :: delta_t, gamma, k_bolt, mub, mplambda1, binderc, mavg
+         integer(c_int), intent(inout) :: mompar, max_no_dmneigh, nHam
+         real(c_double), intent(inout) :: Temp
+         integer(c_int), intent(inout) :: ipmcnphase, mcnstep, ipnphase, avrg_step, avrg_buff, cumu_step, cumu_buff
+         integer(c_int), intent(inout) :: ene_step, ene_buff, tottraj_step, tottraj_buff, skyno_step, skyno_buff
+         integer(c_int), intent(inout) :: nq, sc_window_fun, nw, sc_sep, sc_step, sc_max_nstep, nspinwait
+         integer(c_int), intent(inout) :: ac_step, ac_buff, nt, Nchmax, NA, Natom_full
+         real(c_double), intent(inout) :: mry
+      end subroutine FortranData_setConstants
+
+      subroutine FortranData_setHamiltonian(ncoup, nlist, nlistsize, dmvect, dmlist, dmlistsize, kaniso, &
+            eaniso, taniso, sb, j_tensor, aHam, external_field, btorque, Temp_array, ipTemp, ipmcnstep, &
+            ipTemp_array, ipnstep, ipdelta_t, iplambda1) bind(C, name="fortrandata_sethamiltonian_")
+         import :: c_int, c_double
+         real(c_double), intent(inout) :: ncoup(*), dmvect(*), kaniso(*), eaniso(*), sb(*), j_tensor(*)
+         integer(c_int), intent(inout) :: nlist(*), nlistsize(*), dmlist(*), dmlistsize(*), taniso(*), aHam(*)
+         real(c_double), intent(inout) :: external_field(*), btorque(*), Temp_array(*), ipTemp(*)
+         integer(c_int), intent(inout) :: ipmcnstep(*)
+         real(c_double), intent(inout) :: ipTemp_array(*), ipdelta_t(*), iplambda1(*)
+         integer(c_int), intent(inout) :: ipnstep(*)
+      end subroutine FortranData_setHamiltonian
+
+      subroutine FortranData_setLattice(beff, b2eff, emomM, emom, emom2, mmom, mmom0, mmom2, mmomi, &
+            dxyz_vec, dxyz_atom, dxyz_list, atype) bind(C, name="fortrandata_setlattice_")
+         import :: c_int, c_double
+         real(c_double), intent(inout) :: beff(*), b2eff(*), emomM(*), emom(*), emom2(*)
+         real(c_double), intent(inout) :: mmom(*), mmom0(*), mmom2(*), mmomi(*), dxyz_vec(*)
+         integer(c_int), intent(inout) :: dxyz_atom(*), dxyz_list(*), atype(*)
+      end subroutine FortranData_setLattice
+
+      subroutine FortranData_setMeasurables(mavg_buff, mavg2_buff, mavg4_buff, mavg_buff_proj, mavg2_buff_proj, &
+            mavg4_buff_proj, binderc, avrgmcum, avrgm2cum, avrgm4cum, eavg_buff, eavg2_buff, traj_step, &
+            traj_buff, traj_atom, mmomb, mmomb_traj, emomb, emomb_traj, spinwaitt, spinwait, indxb_ac, &
+            autocorr_buff, achem_ch, asite_ch) bind(C, name="fortrandata_setmeasurables_")
+         import :: c_int, c_double
+         real(c_double), intent(inout) :: mavg_buff(*), mavg2_buff(*), mavg4_buff(*), mavg_buff_proj(*)
+         real(c_double), intent(inout) :: mavg2_buff_proj(*), mavg4_buff_proj(*)
+         real(c_double), intent(inout) :: binderc, avrgmcum, avrgm2cum, avrgm4cum
+         real(c_double), intent(inout) :: eavg_buff(*), eavg2_buff(*), mmomb(*), mmomb_traj(*), emomb(*)
+         real(c_double), intent(inout) :: emomb_traj(*), spinwait(*), indxb_ac(*), autocorr_buff(*)
+         integer(c_int), intent(inout) :: traj_step(*), traj_buff(*), traj_atom(*), spinwaitt(*), achem_ch(*), asite_ch(*)
+      end subroutine FortranData_setMeasurables
+
+      subroutine FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed) &
+            bind(C, name="fortrandata_setinputdata_")
+         import :: c_int
+         integer(c_int), intent(inout) :: gpu_mode, gpu_rng, gpu_rng_seed
+      end subroutine FortranData_setInputData
+
          subroutine FortranData_setCorrelations(q, r_mid, coord, w, m_k, m_kw, m_kt, deltat_corr, scstep_arr, sc_nsamp, sc_tidx,&
                atype, achtype, m_k_proj, m_k_projch, m_kt_proj, m_kt_projch, m_kw_proj, m_kw_projch) &
                 bind(C, name="fortrandata_setcorrelations_")

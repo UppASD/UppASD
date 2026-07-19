@@ -262,7 +262,7 @@ public:
                                        real* p_mavg_buff_proj, real* p_mavg2_buff_proj, real* p_mavg4_buff_proj, 
                                        real* p_binderc, real* p_avrgmcum, real* p_avrgm2cum, real* p_avrgm4cum, 
                                        real* p_eavg_buff, real* p_eavg2_buff, 
-                                       real* p_traj_step, real* p_traj_buff, real* p_traj_atom,
+                                       int* p_traj_step, int* p_traj_buff, int* p_traj_atom,
                                        real* p_mmomb, real* p_mmomb_traj, real* p_emomb, real* p_emomb_traj,
                                        unsigned int* p_spinwaitt, real* p_spinwait, real* p_indxb_ac, real* p_autocorr_buff,
                                        int* p_achem_ch, int* p_asite_ch);
