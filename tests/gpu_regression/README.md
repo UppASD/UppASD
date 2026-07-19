@@ -12,7 +12,7 @@ python3 tests/gpu_regression/run.py --binary ./bin/sd.f95.cuda
 Useful variants:
 
 ```bash
-python3 tests/gpu_regression/run.py --binary ./bin/sd.f95.cuda --list
+python3 tests/gpu_regression/run.py --list
 python3 tests/gpu_regression/run.py --binary ./bin/sd.f95.cuda --case bcc_tail_block_1000 --keep
 ```
 

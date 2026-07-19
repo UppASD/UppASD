@@ -37,7 +37,7 @@ class Difference:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True,
+    parser.add_argument("--binary", type=Path,
                         help="GPU-enabled UppASD executable")
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
     parser.add_argument("--case", action="append", dest="selected",
@@ -72,6 +72,11 @@ def set_input_value(text: str, key: str, value: str, before_key: str | None = No
 def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> None:
     fixture = ROOT / case["fixture"]
     shutil.copytree(fixture, destination)
+    # Fixtures may contain checked-in outputs.  Remove comparison targets so a
+    # successful run cannot be validated against stale data it failed to write.
+    for pattern in ("restart.*.out", "totenergy.*.out"):
+        for output in destination.glob(pattern):
+            output.unlink()
     input_path = destination / INPUT_NAME
     if not input_path.exists():
         raise FileNotFoundError(f"{case['name']}: fixture has no {INPUT_NAME}: {fixture}")
@@ -190,22 +195,29 @@ def compare_outputs(case: dict, defaults: dict, cpu_dir: Path, gpu_dir: Path) ->
             single_file(cpu_dir, "totenergy.*.out", case["name"]), f"{case['name']} CPU")
         gpu_rows = energy_rows_by_iteration(
             single_file(gpu_dir, "totenergy.*.out", case["name"]), f"{case['name']} GPU")
-        common_iterations = sorted(cpu_rows.keys() & gpu_rows.keys())
-        if not common_iterations:
-            raise AssertionError(f"{case['name']}: CPU and GPU have no energy iterations in common")
+        if cpu_rows.keys() != gpu_rows.keys():
+            raise AssertionError(
+                f"{case['name']}: energy iteration mismatch: "
+                f"CPU={sorted(cpu_rows)}, GPU={sorted(gpu_rows)}")
+        iterations = sorted(cpu_rows)
+        for iteration in iterations:
+            if len(cpu_rows[iteration]) != len(gpu_rows[iteration]):
+                raise AssertionError(
+                    f"{case['name']}: energy row-count mismatch at iteration {iteration}: "
+                    f"CPU={len(cpu_rows[iteration])}, GPU={len(gpu_rows[iteration])}")
         cpu = [
             value
-            for iteration in common_iterations
-            for row in cpu_rows[iteration][:min(len(cpu_rows[iteration]), len(gpu_rows[iteration]))]
+            for iteration in iterations
+            for row in cpu_rows[iteration]
             for value in row
         ]
         gpu = [
             value
-            for iteration in common_iterations
-            for row in gpu_rows[iteration][:min(len(cpu_rows[iteration]), len(gpu_rows[iteration]))]
+            for iteration in iterations
+            for row in gpu_rows[iteration]
             for value in row
         ]
-        result.append(compare_values("energy (common iterations)", cpu, gpu, rtol, atol))
+        result.append(compare_values("energy", cpu, gpu, rtol, atol))
     return result
 
 
@@ -240,6 +252,8 @@ def main() -> int:
     if args.list:
         print("\n".join(case["name"] for case in cases))
         return 0
+    if args.binary is None:
+        raise SystemExit("--binary is required unless --list is used")
     selected = set(args.selected or [case["name"] for case in cases])
     unknown = selected - {case["name"] for case in cases}
     if unknown:
