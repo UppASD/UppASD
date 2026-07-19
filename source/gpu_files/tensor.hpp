@@ -78,6 +78,11 @@ public:
    Tensor(T* data, const Extents<dim>& ext) : IndexBase<T, dim>{ext}, data_{data} {
    }
 
+   template <typename U, typename... Ints>
+   Tensor(U* source, Ints... ext) {
+      set(source, ext...);
+   }
+
 
    Tensor() = default;
    // shallow copy of data
@@ -114,6 +119,23 @@ public:
    template <typename... Ints>
    void set(T* data, Ints... ext) {
       set(data, Extents<dim>{ext...});
+   }
+
+   // Stage values supplied in a host type that differs from the tensor's
+   // storage type.  In particular, the Fortran interface always owns double
+   // precision buffers while a SINGLE_PREC build stores real values as float.
+   template <typename U, typename... Ints>
+   void set(U* source, Ints... ext) {
+      static_assert(!std::is_same_v<T, U>, "Use the native set overload for matching types");
+      AllocateHost(Extents<dim>{ext...});
+      std::transform(source, source + size(), data_,
+                     [](U value) { return static_cast<T>(value); });
+   }
+
+   template <typename U>
+   void copy_to(U* destination) const {
+      std::transform(data_, data_ + size(), destination,
+                     [](T value) { return static_cast<U>(value); });
    }
 
 

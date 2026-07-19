@@ -1,5 +1,9 @@
 #include "fortranData.hpp"
 
+// Keep the out-of-class definitions and C ABI entry points in the Fortran
+// storage precision declared by fortranData.hpp.
+#define real fortran_real
+
 #include "real_type.h"
 #include <thrust/complex.h>
 
@@ -50,19 +54,19 @@ real* FortranData::w;
 int* FortranData::atype;
 int* FortranData::lattice_atype;
 int* FortranData::achtype;
-cpu_complex* FortranData::m_k = nullptr;
-cpu_complex* FortranData::m_kw = nullptr;
-cpu_complex* FortranData::m_kt = nullptr;
+fortran_complex* FortranData::m_k = nullptr;
+fortran_complex* FortranData::m_kw = nullptr;
+fortran_complex* FortranData::m_kt = nullptr;
 real* FortranData::deltat_corr = nullptr;
 real* FortranData::scstep_arr = nullptr;
 int* FortranData::sc_nsamp_ptr = nullptr;  // Pointer to GPU-computed sample count
 int* FortranData::sc_tidx_ptr = nullptr;   // Pointer to GPU-computed time step index
-cpu_complex* FortranData::m_k_proj = nullptr;
-cpu_complex* FortranData::m_k_projch = nullptr;
-cpu_complex* FortranData::m_kt_proj = nullptr;
-cpu_complex* FortranData::m_kt_projch = nullptr;
-cpu_complex* FortranData::m_kw_proj = nullptr;
-cpu_complex* FortranData::m_kw_projch = nullptr;
+fortran_complex* FortranData::m_k_proj = nullptr;
+fortran_complex* FortranData::m_k_projch = nullptr;
+fortran_complex* FortranData::m_kt_proj = nullptr;
+fortran_complex* FortranData::m_kt_projch = nullptr;
+fortran_complex* FortranData::m_kw_proj = nullptr;
+fortran_complex* FortranData::m_kw_projch = nullptr;
 
 
 real* FortranData::delta_t;
@@ -368,21 +372,21 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
    r_mid = p_r_mid;
    coord = p_coord;
    w = p_w;
-   m_k  = reinterpret_cast<cpu_complex*>(p_m_k);
-   m_kw = reinterpret_cast<cpu_complex*>(p_m_kw);
-   m_kt = reinterpret_cast<cpu_complex*>(p_m_kt);
+   m_k  = reinterpret_cast<fortran_complex*>(p_m_k);
+   m_kw = reinterpret_cast<fortran_complex*>(p_m_kw);
+   m_kt = reinterpret_cast<fortran_complex*>(p_m_kt);
    deltat_corr = p_deltat_corr;
    scstep_arr = p_scstep_arr;
    sc_nsamp_ptr = p_sc_nsamp;  // Store pointer to GPU sample count
    sc_tidx_ptr = p_sc_tidx;    // Store pointer to GPU time index
    atype = p_atype;
    achtype = p_achtype;
-   m_k_proj = reinterpret_cast<cpu_complex*>(p_m_k_proj);
-   m_k_projch = reinterpret_cast<cpu_complex*>(p_m_k_projch);
-   m_kt_proj = reinterpret_cast<cpu_complex*>(p_m_kt_proj);
-   m_kt_projch = reinterpret_cast<cpu_complex*>(p_m_kt_projch);
-   m_kw_proj = reinterpret_cast<cpu_complex*>(p_m_kw_proj);
-   m_kw_projch = reinterpret_cast<cpu_complex*>(p_m_kw_projch);
+   m_k_proj = reinterpret_cast<fortran_complex*>(p_m_k_proj);
+   m_k_projch = reinterpret_cast<fortran_complex*>(p_m_k_projch);
+   m_kt_proj = reinterpret_cast<fortran_complex*>(p_m_kt_proj);
+   m_kt_projch = reinterpret_cast<fortran_complex*>(p_m_kt_projch);
+   m_kw_proj = reinterpret_cast<fortran_complex*>(p_m_kw_proj);
+   m_kw_projch = reinterpret_cast<fortran_complex*>(p_m_kw_projch);
 
 }
 /*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,

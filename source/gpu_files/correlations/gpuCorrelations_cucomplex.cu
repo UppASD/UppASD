@@ -11,6 +11,17 @@
 #include <cuda.h>
 #include <correlation_kernels.cuh>
 
+namespace {
+template <index_t dim>
+void copy_to_fortran(const Tensor<cpu_complex, dim>& source,
+                     fortran_complex* destination) {
+    if (destination == nullptr) return;
+
+    for (index_t i = 0; i < source.size(); ++i) {
+        destination[i] = fortran_complex(source[i].real(), source[i].imag());
+    }
+}
+}
 
 
 // Constructor
@@ -364,6 +375,18 @@ void GpuCorrelations::recordSample() {
 }
 
 void GpuCorrelations::publishSamplingInfo(hostCorrelations& cpuCorrelations) {
+    // Correlation accumulators are device-precision buffers; publish them to
+    // the double-precision Fortran-owned complex arrays explicitly.
+    copy_to_fortran(cpuCorrelations.m_k, FortranData::m_k);
+    copy_to_fortran(cpuCorrelations.m_kt, FortranData::m_kt);
+    copy_to_fortran(cpuCorrelations.m_kw, FortranData::m_kw);
+    copy_to_fortran(cpuCorrelations.m_k_proj, FortranData::m_k_proj);
+    copy_to_fortran(cpuCorrelations.m_kt_proj, FortranData::m_kt_proj);
+    copy_to_fortran(cpuCorrelations.m_kw_proj, FortranData::m_kw_proj);
+    copy_to_fortran(cpuCorrelations.m_k_projch, FortranData::m_k_projch);
+    copy_to_fortran(cpuCorrelations.m_kt_projch, FortranData::m_kt_projch);
+    copy_to_fortran(cpuCorrelations.m_kw_projch, FortranData::m_kw_projch);
+
     // Copy the recorded delta_t values back to Fortran's deltat_corr array
     if (FortranData::deltat_corr != nullptr && dt_cpu.extent(0) > 0) {
         std::size_t n_copy = std::min(static_cast<std::size_t>(dt_cpu.extent(0)), n_samples);
@@ -393,7 +416,6 @@ void GpuCorrelations::publishSamplingInfo(hostCorrelations& cpuCorrelations) {
         *FortranData::sc_tidx_ptr = static_cast<int>(t_cur);
     }
 }
-
 
 
 

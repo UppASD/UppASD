@@ -65,10 +65,14 @@ void GpuSimulation::initiateConstants() {
     SimParam.BC1 = FortranData::BC1 ? *FortranData::BC1 : '0';
     SimParam.BC2 = FortranData::BC2 ? *FortranData::BC2 : '0';
     SimParam.BC3 = FortranData::BC3 ? *FortranData::BC3 : '0';
-    SimParam.C1 = FortranData::C1;
-    SimParam.C2 = FortranData::C2;
-    SimParam.C3 = FortranData::C3;
-    SimParam.Bas = FortranData::Bas;
+    geometryC1.set(FortranData::C1, 3);
+    geometryC2.set(FortranData::C2, 3);
+    geometryC3.set(FortranData::C3, 3);
+    geometryBas.set(FortranData::Bas, 3 * SimParam.NA);
+    SimParam.C1 = geometryC1.data();
+    SimParam.C2 = geometryC2.data();
+    SimParam.C3 = geometryC3.data();
+    SimParam.Bas = geometryBas.data();
     SimParam.ipmcnphase = *FortranData::ipmcnphase;
     SimParam.ipnphase = *FortranData::ipnphase;
     if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
@@ -538,9 +542,23 @@ void GpuSimulation::copyToFortran() {
     cpuLattice.emom2.copy_sync(gpuLattice.emom2);   
     cpuLattice.mmom.copy_sync(gpuLattice.mmom);  
     cpuLattice.mmom0.copy_sync(gpuLattice.mmom0);  
-    cpuLattice.mmom2.copy_sync(gpuLattice.mmom2);  
-    cpuLattice.mmomi.copy_sync(gpuLattice.mmomi);  
-   // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
+    cpuLattice.mmom2.copy_sync(gpuLattice.mmom2);
+    cpuLattice.mmomi.copy_sync(gpuLattice.mmomi);
+    // cpuLattice owns precision-converted staging in SINGLE_PREC builds.
+    // Convert results back into the double-precision Fortran buffers.
+    cpuLattice.beff.copy_to(FortranData::beff);
+    cpuLattice.b2eff.copy_to(FortranData::b2eff);
+    cpuLattice.emomM.copy_to(FortranData::emomM);
+    cpuLattice.emom.copy_to(FortranData::emom);
+    cpuLattice.emom2.copy_to(FortranData::emom2);
+    cpuLattice.mmom.copy_to(FortranData::mmom);
+    cpuLattice.mmom0.copy_to(FortranData::mmom0);
+    cpuLattice.mmom2.copy_to(FortranData::mmom2);
+    cpuLattice.mmomi.copy_to(FortranData::mmomi);
+    if(FortranData::btorque) {
+        cpuLattice.btorque.copy_to(FortranData::btorque);
+    }
+   // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);
     //gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
 }

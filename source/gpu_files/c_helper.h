@@ -6,7 +6,7 @@
 #ifndef __C_HELPER_H__
 #define __C_HELPER_H__
 
-#include "real_type.h"
+#include "fortranData.hpp"
 
 // Don't use C++ object naming
 #ifdef __cplusplus
@@ -22,11 +22,11 @@ extern void fortran_do_measurements(const int* mstep, int* do_copy);
 extern void fortran_moment_update();
 extern void fortran_flush_measurements(const int* mstep);
 extern void fortran_print_correlations();
-extern void fortran_measure_correlations(const real* emomM, const real* emom, const real* mmom, const int* mstep);
-extern void fortran_measure_rest(const real* emomM, const real* emom, const real* mmom, const real* beff, const int* mstep);
-extern void fortran_measure_moment(const real* emomM, const real* emom, const real* mmom, const int* mstep);
-extern void fortran_calc_simulation_status_variables(real* mavg);
-extern void fortran_fill_rngarray(real* ranv, const int* len);
+extern void fortran_measure_correlations(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, const int* mstep);
+extern void fortran_measure_rest(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, const fortran_real* beff, const int* mstep);
+extern void fortran_measure_moment(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, const int* mstep);
+extern void fortran_calc_simulation_status_variables(fortran_real* mavg);
+extern void fortran_fill_rngarray(fortran_real* ranv, const int* len);
 extern void fortran_set_mstep(const int* mstep);
 extern void fortran_get_mstep(int* mstep);
 
@@ -54,11 +54,11 @@ inline void call_fortran_print_correlations() {
    ::fortran_print_correlations();
 }
 
-inline void call_fortran_measure_correlations(const real* emomM, const real* emom, const real* mmom, int mstep) {
+inline void call_fortran_measure_correlations(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, int mstep) {
    ::fortran_measure_correlations(emomM, emom, mmom, &mstep);
 }
 
-inline void call_fortran_measure_rest(const real* emomM, const real* emom, const real* mmom, const real* beff, int mstep) {
+inline void call_fortran_measure_rest(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, const fortran_real* beff, int mstep) {
    ::fortran_measure_rest(emomM, emom, mmom, beff, &mstep);
 }
 
@@ -69,12 +69,12 @@ inline int call_fortran_do_measurements(int mstep) {
    return do_copy;
 }
 
-inline void call_fortran_measure_moment(const real* emomM, const real* emom, const real* mmom, int mstep) {
+inline void call_fortran_measure_moment(const fortran_real* emomM, const fortran_real* emom, const fortran_real* mmom, int mstep) {
    ::fortran_measure_moment(emomM, emom, mmom, &mstep);
 }
 
 // RNG
-inline void fill_rngarray(real* ranv, int len) {
+inline void fill_rngarray(fortran_real* ranv, int len) {
    ::fortran_fill_rngarray(ranv, &len);
 }
 

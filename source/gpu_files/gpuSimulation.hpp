@@ -19,6 +19,8 @@ private:
     hostMeasurables cpuMeasurebles;//those are host matrices
     hostHamiltonian cpuHamiltonian;//those are host matrices
     hostCorrelations cpuCorrelations;//those are host matrices
+    // Precision-converted geometry retained for the lifetime of the GPU run.
+    Tensor<real, 1> geometryC1, geometryC2, geometryC3, geometryBas;
 
     deviceLattice gpuLattice; //those are device matrices
     deviceMeasurables gpuMeasurebles;//those are device matrices

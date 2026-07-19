@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <sched.h>
 
+#include <algorithm>
 #include <queue>
 
 #include "c_headers.hpp"
@@ -27,17 +28,17 @@ MeasurementQueue::Measurement::Measurement(real* _emomM, real* _emom, real* _mmo
    step = _step;
    type = _type;
    if(NM != 0) {
-      emomM = new real[NM * 3];
-      emom = new real[NM * 3];
-      mmom = new real[NM * 1];
+      emomM = new fortran_real[NM * 3];
+      emom = new fortran_real[NM * 3];
+      mmom = new fortran_real[NM];
 
-      memcpy(emomM, _emomM, NM * 3 * sizeof(real));
-      memcpy(emom, _emom, NM * 3 * sizeof(real));
-      memcpy(mmom, _mmom, NM * 1 * sizeof(real));
+      std::copy_n(_emomM, NM * 3, emomM);
+      std::copy_n(_emom, NM * 3, emom);
+      std::copy_n(_mmom, NM, mmom);
 
       if(type==MeasurementType::Rest){
-         beff = new real[NM * 3];
-         memcpy(beff, _beff, NM * 3 * sizeof(real));
+         beff = new fortran_real[NM * 3];
+         std::copy_n(_beff, NM * 3, beff);
       }
       else{
          beff = nullptr;
@@ -145,28 +146,28 @@ void MeasurementQueue::processMeasurements() {
 
 void MeasurementQueue::processMomentMeasurement(Measurement* m)
 {
-   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
-   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
-   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+   const fortran_real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const fortran_real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const fortran_real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
 
    call_fortran_measure_moment(emomM, emom, mmom, m->step);
 }
 
 void MeasurementQueue::processRestMeasurement(Measurement* m)
 {
-   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
-   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
-   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
-   const real* beff  = (m->beff)  ? m->beff  : FortranData::beff;
+   const fortran_real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const fortran_real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const fortran_real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+   const fortran_real* beff  = (m->beff)  ? m->beff  : FortranData::beff;
 
    call_fortran_measure_rest(emomM, emom, mmom, beff, m->step);
 }
 
 void MeasurementQueue::processCorrelationsMeasurement(Measurement* m)
 {
-   const real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
-   const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
-   const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
+   const fortran_real* emomM = (m->emomM) ? m->emomM : FortranData::emomM;
+   const fortran_real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
+   const fortran_real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
 
    call_fortran_measure_correlations(emomM, emom, mmom, m->step);
 }

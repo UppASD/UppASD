@@ -2,8 +2,15 @@
 
 #include "c_headers.hpp"
 #include "real_type.h"
+#include <complex>
 #include <thrust/complex.h>
 
+// The Fortran ABI always supplies real(dblprec) storage.  Keep this type
+// independent from the precision selected for device-side `real`.
+using fortran_real = double;
+using fortran_complex = std::complex<fortran_real>;
+
+#define real fortran_real
 
 // NAME         TYPE     DIMENSION   DESCRIPTION
 //
@@ -97,15 +104,15 @@ public:
    static real* scstep_arr;
    static int* sc_nsamp_ptr;  // Pointer to GPU-computed sample count
    static int* sc_tidx_ptr;   // Pointer to GPU-computed time step index
-   static cpu_complex * m_k;
-   static cpu_complex * m_kw;
-   static cpu_complex * m_kt;
-   static cpu_complex* m_k_proj;
-   static cpu_complex* m_k_projch;
-   static cpu_complex* m_kt_proj;
-   static cpu_complex* m_kt_projch;   
-   static cpu_complex* m_kw_proj;
-   static cpu_complex* m_kw_projch;
+   static fortran_complex * m_k;
+   static fortran_complex * m_kw;
+   static fortran_complex * m_kt;
+   static fortran_complex* m_k_proj;
+   static fortran_complex* m_k_projch;
+   static fortran_complex* m_kt_proj;
+   static fortran_complex* m_kt_projch;
+   static fortran_complex* m_kw_proj;
+   static fortran_complex* m_kw_projch;
 
 
    //delta_t;
@@ -291,3 +298,5 @@ public:
 
    static void setInputDataPointers(int* p1, int* p2, int* p3);
 };
+
+#undef real

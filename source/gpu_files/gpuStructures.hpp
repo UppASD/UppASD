@@ -94,8 +94,8 @@ struct SimulationParameters {
 
    unsigned long long randomSeed;
 
-   const real* binderc;
-   real* mavg;
+   const fortran_real* binderc;
+   fortran_real* mavg;
 };
 
 

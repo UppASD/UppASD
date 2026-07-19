@@ -11,7 +11,7 @@
 #include <pthread.h>
 #include <queue>
 
-#include "real_type.h"
+#include "fortranData.hpp"
 
 
 
@@ -27,10 +27,10 @@ public:
    // Measurement class
    class Measurement {
       friend MeasurementQueue;
-      real* emomM;
-      real* emom;
-      real* mmom;
-      real* beff;
+      fortran_real* emomM;
+      fortran_real* emom;
+      fortran_real* mmom;
+      fortran_real* beff;
       std::size_t step;
       MeasurementType type; 
 
@@ -74,5 +74,4 @@ public:
    // Finish
    void finish();
 };
-
 
