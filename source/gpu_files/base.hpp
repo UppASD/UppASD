@@ -20,6 +20,15 @@
 using index_t = long int;
 
 
+// Bounds checks are valuable for host-side tensor manipulation, but device
+// indexing is on the innermost kernel path.  Do not emit device asserts there.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+  #define GPU_HOST_ASSERT(condition) ((void)0)
+#else
+  #define GPU_HOST_ASSERT(condition) assert(condition)
+#endif
+
+
 #define ASSERT_GPU(gpuCall)                            \
    {                                                     \
       GPU_ERROR_T error = gpuCall;                      \
@@ -52,12 +61,12 @@ public:
    }
 
    __host__ __device__ index_t& operator[](index_t d) {
-      assert(d > -1 && d < dim);
+      GPU_HOST_ASSERT(d > -1 && d < dim);
       return x[d];
    }
 
    __host__ __device__ const index_t& operator[](index_t d) const {
-      assert(d > -1 && d < dim);
+      GPU_HOST_ASSERT(d > -1 && d < dim);
       return x[d];
    }
 
@@ -138,39 +147,39 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////////////////////////
    __host__ __device__ index_t index_of(index_t i) const {
-      assert(valid_index(i, 0));
+      GPU_HOST_ASSERT(valid_index(i, 0));
       return i;
    }
 
 
    __host__ __device__ index_t index_of(index_t i, index_t j) const {
-      assert(valid_index(j, 1));
+      GPU_HOST_ASSERT(valid_index(j, 1));
       return index_of(i) + j * ext_[0];
    }
 
 
    __host__ __device__ index_t index_of(index_t i, index_t j, index_t k) const {
-      assert(valid_index(k, 2));
+      GPU_HOST_ASSERT(valid_index(k, 2));
       return index_of(i, j) + k * ext_[0] * ext_[1];
    }
 
 
    __host__ __device__ index_t index_of(index_t i, index_t j, index_t k, index_t l) const {
-      assert(valid_index(l, 3));
+      GPU_HOST_ASSERT(valid_index(l, 3));
       return index_of(i, j, k) + l * ext_[0] * ext_[1] * ext_[2];
    }
 
 
    __host__ __device__ index_t index_of(index_t i, index_t j, index_t k, index_t l,
                                         index_t m) const {
-      assert(valid_index(m, 4));
+      GPU_HOST_ASSERT(valid_index(m, 4));
       return index_of(i, j, k, l) + m * ext_[0] * ext_[1] * ext_[2] * ext_[3];
    }
 
 
    __host__ __device__ index_t index_of(index_t i, index_t j, index_t k, index_t l, index_t m,
                                         index_t n) const {
-      assert(valid_index(n, 5));
+      GPU_HOST_ASSERT(valid_index(n, 5));
       return index_of(i, j, k, l, m) + n * ext_[0] * ext_[1] * ext_[2] * ext_[3] * ext_[4];
    }
 

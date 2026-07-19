@@ -45,7 +45,7 @@ using GpuMatrix = GpuTensor<T, 2>;
 
 template <typename TensorType1, typename TensorType2>
 __host__ __device__ bool same_extents(const TensorType1& A, const TensorType2& B) {
-   assert(A.dimension() == B.dimension());
+   GPU_HOST_ASSERT(A.dimension() == B.dimension());
    for(index_t d = 0; d < A.dimension(); ++d) {
       if(A.extent(d) != B.extent(d)) {
          return false;
@@ -148,13 +148,13 @@ public:
 
 
    T& operator[](index_t i) {
-      assert(i > -1 && i < size());
+      GPU_HOST_ASSERT(i > -1 && i < size());
       return data_[i];
    }
 
 
    const T& operator[](index_t i) const {
-      assert(i > -1 && i < size());
+      GPU_HOST_ASSERT(i > -1 && i < size());
       return data_[i];
    }
 
@@ -457,13 +457,13 @@ public:
 
 
    __device__ T& operator[](index_t i) {
-      assert(i > -1 && i < size());
+      GPU_HOST_ASSERT(i > -1 && i < size());
       return data_[i];
    }
 
 
    __device__ const T& operator[](index_t i) const {
-      assert(i > -1 && i < size());
+      GPU_HOST_ASSERT(i > -1 && i < size());
       return data_[i];
    }
 

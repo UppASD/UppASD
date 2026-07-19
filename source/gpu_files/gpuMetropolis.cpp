@@ -38,9 +38,9 @@ __global__ void moms(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> emom
 
 __device__ void GetRandomXYZ(real& x, real& y, real& z, real magnitude, GPU_RAND_STATE* d_state, int& idx) {
     real norm;
-    x = GPU_NORMAL_DOUBLE(d_state + idx);
-    y = GPU_NORMAL_DOUBLE(d_state + idx);
-    z = GPU_NORMAL_DOUBLE(d_state + idx);
+    x = GPU_NORMAL(d_state + idx);
+    y = GPU_NORMAL(d_state + idx);
+    z = GPU_NORMAL(d_state + idx);
 
     norm = magnitude / sqrt(x * x + y * y + z * z);
     x *= norm;
@@ -95,7 +95,7 @@ __global__ void MCSweep(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real, 2>
         }
         // eneff deliberately excludes anisotropy in GPU-MC.  The on-site term above
         // matches MonteCarlo/montecarlo_common.f90 exactly, rather than linearizing it.
-        if (exp(beta * mub * (hamNew - hamOld - anisotropyDelta)) < GPU_RAND_UNIFORM_DOUBLE(d_state.data() + dIdx)) {
+        if (exp(beta * mub * (hamNew - hamOld - anisotropyDelta)) < GPU_RAND_UNIFORM(d_state.data() + dIdx)) {
           //  printf("NOT sweeped\n");
 
             return;

@@ -73,11 +73,8 @@ void GpuThermfield::resetConstants(const Tensor<real, 1>& temperature, real time
 void GpuThermfield::randomize(const GpuTensor<real, 2>& mmom) {
    if(!initiated()) return;
    stopwatch.skip();
-#ifdef SINGLE_PREC
-   ASSERT_CURAND(GPU_RAND_GENERATE_NORMAL(gen, randomValues.data(), randomValues.size(), 0.0f, 1.0f));
-#else
-   ASSERT_CURAND(GPU_RAND_GENERATE_NORMAL_DOUBLE(gen, randomValues.data(), randomValues.size(), 0.0, 1.0));
-#endif
+   ASSERT_CURAND(GPU_RAND_GENERATE_NORMAL_REAL(gen, randomValues.data(), randomValues.size(),
+                                                static_cast<real>(0.0), static_cast<real>(1.0)));
    stopwatch.add("RNG");
    parallel.gpuAtomSiteCall(SetupField(field, randomValues, sigmaFactor, mmom));
    stopwatch.add("loop");

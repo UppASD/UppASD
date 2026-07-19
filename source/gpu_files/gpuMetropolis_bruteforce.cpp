@@ -37,9 +37,9 @@ __global__ void moms_bf(int tasks, GpuTensor<real, 2> mmom, GpuTensor<real, 3> e
 
 __device__ void GetRandomXYZ_bf(real& x, real& y, real& z, real magnitude, GPU_RAND_STATE* d_state, int& idx) {
     real norm;
-    x = GPU_NORMAL_DOUBLE(d_state + idx);
-    y = GPU_NORMAL_DOUBLE(d_state + idx);
-    z = GPU_NORMAL_DOUBLE(d_state + idx);
+    x = GPU_NORMAL(d_state + idx);
+    y = GPU_NORMAL(d_state + idx);
+    z = GPU_NORMAL(d_state + idx);
 
     norm = magnitude / sqrt(x * x + y * y + z * z);
     x *= norm;
@@ -75,7 +75,7 @@ __global__ void MCSweep_bf(GpuTensor<GPU_RAND_STATE, 2> d_state, GpuTensor<real,
         real hamOld = fx * emomM(0, nInd, mInd) + fy * emomM(1, nInd, mInd) + fz * emomM(2, nInd, mInd);
         real hamNew = fx * xNew + fy * yNew + fz * zNew;
        // printf("exp = %lf\n", -beta * mub*(hamNew - hamOld));
-        if (exp(beta * mub*(hamNew - hamOld)) < GPU_RAND_UNIFORM_DOUBLE(d_state.data() + dIdx)) {
+        if (exp(beta * mub*(hamNew - hamOld)) < GPU_RAND_UNIFORM(d_state.data() + dIdx)) {
           //  printf("NOT sweeped\n");
 
             return;

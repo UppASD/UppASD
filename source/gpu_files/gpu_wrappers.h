@@ -24,7 +24,6 @@
   #define GPU_MEMCPY_HOST_TO_HOST hipMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) hipMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) hipMemsetAsync(ptr, value, size, stream)
-  #define GPU_NORMAL_DOUBLE(d_state) hiprand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) hiprand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS hipSuccess
   #define GPU_RAND_STATE hiprandState_t
@@ -42,9 +41,15 @@
   #define GPU_RAND_STATUS_SUCCESS HIPRAND_STATUS_SUCCESS
   #define GPU_RAND_SET_PSEUDO_RANDOM_GENERATOR_SEED(gen, seed) hiprandSetPseudoRandomGeneratorSeed(gen, seed)
   #define GPU_RAND_SET_STREAM(gen, stream) hiprandSetStream(gen, stream)
-  #define GPU_RAND_GENERATE_NORMAL(generator, outputPtr, n, mean, stddev) hiprandGenerateNormal(generator, outputPtr, n, mean, stddev)
-  #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
-  #define GPU_RAND_UNIFORM_DOUBLE(state) hiprand_uniform_double(state)
+  #ifdef SINGLE_PREC
+    #define GPU_NORMAL(state) hiprand_normal(state)
+    #define GPU_RAND_UNIFORM(state) hiprand_uniform(state)
+    #define GPU_RAND_GENERATE_NORMAL_REAL(generator, outputPtr, n, mean, stddev) hiprandGenerateNormal(generator, outputPtr, n, mean, stddev)
+  #else
+    #define GPU_NORMAL(state) hiprand_normal_double(state)
+    #define GPU_RAND_UNIFORM(state) hiprand_uniform_double(state)
+    #define GPU_RAND_GENERATE_NORMAL_REAL(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
+  #endif
 
   // HIP exposes the wavefront width for the compilation target.  This is 32
   // on RDNA wave32 targets and 64 on wave64 targets.
@@ -81,7 +86,6 @@
   #define GPU_MEMCPY_HOST_TO_HOST cudaMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) cudaMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) cudaMemsetAsync(ptr, value, size, stream)
-  #define GPU_NORMAL_DOUBLE(d_state) curand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) curand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS cudaSuccess
   #define GPU_RAND_STATE curandState
@@ -99,9 +103,15 @@
   #define GPU_RAND_STATUS_SUCCESS CURAND_STATUS_SUCCESS
   #define GPU_RAND_SET_PSEUDO_RANDOM_GENERATOR_SEED(gen, seed) curandSetPseudoRandomGeneratorSeed(gen, seed)
   #define GPU_RAND_SET_STREAM(gen, stream) curandSetStream(gen, stream)
-  #define GPU_RAND_GENERATE_NORMAL(generator, outputPtr, n, mean, stddev) curandGenerateNormal(generator, outputPtr, n, mean, stddev)
-  #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
-  #define GPU_RAND_UNIFORM_DOUBLE(state) curand_uniform_double(state)
+  #ifdef SINGLE_PREC
+    #define GPU_NORMAL(state) curand_normal(state)
+    #define GPU_RAND_UNIFORM(state) curand_uniform(state)
+    #define GPU_RAND_GENERATE_NORMAL_REAL(generator, outputPtr, n, mean, stddev) curandGenerateNormal(generator, outputPtr, n, mean, stddev)
+  #else
+    #define GPU_NORMAL(state) curand_normal_double(state)
+    #define GPU_RAND_UNIFORM(state) curand_uniform_double(state)
+    #define GPU_RAND_GENERATE_NORMAL_REAL(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
+  #endif
 
   #define GPU_WAVEFRONT_SIZE 32
   #define WARPSIZE GPU_WAVEFRONT_SIZE
