@@ -77,6 +77,10 @@ def prepare_run(case: dict, defaults: dict, gpu: bool, destination: Path) -> Non
         raise FileNotFoundError(f"{case['name']}: fixture has no {INPUT_NAME}: {fixture}")
     text = input_path.read_text()
     overrides = dict(case.get("overrides", {}))
+    # Most cases use Fortran-side measurement on both runs for a pure
+    # trajectory comparison.  GPU-specific overrides add coverage for device
+    # measurement/output without changing the CPU reference configuration.
+    overrides.update(case.get("gpu_overrides" if gpu else "cpu_overrides", {}))
     steps = str(case.get("steps", defaults.get("steps", 100)))
     # T=0 and a short fixed trajectory make the CPU/GPU comparison reproducible.
     controlled = {
