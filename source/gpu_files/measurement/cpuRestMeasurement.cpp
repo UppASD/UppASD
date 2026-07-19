@@ -174,7 +174,7 @@ void CpuRestMeasurement::copyQueueSlow(std::size_t mstep) {
 
 void CpuRestMeasurement::measure(std::size_t mstep) {
    // Copy required?
-   bool copy = (alwaysCopy || fortran_do_measurements(mstep));
+   bool copy = (alwaysCopy || call_fortran_do_measurements(mstep));
 
    if(copy) {
       // Copy and queue
@@ -200,6 +200,6 @@ void CpuRestMeasurement::flushMeasurements(std::size_t mstep) {
    //measurementQueue.finish();
 
    // Print remaining measurements
-   fortran_flush_measurements(mstep);
+   call_fortran_flush_measurements(mstep);
    stopwatch.add("measure");
 }

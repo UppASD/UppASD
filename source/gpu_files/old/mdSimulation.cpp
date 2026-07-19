@@ -154,7 +154,7 @@ void MdSimulation::measurementPhase() {
          copyToFortran();
          stopwatch.add("F/C copy");
       }
-      fortran_measure(mstep);  // through c_helper.h to chelper.f90
+      call_fortran_measure(mstep);  // through c_helper.h to chelper.f90
 
       // Print simulation status for each 5% of the simulation length given that
       // length is larger than 20, otherwise print each step
@@ -211,10 +211,10 @@ void MdSimulation::measurementPhase() {
    }
 
    // Measure averages and trajectories
-   fortran_measure(rstep + nstep);
+   call_fortran_measure(rstep + nstep);
 
    // Print remaining measurements
-   fortran_flush_measurements(rstep + nstep);
+   call_fortran_flush_measurements(rstep + nstep);
    stopwatch.add("measurement");
 
    //	std::printf("C/C++: md simulations done!\n");
@@ -354,4 +354,3 @@ void MdSimulation::freeOwn() {
       temperature.set(nullptr, 0);
    }
 }
-

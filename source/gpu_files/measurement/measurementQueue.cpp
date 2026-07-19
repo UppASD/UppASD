@@ -118,7 +118,7 @@ void MeasurementQueue::processMeasurements() {
          }
 
          // Measure
-         fortran_measure_moment(emomM, emom, mmom, m->step);
+         call_fortran_measure_moment(emomM, emom, mmom, m->step);
          */
          // Destroy measurement data
          delete m;
@@ -149,7 +149,7 @@ void MeasurementQueue::processMomentMeasurement(Measurement* m)
    const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
    const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
 
-   fortran_measure_moment(emomM, emom, mmom, m->step);
+   call_fortran_measure_moment(emomM, emom, mmom, m->step);
 }
 
 void MeasurementQueue::processRestMeasurement(Measurement* m)
@@ -159,7 +159,7 @@ void MeasurementQueue::processRestMeasurement(Measurement* m)
    const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
    const real* beff  = (m->beff)  ? m->beff  : FortranData::beff;
 
-   fortran_measure_rest(emomM, emom, mmom, beff, m->step);
+   call_fortran_measure_rest(emomM, emom, mmom, beff, m->step);
 }
 
 void MeasurementQueue::processCorrelationsMeasurement(Measurement* m)
@@ -168,7 +168,7 @@ void MeasurementQueue::processCorrelationsMeasurement(Measurement* m)
    const real* emom  = (m->emom)  ? m->emom  : FortranData::emom;
    const real* mmom  = (m->mmom)  ? m->mmom  : FortranData::mmom;
 
-   fortran_measure_correlations(emomM, emom, mmom, m->step);
+   call_fortran_measure_correlations(emomM, emom, mmom, m->step);
 }
 
 void MeasurementQueue::startProcessThread() {
@@ -293,4 +293,3 @@ void MeasurementQueue::finish() {
    }
    finishProcessThread();
 }
-

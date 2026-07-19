@@ -3,6 +3,7 @@
 include 'mkl_vsl.f90'
 #endif
 module RandomNumbers
+   use iso_c_binding, only : c_int, c_double
    use Parameters
    use Profiling
    use mtprng
@@ -541,12 +542,12 @@ contains
    end function rng_norm
 
 
-   subroutine fill_rngarray(ranv,arr_len)
+   subroutine fill_rngarray(ranv,arr_len) bind(C, name="fortran_fill_rngarray")
       !
       implicit none
       !
-      integer, intent(in) :: arr_len
-      real(dblprec), dimension(arr_len), intent(out) :: ranv
+      integer(c_int), intent(in) :: arr_len
+      real(c_double), intent(out) :: ranv(*)
       !
       !
       integer :: i

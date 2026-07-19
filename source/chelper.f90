@@ -8,7 +8,7 @@
 module Chelper
    use iso_c_binding
    use InputData
-   use SimulationData,   only : rstep, lambda1
+   use SimulationData,   only : rstep, mstep, lambda1
    use MomentData,       only : emomM, emom, mmom, mmom0, mmom2, emom2, mmomi
    use ChemicalData,     only : asite_ch, achem_ch,atype_ch
    !use AutoCorrelation
@@ -220,9 +220,9 @@ contains
    end subroutine fortran_calc_simulation_status_variables
 
    ! Measurements with pre-set parameters
-   subroutine fortran_measure(cmstep)
+   subroutine fortran_measure(cmstep) bind(C, name="fortran_measure")
       implicit none
-      integer, intent(in) :: cmstep !< Current simulation step
+      integer(c_int), intent(in) :: cmstep !< Current simulation step
 
       integer :: cgk_flag
       cgk_flag=0
@@ -242,12 +242,13 @@ contains
    end subroutine fortran_measure
 
       ! Correlations on Fortran side
-   subroutine fortran_measure_correlations(ext_emomM, ext_emom, ext_mmom, ext_mstep)
+   subroutine fortran_measure_correlations(ext_emomM, ext_emom, ext_mmom, ext_mstep) &
+         bind(C, name="fortran_measure_correlations")
       implicit none
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
-      real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
-      integer, intent(in) :: ext_mstep
+      real(c_double), intent(in) :: ext_emom(*)
+      real(c_double), intent(in) :: ext_emomM(*)
+      real(c_double), intent(in) :: ext_mmom(*)
+      integer(c_int), intent(in) :: ext_mstep
 
       integer :: cgk_flag
       cgk_flag=0
@@ -261,19 +262,22 @@ contains
 
 
    ! Measurements with pre-set parameters
-   subroutine fortran_measure_moment(ext_emomM, ext_emom, ext_mmom, ext_mstep)
+   subroutine fortran_measure_moment(ext_emomM, ext_emom, ext_mmom, ext_mstep) &
+         bind(C, name="fortran_measure_moment")
       implicit none
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
-      real(dblprec), dimension(Natom, Mensemble), intent(in)   :: ext_mmom
-      integer, intent(in) :: ext_mstep
+      type(c_ptr), value :: ext_emomM, ext_emom, ext_mmom
+      integer(c_int), intent(in) :: ext_mstep
+      real(c_double), pointer :: f_emomM(:,:,:), f_emom(:,:,:), f_mmom(:,:)
       real(dblprec) ::  totene, totenergy 
 
       integer :: cgk_flag
       cgk_flag=0
+      call c_f_pointer(ext_emomM, f_emomM, [3, Natom, Mensemble])
+      call c_f_pointer(ext_emom, f_emom, [3, Natom, Mensemble])
+      call c_f_pointer(ext_mmom, f_mmom, [Natom, Mensemble])
       
-      call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,ext_emom,    &
-         ext_emomM,ext_mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,    &
+      call measure(Natom,Mensemble,NT,NA,nHam,N1,N2,N3,simid,ext_mstep,f_emom,    &
+         f_emomM,f_mmom,Nchmax,do_ralloy,Natom_full,asite_ch,achem_ch,atype,    &
          plotenergy,Temp,1.0_dblprec,0.0_dblprec,real_time_measure,delta_t,logsamp,             &
          ham%max_no_neigh,ham%nlist,ham%ncoup,ham%nlistsize,ham%aham,thermal_field, &
          beff,beff1,beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,  &
@@ -286,7 +290,7 @@ contains
                   conf_num,Mensemble,Natom,Num_macro,1,         &
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
-                  macro_nlistsize,ext_mmom,ext_emom,ext_emomM,emomM_macro,external_field,              &
+                  macro_nlistsize,f_mmom,f_emom,f_emomM,emomM_macro,external_field,              &
                   time_external_field,max_no_constellations,maxNoConstl,                   &
                   unitCellType,constlNCoup,constellations,OPT_flag,                        &
                   constellationsNeighType,totene,NA,N1,N2,N3)
@@ -302,7 +306,8 @@ contains
    end subroutine fortran_measure_moment
 
       ! Measurements not implemeted or not planned to be implementedon GPU
-   subroutine fortran_measure_rest(ext_emomM, ext_emom, ext_mmom, ext_beff, ext_mstep)
+   subroutine fortran_measure_rest(ext_emomM, ext_emom, ext_mmom, ext_beff, ext_mstep) &
+         bind(C, name="fortran_measure_rest")
       use Math_functions, only : f_logstep
       use prn_trajectories, only : print_trajectories
       use Polarization,     only : print_pol
@@ -310,27 +315,29 @@ contains
       use Temperature
 
       implicit none
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emom
-      real(dblprec), dimension(Natom, Mensemble), intent(in) :: ext_mmom
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_emomM
-      real(dblprec), dimension(3,Natom, Mensemble), intent(in) :: ext_beff
-      integer, intent(in) :: ext_mstep
+      type(c_ptr), value :: ext_emomM, ext_emom, ext_mmom, ext_beff
+      integer(c_int), intent(in) :: ext_mstep
+      real(c_double), pointer :: f_emomM(:,:,:), f_emom(:,:,:), f_mmom(:,:), f_beff(:,:,:)
 
       integer :: sstep
+      call c_f_pointer(ext_emomM, f_emomM, [3, Natom, Mensemble])
+      call c_f_pointer(ext_emom, f_emom, [3, Natom, Mensemble])
+      call c_f_pointer(ext_mmom, f_mmom, [Natom, Mensemble])
+      call c_f_pointer(ext_beff, f_beff, [3, Natom, Mensemble])
 
       sstep = f_logstep(ext_mstep,logsamp)
 
       ! Sample spin temperature
       if (do_spintemp=='Y') then
          if(mod(ext_mstep,spintemp_step)==0) then
-            call spintemperature(Natom,Mensemble,ext_mstep,1,simid,ext_emomM,ext_beff,1)
+            call spintemperature(Natom,Mensemble,ext_mstep,1,simid,f_emomM,f_beff,1)
          end if
       endif
 
-      call print_trajectories(Natom,sstep,ext_mstep,Mensemble,ext_emom,ext_mmom,delta_t,        &
+      call print_trajectories(Natom,sstep,ext_mstep,Mensemble,f_emom,f_mmom,delta_t,        &
          real_time_measure,simid,do_mom_legacy,mode)
 
-      call print_pol(sstep,ext_mstep,Natom,Mensemble,ham%max_no_neigh,ham%nlist,ham%nlistsize,ext_emomM,&
+      call print_pol(sstep,ext_mstep,Natom,Mensemble,ham%max_no_neigh,ham%nlist,ham%nlistsize,f_emomM,&
          delta_t,simid,real_time_measure)
 
       !if (do_autocorr=='Y') then
@@ -355,10 +362,10 @@ contains
 
 
    ! Do measurements with pre-set parameters
-   subroutine fortran_do_measurements(cmstep, do_copy)
+   subroutine fortran_do_measurements(cmstep, do_copy) bind(C, name="fortran_do_measurements")
       implicit none
-      integer, intent(in) :: cmstep !< Current simulation step
-      integer, intent(out) :: do_copy !< Flag if copy or not
+      integer(c_int), intent(in) :: cmstep !< Current simulation step
+      integer(c_int), intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
            traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
@@ -367,7 +374,7 @@ contains
 
 
    ! Moment update with pre-set parameters
-   subroutine fortran_moment_update()
+   subroutine fortran_moment_update() bind(C, name="fortran_moment_update")
       implicit none
       call moment_update(Natom,Mensemble,mmom,mmom0,mmom2,emom,emom2,emomM,mmomi,   &
          mompar,initexc)
@@ -376,15 +383,15 @@ contains
 
 
    ! Flush measurements with pre-set parameters
-   subroutine fortran_flush_measurements(cmstep)
+   subroutine fortran_flush_measurements(cmstep) bind(C, name="fortran_flush_measurements")
       implicit none
-      integer, intent(in) :: cmstep !< Current simulation stepfind_rmid(rmid,coord,Natom)
+      integer(c_int), intent(in) :: cmstep !< Current simulation stepfind_rmid(rmid,coord,Natom)
       call flush_measurements(Natom,Mensemble,NT,NA,N1,N2,N3,simid,cmstep,emom,mmom,&
          Nchmax,atype,real_time_measure,mcnstep,ham%ind_list_full,do_mom_legacy,mode)
    end subroutine fortran_flush_measurements
 
       ! print GPU calculated correlations
-   subroutine fortran_print_correlations()
+   subroutine fortran_print_correlations() bind(C, name="fortran_print_correlations")
       implicit none
       integer ::cgk_flag
       cgk_flag = 2
@@ -400,6 +407,16 @@ contains
 
       endif
    end subroutine fortran_print_correlations
+
+   subroutine fortran_set_mstep(value) bind(C, name="fortran_set_mstep")
+      integer(c_int), intent(in) :: value
+      mstep = value
+   end subroutine fortran_set_mstep
+
+   subroutine fortran_get_mstep(value) bind(C, name="fortran_get_mstep")
+      integer(c_int), intent(out) :: value
+      value = mstep
+   end subroutine fortran_get_mstep
 
 
 

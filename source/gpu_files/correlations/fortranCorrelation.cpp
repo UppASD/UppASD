@@ -160,7 +160,7 @@ void FortranCorrelation::copyQueueSlow(std::size_t mstep) {
 
 void FortranCorrelation::measure(std::size_t mstep) {
    // Copy required?
-   bool copy = (alwaysCopy || fortran_do_measurements(mstep));
+   bool copy = (alwaysCopy || call_fortran_do_measurements(mstep));
 
    if(copy) {
       // Copy and queue
