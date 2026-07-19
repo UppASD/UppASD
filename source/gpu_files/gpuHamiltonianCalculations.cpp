@@ -100,7 +100,7 @@ public:
    }
 
    __device__ real& tensor_ind(unsigned int i, unsigned int j, unsigned int k, unsigned int l) {
-      return tensor[i + 3 * (j + 3 * (k + mnn * l))];
+      return tensor[l + NH * (i + 3 * (j + 3 * k))];
    }
 
    __device__ void each(unsigned int site) {
@@ -255,13 +255,13 @@ public:
          for(unsigned int i = 0; i < tensormnn; i++) {
             const unsigned int neighbor = tensorpos[site * tensormnn + i];
             const unsigned int offset = neighbor * 3;
-            const unsigned int base = 9 * (i + tensormnn * rsite);
+            const unsigned int base = rsite + NH * (9 * i);
             const real Sx = my_emomM[offset + 0];
             const real Sy = my_emomM[offset + 1];
             const real Sz = my_emomM[offset + 2];
-            x += tensor[base + 0] * Sx + tensor[base + 3] * Sy + tensor[base + 6] * Sz;
-            y += tensor[base + 1] * Sx + tensor[base + 4] * Sy + tensor[base + 7] * Sz;
-            z += tensor[base + 2] * Sx + tensor[base + 5] * Sy + tensor[base + 8] * Sz;
+            x += tensor[base + NH * 0] * Sx + tensor[base + NH * 3] * Sy + tensor[base + NH * 6] * Sz;
+            y += tensor[base + NH * 1] * Sx + tensor[base + NH * 4] * Sy + tensor[base + NH * 7] * Sz;
+            z += tensor[base + NH * 2] * Sx + tensor[base + NH * 5] * Sy + tensor[base + NH * 8] * Sz;
          }
       } else {
          const real* __restrict__ site_coup = &coup[rsite];

@@ -216,6 +216,10 @@ public:
 
    void transposed_copy_to(GpuTensor<T, 2>& destination) const;
 
+   // Upload a Fortran-layout exchange tensor [out, in, neighbour, site] as
+   // [site, out, in, neighbour], making the site dimension contiguous on GPU.
+   void tensor_exchange_copy_to(GpuTensor<T, 4>& destination) const;
+
 
    void zeros() {
       std::fill(begin(), end(), T{});
@@ -550,5 +554,34 @@ void Tensor<T, dim>::transposed_copy_to(GpuTensor<T, 2>& destination) const {
    }
 
    Tensor<T, 2> staging(transposed.data(), destination.extents());
+   destination.copy_sync(staging);
+}
+
+
+template <typename T, index_t dim>
+void Tensor<T, dim>::tensor_exchange_copy_to(GpuTensor<T, 4>& destination) const {
+   static_assert(dim == 4, "tensor_exchange_copy_to is only valid for rank-4 tensors");
+   assert(destination.extent(0) == extent(3));
+   assert(destination.extent(1) == extent(0));
+   assert(destination.extent(2) == extent(1));
+   assert(destination.extent(3) == extent(2));
+
+   std::vector<T> reordered(static_cast<size_t>(size()));
+   const index_t sites = extent(3);
+   for(index_t site = 0; site < sites; ++site) {
+      for(index_t neighbour = 0; neighbour < extent(2); ++neighbour) {
+         for(index_t in = 0; in < extent(1); ++in) {
+            for(index_t out = 0; out < extent(0); ++out) {
+               const index_t source = out + extent(0) *
+                   (in + extent(1) * (neighbour + extent(2) * site));
+               const index_t destination_index = site + sites *
+                   (out + extent(0) * (in + extent(1) * neighbour));
+               reordered[static_cast<size_t>(destination_index)] = data_[source];
+            }
+         }
+      }
+   }
+
+   Tensor<T, 4> staging(reordered.data(), destination.extents());
    destination.copy_sync(staging);
 }

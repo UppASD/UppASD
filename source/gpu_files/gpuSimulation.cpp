@@ -275,7 +275,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuHamiltonian.aHam.Allocate(N);  
      if(Flags.do_jtensor != 0) {
         std::printf("\n GPU: jTensor has been initialized \n");
-        gpuHamiltonian.j_tensor.Allocate( static_cast <long int>(3),  static_cast <long int>(3), mnn, NH);        
+        gpuHamiltonian.j_tensor.Allocate(NH, static_cast <long int>(3), static_cast <long int>(3), mnn);
         gpuHamiltonian.nlist.Allocate(mnn, N);
         gpuHamiltonian.nlistsize.Allocate(NH);
 
@@ -487,7 +487,7 @@ void GpuSimulation::copyFromFortran() {
 
     gpuHamiltonian.aHam.copy_sync(cpuHamiltonian.aHam);
     if(Flags.do_jtensor != 0) {
-        gpuHamiltonian.j_tensor.copy_sync(cpuHamiltonian.j_tensor);            
+        cpuHamiltonian.j_tensor.tensor_exchange_copy_to(gpuHamiltonian.j_tensor);
         gpuHamiltonian.nlist.copy_sync(cpuHamiltonian.nlist);  
         gpuHamiltonian.nlistsize.copy_sync(cpuHamiltonian.nlistsize);         
     }

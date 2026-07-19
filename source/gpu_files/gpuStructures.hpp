@@ -187,6 +187,7 @@ struct deviceHamiltonian {
    GpuTensor<real, 3>             dmvect;     //DMI
    GpuTensor<unsigned int, 2>     dmlist;
    GpuTensor<unsigned int, 1>     dmlistsize;
+   // Device layout: [reduced site, output axis, input axis, neighbour].
    GpuTensor<real, 4>             j_tensor;
    GpuTensor<real, 2>             kaniso;
    GpuTensor<real, 2>             eaniso;

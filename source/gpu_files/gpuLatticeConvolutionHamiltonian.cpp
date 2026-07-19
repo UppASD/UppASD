@@ -279,7 +279,8 @@ __global__ void fill_tensor_kernel(real* __restrict__ kernel_real,
       rij_cache[2 + 3 * rij_entry] = rz;
    }
 
-   const real j = exchange_tensor[axis_out + 3 * (axis_in + 3 * (neighbor + exchange_mnn * basis_out))];
+   const real j = exchange_tensor[basis_out + basis_count *
+                                  (axis_out + 3 * (axis_in + 3 * neighbor))];
    const unsigned int kernel_component = axis_out + 3 * (axis_in + 3 * (basis_out + basis_count * basis_in));
    atomicAdd(&kernel_real[cell + grid_size * kernel_component], j);
 }
