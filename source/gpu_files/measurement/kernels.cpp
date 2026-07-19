@@ -787,9 +787,20 @@ __global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real
     real ene  = 0;
     real ene2 = 0;
 
+    // energyM is stored as {exchange, anisotropy, DM, tensor, external,
+    // total}; EnergyType is ordered for the output format instead.
+    int energy_column = etype;
+    switch (etype) {
+        case DM:     energy_column = 2; break;
+        case ANI:    energy_column = 1; break;
+        case EXT:    energy_column = 4; break;
+        case TENSOR: energy_column = 3; break;
+        default: break; // EXCH and TOTAL have matching indices.
+    }
+
     for (int i = i0; i < M; i += stride)
     {
-        real e = energyM(i, etype);
+        real e = energyM(i, energy_column);
 
         ene  += e;
         ene2 += e * e;
@@ -856,11 +867,13 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
 
     if (tid < nblocks_x)
     {
-        const EnePart& p = block_parts[tid];
-
         #pragma unroll
         for (int t = 0; t < N; ++t)
         {
+            // averageEnergy_partial stores one component per grid.y row.
+            // Reading block_parts[tid] for every component reads only the
+            // exchange row, which made Tot and all non-exchange outputs zero.
+            const EnePart& p = block_parts[t * nblocks_x + tid];
             local[t]  = p.sum[t];
             local2[t] = p.sum2[t];
         }
