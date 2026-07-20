@@ -46,11 +46,12 @@ Phase 4 is best read as "prototyped, not designed in."
 - **CM1 is now done** (`b426193`) — `UPPASD_GPU_BACKEND`/`UPPASD_PRECISION` exist, the GPU
   `add_compile_definitions` are target-scoped, and `-DDEBUG` injection is gone. See the CM1
   entry for what was verified and the one deliberate deviation (C++20 kept, not 17).
-- **CM2–CM6** — confirmed **clearly not done**, not merely unverified (line numbers below
-  predate CM1 and have shifted by roughly +88 — re-locate by symbol): legacy
-  `find_package(CUDA)` (:352) and
-  `FindCUDA/select_compute_arch` (:384) still present; blanket `CUDA::toolkit` link (:398)
-  rather than `CUDA::cudart/curand/cufft`; `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
+- **CM2 is now done** (`5515dba`) — legacy CUDA discovery, `select_compute_arch` and the
+  blanket `CUDA::toolkit` link are gone. See the CM2 entry, including the NVTX dependency the
+  blanket link had been hiding.
+- **CM3–CM6** — confirmed **clearly not done**, not merely unverified (line numbers below
+  predate CM1/CM2 and have shifted — re-locate by symbol):
+  `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
   CMakeLists (:420-421), which CM3 explicitly forbids; hardcoded `/opt/rocm` search paths
   (:449 and `gpu_files/CMakeLists.txt:66`); presets are `debug/release/debugCuda/releaseCuda`,
   not the specified `cpu/cuda/cuda-debug/hip-cdna/hip-rdna/lumi`, and `docs/BUILDING_GPU.md`
@@ -274,7 +275,40 @@ tree configured with `-DUSE_FAST_COPY=ON`. **HIP was not built — no AMD hardwa
 **Task:** Replace `USE_CUDA`/`USE_HIP` booleans with a single `UPPASD_GPU_BACKEND` cache STRING = `OFF|CUDA|HIP` (keep the old booleans as deprecated aliases mapping onto it, with a warning). Add `UPPASD_PRECISION` = `DOUBLE|SINGLE|MIXED` (default DOUBLE; consumed by Phase 4). Convert all `add_compile_definitions` / global `CMAKE_CXX_FLAGS` string surgery for GPU defines into `target_compile_definitions(${UppASD_LIB} PRIVATE CUDA_V …)` and `target_compile_features(${UppASD_LIB} PRIVATE cxx_std_17)` (and `cuda_std_17` / `hip_std_17` via `CMAKE_CUDA_STANDARD`/`CMAKE_HIP_STANDARD` on the target). Remove `-DDEBUG` injection (nothing consumes it); ensure `NDEBUG` follows build type as normal so device asserts vanish in Release (audit P7).
 **Acceptance:** `cmake -DUPPASD_GPU_BACKEND=CUDA` and `=HIP` and `=OFF` all configure+build; `grep -r add_compile_definitions` in GPU sections returns nothing global.
 
-### - [ ] CM2 — CUDA path  (P1, M)
+### - [x] CM2 — CUDA path  (P1, M)
+**Done** (`5515dba`). Legacy `find_package(CUDA)`, the `CMAKE_VERSION VERSION_LESS 3.17` fork
+and the whole `FindCUDA/select_compute_arch` detection block are gone; only
+`enable_language(CUDA)` + `find_package(CUDAToolkit REQUIRED)` remain. GPU builds now hard-fail
+below CMake 3.24 (what `native` needs); CPU-only builds keep the 3.13 project minimum.
+`CMAKE_CUDA_ARCHITECTURES` defaults to `native` when unset. The manual
+`-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}` splicing into `CMAKE_CUDA_FLAGS`/`CMAKE_CXX_FLAGS`
+is replaced by `target_include_directories`; the CCCL probes were kept (they solve a real
+layout problem) but now use `${UppASD_LIB}` rather than a hardcoded `asdlib`.
+
+**Two findings worth carrying forward:**
+
+- **NVTX was a hidden dependency of the blanket `CUDA::toolkit` link.** `gpuEventPool.cpp` and
+  `measurement/fortranMeasurement.cpp` include `nvToolsExtCuda.h` and call `nvtxRangePush` /
+  `nvtxNameOsThread`. Naively linking only `cudart/curand/cufft` as the task text says would
+  have dropped it. Handled: `CUDA::nvtx3` if present, else `CUDA::nvToolsExt` (renamed across
+  toolkit versions). On CUDA 13.3 here `CUDA::nvtx3` is an INTERFACE (header-only) target, so
+  nothing appears on the link line — verified by probe, not assumed.
+- **The `-D__${CMAKE_Fortran_COMPILER_ID}__` flag splicing was dead** and was deleted: zero
+  occurrences of `__GNU__`/`__Intel__` anywhere under `source/`, including `gpu_files/old/`.
+
+**On the broken `MATCHES "^[__86+PTX]"` regex (audit B2):** confirmed it does not exist in this
+tree — the previous handover's doubt was right. The block that was deleted used
+`CUDA_DETECT_INSTALLED_GPUS` with a hardcoded fallback of `80`. Do not claim that regex as
+fixed.
+
+**Verified:** `native` configures, builds, and bakes `sm_86` — matching the actual card (RTX
+A4000, cc 8.6), checked with `cuobjdump --list-elf`. Note the task's acceptance text ("not 86")
+assumed a different machine; 86 *is* the correct answer here, and the old hardcoded fallback
+was 80. CI-style `-DCMAKE_CUDA_ARCHITECTURES=80` also configures and builds, baking `sm_80`, so
+V1 keeps working — and `.github/workflows/gpubuilds.yml` already passes an explicit arch, so
+the `native` default never reaches the GPU-less runner. `build_ab`, `build_fastcopy`,
+`build_ptds` and a fresh `native` tree all give 11 PASS / 1 FAIL.
+
 **Files:** top-level `CMakeLists.txt`.
 **Task:** Require CMake ≥ 3.24 for GPU builds. Use only `enable_language(CUDA)` + `find_package(CUDAToolkit REQUIRED)` (delete the legacy `find_package(CUDA)` fallback and `FindCUDA/select_compute_arch` entirely, including the broken `MATCHES "^[__86+PTX]"` regex — audit B2). Default `CMAKE_CUDA_ARCHITECTURES=native` when not set by the user; document overriding for cross-compilation (`-DCMAKE_CUDA_ARCHITECTURES=80;90`). Link explicitly: `target_link_libraries(${UppASD_LIB} PRIVATE CUDA::cudart CUDA::curand CUDA::cufft)` — today curand comes in implicitly. Replace the manual `-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}` flag splicing with the imported targets (they carry includes).
 **Acceptance:** Clean build on a machine with only the toolkit (no GPU) using `-DCMAKE_CUDA_ARCHITECTURES=80`, and on a GPU machine with `native`; `nvcc` line in verbose build shows the arch actually detected, not 86.
