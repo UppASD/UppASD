@@ -43,6 +43,26 @@
       }
     },
     {
+      "name": "cuda-relwithdebinfo",
+      "inherits": "cuda",
+      "displayName": "NVIDIA CUDA (optimised, with debug info)",
+      "description": "Optimised build that keeps symbols and line info -- use this for Nsight profiling, not the Debug preset.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CUDA_FLAGS": "-lineinfo"
+      }
+    },
+    {
+      "name": "coverage",
+      "inherits": "base",
+      "displayName": "CPU, gcov coverage",
+      "description": "gfortran only. Build, run ctest, then collect with gcov/lcov.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Coverage",
+        "UPPASD_GPU_BACKEND": "OFF"
+      }
+    },
+    {
       "name": "cuda-single",
       "inherits": "cuda",
       "displayName": "NVIDIA CUDA (Release, fp32)",
@@ -127,6 +147,8 @@
     {"name": "cpu-debug", "configurePreset": "cpu-debug"},
     {"name": "cuda", "configurePreset": "cuda"},
     {"name": "cuda-debug", "configurePreset": "cuda-debug"},
+    {"name": "cuda-relwithdebinfo", "configurePreset": "cuda-relwithdebinfo"},
+    {"name": "coverage", "configurePreset": "coverage"},
     {"name": "cuda-single", "configurePreset": "cuda-single"},
     {"name": "cuda-fastcopy", "configurePreset": "cuda-fastcopy"},
     {"name": "cuda-ptds", "configurePreset": "cuda-ptds"},

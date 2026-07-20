@@ -8,38 +8,60 @@ message(STATUS "Setting compiler flags.")
 ####################################################################
 INCLUDE(${CMAKE_MODULE_PATH}/SetCompileFlag.cmake)
 
-# Make sure the build type is uppercase
+# Accept the standard CMake configuration names, case-insensitively, and
+# normalise to their canonical spelling.  CMake looks up
+# CMAKE_<LANG>_FLAGS_<CONFIG> with <CONFIG> upper-cased, so the historical
+# all-caps spellings (RELEASE, DEBUG) keep selecting exactly the same flags --
+# existing build trees, CMakeLists.txt.local and CI are unaffected.
+#
+# Coverage is this project's own configuration (-O2 plus gcov instrumentation).
+# It was called TESTING; the old name is still accepted.
+set(UPPASD_BUILD_TYPES Debug Release RelWithDebInfo MinSizeRel Coverage)
+
 STRING(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
 
-IF(BT STREQUAL "RELEASE")
-    SET(CMAKE_BUILD_TYPE RELEASE CACHE STRING
-      "Choose the type of build, options are DEBUG, RELEASE, or TESTING."
-      FORCE)
-ELSEIF(BT STREQUAL "DEBUG")
-    SET (CMAKE_BUILD_TYPE DEBUG CACHE STRING
-      "Choose the type of build, options are DEBUG, RELEASE, or TESTING."
-      FORCE)
-ELSEIF(BT STREQUAL "TESTING")
-    SET (CMAKE_BUILD_TYPE TESTING CACHE STRING
-      "Choose the type of build, options are DEBUG, RELEASE, or TESTING."
-      FORCE)
-ELSEIF(NOT BT)
-    SET(CMAKE_BUILD_TYPE RELEASE CACHE STRING
-      "Choose the type of build, options are DEBUG, RELEASE, or TESTING."
-      FORCE)
-    MESSAGE(STATUS "CMAKE_BUILD_TYPE not given, defaulting to RELEASE")
+IF(NOT BT)
+    SET(CMAKE_BUILD_TYPE Release CACHE STRING
+      "Choose the type of build: ${UPPASD_BUILD_TYPES}." FORCE)
+    MESSAGE(STATUS "CMAKE_BUILD_TYPE not given, defaulting to Release")
 ELSE()
-    MESSAGE(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are DEBUG, RELEASE, or TESTING")
-ENDIF(BT STREQUAL "RELEASE")
+    SET(_bt_canonical "")
+    FOREACH(_bt IN LISTS UPPASD_BUILD_TYPES)
+        STRING(TOUPPER "${_bt}" _bt_upper)
+        IF(BT STREQUAL _bt_upper)
+            SET(_bt_canonical "${_bt}")
+        ENDIF()
+    ENDFOREACH()
+    # Deprecated spelling of Coverage.
+    IF(BT STREQUAL "TESTING")
+        SET(_bt_canonical "Coverage")
+        MESSAGE(DEPRECATION "CMAKE_BUILD_TYPE=TESTING is deprecated; use Coverage")
+    ENDIF()
+    IF(NOT _bt_canonical)
+        MESSAGE(FATAL_ERROR
+          "CMAKE_BUILD_TYPE '${CMAKE_BUILD_TYPE}' not valid, choices are: ${UPPASD_BUILD_TYPES}")
+    ENDIF()
+    SET(CMAKE_BUILD_TYPE "${_bt_canonical}" CACHE STRING
+      "Choose the type of build: ${UPPASD_BUILD_TYPES}." FORCE)
+ENDIF()
+
+# Offer the list as a drop-down in cmake-gui / ccmake.
+SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${UPPASD_BUILD_TYPES})
+MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Re-derive the upper-case form; the canonical spelling may differ from what
+# the user passed, and the flag blocks below key off the upper-case name.
+STRING(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
 
 #########################################################
 # If the compiler flags have already been set, return now
 #########################################################
 #
-IF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG)
+IF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_COVERAGE AND CMAKE_Fortran_FLAGS_DEBUG
+   AND CMAKE_Fortran_FLAGS_RELWITHDEBINFO AND CMAKE_Fortran_FLAGS_MINSIZEREL)
    #unset(CMAKE_Fortran_FLAGS CACHE)
     RETURN ()
-ENDIF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fortran_FLAGS_DEBUG)
+ENDIF()
 
 ########################################################################
 # Determine the appropriate flags for this compiler for each build type.
@@ -125,24 +147,29 @@ SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG}"
                           "/check:bounds"  # Intel Windows
                 )
 
-#####################
-### TESTING FLAGS ###
-#####################
+######################
+### COVERAGE FLAGS ###
+######################
 
 # Optimizations
-SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_TESTING "${CMAKE_Fortran_FLAGS_TESTING}"
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_COVERAGE "${CMAKE_Fortran_FLAGS_COVERAGE}"
                  Fortran REQUIRED "-O2" # All compilers not on Windows
                                   "/O2" # Intel Windows
                 )
-# Profiling
-SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_TESTING "${CMAKE_Fortran_FLAGS_TESTING}"
-                 Fortran "-fprofile-arcs" # Profiling
-                )
-
-# Coverage
-SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_TESTING "${CMAKE_Fortran_FLAGS_TESTING}"
-                 Fortran "-ftest-coverage" # Profiling
-                )
+# gcov instrumentation.  This deliberately does not go through
+# SET_COMPILE_FLAG: that macro probes a flag by compiling *and linking* a test
+# program, and -fprofile-arcs fails to link without a matching --coverage on the
+# link line.  The old TESTING configuration used the probe and so silently ended
+# up with -ftest-coverage but no -fprofile-arcs, emitting .gcno notes and never
+# producing the .gcda data that gcov actually reads.
+IF(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    SET(CMAKE_Fortran_FLAGS_COVERAGE "${CMAKE_Fortran_FLAGS_COVERAGE} --coverage"
+        CACHE STRING "Fortran flags used for Coverage builds" FORCE)
+ELSE()
+    MESSAGE(WARNING
+      "Coverage instrumentation is only wired up for gfortran; "
+      "${CMAKE_Fortran_COMPILER_ID} will build optimised but uninstrumented.")
+ENDIF()
 
 #####################
 ### RELEASE FLAGS ###
@@ -199,8 +226,67 @@ SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE}"
                 )
 
              
-mark_as_advanced(CMAKE_Fortran_FLAGS_TESTING)
+############################
+### RELWITHDEBINFO FLAGS ###
+############################
+
+# Optimised, but with symbols and without -Ofast's fast-math relaxations, so a
+# profile or a core dump maps back to source.  This is the configuration to use
+# for Nsight/rocprof work.
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "${CMAKE_Fortran_FLAGS_RELWITHDEBINFO}"
+                 Fortran REQUIRED "-O2" # All compilers not on Windows
+                                  "/O2" # Intel Windows
+                )
+
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "${CMAKE_Fortran_FLAGS_RELWITHDEBINFO}"
+                 Fortran "-g"          # GNU/Intel/Portland
+                         "/debug:full" # Intel Windows
+                )
+
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "${CMAKE_Fortran_FLAGS_RELWITHDEBINFO}"
+                 Fortran "-funroll-loops" # GNU
+                         "-unroll"        # Intel
+                         "-Munroll"       # Portland Group
+                         "/unroll"        # Intel Windows
+                )
+
+#########################
+### MINSIZEREL FLAGS ###
+#########################
+
+SET_COMPILE_FLAG(CMAKE_Fortran_FLAGS_MINSIZEREL "${CMAKE_Fortran_FLAGS_MINSIZEREL}"
+                 Fortran REQUIRED "-Os" # All compilers not on Windows
+                                  "/O1" # Intel Windows
+                )
+
+##############################
+### COVERAGE LINKER FLAGS ###
+##############################
+
+# gcov instrumentation has to reach the link line too, or the build fails on
+# undefined __gcov_* symbols.  The old TESTING configuration set compile flags
+# only, which is one reason it was not usable.
+SET(CMAKE_EXE_LINKER_FLAGS_COVERAGE "--coverage" CACHE STRING
+    "Linker flags used for Coverage builds")
+SET(CMAKE_SHARED_LINKER_FLAGS_COVERAGE "--coverage" CACHE STRING
+    "Shared-linker flags used for Coverage builds")
+mark_as_advanced(CMAKE_EXE_LINKER_FLAGS_COVERAGE CMAKE_SHARED_LINKER_FLAGS_COVERAGE)
+
+# Coverage is not one of CMake's built-in configurations, so the C/C++/GPU flag
+# variables for it start out empty and those sources would compile unoptimised
+# and uninstrumented.  Fortran is what the coverage numbers are about, so the
+# GPU languages just get an optimisation level.
+SET(CMAKE_C_FLAGS_COVERAGE "-O2 --coverage" CACHE STRING "C flags for Coverage builds")
+SET(CMAKE_CXX_FLAGS_COVERAGE "-O2 --coverage" CACHE STRING "C++ flags for Coverage builds")
+SET(CMAKE_CUDA_FLAGS_COVERAGE "-O2" CACHE STRING "CUDA flags for Coverage builds")
+SET(CMAKE_HIP_FLAGS_COVERAGE "-O2" CACHE STRING "HIP flags for Coverage builds")
+mark_as_advanced(CMAKE_C_FLAGS_COVERAGE CMAKE_CXX_FLAGS_COVERAGE
+                 CMAKE_CUDA_FLAGS_COVERAGE CMAKE_HIP_FLAGS_COVERAGE)
+
+mark_as_advanced(CMAKE_Fortran_FLAGS_COVERAGE)
 list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_RELEASE)
-list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_TESTING)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_COVERAGE)
 list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_DEBUG)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_RELWITHDEBINFO)
+list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS_MINSIZEREL)
 list(REMOVE_DUPLICATES CMAKE_Fortran_FLAGS)

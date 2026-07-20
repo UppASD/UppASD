@@ -15,6 +15,27 @@ specified against typedefs that do not exist yet.
 
 GPU builds require **CMake >= 3.24**. CPU-only builds work with the project minimum (3.13).
 
+## Build types
+
+The standard CMake configurations are supported: `Debug`, `Release` (the default),
+`RelWithDebInfo` and `MinSizeRel`, plus a project-specific `Coverage`. Names are accepted
+case-insensitively and normalised, so the historical `RELEASE`/`DEBUG` spellings keep working.
+`TESTING` is the old name for `Coverage` and still works with a deprecation warning.
+
+Use `RelWithDebInfo` — not `Debug` — for profiling: it is optimised but keeps symbols and line
+information. The `cuda-relwithdebinfo` preset also passes `-lineinfo` so Nsight can attribute
+device-side samples to source lines.
+
+`Coverage` builds with gcov instrumentation (`--coverage`) and is wired up for **gfortran
+only**; other compilers configure with a warning and no instrumentation. Coverage data lands
+next to the object files:
+
+```sh
+cmake --preset coverage && cmake --build --preset coverage --parallel 8
+ctest --test-dir build/coverage        # or run the binary directly
+gcov -o build/coverage/CMakeFiles/asdlib.dir/source/... <source>.f90
+```
+
 ## NVIDIA, consumer laptop or workstation
 
 ```sh
