@@ -57,6 +57,9 @@ public:
    // Initiator
    bool initiate(const SimulationParameters SimParam);
 
+   // Projected device bytes (mrod/blocal/bdup + owned thermfield); mirror initiate().
+   static std::size_t estimateBytes(const SimulationParameters& SimParam);
+
    // Set up constants
    bool initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature);
    void resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping);

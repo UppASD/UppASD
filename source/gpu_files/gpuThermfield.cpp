@@ -31,6 +31,14 @@ GpuThermfield::~GpuThermfield() {
    randomValues.Free();
 }
 
+// Mirror of the allocations in initiate() below. Keep the two in sync.
+std::size_t GpuThermfield::estimateBytes(std::size_t N, std::size_t M) {
+   const std::size_t field_count = 3 * N * M;                       // field(3,N,M)
+   const std::size_t random_count = field_count + (field_count & 1);// randomValues, padded even
+   const std::size_t sigma_count = N;                               // sigmaFactor(N)
+   return (field_count + random_count + sigma_count) * sizeof(real);
+}
+
 bool GpuThermfield::initiate(std::size_t N, std::size_t M, GPU_RAND_RNGTYPE_T rngType, unsigned long long seed) {
    if(dataInitiated) return true;
    stopwatch.skip();

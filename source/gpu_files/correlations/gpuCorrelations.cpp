@@ -74,6 +74,18 @@ GpuCorrelations::~GpuCorrelations() {
     release();
 }
 
+// Mirror of the device allocations in initiate() below (assumes GPU correlations
+// are active; the caller decides that with the same test CorrelationFactory uses,
+// *FortranData::do_gpu_correlations == 'Y'). Keep in sync with initiate().
+std::size_t GpuCorrelations::estimateBytes(const Flag& Flags, const SimulationParameters& SimParam) {
+    std::size_t reals = 3                    // r_mid(3)
+                      + 3 * SimParam.nq       // q(3,nq)
+                      + 3 * SimParam.N;       // coord(3,N)
+    if((Flags.do_sc == 'Q') || (Flags.do_sc == 'Y'))
+        reals += SimParam.sc_max_nstep + SimParam.nw;  // dt + w
+    return reals * sizeof(real);
+}
+
 // Initiator
 bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations) {
     // Assert that we're not already initialized

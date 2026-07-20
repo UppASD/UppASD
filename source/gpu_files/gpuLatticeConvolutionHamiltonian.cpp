@@ -361,6 +361,32 @@ bool GpuLatticeConvolutionHamiltonian::supports(const GpuLatticeConvolutionDescr
    return descriptor.matches(atom_count);
 }
 
+// Mirror of the FFT-buffer allocations in initiate() below, sized from the
+// simulation cell grid rather than a built descriptor so it can run before any
+// device object exists. interaction_rij (built later during kernel assembly) is
+// approximated from mnn; it is small next to the FFT grids. Keep in sync with initiate().
+std::size_t GpuLatticeConvolutionHamiltonian::estimateBytes(const SimulationParameters& SimParam) {
+   const std::size_t n1 = SimParam.N1, n2 = SimParam.N2, n3 = SimParam.N3;
+   const std::size_t basis = SimParam.NA, ensembles = SimParam.M;
+   if(n1 == 0 || n2 == 0 || n3 == 0 || basis == 0 || ensembles == 0) return 0;
+
+   const std::size_t cells = n1 * n2 * n3;
+   const std::size_t spectral = (n1 / 2 + 1) * n2 * n3;
+   const std::size_t field_batches = 3 * basis * ensembles;
+   const std::size_t kernel_batches = 9 * basis * basis;
+
+   std::size_t bytes = 0;
+   bytes += cells * field_batches * sizeof(real);               // field_real
+   bytes += spectral * field_batches * sizeof(GpuFftComplex);   // spin_fft
+   bytes += spectral * field_batches * sizeof(GpuFftComplex);   // field_fft
+   bytes += spectral * kernel_batches * sizeof(GpuFftComplex);  // kernel_fft
+   bytes += cells * kernel_batches * sizeof(real);              // kernel_real
+   bytes += 3 * 3 * sizeof(real);                               // cell_vectors
+   bytes += 3 * basis * sizeof(real);                           // basis_positions
+   bytes += 3 * basis * SimParam.mnn * sizeof(real);            // interaction_rij (approx)
+   return bytes;
+}
+
 bool GpuLatticeConvolutionHamiltonian::initiate(const GpuLatticeConvolutionDescriptor& descriptor,
                                                 GPU_STREAM_T stream) {
    release();

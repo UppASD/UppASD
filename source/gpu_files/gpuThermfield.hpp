@@ -29,6 +29,8 @@ public:
    void resetConstants(const Tensor<real, 1>& temperature, real timestep, real gamma,
                        real k_bolt, real mub, real damping);
    bool initiated() const { return dataInitiated && constantsInitiated; }
+   // Projected device bytes for a given system size; must mirror initiate().
+   static std::size_t estimateBytes(std::size_t N, std::size_t M);
    const GpuTensor<real, 3>& getField() const { return field; }
    void randomize(const GpuTensor<real, 2>& mmom);
 };

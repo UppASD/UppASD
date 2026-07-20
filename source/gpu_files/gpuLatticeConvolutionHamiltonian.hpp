@@ -42,6 +42,9 @@ public:
    ~GpuLatticeConvolutionHamiltonian();
 
    bool initiate(const GpuLatticeConvolutionDescriptor& descriptor, GPU_STREAM_T stream);
+   // Projected device bytes for the FFT buffers, derived from the cell grid
+   // (N1,N2,N3), basis (NA) and ensembles (M). Mirror the allocations in initiate().
+   static std::size_t estimateBytes(const SimulationParameters& SimParam);
    void release();
    bool isInitiated() const;
    bool supports(const GpuLatticeConvolutionDescriptor& descriptor, unsigned int atom_count) const;

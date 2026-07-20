@@ -241,6 +241,14 @@ GpuDepondtIntegrator::~GpuDepondtIntegrator() {
    release();
 }
 
+// Mirror of the device allocations in initiate() (mrod/blocal/bdup, each (3,N,M))
+// plus the thermfield this integrator owns. Keep in sync with initiate().
+std::size_t GpuDepondtIntegrator::estimateBytes(const SimulationParameters& SimParam) {
+   const std::size_t nm3 = 3 * SimParam.N * SimParam.M;
+   const std::size_t local = 3 * nm3 * sizeof(real);  // mrod + blocal + bdup
+   return local + GpuThermfield::estimateBytes(SimParam.N, SimParam.M);
+}
+
 // Initiator
 bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    // Assert that we're not already initialized

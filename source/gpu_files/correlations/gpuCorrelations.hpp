@@ -80,6 +80,9 @@ public:
 
     // Initiator
     bool initiate(const Flag Flags, const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations);
+    // Projected device bytes; mirror the allocations in initiate(). Device-side
+    // arrays only (the large m_k/m_kt/m_kw spectra live host-side).
+    static std::size_t estimateBytes(const Flag& Flags, const SimulationParameters& SimParam);
     // Releaser
     void release();
     // Measurements
