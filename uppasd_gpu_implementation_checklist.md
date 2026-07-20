@@ -19,6 +19,34 @@ Read this section before every task.
 Priorities: **P0** = correctness/crash, do first. **P1** = high-value. **P2** = valuable, do after P0/P1. **P3** = cleanup/opportunistic.
 Effort: S (< half day), M (a day-ish), L (multi-day).
 
+### Checkbox reconciliation, 2026-07-20
+
+The checkboxes had gone stale: ~200 commits had landed against 4 ticked items, which made
+finished work look pending (M3, for instance, still read as "blocked on CV4" after CV4 was
+already satisfied). Items marked **verified landed 2026-07-20** were reconciled in a sweep.
+
+**What that marker means, and does not mean.** It means the implementing code was located and
+inspected for that item. It does **not** mean the item's stated Acceptance criterion was
+re-executed — no profiling traces were captured, and no per-item benchmarks were re-run. Treat
+those ticks as "the work exists" rather than "the acceptance bar was re-measured." PF3 is the
+exception: it was validated end-to-end (see its entry).
+
+**Deliberately left unticked despite plausible evidence:**
+
+- **CM1–CM6** — only shallowly checked. `CMakePresets.json` exists and many cmake commits
+  landed, but "option surface hygiene" and "single source of truth for GPU sources" are
+  judgement calls that were not properly assessed.
+- **PR5** — the fp32 infrastructure exists, but that does not establish that the audit of
+  numerically sensitive spots was actually carried out.
+- **F5, F6, PF1, PF2** — MC items. F5's exact anisotropy ΔE and F6's sublattice coloring both
+  appear implemented, and `single_spin_mc_uniaxial_easy_axis` passes, but MC is gated out of
+  scope and MC semantics were not validated. Confirm before ticking.
+
+**Not tracked as an item but should be:** `sc_dm_uniaxial` segfaults in
+`gpusim_initiatematrices` (`sd_driver.f90:1185`) in every configuration — the only failing
+regression case. Also `cpuRestMeasurement.cpp:166` reads `fortran_beff.copy_sync(emom)`,
+copying `emom` into the `beff` buffer; likely a typo, unfixed.
+
 ---
 
 ## Phase 0 — Safety net (do these before anything else)
@@ -34,7 +62,7 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 
 > Done 2026-07-18, local change: added CUDA 13.3 and ROCm compile-only jobs, both serializing the build because the current Fortran module output directory is shared. CUDA CMake now preserves an explicitly requested architecture for GPU-less runners. Remote CI execution remains to be observed.
 
-### - [ ] V2 — Deterministic T=0 regression harness  (P0, L)
+### - [x] V2 — Deterministic T=0 regression harness  (P0, L)  — **verified landed 2026-07-20**
 **Files:** new directory `tests/gpu_regression/` (inputs + Python driver), optionally a tiny hook in `chelper.f90`/drivers if a "dump moments after K steps" switch doesn't already exist (it does: restart/moment printing via `prn_mag_conf`).
 **Task:** Build a pytest (or plain Python) harness that, for a matrix of small systems (~10³–10⁴ atoms), runs **the same input** through the Fortran path (`do_gpu N`) and the GPU path (`do_gpu Y`) and compares final moment configurations and energy outputs.
 - Cases: bcc Fe Heisenberg-only; +DM; +uniaxial aniso; +cubic aniso; tensor exchange; reduced Hamiltonian (`do_reduced`); MC mode; convolution backend on/off (`do_gpu_convolution`); M=1 and M=4 ensembles; one case with N not a multiple of 256 (e.g. N=1000) and one with odd 3·N·M — these two specifically exercise audit bugs C1 and C2.
@@ -44,7 +72,7 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 
 > Implemented 2026-07-18, local change: added a standard-library Python harness and JSON case matrix. It runs CPU and GPU variants in isolated copied fixtures, compares final restarts and all energy rows at fp64 tolerance, and includes scalar, DM/aniso, tensor, reduced, M=4, N=1000, odd-count, convolution, and MC variants. Mark complete after its first run on a host with a visible device.
 
-### - [ ] V3 — Memory & error reporting baseline  (P0, S)
+### - [x] V3 — Memory & error reporting baseline  (P0, S)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/fort_helper.cpp`, `gpu_files/gpuSimulation.cpp`, `gpu_files/measurement/memoryMeasurement.cpp`.
 **Task:** The tree already has `TensorMemoryTracker` (host+device byte counters, `printResults()`, `saveToFile()`), but nothing catches the `std::runtime_error` that `ASSERT_GPU` throws on allocation failure — it propagates through `extern "C"` into Fortran and terminates without diagnostics (this is the "very large systems crash" symptom, see M1). Two small changes:
 1. Wrap the bodies of all `extern "C"` entry points in `fort_helper.cpp` (`gpusim_initiateconstants_`, `gpusim_initiatematrices_`, `gpusim_gpurunsimulation_`, `gpusim_release_`) in `try { ... } catch (const std::exception& e)` that prints the exception message, calls `TensorMemoryTracker::printResults()` and the free/total device memory from `cudaMemGetInfo`/`hipMemGetInfo`, then `std::exit(EXIT_FAILURE)` with a clear "GPU out of memory / GPU error" banner.
@@ -55,13 +83,13 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 
 ## Phase 1 — Correctness fixes (audit C1–C10)
 
-### - [ ] F1 — Fix the Hamiltonian energy reduction  (P0, M) — audit C1
+### - [x] F1 — Fix the Hamiltonian energy reduction  (P0, M) — audit C1  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp` (function `sum_warp_energy` and all `Heisge*::each` energy blocks), possibly `gpu_files/measurement/kernels.hpp/.cpp` (to reuse `block_reduce_sum_1d`).
 **Background:** Three bugs: (a) divergent `__syncthreads()` because out-of-range threads (`site >= N` in the tail block) never enter `each()`; (b) `warp_sums[w]` read for warps that never wrote it this launch (stale shared memory); (c) no `__syncthreads()` between the three consecutive `sum_warp_energy` calls (shared-memory race).
 **Task (recommended shape):** Replace the in-kernel block reduction + `atomicAdd` with the two-phase pattern already correctly implemented in `measurement/kernels.cpp`: the Heisge kernel writes per-atom energy terms (or per-block partial sums computed with a *correct* reduction) to a small global scratch buffer; a separate finalize kernel reduces per ensemble into `energyM`. If you keep an in-kernel reduction instead, you must: move the bounds check inside `each()` so **all** threads of the block execute the reduction (out-of-range threads contribute 0), zero-initialize `warp_sums` before use with a `__syncthreads()`, and add a trailing `__syncthreads()` at the end of `sum_warp_energy`. Also replace `int mInd = blockIdx.y` with the `ensemble` argument that `each(atom, site, ensemble)` already receives (this simultaneously fixes audit C7 for the energy path).
 **Acceptance:** V2 energy cases pass for N=1000 (not a multiple of 256), for all Hamiltonian variants, and repeated runs give bit-identical energies (no race). No performance regression > 5 % on the measure-step (energies are measured rarely; correctness dominates).
 
-### - [ ] F2 — RNG length + status checking  (P0, S) — audit C2
+### - [x] F2 — RNG length + status checking  (P0, S) — audit C2  — **verified landed 2026-07-20**
 **Files:** `gpu_files/cudaThermfield.cu`, `gpu_files/hipThermfield.cpp` (or their unified successor after U1).
 **Task:** `curand/hiprandGenerateNormal[Double]` require an even sample count; `field.size() = 3·N·M` can be odd and the status is unchecked. Allocate the field buffer with one element of slack when `size()` is odd (`n_gen = size + (size & 1)`), generate `n_gen` values, and wrap **every** `curand*/hiprand*` call in a status check macro (add `ASSERT_CURAND`/`ASSERT_HIPRAND` next to `ASSERT_GPU` in `base.hpp`, throwing with the status code). Do the same for the generator creation/seed/stream calls in `initiate`.
 **Acceptance:** A run with N·M odd (e.g. N=1001, M=1) at finite temperature produces a fluctuating thermal field (compare magnetization variance against the Fortran run statistically); status-check macro verified by forcing an error in a scratch test.
@@ -75,7 +103,7 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 
 > Done 2026-07-18, local change: restored an explicit `only` import list for every `prn_averages` symbol used by `Chelper`; compiled `source/chelper.f90` through the CUDA CMake target with CUDA 13.3. CI coverage is provided by V1.
 
-### - [ ] F4 — Ensemble index under `USE_BIG_GRID`  (P0, S) — audit C7
+### - [x] F4 — Ensemble index under `USE_BIG_GRID`  (P0, S) — audit C7  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp` (all `blockIdx.y` uses inside functors), `gpu_files/gpuMetropolis.cpp` (verify only — `MCSweep` launches its own grid where `blockIdx.y` *is* the ensemble by construction; leave it but add a comment).
 **Task:** Inside `each(atom, site, ensemble)` functors, replace every `int mInd = blockIdx.y;` with the `ensemble` parameter. Grep the whole tree for `blockIdx` inside `each(` methods and fix all instances — functors must never read launch geometry directly.
 **Acceptance:** V2 passes with `-DUSE_BIG_GRID=true` forced in a test build.
@@ -98,7 +126,7 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 **Task:** Build the independence graph from the union of `nlist` and `dmlist` (and any future lists) so that parallel updates never touch interacting pairs. Combine with PF2 (coloring rewrite) if convenient.
 **Acceptance:** A test system with DM neighbors ⊄ exchange neighbors (construct via input with different cutoffs) yields a coloring where no sublattice contains a DM-coupled pair (assert in a debug check).
 
-### - [ ] F7 — Upload staging: kill the in-place transpose  (P1, M) — audit C4 (pairs with PR2)
+### - [x] F7 — Upload staging: kill the in-place transpose  (P1, M) — audit C4 (pairs with PR2)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuSimulation.cpp` (`copyFromFortran`), `gpu_files/tensor.hpp` (new helper), later `real_type.h`.
 **Task:** Add a `Tensor<T,2>::transposed_copy_to(GpuTensor<T,2>&)` (host-side transpose into a scratch `std::vector`/pinned buffer, then upload) or a small device transpose kernel; use it for `ncoup`/`nlist` so the Fortran-owned arrays are **never mutated**. Delete the transpose/upload/transpose-back dance. Design the helper signature so PR2 (precision conversion on upload) can extend it with a source/destination type pair.
 
@@ -124,7 +152,7 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 > matches the default build, and the fast-copy cases are bitwise-identical to CPU across repeats.
 > Note `USE_FAST_COPY` is not set by any CMake option, so the fast path is dead code by default.
 
-### - [ ] F9 — Move device query out of static init; guard zero-norm rotation; `initiate` idempotence  (P1, S) — audit C9, C10
+### - [x] F9 — Move device query out of static init; guard zero-norm rotation; `initiate` idempotence  (P1, S) — audit C9, C10  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gridHelper.hpp`, `gpu_files/gpuParallelizationHelper.{hpp,cpp,tpp}`, `gpu_files/gpuDepondtIntegrator.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.
 **Task:** (a) Move `cudaGetDeviceProperties` from the `GridHelper` constructor into `GpuParallelizationHelper::initiate()` (store `maxGridSize1` there, pass to `GridHelper`), with error checking. (b) In `Rotate::each`, guard `norm == 0` (skip rotation, `mrod = emom`). (c) In `GpuHamiltonianCalculations::initiate`, add a `listsPrepared` flag on the device Hamiltonian struct set by `SetupNeighbourList*`; if `initiate` is called again without a fresh upload (flag still set), either skip the setup kernels or error out loudly — never double-decrement. (d) Remove the unused `delta_t` parameter of `GpuDepondtIntegrator::rotate` or actually use it.
 **Acceptance:** Compiles and V2 passes; a scratch test calling `initiate` twice does not corrupt neighbor lists.
@@ -148,7 +176,7 @@ The crash mode for big systems is M1 below, not a leak.
 **Task:** V3 delivers the catch + report. Extend with a **pre-allocation estimate**: before `initiateMatrices` allocates anything, compute the projected device bytes from `N, M, NH, mnn, mnndm`, flags (jtensor/dm/aniso/stt/do_ene), convolution descriptor, and correlation settings (`nq, nw, sc_max_nstep`), compare against `MemGetInfo` free bytes, and if projected > ~90 % of free, abort with a table of the top consumers and actionable hints ("disable eneff via do_ene 0 saves X GB; single precision saves Y GB; reduce sc_max_nstep..."). Keep the estimator as one function so it stays in sync with allocations (unit-test it against `TensorMemoryTracker` totals after a real init: agreement within 5 %).
 **Acceptance:** Oversized run aborts before any kernel launch with the budget table; estimator matches tracker within 5 % on three V2 cases with different flags.
 
-### - [ ] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)
+### - [x] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuSimulation.cpp` (`initiateMatrices`), `gpu_files/gpuHamiltonianCalculations.cpp`, `gpu_files/gpuStructures.hpp`.
 **Task:**
 1. **`eneff` (3NM):** only meaningful when energies are measured (`do_ene>0` or GPU-MC). When not needed, don't allocate; make the Heisge kernels write `eneff` only under the `Measure` template flag (after U2) — interim: point `gpuLattice.eneff` at `gpuLattice.beff` (alias) when `do_ene==0 && !MC`, since the kernels currently write identical values in the non-measure path for the non-aniso variants — **verify per-variant before aliasing** (the aniso variants write different `*_en` prefactors; for those, allocation stays whenever aniso+MC/energy).
@@ -157,9 +185,13 @@ The crash mode for big systems is M1 below, not a leak.
 4. **`mmom0`, `mmom2`:** only used by `mompar!=0` paths and MC `moms`; allocate conditionally.
 **Acceptance:** V2 passes with all flag combinations; tracker report for a plain Heisenberg SD run (no field, no energy) shows ≥ 3 × 3NM·8 B reduction vs baseline.
 
-### - [ ] M3 — Convolution mode: drop the sparse Hamiltonian from device  (P1, M; depends on CV4)
+### - [ ] M3 — Convolution mode: drop the sparse Hamiltonian from device  (P1, M; depends on **CV2**)
 **Files:** `gpu_files/gpuSimulation.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.
-**Task:** Once CV4 makes the convolution backend serve `measure=true` steps too, SD runs on the convolution backend no longer need `nlist/ncoup/dmvect/dmlist` resident (they're still needed for MC and as fallback). Add a mode where, if the convolution kernel builds successfully, the sparse arrays are freed after kernel construction (they are consumed during `buildIsotropicDmKernel`/`buildTensorKernel`). Keep a flag so a fallback to sparse triggers a clear error instead of touching freed memory.
+**Dependency corrected 2026-07-20:** this item read "depends on CV4", but CV4 is the stream/plan
+association audit and does not affect which steps the convolution backend serves. The blocker is
+**CV2 — Energy from the convolved field**, which is still open. M3 is therefore still blocked;
+ticking CV4 does not release it.
+**Task:** Once CV2 makes the convolution backend serve `measure=true` steps too, SD runs on the convolution backend no longer need `nlist/ncoup/dmvect/dmlist` resident (they're still needed for MC and as fallback). Add a mode where, if the convolution kernel builds successfully, the sparse arrays are freed after kernel construction (they are consumed during `buildIsotropicDmKernel`/`buildTensorKernel`). Keep a flag so a fallback to sparse triggers a clear error instead of touching freed memory.
 **Acceptance:** Large Bravais SD run shows nlist/ncoup absent in the tracker; V2 convolution cases still pass including energy measurement.
 
 ### - [ ] M4 — Correlations: remove the `sc_max_nstep` dimension from device  (P1, L)
@@ -170,12 +202,12 @@ The crash mode for big systems is M1 below, not a leak.
 Also: `w_block` scratch (`3·blocks·nq·nw`) should be sized from the *actual* launch geometry, not worst case — audit `blocksQW` and shrink.
 **Acceptance:** Dynamic-correlation V2 case matches Fortran `m_kw` within tolerance; tracker shows the sc_max_nstep-proportional allocation gone in mode (a).
 
-### - [ ] M5 — FFT workspace hygiene  (P2, S)
+### - [x] M5 — FFT workspace hygiene  (P2, S)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
 **Task:** (1) Destroy `kernel_plan` immediately after the kernel FFT is done in `build*Kernel` — it is never needed again and holds a workspace. (2) Investigate `cufftSetAutoAllocation(plan, 0)` + `cufftSetWorkArea` sharing one work area between forward/backward use of the single `plan` (they already share the plan — verify no extra workspace duplication) and, if kernel_plan must persist for rebuilds, share the work area with `plan`. (3) After CV3 (R2C), sizes drop further.
 **Acceptance:** Tracker/MemGetInfo shows workspace reduction on a convolution run; V2 convolution cases pass.
 
-### - [ ] M6 — 32-bit index overflow audit  (P2, S)
+### - [x] M6 — 32-bit index overflow audit  (P2, S)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuParallelizationHelper.{hpp,tpp}`, `gpu_files/gridHelper.hpp`, `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
 **Task:** `op.NM3 = N*M*3` (unsigned int) overflows at N·M > 1.43e9; `X*Y` in `dim2d` big-grid path similarly; `pack_spins_to_fft` total and cuFFT `int` dims cap the convolution grid. Convert the helper structs' size fields and index math to `size_t`/`unsigned long long` where kernels permit (index arithmetic in kernels can stay 32-bit when safe — gate with a checked cast at launch: if the product exceeds `UINT_MAX`, error out with a clear message rather than wrapping). Document the hard limits that remain (cuFFT int dims).
 **Acceptance:** A mock launch with N·M·3 > 2³² triggers the checked-cast error, not silent wraparound (unit test the check function on host).
@@ -230,22 +262,22 @@ Semantics of the three modes:
 - **SINGLE:** storage fp32, accumulation fp32. Fastest; for exploratory dynamics, large-N equilibration, consumer GPUs (where fp64 is 1/32–1/64 rate).
 - **MIXED:** storage fp32 (all 3NM streaming arrays, couplings, FFT buffers), accumulation fp64 (all reductions: energies, magnetization sums, Binder cumulants, correlation accumulators), plus fp64 for the handful of scalar-sensitive spots listed in PR5. Recommended default for production on consumer/RDNA hardware — memory and bandwidth of fp32 with fp64 statistics.
 
-### - [ ] PR1 — Type foundation  (P1, M)
+### - [x] PR1 — Type foundation  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/real_type.h`, `gpu_files/base.hpp`, CMake (CM1's `UPPASD_PRECISION`).
 **Task:** Introduce two typedefs controlled by the CMake option: `using storage_t = float|double;` and `using accum_t = float|double;` per the table above, and complex counterparts `storage_cplx`, `accum_cplx`. Keep `using real = storage_t;` so the existing code compiles unchanged; new/edited code uses the explicit names. Map the FFT type macros (`GpuFftComplex`, `GPUFFT_EXEC_C2C` → C2C vs Z2Z; after CV3, R2C vs D2Z) off `storage_t`. Delete the `ON_LUMI` thrust fork opportunistically if U1 has landed.
 **Acceptance:** All three modes compile for both backends (numbers may be wrong until PR2 — say so in the PR).
 
-### - [ ] PR2 — Boundary conversion layer  (P0-within-phase, M; extends F7)
+### - [x] PR2 — Boundary conversion layer  (P0-within-phase, M; extends F7)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/tensor.hpp`, `gpu_files/gpuSimulation.cpp`.
 **Task:** Generalize F7's staging helper to `upload_convert(const Tensor<double,dim>& src, GpuTensor<storage_t,dim>& dst, bool transpose=false)` and `download_convert(...)` (convert in a pinned staging buffer sized max over uses, reused across calls; async on `copyStream` where callers permit). Route **every** `copyFromFortran`/`copyToFortran` transfer through it. In DOUBLE mode it degenerates to the current memcpy path (zero overhead — specialize). Host-side `cpuLattice`/`cpuHamiltonian` tensors keep aliasing the Fortran doubles; only device tensors change type.
 **Acceptance:** DOUBLE mode bit-identical to pre-change (V2). SINGLE mode: V2 with relaxed tolerances (see PR7) passes; no `reinterpret`-style type punning remains (`grep` for `real*` casts on `FortranData` pointers).
 
-### - [ ] PR3 — fp64 accumulation everywhere it matters (MIXED)  (P1, M)
+### - [x] PR3 — fp64 accumulation everywhere it matters (MIXED)  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp` (energy path — coordinate with F1/U2), `gpu_files/measurement/kernels.cpp` (all `block_reduce_sum_1d` users), `gpu_files/correlations/*` (S(q) accumulators `q/qt/qw` and block scratch), `gpu_files/measurement/gpuMeasurement.cpp` buffers that hold running sums.
 **Task:** Change reduction accumulator types and the persistent accumulation buffers (`energyM`, `emomMEnsembleSums`, correlation `q/qt/qw`) from `real` to `accum_t` / `accum_cplx`. Per-element loads stay `storage_t`; the promotion happens at the `+=`. Binder cumulant fourth powers especially need fp64 (catastrophic cancellation in `⟨m⁴⟩−3⟨m²⟩²`-type combinations at fp32).
 **Acceptance:** MIXED-mode long run (10⁵ steps, finite T): energy drift and Binder cumulant match DOUBLE within statistical error, where a pure-SINGLE control visibly drifts. Add this comparison as a (manual/nightly, not per-PR) test script.
 
-### - [ ] PR4 — RNG per precision  (P1, S)
+### - [x] PR4 — RNG per precision  (P1, S)  — **verified landed 2026-07-20**
 **Files:** thermfield (post-U1), `gpu_wrappers.h`, `gpu_files/gpuMetropolis.cpp`.
 **Task:** Under SINGLE/MIXED generate `curandGenerateNormal` (float) into the fp32 field; keep the even-length fix from F2. In `MCSweep`, replace the hardwired `GPU_NORMAL_DOUBLE`/`GPU_RAND_UNIFORM_DOUBLE` with precision-dispatched macros (`GPU_NORMAL_REAL`, `GPU_RAND_UNIFORM_REAL`). MC acceptance comparison (`exp(βΔE) < u`): compute `βΔE` and the `exp` in `accum_t` (double under MIXED) — it's one scalar per attempt, cost-free.
 **Acceptance:** SINGLE/MIXED MC reproduces Fortran ⟨m(T)⟩ curve on the standard test system across 5 temperatures within statistics.
@@ -255,12 +287,12 @@ Semantics of the three modes:
 **Task:** (a) Rotation: compute the angle `norm·Δt·γ/(1+α²)` and `sincos` in `accum_t`, cast the rotation matrix to storage — the angle is tiny and fp32 `sincos` of a tiny angle loses the `1−cos` digits (`u = 1−cos` should be computed as `2·sin²(θ/2)` regardless of mode — small formula improvement, do it for all precisions). (b) Spin-length drift: under SINGLE, renormalize `emom` every `K` steps (new input/def, default K=100 for SINGLE, off otherwise) — one cheap element kernel; document. (c) `dp_factor`/`sigma` prefactors: compute on host in double, cast once.
 **Acceptance:** SINGLE 10⁶-step conservative test (λ=0, T=0): |m| deviation from 1 stays < 1e-6 with renormalization on; energy conservation comparable to Fortran fp64 within fp32 expectations (document measured drift in the PR).
 
-### - [ ] PR6 — FFT precision  (P1, S; with CV3)
+### - [x] PR6 — FFT precision  (P1, S; with CV3)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuFftWrapper.hpp`, `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
 **Task:** Select `CUFFT_C2C/R2C` vs `Z2Z/D2Z` (and hipFFT equivalents) from `storage_t`. The spectral multiply runs in storage precision; kernel construction (done once) always in fp64 on host/device then cast — the kernel entries are sums of couplings and deserve full precision.
 **Acceptance:** Convolution V2 case passes in all three modes at mode-appropriate tolerance.
 
-### - [ ] PR7 — Tolerance-tiered validation  (P1, S)
+### - [x] PR7 — Tolerance-tiered validation  (P1, S)  — **verified landed 2026-07-20**
 **Files:** `tests/gpu_regression/`.
 **Task:** Parameterize V2 tolerances by precision: DOUBLE rtol 1e-10; MIXED rtol 1e-5 on trajectories / 1e-7 on averaged energies; SINGLE rtol 1e-4 / 1e-5, plus the statistical thermal tests from PR3/PR4. CI (compile-only) builds all three modes; the numeric suite runs on demand/GPU runner.
 **Acceptance:** One command runs the full matrix {DOUBLE, MIXED, SINGLE} × {CUDA, HIP if available} and prints a table.
@@ -271,7 +303,7 @@ Semantics of the three modes:
 
 **Verdict: keep it, invest in it.** The FFT lattice convolution is the right long-term architecture for Bravais(-with-basis) systems: O(cells·log) per field evaluation independent of coordination number, no neighbor-list memory (the biggest single array for high-mnn systems — see M3), naturally batched over ensembles, and — as suspected — it is exactly the infrastructure needed for FFT dipole–dipole (the demagnetizing field is a convolution with the dipole tensor; this is how every micromagnetics code does it). The `NA×NA` block-kernel structure (`kernel_fft` sized `cells·9·NA²`) is already the correct generalization for multi-atom bases. Two things need fixing before it can be trusted broadly (CV1) and made cheap (CV3); then the dipole extension (CV6) is a natural, well-scoped project.
 
-### - [ ] CV1 — Boundary-condition guard (correctness)  (P0, S)
+### - [x] CV1 — Boundary-condition guard (correctness)  (P0, S)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp` (`canUseLatticeConvolution`), `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
 **Background:** The kernel-construction code respects BCs via `wrapped_coord_diff` (min-image only for periodic dims), but the *application* is a cyclic FFT convolution — intrinsically periodic in all three dims. With any BC = open (`'0'`), boundary sites receive spurious wrapped contributions from the far side. `canUseLatticeConvolution` never checks the BCs.
 **Task:** Add `if (BC1!='P' || BC2!='P' || BC3!='P') return false;` (with a printed note that the convolution backend requires full PBC for now). Zero-padding support for open dims is CV6's problem (dipole needs it anyway); don't implement it here.
@@ -283,12 +315,12 @@ Semantics of the three modes:
 **Task:** After `unpack_fft_field`, when `measure`, launch an energy kernel computing per-ensemble `E_exch = −½ Σ_i S_i·B^conv_i` (the convolution field is the bilinear field, so the ½ double-counting factor applies as in the sparse `HeisgeJij` path — verify against `energyM` column conventions), `E_ext = −Σ S·B_ext` (sign per Fortran), plus the on-site anisotropy energy evaluated directly (it is on-site — cheap; note the current convolution kernel folds uniaxial aniso into the q=0 kernel entry via `add_uniaxial_anisotropy_kernel`, which is only valid as a *field*; the energy prefactors differ — evaluate the aniso energy in this kernel from `kaniso/eaniso/taniso` directly and make sure the field-side folding and the energy don't double count; simplest correct arrangement: remove aniso from the convolution kernel and apply aniso field+energy in the unpack/energy kernel on-site). DM energy analogous via the antisymmetric part already in the kernel. Reuse the F1 reduction machinery for the sums.
 **Acceptance:** V2 convolution+energy cases match the sparse-path energies to rtol 1e-10 (fp64) for J, J+DM, J+aniso.
 
-### - [ ] CV3 — R2C/C2R transforms  (P1, M)
+### - [x] CV3 — R2C/C2R transforms  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`, `gpu_files/gpuFftWrapper.hpp`.
 **Task:** The spin field and the output field are real; switch spin/field transforms to R2C forward / C2R inverse (`CUFFT_D2Z/Z2D` resp. `R2C/C2R` per precision). Spectral buffers shrink to `(n1/2+1)·n2·n3` complex per component; the kernel FFT likewise (kernel is real in real space). The spectral multiply indexing changes to the half-spectrum layout. Mind hipFFT parity. Keeps ~45 % of the FFT memory and time.
 **Acceptance:** Bitwise-tolerant (1e-12 fp64) agreement with the C2C result on V2 convolution cases; tracker shows the buffer reduction.
 
-### - [ ] CV4 — Stream + plan association audit  (P2, S)
+### - [x] CV4 — Stream + plan association audit  (P2, S)  — **verified landed 2026-07-20**
 **Files:** same.
 **Task:** ~~Ensure `GPUFFT_SET_STREAM(plan, workStream)` is called~~ — **verified done 2026-07-20**: `gpuLatticeConvolutionHamiltonian.cpp:409-417` sets the stream on `forward_plan`, `backward_plan` and `kernel_plan`. The convolution cases are also bitwise-identical under `--default-stream per-thread` (see PF3), which they would not be if any plan were still on the default stream. Remaining: destroy `kernel_plan` after build (also listed as M5-1 — do once).
 **Acceptance:** `nsys`/`rocprof` trace shows FFTs on the work stream.
@@ -340,17 +372,17 @@ Most of the original task was already complete: all ~30 launches in `gpuCorrelat
 
 **Out of scope, still open:** `gpuMetropolis.cpp` / `gpuMetropolis_bruteforce.cpp` launch on the default stream and `gpuMCSimulation` has four `GPU_DEVICE_SYNCHRONIZE` calls (C5/C6/P1/P5). The MC regression cases pass under PTDS only because those device syncs are heavy enough to mask the missing ordering — this is worth revisiting with MC work, not before. `nsys` step-time profiling of a correlation-heavy case was not done (no correlation case exists in `tests/gpu_regression`).
 
-### - [ ] PF4 — `j_tensor` device layout transpose  (P2, M) — audit P4
+### - [x] PF4 — `j_tensor` device layout transpose  (P2, M) — audit P4  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuSimulation.cpp` (upload via F7/PR2 staging), `gpu_files/gpuHamiltonianCalculations.cpp` (`HeisgeJijTensor*` indexing, `SetupNeighbourListExchangeTensor`), convolution `buildTensorKernel` reader.
 **Task:** Store the device tensor as `[site + NH·(component + 9·neigh)]` (site fastest) and update all readers. Upload-time transform via the staging layer.
 **Acceptance:** V2 tensor cases pass; tensor-mode field kernel bandwidth (nsys/rocprof) improves materially (report before/after).
 
-### - [ ] PF5 — Integrator kernel fusion  (P2, M) — audit P6, enables M2-3
+### - [x] PF5 — Integrator kernel fusion  (P2, M) — audit P6, enables M2-3  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuDepondtIntegrator.cpp`, `gpu_files/gpuCommon.hpp`.
 **Task:** Fuse per half-step: one kernel doing local field = beff+btherm (+btorque), damping cross-product, normalization, rotation-matrix build, rotation, and (first half) `emomM = mrod·mmom` — all per-atom register work. `blocal` disappears as an array; `bdup` is still needed across the two half-steps (b2eff avg). Keep the old kernels behind a define for A/B validation for one release.
 **Acceptance:** V2 bitwise (fp64, same operation order where feasible — otherwise 1e-12 rtol); integrator section of the stopwatch report ~2× faster; `blocal` gone from the tracker.
 
-### - [ ] PF6 — Misc: `__restrict__` uniformity, N%32 note, unbuffered stdout  (P3, S)
+### - [x] PF6 — Misc: `__restrict__` uniformity, N%32 note, unbuffered stdout  (P3, S)  — **verified landed 2026-07-20**
 **Files:** Heisge functors (after U2 this is one place), `gpuHamiltonianCalculations.cpp`, all `std::setbuf(stdout, nullptr)` sites.
 **Task:** Uniform `const __restrict__` pointers in functors; fix the "multiple of 32" message to be wave-size aware; remove `setbuf(…, nullptr)` from production phases (keep behind a debug define).
 
@@ -358,17 +390,17 @@ Most of the original task was already complete: all ~30 launches in `gpuCorrelat
 
 ## Phase 7 — Unification & structural refactors (audit A2, A3)
 
-### - [ ] U1 — Single-source CUDA/HIP: thermfield + correlation kernels  (P1, L) — audit A2
+### - [x] U1 — Single-source CUDA/HIP: thermfield + correlation kernels  (P1, L) — audit A2  — **verified landed 2026-07-20**
 **Files:** `cudaThermfield.cu` + `hipThermfield.cpp` → `gpuThermfield.cpp`; `correlations/correlation_kernels.cpp` + `.hip.cpp` → one file; `gpu_wrappers.h`, `real_type.h`, both `CMakeLists.txt` (with CM4).
 **Task:** Add to `gpu_wrappers.h`: `WAVE_SIZE` compile-time constant (`__AMDGCN_WAVEFRONT_SIZE` on AMD HIP, else 32), RNG generator-API macros (`GPU_RAND_CREATE_GENERATOR`, `GPU_RAND_GENERATE_NORMAL[_REAL]`, `GPU_RAND_SET_STREAM`, …). Merge the file pairs: mechanical diff resolution using the existing `GPU_CREAL/GPU_CIMAG/MAKE_GPU_COMPLEX` macros, `cg::tiled_partition<WAVE_SIZE>`, and the raw-`blockIdx` idioms (pick the raw form — it's what the HIP file uses and it's fine). Pick **one** complex representation for HIP (recommend `thrust::complex` everywhere, i.e., generalize the `ON_LUMI` path and delete the flag — rocThrust ships with ROCm) unless benchmarking shows a reason not to. Delete the twin files.
 **Acceptance:** Both backends build from the unified sources; V2 passes; `diff`-able twins no longer exist; `ON_LUMI` removed from CMake and code.
 
-### - [ ] U2 — Templated Heisge kernel  (P1, L) — audit A3 + P3
+### - [x] U2 — Templated Heisge kernel  (P1, L) — audit A3 + P3  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp/.hpp`.
 **Task:** Replace the six `HeisgeJij*` functors with one `template<bool HasDM, bool HasAniso, bool HasTensor, bool Measure> class Heisge : ParallelizationHelper::AtomSiteEnsemble` using `if constexpr`; a 16-way (practically 12-way — tensor excludes scalar-J DM path per current semantics, mirror existing dispatch) dispatch table in `heisge()` selects the instantiation. Fold in: F1's fixed energy path (only compiled when `Measure`), F4's ensemble usage, PF6's `__restrict__`, and resolve the "To Anders: sign????" prefactor questions against the Fortran reference (`effective_field`/`calculate_energy` in `hamiltonianactions*.f90`) — document the resolved conventions in a header comment block and **get sign-off from Anders on the uniaxial `*_en` sign and the cubic ½ and ⅓ energy factors before merging**.
 **Acceptance:** V2 passes for every Hamiltonian permutation including energies; non-measure step time unchanged or better; measure-step register count reported (nvcc `-Xptxas -v`) lower than baseline for the plain-J non-measure instantiation; total file shrinks by ~800 lines.
 
-### - [ ] U3 — `bind(C)` the whole bridge  (P2, M) — audit I1
+### - [x] U3 — `bind(C)` the whole bridge  (P2, M) — audit I1  — **verified landed 2026-07-20**
 **Files:** `source/chelper.f90`, `gpu_files/fortranData.cpp`, `gpu_files/fort_helper.cpp`, `gpu_files/c_helper.h`.
 **Task:** Give every `FortranData_set*`, `gpusim_*`, and the C→Fortran callbacks (`fortran_measure_*`, `fortran_calc_simulation_status_variables`, …) explicit `bind(C)` interfaces with `iso_c_binding` types; C symbols lose the trailing underscore (`fortrandata_setconstants` etc. — update both sides); character flags become `character(kind=c_char)` scalars or `integer(c_int)` enums (prefer enums for new code); settle `integer(c_int)` vs the current `unsigned int*` mismatches on `int`. The `fortran_print_measurables` path passing `allocatable` dummies must be audited: if it is ever invoked with a C-constructed actual argument, convert to `bind(C)` + explicit shape/`CFI_cdesc_t`, otherwise document that it is Fortran-called only.
 **Acceptance:** Builds with gfortran and (if available) another compiler (nvfortran or Cray ftn via CI/LUMI) without symbol errors; V2 passes; no `extern "C" void *_(...)` hand-mangled symbols remain.
