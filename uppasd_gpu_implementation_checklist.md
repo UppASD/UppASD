@@ -31,13 +31,30 @@ re-executed — no profiling traces were captured, and no per-item benchmarks we
 those ticks as "the work exists" rather than "the acceptance bar was re-measured." PF3 is the
 exception: it was validated end-to-end (see its entry).
 
+**Correction, same day — Phase 4 (PR1–PR7) was over-ticked and has been reverted to `[ ]`.**
+The first pass ticked the PR cluster on the strength of `SINGLE_PREC` code existing. That was
+the exact error this note warns about. Phase 4 is specified in terms of a three-mode
+`UPPASD_PRECISION` (DOUBLE/SINGLE/MIXED) with `storage_t` / `accum_t` / `accum_cplx` typedefs —
+**none of those identifiers exist anywhere in the tree.** What landed is a *binary* `SINGLE_PREC`
+switch reaching five files (`real_type.h`, `tensor.hpp`, `gpu_wrappers.h`, `gpuFftWrapper.hpp`,
+`gpuSimulation.cpp`). Real work, but not the specified design, and MIXED — the mode PR3 exists
+to serve — is absent entirely. PR7's tolerances are also a single 1e-8 tier, not per-precision.
+Phase 4 is best read as "prototyped, not designed in."
+
 **Deliberately left unticked despite plausible evidence:**
 
-- **CM1–CM6** — only shallowly checked. `CMakePresets.json` exists and many cmake commits
-  landed, but "option surface hygiene" and "single source of truth for GPU sources" are
-  judgement calls that were not properly assessed.
+- **CM1–CM6** — since confirmed **clearly not done**, not merely unverified: no
+  `UPPASD_GPU_BACKEND`/`UPPASD_PRECISION`; 8 global `add_compile_definitions`; `-DDEBUG` still
+  injected (CMakeLists.txt:368, 429, 430); legacy `find_package(CUDA)` (:352) and
+  `FindCUDA/select_compute_arch` (:384) still present; blanket `CUDA::toolkit` link (:398)
+  rather than `CUDA::cudart/curand/cufft`; `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
+  CMakeLists (:420-421), which CM3 explicitly forbids; hardcoded `/opt/rocm` search paths
+  (:449 and `gpu_files/CMakeLists.txt:66`); presets are `debug/release/debugCuda/releaseCuda`,
+  not the specified `cpu/cuda/cuda-debug/hip-cdna/hip-rdna/lumi`, and `docs/BUILDING_GPU.md`
+  does not exist. CM4's duplicated source list is directly observable.
 - **PR5** — the fp32 infrastructure exists, but that does not establish that the audit of
-  numerically sensitive spots was actually carried out.
+  numerically sensitive spots was actually carried out. Also blocked: PR5 is written against
+  `accum_t`, which does not exist until PR1 lands.
 - **F5, F6, PF1, PF2** — MC items. F5's exact anisotropy ΔE and F6's sublattice coloring both
   appear implemented, and `single_spin_mc_uniaxial_easy_axis` passes, but MC is gated out of
   scope and MC semantics were not validated. Confirm before ticking.
@@ -262,22 +279,22 @@ Semantics of the three modes:
 - **SINGLE:** storage fp32, accumulation fp32. Fastest; for exploratory dynamics, large-N equilibration, consumer GPUs (where fp64 is 1/32–1/64 rate).
 - **MIXED:** storage fp32 (all 3NM streaming arrays, couplings, FFT buffers), accumulation fp64 (all reductions: energies, magnetization sums, Binder cumulants, correlation accumulators), plus fp64 for the handful of scalar-sensitive spots listed in PR5. Recommended default for production on consumer/RDNA hardware — memory and bandwidth of fp32 with fp64 statistics.
 
-### - [x] PR1 — Type foundation  (P1, M)  — **verified landed 2026-07-20**
+### - [ ] PR1 — Type foundation  (P1, M) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** `gpu_files/real_type.h`, `gpu_files/base.hpp`, CMake (CM1's `UPPASD_PRECISION`).
 **Task:** Introduce two typedefs controlled by the CMake option: `using storage_t = float|double;` and `using accum_t = float|double;` per the table above, and complex counterparts `storage_cplx`, `accum_cplx`. Keep `using real = storage_t;` so the existing code compiles unchanged; new/edited code uses the explicit names. Map the FFT type macros (`GpuFftComplex`, `GPUFFT_EXEC_C2C` → C2C vs Z2Z; after CV3, R2C vs D2Z) off `storage_t`. Delete the `ON_LUMI` thrust fork opportunistically if U1 has landed.
 **Acceptance:** All three modes compile for both backends (numbers may be wrong until PR2 — say so in the PR).
 
-### - [x] PR2 — Boundary conversion layer  (P0-within-phase, M; extends F7)  — **verified landed 2026-07-20**
+### - [ ] PR2 — Boundary conversion layer  (P0-within-phase, M; extends F7) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** `gpu_files/tensor.hpp`, `gpu_files/gpuSimulation.cpp`.
 **Task:** Generalize F7's staging helper to `upload_convert(const Tensor<double,dim>& src, GpuTensor<storage_t,dim>& dst, bool transpose=false)` and `download_convert(...)` (convert in a pinned staging buffer sized max over uses, reused across calls; async on `copyStream` where callers permit). Route **every** `copyFromFortran`/`copyToFortran` transfer through it. In DOUBLE mode it degenerates to the current memcpy path (zero overhead — specialize). Host-side `cpuLattice`/`cpuHamiltonian` tensors keep aliasing the Fortran doubles; only device tensors change type.
 **Acceptance:** DOUBLE mode bit-identical to pre-change (V2). SINGLE mode: V2 with relaxed tolerances (see PR7) passes; no `reinterpret`-style type punning remains (`grep` for `real*` casts on `FortranData` pointers).
 
-### - [x] PR3 — fp64 accumulation everywhere it matters (MIXED)  (P1, M)  — **verified landed 2026-07-20**
+### - [ ] PR3 — fp64 accumulation everywhere it matters (MIXED)  (P1, M) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** `gpu_files/gpuHamiltonianCalculations.cpp` (energy path — coordinate with F1/U2), `gpu_files/measurement/kernels.cpp` (all `block_reduce_sum_1d` users), `gpu_files/correlations/*` (S(q) accumulators `q/qt/qw` and block scratch), `gpu_files/measurement/gpuMeasurement.cpp` buffers that hold running sums.
 **Task:** Change reduction accumulator types and the persistent accumulation buffers (`energyM`, `emomMEnsembleSums`, correlation `q/qt/qw`) from `real` to `accum_t` / `accum_cplx`. Per-element loads stay `storage_t`; the promotion happens at the `+=`. Binder cumulant fourth powers especially need fp64 (catastrophic cancellation in `⟨m⁴⟩−3⟨m²⟩²`-type combinations at fp32).
 **Acceptance:** MIXED-mode long run (10⁵ steps, finite T): energy drift and Binder cumulant match DOUBLE within statistical error, where a pure-SINGLE control visibly drifts. Add this comparison as a (manual/nightly, not per-PR) test script.
 
-### - [x] PR4 — RNG per precision  (P1, S)  — **verified landed 2026-07-20**
+### - [ ] PR4 — RNG per precision  (P1, S) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** thermfield (post-U1), `gpu_wrappers.h`, `gpu_files/gpuMetropolis.cpp`.
 **Task:** Under SINGLE/MIXED generate `curandGenerateNormal` (float) into the fp32 field; keep the even-length fix from F2. In `MCSweep`, replace the hardwired `GPU_NORMAL_DOUBLE`/`GPU_RAND_UNIFORM_DOUBLE` with precision-dispatched macros (`GPU_NORMAL_REAL`, `GPU_RAND_UNIFORM_REAL`). MC acceptance comparison (`exp(βΔE) < u`): compute `βΔE` and the `exp` in `accum_t` (double under MIXED) — it's one scalar per attempt, cost-free.
 **Acceptance:** SINGLE/MIXED MC reproduces Fortran ⟨m(T)⟩ curve on the standard test system across 5 temperatures within statistics.
@@ -287,12 +304,12 @@ Semantics of the three modes:
 **Task:** (a) Rotation: compute the angle `norm·Δt·γ/(1+α²)` and `sincos` in `accum_t`, cast the rotation matrix to storage — the angle is tiny and fp32 `sincos` of a tiny angle loses the `1−cos` digits (`u = 1−cos` should be computed as `2·sin²(θ/2)` regardless of mode — small formula improvement, do it for all precisions). (b) Spin-length drift: under SINGLE, renormalize `emom` every `K` steps (new input/def, default K=100 for SINGLE, off otherwise) — one cheap element kernel; document. (c) `dp_factor`/`sigma` prefactors: compute on host in double, cast once.
 **Acceptance:** SINGLE 10⁶-step conservative test (λ=0, T=0): |m| deviation from 1 stays < 1e-6 with renormalization on; energy conservation comparable to Fortran fp64 within fp32 expectations (document measured drift in the PR).
 
-### - [x] PR6 — FFT precision  (P1, S; with CV3)  — **verified landed 2026-07-20**
+### - [ ] PR6 — FFT precision  (P1, S; with CV3) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** `gpu_files/gpuFftWrapper.hpp`, `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
 **Task:** Select `CUFFT_C2C/R2C` vs `Z2Z/D2Z` (and hipFFT equivalents) from `storage_t`. The spectral multiply runs in storage precision; kernel construction (done once) always in fp64 on host/device then cast — the kernel entries are sums of couplings and deserve full precision.
 **Acceptance:** Convolution V2 case passes in all three modes at mode-appropriate tolerance.
 
-### - [x] PR7 — Tolerance-tiered validation  (P1, S)  — **verified landed 2026-07-20**
+### - [ ] PR7 — Tolerance-tiered validation  (P1, S) — **partial: binary `SINGLE_PREC` only, not the specified three-mode design (see Phase 4 note)**
 **Files:** `tests/gpu_regression/`.
 **Task:** Parameterize V2 tolerances by precision: DOUBLE rtol 1e-10; MIXED rtol 1e-5 on trajectories / 1e-7 on averaged energies; SINGLE rtol 1e-4 / 1e-5, plus the statistical thermal tests from PR3/PR4. CI (compile-only) builds all three modes; the numeric suite runs on demand/GPU runner.
 **Acceptance:** One command runs the full matrix {DOUBLE, MIXED, SINGLE} × {CUDA, HIP if available} and prints a table.
