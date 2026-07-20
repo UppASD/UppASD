@@ -145,7 +145,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         cumu_buff_cpu.zeros();
 
         if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
-        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
+        // binderCumulantEnergy_partial writes one entry per block over the full
+        // 2D grid (block_parts[blockIdx.y * gridDim.x + blockIdx.x]) and the
+        // finalize kernel reads block_parts[t * nblocks + tid] for all
+        // N_BINDER_TYPES rows, so size this by the launch geometry rather than
+        // by the x-extent alone.
+        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x * cumu_ene_kernel_blocks.y);
 
         if(do_cumu_proj == 'Y'){
             cumu_proj_kernel_blocks = {1,1,1};
