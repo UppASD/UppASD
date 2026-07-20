@@ -19,7 +19,9 @@ CMAKE_POLICY(VERSION 3.13)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_HIP_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
+set(CMAKE_HIP_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 PROJECT(UppASD Fortran)
@@ -95,6 +97,80 @@ ENDIF(FCNAME STREQUAL "pgf90")
 
 
 ##############################################################################################
+# GPU backend and precision selection
+#
+# UPPASD_GPU_BACKEND and UPPASD_PRECISION are the canonical knobs.  USE_CUDA and
+# USE_HIP are kept as deprecated aliases: existing build trees, CI and
+# CMakeLists.txt.local still pass them.  Both directions are resolved here, so
+# the rest of the file (and the gpu_files subdirectories) can keep testing
+# USE_CUDA/USE_HIP until CM2-CM4 convert them.
+##############################################################################################
+set(UPPASD_GPU_BACKEND "OFF" CACHE STRING "GPU backend to build for: OFF, CUDA or HIP")
+set_property(CACHE UPPASD_GPU_BACKEND PROPERTY STRINGS OFF CUDA HIP)
+set(UPPASD_PRECISION "DOUBLE" CACHE STRING "Floating point precision: DOUBLE, SINGLE or MIXED")
+set_property(CACHE UPPASD_PRECISION PROPERTY STRINGS DOUBLE SINGLE MIXED)
+OPTION(USE_CUDA "Deprecated alias for -DUPPASD_GPU_BACKEND=CUDA" OFF)
+OPTION(USE_HIP "Deprecated alias for -DUPPASD_GPU_BACKEND=HIP" OFF)
+OPTION(USE_FAST_COPY "Use the pinned fast-copy path for Fortran<->GPU transfers" OFF)
+
+if(USE_CUDA AND USE_HIP)
+   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
+endif()
+
+string(TOUPPER "${UPPASD_GPU_BACKEND}" UPPASD_GPU_BACKEND)
+if(UPPASD_GPU_BACKEND STREQUAL "NONE")
+   set(UPPASD_GPU_BACKEND "OFF")
+endif()
+
+if(UPPASD_GPU_BACKEND STREQUAL "OFF")
+   # Nothing requested directly; fall back to the deprecated booleans.
+   if(USE_CUDA)
+      message(DEPRECATION "USE_CUDA is deprecated; use -DUPPASD_GPU_BACKEND=CUDA")
+      set(UPPASD_GPU_BACKEND "CUDA")
+   elseif(USE_HIP)
+      message(DEPRECATION "USE_HIP is deprecated; use -DUPPASD_GPU_BACKEND=HIP")
+      set(UPPASD_GPU_BACKEND "HIP")
+   endif()
+elseif(NOT UPPASD_GPU_BACKEND STREQUAL "CUDA" AND NOT UPPASD_GPU_BACKEND STREQUAL "HIP")
+   message(FATAL_ERROR
+      "UPPASD_GPU_BACKEND must be OFF, CUDA or HIP (got '${UPPASD_GPU_BACKEND}')")
+endif()
+
+# Derive the legacy booleans from the resolved backend, and reject the case
+# where the two spellings disagree rather than silently picking one.
+if(UPPASD_GPU_BACKEND STREQUAL "CUDA")
+   if(USE_HIP)
+      message(FATAL_ERROR "UPPASD_GPU_BACKEND=CUDA conflicts with USE_HIP=ON")
+   endif()
+   set(USE_CUDA ON)
+   set(USE_HIP OFF)
+elseif(UPPASD_GPU_BACKEND STREQUAL "HIP")
+   if(USE_CUDA)
+      message(FATAL_ERROR "UPPASD_GPU_BACKEND=HIP conflicts with USE_CUDA=ON")
+   endif()
+   set(USE_CUDA OFF)
+   set(USE_HIP ON)
+else()
+   set(USE_CUDA OFF)
+   set(USE_HIP OFF)
+endif()
+
+string(TOUPPER "${UPPASD_PRECISION}" UPPASD_PRECISION)
+if(UPPASD_PRECISION STREQUAL "MIXED")
+   # MIXED is specified against storage_t/accum_t typedefs that do not exist
+   # yet (Phase 4, PR1).  Refuse rather than quietly building DOUBLE.
+   message(FATAL_ERROR
+      "UPPASD_PRECISION=MIXED is not implemented yet; use DOUBLE or SINGLE")
+elseif(NOT UPPASD_PRECISION STREQUAL "DOUBLE" AND NOT UPPASD_PRECISION STREQUAL "SINGLE")
+   message(FATAL_ERROR
+      "UPPASD_PRECISION must be DOUBLE, SINGLE or MIXED (got '${UPPASD_PRECISION}')")
+endif()
+
+message(STATUS "GPU backend: ${UPPASD_GPU_BACKEND}, precision: ${UPPASD_PRECISION}")
+##############################################################################################
+
+
+##############################################################################################
 # Define the executable name
 ##############################################################################################
 set(ASD_binary sd)
@@ -165,11 +241,8 @@ endif (FFTW_FOUND)
 ##############################################################################################
 include(CMakeDependentOption)
 OPTION(USE_OPENMP "Use OpenMP for parallelization" ON)
-OPTION(USE_CUDA "Compile with CUDA support" OFF)
-OPTION(USE_HIP "Compile with HIP support" OFF)
-if(USE_CUDA AND USE_HIP)
-  message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
-endif()
+# USE_CUDA/USE_HIP/USE_FAST_COPY and the UPPASD_GPU_BACKEND / UPPASD_PRECISION
+# knobs they alias are declared and resolved above, before the binary is named.
 # Keep option-dependent Fortran objects from being reused after a build tree is
 # reconfigured.  In particular this invalidates objects compiled with the old
 # __INTEL_MKL__ sparse path, and distinguishes CUDA/HIP/no-GPU variants.
@@ -178,6 +251,12 @@ target_compile_definitions(${UppASD_LIB} PRIVATE
    UPPASD_CMAKE_USE_CUDA=${USE_CUDA}
    UPPASD_CMAKE_USE_HIP=${USE_HIP}
    UPPASD_MKL_LEGACY_SPARSE=0)
+if(UPPASD_PRECISION STREQUAL "SINGLE")
+   target_compile_definitions(${UppASD_LIB} PRIVATE SINGLE_PREC)
+endif()
+if(USE_FAST_COPY)
+   target_compile_definitions(${UppASD_LIB} PRIVATE USE_FAST_COPY)
+endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
 # The cuDoubleComplex correlations path is unsupported: its only source file,
 # correlations/gpuCorrelations_cucomplex.cu, is not attached to any target and is
@@ -364,8 +443,8 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
                                ${SRC}/gpu_files/correlations/correlation_kernels.cpp
                                ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
-   add_compile_definitions(CUDA_V)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
+   target_compile_definitions(${UppASD_LIB} PRIVATE CUDA_V)
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
    if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
@@ -410,9 +489,9 @@ if (USE_CUDA)
    endif()
 elseif(USE_HIP)
    find_package(HIP REQUIRED)
-   add_compile_definitions(HIP_V)
+   target_compile_definitions(${UppASD_LIB} PRIVATE HIP_V)
    if(ON_LUMI)
-     add_compile_definitions(ON_LUMI)
+     target_compile_definitions(${UppASD_LIB} PRIVATE ON_LUMI)
      message(STATUS "ON_LUMI: using Thrust complex for HIP correlations")
    endif()
 
@@ -426,9 +505,6 @@ elseif(USE_HIP)
    add_subdirectory(${SRC}/gpu_files)
   
     # HIP include and compile flags
-   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -DDEBUG")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
-
    set(PP_HIP_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D__${PP_HIP_COMPILER_FLAG}__")
