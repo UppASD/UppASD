@@ -49,13 +49,18 @@ Phase 4 is best read as "prototyped, not designed in."
 - **CM2 is now done** (`5515dba`) — legacy CUDA discovery, `select_compute_arch` and the
   blanket `CUDA::toolkit` link are gone. See the CM2 entry, including the NVTX dependency the
   blanket link had been hiding.
-- **CM3–CM6** — confirmed **clearly not done**, not merely unverified (line numbers below
-  predate CM1/CM2 and have shifted — re-locate by symbol):
-  `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
+- **CM4 is now done** (`e32c11b`) — one source list per directory, and the reason the
+  duplication existed (directory-scoped source properties) is written up in the CM4 entry,
+  along with a latent HIP no-op it exposed.
+- **CM5 is now done** (`d5ebd17`) — presets, `docs/BUILDING_GPU.md`, and CI switched over. The
+  hand-configured `build_fastcopy`/`build_ptds`/`build_ab` now have preset equivalents.
+- **CM3 and CM6 remain not done** (line numbers below predate CM1/CM2/CM4 and have shifted —
+  re-locate by symbol): `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
   CMakeLists (:420-421), which CM3 explicitly forbids; hardcoded `/opt/rocm` search paths
-  (:449 and `gpu_files/CMakeLists.txt:66`); presets are `debug/release/debugCuda/releaseCuda`,
-  not the specified `cpu/cuda/cuda-debug/hip-cdna/hip-rdna/lumi`, and `docs/BUILDING_GPU.md`
-  does not exist. CM4's duplicated source list is directly observable.
+  (:449 and `gpu_files/CMakeLists.txt:66`). **CM3 was skipped deliberately: no AMD hardware
+  here.** Note that `.github/workflows/gpubuilds.yml` has a `rocm/dev-ubuntu-24.04` job, so
+  CM3's acceptance ("configures in the ROCm container") is reachable through CI even though it
+  is not reachable locally.
 - **PR5** — the fp32 infrastructure exists, but that does not establish that the audit of
   numerically sensitive spots was actually carried out. Its precision-independent piece (the
   versine formula) has since landed in `9b1011c`; the rest is still written against `accum_t`,
@@ -318,12 +323,62 @@ the `native` default never reaches the GPU-less runner. `build_ab`, `build_fastc
 **Task:** Use `enable_language(HIP)` with `CMAKE_HIP_ARCHITECTURES` (default: let CMake/hipcc detect; presets pin gfx90a/gfx942 for LUMI-class, gfx11xx for RDNA laptops). **Do not set `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` inside CMakeLists** — remove those lines; the compiler comes from the environment/toolchain (`CC=hipcc` or CMake's ROCm detection). Replace the hardcoded `find_library(HIPFFT_LIBRARY PATHS /opt/rocm/lib …)` with `find_package(hipfft CONFIG REQUIRED)` and `find_package(hiprand CONFIG REQUIRED)` (+ `find_package(hip CONFIG REQUIRED)`), linking `hip::hipfft hip::hiprand hip::host`. ROCm config packages are found via `CMAKE_PREFIX_PATH=$ROCM_PATH` — document that one env var instead of baking paths.
 **Acceptance:** Configure+build inside `rocm/dev-ubuntu` container with only `CMAKE_PREFIX_PATH` set; no absolute `/opt/rocm-*` strings remain in any CMakeLists.
 
-### - [ ] CM4 — Single source of truth for GPU sources; per-backend language  (P1, M)
+### - [x] CM4 — Single source of truth for GPU sources; per-backend language  (P1, M)
+**Done** (`e32c11b`). The top-level `set_source_files_properties(... LANGUAGE CUDA)` blob is
+deleted. Each of the three `gpu_files` directories now declares its own `GPU_KERNEL_SOURCES`
+and calls a new `uppasd_mark_gpu_sources()` helper, so adding a `.cpp` means editing exactly
+one file. All commented-out source entries are gone.
+
+**The non-obvious part — why the duplication existed at all.** Source-file properties are
+directory-scoped, and `${UppASD_LIB}` is defined in the *top-level* directory. A plain
+`set_source_files_properties()` inside `source/gpu_files/` is therefore **silently ignored** for
+that target, which is why the list had to be repeated at top level. The helper uses
+`TARGET_DIRECTORY ${UppASD_LIB}` (CMake >= 3.18, and CM2 already requires 3.24 for GPU builds)
+to aim the property at the directory that owns the target. **This also means
+`correlations/CMakeLists.txt`'s `set_source_files_properties(correlation_kernels.cpp PROPERTIES
+LANGUAGE HIP)` was a no-op** — the HIP build was compiling that file as plain C++. Unverifiable
+here without AMD hardware, but worth knowing when CM3 is picked up.
+
+**Drift found and removed:** the blob listed `${SRC}/gpu_files/gpuMeasurement.cpp`, which **does
+not exist** (the real file is `measurement/gpuMeasurement.cpp`; the `gpu_files/` one is
+commented out of the source list). `set_source_files_properties` does not error on missing
+files, so this sat there harmlessly and invisibly.
+
+**Verified** by dumping `compile_commands.json` and classifying every `gpu_files` entry by
+whether it invokes `nvcc`: exactly 20 sources compile as CUDA and 8 as plain C++ — matching the
+old blob's 20 real entries and the 8 files it omitted, so the split is byte-for-byte the
+previous behaviour. Confirmed independently that none of those 8 contain `__global__` or
+`<<<`. Full rebuild + 11 PASS / 1 FAIL on `build_ab`, `build_fastcopy`, `build_ptds` and a
+fresh tree.
+
 **Files:** `source/gpu_files/CMakeLists.txt`, top-level `CMakeLists.txt`.
 **Task:** Today the GPU file list exists twice (subdir `target_sources` + a drifted `set_source_files_properties(... LANGUAGE CUDA)` blob at top level) with commented-out entries disagreeing. Restructure: `source/gpu_files/CMakeLists.txt` defines one variable/OBJECT-library `uppasd_gpu` with the complete source list; a single loop sets `LANGUAGE` to `CUDA` or `HIP` on the kernel-containing sources depending on `UPPASD_GPU_BACKEND` (after U1 lands there is exactly one list — until then, include the per-backend thermfield/correlation file selection here and nowhere else). Delete the top-level `set_source_files_properties` block and all commented-out source entries. Headers/`.tpp` need not be listed as sources (list them via `target_sources(... FILE_SET HEADERS)` if IDE visibility is wanted).
 **Acceptance:** Adding a new `.cpp` under gpu_files requires editing exactly one file; both backends build.
 
-### - [ ] CM5 — Presets  (P1, S)
+### - [x] CM5 — Presets  (P1, S)
+**Done** (`d5ebd17`). `CMakePresets.json` now provides `cpu`, `cpu-debug`, `cuda`,
+`cuda-debug`, `cuda-single`, `cuda-fastcopy`, `cuda-ptds`, `hip-cdna`, `hip-rdna` and `lumi`,
+all inheriting a hidden `base` and setting cache variables only — no paths. Matching
+`buildPresets` mean `cmake --build --preset <name>` works. `docs/BUILDING_GPU.md` covers the
+four target platforms, the `CMAKE_PREFIX_PATH=$ROCM_PATH` note and the LUMI module list.
+`.github/workflows/gpubuilds.yml` (V1) now configures via `--preset cuda` / `--preset hip-cdna`.
+
+**The hand-configured build dirs collapse into presets**, which was the real measure of done:
+`build_fastcopy` → `cuda-fastcopy`, `build_ptds` → `cuda-ptds`, `build_ab` → `cuda-debug`. The
+old `debug`/`release`/`debugCuda`/`releaseCuda` presets are kept as deprecated aliases pointing
+at their original `binaryDir`s, so existing trees and habits do not break.
+
+**Verified:** `cpu`, `cuda`, `cuda-fastcopy`, `cuda-ptds` each configure *and build* from
+scratch; the three GPU ones give 11 PASS / 1 FAIL. The flags are confirmed to actually reach
+the compiler rather than being decorative — `-DUSE_FAST_COPY` appears in `cuda-fastcopy`'s
+`flags.make`, `--default-stream per-thread` in `cuda-ptds`', and neither in plain `cuda`'s. The
+exact CI invocation (`cmake --preset cuda -DCMAKE_CUDA_ARCHITECTURES=80 -DBUILD_TESTING=OFF
+...`) was run locally and builds, confirming a command-line `-D` still overrides a preset cache
+variable. `hip-cdna` and `hip-rdna` resolve the backend correctly and then fail at
+`find_package(HIP)` — the expected outcome with no ROCm present, not a preset error. **Neither
+HIP preset has been built.** Note the LUMI module versions in the doc are unverified; the doc
+says so.
+
 **Files:** new `CMakePresets.json` at repo root, `docs/` snippet.
 **Task:** Provide configure presets: `cpu`, `cuda` (native arch, Release), `cuda-debug`, `hip-cdna` (gfx90a;gfx942), `hip-rdna` (gfx1100;gfx1101;gfx1102), `lumi` (hip-cdna + hints matching PrgEnv-cray/amd: `CMAKE_Fortran_COMPILER=ftn` etc. — keep minimal, rely on modules), plus precision variants via `UPPASD_PRECISION`. Each preset sets only cache variables, never paths. Add a short `docs/BUILDING_GPU.md`: three commands per platform, the LUMI module list, and the `CMAKE_PREFIX_PATH=$ROCM_PATH` note.
 **Acceptance:** `cmake --preset cuda && cmake --build --preset cuda` works on a stock CUDA box; `cmake --preset hip-cdna` configures in the ROCm container; CI (V1) switched to use the presets.
