@@ -314,6 +314,13 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
+   // Drain the fast-copy path before retiring the queue: the final measure()
+   // only queues a host callback on the copy stream, and that callback is what
+   // pushes the measurement. Calling mqueue.finish() first would join the
+   // consumer thread and destroy its mutex while that push is still pending.
+   GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream());
+   GPU_STREAM_SYNC(ParallelizationHelperInstance.getCopyStream());
+
    mqueue.finish();
 
    // Print remaining measurements
@@ -335,6 +342,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // objects and their pinned buffers are released.
    GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream());
    GPU_STREAM_SYNC(ParallelizationHelperInstance.getCopyStream());
+
+   // Explicitly export the final measurement-phase state, mirroring SDiphase.
+   // Without this the Fortran arrays backing the restart file only hold
+   // whatever printMdStatus last snapshotted: the slow-copy measurement path
+   // happens to refresh them as a side effect, the fast-copy path does not.
+   gpuSim.copyToFortran();
    stopwatch.add("final synchronize");
 }
 

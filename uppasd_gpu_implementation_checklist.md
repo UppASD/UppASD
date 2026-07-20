@@ -105,10 +105,24 @@ Effort: S (< half day), M (a day-ish), L (multi-day).
 > Progress, 2026-07-18: `transposed_copy_to` now stages the transposed rank-2 data in a host vector and uploads it directly; `copyFromFortran` no longer mutates `ncoup` or `nlist`.
 **Acceptance:** V2 passes; add an assertion test that `ham%ncoup` on the Fortran side is bit-identical before/after `gpuSim_initiateMatrices` (e.g., checksum printed from Fortran around the call in a debug run).
 
-### - [ ] F8 — `fastCopy` event ordering  (P1, S) — audit C8
+### - [x] F8 — `fastCopy` event ordering  (P1, S) — audit C8
 **Files:** `gpu_files/measurement/fortranMeasurement.cpp` (`copyQueueFast`), same pattern in `correlations/fortranCorrelation.cpp` if present.
 **Task:** Record an additional event `d2hDone` on `copyStream` **after** the three pinned D2H copies, and enqueue the queue callback behind it (either `GPU_STREAM_WAIT_EVENT(workStream, d2hDone)` immediately before the callback, or move the callback to `copyStream`). Keep the existing early-release of `workStream` after the D2D event — that part is correct and intentional. While here, migrate `GPU_STREAM_ADD_CALLBACK` to `cudaLaunchHostFunc`/`hipLaunchHostFunc` in `gpu_wrappers.h`.
 **Acceptance:** Build with `-DUSE_FAST_COPY`; run a measurement-heavy V2 case under `compute-sanitizer --tool racecheck` (CUDA) with no reports from this path; averages match the non-fastCopy run bitwise.
+
+> Progress, 2026-07-20: validated on top of `8f1b657`. The `d2hDone` choreography itself was
+> correct, but three surrounding defects were found and fixed:
+> (a) `flushMeasurements`/`flushCorrelations` still synchronized only `workStream`, while C8 had
+> moved the consumer callback to `copyStream`, so flushes no longer waited for pending pushes;
+> (b) `SDmphase` called `mqueue.finish()` *before* the final fast-copy callback had run, joining
+> the consumer thread and destroying its mutex with a push still outstanding;
+> (c) `SDmphase` never exported final state to Fortran — it relied on `copyQueueSlow` refreshing
+> `fortran_emomM` as a side effect, so with `-DUSE_FAST_COPY` the restart file held a stale
+> `printMdStatus` snapshot. `GpuEventPool::Event::active` is now `std::atomic<bool>` (it is
+> cleared from the driver callback thread and read from the host thread).
+> Validated with a dedicated `-DUSE_FAST_COPY` build (`build_fastcopy`): full GPU regression suite
+> matches the default build, and the fast-copy cases are bitwise-identical to CPU across repeats.
+> Note `USE_FAST_COPY` is not set by any CMake option, so the fast path is dead code by default.
 
 ### - [ ] F9 — Move device query out of static init; guard zero-norm rotation; `initiate` idempotence  (P1, S) — audit C9, C10
 **Files:** `gpu_files/gridHelper.hpp`, `gpu_files/gpuParallelizationHelper.{hpp,cpp,tpp}`, `gpu_files/gpuDepondtIntegrator.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.

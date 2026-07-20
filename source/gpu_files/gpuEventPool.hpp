@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <vector>
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -18,7 +19,9 @@ public:
    // Event wrapper class
    class Event {
       friend GpuEventPool;
-      bool active;
+      // Cleared from the GPU host-callback thread, read/set from the host
+      // thread that calls get(), so it must be atomic.
+      std::atomic<bool> active;
       GPU_EVENT_T _event;
       static void deactivate_callback(void *e);
 

@@ -29,14 +29,14 @@ GPU_EVENT_T GpuEventPool::Event::event() {
 }
 
 void GpuEventPool::Event::deactivate() {
-   active = false;
+   active.store(false, std::memory_order_release);
 }
 
 void GpuEventPool::Event::deactivate_callback(void *e) {
 #ifdef NVPROF
    nvtxRangePush("deactivate_callback");
 #endif
-   ((Event *)e)->active = false;
+   ((Event *)e)->active.store(false, std::memory_order_release);
 #ifdef NVPROF
    nvtxRangePop();
 #endif
@@ -51,8 +51,8 @@ GpuEventPool::Event &GpuEventPool::get() {
    std::vector<Event *>::iterator it;
    for(it = stack.begin(); it != stack.end(); it++) {
       Event &e = (**it);
-      if(e.active == false) {
-         e.active = true;
+      if(e.active.load(std::memory_order_acquire) == false) {
+         e.active.store(true, std::memory_order_relaxed);
          return e;
       }
    }

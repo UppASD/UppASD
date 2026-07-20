@@ -66,6 +66,9 @@ FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTe
 // Destructor
 FortranMeasurement::~FortranMeasurement() {
    if(fastCopy) {
+      // An outstanding fast-copy callback still reads the pinned buffers and
+      // this object, so drain the copy stream before releasing them.
+      GPU_STREAM_SYNC(parallel.getCopyStream());
       tmp_emomM.Free();
       tmp_emom.Free();
       tmp_mmom.Free();
@@ -181,8 +184,11 @@ void FortranMeasurement::flushMeasurements(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
-   // Wait out possible queue callbacks
+   // Wait out possible queue callbacks. The fast-copy consumer callback is
+   // queued on the copy stream (after D2H), so both streams must be drained
+   // before the pending measurements are flushed.
    GPU_STREAM_SYNC(parallel.getWorkStream());
+   GPU_STREAM_SYNC(parallel.getCopyStream());
 
    // Flush internal queue
    //measurementQueue.finish();
