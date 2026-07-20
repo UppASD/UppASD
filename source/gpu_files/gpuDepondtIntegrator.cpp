@@ -12,6 +12,15 @@
 
 #include "gpu_wrappers.h"
 using ParallelizationHelper = GpuParallelizationHelper;
+
+// Versine, 1 - cos(angle), evaluated as 2*sin(angle/2)^2.  The direct form
+// cancels catastrophically for the small precession angles the Depondt solver
+// normally takes; the half-angle form keeps full relative accuracy there.
+static __device__ inline real versine(real angle) {
+   const real s = sin(angle * real(0.5));
+   return real(2.0) * s * s;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parallelization helper classes
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +101,7 @@ public:
       // Calculate sin and cos
       real cosv, sinv;
       sincos(angle, &sinv, &cosv);
-      real u = 1 - cosv;
+      real u = versine(angle);
 
       // Calculate matrix
       real M[3][3];
@@ -194,7 +203,7 @@ public:
          angle *= real(1.0) / (real(1.0) + damping * damping);
          real cosv, sinv;
          sincos(angle, &sinv, &cosv);
-         const real u = real(1.0) - cosv;
+         const real u = versine(angle);
 
          const real r0 = mx * (x * x * u + cosv) +
                          my * (x * y * u - z * sinv) +
