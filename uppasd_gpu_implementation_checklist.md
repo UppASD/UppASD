@@ -327,7 +327,7 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 >   for HIP but were only exercised under CUDA.
 > - Preserved **11 PASS / 1 FAIL** on `cuda-debug`, `cuda-fastcopy`, and `cuda-ptds`.
 
-### - [x] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **verified landed 2026-07-20**
+### - [ ] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **UN-TICKED 2026-07-20: not implemented; architecturally blocked, see below**
 **Files:** `gpu_files/gpuSimulation.cpp` (`initiateMatrices`), `gpu_files/gpuHamiltonianCalculations.cpp`, `gpu_files/gpuStructures.hpp`.
 **Task:**
 1. **`eneff` (3NM):** only meaningful when energies are measured (`do_ene>0` or GPU-MC). When not needed, don't allocate; make the Heisge kernels write `eneff` only under the `Measure` template flag (after U2) — interim: point `gpuLattice.eneff` at `gpuLattice.beff` (alias) when `do_ene==0 && !MC`, since the kernels currently write identical values in the non-measure path for the non-aniso variants — **verify per-variant before aliasing** (the aniso variants write different `*_en` prefactors; for those, allocation stays whenever aniso+MC/energy).
@@ -335,6 +335,45 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 3. **`blocal` (3NM):** removed by kernel fusion — defer to PF5, but note the dependency here.
 4. **`mmom0`, `mmom2`:** only used by `mompar!=0` paths and MC `moms`; allocate conditionally.
 **Acceptance:** V2 passes with all flag combinations; tracker report for a plain Heisenberg SD run (no field, no energy) shows ≥ 3 × 3NM·8 B reduction vs baseline.
+
+> **Verification 2026-07-20 — this was ticked "verified landed" by the `28f4b5a` reconciliation
+> pass but no part of it is in the tree.** `initiateMatrices` (`gpuSimulation.cpp:455-466`)
+> allocates `extfield`, `eneff`, all six 3NM lattice arrays, and `mmom0`/`mmom2` **unconditionally**;
+> there is no zero-field scan, no `eneff`→`beff` alias, and no `mompar`/MC gating. Third over-tick
+> from that pass (after V3 and PR1–PR7).
+>
+> **It is also architecturally blocked as specced, which is worth recording so the next attempt
+> doesn't repeat the analysis:**
+> - `gpuSim_initiateMatrices()` is called from **both** `sd_driver.f90` (1087, 1185) and
+>   `mc_driver.f90` (578, 662), and the run mode (SD vs MC) is only passed later, as `whichsim`,
+>   to `gpuRunSimulation`. So `initiateMatrices` **cannot tell SD from MC**, and the MC kernels
+>   (`gpuMetropolis*::moms`, `MCSweep`) write `eneff`, `mmom0`, `mmom2` unconditionally. Skipping
+>   any of them at allocation time would corrupt/crash an MC run. This blocks items 1 and 4.
+> - `eneff` is in fact read **only** by the MC kernels (`gpuMetropolis.cpp:74-76`,
+>   `gpuMetropolis_bruteforce.cpp:67-69`) — never by energy measurement, which builds `energyM`
+>   directly in the `Measure` branch of `Heisge`. So the task's "`do_ene`" condition is not even
+>   the right trigger; `eneff` is dead for *all* SD runs and needed only by MC. The honest fix is
+>   to move `eneff` allocation into the MC path (or gate it behind a mode flag / U2 template),
+>   **not** to alias it — aliasing to `beff` is unsafe anyway because the aniso `Heisge` writes
+>   `eneff != beff` (`gpuHamiltonianCalculations.cpp:342-344`, `ax_en != ax`) and
+>   `gpuMultiscaleField` *adds* to both (double-add on aliased memory).
+> - `extfield` (item 2) is the only mode-independent item, but the field-present path has **zero
+>   regression coverage** (no GPU case sets a nonzero field; `SCsurf`'s `hfield` is `0 0 -0.000`
+>   and that case fails on the CPU side anyway). Shipping a kernel guard that skips the `ext_f`
+>   load in `Heisge`, `HeisgeJijElement`, and the convolution `apply` kernel without a with-field
+>   reference case would add an untested hot-path branch.
+>
+> **Unblock options (pick before implementing):** (a) plumb the run mode into
+> `gpuSim_initiateConstants`/`initiateMatrices` (cross-language interface change in `chelper.f90`
+> and `fort_helper.cpp`), which unlocks items 1 and 4 cleanly; (b) do U2 first (compile-time
+> `Measure`/`HasField` template flags that gate the *writes* too — the task's own preferred path);
+> (c) do item 2 alone, which additionally requires a new nonzero-field GPU regression case.
+> Also note the acceptance's "≥ 3 × 3NM" target needs `blocal` too (item 3), which is deferred to
+> PF5 — so even a full items-1+2 completion yields 2 × 3NM, not 3.
+>
+> The M1 estimator currently counts all seven 3NM arrays; if/when any of these become conditional,
+> `latticeBytes`/`hamiltonianBytes` in `gpuSimulation.cpp` must drop the corresponding term in the
+> same commit to keep the 5 % self-check at ~0 %.
 
 ### - [ ] M3 — Convolution mode: drop the sparse Hamiltonian from device  (P1, M; depends on **CV2**)
 **Files:** `gpu_files/gpuSimulation.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.
