@@ -426,12 +426,15 @@ INCLUDE(${CMAKE_MODULE_PATH}/git-watcher.cmake)
 ##############################################################################################
 if (USE_CUDA) 
 
+   # CMAKE_CUDA_ARCHITECTURES=native, used as the default below, needs 3.24.
+   if(CMAKE_VERSION VERSION_LESS "3.24")
+      message(FATAL_ERROR
+         "GPU builds require CMake >= 3.24 (found ${CMAKE_VERSION}); "
+         "CPU-only builds still work with the project minimum.")
+   endif()
+
    ENABLE_LANGUAGE(C CUDA CXX)
-   if (CMAKE_VERSION VERSION_LESS "3.17.0")
-	   find_package(CUDA)
-   else ()
-   	find_package(CUDAToolkit)
-   endif ()
+   find_package(CUDAToolkit REQUIRED)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
   set_source_files_properties(${SRC}/gpu_files/gpuThermfield.cpp ${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp
@@ -444,47 +447,42 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/correlations/correlation_kernels.cpp
                                ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    target_compile_definitions(${UppASD_LIB} PRIVATE CUDA_V)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-   if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
-   endif()
 
-   # Set preprocessing flags indicating compiler
-   #string(TOUPPER ${current_compiler} PP_CUDA_COMPILER_FLAG)
-   set(PP_CUDA_COMPILER_FLAG "${CMAKE_Fortran_COMPILER_ID}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
-   message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
-
-   # Honour an explicitly supplied architecture.  Compile-only CI runners have no
-   # visible GPU, so automatic detection is only a fallback.
+   # Default to the architecture of the GPU in this machine.  Machines with no
+   # visible GPU -- compile-only CI, cross-compilation -- must pass one
+   # explicitly, e.g. -DCMAKE_CUDA_ARCHITECTURES=80 or "80;90".
    if(NOT CMAKE_CUDA_ARCHITECTURES)
-      include(FindCUDA/select_compute_arch)
-      CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
-      string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
-      string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
-      string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
-      if(CUDA_ARCH_LIST)
-         set(CMAKE_CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
-      else()
-         set(CMAKE_CUDA_ARCHITECTURES 80)
-      endif()
+      set(CMAKE_CUDA_ARCHITECTURES native)
    endif()
    SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
-   message(STATUS "CUDA_ARCH_LIST: __${CUDA_ARCH_LIST}__")
    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
-   target_link_libraries(asdlib PRIVATE CUDA::toolkit)
-   target_include_directories(asdlib PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+
+   # Link the toolkit libraries that are actually used, rather than the blanket
+   # CUDA::toolkit.  NVTX is a genuine dependency the blanket link was hiding:
+   # gpuEventPool.cpp and measurement/fortranMeasurement.cpp include
+   # nvToolsExtCuda.h.  Its imported target was renamed across toolkit versions.
+   target_link_libraries(${UppASD_LIB} PRIVATE CUDA::cudart CUDA::curand CUDA::cufft)
+   if(TARGET CUDA::nvtx3)
+      target_link_libraries(${UppASD_LIB} PRIVATE CUDA::nvtx3)
+   elseif(TARGET CUDA::nvToolsExt)
+      target_link_libraries(${UppASD_LIB} PRIVATE CUDA::nvToolsExt)
+   endif()
+
+   # The imported targets carry the toolkit include directories, but the plain
+   # CXX sources are compiled without them, so keep an explicit include path.
+   target_include_directories(${UppASD_LIB} PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+   if(DEFINED CUDAToolkit_MATH_INCLUDE_DIR)
+      target_include_directories(${UppASD_LIB} PRIVATE ${CUDAToolkit_MATH_INCLUDE_DIR})
+   endif()
    foreach(_cuda_inc IN LISTS CUDAToolkit_INCLUDE_DIRS)
        if(EXISTS "${_cuda_inc}/cccl/thrust/complex.h")
-           target_include_directories(asdlib PRIVATE "${_cuda_inc}/cccl")
+           target_include_directories(${UppASD_LIB} PRIVATE "${_cuda_inc}/cccl")
            message(STATUS "Added CUDA CCCL include dir: ${_cuda_inc}/cccl")
        endif()
    endforeach()
 
    if(EXISTS "${CUDAToolkit_TARGET_DIR}/include/cccl/thrust/complex.h")
-       target_include_directories(asdlib PRIVATE "${CUDAToolkit_TARGET_DIR}/include/cccl")
+       target_include_directories(${UppASD_LIB} PRIVATE "${CUDAToolkit_TARGET_DIR}/include/cccl")
        message(STATUS "Added CUDA CCCL include dir: ${CUDAToolkit_TARGET_DIR}/include/cccl")
    endif()
 elseif(USE_HIP)
