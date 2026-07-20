@@ -374,7 +374,7 @@ bool GpuSimulation::initiateMatrices() {
       release();
       // Check for error
       const char* err = GPU_GET_ERROR_STRING(GPU_GET_LAST_ERROR());
-      std::fprintf(stderr, "Gpu: Failed to allocate meFlags.mory: %s\n", err);
+      std::fprintf(stderr, "Gpu: Failed to allocate memory: %s\n", err);
       return false;
    }
 

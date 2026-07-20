@@ -16,6 +16,7 @@
   #define GPU_GET_LAST_ERROR() hipGetLastError()
   #define GPU_MALLOC(ptr, size) hipMalloc(ptr, size)
   #define GPU_MALLOC_HOST(ptr, size) hipHostMalloc(ptr, size)
+  #define GPU_MEM_GET_INFO(free, total) hipMemGetInfo(free, total)
   #define GPU_MEMCPY(dst, src, size, kind) hipMemcpy(dst, src, size, kind)
   #define GPU_MEMCPY_ASYNC(dst, src, size, kind, stream) hipMemcpyAsync(dst, src, size, kind, stream)
   #define GPU_MEMCPY_HOST_TO_DEVICE hipMemcpyHostToDevice
@@ -78,6 +79,7 @@
   #define GPU_GET_LAST_ERROR() cudaGetLastError()
   #define GPU_MALLOC(ptr, size) cudaMalloc(ptr, size)
   #define GPU_MALLOC_HOST(ptr, size) cudaMallocHost(ptr, size)
+  #define GPU_MEM_GET_INFO(free, total) cudaMemGetInfo(free, total)
   #define GPU_MEMCPY(dst, src, size, kind) cudaMemcpy(dst, src, size, kind)
   #define GPU_MEMCPY_ASYNC(dst, src, size, kind, stream) cudaMemcpyAsync(dst, src, size, kind, stream)
   #define GPU_MEMCPY_HOST_TO_DEVICE cudaMemcpyHostToDevice
