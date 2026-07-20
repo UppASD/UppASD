@@ -179,6 +179,16 @@ target_compile_definitions(${UppASD_LIB} PRIVATE
    UPPASD_CMAKE_USE_HIP=${USE_HIP}
    UPPASD_MKL_LEGACY_SPARSE=0)
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
+# The cuDoubleComplex correlations path is unsupported: its only source file,
+# correlations/gpuCorrelations_cucomplex.cu, is not attached to any target and is
+# not stream-correct (it launches on the default stream). Turning this option ON
+# used to silently build the Thrust path anyway; fail instead of misleading.
+if(USE_CUCOMPLEX_CORRELATIONS)
+  message(FATAL_ERROR
+    "USE_CUCOMPLEX_CORRELATIONS is not supported: gpuCorrelations_cucomplex.cu is "
+    "not built and is not stream-correct. Use the Thrust correlations path "
+    "(USE_CUCOMPLEX_CORRELATIONS=OFF). See the header comment in that file to revive it.")
+endif()
 CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
 # Linear algebra providers are selected explicitly; merely having oneAPI in the
 # environment must not make a non-MKL build compile or link against MKL.

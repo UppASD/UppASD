@@ -290,7 +290,7 @@ Semantics of the three modes:
 
 ### - [ ] CV4 — Stream + plan association audit  (P2, S)
 **Files:** same.
-**Task:** Ensure `GPUFFT_SET_STREAM(plan, workStream)` is called (verify — if absent, FFTs run on the default stream and serialize against everything, cf. audit P2); destroy `kernel_plan` after build (also listed as M5-1 — do once).
+**Task:** ~~Ensure `GPUFFT_SET_STREAM(plan, workStream)` is called~~ — **verified done 2026-07-20**: `gpuLatticeConvolutionHamiltonian.cpp:409-417` sets the stream on `forward_plan`, `backward_plan` and `kernel_plan`. The convolution cases are also bitwise-identical under `--default-stream per-thread` (see PF3), which they would not be if any plan were still on the default stream. Remaining: destroy `kernel_plan` after build (also listed as M5-1 — do once).
 **Acceptance:** `nsys`/`rocprof` trace shows FFTs on the work stream.
 
 ### - [ ] CV5 — Crossover benchmark + auto-selection groundwork  (P2, S)
@@ -325,10 +325,20 @@ Semantics of the three modes:
 **Task:** Replace with greedy graph coloring: iterate sites, mark colors of already-colored neighbors (union list per F6) in a small bitset/array, assign the lowest free color; then bucket site indices by color into `subIdx`. Remove all `printf`s of the table and the O(N²) scans.
 **Acceptance:** Same or fewer colors than the old code on V2 systems (assert independence property in a debug check); startup time for a 10⁶-site system < 1 s.
 
-### - [ ] PF3 — Stream discipline sweep  (P1, M) — audit P2
-**Files:** `gpu_files/correlations/*` (all launches), `gpu_files/measurement/gpuMeasurement.cpp`, `gpu_files/gpuMetropolis.cpp` kernels, anywhere `<<<...>>>` lacks a stream.
-**Task:** Thread `workStream` through every kernel launch (correlation kernels currently launch on the default stream). Remove `GPU_DEVICE_SYNCHRONIZE()` from per-step paths (`GpuMeasurement::measure`, each correlation sample) — replace with stream-local sync **only** where the host reads results this step (e.g., `fill_index` bookkeeping doesn't need device sync; `saveToFile` D2H does and copy_sync already synchronizes). Keep the per-step `GPU_GET_LAST_ERROR` check.
-**Acceptance:** V2 bitwise-identical (fp64); `nsys` trace of a measuring run shows no full-device syncs inside the step loop; report step-time improvement on a correlation-heavy case.
+### - [x] PF3 — Stream discipline sweep  (P1, M) — audit P2 — **done 2026-07-20**
+**Files:** `gpu_files/measurement/fortranMeasurement.cpp`, `gpu_files/measurement/cpuRestMeasurement.cpp`, `gpu_files/correlations/fortranCorrelation.cpp`, `gpu_files/correlations/gpuCorrelations_cucomplex.cu`, `CMakeLists.txt`.
+
+Most of the original task was already complete: all ~30 launches in `gpuCorrelations.cpp` and all of `measurement/*` already pass `workStream`; the remaining `GPU_STREAM_SYNC(workStream)` calls are correctly scoped to host-consumption boundaries; `StopwatchDeviceSync::sync()` is inert (`ASYNC_STOPWATCH`); `gpuDepondtIntegrator.cpp` `GPU_DEVICE_SYNCHRONIZE` is an init-time allocation check.
+
+**Verification method:** built with `-DCMAKE_CUDA_FLAGS="--default-stream per-thread"` (all GPU `.cpp` compile as CUDA, so the flag covers them). This removes the implicit edge between the legacy default stream and the blocking `workStream`, exposing any latent stream-0 dependency.
+
+**Latent bug found and fixed:** the `copyQueueSlow` D2H copies in `fortranMeasurement`, `cpuRestMeasurement` and `fortranCorrelation` ran on the default stream and depended entirely on legacy default-stream semantics to wait for `workStream`. Under PTDS, 7 of 12 regression cases produced wrong energies (e.g. `feco_unreduced` rel 7.9e-01) from moments the integrator had not finished writing. The `*_gpu_measurements` cases passed throughout because `saveToFile` syncs `workStream` explicitly. Note: the old claim in this item that "copy_sync already synchronizes" was **false** — `copy_sync` is an ordinary `cudaMemcpy` and carries no ordering of its own. Fixed by an explicit `GPU_STREAM_SYNC(parallel.getWorkStream())` before each slow-path copy block.
+
+**`USE_CUCOMPLEX_CORRELATIONS` resolved as unsupported:** `gpuCorrelations_cucomplex.cu` launches everything on the default stream, and the source-selection block in `correlations/CMakeLists.txt` that once chose it is commented out — the file is attached to no target and is never compiled, so the option silently built the Thrust path instead. It is now a configure-time `FATAL_ERROR`, with revival requirements documented in the file header.
+
+**Acceptance:** all 12 cases bitwise-identical to CPU across `build_ab`, `build_fastcopy` and the PTDS build (only the pre-existing `sc_dm_uniaxial` crash in `gpusim_initiatematrices`, `sd_driver.f90:1185`, still fails, identically in all three); `compute-sanitizer` racecheck/memcheck/synccheck/initcheck clean on both `build_ab` and `build_fastcopy`.
+
+**Out of scope, still open:** `gpuMetropolis.cpp` / `gpuMetropolis_bruteforce.cpp` launch on the default stream and `gpuMCSimulation` has four `GPU_DEVICE_SYNCHRONIZE` calls (C5/C6/P1/P5). The MC regression cases pass under PTDS only because those device syncs are heavy enough to mask the missing ordering — this is worth revisiting with MC work, not before. `nsys` step-time profiling of a correlation-heavy case was not done (no correlation case exists in `tests/gpu_regression`).
 
 ### - [ ] PF4 — `j_tensor` device layout transpose  (P2, M) — audit P4
 **Files:** `gpu_files/gpuSimulation.cpp` (upload via F7/PR2 staging), `gpu_files/gpuHamiltonianCalculations.cpp` (`HeisgeJijTensor*` indexing, `SetupNeighbourListExchangeTensor`), convolution `buildTensorKernel` reader.

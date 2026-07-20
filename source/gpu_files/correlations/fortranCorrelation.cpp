@@ -145,6 +145,12 @@ void FortranCorrelation::copyQueueSlow(std::size_t mstep) {
    // Timing
    stopwatch.skip();
 
+   // The D2H copies below run on the default stream. Under legacy default-stream
+   // semantics that implicitly waits for workStream; with --default-stream
+   // per-thread it does not, and we would copy moments the integrator has not
+   // finished writing. Make the dependency explicit.
+   GPU_STREAM_SYNC(parallel.getWorkStream());
+
    // Write directly to fortran
    // (this can't be done async, so it will block host until finished)
    fortran_emomM.copy_sync(emomM);

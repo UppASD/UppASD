@@ -1,5 +1,26 @@
 #pragma once
 
+// UNSUPPORTED / NOT BUILT (P2/PF3).
+//
+// This file is not compiled in any configuration: the source-selection block in
+// correlations/CMakeLists.txt that once chose it is commented out, and no target
+// lists it. The USE_CUCOMPLEX_CORRELATIONS option is rejected at configure time
+// (see CMakeLists.txt) rather than silently selecting the Thrust path.
+//
+// It is retained for reference only, and it is NOT stream-correct. Unlike
+// gpuCorrelations.cpp -- where every launch passes workStream explicitly --
+// every kernel here launches on the default stream and orders itself with
+// cudaDeviceSynchronize(). That works only under *legacy* default-stream
+// semantics, where the default stream implicitly synchronises with the blocking
+// workStream producing emomM/emom/mmom. Under --default-stream per-thread that
+// implicit edge disappears and these kernels would read moments the integrator
+// has not finished writing.
+//
+// Before reviving this path: thread workStream through every launch below, drop
+// the cudaDeviceSynchronize() calls, and add correlation coverage to
+// tests/gpu_regression (which currently exercises no correlation case, so the
+// rewrite cannot otherwise be validated).
+
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
