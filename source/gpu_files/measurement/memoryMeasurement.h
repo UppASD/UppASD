@@ -18,6 +18,9 @@ public:
     TensorMemoryTracker& operator=(const TensorMemoryTracker&) = delete;
     static void printResults();
     static void saveToFile();
+    // Peak device bytes seen so far (running max of the device series). Used by
+    // the M1 pre-allocation estimator to check itself against reality.
+    static int64_t peak_device();
     static void add_host(int64_t bytes);
     static void add_device(int64_t bytes);
     static void remove_host(int64_t bytes);
