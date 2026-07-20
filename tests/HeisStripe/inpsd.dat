@@ -33,5 +33,6 @@ tottraj_step       100
 tottraj_buff       10                           time step, buffer size
 
 plotenergy 1
+ene_step 10 
 
 use_vsl F

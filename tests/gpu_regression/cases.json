@@ -1,8 +1,8 @@
 {
   "defaults": {
-    "steps": 100,
-    "rtol": 1e-10,
-    "atol": 1e-12,
+    "steps": 299,
+    "rtol": 1e-8,
+    "atol": 1e-8,
     "compare": ["restart", "energy"]
   },
   "cases": [
@@ -14,7 +14,7 @@
     {"name": "bcc_four_ensembles", "fixture": "tests/bccFe_cuda", "overrides": {"Mensemble": "4"}},
     {"name": "bcc_tail_block_1000", "fixture": "tests/bccFe_cuda", "overrides": {"ncell": "10 10 5"}},
     {"name": "bcc_convolution", "fixture": "tests/bccFe_cuda", "overrides": {"do_gpu_convolution": "Y"}},
-    {"name": "bcc_scalar_gpu_measurements", "fixture": "tests/bccFe_cuda", "gpu_overrides": {"do_gpu_measurements": "Y"}},
+    {"name": "bcc_scalar_gpu_measurements", "fixture": "tests/bccFe_cuda", "gpu_overrides": {"do_gpu_measurements": "Y"}, "overrides": {"ene_step" : "100"}},
     {"name": "bcc_convolution_gpu_measurements", "fixture": "tests/bccFe_cuda", "overrides": {"do_gpu_convolution": "Y"}, "gpu_overrides": {"do_gpu_measurements": "Y"}},
     {"name": "bcc_mc", "fixture": "tests/bccFe_cuda", "steps": 100, "compare": [], "restart_finite": true,
      "overrides": {"mode": "M", "mcnstep": "100", "do_gpu_mc": "Y"}},

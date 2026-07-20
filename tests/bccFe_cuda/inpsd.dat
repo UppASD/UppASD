@@ -31,16 +31,17 @@ damping 0.01
 Nstep   3000 
 
 do_avrg   Y                                     Measure averages
-avrg_step 50
+avrg_step 100
 
 do_cumu Y
-cumu_step 50
+cumu_step 100 
 cumu_buff 10
 
 do_tottraj N                                    Measure moments
 tottraj_step   1000
 
 plotenergy 1
+ene_step 100
 
 gpu_mode 1
 

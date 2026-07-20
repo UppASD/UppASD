@@ -32,7 +32,7 @@ damping   0.025
 timestep  1e-16
 
 do_avrg   Y                                     Measure averages
-avrg_step 100
+avrg_step 10
 
 plotenergy 1         
 ene_step 10
