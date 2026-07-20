@@ -432,7 +432,7 @@ contains
       integer :: zeroflag = 0
       
       !!!TODO: replace those with actual variables 
-      integer :: ene_step = 10
+      integer :: ene_step = 100
       integer :: ene_buff = 100
       !character(len=1)::do_projch_avrg = 'Y'
       !character(len=1)::do_cumu_proj = 'Y'
