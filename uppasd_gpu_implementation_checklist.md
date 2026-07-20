@@ -41,6 +41,12 @@ switch reaching five files (`real_type.h`, `tensor.hpp`, `gpu_wrappers.h`, `gpuF
 to serve — is absent entirely. PR7's tolerances are also a single 1e-8 tier, not per-precision.
 Phase 4 is best read as "prototyped, not designed in."
 
+**Correction 2026-07-20 — V3 was over-ticked and has been un-ticked.** `28f4b5a` marked it
+"verified landed"; the tree has no `try`/`catch` in `fort_helper.cpp` and no `MemGetInfo`
+anywhere under `source/gpu_files/`. Same failure mode that pass had with PR1–PR7. It is a P0
+and it **blocks M1**. If you find another item ticked by `28f4b5a` that you are about to build
+on, re-verify it against the tree before trusting it — that pass is not reliable.
+
 **Deliberately left unticked despite plausible evidence:**
 
 - **CM1 is now done** (`b426193`) — `UPPASD_GPU_BACKEND`/`UPPASD_PRECISION` exist, the GPU
@@ -99,7 +105,22 @@ copying `emom` into the `beff` buffer; likely a typo, unfixed.
 
 > Implemented 2026-07-18, local change: added a standard-library Python harness and JSON case matrix. It runs CPU and GPU variants in isolated copied fixtures, compares final restarts and all energy rows at fp64 tolerance, and includes scalar, DM/aniso, tensor, reduced, M=4, N=1000, odd-count, convolution, and MC variants. Mark complete after its first run on a host with a visible device.
 
-### - [x] V3 — Memory & error reporting baseline  (P0, S)  — **verified landed 2026-07-20**
+### - [ ] V3 — Memory & error reporting baseline  (P0, S)  — **UN-TICKED 2026-07-20: was never done**
+
+**Correction.** This was ticked "verified landed" by `28f4b5a` (the same reconciliation pass
+that over-ticked PR1–PR7). It is not implemented. Evidence, re-checked against the tree:
+`fort_helper.cpp` contains **no `try`, no `catch`, and no `MemGetInfo`** — the four `extern "C"`
+entry points at `fort_helper.cpp:42-56` are bare one-line forwarders. `grep -rn "MemGetInfo"`
+over `source/gpu_files/` returns **nothing at all**, so part 2 (the post-init summary line) does
+not exist either. `git log -S "catch (const std::exception" -- source/gpu_files/fort_helper.cpp`
+returns no commit, so it was never added and later removed — it simply never landed.
+
+The premise of the task is intact and still correct: `ASSERT_GPU` (`base.hpp:32-36`) does
+`throw std::runtime_error`, and nothing between there and Fortran catches it.
+
+**This blocks M1**, whose task text opens "V3 delivers the catch + report. Extend with a
+pre-allocation estimate." Do V3 first, or fold it into M1 as its first commit.
+
 **Files:** `gpu_files/fort_helper.cpp`, `gpu_files/gpuSimulation.cpp`, `gpu_files/measurement/memoryMeasurement.cpp`.
 **Task:** The tree already has `TensorMemoryTracker` (host+device byte counters, `printResults()`, `saveToFile()`), but nothing catches the `std::runtime_error` that `ASSERT_GPU` throws on allocation failure — it propagates through `extern "C"` into Fortran and terminates without diagnostics (this is the "very large systems crash" symptom, see M1). Two small changes:
 1. Wrap the bodies of all `extern "C"` entry points in `fort_helper.cpp` (`gpusim_initiateconstants_`, `gpusim_initiatematrices_`, `gpusim_gpurunsimulation_`, `gpusim_release_`) in `try { ... } catch (const std::exception& e)` that prints the exception message, calls `TensorMemoryTracker::printResults()` and the free/total device memory from `cudaMemGetInfo`/`hipMemGetInfo`, then `std::exit(EXIT_FAILURE)` with a clear "GPU out of memory / GPU error" banner.
