@@ -12,6 +12,13 @@
 #include "gpuSimulation.hpp"
 #include "tensor.hpp"
 #include "gpu_wrappers.h"
+#include "gpuDepondtIntegrator.hpp"
+#include "gpuLatticeConvolutionHamiltonian.hpp"
+#include "correlations/gpuCorrelations.hpp"
+#include <algorithm>
+#include <cstdlib>
+#include <string>
+#include <vector>
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
@@ -249,6 +256,139 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
 
 }
 
+// ----------------------------------------------------------------------------
+// M1: upfront device-memory budget. Each helper below mirrors the Allocate
+// calls in initiateMatrices; the integrator/thermfield/convolution/correlations
+// expose their own estimateBytes() next to their allocations. The release()-time
+// self-check (estimate vs TensorMemoryTracker peak) guards against drift.
+// ----------------------------------------------------------------------------
+namespace {
+
+std::string formatBytes(std::size_t bytes) {
+   char buf[64];
+   const double b = static_cast<double>(bytes);
+   if(bytes >= 1000000000ULL)   std::snprintf(buf, sizeof(buf), "%.3f GB", b / 1e9);
+   else if(bytes >= 1000000ULL) std::snprintf(buf, sizeof(buf), "%.1f MB", b / 1e6);
+   else if(bytes >= 1000ULL)    std::snprintf(buf, sizeof(buf), "%.1f kB", b / 1e3);
+   else                         std::snprintf(buf, sizeof(buf), "%zu B", bytes);
+   return std::string(buf);
+}
+
+struct BudgetLine { const char* name; std::size_t bytes; };
+
+std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
+   const std::size_t N = P.N, NH = P.NH, mnn = P.mnn, mnndm = P.mnndm, M = P.M;
+   std::size_t b = N * sizeof(unsigned int);                 // aHam(N)
+   if(F.do_jtensor) {
+      b += NH * 3 * 3 * mnn * sizeof(real);                  // j_tensor(NH,3,3,mnn)
+      b += mnn * N * sizeof(unsigned int);                   // nlist(mnn,N)
+      b += NH * sizeof(unsigned int);                        // nlistsize(NH)
+   } else {
+      b += NH * mnn * sizeof(real);                          // ncoup(NH,mnn)
+      b += N * mnn * sizeof(unsigned int);                   // nlist(N,mnn)
+      b += NH * sizeof(unsigned int);                        // nlistsize(NH)
+      if(F.do_dm) {
+         b += 3 * mnndm * NH * sizeof(real);                 // dmvect(3,mnndm,NH)
+         b += mnndm * N * sizeof(unsigned int);              // dmlist(mnndm,N)
+         b += NH * sizeof(unsigned int);                     // dmlistsize(NH)
+      }
+   }
+   if(F.do_aniso) {
+      b += 2 * N * sizeof(real);                             // kaniso(2,N)
+      b += 3 * N * sizeof(real);                             // eaniso(3,N)
+      b += N * sizeof(unsigned int);                         // taniso(N)
+      b += N * sizeof(real);                                 // sb(N)
+   }
+   b += 3 * N * M * sizeof(real);                            // extfield(3,N,M)
+   return b;
+}
+
+std::size_t latticeBytes(const SimulationParameters& P) {
+   const std::size_t nm3 = 3 * P.N * P.M, nm = P.N * P.M;
+   std::size_t b = 6 * nm3 * sizeof(real);                   // beff,b2eff,eneff,emomM,emom,emom2
+   b += 4 * nm * sizeof(real);                               // mmom,mmom0,mmom2,mmomi
+   if(FortranData::btorque) b += nm3 * sizeof(real);         // btorque(3,N,M)
+   return b;
+}
+
+std::size_t energiesBytes(const Flag& F, const SimulationParameters& P) {
+   return (F.do_ene > 0 ? P.M * 6 : static_cast<std::size_t>(1)) * sizeof(real); // energyM
+}
+
+// Mirror of GpuHamiltonianCalculations::canUseLatticeConvolution parameter gates:
+// convolution only activates for a reduced Hamiltonian (NH==NA) on a full
+// Bravais grid, otherwise the run falls back to neighbour lists (no FFT arrays).
+bool willUseConvolution(const SimulationParameters& P) {
+   if(!P.do_gpu_convolution) return false;
+   if(P.N1 == 0 || P.N2 == 0 || P.N3 == 0 || P.NA == 0) return false;
+   if(P.N != P.N1 * P.N2 * P.N3 * P.NA) return false;
+   if(P.NH != P.NA) return false;
+   return true;
+}
+
+// Sum every device allocation the run will make, compare to free VRAM, and abort
+// with a table before the first Allocate if it will not fit. Returns the total.
+std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameters& P) {
+   std::vector<BudgetLine> lines = {
+      {"Hamiltonian (Jij/DM/aniso) + ext field", hamiltonianBytes(F, P)},
+      {"Lattice streaming arrays",               latticeBytes(P)},
+      {"Depondt integrator + thermfield",        GpuDepondtIntegrator::estimateBytes(P)},
+      {"Energy buffers",                         energiesBytes(F, P)},
+      {"FFT convolution",                        willUseConvolution(P) ? GpuLatticeConvolutionHamiltonian::estimateBytes(P) : static_cast<std::size_t>(0)},
+      {"Correlations",                           (FortranData::do_gpu_correlations && *FortranData::do_gpu_correlations == 'Y') ? GpuCorrelations::estimateBytes(F, P) : static_cast<std::size_t>(0)},
+   };
+   std::size_t total = 0;
+   for(const auto& l : lines) total += l.bytes;
+
+   std::size_t freeB = 0, totalB = 0;
+   const bool haveInfo = (GPU_MEM_GET_INFO(&freeB, &totalB) == GPU_SUCCESS);
+   const char* skip = std::getenv("UPPASD_GPU_SKIP_BUDGET");
+   const bool bypass = (skip != nullptr && skip[0] != '\0');
+   const bool overBudget = haveInfo && (static_cast<double>(total) > 0.90 * static_cast<double>(freeB));
+
+   if(overBudget && !bypass) {
+      std::sort(lines.begin(), lines.end(),
+                [](const BudgetLine& a, const BudgetLine& b) { return a.bytes > b.bytes; });
+      std::fflush(stdout);
+      std::fprintf(stderr, "\n========================================================================\n");
+      std::fprintf(stderr, " GPU MEMORY BUDGET: this run will not fit and would abort mid-allocation\n");
+      std::fprintf(stderr, "------------------------------------------------------------------------\n");
+      std::fprintf(stderr, " Projected device use: %s   (approximate estimate)\n", formatBytes(total).c_str());
+      std::fprintf(stderr, " Free / total on GPU:  %.3f GB / %.3f GB\n",
+                   static_cast<double>(freeB) / 1e9, static_cast<double>(totalB) / 1e9);
+      std::fprintf(stderr, "------------------------------------------------------------------------\n");
+      std::fprintf(stderr, " Top consumers:\n");
+      for(const auto& l : lines) {
+         if(l.bytes == 0) continue;
+         std::fprintf(stderr, "   %-40s %s\n", l.name, formatBytes(l.bytes).c_str());
+      }
+      std::fprintf(stderr, "------------------------------------------------------------------------\n");
+      std::fprintf(stderr, " To make it fit:\n");
+      std::fprintf(stderr, "   * Rebuild in single precision to roughly halve real-valued arrays.\n");
+      if(P.M > 1)
+         std::fprintf(stderr, "   * Reduce Mensemble (now %zu); device memory scales with ensembles.\n", P.M);
+      std::fprintf(stderr, "   * Reduce the system size (Natom now %zu).\n", P.N);
+      std::fprintf(stderr, "   * Set UPPASD_GPU_SKIP_BUDGET=1 to bypass this check (estimate is\n");
+      std::fprintf(stderr, "     approximate and excludes FFT workspace; the run may still run out).\n");
+      std::fprintf(stderr, "========================================================================\n");
+      std::fflush(stderr);
+      std::exit(EXIT_FAILURE);
+   }
+
+   if(haveInfo) {
+      std::printf("Gpu: projected device use %s of %.3f GB free (%.3f GB total)%s\n",
+                  formatBytes(total).c_str(),
+                  static_cast<double>(freeB) / 1e9, static_cast<double>(totalB) / 1e9,
+                  (overBudget && bypass) ? " [OVER BUDGET - bypassed via UPPASD_GPU_SKIP_BUDGET]" : "");
+   } else {
+      std::printf("Gpu: projected device use %s (free-memory query unavailable)\n",
+                  formatBytes(total).c_str());
+   }
+   return total;
+}
+
+} // namespace
+
 bool GpuSimulation::initiateMatrices() {
    // Dimensions
    printf("Initiate matrices GPU -1\n");
@@ -274,6 +414,10 @@ bool GpuSimulation::initiateMatrices() {
    }
 
    // Allocate
+   // M1: project the full-run device footprint and abort here (before the first
+   // Allocate) if it will not fit. Stored for the release()-time self-check.
+   estimatedDeviceBytes = computeAndCheckDeviceBudget(Flags, SimParam);
+
 
 
     gpuHamiltonian.aHam.Allocate(N);  
@@ -383,6 +527,15 @@ bool GpuSimulation::initiateMatrices() {
    isFreed = false;
    // Initiate data
    copyFromFortran();
+   // Post-init report (V3 part 2): what initiateMatrices actually placed on device.
+   {
+      std::size_t freeB = 0, totalB = 0;
+      const int64_t allocated = TensorMemoryTracker::peak_device();
+      if(GPU_MEM_GET_INFO(&freeB, &totalB) == GPU_SUCCESS)
+         std::printf("Gpu: device allocated %.3f GB after init; %.3f GB free / %.3f GB total\n",
+                     static_cast<double>(allocated) / 1e9,
+                     static_cast<double>(freeB) / 1e9, static_cast<double>(totalB) / 1e9);
+   }
    return true;
 }
 
@@ -479,6 +632,16 @@ void GpuSimulation::release() {
    // gpuMeasurables.mcumu_buff.Free();  
   
     TensorMemoryTracker::printResults();
+    // M1: 5% self-check - upfront estimate vs the peak the tracker actually saw.
+    if(estimatedDeviceBytes > 0) {
+       const int64_t peak = TensorMemoryTracker::peak_device();
+       if(peak > 0) {
+          const double est = static_cast<double>(estimatedDeviceBytes);
+          const double pk  = static_cast<double>(peak);
+          std::printf("Gpu: device estimate %.3f GB vs measured peak %.3f GB (estimate %+.1f%%)\n",
+                      est / 1e9, pk / 1e9, 100.0 * (est - pk) / pk);
+       }
+    }
     // TensorMemoryTracker::saveToFile();
     TensorDataMovementTracker::printResults();
 }

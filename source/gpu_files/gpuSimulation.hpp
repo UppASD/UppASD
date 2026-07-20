@@ -64,6 +64,7 @@ public:
 
     bool isInitiated;
     bool isFreed;
+    std::size_t estimatedDeviceBytes = 0;  // M1: projected device footprint, set in initiateMatrices
     //void printConstants();
 
     void initiate_fortran_cpu_matrices(); //initiates cpu matrices
