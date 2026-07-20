@@ -2,43 +2,136 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "debug",
-      "displayName": "Debug",
+      "name": "base",
+      "hidden": true,
       "generator": "Unix Makefiles",
-      "binaryDir": "build/debug",
+      "binaryDir": "build/${presetName}"
+    },
+    {
+      "name": "cpu",
+      "inherits": "base",
+      "displayName": "CPU only (Release)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "UPPASD_GPU_BACKEND": "OFF"
+      }
+    },
+    {
+      "name": "cpu-debug",
+      "inherits": "cpu",
+      "displayName": "CPU only (Debug)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
-      "name": "release",
-      "displayName": "Release",
-      "generator": "Unix Makefiles",
-      "binaryDir": "build/release",
+      "name": "cuda",
+      "inherits": "base",
+      "displayName": "NVIDIA CUDA (Release, native arch)",
+      "description": "Builds for the GPU in this machine. Pass -DCMAKE_CUDA_ARCHITECTURES=80 where no GPU is visible.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "UPPASD_GPU_BACKEND": "CUDA"
       }
     },
     {
-      "name": "debugCuda",
-      "displayName": "Debug",
-      "generator": "Unix Makefiles",
-      "binaryDir": "build/debugCuda",
+      "name": "cuda-debug",
+      "inherits": "cuda",
+      "displayName": "NVIDIA CUDA (Debug)",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_CUDA": "1",
-        "CMAKE_CXX_STANDARD": "20"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
-    },{
-      "name": "releaseCuda",
-      "displayName": "Release",
-      "generator": "Unix Makefiles",
-      "binaryDir": "build/releaseCuda",
+    },
+    {
+      "name": "cuda-single",
+      "inherits": "cuda",
+      "displayName": "NVIDIA CUDA (Release, fp32)",
+      "cacheVariables": {
+        "UPPASD_PRECISION": "SINGLE"
+      }
+    },
+    {
+      "name": "cuda-fastcopy",
+      "inherits": "cuda-debug",
+      "displayName": "NVIDIA CUDA (Debug, pinned fast-copy path)",
+      "cacheVariables": {
+        "USE_FAST_COPY": "ON"
+      }
+    },
+    {
+      "name": "cuda-ptds",
+      "inherits": "cuda-debug",
+      "displayName": "NVIDIA CUDA (Debug, per-thread default stream)",
+      "description": "Regression net for stream-ordering bugs: removes the implicit edge between the legacy default stream and the blocking workStream. Keep this preset building.",
+      "cacheVariables": {
+        "CMAKE_CUDA_FLAGS": "--default-stream per-thread"
+      }
+    },
+    {
+      "name": "hip-cdna",
+      "inherits": "base",
+      "displayName": "AMD HIP, CDNA (MI200/MI300)",
+      "description": "Set CMAKE_PREFIX_PATH=$ROCM_PATH so the ROCm config packages are found.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "USE_CUDA": "1",
-        "CMAKE_CXX_STANDARD": "20"
+        "UPPASD_GPU_BACKEND": "HIP",
+        "CMAKE_HIP_ARCHITECTURES": "gfx90a;gfx942"
       }
+    },
+    {
+      "name": "hip-rdna",
+      "inherits": "hip-cdna",
+      "displayName": "AMD HIP, RDNA3 laptop/desktop",
+      "cacheVariables": {
+        "CMAKE_HIP_ARCHITECTURES": "gfx1100;gfx1101;gfx1102"
+      }
+    },
+    {
+      "name": "lumi",
+      "inherits": "hip-cdna",
+      "displayName": "LUMI (Cray PrgEnv + ROCm)",
+      "description": "Load the modules listed in docs/BUILDING_GPU.md first; the Cray wrappers supply libsci, so no BLAS selection is needed.",
+      "cacheVariables": {
+        "CMAKE_HIP_ARCHITECTURES": "gfx90a",
+        "CMAKE_Fortran_COMPILER": "ftn",
+        "ON_LUMI": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "cpu-debug",
+      "displayName": "Debug (deprecated, use cpu-debug)",
+      "binaryDir": "build/debug"
+    },
+    {
+      "name": "release",
+      "inherits": "cpu",
+      "displayName": "Release (deprecated, use cpu)",
+      "binaryDir": "build/release"
+    },
+    {
+      "name": "debugCuda",
+      "inherits": "cuda-debug",
+      "displayName": "Debug CUDA (deprecated, use cuda-debug)",
+      "binaryDir": "build/debugCuda"
+    },
+    {
+      "name": "releaseCuda",
+      "inherits": "cuda",
+      "displayName": "Release CUDA (deprecated, use cuda)",
+      "binaryDir": "build/releaseCuda"
     }
+  ],
+  "buildPresets": [
+    {"name": "cpu", "configurePreset": "cpu"},
+    {"name": "cpu-debug", "configurePreset": "cpu-debug"},
+    {"name": "cuda", "configurePreset": "cuda"},
+    {"name": "cuda-debug", "configurePreset": "cuda-debug"},
+    {"name": "cuda-single", "configurePreset": "cuda-single"},
+    {"name": "cuda-fastcopy", "configurePreset": "cuda-fastcopy"},
+    {"name": "cuda-ptds", "configurePreset": "cuda-ptds"},
+    {"name": "hip-cdna", "configurePreset": "hip-cdna"},
+    {"name": "hip-rdna", "configurePreset": "hip-rdna"},
+    {"name": "lumi", "configurePreset": "lumi"}
   ]
 }

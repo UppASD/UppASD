@@ -20,12 +20,14 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             cmake gfortran make libopenblas-dev liblapack-dev libfftw3-dev
       - name: Configure
+        # The runner has no visible GPU, so the preset's CMAKE_CUDA_ARCHITECTURES=native
+        # default cannot resolve; pin an architecture explicitly.
         run: >-
-          cmake -S . -B build-cuda -DUSE_CUDA=ON -DUSE_HIP=OFF
+          cmake --preset cuda
           -DCMAKE_CUDA_ARCHITECTURES=80 -DBUILD_TESTING=OFF -DRUN_ASD_TESTS=OFF
           -DRUN_REG_TESTS=OFF -DRUN_CUDA_TESTS=OFF
       - name: Build
-        run: cmake --build build-cuda --parallel 1
+        run: cmake --build --preset cuda --parallel 1
 
   hip:
     name: HIP compile-only
@@ -41,9 +43,11 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             cmake gfortran make libopenblas-dev liblapack-dev libfftw3-dev
       - name: Configure
+        # One architecture only: the preset targets gfx90a;gfx942, and a
+        # compile-only runner gains nothing from building both.
         run: >-
-          cmake -S . -B build-hip -DUSE_CUDA=OFF -DUSE_HIP=ON
+          cmake --preset hip-cdna
           -DCMAKE_HIP_ARCHITECTURES=gfx90a -DBUILD_TESTING=OFF -DRUN_ASD_TESTS=OFF
           -DRUN_REG_TESTS=OFF
       - name: Build
-        run: cmake --build build-hip --parallel 1
+        run: cmake --build --preset hip-cdna --parallel 1
