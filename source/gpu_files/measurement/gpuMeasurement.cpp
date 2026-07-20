@@ -762,9 +762,13 @@ void GpuMeasurement::calculateEmomMSum()
             emomMEnsembleSums_partial
     );
 
-    smem = sumOverAtoms_kernel_blocks.x * sizeof(real);
     const dim3 threads = 256;
     const dim3 grid = 3 * M;
+    // block_reduce_sum_1d only needs one slot per warp; the finalize kernel walks
+    // the nblocks partials with a grid-stride loop, so shared memory must NOT scale
+    // with the atom-block count (that overflows the 48 kB/block limit past ~1.5 M
+    // atoms and the launch fails with cudaErrorInvalidValue). Match the partial launch.
+    smem = mm::nwarps(threads) * sizeof(real);
     mm::sumOverAtoms_finalize<<<grid, threads, smem, workStream>>>(
             emomMEnsembleSums_partial,
             sumOverAtoms_kernel_blocks.x,
