@@ -43,9 +43,12 @@ Phase 4 is best read as "prototyped, not designed in."
 
 **Deliberately left unticked despite plausible evidence:**
 
-- **CM1–CM6** — since confirmed **clearly not done**, not merely unverified: no
-  `UPPASD_GPU_BACKEND`/`UPPASD_PRECISION`; 8 global `add_compile_definitions`; `-DDEBUG` still
-  injected (CMakeLists.txt:368, 429, 430); legacy `find_package(CUDA)` (:352) and
+- **CM1 is now done** (`b426193`) — `UPPASD_GPU_BACKEND`/`UPPASD_PRECISION` exist, the GPU
+  `add_compile_definitions` are target-scoped, and `-DDEBUG` injection is gone. See the CM1
+  entry for what was verified and the one deliberate deviation (C++20 kept, not 17).
+- **CM2–CM6** — confirmed **clearly not done**, not merely unverified (line numbers below
+  predate CM1 and have shifted by roughly +88 — re-locate by symbol): legacy
+  `find_package(CUDA)` (:352) and
   `FindCUDA/select_compute_arch` (:384) still present; blanket `CUDA::toolkit` link (:398)
   rather than `CUDA::cudart/curand/cufft`; `CMAKE_CXX_COMPILER`/`CMAKE_HIP_COMPILER` set inside
   CMakeLists (:420-421), which CM3 explicitly forbids; hardcoded `/opt/rocm` search paths
@@ -53,8 +56,9 @@ Phase 4 is best read as "prototyped, not designed in."
   not the specified `cpu/cuda/cuda-debug/hip-cdna/hip-rdna/lumi`, and `docs/BUILDING_GPU.md`
   does not exist. CM4's duplicated source list is directly observable.
 - **PR5** — the fp32 infrastructure exists, but that does not establish that the audit of
-  numerically sensitive spots was actually carried out. Also blocked: PR5 is written against
-  `accum_t`, which does not exist until PR1 lands.
+  numerically sensitive spots was actually carried out. Its precision-independent piece (the
+  versine formula) has since landed in `9b1011c`; the rest is still written against `accum_t`,
+  which does not exist until PR1 lands. PR1 is itself no longer blocked now that CM1 is in.
 - **F5, F6, PF1, PF2** — MC items. F5's exact anisotropy ΔE and F6's sublattice coloring both
   appear implemented, and `single_spin_mc_uniaxial_easy_axis` passes, but MC is gated out of
   scope and MC semantics were not validated. Confirm before ticking.
@@ -238,7 +242,34 @@ Single/mixed storage (PR1–PR6) halves every streaming array and the FFT buffer
 
 Goal: `cmake --preset <name> && cmake --build` works out of the box on (a) a laptop with a consumer NVIDIA GPU, (b) a laptop/desktop with an RDNA/CDNA AMD GPU, (c) LUMI/Dardel-class HPC with Cray PrgEnv + ROCm, (d) NVIDIA HPC with modules — with no hand-editing of CMakeLists. Backends and precision are cache options; nothing is hardcoded.
 
-### - [ ] CM1 — Option surface and target hygiene  (P1, M)
+### - [x] CM1 — Option surface and target hygiene  (P1, M)
+**Done** (`b426193`). `UPPASD_GPU_BACKEND` (OFF|CUDA|HIP) and `UPPASD_PRECISION`
+(DOUBLE|SINGLE|MIXED) are cache STRINGs resolved before the binary is named; `USE_CUDA`/
+`USE_HIP` survive as deprecated aliases that emit `message(DEPRECATION ...)` and are derived
+back from the resolved backend, so `gpu_files/*/CMakeLists.txt` and CI keep working until
+CM2–CM4 convert them. Disagreeing spellings (`UPPASD_GPU_BACKEND=CUDA` + `USE_HIP=ON`) are a
+hard error rather than a silent pick. `UPPASD_PRECISION=MIXED` is a `FATAL_ERROR` — the mode is
+specified against `storage_t`/`accum_t`, which PR1 has not created yet; SINGLE maps to the
+existing `SINGLE_PREC` macro. `USE_FAST_COPY` promoted to a real option (it had rotted
+undetected precisely because it was not one); verified end-to-end, not just on the compile line.
+`CUDA_V`/`HIP_V`/`ON_LUMI` moved from `add_compile_definitions` to
+`target_compile_definitions(${UppASD_LIB} PRIVATE ...)`; the five remaining global ones
+(`USE_OVF`, `VSL`, `USE_MKL_FFT`, `USE_FFTW`) are non-GPU and belong to CM6. `-DDEBUG` removed
+from the CUDA, HIP and CXX flag strings — its only consumers are under `gpu_files/old/`, which
+is not built.
+
+**Deviation from the task text:** it asks for `cxx_std_17`. The repo already sets
+`CMAKE_CXX_STANDARD`/`CMAKE_CUDA_STANDARD` to **20** with `_REQUIRED TRUE`; downgrading would be
+a regression, so 20 was kept and `CMAKE_HIP_STANDARD`/`_REQUIRED` added alongside, which were
+missing.
+
+**Verified:** `-DUPPASD_GPU_BACKEND=CUDA`, `=OFF`, and legacy `-DUSE_CUDA=ON` all configure
+clean; `=OPENCL`, `MIXED`, and the CUDA/HIP conflict all fail with the intended message;
+`CUDA_V`+`SINGLE_PREC` confirmed present in the `CUDA_DEFINES`, `CXX_DEFINES` *and*
+`Fortran_DEFINES` lines of `asdlib`'s `flags.make`. `build_ab`, `build_fastcopy`, `build_ptds`
+all rebuild and still give 11 PASS / 1 FAIL (`sc_dm_uniaxial`, pre-existing), as does a fresh
+tree configured with `-DUSE_FAST_COPY=ON`. **HIP was not built — no AMD hardware here.**
+
 **Files:** top-level `CMakeLists.txt`, `source/CMakeLists.txt` (if present), `source/gpu_files/CMakeLists.txt`, `source/gpu_files/{measurement,correlations}/CMakeLists.txt`.
 **Task:** Replace `USE_CUDA`/`USE_HIP` booleans with a single `UPPASD_GPU_BACKEND` cache STRING = `OFF|CUDA|HIP` (keep the old booleans as deprecated aliases mapping onto it, with a warning). Add `UPPASD_PRECISION` = `DOUBLE|SINGLE|MIXED` (default DOUBLE; consumed by Phase 4). Convert all `add_compile_definitions` / global `CMAKE_CXX_FLAGS` string surgery for GPU defines into `target_compile_definitions(${UppASD_LIB} PRIVATE CUDA_V …)` and `target_compile_features(${UppASD_LIB} PRIVATE cxx_std_17)` (and `cuda_std_17` / `hip_std_17` via `CMAKE_CUDA_STANDARD`/`CMAKE_HIP_STANDARD` on the target). Remove `-DDEBUG` injection (nothing consumes it); ensure `NDEBUG` follows build type as normal so device asserts vanish in Release (audit P7).
 **Acceptance:** `cmake -DUPPASD_GPU_BACKEND=CUDA` and `=HIP` and `=OFF` all configure+build; `grep -r add_compile_definitions` in GPU sections returns nothing global.
@@ -299,7 +330,17 @@ Semantics of the three modes:
 **Task:** Under SINGLE/MIXED generate `curandGenerateNormal` (float) into the fp32 field; keep the even-length fix from F2. In `MCSweep`, replace the hardwired `GPU_NORMAL_DOUBLE`/`GPU_RAND_UNIFORM_DOUBLE` with precision-dispatched macros (`GPU_NORMAL_REAL`, `GPU_RAND_UNIFORM_REAL`). MC acceptance comparison (`exp(βΔE) < u`): compute `βΔE` and the `exp` in `accum_t` (double under MIXED) — it's one scalar per attempt, cost-free.
 **Acceptance:** SINGLE/MIXED MC reproduces Fortran ⟨m(T)⟩ curve on the standard test system across 5 temperatures within statistics.
 
-### - [ ] PR5 — Numerically sensitive spots under fp32  (P1, M)
+### - [ ] PR5 — Numerically sensitive spots under fp32  (P1, M) — **partial: (a)'s versine fix landed; (a) rest, (b), (c) blocked on PR1**
+
+**(a) versine, done** (`9b1011c`). `1 − cos θ` is now `2·sin²(θ/2)` via a `versine()` device
+helper, applied at both rotation sites in `gpuDepondtIntegrator.cpp` — the standalone `rotate`
+kernel and the fused `EvolveFirst` predictor. Measured: **no change at all** in double
+precision — `kagome_tensor` still reports exactly `abs=1.00e-11, rel=3.62e-09` and every other
+comparison exactly `0.00e+00`, across `build_ab`/`build_fastcopy`/`build_ptds`. No tolerance was
+touched. So this buys nothing today and is purely insurance for SINGLE/MIXED; do not cite it as
+a measured accuracy gain. The rest of (a) needs `accum_t`, i.e. PR1, i.e. CM1's
+`UPPASD_PRECISION` — now landed, so PR1 is unblocked. (b) and (c) still wait on PR1.
+
 **Files:** `gpu_files/gpuDepondtIntegrator.cpp`, `gpu_files/gpuMomentUpdater.cpp`.
 **Task:** (a) Rotation: compute the angle `norm·Δt·γ/(1+α²)` and `sincos` in `accum_t`, cast the rotation matrix to storage — the angle is tiny and fp32 `sincos` of a tiny angle loses the `1−cos` digits (`u = 1−cos` should be computed as `2·sin²(θ/2)` regardless of mode — small formula improvement, do it for all precisions). (b) Spin-length drift: under SINGLE, renormalize `emom` every `K` steps (new input/def, default K=100 for SINGLE, off otherwise) — one cheap element kernel; document. (c) `dp_factor`/`sigma` prefactors: compute on host in double, cast once.
 **Acceptance:** SINGLE 10⁶-step conservative test (λ=0, T=0): |m| deviation from 1 stays < 1e-6 with renormalization on; energy conservation comparable to Fortran fp64 within fp32 expectations (document measured drift in the PR).
