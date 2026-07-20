@@ -1,45 +1,45 @@
-if(USE_HIP OR USE_CUDA)
-set(GPU_TOOLS gpuThermfield.cpp gpuThermfield.hpp)
-endif()
-set(GPU_PARALLEL gpuParallelizationHelper.tpp)
-target_sources(${UppASD_LIB} PRIVATE c_helper.h
-base.hpp
-${GPU_PARALLEL}
-${GPU_TOOLS}
-gpuCommon.hpp
+# Sources containing device code.  These compile as CUDA or HIP; everything
+# else here is plain C++.
+set(GPU_KERNEL_SOURCES
+gpuThermfield.cpp
 gpuDepondtIntegrator.cpp
-gpuDepondtIntegrator.hpp
 gpuEventPool.cpp
+gpuHamiltonianCalculations.cpp
+gpuLatticeConvolutionHamiltonian.cpp
+gpuMomentUpdater.cpp
+gpuSDSimulation.cpp
+gpuMCSimulation.cpp
+gpuSimulation.cpp
+gpuParallelizationHelper.cpp
+gpuMetropolis.cpp
+gpuMetropolis_bruteforce.cpp
+)
+uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
+
+target_sources(${UppASD_LIB} PRIVATE ${GPU_KERNEL_SOURCES}
+c_helper.h
+base.hpp
+gpuParallelizationHelper.tpp
+gpuCommon.hpp
+gpuDepondtIntegrator.hpp
 gpuEventPool.hpp
 gpuHamiltonianBackend.hpp
-gpuHamiltonianCalculations.cpp
 gpuHamiltonianCalculations.hpp
 gpuHamiltonianDeviceOps.hpp
 gpuFftWrapper.hpp
-gpuLatticeConvolutionHamiltonian.cpp
 gpuLatticeConvolutionHamiltonian.hpp
-gpuSimulation.cpp
 gpuSimulation.hpp
-gpuSDSimulation.cpp
-gpuMCSimulation.cpp
-#gpuMeasurement.cpp
 gpuMetropolis.hpp
-gpuMetropolis.cpp
 gpuMetropolis_bruteforce.hpp
-gpuMetropolis_bruteforce.cpp
-gpuMomentUpdater.cpp
 gpuMomentUpdater.hpp
 gpuMultiscaleField.cpp
 gpuMultiscaleField.hpp
-gpuParallelizationHelper.hpp 
-gpuParallelizationHelper.cpp 
+gpuParallelizationHelper.hpp
 fort_helper.cpp
 fortranData.cpp
 fortranData.hpp
 gridHelper.hpp
 gpu_wrappers.h
-#measurementQueue.cpp
-#measurementQueue.hpp
 printDebug.hpp
 real_type.h
 stopwatch.hpp
@@ -48,6 +48,7 @@ stopwatchPool.cpp
 stopwatchPool.hpp
 stopwatch_fortran.cpp
 tensor.hpp
+gpuThermfield.hpp
 )
 
 target_include_directories(${UppASD_LIB}
@@ -68,24 +69,3 @@ elseif(USE_HIP)
         )
         target_link_libraries(${UppASD_LIB} PRIVATE ${HIPFFT_LIBRARY})
 endif()
-
-#common.cuh
-#cudaMatrix.hpp
-#depondtIntegrator.cpp
-#depondtIntegrator.hpp
-#fortMatrix.hpp
-#hamiltonianCalculations.cpp
-#hamiltonianCalculations.hpp
-#hostMatrix.hpp
-#matrix.hpp
-#mdSimulation.cpp
-#mdSimulation.hpp
-
-#momentUpdater.cpp
-#momentUpdater.hpp
-
-#randomnum.cpp
-#randomnum.hpp
-
-#thermfield.cpp
-#thermfield.hpp

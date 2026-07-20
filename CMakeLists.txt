@@ -167,6 +167,38 @@ elseif(NOT UPPASD_PRECISION STREQUAL "DOUBLE" AND NOT UPPASD_PRECISION STREQUAL 
 endif()
 
 message(STATUS "GPU backend: ${UPPASD_GPU_BACKEND}, precision: ${UPPASD_PRECISION}")
+
+# The language kernel-bearing sources compile as, empty for a CPU-only build.
+if(UPPASD_GPU_BACKEND STREQUAL "CUDA")
+   set(UPPASD_GPU_LANGUAGE CUDA)
+elseif(UPPASD_GPU_BACKEND STREQUAL "HIP")
+   set(UPPASD_GPU_LANGUAGE HIP)
+else()
+   set(UPPASD_GPU_LANGUAGE "")
+endif()
+
+# Mark sources containing device code so they compile as CUDA/HIP rather than
+# plain C++.  Source-file properties are directory-scoped and ${UppASD_LIB} is
+# defined in this directory, so a bare set_source_files_properties() down in
+# source/gpu_files/ would be silently ignored; TARGET_DIRECTORY (CMake >= 3.18)
+# aims the property at the directory that owns the target.  This lets each
+# gpu_files subdirectory own its own source list.
+function(uppasd_mark_gpu_sources)
+   if(NOT UPPASD_GPU_LANGUAGE)
+      return()
+   endif()
+   set(_abs "")
+   foreach(_src IN LISTS ARGN)
+      if(IS_ABSOLUTE "${_src}")
+         list(APPEND _abs "${_src}")
+      else()
+         list(APPEND _abs "${CMAKE_CURRENT_SOURCE_DIR}/${_src}")
+      endif()
+   endforeach()
+   set_source_files_properties(${_abs}
+      TARGET_DIRECTORY ${UppASD_LIB}
+      PROPERTIES LANGUAGE ${UPPASD_GPU_LANGUAGE})
+endfunction()
 ##############################################################################################
 
 
@@ -436,16 +468,9 @@ if (USE_CUDA)
    ENABLE_LANGUAGE(C CUDA CXX)
    find_package(CUDAToolkit REQUIRED)
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
+   # The GPU source lists, and which of them carry device code, live in
+   # source/gpu_files/ and its subdirectories -- see uppasd_mark_gpu_sources().
    add_subdirectory(${SRC}/gpu_files)
-  set_source_files_properties(${SRC}/gpu_files/gpuThermfield.cpp ${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp
-                               ${SRC}/gpu_files/gpuLatticeConvolutionHamiltonian.cpp
-                               ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  
-                               ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
-                               ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
-                               ${SRC}/gpu_files/measurement/cpuRestMeasurement.cpp ${SRC}/gpu_files/measurement/gpuMeasurement.cpp ${SRC}/gpu_files/measurement/kernels.cpp 
-                               ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
-                               ${SRC}/gpu_files/correlations/correlation_kernels.cpp
-                               ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    target_compile_definitions(${UppASD_LIB} PRIVATE CUDA_V)
 
    # Default to the architecture of the GPU in this machine.  Machines with no

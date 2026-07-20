@@ -1,24 +1,29 @@
-target_sources(${UppASD_LIB} PRIVATE
+# Sources containing device code; everything else here is plain C++.
+set(GPU_KERNEL_SOURCES
+        cpuRestMeasurement.cpp
+        fortranMeasurement.cpp
+        gpuMeasurement.cpp
+        kernels.cpp
+        autocorrelation_kernels.cpp
+)
+uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
+
+target_sources(${UppASD_LIB} PRIVATE ${GPU_KERNEL_SOURCES}
         measurable.hpp
         cpuRestMeasurement.hpp
-        cpuRestMeasurement.cpp
         fortranMeasurement.hpp
-        fortranMeasurement.cpp
         measurementQueue.hpp
         measurementQueue.cpp
         gpuMeasurement.hpp
-        gpuMeasurement.cpp
         measurementFactory.hpp
         measurementWriter.h
         measurementWriter.cpp
         measurementWriterHelper.h
         kernels.hpp
-        kernels.cpp
         measurementData.h
         memoryMeasurement.h
         memoryMeasurement.cpp
         autocorrelation_kernels.hpp
-        autocorrelation_kernels.cpp
 )
 
 target_include_directories(${UppASD_LIB}
