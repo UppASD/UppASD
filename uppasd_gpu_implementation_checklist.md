@@ -327,7 +327,7 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 >   for HIP but were only exercised under CUDA.
 > - Preserved **11 PASS / 1 FAIL** on `cuda-debug`, `cuda-fastcopy`, and `cuda-ptds`.
 
-### - [ ] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **UN-TICKED 2026-07-20: not implemented; architecturally blocked, see below**
+### - [x] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **partial landed 2026-07-21 (eneff + mmom0/mmom2); extfield + blocal deferred**
 **Files:** `gpu_files/gpuSimulation.cpp` (`initiateMatrices`), `gpu_files/gpuHamiltonianCalculations.cpp`, `gpu_files/gpuStructures.hpp`.
 **Task:**
 1. **`eneff` (3NM):** only meaningful when energies are measured (`do_ene>0` or GPU-MC). When not needed, don't allocate; make the Heisge kernels write `eneff` only under the `Measure` template flag (after U2) — interim: point `gpuLattice.eneff` at `gpuLattice.beff` (alias) when `do_ene==0 && !MC`, since the kernels currently write identical values in the non-measure path for the non-aniso variants — **verify per-variant before aliasing** (the aniso variants write different `*_en` prefactors; for those, allocation stays whenever aniso+MC/energy).
@@ -336,14 +336,12 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 4. **`mmom0`, `mmom2`:** only used by `mompar!=0` paths and MC `moms`; allocate conditionally.
 **Acceptance:** V2 passes with all flag combinations; tracker report for a plain Heisenberg SD run (no field, no energy) shows ≥ 3 × 3NM·8 B reduction vs baseline.
 
-> **Verification 2026-07-20 — this was ticked "verified landed" by the `28f4b5a` reconciliation
-> pass but no part of it is in the tree.** `initiateMatrices` (`gpuSimulation.cpp:455-466`)
-> allocates `extfield`, `eneff`, all six 3NM lattice arrays, and `mmom0`/`mmom2` **unconditionally**;
-> there is no zero-field scan, no `eneff`→`beff` alias, and no `mompar`/MC gating. Third over-tick
-> from that pass (after V3 and PR1–PR7).
+> **History.** Ticked "verified landed" by `28f4b5a` with nothing in the tree (third over-tick
+> from that pass, after V3 and PR1–PR7); un-ticked 2026-07-20 with the analysis below; items 1 and
+> 4 then implemented 2026-07-21 by first plumbing the run mode into init. Items 2 (`extfield`) and
+> 3 (`blocal`) remain deferred — see the end.
 >
-> **It is also architecturally blocked as specced, which is worth recording so the next attempt
-> doesn't repeat the analysis:**
+> **Why it was blocked as specced (the analysis that shaped the fix):**
 > - `gpuSim_initiateMatrices()` is called from **both** `sd_driver.f90` (1087, 1185) and
 >   `mc_driver.f90` (578, 662), and the run mode (SD vs MC) is only passed later, as `whichsim`,
 >   to `gpuRunSimulation`. So `initiateMatrices` **cannot tell SD from MC**, and the MC kernels
@@ -363,17 +361,46 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 >   load in `Heisge`, `HeisgeJijElement`, and the convolution `apply` kernel without a with-field
 >   reference case would add an untested hot-path branch.
 >
-> **Unblock options (pick before implementing):** (a) plumb the run mode into
-> `gpuSim_initiateConstants`/`initiateMatrices` (cross-language interface change in `chelper.f90`
-> and `fort_helper.cpp`), which unlocks items 1 and 4 cleanly; (b) do U2 first (compile-time
-> `Measure`/`HasField` template flags that gate the *writes* too — the task's own preferred path);
-> (c) do item 2 alone, which additionally requires a new nonzero-field GPU regression case.
-> Also note the acceptance's "≥ 3 × 3NM" target needs `blocal` too (item 3), which is deferred to
-> PF5 — so even a full items-1+2 completion yields 2 × 3NM, not 3.
+> **What landed (2026-07-21, commit `0e6f1d2`) — items 1 and 4, via run-mode plumbing:**
+> - **Mode plumbing.** `gpusim_initiatematrices_` now takes `int *is_mc`;
+>   `initiateMatrices(int is_mc)` stores `runIsMC`. `sd_driver.f90` passes `0`, `mc_driver.f90`
+>   passes `1`. Safe per-phase because each phase does its own
+>   `initiateConstants → initiateMatrices → run → release()` cycle (verified in both drivers), so
+>   there is no phase-ordering trap — an SD phase and an MC phase in the same run allocate
+>   independently. The Fortran↔C binding is an implicit interface (no `bind(c)` block), so a missed
+>   call site degrades to a garbage `is_mc` — usually nonzero → allocate-everything (the safe
+>   fallback), except MC callers which must pass 1; all four sites updated.
+> - **`eneff` (item 1)** — aliased to `beff` (shallow `GpuTensor` copy, shares the device buffer)
+>   when `!runIsMC && do_aniso == 0`; allocated normally otherwise. Aliasing is provably safe there:
+>   `Heisge` writes `eneff == beff` when `!HasAniso`, `HeisgeJijElement` and the convolution kernel
+>   always write them equal, `eneff` is never *read* in SD, and `gpuMultiscaleField` (the double-add
+>   risk) is a no-op stub today (`canUseMultiscaleDipole` returns false — noted as a dependency).
+>   `release()` skips the free for the aliased view; the tracker never double-counts.
+> - **`mmom0`/`mmom2` (item 4)** — allocated only when `runIsMC || mompar != 0`; the four
+>   copy sites (`copyFromFortran`/`copyToFortran`) and the `gpuHasNoData` checks are guarded with
+>   `!empty()` so a plain SD run neither allocates nor touches Fortran's `mmom0`/`mmom2`.
+> - **Estimator kept in lockstep** (same commit): `latticeBytes(F, P, is_mc)` counts `eneff` only
+>   for `is_mc || aniso` and `mmom0/mmom2` only for `is_mc || mompar`, matching the allocations.
 >
-> The M1 estimator currently counts all seven 3NM arrays; if/when any of these become conditional,
-> `latticeBytes`/`hamiltonianBytes` in `gpuSimulation.cpp` must drop the corresponding term in the
-> same commit to keep the 5 % self-check at ~0 %.
+> **Evidence (measured, not asserted):**
+> - Plain SD, 2 000 000 atoms: peak device **1.872 → 1.792 GB**, an 80 MB drop =
+>   `eneff` 48 MB + `mmom0` 16 MB + `mmom2` 16 MB. M1 self-check **+0.0 %** (estimate 1.792 =
+>   peak 1.792). The MC branch's pre-alloc estimate is 1.872 GB (eneff+mmom counted), confirming the
+>   `is_mc` gate.
+> - Regression **11 PASS / 1 FAIL bitwise** (`abs=0.00e+00`) — SD cases exercise the alias/skip
+>   paths, MC (`bcc_mc`, `single_spin_mc`, the latter MC+aniso) exercise full allocation; a large MC
+>   run reached the measurement phase with no crash. compute-sanitizer: **0 errors** across
+>   memcheck/racecheck/synccheck/initcheck on the aliasing case (`bcc_scalar`).
+>
+> **Still deferred, with reasons:**
+> - **`extfield` (item 2)** — mode-independent but needs a guard in three hot kernels (`Heisge`,
+>   `HeisgeJijElement`, convolution `apply`) *and* a new nonzero-field GPU regression case (no
+>   existing case sets a field, so the field-present branch is untested). Left out to avoid an
+>   untested hot-path change.
+> - **`blocal` (item 3)** — deferred to PF5 (kernel fusion) as the task states. So this delivers
+>   `eneff (3NM) + mmom0 + mmom2 (2×NM)`, i.e. ~1.67 × 3NM, short of the acceptance's "≥ 3 × 3NM"
+>   which assumed `blocal` and `extfield` too. Acceptance partially met; recorded honestly rather
+>   than ticked clean.
 
 ### - [ ] M3 — Convolution mode: drop the sparse Hamiltonian from device  (P1, M; depends on **CV2**)
 **Files:** `gpu_files/gpuSimulation.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.
