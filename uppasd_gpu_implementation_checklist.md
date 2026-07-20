@@ -105,7 +105,7 @@ copying `emom` into the `beff` buffer; likely a typo, unfixed.
 
 > Implemented 2026-07-18, local change: added a standard-library Python harness and JSON case matrix. It runs CPU and GPU variants in isolated copied fixtures, compares final restarts and all energy rows at fp64 tolerance, and includes scalar, DM/aniso, tensor, reduced, M=4, N=1000, odd-count, convolution, and MC variants. Mark complete after its first run on a host with a visible device.
 
-### - [ ] V3 — Memory & error reporting baseline  (P0, S)  — **UN-TICKED 2026-07-20: was never done**
+### - [x] V3 — Memory & error reporting baseline  (P0, S)  — **part 1 (catch + report) landed 2026-07-20; part 2 folded into M1**
 
 **Correction.** This was ticked "verified landed" by `28f4b5a` (the same reconciliation pass
 that over-ticked PR1–PR7). It is not implemented. Evidence, re-checked against the tree:
@@ -126,6 +126,49 @@ pre-allocation estimate." Do V3 first, or fold it into M1 as its first commit.
 1. Wrap the bodies of all `extern "C"` entry points in `fort_helper.cpp` (`gpusim_initiateconstants_`, `gpusim_initiatematrices_`, `gpusim_gpurunsimulation_`, `gpusim_release_`) in `try { ... } catch (const std::exception& e)` that prints the exception message, calls `TensorMemoryTracker::printResults()` and the free/total device memory from `cudaMemGetInfo`/`hipMemGetInfo`, then `std::exit(EXIT_FAILURE)` with a clear "GPU out of memory / GPU error" banner.
 2. After a successful `initiateMatrices()`, print one summary line: device bytes allocated per `TensorMemoryTracker`, and free/total from `MemGetInfo`.
 **Acceptance:** Running a deliberately oversized system produces a readable OOM report with the tracker breakdown instead of a bare `terminate called after throwing...`.
+
+> Done 2026-07-20 (commit `0582ac5`, part 1 of 2). All four `extern "C"` entry points in
+> `fort_helper.cpp` now wrap their body in `try { ... } catch (const std::exception& e)` calling a
+> single `reportGpuFailureAndExit(where, e)` helper. The helper flushes stdout, prints a banner
+> that says **GPU OUT OF MEMORY** when `e.what()` contains "out of memory" and **GPU ERROR**
+> otherwise (the exception only carries the driver string, so the substring match is how OOM is
+> distinguished — addresses the "don't swallow non-OOM errors" risk), then `TensorMemoryTracker::printResults()`
+> for the peak host/device breakdown, then free/total from a new `GPU_MEM_GET_INFO` wrapper
+> (`cudaMemGetInfo`/`hipMemGetInfo`, added to `gpu_wrappers.h`), then `std::exit(EXIT_FAILURE)`.
+> Drive-by: fixed the botched `"...allocate meFlags.mory: %s"` string at `gpuSimulation.cpp:377`.
+>
+> **Demonstrated** against a real OOM: a 2 000 000-atom bccFe run (`ncell 100 100 100`, needs
+> 1.87 GB device) on a GPU pre-occupied by a 15 000 MiB holder (0.65 GB free). Output — exit
+> code 1, no `terminate called...`:
+> ```
+> ========================================================================
+>  GPU OUT OF MEMORY in gpusim_initiatematrices
+>    out of memory
+> ------------------------------------------------------------------------
+> ------------------TENSOR MEMORY CONSUMPTION REPORT----------------------
+> CATEGORY                PEAK CONSUMPTION
+> Max CPU                 0                        B
+> Max GPU                 8                        MB
+>  GPU memory: 0.65 GB free / 16.75 GB total
+> ========================================================================
+> ```
+> The banner fires inside `gpusim_initiatematrices`, before any kernel launch, and the exit is
+> clean (no deadlock against the measurement thread — that thread never touches the tracker mutex;
+> only `tensor.hpp` Allocate/Free on the main thread do — so `printResults()` from the handler
+> is safe). CUDA-only path exercised; **HIP path unvalidated (no AMD hardware).**
+> Regression suite unchanged: 11 PASS / 1 FAIL on `cuda-debug`.
+>
+> **Part 2 not done here.** The task's second item — a post-`initiateMatrices` success summary
+> line (allocated device bytes + free/total) — is deferred into **M1**, where the `MemGetInfo`
+> budget reporting around `initiateMatrices` lives naturally; doing it twice would duplicate the
+> reporting. M1 must add it or re-scope it explicitly.
+>
+> **Correction to the handover's `sc_dm_uniaxial` claim:** the persistently failing regression
+> case does **not** segfault in `gpusim_initiatematrices`. Observed under this build, the CPU
+> *reference* binary aborts with a Fortran runtime bounds error in `read_exchange`
+> (`hamiltonianinit.f90:1326`, "Index '5' of dimension 1 of array 'nlist' above upper bound of
+> 4") during Hamiltonian setup — before any GPU work and unrelated to OOM or the GPU boundary.
+> V3/M1 cannot address it; it is a separate Fortran/input bug, out of scope for M1.
 
 ---
 
