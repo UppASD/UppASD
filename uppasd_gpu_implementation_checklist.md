@@ -262,10 +262,70 @@ Total streaming arrays: **11–12 × 3NM doubles ≈ 288 NM bytes** (+32 NM for 
 `MC`: d_state = max_spins·M × sizeof(curandStateXORWOW≈48 B).
 The crash mode for big systems is M1 below, not a leak.
 
-### - [ ] M1 — Graceful OOM + upfront budget check  (P0, S/M)
-**Files:** `gpu_files/fort_helper.cpp`, `gpu_files/gpuSimulation.cpp`.
+### - [x] M1 — Graceful OOM + upfront budget check  (P0, S/M)  — **landed 2026-07-20**
+**Files:** `gpu_files/fort_helper.cpp`, `gpu_files/gpuSimulation.cpp`, plus the per-component
+estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuThermfield.{hpp,cpp}`,
+`gpu_files/gpuDepondtIntegrator.{hpp,cpp}`, `gpu_files/gpuLatticeConvolutionHamiltonian.{hpp,cpp}`,
+`gpu_files/correlations/gpuCorrelations.{hpp,cpp}`.
 **Task:** V3 delivers the catch + report. Extend with a **pre-allocation estimate**: before `initiateMatrices` allocates anything, compute the projected device bytes from `N, M, NH, mnn, mnndm`, flags (jtensor/dm/aniso/stt/do_ene), convolution descriptor, and correlation settings (`nq, nw, sc_max_nstep`), compare against `MemGetInfo` free bytes, and if projected > ~90 % of free, abort with a table of the top consumers and actionable hints ("disable eneff via do_ene 0 saves X GB; single precision saves Y GB; reduce sc_max_nstep..."). Keep the estimator as one function so it stays in sync with allocations (unit-test it against `TensorMemoryTracker` totals after a real init: agreement within 5 %).
 **Acceptance:** Oversized run aborts before any kernel launch with the budget table; estimator matches tracker within 5 % on three V2 cases with different flags.
+
+> Done 2026-07-20 (commits `c0cb704`, `ba75419`, `0adf7ab`; V3's part-2 summary line folded in).
+>
+> **Design — per-component, not one function.** The task says "keep the estimator as one function",
+> but the allocations live in five places, so a single function would have to reach into all of
+> them and would rot exactly like the CMake source list did (CM4). Instead each owner exposes a
+> `static estimateBytes(...)` next to its `Allocate` calls — `GpuThermfield`, `GpuDepondtIntegrator`
+> (which sums its own thermfield), `GpuLatticeConvolutionHamiltonian`, `GpuCorrelations` — and the
+> `initiateMatrices` allocations (Hamiltonian/Lattice/Energies) are covered by file-local helpers
+> in `gpuSimulation.cpp`. `computeAndCheckDeviceBudget()` sums them in **one place**. Every estimator
+> uses `sizeof(real)` / `sizeof(unsigned int)` / `sizeof(GpuFftComplex)` directly, so the byte math
+> is identical to what `TensorMemoryTracker` records and auto-adapts to single vs double precision.
+>
+> **The 5% self-check runs on every run, not once by hand** (Risk 1). `release()` prints
+> `estimate vs measured peak_device() (delta%)`. Added `TensorMemoryTracker::peak_device()` for it.
+> Measured pairs on large systems (small regression cases are dominated by fixed overhead and are
+> noisy for a ratio, so these use scaled inputs), all four **+0.0%** to displayed precision:
+>
+> | Case | Distinct flags | Atoms | Estimate | Peak |
+> |---|---|---|---|---|
+> | scalar SD | ncoup, none | 2 000 000 | 1.872 GB | 1.872 GB |
+> | tensor | `do_jtensor` | 1 920 000 | 1.229 GB | 1.229 GB |
+> | multi-ensemble | `Mensemble 4` | 500 094 × 4 | 0.948 GB | 0.948 GB |
+> | energy | `do_ene 1` | 2 000 000 | 1.872 GB | 1.872 GB |
+>
+> **Budget abort demonstrated.** With a helper process holding all but 0.698 GB of a 16 GB card, a
+> 2 M-atom run aborts *before any device allocation* (no `TENSOR MEMORY` report is printed) with a
+> sorted top-consumers table (Hamiltonian 1.264 GB / Lattice 352 MB / integrator 256 MB / ...) and
+> hints (single precision, fewer ensembles, smaller system). Threshold is estimate > 90 % of
+> `MemGetInfo` free; the banner states the estimate is approximate and excludes FFT workspace.
+>
+> **Escape hatch:** `UPPASD_GPU_SKIP_BUDGET=1` bypasses the abort (projected line is tagged
+> `[OVER BUDGET - bypassed]`); the run then falls through to V3's graceful OOM banner rather than a
+> raw crash. Documented in the abort message itself (Risk 3).
+>
+> **Two gates had to mirror runtime behaviour, or the estimate over-counts:**
+> - *Convolution:* counted only when it will actually engage — `willUseConvolution()` replicates
+>   `canUseLatticeConvolution`'s parameter checks (`do_gpu_convolution`, `N == N1·N2·N3·NA`,
+>   `NH == NA`). Without this, a `do_gpu_convolution Y` run that falls back to neighbour lists (the
+>   common `NH != NA` case) was estimated +41 % high.
+> - *Correlations:* the raw `Flags.do_gpu_correlations` is unreliable — line 54 does
+>   `static_cast<bool>(*FortranData::do_gpu_correlations)`, and `'N'` (0x4E) casts to **true**. The
+>   estimate is gated on the real trigger `*FortranData::do_gpu_correlations == 'Y'` (what
+>   `CorrelationFactory` uses). That phantom `coord` (3·N reals) was the entire residual error;
+>   removing it took every case from ~+2.6 % to +0.0 %. **The underlying char→bool bug at
+>   `gpuSimulation.cpp:54` is left as-is — out of M1's scope, flagged here.**
+>
+> **Not addressed / observations:**
+> - `sc_dm_uniaxial` is unchanged: its failure is a Fortran `read_exchange` bounds error in the CPU
+>   reference binary before any GPU init (see V3 note), which the budget check never reaches.
+> - M2 is ticked "verified landed" but `initiateMatrices` still allocates `eneff` **and** `extfield`
+>   unconditionally in the tree — M2's conditional-skip/alias is not active. The estimator counts
+>   all seven 3NM arrays accordingly, which is why agreement is exact; if M2 is genuinely completed
+>   later, `latticeBytes`/`hamiltonianBytes` must drop those terms to stay at 0 %.
+> - HIP path unvalidated (no AMD hardware); the `GPU_MEM_GET_INFO` wrapper and estimators compile
+>   for HIP but were only exercised under CUDA.
+> - Preserved **11 PASS / 1 FAIL** on `cuda-debug`, `cuda-fastcopy`, and `cuda-ptds`.
 
 ### - [x] M2 — Eliminate always-allocated arrays that are conditionally needed  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuSimulation.cpp` (`initiateMatrices`), `gpu_files/gpuHamiltonianCalculations.cpp`, `gpu_files/gpuStructures.hpp`.
