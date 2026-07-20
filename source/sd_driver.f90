@@ -1084,7 +1084,7 @@ contains
       ! Start simulation
       !if (do_gpu==1) then  !CUDA
          call gpuSim_initiateConstants()
-         call gpuSim_initiateMatrices()
+         call gpuSim_initiateMatrices(0)
          call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
          call gpuSim_release();
 
@@ -1182,7 +1182,7 @@ contains
       ! Start simulation
      ! if (do_gpu==1) then  !GPU
          call gpuSim_initiateConstants()
-         call gpuSim_initiateMatrices()
+         call gpuSim_initiateMatrices(0)
          call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf);
          call gpuSim_release();
 

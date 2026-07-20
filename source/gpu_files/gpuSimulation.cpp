@@ -303,10 +303,14 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
    return b;
 }
 
-std::size_t latticeBytes(const SimulationParameters& P) {
+std::size_t latticeBytes(const Flag& F, const SimulationParameters& P, bool is_mc) {
    const std::size_t nm3 = 3 * P.N * P.M, nm = P.N * P.M;
-   std::size_t b = 6 * nm3 * sizeof(real);                   // beff,b2eff,eneff,emomM,emom,emom2
-   b += 4 * nm * sizeof(real);                               // mmom,mmom0,mmom2,mmomi
+   std::size_t b = 5 * nm3 * sizeof(real);                   // beff,b2eff,emomM,emom,emom2
+   b += 2 * nm * sizeof(real);                               // mmom,mmomi
+   // M2: eneff aliases beff for SD without aniso; own buffer only for MC or aniso.
+   if(is_mc || F.do_aniso != 0) b += nm3 * sizeof(real);     // eneff
+   // M2: mmom0/mmom2 only for MC or mompar!=0.
+   if(is_mc || P.mompar != 0)   b += 2 * nm * sizeof(real);  // mmom0, mmom2
    if(FortranData::btorque) b += nm3 * sizeof(real);         // btorque(3,N,M)
    return b;
 }
@@ -328,10 +332,10 @@ bool willUseConvolution(const SimulationParameters& P) {
 
 // Sum every device allocation the run will make, compare to free VRAM, and abort
 // with a table before the first Allocate if it will not fit. Returns the total.
-std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameters& P) {
+std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameters& P, bool is_mc) {
    std::vector<BudgetLine> lines = {
       {"Hamiltonian (Jij/DM/aniso) + ext field", hamiltonianBytes(F, P)},
-      {"Lattice streaming arrays",               latticeBytes(P)},
+      {"Lattice streaming arrays",               latticeBytes(F, P, is_mc)},
       {"Depondt integrator + thermfield",        GpuDepondtIntegrator::estimateBytes(P)},
       {"Energy buffers",                         energiesBytes(F, P)},
       {"FFT convolution",                        willUseConvolution(P) ? GpuLatticeConvolutionHamiltonian::estimateBytes(P) : static_cast<std::size_t>(0)},
@@ -389,9 +393,10 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
 
 } // namespace
 
-bool GpuSimulation::initiateMatrices() {
+bool GpuSimulation::initiateMatrices(int is_mc) {
+   runIsMC = (is_mc != 0);
    // Dimensions
-   printf("Initiate matrices GPU -1\n");
+   printf("Initiate matrices GPU -1 (is_mc=%d)\n", is_mc);
     long int N = static_cast <long int>( SimParam.N);
     long int NH = static_cast <long int>(SimParam.NH);
     long int M = static_cast <long int>( SimParam.M);
@@ -416,7 +421,7 @@ bool GpuSimulation::initiateMatrices() {
    // Allocate
    // M1: project the full-run device footprint and abort here (before the first
    // Allocate) if it will not fit. Stored for the release()-time self-check.
-   estimatedDeviceBytes = computeAndCheckDeviceBudget(Flags, SimParam);
+   estimatedDeviceBytes = computeAndCheckDeviceBudget(Flags, SimParam, runIsMC);
 
 
 
@@ -455,18 +460,29 @@ bool GpuSimulation::initiateMatrices() {
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.b2eff.Allocate( static_cast <long int>(3), N, M);
-    gpuLattice.eneff.Allocate( static_cast <long int>(3), N, M);
+    // M2: eneff is written by Heisge but read only by MC; for SD without aniso it
+    // equals beff bit-for-bit, so alias it (no separate buffer) instead of allocating.
+    eneffAliased = (!runIsMC && Flags.do_aniso == 0);
+    if(eneffAliased) {
+        gpuLattice.eneff = gpuLattice.beff;   // shallow: shares beff's device buffer
+    } else {
+        gpuLattice.eneff.Allocate( static_cast <long int>(3), N, M);
+    }
     //gpuLattice.energy.Allocate(1);
     gpuLattice.emomM.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.emom.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.emom2.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.mmom.Allocate(N, M);
-    gpuLattice.mmom0.Allocate(N, M);
-    gpuLattice.mmom2.Allocate(N, M);
+    // M2: mmom0/mmom2 are used only by MC (moms) and the mompar!=0 MomentUpdater.
+    const bool needMomExtra = runIsMC || (SimParam.mompar != 0);
+    if(needMomExtra) {
+        gpuLattice.mmom0.Allocate(N, M);
+        gpuLattice.mmom2.Allocate(N, M);
+    }
     gpuLattice.mmomi.Allocate(N, M);
     //gpuLattice.ipTemp_array.Allocate(N);
 
-    gpuLattice.eneff.zeros();
+    if(!eneffAliased) gpuLattice.eneff.zeros();
 
     if(Flags.do_ene > 0) {
         //gpuEnergies.totalM.Allocate(M);
@@ -561,8 +577,8 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuLattice.emom.empty() || 
                     gpuLattice.emom2.empty() || 
                     gpuLattice.mmom.empty() || 
-                    gpuLattice.mmom0.empty() || 
-                    gpuLattice.mmom2.empty() || 
+                    (gpuLattice.mmom0.empty() && (runIsMC || SimParam.mompar != 0)) || 
+                    (gpuLattice.mmom2.empty() && (runIsMC || SimParam.mompar != 0)) || 
                     gpuLattice.mmomi.empty() ||
                    // gpuLattice.ipTemp.empty()||
                     (gpuLattice.btorque.empty()&& (FortranData::btorque != nullptr)));
@@ -614,14 +630,15 @@ void GpuSimulation::release() {
     gpuHamiltonian.extfield.Free();  
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
-    gpuLattice.eneff.Free();
+    if(eneffAliased) { gpuLattice.eneff = GpuTensor<real, 3>{}; eneffAliased = false; }
+    else            { gpuLattice.eneff.Free(); }
     //gpuLattice.energy.Free();
     gpuLattice.emomM.Free();  
     gpuLattice.emom.Free();  
     gpuLattice.emom2.Free();   
     gpuLattice.mmom.Free();  
-    gpuLattice.mmom0.Free();  
-    gpuLattice.mmom2.Free();  
+    if(!gpuLattice.mmom0.empty()) gpuLattice.mmom0.Free();
+    if(!gpuLattice.mmom2.empty()) gpuLattice.mmom2.Free();
     gpuLattice.mmomi.Free();
    // gpuLattice.ipTemp.Free();
      if(FortranData::btorque) {gpuLattice.btorque.Free();  }
@@ -683,8 +700,8 @@ void GpuSimulation::copyFromFortran() {
     gpuLattice.emom2.copy_sync(cpuLattice.emom2);   
     gpuLattice.mmom.copy_sync(cpuLattice.mmom);    
     //printf("HERE - 8\n");  
-    gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);  
-    gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);  
+    if(!gpuLattice.mmom0.empty()) gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);
+    if(!gpuLattice.mmom2.empty()) gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);
     gpuLattice.mmomi.copy_sync(cpuLattice.mmomi);  
     //printf("HERE - 9\n");
    // gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
@@ -704,8 +721,8 @@ void GpuSimulation::copyToFortran() {
     cpuLattice.emom.copy_sync(gpuLattice.emom);  
     cpuLattice.emom2.copy_sync(gpuLattice.emom2);   
     cpuLattice.mmom.copy_sync(gpuLattice.mmom);  
-    cpuLattice.mmom0.copy_sync(gpuLattice.mmom0);  
-    cpuLattice.mmom2.copy_sync(gpuLattice.mmom2);
+    if(!gpuLattice.mmom0.empty()) cpuLattice.mmom0.copy_sync(gpuLattice.mmom0);
+    if(!gpuLattice.mmom2.empty()) cpuLattice.mmom2.copy_sync(gpuLattice.mmom2);
     cpuLattice.mmomi.copy_sync(gpuLattice.mmomi);
     // cpuLattice owns precision-converted staging in SINGLE_PREC builds.
     // Convert results back into the double-precision Fortran buffers.
@@ -715,8 +732,8 @@ void GpuSimulation::copyToFortran() {
     cpuLattice.emom.copy_to(FortranData::emom);
     cpuLattice.emom2.copy_to(FortranData::emom2);
     cpuLattice.mmom.copy_to(FortranData::mmom);
-    cpuLattice.mmom0.copy_to(FortranData::mmom0);
-    cpuLattice.mmom2.copy_to(FortranData::mmom2);
+    if(!gpuLattice.mmom0.empty()) cpuLattice.mmom0.copy_to(FortranData::mmom0);
+    if(!gpuLattice.mmom2.empty()) cpuLattice.mmom2.copy_to(FortranData::mmom2);
     cpuLattice.mmomi.copy_to(FortranData::mmomi);
     if(FortranData::btorque) {
         cpuLattice.btorque.copy_to(FortranData::btorque);

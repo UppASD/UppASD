@@ -65,6 +65,8 @@ public:
     bool isInitiated;
     bool isFreed;
     std::size_t estimatedDeviceBytes = 0;  // M1: projected device footprint, set in initiateMatrices
+    bool runIsMC = false;       // M2: this phase is Monte Carlo (needs eneff/mmom0/mmom2)
+    bool eneffAliased = false;  // M2: eneff points at beff (SD, non-aniso); do not Free it
     //void printConstants();
 
     void initiate_fortran_cpu_matrices(); //initiates cpu matrices
@@ -75,7 +77,7 @@ public:
     ~GpuSimulation();
 
     void initiateConstants();  // initiates cpuFlags and cpuParameters
-    bool initiateMatrices();   // allocates and initiates gpu matrices from cpu matrices using copyFromFortran, first calling initiate_fortran_cpu_matrices();
+    bool initiateMatrices(int is_mc);   // allocates and initiates gpu matrices from cpu matrices using copyFromFortran, first calling initiate_fortran_cpu_matrices();
     void copyFromFortran();    // device to host 
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices

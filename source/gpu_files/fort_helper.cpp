@@ -108,9 +108,12 @@ void gpusim_initiateconstants_() {
    }
 }
 
-void gpusim_initiatematrices_() {
+// is_mc: 1 when the calling Fortran driver is a Monte Carlo phase (mc_driver),
+// 0 for spin-dynamics (sd_driver). Lets initiateMatrices skip MC-only buffers
+// (eneff, mmom0, mmom2) for SD runs. Each phase re-initiates, so this is per-phase.
+void gpusim_initiatematrices_(int *is_mc) {
    try {
-      gpuSim.initiateMatrices();
+      gpuSim.initiateMatrices(*is_mc);
    } catch(const std::exception& e) {
       reportGpuFailureAndExit("gpusim_initiatematrices", e);
    }
