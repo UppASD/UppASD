@@ -169,6 +169,19 @@ pre-allocation estimate." Do V3 first, or fold it into M1 as its first commit.
 > (`hamiltonianinit.f90:1326`, "Index '5' of dimension 1 of array 'nlist' above upper bound of
 > 4") during Hamiltonian setup — before any GPU work and unrelated to OOM or the GPU boundary.
 > V3/M1 cannot address it; it is a separate Fortran/input bug, out of scope for M1.
+>
+> **Exit-path hardening (2026-07-21, commit `7620a9d`).** The six "Uncaught GPU error" handlers in
+> `gpuSDSimulation.cpp` / `gpuMCSimulation.cpp` did `GPU_DEVICE_RESET(); std::exit()` — the reset
+> tears down the context, then `std::exit` runs the static `GpuSimulation` destructor →
+> `release()` → `cudaFree` on the dead context → `terminate: driver shutting down` → SIGABRT (this
+> is the second failure in the large-system crash log). Replaced with flush + `std::_Exit`, which
+> skips static destructors and any further CUDA calls — robust against sticky errors too. V3's own
+> `reportGpuFailureAndExit` was changed from `std::exit` to `std::_Exit` for the same reason (a
+> post-init error caught at the boundary would otherwise hit the same static-dtor `cudaFree`).
+> Demonstrated by temporarily reintroducing the `sumOverAtoms` overflow (commit `4d7af10` fixed a
+> separate large-system bug: the atom-sum finalize kernel sized dynamic shared memory by the
+> atom-block count, overflowing the 48 kB/block limit past ~1.5 M atoms): the run now prints
+> "Uncaught GPU error 1: invalid argument" and exits code 1 cleanly, no terminate/SIGABRT.
 
 ---
 
