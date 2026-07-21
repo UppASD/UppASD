@@ -62,6 +62,15 @@ __global__ void GPUSwSum(const GpuTensor<gpu_complex, 3> sq, const GpuTensor<rea
 
 __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks, int nq);
 
+// M4: fold one chunk of `count` S(q,t) slices (device qt, local slots 0..count-1,
+// global time base..base+count-1) into the frequency accumulator qw(3,nq,nw).
+// One thread per (component, q, w); the windowed DFT is additive over time so
+// successive chunks accumulate into qw. dt is constant (delta_t*sc_step) here.
+__global__ void GPUSwChunkAccum(const GpuTensor<gpu_complex, 3> qt, GpuTensor<gpu_complex, 3> qw,
+                                const GpuTensor<real, 1> w, unsigned int count, unsigned int base,
+                                real dt_sample, int sc_max_nstep, int sc_window_fun,
+                                unsigned int nq, unsigned int nw);
+
 __global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuVector<int>aproj, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int N);
 
 __global__ void GPUSqProjFinalSum_stat(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_complex, 3> scsum, int numBlocks);

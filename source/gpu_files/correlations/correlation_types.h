@@ -67,14 +67,16 @@ struct SC{
     GpuTensor<gpu_complex, 2> q_block;
     GpuTensor<gpu_complex, 2> q;
     GpuTensor<gpu_complex, 3> qt;   // rolling (3, nq, chunk_len) chunk of S(q,t)
-    // M4: qw and w_block removed for the base path. The t->w transform now runs
-    // on host (transform_kt_to_kw_host) after the qt chunks are streamed to the
-    // host m_kt buffer, so the device never holds the sc_max_nstep-long series
-    // nor the nw-long spectrum.
+    GpuTensor<gpu_complex, 3> qw;   // (3, nq, nw) frequency accumulator
+    // M4: the sc_max_nstep-long qt buffer and the (oversized) w_block scratch are
+    // gone. Each qt chunk is folded into qw on device (GPUSwChunkAccum) as it is
+    // sampled, and also streamed to the host m_kt buffer for the sqt output; the
+    // device now holds only the (3,nq,chunk_len) chunk plus the (3,nq,nw) spectrum.
 
-    SC(char do_sc, std::size_t p_nq, std::size_t p_chunk_len, unsigned int numThreads, blocksQW blq){
+    SC(char do_sc, std::size_t p_nw, std::size_t p_nq, std::size_t p_chunk_len, unsigned int numThreads, blocksQW blq){
 
         long int bl;
+        long int nw = static_cast <long int> (p_nw);
         long int nq = static_cast <long int> (p_nq);
         long int chunk_len = static_cast <long int>(p_chunk_len);
 
@@ -93,8 +95,11 @@ struct SC{
 
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
             qt.Allocate(3, nq, chunk_len);
+            qw.Allocate(3, nq, nw);
             bl = (3 * nq * chunk_len + numThreads - 1) / numThreads;
             setZero<3> <<<bl, numThreads>>> (qt, 3 * nq * chunk_len);
+            bl = (3 * nq * nw + numThreads - 1) / numThreads;
+            setZero<3> <<<bl, numThreads>>> (qw, 3 * nq * nw);
         }
     }
 
@@ -105,6 +110,7 @@ struct SC{
             }
             if ((do_sc == 'Q') || (do_sc == 'Y')) {
                 qt.Free();
+                qw.Free();
             }
     }
 

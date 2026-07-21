@@ -567,7 +567,42 @@ __global__ void GPUSwFinalSum(GpuTensor<gpu_complex, 3> scblock, GpuTensor<gpu_c
     }
 }
 
-__global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, 
+__global__ void GPUSwChunkAccum(const GpuTensor<gpu_complex, 3> qt, GpuTensor<gpu_complex, 3> qw,
+                                const GpuTensor<real, 1> w, unsigned int count, unsigned int base,
+                                real dt_sample, int sc_max_nstep, int sc_window_fun,
+                                unsigned int nq, unsigned int nw) {
+    unsigned int tid   = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int total = 3u * nq * nw;
+    if (tid >= total) return;
+
+    // Decode (component, q, w) from the flat thread id (column-major over (3,nq,nw)).
+    unsigned int cInd = tid % 3u;
+    unsigned int rem  = tid / 3u;
+    unsigned int qInd = rem % nq;
+    unsigned int wInd = rem / nq;
+
+    const real wq = w(wInd);
+    // Read-modify-write this element's running accumulator (chunks are serialized).
+    real acc_re = GPU_CREAL(qw(cInd, qInd, wInd));
+    real acc_im = GPU_CIMAG(qw(cInd, qInd, wInd));
+
+    for (unsigned int l = 0; l < count; ++l) {
+        const unsigned int t = base + l;                       // global time index
+        const real phase = static_cast<real>(t) * dt_sample * wq;
+        const real win = sc_window_fac(sc_window_fun, (t + 1u), static_cast<unsigned int>(sc_max_nstep));
+        real s, c;
+        sincos(phase, &s, &c);
+        const gpu_complex v = qt(cInd, qInd, l);
+        const real vr = GPU_CREAL(v);
+        const real vi = GPU_CIMAG(v);
+        // v * exp(+i*phase) * win
+        acc_re += (vr * c - vi * s) * win;
+        acc_im += (vr * s + vi * c) * win;
+    }
+    qw(cInd, qInd, wInd) = MAKE_GPU_COMPLEX(acc_re, acc_im);
+}
+
+__global__ void GPUSqProjSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid,
                              GpuVector<int>aproj, GpuTensor<gpu_complex, 3> scblock, int tasks, unsigned int N) {
     auto grid = cg::this_grid();
     auto block = cg::this_thread_block();

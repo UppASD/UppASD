@@ -104,8 +104,8 @@ private:
     void flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations);
     void flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
 
-    // M4 helpers (base S(q,t) chunked-streaming path)
+    // M4 helpers (base S(q,t) chunked path)
     void streamChunkToHost(unsigned int base, unsigned int count);   // device qt chunk -> host m_kt
-    void transform_kt_to_kw_host(hostCorrelations& cpuCorrelations); // windowed t->w DFT on host
+    void accumulateChunkToQw(unsigned int base, unsigned int count); // fold qt chunk into device qw
 
 };
