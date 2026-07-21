@@ -1027,14 +1027,24 @@ contains
       integer :: tempn
       integer :: ncount,ncounter
       logical :: exis
+      integer, allocatable :: seen(:)
 
       ncoup = 0.0_dblprec
       ! Factors for mRy energy conversion
       fc = mry/mub
       fc2 = 2.0_dblprec*mry/mub
 
-      ! Loop over atoms
-      !$omp parallel do default(shared) private(i,k,j,ncount,ncounter,exis,l,jatom,iconf)
+      ! Loop over atoms.  A neighbour map can contain the same atom through
+      ! different periodic images, so keep only the first occurrence unless
+      ! multiple couplings were explicitly requested.  The old implementation
+      ! searched the already-built list linearly for every map entry, giving an
+      ! O(max_no_neigh**2) setup cost per atom.  Each OpenMP worker instead uses
+      ! a private atom-indexed marker array; the current central-atom index is
+      ! the generation number, avoiding a full clear for every atom.
+      !$omp parallel default(shared) private(i,k,j,l,ncount,ncounter,exis,jatom,iconf,seen)
+      allocate(seen(Natom))
+      seen = 0
+      !$omp do
       do i=1, Natom
          ncount = 1
          ncounter = 1
@@ -1044,24 +1054,22 @@ contains
             do j=1, nmdim(k,i)
                ! Existing coupling
                if (nm(i,k,j)>0) then
-                  exis=.false.
-                  do l=1,ncount-1
-                     if(nlist(l,i)==nm(i,k,j)) exis=.true.
-                  end do
+                  jatom = nm(i,k,j)
+                  exis = seen(jatom) == i
                   if(.not.exis.or.map_multiple) then
-                     nlist(ncount,i) = nm(i,k,j)
+                     nlist(ncount,i) = jatom
+                     seen(jatom) = i
                      if (i<=nHam) then
                         do iconf=1,conf_num
                            if (do_ralloy==0) then
-                              if(abs(ammom_inp(anumb(i),1,iconf)*ammom_inp(anumb(nm(i,k,j)),1,iconf))<1e-6) then
+                              if(abs(ammom_inp(anumb(i),1,iconf)*ammom_inp(anumb(jatom),1,iconf))<1e-6) then
                                  ncoup(:,ncount,i,iconf)=0.0_dblprec
                               else
                                  ncoup(:,ncount,i,iconf) = xc(:,atype(i),k,1,1,iconf) * fc2 &
-                                    / ammom_inp(anumb(i),1,iconf)**lexp / ammom_inp(anumb(nm(i,k,j)),1,iconf)**lexp
+                                    / ammom_inp(anumb(i),1,iconf)**lexp / ammom_inp(anumb(jatom),1,iconf)**lexp
                               endif
                            else
                               !
-                              jatom = nm(i,k,j)
                               if(abs(ammom_inp(asite_ch(i),achem_ch(i),iconf)*ammom_inp(asite_ch(jatom),achem_ch(jatom),iconf))<1e-6) then
                                  ncoup(:,ncount,i,iconf)=0.0_dblprec
                               else
@@ -1083,7 +1091,9 @@ contains
          if (i<=nHam) nlistsize(i) = ncount-1
          if (do_lsf=='Y' .and. lsf_field=='L') fs_nlistsize(i) = ncounter-1
       end do
-      !omp end parallel do
+      !$omp end do
+      deallocate(seen)
+      !$omp end parallel
 
       if(do_sortcoup == 'Y'.and. nHam==Natom) then
          !$omp parallel do default(shared) private(i,j,k,tempn,tempcoup,iconf)

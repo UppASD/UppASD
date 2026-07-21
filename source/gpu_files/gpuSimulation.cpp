@@ -776,9 +776,10 @@ printf("current type %i\n", whichsim);
             copyToFortran();
         }
         else if(whichphase == 1) {
-            // Ensure measurement phase starts from the latest moments stored on the Fortran side.
-            // This is important when initial and measurement phases are executed in separate GPU sessions.
-            copyFromFortran();
+            // initiateMatrices() has just created this GPU session and copied the
+            // current Fortran state.  Do not upload it again here: in particular,
+            // the full neighbour list is immutable during a phase and can be very
+            // large for long-ranged Hamiltonians.
             GpuSD.SDmphase(*this);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}

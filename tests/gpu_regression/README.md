@@ -24,3 +24,25 @@ normally force `do_gpu_measurements N`; the two `*_gpu_measurements` cases overr
 only the GPU run to `Y` and compare its device-generated energy output to the
 Fortran reference. It must be executed on a host with a
 visible CUDA/HIP device; compile-only CI intentionally does not run it.
+
+## Convolution benchmark
+
+`bench.py` compares GPU real-space and device convolution Hamiltonians.  Its
+default matrix covers small and medium BCC systems, a longer BCC trajectory,
+and a two-atom-basis FeCo case.  Every configuration has one warm-up plus at
+least three timed runs of each backend; the convolution run is rejected if the
+executable did not print its activation line (preventing an unnoticed sparse
+fallback).  The harness forces `do_reduced Y`: convolution operates on the
+unit-cell Hamiltonian (`nHam == NA`), while the FFT supplies the full periodic
+lattice field.  It prints the convolution activation line once per benchmark;
+if setup falls back, the reported error includes UppASD's reason.
+
+```bash
+python3 tests/gpu_regression/bench.py --list
+python3 tests/gpu_regression/bench.py --binary ./bin/sd.f95.cuda \
+  --output /tmp/uppasd-convolution-bench.json --csv /tmp/uppasd-convolution-bench.csv
+```
+
+Use `--case bcc_medium --steps 5000` to narrow or scale a run.  The terminal
+report gives median wall time, steps/s, and convolution speedup; JSON retains
+the full environment and summary, while CSV contains every timed sample.

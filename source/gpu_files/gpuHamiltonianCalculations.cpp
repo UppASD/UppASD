@@ -442,18 +442,33 @@ GpuHamiltonianCalculations::~GpuHamiltonianCalculations() {
 bool GpuHamiltonianCalculations::canUseLatticeConvolution(const Flag Flags, const SimulationParameters SimParam,
                                                           const deviceHamiltonian& gpuHamiltonian) const {
    if(!SimParam.do_gpu_convolution) return false;
-   if(SimParam.N1 == 0 || SimParam.N2 == 0 || SimParam.N3 == 0 || SimParam.NA == 0) return false;
-   if(SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 * SimParam.NA) return false;
-   if(SimParam.NH != SimParam.NA) return false;
-   if(gpuHamiltonian.nlist.empty() || gpuHamiltonian.nlistsize.empty()) return false;
+   const auto reject = [](const char* reason) {
+      std::printf("Gpu: device lattice convolution requested but disabled: %s; using sparse Hamiltonian.\n", reason);
+      return false;
+   };
+   if(SimParam.BC1 != 'P' || SimParam.BC2 != 'P' || SimParam.BC3 != 'P')
+      return reject("the FFT backend currently requires periodic boundary conditions in all directions");
+   if(SimParam.N1 == 0 || SimParam.N2 == 0 || SimParam.N3 == 0 || SimParam.NA == 0)
+      return reject("the cell grid or basis size is zero");
+   if(SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 * SimParam.NA)
+      return reject("Natom does not match N1*N2*N3*NA");
+   if(SimParam.NH != SimParam.NA)
+      return reject("the reduced Hamiltonian is required (set do_reduced Y so nHam equals NA)");
+   if(gpuHamiltonian.nlist.empty() || gpuHamiltonian.nlistsize.empty())
+      return reject("the exchange neighbour list is unavailable");
    if(Flags.do_aniso != 0 &&
-      (gpuHamiltonian.kaniso.empty() || gpuHamiltonian.eaniso.empty() || gpuHamiltonian.taniso.empty())) return false;
+      (gpuHamiltonian.kaniso.empty() || gpuHamiltonian.eaniso.empty() || gpuHamiltonian.taniso.empty()))
+      return reject("the requested anisotropy data is unavailable");
 
    if(Flags.do_jtensor) {
-      return !gpuHamiltonian.j_tensor.empty();
+      if(gpuHamiltonian.j_tensor.empty())
+         return reject("the requested tensor-exchange data is unavailable");
+      return true;
    }
 
-   return !gpuHamiltonian.ncoup.empty();
+   if(gpuHamiltonian.ncoup.empty())
+      return reject("the exchange coupling data is unavailable");
+   return true;
 }
 
 bool GpuHamiltonianCalculations::canUseMultiscaleDipole(const Flag Flags, const SimulationParameters SimParam,
@@ -564,7 +579,14 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
                                              parallel.getWorkStream());
             if(backend.convolution_kernel_ready) {
                backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
+               std::printf("Gpu: device lattice convolution active (do_gpu_convolution Y; %u x %u x %u cells, %u basis, %u ensemble%s).\n",
+                           conv_desc.n1, conv_desc.n2, conv_desc.n3, conv_desc.basis, conv_desc.ensembles,
+                           conv_desc.ensembles == 1 ? "" : "s");
+            } else {
+               std::printf("Gpu: device lattice convolution requested but disabled: tensor FFT kernel construction failed; using sparse Hamiltonian.\n");
             }
+         } else {
+            std::printf("Gpu: device lattice convolution requested but disabled: FFT plan or buffer initialization failed; using sparse Hamiltonian.\n");
          }
       }
       gpuHamiltonian.neighbourListsPrepared = true;
@@ -636,7 +658,14 @@ else{
          if(backend.convolution_kernel_ready) {
             backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
             backend.dmi = do_dm ? GpuHamiltonianBackend::LatticeConvolution : GpuHamiltonianBackend::DirectSparse;
+            std::printf("Gpu: device lattice convolution active (do_gpu_convolution Y; %u x %u x %u cells, %u basis, %u ensemble%s).\n",
+                        conv_desc.n1, conv_desc.n2, conv_desc.n3, conv_desc.basis, conv_desc.ensembles,
+                        conv_desc.ensembles == 1 ? "" : "s");
+         } else {
+            std::printf("Gpu: device lattice convolution requested but disabled: isotropic/DM FFT kernel construction failed; using sparse Hamiltonian.\n");
          }
+      } else {
+         std::printf("Gpu: device lattice convolution requested but disabled: FFT plan or buffer initialization failed; using sparse Hamiltonian.\n");
       }
    }
 

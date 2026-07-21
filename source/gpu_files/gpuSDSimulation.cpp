@@ -191,14 +191,18 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       return;
    }
 
-   // Reload lattice state from Fortran to guarantee phase handover continuity,
-   // including all moment arrays that may have been updated in SDiphase.
-   gpuSim.copyFromFortran();
+   // initiateMatrices() copied the current Fortran state immediately before
+   // gpuRunSimulation() called this routine.  A second full upload here would
+   // repeat the immutable Hamiltonian/neighbour-list transfer as well as all
+   // lattice arrays.
 
    // Make phase boundary explicit: start SDmphase with emom2 synchronized to emom.
    // This removes any dependence on historical emom2 content from prior phase bookkeeping.
    gpuSim.gpuLattice.emom2.copy_sync(gpuSim.gpuLattice.emom);
-   gpuSim.copyToFortran();
+   // Only emom2 changed.  Exporting the complete lattice here used to add a
+   // needless device-to-host transfer before the first measurement step.
+   gpuSim.cpuLattice.emom2.copy_sync(gpuSim.gpuLattice.emom2);
+   gpuSim.cpuLattice.emom2.copy_to(FortranData::emom2);
 
    // Timer
    StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("GPU measurement phase"));
