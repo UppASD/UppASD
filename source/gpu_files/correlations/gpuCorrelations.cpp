@@ -4,6 +4,7 @@
 #include "real_type.h"
 #include "gpuStructures.hpp"
 #include <numeric>
+#include <cmath>
 #include <fortranData.hpp>
 
 #include "gpu_wrappers.h"
@@ -11,6 +12,10 @@
 #include <correlation_kernels.hpp>
 #include "gpuCorrelations.hpp"
 #include "gpuParallelizationHelper.hpp"
+
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
 
 namespace {
 template <index_t dim>
@@ -21,6 +26,24 @@ void copy_to_fortran(const Tensor<cpu_complex, dim>& source,
     for (index_t i = 0; i < source.size(); ++i) {
         destination[i] = fortran_complex(source[i].real(), source[i].imag());
     }
+}
+
+// Host port of the device sc_window_fac (correlation_kernels.cpp): the time-domain
+// apodization window applied inside the t->w transform. Kept byte-identical so the
+// host transform reproduces the device/Fortran result.
+double host_sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep) {
+    const double x = 2.0 * M_PI * (static_cast<double>(step) - 1.0) / (static_cast<double>(nstep) - 1.0);
+    double dum = 1.0;
+    switch (sc_window_fun) {
+    case 2:  dum = 0.5 - 0.5 * std::cos(x); break;                                    // Hann
+    case 3:  dum = 0.54 - 0.46 * std::cos(x); break;                                  // Hamming
+    case 32: dum = 0.53836 - 0.46164 * std::cos(x); break;                            // Hamming v2
+    case 4:  dum = 0.35785 - 0.48829 * std::cos(x) + 0.14128 * std::cos(2.0 * x)      // Blackman-Harris
+                 - 0.01168 * std::cos(3.0 * x); break;
+    case 5:  dum = 0.355768 - 0.478396 * std::cos(x) + 0.144232 * std::cos(2.0 * x)   // Nuttall
+                 - 0.012604 * std::cos(3.0 * x); break;
+    }
+    return dum;
 }
 }
 
@@ -39,6 +62,7 @@ GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters Si
 , M(SimParam.M)
 , nq(SimParam.nq)
 , sc_max_nstep(SimParam.sc_max_nstep)
+, chunk_len(std::min<std::size_t>(64, SimParam.sc_max_nstep ? SimParam.sc_max_nstep : 1))
 , sc_window_fun(SimParam.sc_window_fun)
 , nw(SimParam.nw)
 , NT(SimParam.NT)
@@ -57,7 +81,8 @@ GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters Si
 , blWproj(N, M, nq, sc_max_nstep, nw, NT, numThreads, maxBlocks)
 , blQprojch(N, M, nq, Nchmax, numThreads, maxBlocks)
 , blWprojch(N, M, nq, sc_max_nstep, nw, Nchmax, numThreads, maxBlocks)
-, sc(do_sc, nw, nq, sc_max_nstep, numThreads, blQ, blW)
+, m_kt_host(nullptr)
+, sc(do_sc, nq, chunk_len, numThreads, blQ)
 , sc_proj(do_proj, nw, nq, sc_max_nstep, NT, cpuCorrelations.atype, numThreads, blQproj, blWproj)
 , sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, cpuCorrelations.achtype, numThreads, blQprojch, blWprojch)
 
@@ -81,9 +106,14 @@ std::size_t GpuCorrelations::estimateBytes(const Flag& Flags, const SimulationPa
     std::size_t reals = 3                    // r_mid(3)
                       + 3 * SimParam.nq       // q(3,nq)
                       + 3 * SimParam.N;       // coord(3,N)
-    if((Flags.do_sc == 'Q') || (Flags.do_sc == 'Y'))
-        reals += SimParam.sc_max_nstep + SimParam.nw;  // dt + w
-    return reals * sizeof(real);
+    std::size_t bytes = reals * sizeof(real);
+    // M4: the dynamic path keeps only a (3,nq,chunk_len) qt chunk on device; the
+    // sc_max_nstep-long series and the nw-long spectrum live host-side now.
+    if((Flags.do_sc == 'Q') || (Flags.do_sc == 'Y')) {
+        const std::size_t chunk = std::min<std::size_t>(64, SimParam.sc_max_nstep ? SimParam.sc_max_nstep : 1);
+        bytes += 3 * SimParam.nq * chunk * sizeof(gpu_complex);   // qt(3,nq,chunk_len)
+    }
+    return bytes;
 }
 
 // Initiator
@@ -106,14 +136,17 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
 
 
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
-            dt.Allocate(static_cast <long int>(sc_max_nstep));
             dt_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
             sc_step_arr_cpu.AllocateHost(static_cast <long int>(sc_max_nstep));
+            // Device dt/w are used only by the projected transform path (kept on device).
+            dt.Allocate(static_cast <long int>(sc_max_nstep));
             w.Allocate(static_cast <long int>(nw));
             w.copy_sync(cpuCorrelations.w);
+            // M4: destination for streamed S(q,t) chunks (host m_kt owned by Fortran).
+            m_kt_host = const_cast<cpu_complex*>(cpuCorrelations.m_kt.data());
         }
 
-        isallocated = 1; 
+        isallocated = 1;
     }
 
     // All initialized?
@@ -131,8 +164,8 @@ void GpuCorrelations::release() {
         coord.Free();
         q.Free();
         if ((do_sc == 'Q') || (do_sc == 'Y')) {
-            w.Free();
             dt.Free();
+            w.Free();
             dt_cpu.FreeHost();
             sc_step_arr_cpu.FreeHost();
         }
@@ -212,12 +245,14 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
 
             }
             
-            // Kernel writes to m_kt(:,:,t_cur)
+            // Kernel writes to m_kt(:,:, t_cur % chunk_len); streamed to host in slabs.
+            unsigned int slot = static_cast<unsigned int>(t_cur % chunk_len);
             GPUSqSum <<<blQ.blocks, threads, 0, workStream>>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_dyn <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.qt, blQ.x, t_cur);
+            GPUSqFinalSum_dyn <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.qt, blQ.x, slot);
             t_cur++;  // Increment AFTER writing to that time slice
-        } else {
-            if ((curstep % sc_step) == 0) {
+            if ((t_cur % chunk_len) == 0) {   // chunk full: stream to host m_kt and recycle
+                streamChunkToHost(t_cur - static_cast<unsigned int>(chunk_len), static_cast<unsigned int>(chunk_len));
+                sc.qt.zeros();  // FinalSum kernels accumulate with +=, so zero before reuse
             }
         }
         break;
@@ -233,11 +268,16 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
-            
+
+            unsigned int slot = static_cast<unsigned int>(t_cur % chunk_len);
             GPUSqSum <<<blQ.blocks, threads, 0, workStream>>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, slot, both_flag);
             t_cur++;
             n_samples++;
+            if ((t_cur % chunk_len) == 0) {
+                streamChunkToHost(t_cur - static_cast<unsigned int>(chunk_len), static_cast<unsigned int>(chunk_len));
+                sc.qt.zeros();
+            }
 
         }
         else if ((curstep % sc_step) == 0 && t_cur < static_cast<unsigned int>(sc_max_nstep)) {
@@ -250,21 +290,29 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             if (t_cur < static_cast<unsigned int>(sc_step_arr_cpu.extent(0))) {
                 sc_step_arr_cpu(int(t_cur)) = static_cast<real>(sc_step);
             }
-            
+
+            unsigned int slot = static_cast<unsigned int>(t_cur % chunk_len);
             GPUSqSum <<<blQ.blocks, threads, 0, workStream>>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, slot, both_flag);
             t_cur++;
+            if ((t_cur % chunk_len) == 0) {
+                streamChunkToHost(t_cur - static_cast<unsigned int>(chunk_len), static_cast<unsigned int>(chunk_len));
+                sc.qt.zeros();
+            }
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
+            // Static-only sample: writes sc.q only (both_flag==0 skips the qt slice),
+            // so it neither advances t_cur nor touches the chunk. slot is unused here.
+            unsigned int slot = static_cast<unsigned int>(t_cur % chunk_len);
             GPUSqSum <<<blQ.blocks, threads, 0, workStream>>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
+            GPUSqFinalSum_both <<<nq, maxBlocks, 0, workStream>>> (sc.q_block, sc.q, sc.qt, blQ.x, slot, both_flag);
             n_samples++;
         }
         break;
 
-    }    
+    }
 
 }
 
@@ -352,6 +400,62 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
 }
 
 
+// M4: copy `count` freshly-sampled S(q,t) slices from the device qt chunk into the
+// host m_kt buffer at time offset `base`. Column-major layout makes a run of
+// consecutive time slices contiguous, so this is a single D2H memcpy.
+void GpuCorrelations::streamChunkToHost(unsigned int base, unsigned int count) {
+    if (m_kt_host == nullptr || count == 0) return;
+    GPU_STREAM_SYNC(workStream);   // the chunk's sample kernels run on workStream
+    const std::size_t elems = static_cast<std::size_t>(count) * 3 * nq;
+    GPU_MEMCPY(m_kt_host + static_cast<std::size_t>(base) * 3 * nq,
+               sc.qt.data(),
+               elems * sizeof(gpu_complex),
+               GPU_MEMCPY_DEVICE_TO_HOST);
+}
+
+// M4: windowed time->frequency DFT done on host, replacing GPUSwSum/GPUSwFinalSum.
+// m_kw(c,q,w) = sum_t m_kt(c,q,t) * exp(+i * t * dt(t) * w(w)) * win(t+1, sc_max_nstep)
+// This is an exact port of the device kernel / Fortran corr_kernel_time (sequential
+// accumulation in fp64), so it matches the reference to round-off.
+void GpuCorrelations::transform_kt_to_kw_host(hostCorrelations& cpuCorrelations) {
+    const cpu_complex* mkt = cpuCorrelations.m_kt.data();
+    cpu_complex*       mkw = cpuCorrelations.m_kw.data();
+    const real*        wp  = cpuCorrelations.w.data();
+    const real*        dtp = dt_cpu.data();
+    if (mkt == nullptr || mkw == nullptr || wp == nullptr || dtp == nullptr) return;
+
+    const long NQ  = static_cast<long>(nq);
+    const long NW  = static_cast<long>(nw);
+    const long NST = static_cast<long>(sc_max_nstep);
+    const int  wf  = static_cast<int>(sc_window_fun);
+
+    #pragma omp parallel for collapse(2) schedule(static)
+    for (long iw = 0; iw < NW; ++iw) {
+        for (long iq = 0; iq < NQ; ++iq) {
+            double re[3] = {0.0, 0.0, 0.0};
+            double im[3] = {0.0, 0.0, 0.0};
+            for (long t = 0; t < NST; ++t) {
+                const double phase = static_cast<double>(t) * static_cast<double>(dtp[t])
+                                   * static_cast<double>(wp[iw]);
+                const double win = host_sc_window_fac(wf, static_cast<unsigned int>(t + 1),
+                                                      static_cast<unsigned int>(NST));
+                const double s = std::sin(phase);
+                const double c = std::cos(phase);
+                for (int ci = 0; ci < 3; ++ci) {
+                    const cpu_complex v = mkt[ci + 3 * iq + 3 * NQ * t];
+                    const double vr = static_cast<double>(v.real());
+                    const double vi = static_cast<double>(v.imag());
+                    re[ci] += (vr * c - vi * s) * win;
+                    im[ci] += (vr * s + vi * c) * win;
+                }
+            }
+            for (int ci = 0; ci < 3; ++ci)
+                mkw[ci + 3 * iq + 3 * NQ * iw] =
+                    cpu_complex(static_cast<real>(re[ci]), static_cast<real>(im[ci]));
+        }
+    }
+}
+
 void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations) {
     switch (do_sc) {
     case 'C': {
@@ -360,57 +464,23 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
     }
 
     case 'Q': {
-        // Copy time step data to GPU
-        dt.copy_sync(dt_cpu);
-        
-        // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum <<<blW.blocks, threads, 0, workStream>>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum <<<nq * nw, maxBlocks, 0, workStream>>> (sc.w_block, sc.qw, blW.x, nq);
-        GPU_STREAM_SYNC(workStream);
-        
-        // Transfer time-domain correlations for Fortran reference
-        if (sc.qt.extent(0) == cpuCorrelations.m_kt.extent(0) &&
-            sc.qt.extent(1) == cpuCorrelations.m_kt.extent(1) &&
-            sc.qt.extent(2) == cpuCorrelations.m_kt.extent(2)) {
-            cpuCorrelations.m_kt.copy_sync(sc.qt);
-            cpuCorrelations.sc_tidx = static_cast<int>(sc.qt.extent(2));
-        }
-        
-        // Transfer frequency-domain correlations (m_kw)
-        if (sc.qw.extent(0) == cpuCorrelations.m_kw.extent(0) &&
-            sc.qw.extent(1) == cpuCorrelations.m_kw.extent(1) &&
-            sc.qw.extent(2) == cpuCorrelations.m_kw.extent(2)) {
-            cpuCorrelations.m_kw.copy_sync(sc.qw);
-        }
+        // M4: the full S(q,t) series was streamed to host m_kt in chunks during
+        // sampling; flush the final partial chunk, then do the windowed t->w DFT
+        // on host into m_kw. The device never held the sc_max_nstep-long series.
+        unsigned int partial = static_cast<unsigned int>(t_cur % chunk_len);
+        if (partial > 0) streamChunkToHost(t_cur - partial, partial);
+        transform_kt_to_kw_host(cpuCorrelations);
         break;
     }
 
     case 'Y': {
-        // Copy time step data to GPU
-        dt.copy_sync(dt_cpu);
-        
-        // Compute partial S(q,ω) from S(q,t) using Fourier transform
-        GPUSwSum <<<blW.blocks, threads, 0, workStream>>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        GPUSwFinalSum <<<nq * nw, maxBlocks, 0, workStream>>> (sc.w_block, sc.qw, blW.x, nq);
-        GPU_STREAM_SYNC(workStream);
-        
         // Transfer static S(q)
         cpuCorrelations.m_k.copy_sync(sc.q);
-        
-        // Transfer time-domain S(q,t)
-        if (sc.qt.extent(0) == cpuCorrelations.m_kt.extent(0) &&
-            sc.qt.extent(1) == cpuCorrelations.m_kt.extent(1) &&
-            sc.qt.extent(2) == cpuCorrelations.m_kt.extent(2)) {
-            cpuCorrelations.m_kt.copy_sync(sc.qt);
-            cpuCorrelations.sc_tidx = static_cast<int>(sc.qt.extent(2));
-        }
-        
-        // Transfer frequency-domain S(q,ω)
-        if (sc.qw.extent(0) == cpuCorrelations.m_kw.extent(0) &&
-            sc.qw.extent(1) == cpuCorrelations.m_kw.extent(1) &&
-            sc.qw.extent(2) == cpuCorrelations.m_kw.extent(2)) {
-            cpuCorrelations.m_kw.copy_sync(sc.qw);
-        }
+
+        // Dynamic S(q,t): flush final chunk to host m_kt, transform to m_kw on host.
+        unsigned int partial = static_cast<unsigned int>(t_cur % chunk_len);
+        if (partial > 0) streamChunkToHost(t_cur - partial, partial);
+        transform_kt_to_kw_host(cpuCorrelations);
         break;
     }
     

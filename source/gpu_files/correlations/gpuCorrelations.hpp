@@ -34,6 +34,7 @@ private:
     const char do_proj;
     const char do_projch;
     const std::size_t sc_max_nstep;
+    const std::size_t chunk_len;   // M4: device qt holds only this many time slices
     const std::size_t sc_window_fun;
     const std::size_t nw;
 
@@ -63,10 +64,15 @@ private:
     GpuTensor<real, 1> r_mid;
     GpuTensor<real, 2> q;
     GpuTensor<real, 2> coord;
-    GpuTensor<real, 1> dt;
+    GpuTensor<real, 1> dt;   // device dt/w retained for the projected transform path
     GpuTensor<real, 1> w;
     Tensor<real, 1> dt_cpu;
     Tensor<real, 1> sc_step_arr_cpu;  // Host buffer for sc_step array bookkeeping
+
+    // M4: destination for streamed S(q,t) chunks (host m_kt, size 3*nq*sc_max_nstep).
+    // Captured from cpuCorrelations.m_kt in initiate(); the device qt chunk is copied
+    // here every chunk_len samples so the device never stores the full series.
+    cpu_complex* m_kt_host;
 
     SC_proj sc_proj;
     SC_proj sc_projch;
@@ -97,5 +103,9 @@ private:
 
     void flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelations);
     void flush_SC_proj(std::size_t mstep, char p, int nproj, hostCorrelations& cpuCorrelations, SC_proj& scp, blocksQWproj blWp, char sc_type);
+
+    // M4 helpers (base S(q,t) chunked-streaming path)
+    void streamChunkToHost(unsigned int base, unsigned int count);   // device qt chunk -> host m_kt
+    void transform_kt_to_kw_host(hostCorrelations& cpuCorrelations); // windowed t->w DFT on host
 
 };

@@ -424,13 +424,20 @@ ticking CV4 does not release it.
 **Task:** Once CV2 makes the convolution backend serve `measure=true` steps too, SD runs on the convolution backend no longer need `nlist/ncoup/dmvect/dmlist` resident (they're still needed for MC and as fallback). Add a mode where, if the convolution kernel builds successfully, the sparse arrays are freed after kernel construction (they are consumed during `buildIsotropicDmKernel`/`buildTensorKernel`). Keep a flag so a fallback to sparse triggers a clear error instead of touching freed memory.
 **Acceptance:** Large Bravais SD run shows nlist/ncoup absent in the tracker; V2 convolution cases still pass including energy measurement.
 
-### - [ ] M4 — Correlations: remove the `sc_max_nstep` dimension from device  (P1, L)
-**Files:** `gpu_files/correlations/*`.
-**Task:** `qt(3, nq, sc_max_nstep)` stores the full time series on device only so the t→ω transform can run at flush. Two options, implement (a), keep (b) as fallback flag:
-(a) **Incremental DFT accumulation:** since `sc_max_nstep`, the sample spacing, and the window function are known up front, each new time sample can be accumulated directly into `qw(3, nq, nw)` as `qw += win(t)·S(q,t)·exp(-iω t)` per ω (a small kernel over nq×nw per sample; nw is modest). Device memory for the dynamic correlation then drops from `3·nq·sc_max_nstep` to `3·nq·nw` complex. Validate that the flushed `m_kw` matches the current two-step result to rtol 1e-12 (fp64).
-(b) **Chunked streaming:** if any window/normalization genuinely needs the full series (projected variants), stream `qt` slabs to host pinned memory every K samples on `copyStream` and finish on host.
-Also: `w_block` scratch (`3·blocks·nq·nw`) should be sized from the *actual* launch geometry, not worst case — audit `blocksQW` and shrink.
-**Acceptance:** Dynamic-correlation V2 case matches Fortran `m_kw` within tolerance; tracker shows the sc_max_nstep-proportional allocation gone in mode (a).
+### - [x] M4 — Correlations: remove the `sc_max_nstep` dimension from device (base S(q,t))  (P1, L)  — **landed 2026-07-21; new host transform bit-identical to prior device result (T=0 bccFe_sqw, all 40k sqw values, max Δ = 0)**
+**Files:** `gpu_files/correlations/{correlation_types.h, gpuCorrelations.{hpp,cpp}}`.
+**Task:** `qt(3, nq, sc_max_nstep)` stores the full time series on device only so the t→ω transform can run at flush. Implement **chunked streaming with the transform finished on host** (option (b) below); option (a) was considered and rejected — see note.
+
+**Chunked streaming (implemented for the base `sc` path):**
+- Device `sc.qt` is a rolling `(3, nq, K)` chunk (`K = min(SC_CHUNK, sc_max_nstep)`, `SC_CHUNK = 64`). The dynamic sampler writes slot `t_cur % K`; each slot is zeroed before reuse (the FinalSum kernels accumulate with `+=`).
+- Every `K` samples the full chunk is copied `D2H` into the host `m_kt(3, nq, sc_max_nstep)` buffer at the current time offset (column-major → a chunk of consecutive time slices is contiguous, single memcpy). The final partial chunk is flushed at `flushCorrelations`.
+- The windowed t→ω DFT is done **on host** (`transform_kt_to_kw_host`, an exact port of `GPUSwSum`/`corr_kernel_time`: `m_kw(c,q,ω) = Σ_t m_kt(c,q,t)·exp(+i·t·dt(t)·w(ω))·win(t+1, sc_max_nstep)`, OpenMP over ω,q). This also matches Fortran better than the old device tree-reduction did, since both are sequential sums.
+- Device `sc.qw`, `sc.w_block`, and the device `dt`/`w` scratch are **dropped** for the base path. Base dynamic-correlation device footprint drops from `3·nq·(sc_max_nstep + nw + blocks·nw)` complex to `3·nq·K`.
+
+**Note — why not (a) incremental device DFT:** it keeps `qw(3, nq, nw)` on device, which for our regime (`nw ≈ 1–2·sc_max_nstep`) is no smaller than `qt`, so ~no win; and it *discards* `m_kt`, which is a required output (`sqt` file) for `do_sc T`/`Y`. The maths is exact either way (the transform is a linear windowed DFT, no origin-averaging), so (a) loses no statistics — it simply doesn't fit the memory regime or the output contract.
+
+**Still open (not done here):** the projected paths (`sc_proj`/`sc_projch`, `qt(3, nproj, nq, sc_max_nstep)`) still transform on device and keep the full series; apply the same chunked-streaming treatment there. Also `w_block` right-sizing from actual launch geometry is now moot for the base path (buffer removed) but still applies to the projected paths.
+**Acceptance:** Dynamic-correlation case (`do_gpu_correlations Y`, `do_sc Q`/`Y`) matches the pre-change device result and Fortran `m_kw` within tolerance; tracker shows the sc_max_nstep-proportional base allocation gone.
 
 ### - [x] M5 — FFT workspace hygiene  (P2, S)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`.
