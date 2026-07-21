@@ -168,8 +168,12 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
          GPU_ERROR_T e = GPU_GET_LAST_ERROR();
          if(e != GPU_SUCCESS) {
             std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-            GPU_DEVICE_RESET();
-            std::exit(EXIT_FAILURE);
+            // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+            // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+            // context and aborts with "driver shutting down". The OS reclaims the context.
+            std::fflush(stdout);
+            std::fflush(stderr);
+            std::_Exit(EXIT_FAILURE);
          }
         // printf("mcs = %i\n", mstep);
 
@@ -285,8 +289,12 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
       if(e != GPU_SUCCESS) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
+         // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+         // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+         // context and aborts with "driver shutting down". The OS reclaims the context.
+         std::fflush(stdout);
+         std::fflush(stderr);
+         std::_Exit(EXIT_FAILURE);
       }
 
    }  // End loop over simulation steps
@@ -387,8 +395,12 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
       if(e != GPU_SUCCESS) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
+         // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+         // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+         // context and aborts with "driver shutting down". The OS reclaims the context.
+         std::fflush(stdout);
+         std::fflush(stderr);
+         std::_Exit(EXIT_FAILURE);
       }
         // printf("mcs = %i\n", mstep);
 
@@ -499,8 +511,12 @@ const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cp
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
       if(e != GPU_SUCCESS) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
+         // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+         // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+         // context and aborts with "driver shutting down". The OS reclaims the context.
+         std::fflush(stdout);
+         std::fflush(stderr);
+         std::_Exit(EXIT_FAILURE);
       }
 
    }  // End loop over simulation steps

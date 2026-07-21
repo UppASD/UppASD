@@ -153,8 +153,12 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          GPU_ERROR_T e = GPU_GET_LAST_ERROR();
          if(e != GPU_SUCCESS) {
             std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-            GPU_DEVICE_RESET();
-            std::exit(EXIT_FAILURE);
+            // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+            // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+            // context and aborts with "driver shutting down". The OS reclaims the context.
+            std::fflush(stdout);
+            std::fflush(stderr);
+            std::_Exit(EXIT_FAILURE);
          }
       }
 
@@ -298,8 +302,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       GPU_ERROR_T e = GPU_GET_LAST_ERROR();
       if(e != GPU_SUCCESS) {
          std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
+         // Fatal GPU error: flush and _Exit. Do NOT device-reset then std::exit -
+         // that runs the static GpuSimulation dtor, which cudaFrees on a torn-down
+         // context and aborts with "driver shutting down". The OS reclaims the context.
+         std::fflush(stdout);
+         std::fflush(stderr);
+         std::_Exit(EXIT_FAILURE);
       }
 
 

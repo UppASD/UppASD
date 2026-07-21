@@ -61,7 +61,10 @@ namespace {
                 "========================================================================\n");
    std::fflush(stderr);
 
-   std::exit(EXIT_FAILURE);
+   // _Exit, not exit: output is already flushed above, and running the static
+   // GpuSimulation destructor here would cudaFree on a context that a fatal (e.g.
+   // sticky) GPU error may have torn down, aborting with "driver shutting down".
+   std::_Exit(EXIT_FAILURE);
 }
 
 }  // namespace
