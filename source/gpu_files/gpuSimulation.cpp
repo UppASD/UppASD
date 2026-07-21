@@ -51,7 +51,11 @@ void GpuSimulation::initiateConstants() {
     Flags.do_aniso = static_cast<bool>(*FortranData::do_aniso);
 
     Flags.do_sc = *FortranData::do_sc;
-    Flags.do_gpu_correlations = static_cast<bool>(*FortranData::do_gpu_correlations);
+    // Must match the Fortran allocation gate (chelper.f90 FortranData_Initiate,
+    // 'do_gpu_correlations==Y'): a plain static_cast<bool>(char) is non-zero for
+    // ANY letter including 'N', so the correlation buffers would be wired up even
+    // when Fortran allocated nothing, then read through null pointers and crash.
+    Flags.do_gpu_correlations = (*FortranData::do_gpu_correlations == 'Y');
     Flags.do_sc_proj = *FortranData::do_sc_proj;
     Flags.do_sc_projch = *FortranData::do_sc_projch;
     Flags.do_ene = *FortranData::do_ene;
@@ -217,22 +221,41 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuCorrelations.w.set(FortranData::w, nw);
         cpuCorrelations.coord.set(FortranData::coord, static_cast <long int>(3), N);
 
-        cpuCorrelations.m_k.set(FortranData::m_k, static_cast <long int>(3), nq);
-        cpuCorrelations.m_kt.set(FortranData::m_kt, static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(SimParam.sc_max_nstep));
-        cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
-        cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
-        cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
-        if((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y')){          
-        cpuCorrelations.atype.set(FortranData::atype, N);
-        cpuCorrelations.m_k_proj.set(FortranData::m_k_proj, static_cast <long int>(3), NT, nq);
-        cpuCorrelations.m_kt_proj.set(FortranData::m_kt_proj, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
-        cpuCorrelations.m_kw_proj.set(FortranData::m_kw_proj, static_cast <long int>(3), NT, nq, nw);
+        // The Fortran side (chelper.f90:FortranData_Initiate) only allocates the
+        // static buffer (m_k) for do_sc 'C'/'Y' and the dynamic buffers
+        // (m_kt/m_kw) for do_sc 'Q'/'Y'.  The complex set() overload copies from
+        // its source (cpu_complex != fortran_complex), so calling it on a buffer
+        // that was never allocated reads through a null/unassociated Fortran
+        // pointer and segfaults.  Gate each set() on the mode that allocated it.
+        const bool sc_static  = (Flags.do_sc == 'C') || (Flags.do_sc == 'Y');
+        const bool sc_dynamic = (Flags.do_sc == 'Q') || (Flags.do_sc == 'Y');
+        if(sc_static)
+            cpuCorrelations.m_k.set(FortranData::m_k, static_cast <long int>(3), nq);
+        if(sc_dynamic){
+            cpuCorrelations.m_kt.set(FortranData::m_kt, static_cast <long int>(3), static_cast <long int>(nq), static_cast <long int>(SimParam.sc_max_nstep));
+            cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
+            cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
+            cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
         }
-        if((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y')){   
+        // Projected buffers follow the same static/dynamic split (chelper.f90):
+        // m_k_proj for 'C'/'Y', m_kt_proj/m_kw_proj for 'Q'/'T'/'Y'.
+        if((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y')||(Flags.do_sc_proj=='T')){
+        cpuCorrelations.atype.set(FortranData::atype, N);
+        if((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Y'))
+            cpuCorrelations.m_k_proj.set(FortranData::m_k_proj, static_cast <long int>(3), NT, nq);
+        if((Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='T')||(Flags.do_sc_proj=='Y')){
+            cpuCorrelations.m_kt_proj.set(FortranData::m_kt_proj, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
+            cpuCorrelations.m_kw_proj.set(FortranData::m_kw_proj, static_cast <long int>(3), NT, nq, nw);
+        }
+        }
+        if((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y')||(Flags.do_sc_projch=='T')){
         cpuCorrelations.achtype.set(FortranData::achtype, N);
-        cpuCorrelations.m_k_projch.set(FortranData::m_k_projch, static_cast <long int>(3), Nchmax, nq);
-        cpuCorrelations.m_kt_projch.set(FortranData::m_kt_projch, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));
-        cpuCorrelations.m_kw_projch.set(FortranData::m_kw_projch, static_cast <long int>(3), Nchmax, nq, nw);
+        if((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Y'))
+            cpuCorrelations.m_k_projch.set(FortranData::m_k_projch, static_cast <long int>(3), Nchmax, nq);
+        if((Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='T')||(Flags.do_sc_projch=='Y')){
+            cpuCorrelations.m_kt_projch.set(FortranData::m_kt_projch, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));
+            cpuCorrelations.m_kw_projch.set(FortranData::m_kw_projch, static_cast <long int>(3), Nchmax, nq, nw);
+        }
         }
 
     }
