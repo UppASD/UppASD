@@ -640,39 +640,53 @@ contains
       !
 
 
-      i_all=-product(shape(cc%w))*kind(cc%w)
-      deallocate(cc%w,stat=i_stat)
-      call memocc(i_stat,i_all,'cc%w','deallocate_gkw')
+      ! The dynamic-correlation buffers are only allocated once a sample has been
+      ! taken (calc_gkt). A run that never reached a sampling step - e.g. GPU LLG
+      ! with CPU correlations and nstep < sc_step - leaves them unallocated, so
+      ! guard every deallocate to avoid spurious "problem of allocation" reports.
+      if (allocated(cc%w)) then
+         i_all=-product(shape(cc%w))*kind(cc%w)
+         deallocate(cc%w,stat=i_stat)
+         call memocc(i_stat,i_all,'cc%w','deallocate_gkw')
+      end if
 
-      i_all=-product(shape(cc%m_kw))*kind(cc%m_kw)
-      deallocate(cc%m_kw,stat=i_stat)
-      call memocc(i_stat,i_all,'cc%m_kw','deallocate_gkw')
+      if (allocated(cc%m_kw)) then
+         i_all=-product(shape(cc%m_kw))*kind(cc%m_kw)
+         deallocate(cc%m_kw,stat=i_stat)
+         call memocc(i_stat,i_all,'cc%m_kw','deallocate_gkw')
+      end if
 
-      i_all=-product(shape(cc%dt))*kind(cc%dt)
-      deallocate(cc%dt,stat=i_stat)
-      call memocc(i_stat,i_all,'cc%dt','deallocate_gkw')
+      if (allocated(cc%dt)) then
+         i_all=-product(shape(cc%dt))*kind(cc%dt)
+         deallocate(cc%dt,stat=i_stat)
+         call memocc(i_stat,i_all,'cc%dt','deallocate_gkw')
+      end if
 
-      i_all=-product(shape(cc%time))*kind(cc%time)
-      deallocate(cc%time,stat=i_stat)
-      call memocc(i_stat,i_all,'cc%time','deallocate_gkw')
+      if (allocated(cc%time)) then
+         i_all=-product(shape(cc%time))*kind(cc%time)
+         deallocate(cc%time,stat=i_stat)
+         call memocc(i_stat,i_all,'cc%time','deallocate_gkw')
+      end if
 
-      i_all=-product(shape(cc%m_kt))*kind(cc%m_kt)
-      deallocate(cc%m_kt,stat=i_stat)
-      call memocc(i_stat,i_all,'cc%m_kt','calc_gkt')
+      if (allocated(cc%m_kt)) then
+         i_all=-product(shape(cc%m_kt))*kind(cc%m_kt)
+         deallocate(cc%m_kt,stat=i_stat)
+         call memocc(i_stat,i_all,'cc%m_kt','calc_gkt')
+      end if
 
-      if(cc%do_proj=='Q'.or.cc%do_proj=='T'.or.cc%do_proj=='Y') then
+      if((cc%do_proj=='Q'.or.cc%do_proj=='T'.or.cc%do_proj=='Y').and.allocated(cc%m_kt_proj)) then
          i_all=-product(shape(cc%m_kt_proj))*kind(cc%m_kt_proj)
          deallocate(cc%m_kt_proj,stat=i_stat)
          call memocc(i_stat,i_all,'cc%m_kt_proj','calc_gkt')
       end if
 
-      if(cc%do_projch=='Q'.or.cc%do_projch=='T'.or.cc%do_projch=='Y') then
+      if((cc%do_projch=='Q'.or.cc%do_projch=='T'.or.cc%do_projch=='Y').and.allocated(cc%m_kt_projch)) then
          i_all=-product(shape(cc%m_kt_projch))*kind(cc%m_kt_projch)
          deallocate(cc%m_kt_projch,stat=i_stat)
          call memocc(i_stat,i_all,'cc%m_kt_projch','calc_gkt')
       end if
 
-      if(cc%do_proj=='Q'.or.cc%do_proj=='Y') then
+      if((cc%do_proj=='Q'.or.cc%do_proj=='Y').and.allocated(cc%m_kw_proj)) then
 
          i_all=-product(shape(cc%m_kw_proj))*kind(cc%m_kw_proj)
          deallocate(cc%m_kw_proj,stat=i_stat)
@@ -680,7 +694,7 @@ contains
 
       end if
 
-      if(cc%do_projch=='Q'.or.cc%do_projch=='Y') then
+      if((cc%do_projch=='Q'.or.cc%do_projch=='Y').and.allocated(cc%m_kw_projch)) then
 
          i_all=-product(shape(cc%m_kw_projch))*kind(cc%m_kw_projch)
          deallocate(cc%m_kw_projch,stat=i_stat)

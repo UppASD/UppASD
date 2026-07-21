@@ -178,7 +178,7 @@ module Chelper
       fortran_moment_update,fortran_flush_measurements,FortranData_Initiate,        &
       fortran_calc_simulation_status_variables, fortran_print_measurables,          &
       fortran_print_correlations, fortran_measure_correlations,                     &
-      fortran_measure_rest
+      fortran_measure_rest, fortran_do_correlations
 
 contains
 
@@ -370,6 +370,38 @@ contains
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
            traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
    end subroutine fortran_do_measurements
+
+   !---------------------------------------------------------------------
+   !> @brief
+   !> Report whether the current step is a spin-correlation sampling step.
+   !> Mirrors the internal gating of correlation_wrapper (calc_gk2 for the
+   !> static S(q), calc_gkt for the dynamic S(q,t)) so that FortranCorrelation
+   !> hands emomM to the CPU sampler on exactly the steps it consumes it. The
+   !> measurement cadence (fortran_do_measurements: avrg_step/cumu_step/...) does
+   !> not in general coincide with the correlation cadence (sc_step/sc_sep), so
+   !> the two paths must use separate gates.
+   !---------------------------------------------------------------------
+   subroutine fortran_do_correlations(cmstep, do_copy) bind(C, name="fortran_do_correlations")
+      implicit none
+      integer(c_int), intent(in)  :: cmstep  !< Current simulation step
+      integer(c_int), intent(out) :: do_copy !< Flag if moment must be copied
+
+      do_copy = 0
+      ! Static S(q): sampled every sc_sep steps
+      if (do_sc=='C'.or.do_sc=='Y') then
+         if (sc%sc_sep>0) then
+            if (mod(cmstep-1,sc%sc_sep)==0) do_copy = 1
+         end if
+      end if
+      ! Dynamic S(q,t): sampled every sc_step steps (offset by 1, as in
+      ! correlation_wrapper). correlation_wrapper self-limits on sc_max_nstep,
+      ! so no sc_tidx guard is needed here (and it would race the async queue).
+      if (do_sc=='Q'.or.do_sc=='T'.or.do_sc=='Y') then
+         if (sc%sc_step>0) then
+            if (mod(cmstep-1,sc%sc_step)==1) do_copy = 1
+         end if
+      end if
+   end subroutine fortran_do_correlations
 
 
 

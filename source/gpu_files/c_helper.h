@@ -19,6 +19,7 @@ extern void fortran_print_measurables(const int* obs_step, const int* obs_buff, 
                                       const void* obs_buffer, const int* mstep);
 extern void fortran_measure(const int* mstep);
 extern void fortran_do_measurements(const int* mstep, int* do_copy);
+extern void fortran_do_correlations(const int* mstep, int* do_copy);
 extern void fortran_moment_update();
 extern void fortran_flush_measurements(const int* mstep);
 extern void fortran_print_correlations();
@@ -66,6 +67,15 @@ inline void call_fortran_measure_rest(const fortran_real* emomM, const fortran_r
 inline int call_fortran_do_measurements(int mstep) {
    int do_copy = 0;
    ::fortran_do_measurements(&mstep, &do_copy);
+   return do_copy;
+}
+
+// Checking if the current step is a spin-correlation sampling step. This is a
+// different cadence (sc_step/sc_sep) than the measurement cadence above, so the
+// correlation path must gate on this, not on call_fortran_do_measurements.
+inline int call_fortran_do_correlations(int mstep) {
+   int do_copy = 0;
+   ::fortran_do_correlations(&mstep, &do_copy);
    return do_copy;
 }
 

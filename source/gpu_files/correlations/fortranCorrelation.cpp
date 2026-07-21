@@ -168,8 +168,12 @@ void FortranCorrelation::copyQueueSlow(std::size_t mstep) {
 }
 
 void FortranCorrelation::measure(std::size_t mstep) {
-   // Copy required?
-   bool copy = (alwaysCopy || call_fortran_do_measurements(mstep));
+   // Copy required?  Gate on the spin-correlation cadence (sc_step/sc_sep), NOT
+   // the measurement cadence: correlation_wrapper only accumulates a sample on
+   // its own steps, and those generally never coincide with the averages/traj
+   // steps that call_fortran_do_measurements reports - so the previous gate left
+   // the CPU correlation sampler starved (sc_tidx stayed 0, no S(q,w) output).
+   bool copy = (alwaysCopy || call_fortran_do_correlations(mstep));
 
    if(copy) {
       // Copy and queue

@@ -335,13 +335,20 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    measurement->flushMeasurements(rstep + nstep + 1);  // TODO
    correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
    
-   // Transfer GPU sample count back to Fortran for averaging
-   if (FortranData::sc_nsamp_ptr != nullptr) {
-       *FortranData::sc_nsamp_ptr = gpuSim.cpuCorrelations.sc_nsamp;
-   }
+   // Transfer GPU sample count back to Fortran for averaging. Only when the
+   // correlations were actually computed on the GPU: with CPU correlations
+   // (FortranCorrelation) the Fortran sampler already maintains sc%sc_tidx /
+   // sc%sc_nsamp - and sc_tidx_ptr aliases sc%sc_tidx - so writing the GPU
+   // counters (which stay 0 on this path) would clobber the CPU-accumulated
+   // sample count and suppress all S(q,w) output.
+   if (gpuSim.Flags.do_gpu_correlations) {
+      if (FortranData::sc_nsamp_ptr != nullptr) {
+          *FortranData::sc_nsamp_ptr = gpuSim.cpuCorrelations.sc_nsamp;
+      }
       if (FortranData::sc_tidx_ptr != nullptr) {
          *FortranData::sc_tidx_ptr = gpuSim.cpuCorrelations.sc_tidx;
       }
+   }
    
    stopwatch.add("flush measurement");
 
