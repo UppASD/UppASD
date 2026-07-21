@@ -419,8 +419,12 @@ estimators in `gpu_files/measurement/memoryMeasurement.{h,cpp}`, `gpu_files/gpuT
 **Files:** `gpu_files/gpuSimulation.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp`.
 **Dependency corrected 2026-07-20:** this item read "depends on CV4", but CV4 is the stream/plan
 association audit and does not affect which steps the convolution backend serves. The blocker is
-**CV2 — Energy from the convolved field**, which is still open. M3 is therefore still blocked;
-ticking CV4 does not release it.
+**CV2 — Energy from the convolved field**. **CV2 landed 2026-07-21, so M3 is now unblocked** — the
+convolution backend serves `measure=true` steps (energy reduced from the convolved field), so the
+sparse `nlist/ncoup/dmvect/dmlist` are no longer read on measure steps. Note the residual coupling
+below: for `do_jtensor=0` **with DM** the convolution serves the measure step but only reports the
+combined bilinear energy, so an SD run needing the exch/DM energy *projection* must use
+`do_jtensor=1`; the field/dynamics and total energy are correct either way.
 **Task:** Once CV2 makes the convolution backend serve `measure=true` steps too, SD runs on the convolution backend no longer need `nlist/ncoup/dmvect/dmlist` resident (they're still needed for MC and as fallback). Add a mode where, if the convolution kernel builds successfully, the sparse arrays are freed after kernel construction (they are consumed during `buildIsotropicDmKernel`/`buildTensorKernel`). Keep a flag so a fallback to sparse triggers a clear error instead of touching freed memory.
 **Acceptance:** Large Bravais SD run shows nlist/ncoup absent in the tracker; V2 convolution cases still pass including energy measurement.
 
@@ -666,11 +670,79 @@ a measured accuracy gain. The rest of (a) needs `accum_t`, i.e. PR1, i.e. CM1's
 **Task:** Add `if (BC1!='P' || BC2!='P' || BC3!='P') return false;` (with a printed note that the convolution backend requires full PBC for now). Zero-padding support for open dims is CV6's problem (dipole needs it anyway); don't implement it here.
 **Acceptance:** Open-BC input falls back to the sparse path with a message; a new V2 case (open BC film) passes because it takes the sparse path; full-PBC convolution cases unchanged.
 
-### - [ ] CV2 — Energy from the convolved field  (P1, M)
+### - [x] CV2 — Energy from the convolved field  (P1, M)  — **landed 2026-07-21**
 **Files:** `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`, `gpu_files/gpuHamiltonianCalculations.cpp` (`heisge` dispatch).
 **Background:** `heisge(measure=true)` currently bypasses the convolution backend entirely, so measuring steps pay the sparse cost and the sparse arrays must stay resident (blocks M3).
 **Task:** After `unpack_fft_field`, when `measure`, launch an energy kernel computing per-ensemble `E_exch = −½ Σ_i S_i·B^conv_i` (the convolution field is the bilinear field, so the ½ double-counting factor applies as in the sparse `HeisgeJij` path — verify against `energyM` column conventions), `E_ext = −Σ S·B_ext` (sign per Fortran), plus the on-site anisotropy energy evaluated directly (it is on-site — cheap; note the current convolution kernel folds uniaxial aniso into the q=0 kernel entry via `add_uniaxial_anisotropy_kernel`, which is only valid as a *field*; the energy prefactors differ — evaluate the aniso energy in this kernel from `kaniso/eaniso/taniso` directly and make sure the field-side folding and the energy don't double count; simplest correct arrangement: remove aniso from the convolution kernel and apply aniso field+energy in the unpack/energy kernel on-site). DM energy analogous via the antisymmetric part already in the kernel. Reuse the F1 reduction machinery for the sums.
 **Acceptance:** V2 convolution+energy cases match the sparse-path energies to rtol 1e-10 (fp64) for J, J+DM, J+aniso.
+
+> Done 2026-07-21 (branch `gpu/CV2-conv-energy`). `heisge(measure=true)` now serves the
+> convolution backend: it zeroes `energyM` and calls the convolution `apply()`, which reduces the
+> per-ensemble energy columns directly from the convolved field. No sparse fallback on measure
+> steps — this is what unblocks **M3**.
+>
+> **Tensor framing (design pivot from the original task text).** The FFT kernel is intrinsically a
+> tensor (`fill_isotropic_dm_kernel` puts J on the diagonal and DM on the antisymmetric
+> off-diagonal of the same `cells·9·NA²` `kernel_real`, contracted by the full 3×3
+> `multiply_spectral_kernel`), exactly like the CPU `do_jtensor=1` Hamiltonian, which reports a
+> single combined energy with no exch/DM projection. So the convolution produces one bilinear
+> energy `E = −½ Σ S·B_conv` per ensemble and lands it in the column the CPU uses: **col 0
+> (exchange)** for isotropic exchange, **col 3 (tensor)** for `do_jtensor=1`. This dropped the
+> originally-planned second DM-only kernel + extra inverse FFT entirely.
+>   - *DM projection limitation (agreed as option (b)):* for `do_jtensor=0` **with DM**, the CPU
+>     splits col 0 (exch) / col 2 (dm); the convolution can only report the combined bilinear in
+>     col 0 (col 2 stays 0). **Total energy (col 5) is still correct.** Run such systems as
+>     `do_jtensor=1` (assemble the tensor from jfile+dmfile via `calc_jtensor=.true.`) for a matching
+>     per-column split. Flagged in the `heisge` comment.
+>
+> **Anisotropy de-folded (as the task recommended).** `add_uniaxial_anisotropy_kernel` is gone;
+> `build*Kernel` no longer touch aniso. On-site anisotropy (field → `beff`, energy-prefactor →
+> `eneff` and → col 1) is now evaluated in the new `unpack_and_energy` kernel, replicating the
+> sparse `Heisge` aniso block verbatim — for **all** steps, so the non-measure field path went
+> on-site too (validated by `bcc_convolution` staying bitwise-identical). This also lifted the old
+> kernel-folding restriction (uniaxial `k2==0` only); cubic and full uniaxial now work on-site.
+>
+> **Energy reduction.** New `unpack_and_energy` kernel, one thread per atom, ensembles padded to a
+> `WARPSIZE` multiple so each warp is single-ensemble; warp-reduce + per-warp `atomicAdd` into
+> `energyM` (mirrors the F1-fixed sparse pattern, no divergent-sync/stale-shared hazards). No new
+> persistent device buffers, so the M1 estimator is unaffected.
+>
+> **Bug found and fixed while validating (on-site anisotropy energy factor).** Both the sparse
+> `Heisge` (`gpuHamiltonianCalculations.cpp:350`) and this new kernel applied the bilinear ½
+> double-counting factor to the on-site anisotropy energy, yielding **exactly half** the Fortran
+> `calc_energy` reference (e.g. bccFe+uniaxial: GPU `Ani −0.004` vs Fortran `−0.008`). On-site terms
+> are not pairwise, so the factor is `−1.0`, not `−0.5` (verified for uniaxial and cubic — the
+> `ax_en` prefactors are built so `E_ani = −(a_en·S)`). Fixed in **both** paths so sparse and
+> convolution now match Fortran. No previously-passing case exercised GPU SD anisotropy energy, so
+> the bug was latent.
+>
+> **Second bug fixed (duplicate `totenergy` series with `do_gpu_measurements=N`).**
+> `FortranCorrelation::measure` pushed an empty placeholder via the parameterless
+> `MeasurementQueue::push(mstep)`, whose default type is `MeasurementType::Moment`. On the queue
+> shared with `FortranMeasurement` this routed every non-sampling step through
+> `fortran_measure_moment` → `measure()`/`calc_energy`, printing a **second** `totenergy` series on
+> top of the one `FortranMeasurement` already produces (the "double header" that made
+> `bcc_scalar`/`bcc_convolution` fail the row-count check). Fixed by enqueueing nothing on
+> non-sampling correlation steps (`correlation_wrapper` only needs the sampling steps, already
+> handled by the copy branch). This is what "makes the comparisons work" for the non-GPU-measurement
+> cases.
+>
+> **Validation.** Regression **12 PASS / 1 FAIL** on `cuda-debug` (the 1 FAIL is the pre-existing
+> `sc_dm_uniaxial` CPU-side Fortran `read_exchange` bounds error, untouched). Energy columns are
+> bitwise-identical (`abs=0`) CPU-vs-GPU. Two new cases:
+> `bcc_convolution_gpu_measurements` (J, col 0) and `bcc_aniso_convolution_gpu_measurements`
+> (J+aniso, cols 0/1; new `tests/bccFe_cuda_aniso` fixture, NA=2 uniaxial). compute-sanitizer on the
+> convolution+measure path: **0** across racecheck / memcheck / initcheck / synccheck. CUDA only;
+> **HIP unvalidated (no AMD hardware)** — the new kernel and `apply()` compile for HIP but were not
+> run.
+>
+> **Not covered by the harness:** a `do_jtensor=1` convolution+measurement case. The GpuMeasurement
+> C++ `totenergy` writer emits an extra `SA` column that the CPU `do_jtensor=1` format omits (CPU 11
+> vs GPU 12 energy columns → value-count mismatch), a **pre-existing writer discrepancy unrelated to
+> CV2**. The tensor energy path (col 3) was instead validated directly: GPU convolution vs GPU
+> sparse tensor energy are identical (`Heis-Tens −5.54208979 / −6.05988123 / −6.56080299`), and the
+> path is the same code as the bitwise-validated isotropic path with only the target column index
+> changed.
 
 ### - [x] CV3 — R2C/C2R transforms  (P1, M)  — **verified landed 2026-07-20**
 **Files:** `gpu_files/gpuLatticeConvolutionHamiltonian.cpp`, `gpu_files/gpuFftWrapper.hpp`.

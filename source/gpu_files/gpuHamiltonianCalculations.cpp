@@ -347,7 +347,12 @@ public:
          real interaction = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
          if constexpr (HasDM) interaction = ((x - dm_x) * Sx + (y - dm_y) * Sy + (z - dm_z) * Sz) * (real)-0.5;
          real dm_energy = (dm_x * Sx + dm_y * Sy + dm_z * Sz) * (real)-0.5;
-         real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+         // On-site anisotropy is not a pairwise term, so it must NOT carry the 1/2
+         // double-counting factor used for the bilinear exchange/DM sums; the ax_en
+         // prefactors are built so E_ani = -(a_en . S) (verified for uniaxial and
+         // cubic against the Fortran calc_energy convention). Using -0.5 here yielded
+         // exactly half the reference anisotropy energy.
+         real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-1.0;
          real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
          sum_warp_energy(interaction);
          if constexpr (HasDM) sum_warp_energy(dm_energy);
@@ -556,8 +561,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          if(backend.convolution_ready) {
             backend.convolution_kernel_ready =
                convolution.buildTensorKernel(tenEx.tensor, tenEx.neighbourPos, tenEx.mnn,
-                                             aniso.kaniso, aniso.eaniso, aniso.taniso,
-                                             do_aniso != 0, parallel.getWorkStream());
+                                             parallel.getWorkStream());
             if(backend.convolution_kernel_ready) {
                backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
             }
@@ -628,8 +632,7 @@ else{
          backend.convolution_kernel_ready =
             convolution.buildIsotropicDmKernel(ex.coupling, ex.neighbourPos, ex.mnn,
                                                dm.interaction, dm.neighbourPos, dm.mnn,
-                                               do_dm, aniso.kaniso, aniso.eaniso, aniso.taniso,
-                                               do_aniso != 0, parallel.getWorkStream());
+                                               do_dm, parallel.getWorkStream());
          if(backend.convolution_kernel_ready) {
             backend.exchange = GpuHamiltonianBackend::LatticeConvolution;
             backend.dmi = do_dm ? GpuHamiltonianBackend::LatticeConvolution : GpuHamiltonianBackend::DirectSparse;
@@ -649,11 +652,33 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
                                         bool measure, bool includeAnisotropy) {
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
-   // The FFT backend produces fields only. Energy reductions use the sparse
-   // kernels below, so their Hamiltonian buffers must remain resident even
-   // when convolution is selected for ordinary field evaluations.
-   if(!measure && backend.convolution_ready && backend.convolution_kernel_ready) {
-      convolution.apply(gpuLattice, external_field, parallel.getWorkStream());
+   // The FFT convolution backend serves both field-only and measuring steps
+   // (CV2). On measure steps it reduces energyM directly from the convolved
+   // field: the bilinear (exchange+DM) energy lands in the exchange column for
+   // isotropic exchange or the tensor column for do_jtensor, matching the CPU
+   // convention. On-site anisotropy and external are added in the unpack kernel.
+   // Note: for isotropic exchange WITH DM the exchange/DM projection is not
+   // separated (col 0 carries the combined bilinear energy, col 2 stays 0); the
+   // total (col 5) is still correct. Run such systems as do_jtensor=1 for a
+   // matching per-column split.
+   if(backend.convolution_ready && backend.convolution_kernel_ready) {
+      GpuLatticeConvolutionAnisotropy anis{};
+      if(do_aniso != 0) {
+         anis.kaniso = aniso.kaniso.data();
+         anis.eaniso = aniso.eaniso.data();
+         anis.taniso = aniso.taniso.data();
+         anis.sb = aniso.sb.data();
+         anis.present = true;
+      }
+      const unsigned int energy_col = do_j_tensor ? 3u : 0u;
+      if(measure) {
+         gpuEnergies.energyM.zeros_async(parallel.getWorkStream());
+         convolution.apply(gpuLattice, external_field, anis, includeAnisotropy, &gpuEnergies,
+                           energy_col, parallel.getWorkStream());
+      } else {
+         convolution.apply(gpuLattice, external_field, anis, includeAnisotropy, nullptr,
+                           energy_col, parallel.getWorkStream());
+      }
       return;
    }
 

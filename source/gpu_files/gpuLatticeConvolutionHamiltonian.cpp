@@ -285,64 +285,128 @@ __global__ void fill_tensor_kernel(real* __restrict__ kernel_real,
    atomicAdd(&kernel_real[cell + grid_size * kernel_component], j);
 }
 
-__global__ void add_uniaxial_anisotropy_kernel(real* __restrict__ kernel_real,
-                                               const real* __restrict__ anisotropy_k,
-                                               const real* __restrict__ anisotropy_axis,
-                                               const unsigned int* __restrict__ anisotropy_type,
-                                               unsigned int grid_size,
-                                               unsigned int basis_count,
-                                               unsigned int* __restrict__ unsupported) {
-   const unsigned int basis = blockIdx.x * blockDim.x + threadIdx.x;
-   if(basis >= basis_count) return;
-
-   const unsigned int type = anisotropy_type[basis];
-   const real k1 = anisotropy_k[0 + 2 * basis];
-   const real k2 = anisotropy_k[1 + 2 * basis];
-   if(type == 0) return;
-   if(type != 1 || k2 != (real)0.0) {
-      *unsupported = 1;
-      return;
-   }
-
-   const real ex = anisotropy_axis[0 + 3 * basis];
-   const real ey = anisotropy_axis[1 + 3 * basis];
-   const real ez = anisotropy_axis[2 + 3 * basis];
-   const real pref = (real)-2.0 * k1;
-   const real e[3] = {ex, ey, ez};
-
-   for(unsigned int axis_out = 0; axis_out < 3; ++axis_out) {
-      for(unsigned int axis_in = 0; axis_in < 3; ++axis_in) {
-         const unsigned int kernel_component = axis_out + 3 * (axis_in + 3 * (basis + basis_count * basis));
-         atomicAdd(&kernel_real[grid_size * kernel_component], pref * e[axis_out] * e[axis_in]);
-      }
+__device__ inline void conv_warp_reduce(real& val) {
+#pragma unroll
+   for(int offset = WARPSIZE / 2; offset > 0; offset >>= 1) {
+      val += SHFL_DOWN(val, offset);
    }
 }
 
-__global__ void unpack_real_field(const real* __restrict__ field_real,
-                                 const real* __restrict__ ext_f,
-                                 real* __restrict__ beff,
-                                 real* __restrict__ eneff,
-                                 unsigned int grid_size,
-                                 unsigned int basis_count,
-                                 unsigned int ensembles,
-                                 real scale) {
-   const unsigned int total = grid_size * basis_count * ensembles * 3;
-   const unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
-   if(id >= total) return;
+// Unpack the convolved bilinear field into beff/eneff (adding the external field
+// and on-site anisotropy) and, when energyM != nullptr, reduce the per-ensemble
+// energy columns. One thread per atom; threads are laid out as
+// ensemble * padded + local with padded a multiple of WARPSIZE, so every warp
+// belongs to a single ensemble and the warp-reduced partials can be atomically
+// added into energyM(ensemble, col). The anisotropy block mirrors the sparse
+// GpuHamiltonianCalculations::Heisge functor verbatim (field prefactor 2*k1 into
+// beff, energy prefactor k1 into eneff and the energy sum).
+__global__ void unpack_and_energy(const real* __restrict__ field_real,
+                                  const real* __restrict__ ext_f,
+                                  const real* __restrict__ emomM,
+                                  real* __restrict__ beff,
+                                  real* __restrict__ eneff,
+                                  unsigned int grid_size,
+                                  unsigned int basis_count,
+                                  unsigned int ensembles,
+                                  unsigned int padded,
+                                  real scale,
+                                  const real* __restrict__ kaniso,
+                                  const real* __restrict__ eaniso,
+                                  const unsigned int* __restrict__ taniso,
+                                  const real* __restrict__ sb,
+                                  bool has_aniso,
+                                  real* __restrict__ energyM,
+                                  unsigned int M,
+                                  unsigned int energy_col) {
+   const unsigned int atoms_per_ens = grid_size * basis_count;
+   const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+   const unsigned int ensemble = tid / padded;
+   const unsigned int local = tid - ensemble * padded;
+   const bool active = (ensemble < ensembles) && (local < atoms_per_ens);
 
-   const unsigned int k = id % grid_size;
-   const unsigned int component = id / grid_size;
-   const unsigned int axis = component % 3;
-   const unsigned int basis = (component / 3) % basis_count;
-   const unsigned int ensemble = component / (3 * basis_count);
-   const unsigned int atoms = grid_size * basis_count;
-   const unsigned int atom = ensemble * atoms + k * basis_count + basis;
-   const unsigned int element = atom * 3 + axis;
-   const unsigned int field_id = k + grid_size * component;
-   const real value = field_real[field_id] * scale + ext_f[element];
+   real bilinear = (real)0.0;  // -1/2 S . B_conv (exchange + DM)
+   real aniso_en = (real)0.0;  // -1/2 S . a_en   (on-site anisotropy)
+   real external = (real)0.0;  //       S . ext
 
-   beff[element] = value;
-   eneff[element] = value;
+   if(active) {
+      const unsigned int k = local / basis_count;  // cell
+      const unsigned int basis = local - k * basis_count;
+      const unsigned int site = local;  // per-ensemble site index (NH == NA)
+      const unsigned int atom = ensemble * atoms_per_ens + local;
+      const unsigned int comp_base = 3 * (basis + basis_count * ensemble);
+
+      const real Bx = field_real[k + grid_size * (0 + comp_base)] * scale;
+      const real By = field_real[k + grid_size * (1 + comp_base)] * scale;
+      const real Bz = field_real[k + grid_size * (2 + comp_base)] * scale;
+
+      const real Sx = emomM[atom * 3 + 0];
+      const real Sy = emomM[atom * 3 + 1];
+      const real Sz = emomM[atom * 3 + 2];
+      const real ex_x = ext_f[atom * 3 + 0];
+      const real ex_y = ext_f[atom * 3 + 1];
+      const real ex_z = ext_f[atom * 3 + 2];
+
+      real ax = (real)0.0, ay = (real)0.0, az = (real)0.0;           // aniso field
+      real ax_en = (real)0.0, ay_en = (real)0.0, az_en = (real)0.0;  // aniso energy prefactor
+      if(has_aniso) {
+         const unsigned int type = taniso[site];
+         const real e0 = eaniso[site * 3 + 0];
+         const real e1 = eaniso[site * 3 + 1];
+         const real e2 = eaniso[site * 3 + 2];
+         const real k1 = kaniso[site * 2 + 0];
+         const real k2 = kaniso[site * 2 + 1];
+         if(type == 1 || type == 7) {
+            const real tt1 = Sx * e0 + Sy * e1 + Sz * e2;
+            const real tt3 = (real)2.0 * tt1 * (k1 + (real)2.0 * k2 * ((real)1.0 - tt1 * tt1));
+            const real tt3_en = tt1 * (k1 + k2 * ((real)2.0 - tt1 * tt1));
+            ax -= tt3 * e0; ay -= tt3 * e1; az -= tt3 * e2;
+            ax_en -= tt3_en * e0; ay_en -= tt3_en * e1; az_en -= tt3_en * e2;
+         }
+         if(type == 2 || type == 7) {
+            real k1c = k1;
+            real k2c = k2;
+            if(type == 7) { k1c *= sb[site]; k2c *= sb[site]; }
+            ax += (real)2.0 * k1c * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 * k2c * Sx * Sy * Sy * Sz * Sz;
+            ay += (real)2.0 * k1c * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2c * Sy * Sz * Sz * Sx * Sx;
+            az += (real)2.0 * k1c * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2c * Sz * Sx * Sx * Sy * Sy;
+            ax_en += k1c * Sx * (Sy * Sy + Sz * Sz) / (real)2.0 + k2c * Sx * Sy * Sy * Sz * Sz / (real)3.0;
+            ay_en += k1c * Sy * (Sz * Sz + Sx * Sx) / (real)2.0 + k2c * Sy * Sz * Sz * Sx * Sx / (real)3.0;
+            az_en += k1c * Sz * (Sx * Sx + Sy * Sy) / (real)2.0 + k2c * Sz * Sx * Sx * Sy * Sy / (real)3.0;
+         }
+      }
+
+      beff[atom * 3 + 0] = Bx + ax + ex_x;
+      beff[atom * 3 + 1] = By + ay + ex_y;
+      beff[atom * 3 + 2] = Bz + az + ex_z;
+      eneff[atom * 3 + 0] = Bx + ax_en + ex_x;
+      eneff[atom * 3 + 1] = By + ay_en + ex_y;
+      eneff[atom * 3 + 2] = Bz + az_en + ex_z;
+
+      if(energyM) {
+         bilinear = (Bx * Sx + By * Sy + Bz * Sz) * (real)-0.5;
+         // On-site anisotropy carries no 1/2 double-counting factor (unlike the
+         // bilinear exchange/DM term above); match the sparse Heisge energy path.
+         aniso_en = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-1.0;
+         external = ex_x * Sx + ex_y * Sy + ex_z * Sz;
+      }
+   }
+
+   if(energyM) {
+      conv_warp_reduce(bilinear);
+      conv_warp_reduce(aniso_en);
+      conv_warp_reduce(external);
+      if((threadIdx.x & (WARPSIZE - 1)) == 0 && ensemble < ensembles) {
+         const real inv = (real)1.0 / static_cast<real>(atoms_per_ens);
+         bilinear *= inv;
+         aniso_en *= inv;
+         external *= inv;
+         const real total = bilinear + aniso_en + external;
+         atomicAdd(&energyM[ensemble + M * energy_col], bilinear);
+         if(has_aniso) atomicAdd(&energyM[ensemble + M * 1], aniso_en);
+         atomicAdd(&energyM[ensemble + M * 4], external);
+         atomicAdd(&energyM[ensemble + M * 5], total);
+      }
+   }
 }
 
 } // namespace
@@ -498,10 +562,6 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
                                                               const GpuTensor<unsigned int, 2>& dm_pos,
                                                               unsigned int dm_mnn,
                                                               bool include_dm,
-                                                              const GpuTensor<real, 2>& anisotropy_k,
-                                                              const GpuTensor<real, 2>& anisotropy_axis,
-                                                              const GpuTensor<unsigned int, 1>& anisotropy_type,
-                                                              bool include_uniaxial_anisotropy,
                                                               GPU_STREAM_T stream) {
    if(!initiated) return false;
 
@@ -543,28 +603,8 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
                                                                total);
    }
 
-   if(include_uniaxial_anisotropy) {
-      GpuTensor<unsigned int, 1> unsupported;
-      unsupported.Allocate(static_cast<long int>(1));
-      unsupported.zeros_async(stream);
-      const dim3 blocks((desc.basis + threads - 1) / threads);
-      add_uniaxial_anisotropy_kernel<<<blocks, threads, 0, stream>>>(kernel_real.data(),
-                                                                     anisotropy_k.data(),
-                                                                     anisotropy_axis.data(),
-                                                                     anisotropy_type.data(),
-                                                                     desc.cells(),
-                                                                     desc.basis,
-                                                                     unsupported.data());
-      ASSERT_GPU(GPU_STREAM_SYNC(stream));
-      unsigned int host_unsupported = 0;
-      ASSERT_GPU(GPU_MEMCPY(&host_unsupported, unsupported.data(), sizeof(unsigned int),
-                            GPU_MEMCPY_DEVICE_TO_HOST));
-      unsupported.Free();
-      if(host_unsupported != 0) {
-         return false;
-      }
-   }
-
+   // Anisotropy is intentionally NOT folded into the spectral kernel; it is an
+   // on-site, biquadratic term handled directly in the unpack/energy kernel.
    assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
    return true;
 }
@@ -572,10 +612,6 @@ bool GpuLatticeConvolutionHamiltonian::buildIsotropicDmKernel(const GpuTensor<re
 bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4>& exchange_tensor,
                                                          const GpuTensor<unsigned int, 2>& exchange_pos,
                                                          unsigned int exchange_mnn,
-                                                         const GpuTensor<real, 2>& anisotropy_k,
-                                                         const GpuTensor<real, 2>& anisotropy_axis,
-                                                         const GpuTensor<unsigned int, 1>& anisotropy_type,
-                                                         bool include_uniaxial_anisotropy,
                                                          GPU_STREAM_T stream) {
    if(!initiated || exchange_mnn == 0) return false;
 
@@ -607,33 +643,17 @@ bool GpuLatticeConvolutionHamiltonian::buildTensorKernel(const GpuTensor<real, 4
                                                     desc.basis,
                                                     geom,
                                                     interaction_rij.data());
-   if(include_uniaxial_anisotropy) {
-      GpuTensor<unsigned int, 1> unsupported;
-      unsupported.Allocate(static_cast<long int>(1));
-      unsupported.zeros_async(stream);
-      const dim3 ani_grid((desc.basis + threads - 1) / threads);
-      add_uniaxial_anisotropy_kernel<<<ani_grid, threads, 0, stream>>>(kernel_real.data(),
-                                                                       anisotropy_k.data(),
-                                                                       anisotropy_axis.data(),
-                                                                       anisotropy_type.data(),
-                                                                       desc.cells(),
-                                                                       desc.basis,
-                                                                       unsupported.data());
-      ASSERT_GPU(GPU_STREAM_SYNC(stream));
-      unsigned int host_unsupported = 0;
-      ASSERT_GPU(GPU_MEMCPY(&host_unsupported, unsupported.data(), sizeof(unsigned int),
-                            GPU_MEMCPY_DEVICE_TO_HOST));
-      unsupported.Free();
-      if(host_unsupported != 0) {
-         return false;
-      }
-   }
+   // Anisotropy handled on-site in the unpack/energy kernel (see buildIsotropicDmKernel).
    assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
    return true;
 }
 
 void GpuLatticeConvolutionHamiltonian::apply(deviceLattice& gpuLattice,
                                              const GpuTensor<real, 3>& external_field,
+                                             const GpuLatticeConvolutionAnisotropy& anisotropy,
+                                             bool includeAnisotropy,
+                                             deviceEnergies* energies,
+                                             unsigned int energy_col,
                                              GPU_STREAM_T stream) {
    if(!initiated) return;
 
@@ -656,7 +676,19 @@ void GpuLatticeConvolutionHamiltonian::apply(deviceLattice& gpuLattice,
    assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, field_fft.data(), field_real.data()));
 
    const real scale = (real)1.0 / static_cast<real>(grid_size);
-   unpack_real_field<<<packed_grid, threads, 0, stream>>>(field_real.data(), external_field.data(),
-                                                         gpuLattice.beff.data(), gpuLattice.eneff.data(),
-                                                         grid_size, desc.basis, desc.ensembles, scale);
+   const bool has_aniso = anisotropy.present && includeAnisotropy;
+   real* energyM = energies ? energies->energyM.data() : nullptr;
+   const unsigned int M = desc.ensembles;
+
+   // One thread per atom, ensembles padded to a WARPSIZE multiple so each warp
+   // stays within a single ensemble (needed for the warp-reduced energy sums).
+   const unsigned int atoms_per_ens = grid_size * desc.basis;
+   const unsigned int padded = ((atoms_per_ens + WARPSIZE - 1) / WARPSIZE) * WARPSIZE;
+   const unsigned int energy_total = padded * desc.ensembles;
+   const dim3 energy_grid((energy_total + threads - 1) / threads);
+   unpack_and_energy<<<energy_grid, threads, 0, stream>>>(
+       field_real.data(), external_field.data(), gpuLattice.emomM.data(),
+       gpuLattice.beff.data(), gpuLattice.eneff.data(), grid_size, desc.basis, desc.ensembles,
+       padded, scale, anisotropy.kaniso, anisotropy.eaniso, anisotropy.taniso, anisotropy.sb,
+       has_aniso, energyM, M, energy_col);
 }

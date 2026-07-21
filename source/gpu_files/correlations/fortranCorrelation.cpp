@@ -182,10 +182,16 @@ void FortranCorrelation::measure(std::size_t mstep) {
       } else {
          copyQueueSlow(mstep);
       }
-   } else {
-      // Push empty measurement
-      correlationQueue.push(mstep);
    }
+   // No else: on non-sampling steps the correlation path must enqueue nothing.
+   // The queue is shared with FortranMeasurement, and the parameterless
+   // MeasurementQueue::push(mstep) overload defaults to MeasurementType::Moment.
+   // Pushing it here routed every non-sampling step through
+   // processMomentMeasurement -> fortran_measure_moment -> measure()/calc_energy,
+   // printing a *second* totenergy series on top of the one FortranMeasurement
+   // already produces (the "double header" seen with do_gpu_measurements=N).
+   // correlation_wrapper only needs to run on sampling steps, which the copy
+   // branch above already handles.
 }
 
 void FortranCorrelation::flushCorrelations(hostCorrelations& cpuCorrelations, std::size_t mstep) {

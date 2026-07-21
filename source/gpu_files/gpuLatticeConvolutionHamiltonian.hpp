@@ -36,6 +36,20 @@ struct GpuLatticeConvolutionDescriptor {
    }
 };
 
+// On-site anisotropy, evaluated directly in the unpack/energy kernel rather than
+// folded into the spectral exchange kernel. Kept out of the tensor because the
+// on-site anisotropy is biquadratic: its field prefactor (2*k1) differs from its
+// energy prefactor (k1), so folding it into the (bilinear) convolution kernel
+// would corrupt the exchange energy. Raw device pointers mirror the sparse
+// GpuHamiltonianCalculations::Heisge indexing (per site: kaniso[2], eaniso[3]).
+struct GpuLatticeConvolutionAnisotropy {
+   const real* kaniso = nullptr;
+   const real* eaniso = nullptr;
+   const unsigned int* taniso = nullptr;
+   const real* sb = nullptr;
+   bool present = false;
+};
+
 class GpuLatticeConvolutionHamiltonian {
 public:
    GpuLatticeConvolutionHamiltonian();
@@ -59,22 +73,23 @@ public:
                                const GpuTensor<unsigned int, 2>& dm_pos,
                                unsigned int dm_mnn,
                                bool include_dm,
-                               const GpuTensor<real, 2>& anisotropy_k,
-                               const GpuTensor<real, 2>& anisotropy_axis,
-                               const GpuTensor<unsigned int, 1>& anisotropy_type,
-                               bool include_uniaxial_anisotropy,
                                GPU_STREAM_T stream);
 
    bool buildTensorKernel(const GpuTensor<real, 4>& exchange_tensor,
                           const GpuTensor<unsigned int, 2>& exchange_pos,
                           unsigned int exchange_mnn,
-                          const GpuTensor<real, 2>& anisotropy_k,
-                          const GpuTensor<real, 2>& anisotropy_axis,
-                          const GpuTensor<unsigned int, 1>& anisotropy_type,
-                          bool include_uniaxial_anisotropy,
                           GPU_STREAM_T stream);
 
-   void apply(deviceLattice& gpuLattice, const GpuTensor<real, 3>& external_field, GPU_STREAM_T stream);
+   // Evaluate the convolution field into gpuLattice.beff/eneff (adding the
+   // external field and on-site anisotropy). When energies != nullptr the same
+   // kernel also reduces the per-ensemble energy columns of energyM: the bilinear
+   // (exchange+DM) energy into column energy_col (0 for isotropic exchange, 3 for
+   // tensor exchange, matching the CPU do_jtensor convention), plus the on-site
+   // anisotropy (col 1), external (col 4) and total (col 5). The caller must have
+   // zeroed energyM beforehand.
+   void apply(deviceLattice& gpuLattice, const GpuTensor<real, 3>& external_field,
+              const GpuLatticeConvolutionAnisotropy& anisotropy, bool includeAnisotropy,
+              deviceEnergies* energies, unsigned int energy_col, GPU_STREAM_T stream);
 
 private:
    GpuLatticeConvolutionDescriptor desc;

@@ -16,6 +16,7 @@
     {"name": "bcc_convolution", "fixture": "tests/bccFe_cuda", "overrides": {"do_gpu_convolution": "Y"}},
     {"name": "bcc_scalar_gpu_measurements", "fixture": "tests/bccFe_cuda", "gpu_overrides": {"do_gpu_measurements": "Y"}, "overrides": {"ene_step" : "100"}},
     {"name": "bcc_convolution_gpu_measurements", "fixture": "tests/bccFe_cuda", "overrides": {"do_gpu_convolution": "Y"}, "gpu_overrides": {"do_gpu_measurements": "Y"}},
+    {"name": "bcc_aniso_convolution_gpu_measurements", "fixture": "tests/bccFe_cuda_aniso", "overrides": {"do_gpu_convolution": "Y"}, "gpu_overrides": {"do_gpu_measurements": "Y"}},
     {"name": "bcc_mc", "fixture": "tests/bccFe_cuda", "steps": 100, "compare": [], "restart_finite": true,
      "overrides": {"mode": "M", "mcnstep": "100", "do_gpu_mc": "Y"}},
     {"name": "single_spin_mc_uniaxial_easy_axis", "fixture": "tests/gpu_single_spin_uniaxial", "steps": 1000, "compare": [], "minimum_abs_mz": 0.99,
