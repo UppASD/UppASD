@@ -158,7 +158,7 @@ contains
       ! Macro cell calculation of the dipole-dipole field
       else if (do_dip==2) then
 
-         !$omp parallel do default(shared) schedule(static) private(ii,kk,energy) collapse(2)
+         !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2) reduction(+:energy)
          do kk=1, Mensemble
             do ii=start_atom, stop_atom
                ! Macro cell dipolar field
@@ -274,8 +274,10 @@ contains
 #if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
 !         !$omp simd reduction(+:field)
 #endif
-      ! Contribution from the other macrocells
+      ! Contribution from the other macrocells.  The diagonal tensor is added
+      ! once below as the self-demagnetizing contribution.
       do jj=1, Num_macro
+         if (jj == icell) cycle
          field(:)=field(:)+Qdip_macro(1,:,jj,icell)*emomM_macro(1,jj,k)&
          +Qdip_macro(2,:,jj,icell)*emomM_macro(2,jj,k)&
          +Qdip_macro(3,:,jj,icell)*emomM_macro(3,jj,k)

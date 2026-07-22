@@ -115,7 +115,8 @@ contains
                do I3=0,N3_pad-1
                   do I2=0,N2_pad-1
                      do I1=0,N1_pad-1
-                        ii=1+I1+I2*N1_pad+I3*N2_pad*N3_pad
+                        ! Flattened padded-grid index: x is contiguous, then y, then z.
+                        ii=1+I1+I2*N1_pad+I3*N1_pad*N2_pad
                         tmp_vec(:,ii)=matmul(DipMat_trans(:,:,I0,IA,ii),emomM_trans(:,IA,ii,kk))
                      enddo
                   enddo
