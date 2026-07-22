@@ -232,7 +232,7 @@ public:
 
 // ConstructoruDepondtIntegrator
 GpuDepondtIntegrator::GpuDepondtIntegrator()
-    : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator")),
+    : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator"), ParallelizationHelperInstance.getWorkStream()),
       parallel(ParallelizationHelperInstance) {
 }
 

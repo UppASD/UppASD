@@ -55,7 +55,7 @@ module Chelper
    interface
       subroutine FortranData_setFlags(do_dm, do_jtensor, do_anisotropy, do_avrg, do_proj_avrg, do_projch_avrg, &
             do_cumu, do_cumu_proj, plotenergy, do_autocorr, do_tottraj, ntraj, do_gpu_measurements, skyno, &
-            do_sc, do_gpu_correlations, real_time_measure, do_sc_proj, do_sc_projch, do_ralloy) &
+            do_sc, do_gpu_correlations, do_gpu_timings, real_time_measure, do_sc_proj, do_sc_projch, do_ralloy) &
             bind(C, name="fortrandata_setflags_")
          import :: c_int, c_char
          integer(c_int), intent(inout) :: do_dm, do_jtensor, do_anisotropy
@@ -64,7 +64,7 @@ module Chelper
          integer(c_int), intent(inout) :: plotenergy
          character(c_char), intent(inout) :: do_autocorr, do_tottraj
          integer(c_int), intent(inout) :: ntraj
-         character(c_char), intent(inout) :: do_gpu_measurements, skyno, do_sc, do_gpu_correlations
+         character(c_char), intent(inout) :: do_gpu_measurements, skyno, do_sc, do_gpu_correlations, do_gpu_timings
          character(c_char), intent(inout) :: real_time_measure, do_sc_proj, do_sc_projch
          integer(c_int), intent(inout) :: do_ralloy
       end subroutine FortranData_setFlags
@@ -544,7 +544,7 @@ contains
 
       call FortranData_setFlags(ham_inp%do_dm, ham_inp%do_jtensor, ham_inp%do_anisotropy, &
            do_avrg, do_proj_avrg, do_projch_avrg, do_cumu, do_cumu_proj, plotenergy, do_autocorr, do_tottraj, ntraj, &
-           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, real_time_measure, &
+           do_gpu_measurements, skyno, do_sc, do_gpu_correlations, do_gpu_timings, real_time_measure, &
            cc%do_proj, cc%do_projch, do_ralloy)
 
       call FortranData_setConstants(stt,SDEalgh,rstep,nstep,Natom,Mensemble, &

@@ -35,7 +35,7 @@ FortranMeasurement::FortranMeasurement(const GpuTensor<real, 3>& p1, const GpuTe
       measurementQueue(mq),
       fastCopy(p7),
       alwaysCopy(p8),
-      stopwatch(GlobalStopwatchPool::get("Fortran measurement")),
+      stopwatch(GlobalStopwatchPool::get("Fortran measurement"), ParallelizationHelperInstance.getWorkStream()),
       parallel( ParallelizationHelperInstance) {
 #ifdef NVPROF
    nvtxNameOsThread(pthread_self(), "MAIN_THREAD");
@@ -99,12 +99,12 @@ void FortranMeasurement::queueMeasurement(std::size_t mstep) {
 
 // Fast copy and measurement queueing (D -> D, D -> H (async), H -> H)
 void FortranMeasurement::copyQueueFast(std::size_t mstep) {
-   // Timing
-   stopwatch.skip();
-
    // Streams
    GPU_STREAM_T workStream = parallel.getWorkStream();
    GPU_STREAM_T copyStream = parallel.getCopyStream();
+
+   // Timing
+   stopwatch.skip(copyStream);
 
    // Create new events
    GpuEventPool::Event& workDone = eventPool.get();
@@ -120,7 +120,7 @@ void FortranMeasurement::copyQueueFast(std::size_t mstep) {
    tmp_emom.copy_async(emom, copyStream);
    tmp_mmom.copy_async(mmom, copyStream);
    GPU_EVENT_RECORD(copyDone.event(), copyStream);
-   stopwatch.add("fast - D2D");
+   stopwatch.add("fast - D2D", copyStream);
 
    // Then write to host in copy stream (asynchronously with work stream)
 
@@ -142,7 +142,7 @@ void FortranMeasurement::copyQueueFast(std::size_t mstep) {
 // Slow copying (D -> H)
 void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
    // Timing
-   stopwatch.skip();
+   stopwatch.skip(static_cast<GPU_STREAM_T>(0));
 
    // The D2H copies below run on the default stream. Under legacy default-stream
    // semantics that implicitly waits for workStream; with --default-stream
@@ -160,7 +160,7 @@ void FortranMeasurement::copyQueueSlow(std::size_t mstep) {
    // emomM.write(FortranData::emomM);
    // emom.write(FortranData::emom);
    // mmom.write(FortranData::mmom);
-   stopwatch.add("slow - D2H copy");
+   stopwatch.add("slow - D2H copy", static_cast<GPU_STREAM_T>(0));
 
    // Queue measurement
    measurementQueue.push(mstep, fortran_emomM.data(), fortran_emom.data(), fortran_mmom.data(), mmom.size());

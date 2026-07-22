@@ -279,6 +279,7 @@ module InputData
    character(len=1) :: do_gpu_measurements   !< Do measurements on GPU (Y/N)
    character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
    character(len=1) :: do_gpu_convolution     !< Use FFT convolution Hamiltonian on GPU when supported (Y/N)
+   character(len=1) :: do_gpu_timings     !< GPU timing mode: N=off, C=coarse totals, Y=detailed
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -542,6 +543,7 @@ contains
       do_gpu_measurements = 'Y'
       do_gpu_correlations = 'N'
       do_gpu_convolution = 'N'
+      do_gpu_timings = 'N'
 
 
       ! I/O OVF

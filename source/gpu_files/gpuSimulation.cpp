@@ -40,6 +40,10 @@ GpuSimulation::~GpuSimulation() {
 void GpuSimulation::initiateConstants() {
    //printf("HERE - 0\n");
 
+    // Read the Fortran input once per GPU-simulation initialization.  The
+    // instrumentation sites then only test this cached C++ boolean.
+    Stopwatch::setTimingMode(FortranData::do_gpu_timings ? *FortranData::do_gpu_timings : 'N');
+
     SimParam.SDEalgh = *FortranData::SDEalgh;
     if(!(SimParam.SDEalgh == 1 || SimParam.SDEalgh == 4 || SimParam.SDEalgh == 5 || SimParam.SDEalgh == 11)) {
         std::fprintf(stderr, "Invalid SDEalgh!\n");

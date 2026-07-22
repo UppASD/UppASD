@@ -65,11 +65,11 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
       return;
    }
 
-   // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Gpu initial phase"));
-
    // Initiate default parallelization helper
    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
+   // Timer
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("Gpu initial phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
    // Depontd integrator
    GpuDepondtIntegrator integrator;
 
@@ -205,7 +205,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    gpuSim.cpuLattice.emom2.copy_to(FortranData::emom2);
 
    // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("GPU measurement phase"));
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("GPU measurement phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
 
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);

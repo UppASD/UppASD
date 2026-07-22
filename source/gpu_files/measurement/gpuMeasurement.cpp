@@ -48,7 +48,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , measurementWriter(do_jtensor)
 , cpuMeas(gpuLattice.emomM, gpuLattice.emom, gpuLattice.mmom, gpuLattice.beff, f_emomM, f_emom, f_mmom, f_beff, mq)
 , workStream( ParallelizationHelperInstance.getWorkStream() )
-, stopwatch(GlobalStopwatchPool::get("Gpu measurement"))
+, stopwatch(GlobalStopwatchPool::get("Gpu measurement"), workStream)
 , do_avrg(*FortranData::do_avrg == 'Y')
 , do_avrg_proj(*FortranData::do_avrg_proj)
 , do_avrg_projch(*FortranData::do_avrg_projch == 'Y')

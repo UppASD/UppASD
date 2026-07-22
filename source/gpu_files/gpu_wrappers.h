@@ -9,7 +9,11 @@
   #define GPU_ERROR_T hipError_t
   #define GPU_EVENT_T hipEvent_t
   #define GPU_EVENT_CREATE(event) hipEventCreate(event)
+  #define GPU_EVENT_DESTROY(event) hipEventDestroy(event)
   #define GPU_EVENT_RECORD(event, stream) hipEventRecord(event, stream)
+  #define GPU_EVENT_QUERY(event) hipEventQuery(event)
+  #define GPU_EVENT_SYNCHRONIZE(event) hipEventSynchronize(event)
+  #define GPU_EVENT_ELAPSED_TIME(ms, start, end) hipEventElapsedTime(ms, start, end)
   #define GPU_FREE(ptr) hipFree(ptr)
   #define GPU_FREE_HOST(ptr) hipHostFree(ptr)
   #define GPU_GET_ERROR_STRING(err) hipGetErrorString(err)
@@ -72,7 +76,11 @@
   #define GPU_ERROR_T cudaError_t
   #define GPU_EVENT_T cudaEvent_t
   #define GPU_EVENT_CREATE(event) cudaEventCreate(event)//TODO &
+  #define GPU_EVENT_DESTROY(event) cudaEventDestroy(event)
   #define GPU_EVENT_RECORD(event, stream) cudaEventRecord(event, stream)
+  #define GPU_EVENT_QUERY(event) cudaEventQuery(event)
+  #define GPU_EVENT_SYNCHRONIZE(event) cudaEventSynchronize(event)
+  #define GPU_EVENT_ELAPSED_TIME(ms, start, end) cudaEventElapsedTime(ms, start, end)
   #define GPU_FREE(ptr) cudaFree(ptr)
   #define GPU_FREE_HOST(ptr) cudaFreeHost(ptr)
   #define GPU_GET_ERROR_STRING(err) cudaGetErrorString(err)

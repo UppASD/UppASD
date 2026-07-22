@@ -111,7 +111,8 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
 
    // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Gpu initial phase"));
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("Gpu initial phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
 
     // Metropolis
    GpuMetropolis gpuMC;
@@ -212,7 +213,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
    // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Gpu measurement phase"));
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("Gpu measurement phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
 
     // MC
    GpuMetropolis gpuMC;
@@ -338,7 +340,8 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
 
    // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Gpu measurement phase"));
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("Gpu measurement phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
 
     // Metropolis
    GpuMetropolis_bruteforce gpuMC_bf;
@@ -435,7 +438,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    // Initiate default parallelization helper
    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
    // Timer
-   StopwatchDeviceSync stopwatch = StopwatchDeviceSync(GlobalStopwatchPool::get("Cuda measurement phase"));
+   StopwatchDeviceSync stopwatch(GlobalStopwatchPool::get("Cuda measurement phase"),
+                                 ParallelizationHelperInstance.getWorkStream());
 
     // MC
    GpuMetropolis_bruteforce gpuMC_bf;

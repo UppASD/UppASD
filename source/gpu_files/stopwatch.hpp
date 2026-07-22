@@ -3,7 +3,6 @@
 
 #pragma once
 
-#define DUMMY_STOPWATCH true // this fully disables the stopwatch, no timing is done
 #include <sys/time.h>
 
 #include <ctime>
@@ -16,84 +15,132 @@
 class Stopwatch {
    // Allow StopwatchPool to access private methods
    friend class StopwatchPool;
+   friend class StopwatchDeviceSync;
 
 private:
    // Timepoint struct
    typedef struct {
       std::string name;
       float time;
+      float gpu_time;
    } timepoint;
 
    // Members
    std::list<timepoint> time_list;
    struct timeval start;
    struct timeval last;
+   bool initialized = false;
+   bool coarse_timing_recorded = false;
+   float gpu_total = 0.0f;
 
 public:
-#ifdef DUMMY_STOPWATCH
-   // Dummy functions
-   Stopwatch() {
+   // N disables timing, C records totals only, and Y records all categories.
+   static void setTimingMode(char mode) {
+      timingModeStorage() = mode == 'Y' ? TimingMode::Detailed :
+                            mode == 'C' ? TimingMode::Coarse : TimingMode::Disabled;
    }
 
-   void startPoint() {
+   static bool timingEnabled() {
+      return timingModeStorage() != TimingMode::Disabled;
    }
 
-   void skip() {
+   static bool detailedTiming() {
+      return timingModeStorage() == TimingMode::Detailed;
    }
 
-   void add(const char *name) {
+   static bool coarseTiming() {
+      return timingModeStorage() == TimingMode::Coarse;
    }
 
-   void add(const char *name, std::size_t len) {
-   }
-
-   void add(const std::string& name) {
-   }
-
-   void reset() {
-   }
-
-   void print() {
-   }
-
-   bool empty() {
-      return true;
-   }
-#else
-
-   // Constructor
    Stopwatch() {
       reset();
    }
 
-   // Use to force start a new timing event (may cause the
-   // percentage to sum together to less than 100%)
    void startPoint() {
+      if(!timingEnabled()) return;
       gettimeofday(&last, 0);
+      if(!initialized) {
+         start = last;
+         initialized = true;
+      }
    }
 
-   // Adds the time since the last timing event to a category that
-   // will not be included in the results (wont affect percentage)
    void skip() {
+      if(!timingEnabled()) return;
       add("-");
    }
 
-   // Add a new time point or add time to the last point with the
-   // same name. The time added is the time elapsed since the last
-   // called add / startPoint / reset.
-   void add(const char* name) {
+   void add(const char *name) {
+      if(!timingEnabled()) return;
       add(std::string(name));
    }
 
-   void add(const char* name, std::size_t len) {
+   void add(const char *name, std::size_t len) {
+      if(!timingEnabled()) return;
       add(std::string(name, len));
    }
 
    void add(const std::string& name) {
+      if(!timingEnabled()) return;
       struct timeval now;
       gettimeofday(&now, 0);
+      if(!initialized) {
+         start = now;
+         last = now;
+         initialized = true;
+      }
       float time = diff(&last, &now);
       last = now;
+
+      if(coarseTiming()) {
+         if(name == "-") {
+            addTime(name, time);
+         } else {
+            coarse_timing_recorded = true;
+         }
+         return;
+      }
+
+      addTime(name, time);
+   }
+
+   void addGpuTotal(float time) {
+      if(timingEnabled()) {
+         gpu_total += time;
+         if(coarseTiming()) coarse_timing_recorded = true;
+      }
+   }
+
+   void reset() {
+      time_list.clear();
+      initialized = false;
+      coarse_timing_recorded = false;
+      gpu_total = 0.0f;
+      if(!timingEnabled()) return;
+      gettimeofday(&start, 0);
+      gettimeofday(&last, 0);
+      initialized = true;
+   }
+
+   void print() {
+      if(!timingEnabled()) return;
+      print(2, 0);
+   }
+
+   bool empty() {
+      if(!timingEnabled()) return true;
+      if(coarseTiming()) return !coarse_timing_recorded;
+      if(time_list.empty()) {
+         return true;
+      }
+      if(time_list.size() == 1) {
+         return (time_list.front().name.compare("-") == 0);
+      }
+      return false;
+   }
+
+private:
+   void addTime(const std::string& name, float time) {
 
       // Check if the name is already in the list
       std::list<timepoint>::iterator it;
@@ -108,35 +155,34 @@ public:
       timepoint p;
       p.name = name;
       p.time = time;
+      p.gpu_time = 0.0f;
       time_list.push_back(p);
    }
 
-   // Reset the Stopwatch object
-   void reset() {
-      time_list.clear();
-      gettimeofday(&start, 0);
-      gettimeofday(&last, 0);
-   }
-
-   // Prints the result
-   // TODO: ask is this should be kept
-   void print() {
-      print(2, 0);
-   }
-
-   // Empty stopwatch?
-   bool empty() {
-      if(time_list.empty()) {
-         return true;
+   // Add elapsed device time to an existing wall-clock category.  GPU event
+   // samples are collected asynchronously by StopwatchDeviceSync.
+   void addGpu(const std::string& name, float time) {
+      if(!timingEnabled()) return;
+      for(auto it = time_list.begin(); it != time_list.end(); ++it) {
+         if(name == it->name) {
+            it->gpu_time += time;
+            return;
+         }
       }
-      if(time_list.size() == 1) {
-         return (time_list.front().name.compare("-") == 0);
-      }
-      return false;
+      timepoint p;
+      p.name = name;
+      p.time = 0.0f;
+      p.gpu_time = time;
+      time_list.push_back(p);
    }
 
-   // Helpers
-private:
+   enum class TimingMode { Disabled, Coarse, Detailed };
+
+   static TimingMode& timingModeStorage() {
+      static TimingMode mode = TimingMode::Disabled;
+      return mode;
+   }
+
    inline float diff(const struct timeval* a, const struct timeval* b) {
       return (float)((1000.0 * (b->tv_sec - a->tv_sec)) + (0.001 * (b->tv_usec - a->tv_usec)));
    }
@@ -165,6 +211,7 @@ private:
    void print(int ind, int minlen) {
       std::list<timepoint>::iterator it;
       float total = diff(&start, &last);
+      float total_gpu = gpu_total;
 
       // Minimum 5 chars (= strlen("Total"))
       if(minlen < 5) {
@@ -187,9 +234,15 @@ private:
          }
       }
 
+      for(it = time_list.begin(); it != time_list.end(); it++) {
+         if(exclude_name.compare(it->name) != 0) total_gpu += it->gpu_time;
+      }
+
       // Print the total time
       indent(2);
-      std::printf("%-*s  %9.3f ms\n", minlen, "Total", total);
+      std::printf("%-*s  %9.3f ms wall  %9.3f ms GPU\n", minlen, "Total", total, total_gpu);
+
+      if(coarseTiming()) return;
 
       //		float total_percent = 0.0f;
 
@@ -199,11 +252,10 @@ private:
             float percent = (time / total) * 100.0f;
             //			total_percent += percent;
             indent(2);
-            std::printf("%-*s  %9.3f ms (%5.2f%%)\n", minlen, it->name.c_str(), time, percent);
+            std::printf("%-*s  %9.3f ms wall  %9.3f ms GPU  (%5.2f%%)\n", minlen, it->name.c_str(), time,
+                        it->gpu_time, percent);
          }
       }
       std::printf("\n");
    }
-#endif  // #ifndef DUMMY_STOPWATCH
 };
-

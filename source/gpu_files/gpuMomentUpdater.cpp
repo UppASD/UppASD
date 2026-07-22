@@ -134,7 +134,7 @@ GpuMomentUpdater::GpuMomentUpdater(deviceLattice& gpuLattice, int p8, char p9)
       mmomi(gpuLattice.mmomi),
       mompar(p8),
       initexc(p9),
-      stopwatch(GlobalStopwatchPool::get("Cuda moment")),
+      stopwatch(GlobalStopwatchPool::get("Cuda moment"), ParallelizationHelperInstance.getWorkStream()),
       parallel(ParallelizationHelperInstance) {
 
    // Exit if mompar is not supported
@@ -175,4 +175,3 @@ void GpuMomentUpdater::update() {
    }
    stopwatch.add("copy - B");
 }
-

@@ -24,7 +24,7 @@ public:
 };
 
 GpuThermfield::GpuThermfield()
-   : stopwatch(GlobalStopwatchPool::get("GPU thermfield")), parallel(ParallelizationHelperInstance) {}
+   : stopwatch(GlobalStopwatchPool::get("GPU thermfield"), ParallelizationHelperInstance.getWorkStream()), parallel(ParallelizationHelperInstance) {}
 
 GpuThermfield::~GpuThermfield() {
    if(dataInitiated) GPU_RAND_DESTROY_GEN(gen);
