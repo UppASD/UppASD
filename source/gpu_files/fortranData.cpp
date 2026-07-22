@@ -41,6 +41,9 @@ unsigned int* FortranData::macro_block_y = nullptr;
 unsigned int* FortranData::macro_block_z = nullptr;
 unsigned int* FortranData::macro_cell_index = nullptr;
 unsigned int* FortranData::macro_nlistsize = nullptr;
+real* FortranData::macro_center = nullptr;
+real* FortranData::macro_min_coord = nullptr;
+real* FortranData::macro_max_coord = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -293,7 +296,8 @@ void FortranData::setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2,
 void FortranData::setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
                                        unsigned int* p_block_x, unsigned int* p_block_y,
                                        unsigned int* p_block_z, unsigned int* p_cell_index,
-                                       unsigned int* p_macro_nlistsize) {
+                                       unsigned int* p_macro_nlistsize, real* p_macro_center,
+                                       real* p_macro_min_coord, real* p_macro_max_coord) {
    do_dip = p_do_dip;
    num_macro = p_num_macro;
    macro_block_x = p_block_x;
@@ -301,6 +305,9 @@ void FortranData::setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
    macro_block_z = p_block_z;
    macro_cell_index = p_cell_index;
    macro_nlistsize = p_macro_nlistsize;
+   macro_center = p_macro_center;
+   macro_min_coord = p_macro_min_coord;
+   macro_max_coord = p_macro_max_coord;
 }
 
 void FortranData::clearMacrocellPointers() {
@@ -311,6 +318,9 @@ void FortranData::clearMacrocellPointers() {
    macro_block_z = nullptr;
    macro_cell_index = nullptr;
    macro_nlistsize = nullptr;
+   macro_center = nullptr;
+   macro_min_coord = nullptr;
+   macro_max_coord = nullptr;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -543,9 +553,11 @@ FortranData::setGpuGeometryPointers(p_N1, p_N2, p_N3, p_NA, p_BC1, p_BC2, p_BC3,
 
 extern "C" void fortrandata_setmacrocell_(int* p_do_dip, unsigned int* p_num_macro,
    unsigned int* p_block_x, unsigned int* p_block_y, unsigned int* p_block_z,
-   unsigned int* p_cell_index, unsigned int* p_macro_nlistsize) {
+   unsigned int* p_cell_index, unsigned int* p_macro_nlistsize, real* p_macro_center,
+   real* p_macro_min_coord, real* p_macro_max_coord) {
    FortranData::setMacrocellPointers(p_do_dip, p_num_macro, p_block_x, p_block_y, p_block_z,
-                                     p_cell_index, p_macro_nlistsize);
+                                     p_cell_index, p_macro_nlistsize, p_macro_center,
+                                     p_macro_min_coord, p_macro_max_coord);
 }
 
 extern "C" void fortrandata_clearmacell_() {

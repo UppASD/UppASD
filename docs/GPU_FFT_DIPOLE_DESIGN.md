@@ -32,15 +32,38 @@ only and must be labelled as such.
   dipole-tensor values; the UppASD `mu0*muB/(4*pi*alat^3)` prefactor is applied
   only at the production backend boundary.  All periodic-oracle checks and the
   five existing finite analytic cases pass in the current workspace.
+- **2026-07-22 — macro-map audit.** `create_macrocell` currently makes one
+  block from `block_size_x*block_size_y*block_size_z*NA` atoms.  Consequently,
+  `block_size=1` is atomically resolved only for `NA=1`; it combines basis
+  atoms otherwise.  This remains the first validation slice.  Regular
+  multi-basis PBC supercells need a new CPU-built **basis-resolved PME layout**
+  with one channel per basis atom in each coarse cell.  Preserve the legacy map
+  for CPU `do_dip=2`; do not change its physics to serve the new backend.
+- **2026-07-22 — CV6.1 geometry bridge.** The established macrocell builder
+  now retains centre/min/max coordinates as GPU-exported metadata.  The bridge
+  and `GpuSimulation` stage those arrays beside the already validated
+  atom-to-cell map and population counts; the device-memory budget includes
+  the additional nine scalars per macrocell.  No CPU dipole calculation was
+  changed.  The relevant CUDA configuration builds successfully with
+  `cmake --build build -j`.
+- **2026-07-22 — regular multi-basis direction.** Regular PBC supercells with
+  `NA>1` are a core target, not an irregular fallback.  The efficient solver
+  is a basis-channel block convolution on the coarse Bravais grid; it has
+  `9*NA^2` spectral tensor entries per wavevector and avoids particle-mesh
+  deposition.  The current `NA=1` oracle remains the first vertical slice;
+  basis-resolved layout generation and `NA>1` validation follow next.
 
-There is exactly one source representation: **macrocells**.  With macro block
-size one, each atom is one macrocell and this same solver is atomically
-resolved.  Larger blocks are a controlled coarse-grained approximation; there
-is no separate atomistic dipole backend.  The macrocell map, membership and
-centres are exported from Fortran, never reconstructed from floating-point
-coordinates in C++.  Open finite samples and periodic slabs are separate
-explicitly selected modes.  A mode is never inferred from the exchange FFT
-backend or silently substituted for another mode.
+There is exactly one source representation: **macrocells**.  `NA=1` is the
+first validation slice, where macro block size one gives exactly one atom per
+macrocell.  The production regular-grid design also supports `NA>1`: each
+coarse Bravais cell has `NA` **basis channels**, and block size one then
+preserves every basis atom.  Larger blocks are a controlled coarse-grained
+approximation; there is no separate atomistic dipole backend.  CPU-side
+macrocell construction owns the map and membership and exports them to the
+backends; C++ never recreates that mapping from floating-point coordinates.
+Open finite samples and periodic slabs are separate explicitly selected modes.
+A mode is never inferred from the exchange FFT backend or silently substituted
+for another mode.
 
 ## Physical contracts
 
@@ -78,27 +101,29 @@ surface, and layer-correction convention have analytic tests.
 ## GPU algorithm: 3D P3M/PME
 
 1. **Macrocell geometry.** Form each macro moment
-   `M_c=sum(i in c) emomM_i`, its centre and finite-cell metadata from the
-   exported map.  Form the full cell matrix `H=[A B C]`, its reciprocal matrix,
-   volume and fractional macrocell coordinates on the host in fp64.  Grid
-   dimensions are chosen independently along the three fractional axes; skew
-   cells are supported through `H`, not by treating Cartesian coordinates as
-   orthogonal.  Block size one supplies one source per atom.
+   `M_(g,a)=sum(i in coarse cell g, basis channel a) emomM_i`, its centre and
+   finite-cell metadata from the CPU-built, basis-resolved map.  `g` lives on a
+   regular coarse Bravais grid and `a=1..NA`.  Form the full cell matrix
+   `H=[A B C]`, its reciprocal matrix, volume and fractional macrocell
+   coordinates on the host in fp64.  Grid dimensions are chosen independently
+   along the three fractional axes; skew cells are supported through `H`, not
+   by treating Cartesian coordinates as orthogonal.  Block size one supplies
+   one source per basis atom.
 2. **Near field.** Build a GPU cell/Verlet list for the screened real-space
    dipole tensor between macrocells.  Evaluate the analytic Ewald real-space
    tensor within a cutoff, excluding only the exact self pair.  This is the
    particle--particle part and is independent of the exchange neighbour list.
-3. **Mesh deposition.** Spread each vector moment to a periodic mesh with a
-   cardinal B-spline of configurable order (initially 4 or 6).  The exact same
-   weights, in adjoint order, interpolate the mesh field back to macrocells,
-   then scatter the cell-constant field to member atoms.  This adjointness is
-   asserted in a standalone test.
-4. **Reciprocal field.** Use batched R2C/C2R transforms of the three mesh
-   components.  Apply the dipolar Ewald reciprocal Green tensor and the PME
-   influence/deconvolution function at every nonzero reciprocal mode.  Its
-   formula is derived in the implementation note before coding, then tested
-   against the independent Ewald evaluator; do not infer a sign or transpose
-   from the old Fortran arrays.
+3. **Regular-grid spectral path.** For periodic regular grids, transform each
+   of the `3*NA` macro-moment channels directly.  At every reciprocal mode,
+   apply the Ewald Green tensor as a `3*NA` by `3*NA` block kernel (equivalently
+   `3x3xNAxNA`); inverse-transform and scatter the channel field to member
+   atoms.  This is exact for block-one regular supercells and avoids B-spline
+   deposition/interpolation entirely.  It is the preferred production path.
+4. **Irregular-grid fallback.** A cardinal-B-spline P3M path is reserved for
+   later irregular macrocell centres, partial-edge/open geometries, or other
+   layouts which cannot use the regular block kernel.  Its deposition and
+   interpolation must be adjoint.  It is not a prerequisite for the regular
+   PBC supercell implementation.
 5. **Corrections.** Apply the analytic self field/energy and the declared
    `k=0` surface convention.  Coarse macrocells additionally need an explicit
    finite-cell form factor and self-demagnetising correction; for block size

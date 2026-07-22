@@ -85,6 +85,9 @@ public:
    static unsigned int* macro_block_z;
    static unsigned int* macro_cell_index;
    static unsigned int* macro_nlistsize;
+   static real* macro_center;
+   static real* macro_min_coord;
+   static real* macro_max_coord;
    
 
    static unsigned int* nq;
@@ -265,7 +268,8 @@ public:
     static void setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
                                      unsigned int* p_block_x, unsigned int* p_block_y,
                                      unsigned int* p_block_z, unsigned int* p_cell_index,
-                                     unsigned int* p_macro_nlistsize);
+                                     unsigned int* p_macro_nlistsize, real* p_macro_center,
+                                     real* p_macro_min_coord, real* p_macro_max_coord);
     static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

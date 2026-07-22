@@ -17,6 +17,7 @@
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #if defined(HIP_V)
@@ -203,9 +204,30 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     }
     cpuHamiltonian.extfield.set(FortranData::external_field,  static_cast <long int>(3), N, M);
     if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro &&
-       *FortranData::num_macro > 0 && FortranData::macro_cell_index && FortranData::macro_nlistsize) {
+       *FortranData::num_macro > 0 && FortranData::macro_cell_index && FortranData::macro_nlistsize &&
+       FortranData::macro_center && FortranData::macro_min_coord && FortranData::macro_max_coord) {
+        const std::size_t macroCount = *FortranData::num_macro;
+        if(macroCount > N) {
+            throw std::runtime_error("GPU macrocell map has more cells than atoms");
+        }
+        std::vector<std::size_t> observedPopulation(macroCount, 0);
+        for(long int atom = 0; atom < N; ++atom) {
+            const unsigned int oneBasedCell = FortranData::macro_cell_index[atom];
+            if(oneBasedCell == 0 || oneBasedCell > macroCount) {
+                throw std::runtime_error("GPU macrocell map contains an out-of-range cell index");
+            }
+            ++observedPopulation[oneBasedCell - 1];
+        }
+        for(std::size_t cell = 0; cell < macroCount; ++cell) {
+            if(observedPopulation[cell] != FortranData::macro_nlistsize[cell]) {
+                throw std::runtime_error("GPU macrocell map and macro_nlistsize disagree");
+            }
+        }
         cpuHamiltonian.macro_cell_index.set(FortranData::macro_cell_index, N);
-        cpuHamiltonian.macro_nlistsize.set(FortranData::macro_nlistsize, *FortranData::num_macro);
+        cpuHamiltonian.macro_nlistsize.set(FortranData::macro_nlistsize, macroCount);
+        cpuHamiltonian.macro_center.set(FortranData::macro_center, 3, macroCount);
+        cpuHamiltonian.macro_min_coord.set(FortranData::macro_min_coord, 3, macroCount);
+        cpuHamiltonian.macro_max_coord.set(FortranData::macro_max_coord, 3, macroCount);
     }
     cpuLattice.beff.set(FortranData::beff,  static_cast <long int>(3), N, M);
     cpuLattice.b2eff.set(FortranData::b2eff,  static_cast <long int>(3), N, M);
@@ -340,6 +362,7 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
       b += N * sizeof(unsigned int);                          // cell_index(N)
       b += macro * sizeof(unsigned int);                      // macro_nlistsize(Nmacro)
       b += 3 * macro * M * sizeof(real);                      // macro moments(3,Nmacro,M)
+      b += 9 * macro * sizeof(real);                          // centre/min/max geometry
    }
    return b;
 }
@@ -502,6 +525,9 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
     if(!cpuHamiltonian.macro_cell_index.empty()) {
         gpuHamiltonian.macro_cell_index.Allocate(N);
         gpuHamiltonian.macro_nlistsize.Allocate(cpuHamiltonian.macro_nlistsize.size());
+        gpuHamiltonian.macro_center.Allocate(3, cpuHamiltonian.macro_nlistsize.size());
+        gpuHamiltonian.macro_min_coord.Allocate(3, cpuHamiltonian.macro_nlistsize.size());
+        gpuHamiltonian.macro_max_coord.Allocate(3, cpuHamiltonian.macro_nlistsize.size());
     }
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.b2eff.Allocate( static_cast <long int>(3), N, M);
@@ -675,6 +701,9 @@ void GpuSimulation::release() {
     gpuHamiltonian.extfield.Free();
     gpuHamiltonian.macro_cell_index.Free();
     gpuHamiltonian.macro_nlistsize.Free();
+    gpuHamiltonian.macro_center.Free();
+    gpuHamiltonian.macro_min_coord.Free();
+    gpuHamiltonian.macro_max_coord.Free();
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
     if(eneffAliased) { gpuLattice.eneff = GpuTensor<real, 3>{}; eneffAliased = false; }
@@ -741,6 +770,9 @@ void GpuSimulation::copyFromFortran() {
     if(!gpuHamiltonian.macro_cell_index.empty()) {
         gpuHamiltonian.macro_cell_index.copy_sync(cpuHamiltonian.macro_cell_index);
         gpuHamiltonian.macro_nlistsize.copy_sync(cpuHamiltonian.macro_nlistsize);
+        gpuHamiltonian.macro_center.copy_sync(cpuHamiltonian.macro_center);
+        gpuHamiltonian.macro_min_coord.copy_sync(cpuHamiltonian.macro_min_coord);
+        gpuHamiltonian.macro_max_coord.copy_sync(cpuHamiltonian.macro_max_coord);
     }
    // printf("HERE - 6\n");
     gpuLattice.beff.copy_sync(cpuLattice.beff);  

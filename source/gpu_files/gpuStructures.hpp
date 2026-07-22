@@ -115,6 +115,9 @@ struct hostHamiltonian {
    Tensor<real, 3>             extfield;
    Tensor<unsigned int, 1>     macro_cell_index;
    Tensor<unsigned int, 1>     macro_nlistsize;
+   Tensor<real, 2>             macro_center;
+   Tensor<real, 2>             macro_min_coord;
+   Tensor<real, 2>             macro_max_coord;
 
 };
    
@@ -198,6 +201,9 @@ struct deviceHamiltonian {
    GpuTensor<real, 3>             extfield;
    GpuTensor<unsigned int, 1>     macro_cell_index;
    GpuTensor<unsigned int, 1>     macro_nlistsize;
+   GpuTensor<real, 2>             macro_center;
+   GpuTensor<real, 2>             macro_min_coord;
+   GpuTensor<real, 2>             macro_max_coord;
 };
 
 struct deviceLattice {

@@ -170,11 +170,13 @@ module Chelper
          character(c_char), intent(inout) :: do_gpu_convolution
       end subroutine FortranData_setGpuGeometry
 
-      subroutine FortranData_setMacrocell(do_dip, Num_macro, block_x, block_y, block_z, cell_index, macro_nlistsize) &
+      subroutine FortranData_setMacrocell(do_dip, Num_macro, block_x, block_y, block_z, cell_index, macro_nlistsize, &
+            macro_center, macro_min_coord, macro_max_coord) &
                bind(C, name="fortrandata_setmacrocell_")
-         import :: c_int
+         import :: c_int, c_double
          integer(c_int), intent(inout) :: do_dip, Num_macro, block_x, block_y, block_z
          integer(c_int), intent(inout) :: cell_index(*), macro_nlistsize(*)
+         real(c_double), intent(inout) :: macro_center(*), macro_min_coord(*), macro_max_coord(*)
       end subroutine FortranData_setMacrocell
 
       subroutine FortranData_clearMacrocell() bind(C, name="fortrandata_clearmacell_")
@@ -571,7 +573,7 @@ contains
       ! Do not pass an unallocated Fortran allocatable through the C ABI.
       if (Num_macro > 0) then
          call FortranData_setMacrocell(ham_inp%do_dip, Num_macro, block_size_x, block_size_y, block_size_z, &
-            cell_index, macro_nlistsize)
+            cell_index, macro_nlistsize, gpu_macro_center, gpu_macro_min_coord, gpu_macro_max_coord)
       else
          call FortranData_clearMacrocell()
       endif

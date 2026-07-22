@@ -32,6 +32,12 @@ module macrocells
    real(dblprec), dimension(:,:), allocatable :: max_coord_macro !< Maximum value of the coordinates per cell
    real(dblprec), dimension(:,:), allocatable :: min_coord_macro !< Minimum value of the coordinates per cell
    real(dblprec), dimension(:,:), allocatable :: mid_coord_macro !< Midpoint of each cell
+   ! CV6.1: persistent geometry exported to the GPU macrocell PME backend.
+   ! These are copied from the construction scratch arrays before they are
+   ! released; the legacy CPU macrocell calculation remains unchanged.
+   real(dblprec), dimension(:,:), allocatable :: gpu_macro_center
+   real(dblprec), dimension(:,:), allocatable :: gpu_macro_min_coord
+   real(dblprec), dimension(:,:), allocatable :: gpu_macro_max_coord
    real(dblprec), dimension(:,:,:), allocatable :: emom_macro  !< Unit vector of the macrocell magnetic moment
    real(dblprec), dimension(:,:,:), allocatable :: emomM_macro !< The full vector of the macrocell magnetic moment
    
@@ -152,10 +158,19 @@ contains
 
       ! Print the midpoint of the macro cells
       open(ofileno,file=output_file)
+      allocate(gpu_macro_center(3,Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(gpu_macro_center))*kind(gpu_macro_center),'gpu_macro_center','create_macrocell')
+      allocate(gpu_macro_min_coord(3,Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(gpu_macro_min_coord))*kind(gpu_macro_min_coord),'gpu_macro_min_coord','create_macrocell')
+      allocate(gpu_macro_max_coord(3,Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(gpu_macro_max_coord))*kind(gpu_macro_max_coord),'gpu_macro_max_coord','create_macrocell')
       do kk=1, Num_macro
          mid_coord_macro(1,kk)=(max_coord_macro(1,kk)+min_coord_macro(1,kk))*0.5_dblprec
          mid_coord_macro(2,kk)=(max_coord_macro(2,kk)+min_coord_macro(2,kk))*0.5_dblprec
          mid_coord_macro(3,kk)=(max_coord_macro(3,kk)+min_coord_macro(3,kk))*0.5_dblprec
+         gpu_macro_center(:,kk)=mid_coord_macro(:,kk)
+         gpu_macro_min_coord(:,kk)=min_coord_macro(:,kk)
+         gpu_macro_max_coord(:,kk)=max_coord_macro(:,kk)
          write(ofileno,'(i6,3f16.8)') kk,mid_coord_macro(1,kk),mid_coord_macro(2,kk),mid_coord_macro(3,kk)
       enddo
       close(ofileno)
@@ -473,6 +488,21 @@ contains
             i_all=-product(shape(dipole_subset))*kind(dipole_subset)
             deallocate(dipole_subset,stat=i_stat)
             call memocc(i_stat,i_all,'dipole_subset','allocate_macrocell')
+         endif
+         if (allocated(gpu_macro_center)) then
+            i_all=-product(shape(gpu_macro_center))*kind(gpu_macro_center)
+            deallocate(gpu_macro_center,stat=i_stat)
+            call memocc(i_stat,i_all,'gpu_macro_center','allocate_macrocell')
+         endif
+         if (allocated(gpu_macro_min_coord)) then
+            i_all=-product(shape(gpu_macro_min_coord))*kind(gpu_macro_min_coord)
+            deallocate(gpu_macro_min_coord,stat=i_stat)
+            call memocc(i_stat,i_all,'gpu_macro_min_coord','allocate_macrocell')
+         endif
+         if (allocated(gpu_macro_max_coord)) then
+            i_all=-product(shape(gpu_macro_max_coord))*kind(gpu_macro_max_coord)
+            deallocate(gpu_macro_max_coord,stat=i_stat)
+            call memocc(i_stat,i_all,'gpu_macro_max_coord','allocate_macrocell')
          endif
       endif
 
