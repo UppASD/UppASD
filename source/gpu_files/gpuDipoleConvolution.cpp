@@ -479,6 +479,20 @@ void GpuDipoleConvolution::addRealSpaceField(real alpha, real cutoff, unsigned i
    if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU real Ewald launch failed");
 }
 
+void GpuDipoleConvolution::evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
+                                              real cutoff, unsigned int image_extent) {
+   if(desc.basis != 1 || desc.boundary != GpuDipoleBoundaryMode::Periodic3D) {
+      throw std::runtime_error("point Ewald evaluation currently requires PME3D with NA=1");
+   }
+   buildReciprocalEwaldKernel(alpha);
+   packMacroMoments(macro_moments);
+   forwardTransformMoments();
+   applySpectralKernel();
+   inverseTransformFields();
+   addRealSpaceField(alpha, cutoff, image_extent);
+   addPointSelfField(alpha);
+}
+
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
    return descriptor.valid() ? descriptor.fftLayout().persistentBytes() : 0;

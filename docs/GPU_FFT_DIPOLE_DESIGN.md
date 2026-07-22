@@ -127,6 +127,11 @@ only and must be labelled as such.
   extent/cutoff.  It excludes only the exact self pair and is intentionally
   dormant; a cell/Verlet replacement and combined oracle validation are still
   required before activation.
+- **2026-07-22 — NA=1 Ewald composition.** The owner now exposes one dormant
+  point-Ewald sequence which builds the reciprocal tensor, packs/FFTs moments,
+  contracts/inverts, then adds the screened real-space and self terms.  It has
+  no `beff` scatter or energy path yet; its sole purpose is to give the next
+  GPU-vs-independent-oracle test one complete field operator.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

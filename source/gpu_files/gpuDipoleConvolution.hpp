@@ -118,6 +118,8 @@ public:
    void addPointSelfField(real alpha);
    // Direct screened real-space reference primitive for the NA=1 slice.
    void addRealSpaceField(real alpha, real cutoff, unsigned int image_extent);
+   void evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
+                           real cutoff, unsigned int image_extent);
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
