@@ -548,6 +548,11 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    macroMoments.Free();
    numMacro = 0;
    refreshMacroMoments = false;
+   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
+      throw std::runtime_error(
+         "GPU dipole mode was requested, but its field/energy operator is not yet available; "
+         "use gpu_dipole_mode OFF until CV6 field validation is complete");
+   }
    if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro &&
       *FortranData::pme_num_macro > 0 && !gpuHamiltonian.macro_cell_index.empty() &&
       !gpuHamiltonian.macro_nlistsize.empty()) {

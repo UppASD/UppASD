@@ -1396,6 +1396,26 @@ contains
                read(ifile,*,iostat=i_err) do_gpu_timings
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('gpu_dipole_mode')
+               read(ifile,*,iostat=i_err) gpu_dipole_mode
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_dipole_surface')
+               read(ifile,*,iostat=i_err) gpu_dipole_surface
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_dipole_alpha')
+               read(ifile,*,iostat=i_err) gpu_dipole_alpha
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_dipole_rcut')
+               read(ifile,*,iostat=i_err) gpu_dipole_rcut
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('gpu_dipole_mesh')
+               read(ifile,*,iostat=i_err) gpu_dipole_mesh
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR GPU
             !------------------------------------------------------------------------

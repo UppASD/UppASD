@@ -170,6 +170,14 @@ module Chelper
          character(c_char), intent(inout) :: do_gpu_convolution
       end subroutine FortranData_setGpuGeometry
 
+      subroutine FortranData_setGpuDipole(mode, surface, alpha, rcut, mesh) &
+               bind(C, name="fortrandata_setgpudipole_")
+         import :: c_int, c_double
+         integer(c_int), intent(inout) :: mode, surface
+         real(c_double), intent(inout) :: alpha, rcut
+         integer(c_int), intent(inout) :: mesh(*)
+      end subroutine FortranData_setGpuDipole
+
       subroutine FortranData_setMacrocell(do_dip, Num_macro, block_x, block_y, block_z, cell_index, macro_nlistsize, &
             macro_center, macro_min_coord, macro_max_coord) &
                bind(C, name="fortrandata_setmacrocell_")
@@ -485,6 +493,7 @@ contains
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
+      integer(c_int) :: gpu_dipole_mode_id, gpu_dipole_surface_id
       
       !!!TODO: replace those with actual variables 
       integer :: ene_step = 100
@@ -579,6 +588,32 @@ contains
          NT_meta, Nchmax, mry, NA, Natom_full)
 
       call FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution)
+
+      select case(trim(gpu_dipole_mode))
+      case('OFF')
+         gpu_dipole_mode_id=0
+      case('PME3D')
+         gpu_dipole_mode_id=1
+      case('OPEN_FFT')
+         gpu_dipole_mode_id=2
+      case('SLAB_PME')
+         gpu_dipole_mode_id=3
+      case default
+         error stop 'Invalid gpu_dipole_mode (OFF, PME3D, OPEN_FFT, SLAB_PME)'
+      end select
+      select case(trim(gpu_dipole_surface))
+      case('TINFOIL')
+         gpu_dipole_surface_id=0
+      case('VACUUM_SPHERE')
+         gpu_dipole_surface_id=1
+      case default
+         error stop 'Invalid gpu_dipole_surface (TINFOIL, VACUUM_SPHERE)'
+      end select
+      if(gpu_dipole_alpha < 0.0_dblprec .or. gpu_dipole_rcut < 0.0_dblprec .or. any(gpu_dipole_mesh < 0)) then
+         error stop 'GPU dipole alpha, cutoff, and mesh must be non-negative (zero selects auto)'
+      endif
+      call FortranData_setGpuDipole(gpu_dipole_mode_id, gpu_dipole_surface_id, gpu_dipole_alpha, &
+         gpu_dipole_rcut, gpu_dipole_mesh)
 
       ! Macrocell arrays are allocated only when macro cells are requested.
       ! Do not pass an unallocated Fortran allocatable through the C ABI.

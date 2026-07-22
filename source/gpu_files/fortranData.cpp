@@ -27,6 +27,11 @@ unsigned int* FortranData::N1 = nullptr;
 unsigned int* FortranData::N2 = nullptr;
 unsigned int* FortranData::N3 = nullptr;
 char* FortranData::do_gpu_convolution = nullptr;
+int* FortranData::gpu_dipole_mode = nullptr;
+int* FortranData::gpu_dipole_surface = nullptr;
+real* FortranData::gpu_dipole_alpha = nullptr;
+real* FortranData::gpu_dipole_rcut = nullptr;
+int* FortranData::gpu_dipole_mesh = nullptr;
 char* FortranData::BC1 = nullptr;
 char* FortranData::BC2 = nullptr;
 char* FortranData::BC3 = nullptr;
@@ -298,6 +303,15 @@ void FortranData::setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2,
    C3 = p_C3;
    Bas = p_Bas;
    do_gpu_convolution = p_do_gpu_convolution;
+}
+
+void FortranData::setGpuDipolePointers(int* p_mode, int* p_surface, real* p_alpha, real* p_rcut,
+                                        int* p_mesh) {
+   gpu_dipole_mode = p_mode;
+   gpu_dipole_surface = p_surface;
+   gpu_dipole_alpha = p_alpha;
+   gpu_dipole_rcut = p_rcut;
+   gpu_dipole_mesh = p_mesh;
 }
 
 void FortranData::setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
@@ -578,6 +592,11 @@ extern "C" void fortrandata_setgpugeometry_(unsigned int* p_N1, unsigned int* p_
    real* p_C1, real* p_C2, real* p_C3, real* p_Bas, char* p_do_gpu_convolution) {
 FortranData::setGpuGeometryPointers(p_N1, p_N2, p_N3, p_NA, p_BC1, p_BC2, p_BC3,
                                     p_C1, p_C2, p_C3, p_Bas, p_do_gpu_convolution);
+}
+
+extern "C" void fortrandata_setgpudipole_(int* p_mode, int* p_surface, real* p_alpha, real* p_rcut,
+                                            int* p_mesh) {
+   FortranData::setGpuDipolePointers(p_mode, p_surface, p_alpha, p_rcut, p_mesh);
 }
 
 extern "C" void fortrandata_setmacrocell_(int* p_do_dip, unsigned int* p_num_macro,

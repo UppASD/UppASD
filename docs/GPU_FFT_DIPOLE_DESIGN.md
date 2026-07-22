@@ -190,6 +190,12 @@ gpu_dipole_mesh       auto | n1 n2 n3
 gpu_dipole_spline     4 | 6 | ...
 ```
 
+`gpu_dipole_alpha`, `gpu_dipole_rcut`, and all-zero `gpu_dipole_mesh` accept
+zero as the currently supported spelling of `auto`; positive values request
+explicit numerical values.  These inputs are parsed and exported to the GPU
+bridge, but any non-`OFF` mode remains rejected by the runtime until its field
+operator is implemented and validated.
+
 The Fortran bridge exports the selected mode and numerical parameters along
 with `alat`, `H`, macrocell map/membership/counts/centres and magnetic moments.
 It rejects invalid combinations before allocation.  Once selected, the GPU

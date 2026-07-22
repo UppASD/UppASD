@@ -280,6 +280,11 @@ module InputData
    character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
    character(len=1) :: do_gpu_convolution     !< Use FFT convolution Hamiltonian on GPU when supported (Y/N)
    character(len=1) :: do_gpu_timings     !< GPU timing mode: N=off, C=coarse totals, Y=detailed
+   character(len=16) :: gpu_dipole_mode    !< OFF, PME3D, OPEN_FFT, or SLAB_PME
+   character(len=16) :: gpu_dipole_surface !< TINFOIL or VACUUM_SPHERE (PME3D only)
+   real(dblprec) :: gpu_dipole_alpha       !< Positive Ewald alpha; zero selects auto when implemented
+   real(dblprec) :: gpu_dipole_rcut        !< Positive real-space cutoff; zero selects auto when implemented
+   integer, dimension(3) :: gpu_dipole_mesh !< Reciprocal mesh; all zero selects auto when implemented
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -544,6 +549,11 @@ contains
       do_gpu_correlations = 'N'
       do_gpu_convolution = 'N'
       do_gpu_timings = 'N'
+      gpu_dipole_mode = 'OFF'
+      gpu_dipole_surface = 'TINFOIL'
+      gpu_dipole_alpha = 0.0_dblprec
+      gpu_dipole_rcut = 0.0_dblprec
+      gpu_dipole_mesh = 0
 
 
       ! I/O OVF
