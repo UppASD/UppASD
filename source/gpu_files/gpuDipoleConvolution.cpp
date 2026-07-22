@@ -110,6 +110,16 @@ GpuDipoleGridShape GpuDipoleConvolutionDescriptor::paddedGrid() const {
    return padded;
 }
 
+std::array<real, 9> GpuDipoleConvolutionDescriptor::fullCellMatrix() const {
+   if(!c1 || !c2 || !c3) return {};
+   const real scale[] = {static_cast<real>(atomistic_grid.n1),
+                         static_cast<real>(atomistic_grid.n2),
+                         static_cast<real>(atomistic_grid.n3)};
+   return {scale[0] * c1[0], scale[0] * c1[1], scale[0] * c1[2],
+           scale[1] * c2[0], scale[1] * c2[1], scale[1] * c2[2],
+           scale[2] * c3[0], scale[2] * c3[1], scale[2] * c3[2]};
+}
+
 GpuDipoleFftLayout GpuDipoleConvolutionDescriptor::fftLayout() const {
    GpuDipoleFftLayout result{};
    result.real_grid = paddedGrid();
@@ -167,9 +177,8 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
       kernel_fft.Allocate(static_cast<long int>(layout.spectral_cells),
                           static_cast<long int>(layout.kernel_batches));
       cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
-      if(GPU_MEMCPY(cell_vectors.data(), desc.c1, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
-         GPU_MEMCPY(cell_vectors.data() + 3, desc.c2, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
-         GPU_MEMCPY(cell_vectors.data() + 6, desc.c3, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+      const auto full_cell = desc.fullCellMatrix();
+      if(GPU_MEMCPY(cell_vectors.data(), full_cell.data(), 9 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
          throw std::runtime_error("GPU dipole cell-matrix upload failed");
       }
       assertGpuFft(GPUFFT_CREATE(&forward_plan));

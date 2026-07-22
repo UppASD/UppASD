@@ -6,6 +6,7 @@
 #include "tensor.hpp"
 
 #include <cstddef>
+#include <array>
 
 // CV6 deliberately separates the grid used by the dipole solver from the
 // exchange-convolution grid.  Dipole boundary conditions define the physical
@@ -58,9 +59,9 @@ struct GpuDipoleConvolutionDescriptor {
    GpuDipoleBoundaryMode boundary = GpuDipoleBoundaryMode::Open;
    GpuDipoleDiscretization discretization = GpuDipoleDiscretization::Atomistic;
 
-   // Columns of the physical cell matrix H=[C1 C2 C3].  The periodic
-   // reciprocal tensor must be formed from this full (possibly skew) matrix;
-   // Cartesian grid extents alone are never a valid substitute.
+   // Primitive-cell vectors.  fullCellMatrix() scales these by atomistic_grid
+   // to form the periodic supercell H; Cartesian grid extents alone are never
+   // a valid substitute for that (possibly skew) matrix.
    const real* c1 = nullptr;
    const real* c2 = nullptr;
    const real* c3 = nullptr;
@@ -71,6 +72,7 @@ struct GpuDipoleConvolutionDescriptor {
 
    GpuDipoleGridShape activeGrid() const;
    GpuDipoleGridShape paddedGrid() const;
+   std::array<real, 9> fullCellMatrix() const;
    GpuDipoleFftLayout fftLayout() const;
    bool valid() const;
 };
