@@ -121,6 +121,12 @@ only and must be labelled as such.
   the independent oracle's `B=Hessian(1/r)M` convention.  It is not enabled
   until the screened real-space contribution is implemented, so no partial
   Ewald sum can reach `beff`.
+- **2026-07-22 — screened real-space primitive.** The NA=1 validation slice
+  now has a direct device evaluator of the analytic Hessian of
+  `erfc(alpha*r)/r`, using the CPU-owned macrocell centres and explicit image
+  extent/cutoff.  It excludes only the exact self pair and is intentionally
+  dormant; a cell/Verlet replacement and combined oracle validation are still
+  required before activation.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

@@ -94,6 +94,30 @@ __global__ void add_point_self_field_kernel(const real* moments, real* fields, s
    }
 }
 
+__global__ void add_real_ewald_kernel(const real* moments, real* fields, const real* centres,
+   const real* h, std::size_t cells, unsigned int ensembles, real alpha, real cutoff, unsigned int extent) {
+   const std::size_t total = cells * ensembles;
+   for(std::size_t item = static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x; item<total;
+       item += static_cast<std::size_t>(blockDim.x)*gridDim.x) {
+      const std::size_t target=item%cells, ens=item/cells; real bx=0,by=0,bz=0;
+      const real tx=centres[3*target],ty=centres[3*target+1],tz=centres[3*target+2];
+      for(std::size_t source=0;source<cells;++source) for(int iz=-int(extent);iz<=int(extent);++iz)
+      for(int iy=-int(extent);iy<=int(extent);++iy) for(int ix=-int(extent);ix<=int(extent);++ix) {
+         if(target==source && ix==0 && iy==0 && iz==0) continue;
+         const real x=tx-(centres[3*source]+ix*h[0]+iy*h[3]+iz*h[6]);
+         const real y=ty-(centres[3*source+1]+ix*h[1]+iy*h[4]+iz*h[7]);
+         const real z=tz-(centres[3*source+2]+ix*h[2]+iy*h[5]+iz*h[8]);
+         const real r2=x*x+y*y+z*z; if(r2>cutoff*cutoff || r2==0) continue;
+         const real r=sqrt(r2), g=exp(-alpha*alpha*r2), e=erfc(alpha*r), pi=sqrt(acos((real)-1));
+         const real a=3*e/(r2*r2*r)+6*alpha*g/(pi*r2*r2)+4*alpha*alpha*alpha*g/(pi*r2);
+         const real b=-e/(r2*r)-2*alpha*g/(pi*r2);
+         const std::size_t base=3*(source+cells*ens); const real mx=moments[base],my=moments[base+1],mz=moments[base+2];
+         const real dot=x*mx+y*my+z*mz; bx+=a*x*dot+b*mx; by+=a*y*dot+b*my; bz+=a*z*dot+b*mz;
+      }
+      const std::size_t base=3*(target+cells*ens); fields[base]+=bx; fields[base+1]+=by; fields[base+2]+=bz;
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -443,6 +467,16 @@ void GpuDipoleConvolution::addPointSelfField(real alpha) {
    if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) {
       throw std::runtime_error("GPU dipole self-field launch failed");
    }
+}
+
+void GpuDipoleConvolution::addRealSpaceField(real alpha, real cutoff, unsigned int image_extent) {
+   if(!initiated || desc.basis != 1 || !desc.macro_centers || desc.macro_count != layout.real_cells || alpha<=0 || cutoff<=0)
+      throw std::runtime_error("real Ewald primitive requires NA=1 centres, positive alpha and cutoff");
+   constexpr unsigned int threads=128; const std::size_t total=layout.real_cells*desc.ensembles;
+   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
+   add_real_ewald_kernel<<<blocks,threads,0,stream>>>(moments_real.data(),fields_real.data(),desc.macro_centers,
+      cell_vectors.data(),layout.real_cells,desc.ensembles,alpha,cutoff,image_extent);
+   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU real Ewald launch failed");
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(

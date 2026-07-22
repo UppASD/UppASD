@@ -65,6 +65,9 @@ struct GpuDipoleConvolutionDescriptor {
    const real* c1 = nullptr;
    const real* c2 = nullptr;
    const real* c3 = nullptr;
+   // Device-resident [3, macrocell] centres from the CPU-owned PME map.
+   const real* macro_centers = nullptr;
+   std::size_t macro_count = 0;
 
    // Only used for Periodic2D.  The selected axis is the non-periodic slab
    // normal and is linearly padded; the remaining axes are periodic.
@@ -113,6 +116,8 @@ public:
    void inverseTransformFields();
    // Add the point-dipole Ewald self field after inverse transformation.
    void addPointSelfField(real alpha);
+   // Direct screened real-space reference primitive for the NA=1 slice.
+   void addRealSpaceField(real alpha, real cutoff, unsigned int image_extent);
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate

@@ -576,6 +576,8 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          dipoleDescriptor.c1 = SimParam.C1;
          dipoleDescriptor.c2 = SimParam.C2;
          dipoleDescriptor.c3 = SimParam.C3;
+         dipoleDescriptor.macro_centers = gpuHamiltonian.macro_center.data();
+         dipoleDescriptor.macro_count = numMacro;
          if(!dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
             throw std::runtime_error("GPU PME macrocell descriptor is invalid");
          }
