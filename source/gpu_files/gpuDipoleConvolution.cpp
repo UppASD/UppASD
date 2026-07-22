@@ -56,6 +56,35 @@ __global__ void pack_macro_moments_kernel(const real* macro_moments, real* packe
    }
 }
 
+__global__ void apply_spectral_kernel(const GpuFftComplex* moments, const GpuFftComplex* kernel,
+                                      GpuFftComplex* fields, std::size_t spectral_cells,
+                                      unsigned int basis, unsigned int ensembles) {
+   const std::size_t total = spectral_cells * 3 * basis * ensembles;
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < total; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      const std::size_t spectral = index % spectral_cells;
+      const std::size_t batch = index / spectral_cells;
+      const unsigned int row = static_cast<unsigned int>(batch % 3);
+      const std::size_t channel_ensemble = batch / 3;
+      const unsigned int target_basis = static_cast<unsigned int>(channel_ensemble % basis);
+      const unsigned int ensemble = static_cast<unsigned int>(channel_ensemble / basis);
+      real re = 0;
+      real im = 0;
+      for(unsigned int source_basis = 0; source_basis < basis; ++source_basis) {
+         for(unsigned int column = 0; column < 3; ++column) {
+            const std::size_t kernel_batch = row + 3 * (column + 3 * (target_basis + basis * source_basis));
+            const std::size_t moment_batch = column + 3 * (source_basis + basis * ensemble);
+            const GpuFftComplex k = kernel[spectral + spectral_cells * kernel_batch];
+            const GpuFftComplex m = moments[spectral + spectral_cells * moment_batch];
+            re += k.x * m.x - k.y * m.y;
+            im += k.x * m.y + k.y * m.x;
+         }
+      }
+      fields[index].x = re;
+      fields[index].y = im;
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -327,6 +356,19 @@ void GpuDipoleConvolution::packMacroMoments(const GpuTensor<real, 3>& macro_mome
 void GpuDipoleConvolution::forwardTransformMoments() {
    if(!initiated) throw std::runtime_error("GPU dipole forward FFT requested before initialization");
    assertGpuFft(GPUFFT_EXEC_R2C(forward_plan, moments_real.data(), moments_fft.data()));
+}
+
+void GpuDipoleConvolution::applySpectralKernel() {
+   if(!initiated) throw std::runtime_error("GPU dipole spectral contraction requested before initialization");
+   const std::size_t total = layout.spectral_cells * layout.field_batches;
+   constexpr unsigned int threads = 256;
+   const std::size_t blocks_needed = (total + threads - 1) / threads;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>(blocks_needed, 65535));
+   apply_spectral_kernel<<<blocks, threads, 0, stream>>>(moments_fft.data(), kernel_fft.data(), fields_fft.data(),
+                                                           layout.spectral_cells, desc.basis, desc.ensembles);
+   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) {
+      throw std::runtime_error("GPU dipole spectral contraction launch failed");
+   }
 }
 
 void GpuDipoleConvolution::inverseTransformFields() {

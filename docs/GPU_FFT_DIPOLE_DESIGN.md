@@ -103,6 +103,12 @@ only and must be labelled as such.
   the explicitly owned plans and work stream, but remain dormant pending the
   spectral Ewald-tensor contraction; inverse normalization will be applied in
   that contraction/scatter path exactly once.
+- **2026-07-22 — CV6.3 spectral block contraction.** The regular-grid path
+  now has a batched device contraction for the full `3x3xNAxNA` complex kernel.
+  Kernel batches are ordered as `row + 3*(column + 3*(target_basis +
+  NA*source_basis))`; moment/field batches add ensemble as the outer channel.
+  This fixes the multi-basis tensor convention before the Ewald kernel builder
+  populates it.  The contraction is not invoked while the mode is `OFF`.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

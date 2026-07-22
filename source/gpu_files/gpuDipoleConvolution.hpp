@@ -102,6 +102,9 @@ public:
    // staging primitive only; no transform or dipole field is applied here.
    void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
    void forwardTransformMoments();
+   // Apply the spectral block kernel with batch ordering
+   // row + 3*(column + 3*(target_basis + basis*source_basis)).
+   void applySpectralKernel();
    // Produces the unnormalised C2R output.  Spectral tensor contraction and
    // the 1/N normalisation are deliberately kept with the future field path.
    void inverseTransformFields();
