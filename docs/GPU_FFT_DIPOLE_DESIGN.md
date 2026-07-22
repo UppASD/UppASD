@@ -65,6 +65,13 @@ only and must be labelled as such.
   GPU source of `asdlib`.  A stale object used a different CUDA/Thrust ABI than
   its callers; rebuilding that object with the active toolchain restores the
   final `sd.f95.cuda` link.
+- **2026-07-22 — CV6.2 layout contract.** `GpuDipoleConvolution` now derives
+  the padded real grid, R2C half spectrum, batched field/kernel counts, and
+  persistent versus construction-only buffer budgets from its descriptor.  It
+  rejects arithmetic overflow and extents/batches that cannot be represented
+  by CUDA FFT or hipFFT `int` plan arguments before device allocation.  This
+  remains a plan-layout milestone: no tensor or FFT plan is created, and no
+  dipole field is applied until the Ewald tensor and its validation are added.
 
 There is exactly one source representation: **macrocells**.  `NA=1` is the
 first validation slice, where macro block size one gives exactly one atom per

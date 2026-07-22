@@ -572,9 +572,13 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
             throw std::runtime_error("GPU PME macrocell descriptor is invalid");
          }
          const auto grid = dipoleConvolution.descriptor().activeGrid();
-         std::printf("Gpu: CV6 PME geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s).\n",
+         const auto padded = dipoleConvolution.fftLayout().real_grid;
+         const auto& layout = dipoleConvolution.fftLayout();
+         std::printf("Gpu: CV6 PME geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points, %.3f MiB planned buffers).\n",
                      grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
-                     dipoleDescriptor.basis == 1 ? "" : "s");
+                     dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
+                     layout.spectral_cells,
+                     static_cast<double>(layout.persistentBytes()) / (1024.0 * 1024.0));
       }
       std::printf("Gpu: CV6 macrocell moment aggregation prepared (%u cells, %zu ensemble%s); dipole FFT pending.\n",
                   numMacro, SimParam.M, SimParam.M == 1 ? "" : "s");
