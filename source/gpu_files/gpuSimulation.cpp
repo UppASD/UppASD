@@ -14,6 +14,7 @@
 #include "gpu_wrappers.h"
 #include "gpuDepondtIntegrator.hpp"
 #include "gpuLatticeConvolutionHamiltonian.hpp"
+#include "gpuDipoleConvolution.hpp"
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
 #include <cstdlib>
@@ -394,6 +395,33 @@ bool willUseConvolution(const SimulationParameters& P) {
    return true;
 }
 
+std::size_t cv6DipoleBytes(const SimulationParameters& P) {
+   if(!FortranData::do_dip || *FortranData::do_dip != 2 || !FortranData::pme_num_macro ||
+      *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid || P.NA == 0 || P.M == 0) return 0;
+   GpuDipoleConvolutionDescriptor desc{};
+   desc.atomistic_grid = {P.N1, P.N2, P.N3};
+   desc.macro_grid = {static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
+                      static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
+                      static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
+   desc.basis = static_cast<unsigned int>(P.NA);
+   desc.ensembles = static_cast<unsigned int>(P.M);
+   desc.discretization = GpuDipoleDiscretization::MacrospinGrid;
+   desc.c1 = P.C1;
+   desc.c2 = P.C2;
+   desc.c3 = P.C3;
+   unsigned int periodic = 0;
+   const char boundaries[] = {P.BC1, P.BC2, P.BC3};
+   for(const char boundary : boundaries) periodic += boundary == 'P' || boundary == 'p';
+   if(periodic == 3) desc.boundary = GpuDipoleBoundaryMode::Periodic3D;
+   else if(periodic == 2) {
+      desc.boundary = GpuDipoleBoundaryMode::Periodic2D;
+      for(unsigned int axis = 0; axis < 3; ++axis) {
+         if(boundaries[axis] != 'P' && boundaries[axis] != 'p') desc.open_axis = axis;
+      }
+   }
+   return GpuDipoleConvolution::estimateBytes(desc);
+}
+
 // Sum every device allocation the run will make, compare to free VRAM, and abort
 // with a table before the first Allocate if it will not fit. Returns the total.
 std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameters& P, bool is_mc) {
@@ -403,6 +431,7 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
       {"Depondt integrator + thermfield",        GpuDepondtIntegrator::estimateBytes(P)},
       {"Energy buffers",                         energiesBytes(F, P)},
       {"FFT convolution",                        willUseConvolution(P) ? GpuLatticeConvolutionHamiltonian::estimateBytes(P) : static_cast<std::size_t>(0)},
+      {"CV6 dipole FFT + workspace",             cv6DipoleBytes(P)},
       {"Correlations",                           (FortranData::do_gpu_correlations && *FortranData::do_gpu_correlations == 'Y') ? GpuCorrelations::estimateBytes(F, P) : static_cast<std::size_t>(0)},
    };
    std::size_t total = 0;

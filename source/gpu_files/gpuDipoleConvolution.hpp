@@ -97,6 +97,8 @@ public:
    // grid solver.  Tensor construction staging is deliberately separate
    // because it is released after the kernel FFT.
    static std::size_t estimatePersistentBytes(const GpuDipoleConvolutionDescriptor& descriptor);
+   static std::size_t estimateWorkspaceBytes(const GpuDipoleConvolutionDescriptor& descriptor);
+   static std::size_t estimateBytes(const GpuDipoleConvolutionDescriptor& descriptor);
 
 private:
    GpuDipoleConvolutionDescriptor desc{};

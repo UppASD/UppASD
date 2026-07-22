@@ -32,6 +32,7 @@ using GpuFftComplex = cufftDoubleComplex;
 #define GPUFFT_CREATE cufftCreate
 #define GPUFFT_SET_AUTO_ALLOCATION cufftSetAutoAllocation
 #define GPUFFT_MAKE_PLAN_MANY cufftMakePlanMany
+#define GPUFFT_ESTIMATE_MANY cufftEstimateMany
 #define GPUFFT_SET_WORK_AREA cufftSetWorkArea
 #define GPUFFT_DESTROY cufftDestroy
 #define GPUFFT_SET_STREAM cufftSetStream
@@ -58,6 +59,7 @@ using GpuFftComplex = hipfftDoubleComplex;
 #define GPUFFT_CREATE hipfftCreate
 #define GPUFFT_SET_AUTO_ALLOCATION hipfftSetAutoAllocation
 #define GPUFFT_MAKE_PLAN_MANY hipfftMakePlanMany
+#define GPUFFT_ESTIMATE_MANY hipfftEstimateMany
 #define GPUFFT_SET_WORK_AREA hipfftSetWorkArea
 #define GPUFFT_DESTROY hipfftDestroy
 #define GPUFFT_SET_STREAM hipfftSetStream

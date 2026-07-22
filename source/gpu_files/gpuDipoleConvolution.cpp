@@ -258,3 +258,30 @@ std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
    return descriptor.valid() ? descriptor.fftLayout().persistentBytes() : 0;
 }
+
+std::size_t GpuDipoleConvolution::estimateWorkspaceBytes(
+      const GpuDipoleConvolutionDescriptor& descriptor) {
+   if(!descriptor.valid()) return 0;
+   const auto layout = descriptor.fftLayout();
+   int n[] = {static_cast<int>(layout.real_grid.n3), static_cast<int>(layout.real_grid.n2),
+              static_cast<int>(layout.real_grid.n1)};
+   int inembed[] = {n[0], n[1], n[2]};
+   int onembed[] = {n[0], n[1], static_cast<int>(layout.spectral_grid.n1)};
+   const int idist = static_cast<int>(layout.real_cells);
+   const int odist = static_cast<int>(layout.spectral_cells);
+   std::size_t forward = 0, backward = 0, kernel = 0;
+   if(GPUFFT_ESTIMATE_MANY(3, n, inembed, 1, idist, onembed, 1, odist, GPUFFT_R2C,
+                           static_cast<int>(layout.field_batches), &forward) != GPUFFT_SUCCESS ||
+      GPUFFT_ESTIMATE_MANY(3, n, onembed, 1, odist, inembed, 1, idist, GPUFFT_C2R,
+                           static_cast<int>(layout.field_batches), &backward) != GPUFFT_SUCCESS ||
+      GPUFFT_ESTIMATE_MANY(3, n, inembed, 1, idist, onembed, 1, odist, GPUFFT_R2C,
+                           static_cast<int>(layout.kernel_batches), &kernel) != GPUFFT_SUCCESS) return 0;
+   return std::max(forward, std::max(backward, kernel));
+}
+
+std::size_t GpuDipoleConvolution::estimateBytes(const GpuDipoleConvolutionDescriptor& descriptor) {
+   const std::size_t buffers = estimatePersistentBytes(descriptor);
+   const std::size_t workspace = estimateWorkspaceBytes(descriptor);
+   std::size_t total = 0;
+   return buffers != 0 && add(buffers, workspace, total) ? total : 0;
+}

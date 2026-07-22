@@ -83,6 +83,12 @@ only and must be labelled as such.
   owner uploads this matrix beside its FFT buffers.  Subsequent reciprocal
   tensor construction must use `H` and its reciprocal, retaining triclinic
   support rather than treating grid indices as Cartesian wavevectors.
+- **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
+  the CV6 real/spectral/kernel arrays and the maximum workspace returned by
+  CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The
+  same single workspace is explicitly allocated and bound to all plans, so the
+  startup budget covers the plan lifecycle rather than omitting a hidden FFT
+  allocation.
 
 There is exactly one source representation: **macrocells**.  `NA=1` is the
 first validation slice, where macro block size one gives exactly one atom per
