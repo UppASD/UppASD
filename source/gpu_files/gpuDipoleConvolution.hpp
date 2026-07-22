@@ -97,6 +97,11 @@ public:
    const GpuDipoleConvolutionDescriptor& descriptor() const;
    const GpuDipoleFftLayout& fftLayout() const;
 
+   // Pack [component, macrocell, ensemble] macro moments into contiguous
+   // [cell, component+basis*ensemble] FFT channels.  This is deliberately a
+   // staging primitive only; no transform or dipole field is applied here.
+   void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
+
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
    // because it is released after the kernel FFT.

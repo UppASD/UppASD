@@ -37,6 +37,27 @@ bool hasNonSingularCell(const GpuDipoleConvolutionDescriptor& descriptor) {
 
 } // namespace
 
+namespace {
+
+__global__ void pack_macro_moments_kernel(const real* macro_moments, real* packed,
+                                           std::size_t cells, unsigned int basis,
+                                           unsigned int ensembles) {
+   const std::size_t total = 3 * cells * basis * ensembles;
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < total; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      const unsigned int component = static_cast<unsigned int>(index % 3);
+      const std::size_t macro_ensemble = index / 3;
+      const unsigned int ensemble = static_cast<unsigned int>(macro_ensemble / (cells * basis));
+      const std::size_t macro = macro_ensemble % (cells * basis);
+      const unsigned int channel = static_cast<unsigned int>(macro % basis);
+      const std::size_t cell = macro / basis;
+      const std::size_t batch = component + 3 * (channel + basis * ensemble);
+      packed[cell + cells * batch] = macro_moments[index];
+   }
+}
+
+} // namespace
+
 std::size_t GpuDipoleGridShape::cells() const {
    if(!valid() || n1 > std::numeric_limits<std::size_t>::max() / n2 ||
       n1 * n2 > std::numeric_limits<std::size_t>::max() / n3) {
@@ -285,6 +306,22 @@ const GpuDipoleConvolutionDescriptor& GpuDipoleConvolution::descriptor() const {
 
 const GpuDipoleFftLayout& GpuDipoleConvolution::fftLayout() const {
    return layout;
+}
+
+void GpuDipoleConvolution::packMacroMoments(const GpuTensor<real, 3>& macro_moments) {
+   if(!initiated) throw std::runtime_error("GPU dipole FFT pack requested before initialization");
+   const std::size_t expected = 3 * layout.real_cells * desc.basis * desc.ensembles;
+   if(macro_moments.size() != expected) {
+      throw std::runtime_error("GPU dipole macro-moment shape does not match the FFT grid");
+   }
+   constexpr unsigned int threads = 256;
+   const std::size_t blocks_needed = (expected + threads - 1) / threads;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>(blocks_needed, 65535));
+   pack_macro_moments_kernel<<<blocks, threads, 0, stream>>>(macro_moments.data(), moments_real.data(),
+                                                               layout.real_cells, desc.basis, desc.ensembles);
+   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) {
+      throw std::runtime_error("GPU dipole macro-moment packing launch failed");
+   }
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(

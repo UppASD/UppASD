@@ -92,6 +92,12 @@ only and must be labelled as such.
   reciprocal columns use cross products of the full supercell vectors, giving
   the correct wavevectors for skew periodic systems without an orthogonal-box
   approximation.
+- **2026-07-22 — CV6.3 channel pack primitive.** A device kernel now maps
+  basis-resolved macro moments from `[3, macrocell, ensemble]` into the
+  contiguous regular-grid FFT channels `[cell, component+basis*ensemble]`.
+  Its indexing follows the CPU-owned PME map (`basis` fastest within a coarse
+  cell), so a future transform cannot accidentally mix basis channels.  It is
+  not called while the GPU dipole mode remains `OFF`.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The
