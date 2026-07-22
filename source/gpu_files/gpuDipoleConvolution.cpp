@@ -541,6 +541,9 @@ void GpuDipoleConvolution::reducePointEwaldEnergy() {
 
 std::vector<real> GpuDipoleConvolution::pointEwaldEnergies() const {
    if(!initiated) throw std::runtime_error("point Ewald energy requested before initialization");
+   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) {
+      throw std::runtime_error("GPU point Ewald energy stream synchronization failed");
+   }
    std::vector<real> result(desc.ensembles);
    if(GPU_MEMCPY(result.data(),point_energy.data(),result.size()*sizeof(real),GPU_MEMCPY_DEVICE_TO_HOST)!=GPU_SUCCESS)
       throw std::runtime_error("GPU point Ewald energy download failed");
