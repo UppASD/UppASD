@@ -550,6 +550,21 @@ std::vector<real> GpuDipoleConvolution::pointEwaldEnergies() const {
    return result;
 }
 
+std::vector<real> GpuDipoleConvolution::pointEwaldFields() const {
+   if(!initiated || desc.basis != 1) throw std::runtime_error("point Ewald field requested from an invalid grid");
+   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU point Ewald field stream synchronization failed");
+   std::vector<real> packed(layout.real_cells * layout.field_batches);
+   if(GPU_MEMCPY(packed.data(), fields_real.data(), packed.size()*sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+      throw std::runtime_error("GPU point Ewald field download failed");
+   std::vector<real> result(3 * layout.real_cells * desc.ensembles);
+   for(unsigned int ensemble=0; ensemble<desc.ensembles; ++ensemble)
+      for(std::size_t cell=0; cell<layout.real_cells; ++cell)
+         for(unsigned int component=0; component<3; ++component)
+            result[component + 3*(cell + layout.real_cells*ensemble)] =
+               packed[cell + layout.real_cells*(component + 3*ensemble)];
+   return result;
+}
+
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
    if(!descriptor.valid()) return 0;

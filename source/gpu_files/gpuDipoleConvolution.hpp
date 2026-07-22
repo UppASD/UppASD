@@ -125,6 +125,7 @@ public:
                            std::size_t atom_count);
    void reducePointEwaldEnergy();
    std::vector<real> pointEwaldEnergies() const;
+   std::vector<real> pointEwaldFields() const;
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
