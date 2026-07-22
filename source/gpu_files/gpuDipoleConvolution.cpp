@@ -131,6 +131,16 @@ __global__ void scatter_point_fields_kernel(const real* fields, real* beff, cons
    }
 }
 
+__global__ void reduce_point_energy_kernel(const real* moments, const real* fields, real* energy,
+                                           std::size_t cells, unsigned int ensembles) {
+   const std::size_t total=cells*ensembles;
+   for(std::size_t item=static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x;item<total;
+       item+=static_cast<std::size_t>(blockDim.x)*gridDim.x) {
+      const std::size_t cell=item%cells, ens=item/cells, base=3*(cell+cells*ens);
+      atomicAdd(&energy[ens], static_cast<real>(-0.5)*(moments[base]*fields[base]+moments[base+1]*fields[base+1]+moments[base+2]*fields[base+2]));
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -291,6 +301,7 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
       cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
       reciprocal_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
       cell_volume.Allocate(static_cast<long int>(1));
+      point_energy.Allocate(static_cast<long int>(desc.ensembles));
       const auto full_cell = desc.fullCellMatrix();
       const auto reciprocal_cell = desc.reciprocalCellMatrix();
       const real volume = desc.cellVolume();
@@ -358,6 +369,7 @@ void GpuDipoleConvolution::release() {
       cell_vectors.Free();
       reciprocal_vectors.Free();
       cell_volume.Free();
+      point_energy.Free();
       fft_workspace.Free();
       allocated = false;
    }
@@ -517,9 +529,29 @@ void GpuDipoleConvolution::scatterPointFields(GpuTensor<real, 3>& beff, const un
    if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU dipole field scatter launch failed");
 }
 
+void GpuDipoleConvolution::reducePointEwaldEnergy() {
+   if(!initiated || desc.basis!=1) throw std::runtime_error("point Ewald energy requires initialized NA=1 grid");
+   GPU_MEMSET_ASYNC(point_energy.data(),0,desc.ensembles*sizeof(real),stream);
+   constexpr unsigned int threads=256; const std::size_t total=layout.real_cells*desc.ensembles;
+   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
+   reduce_point_energy_kernel<<<blocks,threads,0,stream>>>(moments_real.data(),fields_real.data(),point_energy.data(),layout.real_cells,desc.ensembles);
+   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU point Ewald energy reduction launch failed");
+}
+
+std::vector<real> GpuDipoleConvolution::pointEwaldEnergies() const {
+   if(!initiated) throw std::runtime_error("point Ewald energy requested before initialization");
+   std::vector<real> result(desc.ensembles);
+   if(GPU_MEMCPY(result.data(),point_energy.data(),result.size()*sizeof(real),GPU_MEMCPY_DEVICE_TO_HOST)!=GPU_SUCCESS)
+      throw std::runtime_error("GPU point Ewald energy download failed");
+   return result;
+}
+
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
-   return descriptor.valid() ? descriptor.fftLayout().persistentBytes() : 0;
+   if(!descriptor.valid()) return 0;
+   std::size_t energy_bytes=0,total=0;
+   return bytesFor(descriptor.ensembles,sizeof(real),energy_bytes) &&
+          add(descriptor.fftLayout().persistentBytes(),energy_bytes,total) ? total : 0;
 }
 
 std::size_t GpuDipoleConvolution::estimateWorkspaceBytes(

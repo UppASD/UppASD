@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <array>
+#include <vector>
 
 // CV6 deliberately separates the grid used by the dipole solver from the
 // exchange-convolution grid.  Dipole boundary conditions define the physical
@@ -122,6 +123,8 @@ public:
                            real cutoff, unsigned int image_extent);
    void scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
                            std::size_t atom_count);
+   void reducePointEwaldEnergy();
+   std::vector<real> pointEwaldEnergies() const;
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
@@ -150,5 +153,6 @@ private:
    GpuTensor<real, 2> cell_vectors;
    GpuTensor<real, 2> reciprocal_vectors;
    GpuTensor<real, 1> cell_volume;
+   GpuTensor<real, 1> point_energy;
    GpuTensor<unsigned char, 1> fft_workspace;
 };
