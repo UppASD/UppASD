@@ -568,6 +568,9 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          dipoleDescriptor.ensembles = static_cast<unsigned int>(SimParam.M);
          dipoleDescriptor.discretization = GpuDipoleDiscretization::MacrospinGrid;
          dipoleDescriptor.boundary = dipoleBoundaryMode(SimParam, dipoleDescriptor.open_axis);
+         dipoleDescriptor.c1 = SimParam.C1;
+         dipoleDescriptor.c2 = SimParam.C2;
+         dipoleDescriptor.c3 = SimParam.C3;
          if(!dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
             throw std::runtime_error("GPU PME macrocell descriptor is invalid");
          }

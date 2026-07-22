@@ -30,6 +30,17 @@ bool bytesFor(std::size_t elements, std::size_t element_bytes, std::size_t& byte
    return multiply(elements, element_bytes, bytes);
 }
 
+bool hasNonSingularCell(const GpuDipoleConvolutionDescriptor& descriptor) {
+   if(!descriptor.c1 || !descriptor.c2 || !descriptor.c3) return false;
+   const real* a = descriptor.c1;
+   const real* b = descriptor.c2;
+   const real* c = descriptor.c3;
+   const real determinant = a[0] * (b[1] * c[2] - b[2] * c[1]) -
+                            a[1] * (b[0] * c[2] - b[2] * c[0]) +
+                            a[2] * (b[0] * c[1] - b[1] * c[0]);
+   return determinant != static_cast<real>(0);
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -65,7 +76,8 @@ std::size_t GpuDipoleFftLayout::persistentBytes() const {
       !bytesFor(real_fields, sizeof(real), bytes) ||
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
-      !bytesFor(kernel, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes)) return 0;
+      !bytesFor(kernel, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
+      !bytesFor(9, sizeof(real), part) || !add(bytes, part, bytes)) return 0;
    return bytes;
 }
 
@@ -117,7 +129,7 @@ bool GpuDipoleConvolutionDescriptor::valid() const {
    if(basis == 0 || ensembles == 0 || !atomistic_grid.valid()) return false;
    if(discretization == GpuDipoleDiscretization::MacrospinGrid && !macro_grid.valid()) return false;
    if(boundary == GpuDipoleBoundaryMode::Periodic2D && open_axis > 2) return false;
-   return fftLayout().fitsFftLibrary();
+   return hasNonSingularCell(*this) && fftLayout().fitsFftLibrary();
 }
 
 bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descriptor,
@@ -154,6 +166,12 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
                          static_cast<long int>(layout.field_batches));
       kernel_fft.Allocate(static_cast<long int>(layout.spectral_cells),
                           static_cast<long int>(layout.kernel_batches));
+      cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
+      if(GPU_MEMCPY(cell_vectors.data(), desc.c1, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(cell_vectors.data() + 3, desc.c2, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(cell_vectors.data() + 6, desc.c3, 3 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+         throw std::runtime_error("GPU dipole cell-matrix upload failed");
+      }
       assertGpuFft(GPUFFT_CREATE(&forward_plan));
       forward_plan_created = true;
       assertGpuFft(GPUFFT_CREATE(&backward_plan));
@@ -210,6 +228,7 @@ void GpuDipoleConvolution::release() {
       moments_fft.Free();
       fields_fft.Free();
       kernel_fft.Free();
+      cell_vectors.Free();
       fft_workspace.Free();
       allocated = false;
    }

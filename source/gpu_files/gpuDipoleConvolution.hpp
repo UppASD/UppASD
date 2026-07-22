@@ -58,6 +58,13 @@ struct GpuDipoleConvolutionDescriptor {
    GpuDipoleBoundaryMode boundary = GpuDipoleBoundaryMode::Open;
    GpuDipoleDiscretization discretization = GpuDipoleDiscretization::Atomistic;
 
+   // Columns of the physical cell matrix H=[C1 C2 C3].  The periodic
+   // reciprocal tensor must be formed from this full (possibly skew) matrix;
+   // Cartesian grid extents alone are never a valid substitute.
+   const real* c1 = nullptr;
+   const real* c2 = nullptr;
+   const real* c3 = nullptr;
+
    // Only used for Periodic2D.  The selected axis is the non-periodic slab
    // normal and is linearly padded; the remaining axes are periodic.
    unsigned int open_axis = 2;
@@ -108,5 +115,6 @@ private:
    GpuTensor<GpuFftComplex, 2> moments_fft;
    GpuTensor<GpuFftComplex, 2> fields_fft;
    GpuTensor<GpuFftComplex, 2> kernel_fft;
+   GpuTensor<real, 2> cell_vectors;
    GpuTensor<unsigned char, 1> fft_workspace;
 };

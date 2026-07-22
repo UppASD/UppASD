@@ -78,6 +78,11 @@ only and must be labelled as such.
   allocation escapes the lifecycle.  The buffers are intentionally not yet
   executed: tensor construction and field/energy kernels remain the next
   validation-gated slice.
+- **2026-07-22 — CV6.2 cell-matrix bridge.** The descriptor now carries the
+  three cell vectors and rejects a missing or singular `H=[C1 C2 C3]`.  The
+  owner uploads this matrix beside its FFT buffers.  Subsequent reciprocal
+  tensor construction must use `H` and its reciprocal, retaining triclinic
+  support rather than treating grid indices as Cartesian wavevectors.
 
 There is exactly one source representation: **macrocells**.  `NA=1` is the
 first validation slice, where macro block size one gives exactly one atom per
