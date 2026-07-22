@@ -516,6 +516,7 @@ void GpuDipoleConvolution::evaluatePointEwald(const GpuTensor<real, 3>& macro_mo
    inverseTransformFields();
    addRealSpaceField(alpha, cutoff, image_extent);
    addPointSelfField(alpha);
+   reducePointEwaldEnergy();
 }
 
 void GpuDipoleConvolution::scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
