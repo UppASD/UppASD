@@ -76,6 +76,15 @@ public:
    static real* C2;
    static real* C3;
    static real* Bas;
+   // Macrocell data for the CV6 dipole backend. cell_index is Fortran
+   // one-based; conversion happens in the device aggregation kernel.
+   static int* do_dip;
+   static unsigned int* num_macro;
+   static unsigned int* macro_block_x;
+   static unsigned int* macro_block_y;
+   static unsigned int* macro_block_z;
+   static unsigned int* macro_cell_index;
+   static unsigned int* macro_nlistsize;
    
 
    static unsigned int* nq;
@@ -252,6 +261,12 @@ public:
                                        unsigned int* p_NA, char* p_BC1, char* p_BC2, char* p_BC3,
                                        real* p_C1, real* p_C2, real* p_C3, real* p_Bas,
                                        char* p_do_gpu_convolution);
+
+    static void setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
+                                     unsigned int* p_block_x, unsigned int* p_block_y,
+                                     unsigned int* p_block_z, unsigned int* p_cell_index,
+                                     unsigned int* p_macro_nlistsize);
+    static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,

@@ -202,6 +202,11 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuHamiltonian.sb.set(FortranData::sb, N);
     }
     cpuHamiltonian.extfield.set(FortranData::external_field,  static_cast <long int>(3), N, M);
+    if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro &&
+       *FortranData::num_macro > 0 && FortranData::macro_cell_index && FortranData::macro_nlistsize) {
+        cpuHamiltonian.macro_cell_index.set(FortranData::macro_cell_index, N);
+        cpuHamiltonian.macro_nlistsize.set(FortranData::macro_nlistsize, *FortranData::num_macro);
+    }
     cpuLattice.beff.set(FortranData::beff,  static_cast <long int>(3), N, M);
     cpuLattice.b2eff.set(FortranData::b2eff,  static_cast <long int>(3), N, M);
     cpuLattice.emomM.set(FortranData::emomM,  static_cast <long int>(3), N, M);
@@ -327,6 +332,15 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
       b += N * sizeof(real);                                 // sb(N)
    }
    b += 3 * N * M * sizeof(real);                            // extfield(3,N,M)
+   // CV6.1 macro-only dipole staging: one atom-to-cell map plus the current
+   // 3-vector macro moment for every cell and ensemble. The FFT tensor and
+   // work buffers are added in CV6.2 once the boundary mode is selected.
+   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro) {
+      const std::size_t macro = *FortranData::num_macro;
+      b += N * sizeof(unsigned int);                          // cell_index(N)
+      b += macro * sizeof(unsigned int);                      // macro_nlistsize(Nmacro)
+      b += 3 * macro * M * sizeof(real);                      // macro moments(3,Nmacro,M)
+   }
    return b;
 }
 
@@ -485,6 +499,10 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
 
     }
     gpuHamiltonian.extfield.Allocate( static_cast <long int>(3), N, M);
+    if(!cpuHamiltonian.macro_cell_index.empty()) {
+        gpuHamiltonian.macro_cell_index.Allocate(N);
+        gpuHamiltonian.macro_nlistsize.Allocate(cpuHamiltonian.macro_nlistsize.size());
+    }
     gpuLattice.beff.Allocate( static_cast <long int>(3), N, M);
     gpuLattice.b2eff.Allocate( static_cast <long int>(3), N, M);
     // M2: eneff is written by Heisge but read only by MC; for SD without aniso it
@@ -654,7 +672,9 @@ void GpuSimulation::release() {
 
     }   
      
-    gpuHamiltonian.extfield.Free();  
+    gpuHamiltonian.extfield.Free();
+    gpuHamiltonian.macro_cell_index.Free();
+    gpuHamiltonian.macro_nlistsize.Free();
     gpuLattice.beff.Free();  
     gpuLattice.b2eff.Free();   
     if(eneffAliased) { gpuLattice.eneff = GpuTensor<real, 3>{}; eneffAliased = false; }
@@ -717,7 +737,11 @@ void GpuSimulation::copyFromFortran() {
         gpuHamiltonian.eaniso.copy_sync(cpuHamiltonian.eaniso);     
         gpuHamiltonian.taniso.copy_sync(cpuHamiltonian.taniso);  
         gpuHamiltonian.sb.copy_sync(cpuHamiltonian.sb);  }     
-    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield); 
+    gpuHamiltonian.extfield.copy_sync(cpuHamiltonian.extfield);
+    if(!gpuHamiltonian.macro_cell_index.empty()) {
+        gpuHamiltonian.macro_cell_index.copy_sync(cpuHamiltonian.macro_cell_index);
+        gpuHamiltonian.macro_nlistsize.copy_sync(cpuHamiltonian.macro_nlistsize);
+    }
    // printf("HERE - 6\n");
     gpuLattice.beff.copy_sync(cpuLattice.beff);  
     gpuLattice.b2eff.copy_sync(cpuLattice.b2eff);   

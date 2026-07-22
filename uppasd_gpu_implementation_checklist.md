@@ -790,6 +790,39 @@ boundary treatment, energy functional, and input-mode contract. Investigate and 
 separately or explicitly avoid the CPU FFT temporary-array shape typo
 (`tmp(N1_pad,N2_pad,N2_pad)`); it is not a GPU design constraint.
 
+**Macro-only dipole fast path and periodic reference assessment (CV6.0a, M).** Treat the
+existing rectangular macrocell decomposition as the leading production candidate, not merely an
+optional interpolation layer. `macrocells.f90` already supplies a regular block grid,
+`cell_index`, `macro_nlistsize`, and `emomM_macro`; the current `do_dip=2` then applies a dense
+`Qdip_macro(3,3,Num_macro,Num_macro)` and broadcasts a cell-constant field to its atoms. The GPU
+replacement should preserve that model while changing the far-field evaluation to:
+
+1. reduce `emomM` to one vector macro moment per cell and ensemble on the GPU;
+2. evaluate the macro-grid demagnetising field with the selected FFT/PME kernel; and
+3. scatter the cell field back to every member atom and reduce `-0.5 sum_cell M_cell dot B_cell`
+   directly (do not repeat the energy once per atom).
+
+This changes the long-range work from `O(M*Nmacro^2)` and the dense `O(Nmacro^2)` tensor to
+`O(M*(N + G log G))` work and `O(G)` spectral storage, where `G` is the padded macro grid. For a
+block containing `b` atoms, the FFT volume and tensor storage are roughly reduced by `b` relative
+to atomistic-grid FFT; the unavoidable reduce/scatter remains linear in `N` and is usually
+bandwidth-bound. It also avoids ever constructing/uploading the CPU dense macro tensor. The
+cost/complexity is **moderate**, not low: device-side reduction must be deterministic enough for
+tests, partial edge blocks require their actual cell population/shape, and the finite-cell self
+demag term must match the macrocell physical model. Export the existing mapping/data rather than
+recreate it from floating-point coordinates in C++.
+
+`source/Hamiltonian/ewaldmom.f90` is useful as a **3D-periodic convention and validation
+reference**: it contains real-space, reciprocal-space, self, and surface terms controlled by
+`Ewald_alpha`, `RMAX`, and `KMAX`. It must not be called or copied blindly into the GPU hot path:
+it builds dense `R_EWALD/EQdip(3,3,Natom,Natom)`, appears not to be wired into the normal
+Hamiltonian dispatch, and needs a standalone reference-validation sweep first. Use it to specify
+and test the 3D-PBC `k=0`/surface convention, then implement the production macro-grid path as
+GPU PME/FFT. It is not a 2D-periodic/slab solution; that mode needs a separately derived slab
+Ewald/PME kernel and validation cases. Stage boundary modes accordingly: **open macro FFT first
+for the existing `do_dip=2` model, 3D-PBC macro PME next (priority if bulk is the main workload),
+then 2D-PBC slab PME**. None may silently substitute a different macroscopic boundary condition.
+
 **Implementation plan (one PR/branch per numbered item):**
 
 1. **ABI, ownership, and dispatch (CV6.1, S).** Export `do_dip`, `alat`, and the existing

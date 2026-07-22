@@ -3,6 +3,8 @@
 enum class GpuHamiltonianBackend {
    DirectSparse,
    LatticeConvolution,
+   FftDipole,
+   GridDipole,
    MultiscaleDipole
 };
 

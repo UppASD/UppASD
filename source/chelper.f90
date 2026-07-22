@@ -169,6 +169,16 @@ module Chelper
          real(c_double), intent(inout) :: Bas(*)
          character(c_char), intent(inout) :: do_gpu_convolution
       end subroutine FortranData_setGpuGeometry
+
+      subroutine FortranData_setMacrocell(do_dip, Num_macro, block_x, block_y, block_z, cell_index, macro_nlistsize) &
+               bind(C, name="fortrandata_setmacrocell_")
+         import :: c_int
+         integer(c_int), intent(inout) :: do_dip, Num_macro, block_x, block_y, block_z
+         integer(c_int), intent(inout) :: cell_index(*), macro_nlistsize(*)
+      end subroutine FortranData_setMacrocell
+
+      subroutine FortranData_clearMacrocell() bind(C, name="fortrandata_clearmacell_")
+      end subroutine FortranData_clearMacrocell
    end interface
 
 
@@ -556,6 +566,15 @@ contains
          NT_meta, Nchmax, mry, NA, Natom_full)
 
       call FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution)
+
+      ! Macrocell arrays are allocated only when macro cells are requested.
+      ! Do not pass an unallocated Fortran allocatable through the C ABI.
+      if (Num_macro > 0) then
+         call FortranData_setMacrocell(ham_inp%do_dip, Num_macro, block_size_x, block_size_y, block_size_z, &
+            cell_index, macro_nlistsize)
+      else
+         call FortranData_clearMacrocell()
+      endif
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &

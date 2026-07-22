@@ -79,6 +79,33 @@ public:
    }
 };
 
+// CV6.1: macro moments must be derived from the current device moments every
+// Hamiltonian evaluation.  The host macro arrays are only initialization data;
+// using them after GPU integration would leave the dipole field one or more
+// time steps stale. cell_index keeps Fortran's one-based convention.
+class GpuHamiltonianCalculations::UpdateMacroMoments : public ParallelizationHelper::AtomSite {
+private:
+   const unsigned int* cellIndex;
+   const real* moments;
+   real* macroMoments;
+   unsigned int macroCount;
+
+public:
+   UpdateMacroMoments(const unsigned int* indices, const GpuTensor<real, 3>& source,
+                      GpuTensor<real, 3>& destination, unsigned int count)
+      : cellIndex(indices), moments(source.data()), macroMoments(destination.data()), macroCount(count) {}
+
+   __device__ void each(unsigned int atom, unsigned int site) {
+      const unsigned int oneBasedCell = cellIndex[site];
+      if(oneBasedCell == 0 || oneBasedCell > macroCount) return;
+      const unsigned int cell = oneBasedCell - 1;
+      const unsigned int ensemble = atom / N;
+      atomicAdd(&macroMoments[0 + 3 * (cell + macroCount * ensemble)], moments[0 + 3 * (site + N * ensemble)]);
+      atomicAdd(&macroMoments[1 + 3 * (cell + macroCount * ensemble)], moments[1 + 3 * (site + N * ensemble)]);
+      atomicAdd(&macroMoments[2 + 3 * (cell + macroCount * ensemble)], moments[2 + 3 * (site + N * ensemble)]);
+   }
+};
+
 // The neighbour list setup helper
 //
 // For Tensorial Exchange
@@ -437,6 +464,7 @@ GpuHamiltonianCalculations::GpuHamiltonianCalculations() : parallel(Parallelizat
 
 GpuHamiltonianCalculations::~GpuHamiltonianCalculations() {
    convolution.release();
+   macroMoments.Free();
 }
 
 bool GpuHamiltonianCalculations::canUseLatticeConvolution(const Flag Flags, const SimulationParameters SimParam,
@@ -496,6 +524,20 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    do_dm = false;
    do_aniso = 0;
    convolution.release();
+   macroCellIndex = nullptr;
+   macroMoments.Free();
+   numMacro = 0;
+   refreshMacroMoments = false;
+   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro &&
+      *FortranData::num_macro > 0 && !gpuHamiltonian.macro_cell_index.empty() &&
+      !gpuHamiltonian.macro_nlistsize.empty()) {
+      numMacro = *FortranData::num_macro;
+      macroCellIndex = gpuHamiltonian.macro_cell_index.data();
+      macroMoments.Allocate(3, numMacro, SimParam.M);
+      refreshMacroMoments = true;
+      std::printf("Gpu: CV6 macrocell moment aggregation prepared (%u cells, %zu ensemble%s); dipole FFT pending.\n",
+                  numMacro, SimParam.M, SimParam.M == 1 ? "" : "s");
+   }
    backend = {};
    backend.convolution_ready = canUseLatticeConvolution(Flags, SimParam, gpuHamiltonian);
    backend.multiscale_ready = canUseMultiscaleDipole(Flags, SimParam, gpuHamiltonian);
@@ -679,6 +721,15 @@ else{
 
 void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies,
                                         bool measure, bool includeAnisotropy) {
+   // CV6.1: keep macro blocks coherent with the current device moments.  This
+   // runs before any future macro-grid dipole field evaluation and is harmless
+   // while the FFT backend remains disabled.
+   if(refreshMacroMoments) {
+      macroMoments.zeros_async(parallel.getWorkStream());
+      parallel.gpuAtomSiteCall(UpdateMacroMoments(macroCellIndex, gpuLattice.emomM,
+                                                  macroMoments, numMacro));
+   }
+
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
    // The FFT convolution backend serves both field-only and measuring steps

@@ -55,6 +55,8 @@ private:
    Anisotropy aniso;
    HamRed redHam;
    GpuTensor<real, 3> external_field;
+   const unsigned int* macroCellIndex = nullptr;
+   GpuTensor<real, 3> macroMoments;
    GpuHamiltonianBackendSelection backend;
    GpuLatticeConvolutionHamiltonian convolution;
 
@@ -62,6 +64,8 @@ private:
    bool do_dm = false;
    int do_aniso = 0;
    int do_ene = 0;
+   unsigned int numMacro = 0;
+   bool refreshMacroMoments = false;
 
    // Initiation flag
    bool initiated;
@@ -86,6 +90,7 @@ public:
    class SetupNeighbourListDM;
    class SetupNeighbourListExchangeTensor;
    class SetupAnisotropy;
+   class UpdateMacroMoments;
    template<bool HasDM, bool HasAniso, bool HasTensor, bool Measure>
    class Heisge;
    class HeisgeJijElement;

@@ -5,6 +5,7 @@ gpuThermfield.cpp
 gpuDepondtIntegrator.cpp
 gpuEventPool.cpp
 gpuHamiltonianCalculations.cpp
+gpuDipoleConvolution.cpp
 gpuLatticeConvolutionHamiltonian.cpp
 gpuMomentUpdater.cpp
 gpuSDSimulation.cpp
@@ -25,6 +26,7 @@ gpuDepondtIntegrator.hpp
 gpuEventPool.hpp
 gpuHamiltonianBackend.hpp
 gpuHamiltonianCalculations.hpp
+gpuDipoleConvolution.hpp
 gpuHamiltonianDeviceOps.hpp
 gpuFftWrapper.hpp
 gpuLatticeConvolutionHamiltonian.hpp

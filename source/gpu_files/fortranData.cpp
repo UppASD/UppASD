@@ -34,6 +34,13 @@ real* FortranData::C1 = nullptr;
 real* FortranData::C2 = nullptr;
 real* FortranData::C3 = nullptr;
 real* FortranData::Bas = nullptr;
+int* FortranData::do_dip = nullptr;
+unsigned int* FortranData::num_macro = nullptr;
+unsigned int* FortranData::macro_block_x = nullptr;
+unsigned int* FortranData::macro_block_y = nullptr;
+unsigned int* FortranData::macro_block_z = nullptr;
+unsigned int* FortranData::macro_cell_index = nullptr;
+unsigned int* FortranData::macro_nlistsize = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -283,6 +290,29 @@ void FortranData::setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2,
    do_gpu_convolution = p_do_gpu_convolution;
 }
 
+void FortranData::setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
+                                       unsigned int* p_block_x, unsigned int* p_block_y,
+                                       unsigned int* p_block_z, unsigned int* p_cell_index,
+                                       unsigned int* p_macro_nlistsize) {
+   do_dip = p_do_dip;
+   num_macro = p_num_macro;
+   macro_block_x = p_block_x;
+   macro_block_y = p_block_y;
+   macro_block_z = p_block_z;
+   macro_cell_index = p_cell_index;
+   macro_nlistsize = p_macro_nlistsize;
+}
+
+void FortranData::clearMacrocellPointers() {
+   do_dip = nullptr;
+   num_macro = nullptr;
+   macro_block_x = nullptr;
+   macro_block_y = nullptr;
+   macro_block_z = nullptr;
+   macro_cell_index = nullptr;
+   macro_nlistsize = nullptr;
+}
+
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                          real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
                                          real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -509,6 +539,17 @@ extern "C" void fortrandata_setgpugeometry_(unsigned int* p_N1, unsigned int* p_
    real* p_C1, real* p_C2, real* p_C3, real* p_Bas, char* p_do_gpu_convolution) {
 FortranData::setGpuGeometryPointers(p_N1, p_N2, p_N3, p_NA, p_BC1, p_BC2, p_BC3,
                                     p_C1, p_C2, p_C3, p_Bas, p_do_gpu_convolution);
+}
+
+extern "C" void fortrandata_setmacrocell_(int* p_do_dip, unsigned int* p_num_macro,
+   unsigned int* p_block_x, unsigned int* p_block_y, unsigned int* p_block_z,
+   unsigned int* p_cell_index, unsigned int* p_macro_nlistsize) {
+   FortranData::setMacrocellPointers(p_do_dip, p_num_macro, p_block_x, p_block_y, p_block_z,
+                                     p_cell_index, p_macro_nlistsize);
+}
+
+extern "C" void fortrandata_clearmacell_() {
+   FortranData::clearMacrocellPointers();
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
