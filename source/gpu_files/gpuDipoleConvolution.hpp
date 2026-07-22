@@ -101,6 +101,10 @@ public:
    // [cell, component+basis*ensemble] FFT channels.  This is deliberately a
    // staging primitive only; no transform or dipole field is applied here.
    void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
+   void forwardTransformMoments();
+   // Produces the unnormalised C2R output.  Spectral tensor contraction and
+   // the 1/N normalisation are deliberately kept with the future field path.
+   void inverseTransformFields();
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate

@@ -324,6 +324,16 @@ void GpuDipoleConvolution::packMacroMoments(const GpuTensor<real, 3>& macro_mome
    }
 }
 
+void GpuDipoleConvolution::forwardTransformMoments() {
+   if(!initiated) throw std::runtime_error("GPU dipole forward FFT requested before initialization");
+   assertGpuFft(GPUFFT_EXEC_R2C(forward_plan, moments_real.data(), moments_fft.data()));
+}
+
+void GpuDipoleConvolution::inverseTransformFields() {
+   if(!initiated) throw std::runtime_error("GPU dipole inverse FFT requested before initialization");
+   assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, fields_fft.data(), fields_real.data()));
+}
+
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
    return descriptor.valid() ? descriptor.fftLayout().persistentBytes() : 0;

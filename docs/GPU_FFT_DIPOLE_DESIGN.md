@@ -98,6 +98,11 @@ only and must be labelled as such.
   Its indexing follows the CPU-owned PME map (`basis` fastest within a coarse
   cell), so a future transform cannot accidentally mix basis channels.  It is
   not called while the GPU dipole mode remains `OFF`.
+- **2026-07-22 — CV6.3 FFT execution primitive.** The owner now exposes its
+  batched R2C macro-moment transform and C2R field transform.  They operate on
+  the explicitly owned plans and work stream, but remain dormant pending the
+  spectral Ewald-tensor contraction; inverse normalization will be applied in
+  that contraction/scatter path exactly once.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The
