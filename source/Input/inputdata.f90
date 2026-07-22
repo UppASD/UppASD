@@ -285,6 +285,8 @@ module InputData
    real(dblprec) :: gpu_dipole_alpha       !< Positive Ewald alpha; zero selects auto when implemented
    real(dblprec) :: gpu_dipole_rcut        !< Positive real-space cutoff; zero selects auto when implemented
    integer, dimension(3) :: gpu_dipole_mesh !< Reciprocal mesh; all zero selects auto when implemented
+   integer :: gpu_dipole_mode_id            !< Persistent C-ABI mode code (0=OFF)
+   integer :: gpu_dipole_surface_id         !< Persistent C-ABI surface code (0=TINFOIL)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags
    !---------------------------------------------------------------------------------
@@ -554,6 +556,8 @@ contains
       gpu_dipole_alpha = 0.0_dblprec
       gpu_dipole_rcut = 0.0_dblprec
       gpu_dipole_mesh = 0
+      gpu_dipole_mode_id = 0
+      gpu_dipole_surface_id = 0
 
 
       ! I/O OVF

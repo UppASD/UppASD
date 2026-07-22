@@ -493,7 +493,6 @@ contains
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
-      integer(c_int) :: gpu_dipole_mode_id, gpu_dipole_surface_id
       
       !!!TODO: replace those with actual variables 
       integer :: ene_step = 100
