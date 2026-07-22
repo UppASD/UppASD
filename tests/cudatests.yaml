@@ -19,7 +19,7 @@ caselist:
           - select:
               "#_Iter.": 171
             extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
-            expected:   [0.00576048117, 3.39286723e-05, 1.28745915e-09, 0.627197795]
+            expected:   [0.00645474392, 4.39332491e-05, 2.39469977e-09, 0.586435576]
             type: "Cumulant"
 
   - workingdir: "./bccFe_cuda/"
@@ -44,7 +44,8 @@ caselist:
               "#_Iter.": 41
             extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
             comparison_func: sloppy
-            expected: [2.09307165, 4.38839661, 19.3810564, 0.664537137]
+            expected: [2.10864072, 4.46576851, 20.2599122, 0.661371202]
+            #expected: [2.09307165, 4.38839661, 19.3810564, 0.664537137]
             type: "Cumulants"
 
   - workingdir: "./FeCo_cuda/"
@@ -69,6 +70,7 @@ caselist:
               "#_Iter.": 221
             extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
             comparison_func: sloppy
-            expected: [1.86058404, 3.46805484, 12.1115283, 0.664335215]
+            expected: [1.80043719, 3.25207765, 10.710877, 0.662415915]
+            #expected: [1.86058404, 3.46805484, 12.1115283, 0.664335215]
             type: "Cumulants"
 

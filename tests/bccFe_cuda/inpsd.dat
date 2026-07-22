@@ -28,7 +28,7 @@ ip_mcanneal 1
 mode      S
 temp      00.0
 damping 0.01
-Nstep   3000 
+Nstep   5000 
 
 do_avrg   Y                                     Measure averages
 avrg_step 100
