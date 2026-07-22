@@ -101,8 +101,8 @@ only and must be labelled as such.
 - **2026-07-22 — CV6.3 FFT execution primitive.** The owner now exposes its
   batched R2C macro-moment transform and C2R field transform.  They operate on
   the explicitly owned plans and work stream, but remain dormant pending the
-  spectral Ewald-tensor contraction; inverse normalization will be applied in
-  that contraction/scatter path exactly once.
+  spectral Ewald-tensor contraction.  The reciprocal tensor is defined for
+  the raw C2R inverse sum, so this path must not apply an extra `1/N` factor.
 - **2026-07-22 — CV6.3 spectral block contraction.** The regular-grid path
   now has a batched device contraction for the full `3x3xNAxNA` complex kernel.
   Kernel batches are ordered as `row + 3*(column + 3*(target_basis +
@@ -116,6 +116,11 @@ only and must be labelled as such.
   the independent oracle.  This is deliberately not a complete Ewald solver:
   screened real space and the point self correction are still mandatory before
   activation or GPU/oracle validation.
+- **2026-07-22 — point-self primitive.** The post-inverse path now has the
+  analytic point-dipole self correction `+4*alpha^3/(3*sqrt(pi))*M`, matching
+  the independent oracle's `B=Hessian(1/r)M` convention.  It is not enabled
+  until the screened real-space contribution is implemented, so no partial
+  Ewald sum can reach `beff`.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

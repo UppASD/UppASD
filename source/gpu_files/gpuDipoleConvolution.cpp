@@ -86,6 +86,14 @@ __global__ void apply_spectral_kernel(const GpuFftComplex* moments, const GpuFft
    }
 }
 
+__global__ void add_point_self_field_kernel(const real* moments, real* fields, std::size_t count,
+                                             real prefactor) {
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < count; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      fields[index] += prefactor * moments[index];
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -420,6 +428,21 @@ void GpuDipoleConvolution::applySpectralKernel() {
 void GpuDipoleConvolution::inverseTransformFields() {
    if(!initiated) throw std::runtime_error("GPU dipole inverse FFT requested before initialization");
    assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, fields_fft.data(), fields_real.data()));
+}
+
+void GpuDipoleConvolution::addPointSelfField(real alpha) {
+   if(!initiated) throw std::runtime_error("GPU dipole self field requested before initialization");
+   if(alpha <= static_cast<real>(0)) throw std::runtime_error("GPU dipole self field requires positive alpha");
+   const std::size_t count = layout.real_cells * layout.field_batches;
+   constexpr unsigned int threads = 256;
+   const std::size_t blocks_needed = (count + threads - 1) / threads;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>(blocks_needed, 65535));
+   const real prefactor = static_cast<real>(4) * alpha * alpha * alpha /
+                          (static_cast<real>(3) * static_cast<real>(std::sqrt(std::acos(-1.0))));
+   add_point_self_field_kernel<<<blocks, threads, 0, stream>>>(moments_real.data(), fields_real.data(), count, prefactor);
+   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) {
+      throw std::runtime_error("GPU dipole self-field launch failed");
+   }
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(

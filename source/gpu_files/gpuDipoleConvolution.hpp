@@ -108,9 +108,11 @@ public:
    // Apply the spectral block kernel with batch ordering
    // row + 3*(column + 3*(target_basis + basis*source_basis)).
    void applySpectralKernel();
-   // Produces the unnormalised C2R output.  Spectral tensor contraction and
-   // the 1/N normalisation are deliberately kept with the future field path.
+   // Produces the unnormalised C2R output.  The reciprocal Ewald tensor is
+   // defined for that raw inverse sum, so this path must not add a 1/N factor.
    void inverseTransformFields();
+   // Add the point-dipole Ewald self field after inverse transformation.
+   void addPointSelfField(real alpha);
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
