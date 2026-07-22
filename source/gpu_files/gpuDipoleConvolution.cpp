@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -356,6 +357,51 @@ void GpuDipoleConvolution::packMacroMoments(const GpuTensor<real, 3>& macro_mome
 void GpuDipoleConvolution::forwardTransformMoments() {
    if(!initiated) throw std::runtime_error("GPU dipole forward FFT requested before initialization");
    assertGpuFft(GPUFFT_EXEC_R2C(forward_plan, moments_real.data(), moments_fft.data()));
+}
+
+void GpuDipoleConvolution::buildReciprocalEwaldKernel(real alpha) {
+   if(!initiated) throw std::runtime_error("GPU dipole Ewald kernel requested before initialization");
+   if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.basis != 1 || alpha <= static_cast<real>(0)) {
+      throw std::runtime_error("reciprocal Ewald kernel currently requires PME3D, NA=1, and positive alpha");
+   }
+   const real volume = desc.cellVolume();
+   if(volume <= static_cast<real>(0)) throw std::runtime_error("PME requires a right-handed positive-volume cell");
+   const auto reciprocal = desc.reciprocalCellMatrix();
+   const GpuFftComplex zero{};
+   std::vector<GpuFftComplex> kernel(layout.spectral_cells * layout.kernel_batches, zero);
+   const auto signed_index = [](std::size_t index, std::size_t extent) -> long long {
+      return index <= extent / 2 ? static_cast<long long>(index) :
+             static_cast<long long>(index) - static_cast<long long>(extent);
+   };
+   const real pi = static_cast<real>(std::acos(-1.0));
+   for(std::size_t k3 = 0; k3 < layout.spectral_grid.n3; ++k3) {
+      for(std::size_t k2 = 0; k2 < layout.spectral_grid.n2; ++k2) {
+         for(std::size_t k1 = 0; k1 < layout.spectral_grid.n1; ++k1) {
+            const long long n1 = static_cast<long long>(k1);
+            const long long n2 = signed_index(k2, layout.real_grid.n2);
+            const long long n3 = signed_index(k3, layout.real_grid.n3);
+            if(n1 == 0 && n2 == 0 && n3 == 0) continue; // tin-foil k=0
+            const real wave[] = {
+               reciprocal[0] * n1 + reciprocal[3] * n2 + reciprocal[6] * n3,
+               reciprocal[1] * n1 + reciprocal[4] * n2 + reciprocal[7] * n3,
+               reciprocal[2] * n1 + reciprocal[5] * n2 + reciprocal[8] * n3};
+            const real wave2 = wave[0] * wave[0] + wave[1] * wave[1] + wave[2] * wave[2];
+            const real prefactor = -static_cast<real>(4) * pi * std::exp(-wave2 / (static_cast<real>(4) * alpha * alpha)) /
+                                   (volume * wave2);
+            const std::size_t spectral = k1 + layout.spectral_grid.n1 * (k2 + layout.spectral_grid.n2 * k3);
+            for(unsigned int row = 0; row < 3; ++row) {
+               for(unsigned int column = 0; column < 3; ++column) {
+                  const std::size_t batch = row + 3 * column;
+                  kernel[spectral + layout.spectral_cells * batch].x = prefactor * wave[row] * wave[column];
+               }
+            }
+         }
+      }
+   }
+   if(GPU_MEMCPY(kernel_fft.data(), kernel.data(), kernel.size() * sizeof(GpuFftComplex),
+                 GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+      throw std::runtime_error("GPU reciprocal Ewald kernel upload failed");
+   }
 }
 
 void GpuDipoleConvolution::applySpectralKernel() {

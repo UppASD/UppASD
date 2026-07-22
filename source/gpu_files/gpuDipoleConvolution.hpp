@@ -102,6 +102,9 @@ public:
    // staging primitive only; no transform or dipole field is applied here.
    void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
    void forwardTransformMoments();
+   // Construct only the reciprocal, tin-foil part of the NA=1 Ewald tensor.
+   // The screened real-space and self terms are separate required corrections.
+   void buildReciprocalEwaldKernel(real alpha);
    // Apply the spectral block kernel with batch ordering
    // row + 3*(column + 3*(target_basis + basis*source_basis)).
    void applySpectralKernel();

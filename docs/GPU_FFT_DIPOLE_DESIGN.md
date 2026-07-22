@@ -109,6 +109,13 @@ only and must be labelled as such.
   NA*source_basis))`; moment/field batches add ensemble as the outer channel.
   This fixes the multi-basis tensor convention before the Ewald kernel builder
   populates it.  The contraction is not invoked while the mode is `OFF`.
+- **2026-07-22 — reciprocal Ewald builder (NA=1 staging).** The owner can now
+  populate its spectral kernel with the nonzero-mode, tin-foil reciprocal
+  tensor `-4*pi*exp(-k^2/(4*alpha^2))*k*k^T/(V*k^2)` for a right-handed
+  3D-periodic block-one grid.  Its sign, prefactor and `k=0` convention match
+  the independent oracle.  This is deliberately not a complete Ewald solver:
+  screened real space and the point self correction are still mandatory before
+  activation or GPU/oracle validation.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The
