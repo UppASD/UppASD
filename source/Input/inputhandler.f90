@@ -190,8 +190,17 @@ contains
                read(ifile,*,iostat=i_err) do_ralloy
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_macro_cells')
+               read(ifile,*,iostat=i_err) do_macro_cells
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('block_size')
                read(ifile,*,iostat=i_err) block_size
+               ! Keep the legacy scalar spelling as the isotropic shorthand.
+               ! Explicit block_size_{x,y,z} values later in the input override it.
+               block_size_x = block_size
+               block_size_y = block_size
+               block_size_z = block_size
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('block_size_x')
@@ -1381,6 +1390,10 @@ contains
 
             case('do_gpu_measurements')
                read(ifile,*,iostat=i_err) do_gpu_measurements
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_gpu_timings')
+               read(ifile,*,iostat=i_err) do_gpu_timings
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             !------------------------------------------------------------------------

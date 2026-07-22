@@ -2,8 +2,8 @@
 ! MODULE: MACROCELLS
 !
 ! DESCRIPTION:
-!> @brief Used for the subdivision of the lattice into cubic macrocells to simplify the
-!> calculation of the dipolar interaction.
+!> @brief Used for the subdivision of the lattice into rectangular macrocells to simplify
+!> dipolar calculations and provide a reusable spatial grouping layer.
 !
 !> @author
 !> Jonathan Chico
@@ -63,7 +63,7 @@ contains
    !----------------------------------------------------------------------------
    ! SUBROUTINE: create_macrocell
    !
-   !> @brief Routine for the creation of cubic macro cells.
+   !> @brief Routine for the creation of rectangular macro cells.
    !> @details It makes use of the geoblocking algorithm implemented by Anders Bergman.
    !> It also creates a series of helper arrays such as to identify which atom belongs
    !> to which macrocell, and which macro cell contains which atoms.
@@ -95,7 +95,6 @@ contains
       integer, dimension(:,:), allocatable, intent(inout) :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
 
       ! .. Local variables
-      integer :: dim
       integer :: ii, kk
       integer :: II1,II2,II3,I0,I1,I2,I3
       integer :: i_stat, i_all
@@ -106,28 +105,18 @@ contains
 
       ii=0
       kk=0
-      dim=0
-      ! Calculate the dimensionality of the repetition of the unit cell
-      if (N1>1) then
-         dim=dim+1
-      endif
-      if (N2>1) then
-         dim=dim+1
-      endif
-      if (N3>1) then
-         dim=dim+1
-      endif
+      if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0) then
+         error stop 'Macrocell block dimensions must be positive'
+      end if
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Notice that the determination of the following parameters assumes a cubic
-      ! macrocell, this should be modified for a general shape macrocell
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Calculate the number of macro cells
-      Num_macro=int(N3*N2*N1/(block_size_x*block_size_y*block_size_z))
-      !Num_macro=int(N3*N2*N1/block_size**dim)
+      ! Round up so incomplete edge blocks are represented safely.  Their actual
+      ! membership is stored in macro_nlistsize; max_num_atom_macro_cell is only
+      ! a capacity for a complete block.
+      Num_macro = ((N1 + block_size_x - 1) / block_size_x) * &
+                  ((N2 + block_size_y - 1) / block_size_y) * &
+                  ((N3 + block_size_z - 1) / block_size_z)
       ! Calculate the Maximum number of atoms per macro cell
       max_num_atom_macro_cell=NA*(block_size_x*block_size_y*block_size_z)
-      !max_num_atom_macro_cell=NA*block_size**dim
       call allocate_macrocell(1,Natom,Mensemble)
 
       ! Create the macrocells lists needed for the macrocell approximation
@@ -156,6 +145,10 @@ contains
             enddo
          enddo
       enddo
+
+      if (kk /= Num_macro .or. ii /= Natom) then
+         error stop 'Internal error while constructing macrocell membership'
+      end if
 
       ! Print the midpoint of the macro cells
       open(ofileno,file=output_file)

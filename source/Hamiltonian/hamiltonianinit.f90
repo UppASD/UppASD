@@ -53,6 +53,7 @@ contains
       qdip_files)
 
       use LSF,             only : LSF_datareshape
+      use HamiltonianMacroBlocks, only : ham_macroblock_layout, build_macroblock_layout
       use clusters,        only : allocate_cluster_hamiltoniandata,                 &
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
       use InputData,       only : ham_inp
@@ -807,6 +808,10 @@ contains
             write(*,'(a)') ' done'
          end if
       end if 
+
+      ! This is metadata only: it preserves the existing atom and neighbour-list
+      ! order while exposing a macrocell-grouped view to future CPU/GPU/FFT paths.
+      call build_macroblock_layout(ham_macroblock_layout, Natom, ham%nlist, ham%nlistsize, ham%aHam)
 
    contains
 
