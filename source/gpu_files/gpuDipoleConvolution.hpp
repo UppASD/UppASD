@@ -73,6 +73,8 @@ struct GpuDipoleConvolutionDescriptor {
    GpuDipoleGridShape activeGrid() const;
    GpuDipoleGridShape paddedGrid() const;
    std::array<real, 9> fullCellMatrix() const;
+   real cellVolume() const;
+   std::array<real, 9> reciprocalCellMatrix() const;
    GpuDipoleFftLayout fftLayout() const;
    bool valid() const;
 };
@@ -120,5 +122,7 @@ private:
    GpuTensor<GpuFftComplex, 2> fields_fft;
    GpuTensor<GpuFftComplex, 2> kernel_fft;
    GpuTensor<real, 2> cell_vectors;
+   GpuTensor<real, 2> reciprocal_vectors;
+   GpuTensor<real, 1> cell_volume;
    GpuTensor<unsigned char, 1> fft_workspace;
 };

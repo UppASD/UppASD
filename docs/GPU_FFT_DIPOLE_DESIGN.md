@@ -87,6 +87,11 @@ only and must be labelled as such.
   `C1/C2/C3`; the dipole owner now forms and uploads the full periodic matrix
   `H=[N1*C1, N2*C2, N3*C3]`.  This is the matrix whose reciprocal vectors and
   volume belong in the PME tensor, including when a coarse macro grid is used.
+- **2026-07-22 — reciprocal geometry staged.** The owner now derives and
+  uploads `B=2*pi*(H^-1)^T` and the signed cell volume alongside `H`.  The
+  reciprocal columns use cross products of the full supercell vectors, giving
+  the correct wavevectors for skew periodic systems without an orthogonal-box
+  approximation.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

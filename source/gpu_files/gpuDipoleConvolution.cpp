@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 
@@ -31,14 +32,7 @@ bool bytesFor(std::size_t elements, std::size_t element_bytes, std::size_t& byte
 }
 
 bool hasNonSingularCell(const GpuDipoleConvolutionDescriptor& descriptor) {
-   if(!descriptor.c1 || !descriptor.c2 || !descriptor.c3) return false;
-   const real* a = descriptor.c1;
-   const real* b = descriptor.c2;
-   const real* c = descriptor.c3;
-   const real determinant = a[0] * (b[1] * c[2] - b[2] * c[1]) -
-                            a[1] * (b[0] * c[2] - b[2] * c[0]) +
-                            a[2] * (b[0] * c[1] - b[1] * c[0]);
-   return determinant != static_cast<real>(0);
+   return descriptor.cellVolume() != static_cast<real>(0);
 }
 
 } // namespace
@@ -77,7 +71,7 @@ std::size_t GpuDipoleFftLayout::persistentBytes() const {
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
       !bytesFor(kernel, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
-      !bytesFor(9, sizeof(real), part) || !add(bytes, part, bytes)) return 0;
+      !bytesFor(19, sizeof(real), part) || !add(bytes, part, bytes)) return 0;
    return bytes;
 }
 
@@ -118,6 +112,28 @@ std::array<real, 9> GpuDipoleConvolutionDescriptor::fullCellMatrix() const {
    return {scale[0] * c1[0], scale[0] * c1[1], scale[0] * c1[2],
            scale[1] * c2[0], scale[1] * c2[1], scale[1] * c2[2],
            scale[2] * c3[0], scale[2] * c3[1], scale[2] * c3[2]};
+}
+
+real GpuDipoleConvolutionDescriptor::cellVolume() const {
+   const auto h = fullCellMatrix();
+   return h[0] * (h[4] * h[8] - h[5] * h[7]) -
+          h[1] * (h[3] * h[8] - h[5] * h[6]) +
+          h[2] * (h[3] * h[7] - h[4] * h[6]);
+}
+
+std::array<real, 9> GpuDipoleConvolutionDescriptor::reciprocalCellMatrix() const {
+   const auto h = fullCellMatrix();
+   const real volume = cellVolume();
+   if(volume == static_cast<real>(0)) return {};
+   const real scale = static_cast<real>(2.0 * std::acos(-1.0)) / volume;
+   // Columns are b1=2*pi*(a2 x a3)/V, b2=2*pi*(a3 x a1)/V,
+   // b3=2*pi*(a1 x a2)/V, where H=[a1 a2 a3].
+   return {scale * (h[4] * h[8] - h[5] * h[7]), scale * (h[5] * h[6] - h[3] * h[8]),
+           scale * (h[3] * h[7] - h[4] * h[6]),
+           scale * (h[7] * h[2] - h[8] * h[1]), scale * (h[8] * h[0] - h[6] * h[2]),
+           scale * (h[6] * h[1] - h[7] * h[0]),
+           scale * (h[1] * h[5] - h[2] * h[4]), scale * (h[2] * h[3] - h[0] * h[5]),
+           scale * (h[0] * h[4] - h[1] * h[3])};
 }
 
 GpuDipoleFftLayout GpuDipoleConvolutionDescriptor::fftLayout() const {
@@ -177,8 +193,14 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
       kernel_fft.Allocate(static_cast<long int>(layout.spectral_cells),
                           static_cast<long int>(layout.kernel_batches));
       cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
+      reciprocal_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
+      cell_volume.Allocate(static_cast<long int>(1));
       const auto full_cell = desc.fullCellMatrix();
-      if(GPU_MEMCPY(cell_vectors.data(), full_cell.data(), 9 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+      const auto reciprocal_cell = desc.reciprocalCellMatrix();
+      const real volume = desc.cellVolume();
+      if(GPU_MEMCPY(cell_vectors.data(), full_cell.data(), 9 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(reciprocal_vectors.data(), reciprocal_cell.data(), 9 * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(cell_volume.data(), &volume, sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
          throw std::runtime_error("GPU dipole cell-matrix upload failed");
       }
       assertGpuFft(GPUFFT_CREATE(&forward_plan));
@@ -238,6 +260,8 @@ void GpuDipoleConvolution::release() {
       fields_fft.Free();
       kernel_fft.Free();
       cell_vectors.Free();
+      reciprocal_vectors.Free();
+      cell_volume.Free();
       fft_workspace.Free();
       allocated = false;
    }
