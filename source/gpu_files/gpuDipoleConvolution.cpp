@@ -118,6 +118,19 @@ __global__ void add_real_ewald_kernel(const real* moments, real* fields, const r
    }
 }
 
+__global__ void scatter_point_fields_kernel(const real* fields, real* beff, const unsigned int* cell_index,
+                                             std::size_t cells, std::size_t atoms, unsigned int ensembles) {
+   const std::size_t total=atoms*ensembles;
+   for(std::size_t item=static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x;item<total;
+       item+=static_cast<std::size_t>(blockDim.x)*gridDim.x) {
+      const std::size_t atom=item%atoms, ens=item/atoms; const unsigned int one=cell_index[atom];
+      if(one==0 || one>cells) continue; const std::size_t cell=one-1;
+      const std::size_t out=3*(atom+atoms*ens);
+      beff[out]+=fields[cell+cells*(3*ens)]; beff[out+1]+=fields[cell+cells*(1+3*ens)];
+      beff[out+2]+=fields[cell+cells*(2+3*ens)];
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -491,6 +504,17 @@ void GpuDipoleConvolution::evaluatePointEwald(const GpuTensor<real, 3>& macro_mo
    inverseTransformFields();
    addRealSpaceField(alpha, cutoff, image_extent);
    addPointSelfField(alpha);
+}
+
+void GpuDipoleConvolution::scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
+                                              std::size_t atom_count) {
+   if(!initiated || desc.basis!=1 || !one_based_cell_index || beff.size()!=3*atom_count*desc.ensembles)
+      throw std::runtime_error("invalid NA=1 dipole field scatter");
+   constexpr unsigned int threads=256; const std::size_t total=atom_count*desc.ensembles;
+   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
+   scatter_point_fields_kernel<<<blocks,threads,0,stream>>>(fields_real.data(),beff.data(),one_based_cell_index,
+      layout.real_cells,atom_count,desc.ensembles);
+   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU dipole field scatter launch failed");
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(

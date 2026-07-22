@@ -132,6 +132,10 @@ only and must be labelled as such.
   contracts/inverts, then adds the screened real-space and self terms.  It has
   no `beff` scatter or energy path yet; its sole purpose is to give the next
   GPU-vs-independent-oracle test one complete field operator.
+- **2026-07-22 — NA=1 field scatter primitive.** The point-Ewald grid field
+  can now be accumulated into atom `beff` through the exported one-based PME
+  cell map.  It never overwrites pre-existing exchange, anisotropy or external
+  fields, and remains uncalled until the combined field validation gate passes.
 - **2026-07-22 — CV6.2 memory preflight.** The GPU memory budget now includes
   the CV6 real/spectral/kernel arrays and the maximum workspace returned by
   CUDA FFT/hipFFT `EstimateMany` for forward, inverse, and kernel plans.  The

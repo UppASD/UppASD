@@ -120,6 +120,8 @@ public:
    void addRealSpaceField(real alpha, real cutoff, unsigned int image_extent);
    void evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
                            real cutoff, unsigned int image_extent);
+   void scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
+                           std::size_t atom_count);
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
