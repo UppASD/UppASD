@@ -755,18 +755,98 @@ a measured accuracy gain. The rest of (a) needs `accum_t`, i.e. PR1, i.e. CM1's
 **Acceptance:** `nsys`/`rocprof` trace shows FFTs on the work stream.
 
 ### - [ ] CV5 — Crossover benchmark + auto-selection groundwork  (P2, S)
-**Files:** `tests/gpu_regression/bench_conv.py` (new), docs.
-**Task:** Benchmark sparse vs convolution field evaluation across N (10³…10⁷) and mnn (6…50+) on one CUDA and one HIP machine; record the crossover. Print the measured per-step timings at startup when both backends are available (groundwork for later auto-selection; do **not** auto-select yet — keep the input flag authoritative).
+**Files:** `tests/gpu_regression/bench.py`, `tests/SC_conv/rkky_gen.py`, docs.
+**Task:** Benchmark sparse versus convolution with `tests/gpu_regression/bench.py` on one CUDA and one HIP machine; record the crossover while keeping `do_gpu_convolution` authoritative (do not auto-select or print timings at startup). In addition to the existing BCC, FeCo, and dhcp-Nd fixtures, use `tests/SC_conv` for two controlled sweeps: system size `ncell=16, 40, 100` at `rmax=5` (514 neighbours/atom), and RKKY cutoff `rmax=3, 5, 8` at `ncell 100 100 100` (122, 514, and 2,108 neighbours/atom). For each isolated run, regenerate `jij` with `rkky_gen.py`. Record per-step timings and the hardware/software configuration.
 **Acceptance:** A table in `docs/` with crossover guidance.
 
-### - [ ] CV6 — FFT dipole–dipole backend  (P1, L — flagship follow-on)
-**Files:** new `gpu_files/gpuDipoleConvolution.{hpp,cpp}` (or extend the existing class), `gpu_files/gpuHamiltonianBackend.hpp` (a `FftDipole` slot exists in spirit via `MultiscaleDipole` — add a proper enum value), `chelper.f90`/`fortranData.*` (pass `do_dip` mode + prefactors), dispatch in `heisge`.
-**Task (staged):**
-1. **Kernel construction:** dipole tensor `D_ab(r) = (3 r_a r_b − r² δ_ab)/r⁵` summed over the lattice into the same `cells·9·NA²` block-kernel storage used by exchange, with the correct `μ0/4π`-equivalent prefactor in UppASD's field units (reference: Fortran `dipole*` / `DipoleManager` modules — match `do_dip=1` brute-force results). Build once on device (a kernel over cells×NA², each thread summing its displacement — for PBC use Ewald-style or direct real-space sum with a documented cutoff/convergence parameter; simplest correct v1: real-space sum over `n_rep` periodic images with convergence check against the Fortran brute-force energy).
-2. **Open boundaries:** zero-pad each open dimension to `2·n_i` (standard micromagnetics trick makes the cyclic convolution exact for open BC). This also unlocks lifting CV1's restriction for the exchange backend later. Memory cost up to 8× on the padded spectral buffers — surface in the M1 budget estimator.
-3. **Application:** the dipole field is *additive* — accumulate its spectral multiply into the same `field_fft` as exchange when both are convolution-served (one inverse FFT total), or run standalone added onto `beff` when exchange is sparse.
-4. **Validation:** V2 case vs Fortran `do_dip=1` (brute force) on a small system, field rtol 1e-8 (fp64) and energy agreement; a thin-film case checking the demag-driven easy-plane behavior qualitatively.
-**Acceptance:** All four stages; documented input flag (`do_dip 4` or similar, coordinated with Fortran input parsing); budget estimator updated.
+### - [ ] CV6 — GPU FFT dipole–dipole backend  (P1, L — flagship follow-on)
+**Decision / physics contract.** The CPU routines are validation references, not a recipe to
+copy. CV6 may use a more suitable GPU formulation, including a coarse macrospin/demagnetising
+grid, provided it states its boundary condition, tensor normalisation, self term, atom-to-grid
+mapping, and energy functional, then validates that formulation independently. CPU `do_dip=1`
+is the atomistic reference; CPU `do_dip=3` is a useful finite-sample FFT cross-check, not a
+constraint on the GPU layout or plan structure. The existing CPU FFT uses a
+`(2*N1-1,2*N2-1,2*N3-1)` zero-padded linear convolution. A GPU periodic/Ewald formulation or
+a coarse-grained macrospin formulation is valid only as an explicitly selected and documented
+physical mode—never as an unannounced replacement for that finite-sample convention. It remains
+independent of the PBC-only exchange convolution (CV1); lifting CV1 is a separate task.
+
+**Files:** new `gpu_files/gpuDipoleConvolution.{hpp,cpp}` and its CMake entry;
+`gpu_files/gpuHamiltonianCalculations.{hpp,cpp}`; `gpu_files/gpuHamiltonianBackend.hpp`
+(`FftDipole`); `gpu_files/fortranData.{hpp,cpp}`, `source/chelper.f90`, and the Fortran call
+site that exports the dipole mode and lattice geometry; `gpu_files/gpuSimulation.cpp` (memory
+estimate); `tests/gpu_regression/` (new fixtures/reference capture).  Do not modify the CPU
+physics routines except for an ABI/export hook.
+
+**Prerequisite / design and reference capture (CV6.0, M).** Before production GPU code, add a
+deterministic CPU-only test set for `do_dip=1`, `2`, and `3`: one atom per cell, a two-atom basis
+with non-orthogonal `C1/C2/C3`, a non-cubic thin film, a deliberately coarse macrocell partition,
+and `M=1,4`. Capture field, dipole-energy column, and total energy. Write a short design note
+choosing the first production mode: (a) atomistic padded FFT, validated directly against
+`do_dip=1`; or (b) macrospin/grid FFT, with conservative atom-to-cell deposition, interpolation
+back to atoms, a finite-cell self-demag tensor, and convergence against `do_dip=1` plus the
+existing `do_dip=2` macrocell model. The note records the tensor prefactor/diagonal convention,
+boundary treatment, energy functional, and input-mode contract. Investigate and either fix
+separately or explicitly avoid the CPU FFT temporary-array shape typo
+(`tmp(N1_pad,N2_pad,N2_pad)`); it is not a GPU design constraint.
+
+**Implementation plan (one PR/branch per numbered item):**
+
+1. **ABI, ownership, and dispatch (CV6.1, S).** Export `do_dip`, `alat`, and the existing
+   `N1/N2/N3/NA/M/C1/C2/C3/Bas` geometry through the established Fortran-to-C++ pointer layer.
+   For the macrospin option also export atom-to-macrocell mapping, membership/counts, macrocell
+   geometry, and macro moments (or enough data to form them on device). Add `FftDipole` and, if
+   useful, `GridDipole` to backend selection according to CV6.0's documented input contract;
+   retain clear fallbacks for modes not yet served. Crucially, the selected GPU backend owns both
+   dipole field and dipole energy, so the CPU calculation cannot also be applied in a GPU step.
+   Make the selected physics mode visible in startup diagnostics and reject malformed geometry or
+   mappings before allocation.
+
+2. **Grid/tensor construction and plans (CV6.2, M).** Implement a descriptor for the chosen
+   source grid. For atomistic finite samples use padded extents `P=(2*N1-1,2*N2-1,2*N3-1)`; for
+   macrospins choose and report the coarse grid and its padding. Batch vector components and
+   ensembles with `PlanMany`, never per-component plans. Build the real 3x3 demag tensor once on
+   device from geometry, transform it once, then free staging and destroy the construction plan.
+   A macrospin implementation must include a finite-cell self-demag contribution rather than a
+   point-dipole singularity at zero. Use six symmetric tensor components only if it demonstrably
+   saves memory without making spectral contraction fragile; otherwise retain the 9-component
+   layout.
+
+3. **Field evaluation and energy (CV6.3, M).** Each Hamiltonian evaluation packs atom moments
+   into an atomistic padded grid, or conservatively deposits them on the macro grid; performs
+   batched R2C transforms, spectral tensor contraction, and C2R transforms; then unpacks or
+   interpolates the physical field to atoms. State and test deposition/interpolation adjointness
+   so field and energy are consistent. Accumulate into `beff` (never overwrite exchange,
+   anisotropy, or external contributions). On measurement steps reduce the selected formulation's
+   dipole energy per ensemble into the CPU dipole column; reset and compose energy columns once.
+   Do not promise a shared inverse FFT with exchange unless grids and boundary conventions are
+   compatible; that is a later optimisation.
+
+4. **Memory, lifecycle, and failure behaviour (CV6.4, S).** Account for all persistent
+   half-spectrum tensor buffers, moment/field buffers, work areas, and transient construction
+   storage in the M1 estimator and `TensorMemoryTracker`; report padded dimensions and bytes in
+   the init line.  Reuse the work stream and bind every FFT plan to it.  `release()` must be
+   idempotent and destroy plans/workspace before tensors.  Fail before allocation when extents
+   overflow FFT-library `int` dimensions or the budget is unsafe.  The old CPU FFT's large
+   persistent padded moment/field arrays are not a design to copy: retain only buffers needed
+   across steps.
+
+5. **Validation and performance gate (CV6.5, M).** Add GPU regression cases matching CV6.0. The
+   atomistic mode must match CPU `do_dip=1` field components and energy on small systems and CPU
+   `do_dip=3` on finite-sample fixtures (target fp64 `rtol 1e-10`, with any exception explained
+   by a reference-order study). The macrospin mode must supply a grid-resolution and self-term
+   convergence table against `do_dip=1` and `do_dip=2`, with its accuracy target chosen in CV6.0
+   before implementation. Both modes cover non-cubic/thin-film geometries, multi-basis, `M=4`,
+   non-32-aligned atom counts, and coexistence with sparse and FFT exchange. Check a uniform thin
+   film has the expected demagnetising easy-plane response, run CUDA compute-sanitizer checks, and
+   exercise the same numerical suite on HIP. Benchmark setup and steady-state field time against
+   CPU FFT/brute force and report accuracy, memory, and timings in `docs/`.
+
+**Acceptance:** At least one CV6.0-selected GPU dipole mode runs entirely on device with no double
+application of the dipole field; its stated physics/accuracy contract passes; both CUDA and HIP
+compile and are numerically exercised; grid/padded-memory use is estimated/reported; and the
+documented benchmark demonstrates the intended FFT scaling. Periodic dipole sums and making
+exchange convolution support open boundaries remain separate explicitly scoped work.
 
 ---
 
