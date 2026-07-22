@@ -3,6 +3,7 @@
 #include "tensor.hpp"
 #include "real_type.h"
 #include "gpuHamiltonianBackend.hpp"
+#include "gpuDipoleConvolution.hpp"
 #include "gpuLatticeConvolutionHamiltonian.hpp"
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
@@ -59,6 +60,9 @@ private:
    GpuTensor<real, 3> macroMoments;
    GpuHamiltonianBackendSelection backend;
    GpuLatticeConvolutionHamiltonian convolution;
+   // CV6 dipole solver lifecycle.  Its grid and boundary contract are
+   // independent from exchange convolution.
+   GpuDipoleConvolution dipoleConvolution;
 
    bool do_j_tensor = false;
    bool do_dm = false;

@@ -44,6 +44,13 @@ unsigned int* FortranData::macro_nlistsize = nullptr;
 real* FortranData::macro_center = nullptr;
 real* FortranData::macro_min_coord = nullptr;
 real* FortranData::macro_max_coord = nullptr;
+unsigned int* FortranData::pme_num_macro = nullptr;
+unsigned int* FortranData::pme_macro_grid = nullptr;
+unsigned int* FortranData::pme_cell_index = nullptr;
+unsigned int* FortranData::pme_macro_nlistsize = nullptr;
+real* FortranData::pme_macro_center = nullptr;
+real* FortranData::pme_macro_min_coord = nullptr;
+real* FortranData::pme_macro_max_coord = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -323,6 +330,28 @@ void FortranData::clearMacrocellPointers() {
    macro_max_coord = nullptr;
 }
 
+void FortranData::setPmeMacrocellPointers(unsigned int* p_num_macro, unsigned int* p_grid,
+                                           unsigned int* p_cell_index, unsigned int* p_nlistsize,
+                                           real* p_center, real* p_min_coord, real* p_max_coord) {
+   pme_num_macro = p_num_macro;
+   pme_macro_grid = p_grid;
+   pme_cell_index = p_cell_index;
+   pme_macro_nlistsize = p_nlistsize;
+   pme_macro_center = p_center;
+   pme_macro_min_coord = p_min_coord;
+   pme_macro_max_coord = p_max_coord;
+}
+
+void FortranData::clearPmeMacrocellPointers() {
+   pme_num_macro = nullptr;
+   pme_macro_grid = nullptr;
+   pme_cell_index = nullptr;
+   pme_macro_nlistsize = nullptr;
+   pme_macro_center = nullptr;
+   pme_macro_min_coord = nullptr;
+   pme_macro_max_coord = nullptr;
+}
+
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                          real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
                                          real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -562,6 +591,17 @@ extern "C" void fortrandata_setmacrocell_(int* p_do_dip, unsigned int* p_num_mac
 
 extern "C" void fortrandata_clearmacell_() {
    FortranData::clearMacrocellPointers();
+}
+
+extern "C" void fortrandata_setpmemacrocell_(unsigned int* p_num_macro, unsigned int* p_macro_grid,
+   unsigned int* p_cell_index, unsigned int* p_macro_nlistsize, real* p_macro_center,
+   real* p_macro_min_coord, real* p_macro_max_coord) {
+   FortranData::setPmeMacrocellPointers(p_num_macro, p_macro_grid, p_cell_index, p_macro_nlistsize,
+                                         p_macro_center, p_macro_min_coord, p_macro_max_coord);
+}
+
+extern "C" void fortrandata_clearpmemacrocell_() {
+   FortranData::clearPmeMacrocellPointers();
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

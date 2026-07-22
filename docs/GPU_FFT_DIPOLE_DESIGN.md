@@ -52,6 +52,19 @@ only and must be labelled as such.
   `9*NA^2` spectral tensor entries per wavevector and avoids particle-mesh
   deposition.  The current `NA=1` oracle remains the first vertical slice;
   basis-resolved layout generation and `NA>1` validation follow next.
+- **2026-07-22 — basis-resolved layout implemented.**
+  `create_pme_macrocell_layout` now builds a separate CPU-owned map with
+  `NA` channels per coarse Bravais cell, plus count and centre/bounds metadata.
+  It is exported independently of the legacy `do_dip=2` macro map and is the
+  map staged for the future GPU PME backend.  Block-one regular `NA>1` systems
+  therefore retain one source per basis atom.  The modified Fortran/CUDA units
+  and `asdlib` compile.  `GpuDipoleConvolution` is now lifecycle-owned by the
+  Hamiltonian and is initialized from the exported grid/basis/boundary
+  contract, while its field operator remains disabled until implemented.
+- **2026-07-22 — link repair.** `correlation_kernels.cpp` is registered as a
+  GPU source of `asdlib`.  A stale object used a different CUDA/Thrust ABI than
+  its callers; rebuilding that object with the active toolchain restores the
+  final `sd.f95.cuda` link.
 
 There is exactly one source representation: **macrocells**.  `NA=1` is the
 first validation slice, where macro block size one gives exactly one atom per

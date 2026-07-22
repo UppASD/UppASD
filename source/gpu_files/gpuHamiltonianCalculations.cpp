@@ -512,6 +512,25 @@ bool GpuHamiltonianCalculations::canUseMultiscaleDipole(const Flag Flags, const 
    return false;
 }
 
+namespace {
+GpuDipoleBoundaryMode dipoleBoundaryMode(const SimulationParameters& parameters,
+                                         unsigned int& openAxis) {
+   const char boundaries[] = {parameters.BC1, parameters.BC2, parameters.BC3};
+   unsigned int periodic = 0;
+   openAxis = 2;
+   for(unsigned int axis = 0; axis < 3; ++axis) {
+      if(boundaries[axis] == 'P' || boundaries[axis] == 'p') {
+         ++periodic;
+      } else {
+         openAxis = axis;
+      }
+   }
+   if(periodic == 3) return GpuDipoleBoundaryMode::Periodic3D;
+   if(periodic == 2) return GpuDipoleBoundaryMode::Periodic2D;
+   return GpuDipoleBoundaryMode::Open;
+}
+}
+
 bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
    N = SimParam.N;   // Number of atoms
    NH = SimParam.NH;    // Number of reduced atoms
@@ -524,17 +543,39 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    do_dm = false;
    do_aniso = 0;
    convolution.release();
+   dipoleConvolution.release();
    macroCellIndex = nullptr;
    macroMoments.Free();
    numMacro = 0;
    refreshMacroMoments = false;
-   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro &&
-      *FortranData::num_macro > 0 && !gpuHamiltonian.macro_cell_index.empty() &&
+   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro &&
+      *FortranData::pme_num_macro > 0 && !gpuHamiltonian.macro_cell_index.empty() &&
       !gpuHamiltonian.macro_nlistsize.empty()) {
-      numMacro = *FortranData::num_macro;
+      numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
       macroMoments.Allocate(3, numMacro, SimParam.M);
       refreshMacroMoments = true;
+      if(FortranData::pme_macro_grid && FortranData::NA && *FortranData::NA > 0) {
+         GpuDipoleConvolutionDescriptor dipoleDescriptor{};
+         dipoleDescriptor.atomistic_grid = {
+            static_cast<std::size_t>(SimParam.N1), static_cast<std::size_t>(SimParam.N2),
+            static_cast<std::size_t>(SimParam.N3)};
+         dipoleDescriptor.macro_grid = {
+            static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
+            static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
+            static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
+         dipoleDescriptor.basis = *FortranData::NA;
+         dipoleDescriptor.ensembles = static_cast<unsigned int>(SimParam.M);
+         dipoleDescriptor.discretization = GpuDipoleDiscretization::MacrospinGrid;
+         dipoleDescriptor.boundary = dipoleBoundaryMode(SimParam, dipoleDescriptor.open_axis);
+         if(!dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
+            throw std::runtime_error("GPU PME macrocell descriptor is invalid");
+         }
+         const auto grid = dipoleConvolution.descriptor().activeGrid();
+         std::printf("Gpu: CV6 PME geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s).\n",
+                     grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
+                     dipoleDescriptor.basis == 1 ? "" : "s");
+      }
       std::printf("Gpu: CV6 macrocell moment aggregation prepared (%u cells, %zu ensemble%s); dipole FFT pending.\n",
                   numMacro, SimParam.M, SimParam.M == 1 ? "" : "s");
    }

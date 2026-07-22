@@ -20,6 +20,10 @@ module macrocells
    integer :: Num_dip   !< Number of dipolar cells where the macrocell dipole is written
    integer :: Num_macro !< Number of macrocells in the system
    integer :: max_num_atom_macro_cell !< Maximum number of atoms in  a macrocell
+   ! CV6.1: basis-resolved layout for regular-grid PME.  This deliberately
+   ! coexists with the legacy Num_macro/cell_index layout used by CPU do_dip=2.
+   integer :: pme_Num_macro = 0
+   integer, dimension(3) :: pme_macro_grid = 0
    character(len=1) :: do_macro_cells !< Flag to whether perform macrocell decomposition
    character(len=1) :: prn_dip_subset !< Flag to print the macro dipole-dipole field over a subset of cells
    character(len=20) :: dip_file      !< File containing the indexes of the cells where the macro-dipole field will be written
@@ -27,6 +31,8 @@ module macrocells
    integer, dimension(:), allocatable :: dipole_subset   !< List of the cells where the macrocell dipolar interaction is printed
    integer, dimension(:), allocatable :: macro_nlistsize !< Number of atoms per macrocell
    integer, dimension(:,:), allocatable :: macro_atom_nlist !< List containing the information of which atoms are in a given macrocell
+   integer, dimension(:), allocatable :: pme_cell_index
+   integer, dimension(:), allocatable :: pme_macro_nlistsize
 
    real(dblprec), dimension(:,:), allocatable :: mmom_macro !< Magnitude of the macrocell magnetic moments
    real(dblprec), dimension(:,:), allocatable :: max_coord_macro !< Maximum value of the coordinates per cell
@@ -38,6 +44,9 @@ module macrocells
    real(dblprec), dimension(:,:), allocatable :: gpu_macro_center
    real(dblprec), dimension(:,:), allocatable :: gpu_macro_min_coord
    real(dblprec), dimension(:,:), allocatable :: gpu_macro_max_coord
+   real(dblprec), dimension(:,:), allocatable :: pme_macro_center
+   real(dblprec), dimension(:,:), allocatable :: pme_macro_min_coord
+   real(dblprec), dimension(:,:), allocatable :: pme_macro_max_coord
    real(dblprec), dimension(:,:,:), allocatable :: emom_macro  !< Unit vector of the macrocell magnetic moment
    real(dblprec), dimension(:,:,:), allocatable :: emomM_macro !< The full vector of the macrocell magnetic moment
    
@@ -63,6 +72,8 @@ contains
       dip_file='dip_file.dat'
       Num_macro=0
       max_num_atom_macro_cell=0
+      pme_Num_macro=0
+      pme_macro_grid=0
 
    end subroutine init_macrocell
 
@@ -189,6 +200,107 @@ contains
       call memocc(i_stat,i_all,'mid_coord_macro','create_macrocell')
 
    end subroutine create_macrocell
+
+   !----------------------------------------------------------------------------
+   ! Build the basis-resolved regular layout consumed by the CV6 PME backends.
+   ! The existing create_macrocell layout groups every basis atom in a block;
+   ! this one keeps one channel per basis atom, so block size one is atomically
+   ! resolved for regular NA>1 supercells.  It has no effect on CPU do_dip=2.
+   !----------------------------------------------------------------------------
+   subroutine create_pme_macrocell_layout(NA,N1,N2,N3,Natom,coord)
+      implicit none
+
+      integer, intent(in) :: NA,N1,N2,N3,Natom
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      integer :: nb1,nb2,nb3,ib1,ib2,ib3,ii1,ii2,ii3,ibasis,iatom,icell,imacro
+      integer :: i_stat,i_all
+
+      if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0) then
+         error stop 'PME macrocell block dimensions must be positive'
+      endif
+      nb1=(N1+block_size_x-1)/block_size_x
+      nb2=(N2+block_size_y-1)/block_size_y
+      nb3=(N3+block_size_z-1)/block_size_z
+      call release_pme_macrocell_layout()
+      pme_macro_grid=(/nb1,nb2,nb3/)
+      pme_Num_macro=NA*nb1*nb2*nb3
+
+      allocate(pme_cell_index(Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(pme_cell_index))*kind(pme_cell_index),'pme_cell_index','create_pme_macrocell_layout')
+      allocate(pme_macro_nlistsize(pme_Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(pme_macro_nlistsize))*kind(pme_macro_nlistsize),'pme_macro_nlistsize','create_pme_macrocell_layout')
+      allocate(pme_macro_center(3,pme_Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(pme_macro_center))*kind(pme_macro_center),'pme_macro_center','create_pme_macrocell_layout')
+      allocate(pme_macro_min_coord(3,pme_Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(pme_macro_min_coord))*kind(pme_macro_min_coord),'pme_macro_min_coord','create_pme_macrocell_layout')
+      allocate(pme_macro_max_coord(3,pme_Num_macro),stat=i_stat)
+      call memocc(i_stat,product(shape(pme_macro_max_coord))*kind(pme_macro_max_coord),'pme_macro_max_coord','create_pme_macrocell_layout')
+      pme_cell_index=0
+      pme_macro_nlistsize=0
+      pme_macro_center=0.0_dblprec
+      pme_macro_min_coord=1.0d9
+      pme_macro_max_coord=-1.0d9
+
+      iatom=0
+      do ib3=0,nb3-1
+         do ib2=0,nb2-1
+            do ib1=0,nb1-1
+               icell=1+ib1+nb1*(ib2+nb2*ib3)
+               do ii3=ib3*block_size_z,min((ib3+1)*block_size_z-1,N3-1)
+                  do ii2=ib2*block_size_y,min((ib2+1)*block_size_y-1,N2-1)
+                     do ii1=ib1*block_size_x,min((ib1+1)*block_size_x-1,N1-1)
+                        do ibasis=1,NA
+                           iatom=iatom+1
+                           imacro=ibasis+NA*(icell-1)
+                           pme_cell_index(iatom)=imacro
+                           pme_macro_nlistsize(imacro)=pme_macro_nlistsize(imacro)+1
+                           pme_macro_center(:,imacro)=pme_macro_center(:,imacro)+coord(:,iatom)
+                           pme_macro_min_coord(:,imacro)=min(pme_macro_min_coord(:,imacro),coord(:,iatom))
+                           pme_macro_max_coord(:,imacro)=max(pme_macro_max_coord(:,imacro),coord(:,iatom))
+                        enddo
+                     enddo
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+      if(iatom /= Natom .or. any(pme_macro_nlistsize == 0)) error stop 'Invalid PME macrocell layout'
+      do imacro=1,pme_Num_macro
+         pme_macro_center(:,imacro)=pme_macro_center(:,imacro)/pme_macro_nlistsize(imacro)
+      enddo
+   end subroutine create_pme_macrocell_layout
+
+   subroutine release_pme_macrocell_layout()
+      implicit none
+      integer :: i_stat,i_all
+      if(allocated(pme_cell_index)) then
+         i_all=-product(shape(pme_cell_index))*kind(pme_cell_index)
+         deallocate(pme_cell_index,stat=i_stat)
+         call memocc(i_stat,i_all,'pme_cell_index','release_pme_macrocell_layout')
+      endif
+      if(allocated(pme_macro_nlistsize)) then
+         i_all=-product(shape(pme_macro_nlistsize))*kind(pme_macro_nlistsize)
+         deallocate(pme_macro_nlistsize,stat=i_stat)
+         call memocc(i_stat,i_all,'pme_macro_nlistsize','release_pme_macrocell_layout')
+      endif
+      if(allocated(pme_macro_center)) then
+         i_all=-product(shape(pme_macro_center))*kind(pme_macro_center)
+         deallocate(pme_macro_center,stat=i_stat)
+         call memocc(i_stat,i_all,'pme_macro_center','release_pme_macrocell_layout')
+      endif
+      if(allocated(pme_macro_min_coord)) then
+         i_all=-product(shape(pme_macro_min_coord))*kind(pme_macro_min_coord)
+         deallocate(pme_macro_min_coord,stat=i_stat)
+         call memocc(i_stat,i_all,'pme_macro_min_coord','release_pme_macrocell_layout')
+      endif
+      if(allocated(pme_macro_max_coord)) then
+         i_all=-product(shape(pme_macro_max_coord))*kind(pme_macro_max_coord)
+         deallocate(pme_macro_max_coord,stat=i_stat)
+         call memocc(i_stat,i_all,'pme_macro_max_coord','release_pme_macrocell_layout')
+      endif
+      pme_Num_macro=0
+      pme_macro_grid=0
+   end subroutine release_pme_macrocell_layout
 
    !-----------------------------------------------------------------------------
    ! SUBROUTINE: calc_macro_mom
@@ -504,6 +616,7 @@ contains
             deallocate(gpu_macro_max_coord,stat=i_stat)
             call memocc(i_stat,i_all,'gpu_macro_max_coord','allocate_macrocell')
          endif
+         call release_pme_macrocell_layout()
       endif
 
    end subroutine allocate_macrocell

@@ -181,6 +181,17 @@ module Chelper
 
       subroutine FortranData_clearMacrocell() bind(C, name="fortrandata_clearmacell_")
       end subroutine FortranData_clearMacrocell
+
+      subroutine FortranData_setPmeMacrocell(Num_macro, macro_grid, cell_index, macro_nlistsize, &
+            macro_center, macro_min_coord, macro_max_coord) bind(C, name="fortrandata_setpmemacrocell_")
+         import :: c_int, c_double
+         integer(c_int), intent(inout) :: Num_macro, macro_grid(*)
+         integer(c_int), intent(inout) :: cell_index(*), macro_nlistsize(*)
+         real(c_double), intent(inout) :: macro_center(*), macro_min_coord(*), macro_max_coord(*)
+      end subroutine FortranData_setPmeMacrocell
+
+      subroutine FortranData_clearPmeMacrocell() bind(C, name="fortrandata_clearpmemacrocell_")
+      end subroutine FortranData_clearPmeMacrocell
    end interface
 
 
@@ -576,6 +587,12 @@ contains
             cell_index, macro_nlistsize, gpu_macro_center, gpu_macro_min_coord, gpu_macro_max_coord)
       else
          call FortranData_clearMacrocell()
+      endif
+      if (pme_Num_macro > 0) then
+         call FortranData_setPmeMacrocell(pme_Num_macro, pme_macro_grid, pme_cell_index, pme_macro_nlistsize, &
+            pme_macro_center, pme_macro_min_coord, pme_macro_max_coord)
+      else
+         call FortranData_clearPmeMacrocell()
       endif
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &

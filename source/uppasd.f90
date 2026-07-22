@@ -1021,6 +1021,7 @@ contains
          call create_macrocell(NA,N1,N2,N3,Natom,Mensemble,block_size,coord,        &
             Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
             macro_atom_nlist,simid)
+         call create_pme_macrocell_layout(NA,N1,N2,N3,Natom,coord)
          write(*,'(a)') 'done'
       endif
 

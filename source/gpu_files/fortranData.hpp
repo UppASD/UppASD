@@ -88,6 +88,13 @@ public:
    static real* macro_center;
    static real* macro_min_coord;
    static real* macro_max_coord;
+   static unsigned int* pme_num_macro;
+   static unsigned int* pme_macro_grid;
+   static unsigned int* pme_cell_index;
+   static unsigned int* pme_macro_nlistsize;
+   static real* pme_macro_center;
+   static real* pme_macro_min_coord;
+   static real* pme_macro_max_coord;
    
 
    static unsigned int* nq;
@@ -270,6 +277,10 @@ public:
                                      unsigned int* p_block_z, unsigned int* p_cell_index,
                                      unsigned int* p_macro_nlistsize, real* p_macro_center,
                                      real* p_macro_min_coord, real* p_macro_max_coord);
+   static void setPmeMacrocellPointers(unsigned int* p_num_macro, unsigned int* p_macro_grid,
+                                       unsigned int* p_cell_index, unsigned int* p_macro_nlistsize,
+                                       real* p_macro_center, real* p_macro_min_coord, real* p_macro_max_coord);
+   static void clearPmeMacrocellPointers();
     static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

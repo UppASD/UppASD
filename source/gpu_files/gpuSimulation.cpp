@@ -203,31 +203,31 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuHamiltonian.sb.set(FortranData::sb, N);
     }
     cpuHamiltonian.extfield.set(FortranData::external_field,  static_cast <long int>(3), N, M);
-    if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro &&
-       *FortranData::num_macro > 0 && FortranData::macro_cell_index && FortranData::macro_nlistsize &&
-       FortranData::macro_center && FortranData::macro_min_coord && FortranData::macro_max_coord) {
-        const std::size_t macroCount = *FortranData::num_macro;
+    if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro &&
+       *FortranData::pme_num_macro > 0 && FortranData::pme_cell_index && FortranData::pme_macro_nlistsize &&
+       FortranData::pme_macro_center && FortranData::pme_macro_min_coord && FortranData::pme_macro_max_coord) {
+        const std::size_t macroCount = *FortranData::pme_num_macro;
         if(macroCount > N) {
             throw std::runtime_error("GPU macrocell map has more cells than atoms");
         }
         std::vector<std::size_t> observedPopulation(macroCount, 0);
         for(long int atom = 0; atom < N; ++atom) {
-            const unsigned int oneBasedCell = FortranData::macro_cell_index[atom];
+            const unsigned int oneBasedCell = FortranData::pme_cell_index[atom];
             if(oneBasedCell == 0 || oneBasedCell > macroCount) {
                 throw std::runtime_error("GPU macrocell map contains an out-of-range cell index");
             }
             ++observedPopulation[oneBasedCell - 1];
         }
         for(std::size_t cell = 0; cell < macroCount; ++cell) {
-            if(observedPopulation[cell] != FortranData::macro_nlistsize[cell]) {
+            if(observedPopulation[cell] != FortranData::pme_macro_nlistsize[cell]) {
                 throw std::runtime_error("GPU macrocell map and macro_nlistsize disagree");
             }
         }
-        cpuHamiltonian.macro_cell_index.set(FortranData::macro_cell_index, N);
-        cpuHamiltonian.macro_nlistsize.set(FortranData::macro_nlistsize, macroCount);
-        cpuHamiltonian.macro_center.set(FortranData::macro_center, 3, macroCount);
-        cpuHamiltonian.macro_min_coord.set(FortranData::macro_min_coord, 3, macroCount);
-        cpuHamiltonian.macro_max_coord.set(FortranData::macro_max_coord, 3, macroCount);
+        cpuHamiltonian.macro_cell_index.set(FortranData::pme_cell_index, N);
+        cpuHamiltonian.macro_nlistsize.set(FortranData::pme_macro_nlistsize, macroCount);
+        cpuHamiltonian.macro_center.set(FortranData::pme_macro_center, 3, macroCount);
+        cpuHamiltonian.macro_min_coord.set(FortranData::pme_macro_min_coord, 3, macroCount);
+        cpuHamiltonian.macro_max_coord.set(FortranData::pme_macro_max_coord, 3, macroCount);
     }
     cpuLattice.beff.set(FortranData::beff,  static_cast <long int>(3), N, M);
     cpuLattice.b2eff.set(FortranData::b2eff,  static_cast <long int>(3), N, M);
@@ -357,8 +357,8 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
    // CV6.1 macro-only dipole staging: one atom-to-cell map plus the current
    // 3-vector macro moment for every cell and ensemble. The FFT tensor and
    // work buffers are added in CV6.2 once the boundary mode is selected.
-   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::num_macro) {
-      const std::size_t macro = *FortranData::num_macro;
+   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro) {
+      const std::size_t macro = *FortranData::pme_num_macro;
       b += N * sizeof(unsigned int);                          // cell_index(N)
       b += macro * sizeof(unsigned int);                      // macro_nlistsize(Nmacro)
       b += 3 * macro * M * sizeof(real);                      // macro moments(3,Nmacro,M)
