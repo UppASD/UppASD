@@ -1,6 +1,9 @@
 #pragma once
 
 #include "gpu_wrappers.h"
+#include "gpuFftWrapper.hpp"
+#include "real_type.h"
+#include "tensor.hpp"
 
 #include <cstddef>
 
@@ -71,6 +74,11 @@ struct GpuDipoleConvolutionDescriptor {
 // supplied work stream.
 class GpuDipoleConvolution {
 public:
+   GpuDipoleConvolution() = default;
+   ~GpuDipoleConvolution();
+   GpuDipoleConvolution(const GpuDipoleConvolution&) = delete;
+   GpuDipoleConvolution& operator=(const GpuDipoleConvolution&) = delete;
+
    bool initiate(const GpuDipoleConvolutionDescriptor& descriptor, GPU_STREAM_T work_stream);
    void release();
 
@@ -88,4 +96,17 @@ private:
    GpuDipoleFftLayout layout{};
    GPU_STREAM_T stream{};
    bool initiated = false;
+   bool allocated = false;
+   bool forward_plan_created = false;
+   bool backward_plan_created = false;
+   bool kernel_plan_created = false;
+   GpuFftHandle forward_plan{};
+   GpuFftHandle backward_plan{};
+   GpuFftHandle kernel_plan{};
+   GpuTensor<real, 2> moments_real;
+   GpuTensor<real, 2> fields_real;
+   GpuTensor<GpuFftComplex, 2> moments_fft;
+   GpuTensor<GpuFftComplex, 2> fields_fft;
+   GpuTensor<GpuFftComplex, 2> kernel_fft;
+   GpuTensor<unsigned char, 1> fft_workspace;
 };

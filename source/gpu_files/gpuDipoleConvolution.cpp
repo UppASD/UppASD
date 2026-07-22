@@ -3,8 +3,10 @@
 #include "gpuFftWrapper.hpp"
 #include "real_type.h"
 
+#include <algorithm>
 #include <climits>
 #include <limits>
+#include <stdexcept>
 
 namespace {
 
@@ -125,15 +127,100 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
    desc = descriptor;
    layout = desc.fftLayout();
    stream = work_stream;
+
+   // PlanMany receives the transform axes in slow-to-fast order, whereas the
+   // source grid is stored with n1 as the contiguous axis.
+   const int rank = 3;
+   int n[] = {static_cast<int>(layout.real_grid.n3),
+              static_cast<int>(layout.real_grid.n2),
+              static_cast<int>(layout.real_grid.n1)};
+   int inembed[] = {n[0], n[1], n[2]};
+   int onembed[] = {n[0], n[1], static_cast<int>(layout.spectral_grid.n1)};
+   const int idist = static_cast<int>(layout.real_cells);
+   const int odist = static_cast<int>(layout.spectral_cells);
+   std::size_t forward_workspace = 0, backward_workspace = 0, kernel_workspace = 0;
+
+   try {
+      // Mark the group before the first allocation so every partial failure
+      // follows the same idempotent release path.
+      allocated = true;
+      moments_real.Allocate(static_cast<long int>(layout.real_cells),
+                            static_cast<long int>(layout.field_batches));
+      fields_real.Allocate(static_cast<long int>(layout.real_cells),
+                           static_cast<long int>(layout.field_batches));
+      moments_fft.Allocate(static_cast<long int>(layout.spectral_cells),
+                          static_cast<long int>(layout.field_batches));
+      fields_fft.Allocate(static_cast<long int>(layout.spectral_cells),
+                         static_cast<long int>(layout.field_batches));
+      kernel_fft.Allocate(static_cast<long int>(layout.spectral_cells),
+                          static_cast<long int>(layout.kernel_batches));
+      assertGpuFft(GPUFFT_CREATE(&forward_plan));
+      forward_plan_created = true;
+      assertGpuFft(GPUFFT_CREATE(&backward_plan));
+      backward_plan_created = true;
+      assertGpuFft(GPUFFT_CREATE(&kernel_plan));
+      kernel_plan_created = true;
+      assertGpuFft(GPUFFT_SET_AUTO_ALLOCATION(forward_plan, 0));
+      assertGpuFft(GPUFFT_SET_AUTO_ALLOCATION(backward_plan, 0));
+      assertGpuFft(GPUFFT_SET_AUTO_ALLOCATION(kernel_plan, 0));
+      assertGpuFft(GPUFFT_MAKE_PLAN_MANY(forward_plan, rank, n, inembed, 1, idist,
+                                          onembed, 1, odist, GPUFFT_R2C,
+                                          static_cast<int>(layout.field_batches), &forward_workspace));
+      assertGpuFft(GPUFFT_MAKE_PLAN_MANY(backward_plan, rank, n, onembed, 1, odist,
+                                          inembed, 1, idist, GPUFFT_C2R,
+                                          static_cast<int>(layout.field_batches), &backward_workspace));
+      assertGpuFft(GPUFFT_MAKE_PLAN_MANY(kernel_plan, rank, n, inembed, 1, idist,
+                                          onembed, 1, odist, GPUFFT_R2C,
+                                          static_cast<int>(layout.kernel_batches), &kernel_workspace));
+      const std::size_t workspace = std::max(forward_workspace, std::max(backward_workspace, kernel_workspace));
+      if(workspace != 0) fft_workspace.Allocate(static_cast<long int>(workspace));
+      assertGpuFft(GPUFFT_SET_WORK_AREA(forward_plan, fft_workspace.data()));
+      assertGpuFft(GPUFFT_SET_WORK_AREA(backward_plan, fft_workspace.data()));
+      assertGpuFft(GPUFFT_SET_WORK_AREA(kernel_plan, fft_workspace.data()));
+      assertGpuFft(GPUFFT_SET_STREAM(forward_plan, stream));
+      assertGpuFft(GPUFFT_SET_STREAM(backward_plan, stream));
+      assertGpuFft(GPUFFT_SET_STREAM(kernel_plan, stream));
+   } catch(...) {
+      release();
+      throw;
+   }
    initiated = true;
    return true;
 }
 
 void GpuDipoleConvolution::release() {
+   if(forward_plan_created) {
+      GPUFFT_DESTROY(forward_plan);
+      forward_plan_created = false;
+   }
+   if(backward_plan_created) {
+      GPUFFT_DESTROY(backward_plan);
+      backward_plan_created = false;
+   }
+   if(kernel_plan_created) {
+      GPUFFT_DESTROY(kernel_plan);
+      kernel_plan_created = false;
+   }
+   forward_plan = {};
+   backward_plan = {};
+   kernel_plan = {};
+   if(allocated) {
+      moments_real.Free();
+      fields_real.Free();
+      moments_fft.Free();
+      fields_fft.Free();
+      kernel_fft.Free();
+      fft_workspace.Free();
+      allocated = false;
+   }
    initiated = false;
    desc = {};
    layout = {};
    stream = {};
+}
+
+GpuDipoleConvolution::~GpuDipoleConvolution() {
+   release();
 }
 
 bool GpuDipoleConvolution::isInitiated() const {

@@ -29,6 +29,10 @@ using GpuFftComplex = cufftDoubleComplex;
 #define GPUFFT_FORWARD CUFFT_FORWARD
 #define GPUFFT_BACKWARD CUFFT_INVERSE
 #define GPUFFT_PLAN_MANY cufftPlanMany
+#define GPUFFT_CREATE cufftCreate
+#define GPUFFT_SET_AUTO_ALLOCATION cufftSetAutoAllocation
+#define GPUFFT_MAKE_PLAN_MANY cufftMakePlanMany
+#define GPUFFT_SET_WORK_AREA cufftSetWorkArea
 #define GPUFFT_DESTROY cufftDestroy
 #define GPUFFT_SET_STREAM cufftSetStream
 #elif defined(HIP_V)
@@ -51,6 +55,10 @@ using GpuFftComplex = hipfftDoubleComplex;
 #define GPUFFT_FORWARD HIPFFT_FORWARD
 #define GPUFFT_BACKWARD HIPFFT_BACKWARD
 #define GPUFFT_PLAN_MANY hipfftPlanMany
+#define GPUFFT_CREATE hipfftCreate
+#define GPUFFT_SET_AUTO_ALLOCATION hipfftSetAutoAllocation
+#define GPUFFT_MAKE_PLAN_MANY hipfftMakePlanMany
+#define GPUFFT_SET_WORK_AREA hipfftSetWorkArea
 #define GPUFFT_DESTROY hipfftDestroy
 #define GPUFFT_SET_STREAM hipfftSetStream
 #endif

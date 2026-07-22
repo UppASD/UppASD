@@ -69,9 +69,15 @@ only and must be labelled as such.
   the padded real grid, R2C half spectrum, batched field/kernel counts, and
   persistent versus construction-only buffer budgets from its descriptor.  It
   rejects arithmetic overflow and extents/batches that cannot be represented
-  by CUDA FFT or hipFFT `int` plan arguments before device allocation.  This
-  remains a plan-layout milestone: no tensor or FFT plan is created, and no
+  by CUDA FFT or hipFFT `int` plan arguments before device allocation.  No
   dipole field is applied until the Ewald tensor and its validation are added.
+- **2026-07-22 — CV6.2 FFT ownership.** The regular-grid backend now owns
+  batched forward, inverse, and construction FFT plans plus its real, spectral,
+  kernel, and explicitly managed shared FFT workspace.  The workspace is bound
+  to the work stream and released after the plans, so no library-owned hidden
+  allocation escapes the lifecycle.  The buffers are intentionally not yet
+  executed: tensor construction and field/energy kernels remain the next
+  validation-gated slice.
 
 There is exactly one source representation: **macrocells**.  `NA=1` is the
 first validation slice, where macro block size one gives exactly one atom per
