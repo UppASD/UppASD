@@ -11,6 +11,9 @@ module HamiltonianInit
 
    use Profiling
    use Parameters
+   use InputData, only : do_sfc
+   use NeighbourMap, only : setup_nm
+   use NeighbourMapSFC, only : setup_nm_sfc
 
    implicit none
 
@@ -54,7 +57,7 @@ contains
          allocate_cluster_dmhamiltoniandata, allocate_cluster_anisotropies, ham_clus
       use InputData,       only : ham_inp
       !use InputData,       only : jij_scale, dm_scale, ea_model, ea_sigma
-      use NeighbourMap,    only : setup_nm, setup_nm_nelem
+      use NeighbourMap,    only : setup_nm_nelem
       use InducedMoments
       use HamiltonianData, only : allocate_hamiltoniandata, allocate_anisotropies,  &
          allocate_dmhamiltoniandata, allocate_pdhamiltoniandata,                    &
@@ -313,9 +316,10 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !  Setup neighbor map
             write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,     &
-               atype,Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,        &
-               ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,ham_inp%nntype)
+            call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size, &
+               atype,Bas,coord,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,  &
+               sym,ham_inp%nn,ham_inp%redcoord,nm,nmdim,do_ralloy,Natom_full,        &
+               acellnumb,atype_ch,ham_inp%nntype)
             write(*,'(a)') ' done'
 
             ! If one is doing the cluster method one could have that the impurity system
@@ -411,8 +415,8 @@ contains
       else ! If tensor
          !  Setup neighbor map and exchange tensor
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%max_no_neigh,ham_inp%max_no_shells,max_no_equiv,sym,ham_inp%nn,ham_inp%redcoord,nm,     &
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -481,8 +485,8 @@ contains
       if(ham_inp%do_dm==1) then
          ! Allocate and mount DM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Dzyaloshinskii-Moriya exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%max_no_dmneigh,ham_inp%max_no_dmshells,max_no_equiv,0,ham_inp%dm_nn,ham_inp%dm_redcoord,&
             nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -525,8 +529,8 @@ contains
       if(ham_inp%do_sa==1) then
          ! Allocate and mount SA Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for symmetric anisotropic exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,0,ham_inp%sa_nn,ham_inp%sa_redcoord,&
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%max_no_saneigh,ham_inp%max_no_sashells,max_no_equiv,0,ham_inp%sa_nn,ham_inp%sa_redcoord,&
             nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -576,8 +580,8 @@ contains
       if(ham_inp%do_pd==1) then
         ! Allocate and mount PD Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for Pseudo-Dipolar exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%nn_pd_tot,ham_inp%max_no_pdshells,max_no_equiv,0,ham_inp%pd_nn,ham_inp%pd_redcoord,nm,&
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          !write(*,'(a)') ' done'
 
@@ -689,8 +693,8 @@ contains
       if(ham_inp%do_biqdm==1) then
          ! Allocate and mount BIQDM Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for BIQDM exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_biqdm_tot,ham_inp%max_no_biqdmshells,max_no_equiv,0,ham_inp%biqdm_nn,        &
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%nn_biqdm_tot,ham_inp%max_no_biqdmshells,max_no_equiv,0,ham_inp%biqdm_nn,        &
             ham_inp%biqdm_redcoord,nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -723,8 +727,8 @@ contains
 
          ! Allocate and mount BQ Hamiltonian
          write (*,'(2x,a)',advance='no') 'Set up neighbour map for biquadratic exchange'
-         call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
-            Bas,ham%nn_bq_tot,ham_inp%max_no_bqshells,max_no_equiv,sym,ham_inp%bq_nn,ham_inp%bq_redcoord,nm,&
+         call setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype,  &
+            Bas,coord,ham%nn_bq_tot,ham_inp%max_no_bqshells,max_no_equiv,sym,ham_inp%bq_nn,ham_inp%bq_redcoord,nm,&
             nmdim,do_ralloy,Natom_full,acellnumb,atype_ch)
          write(*,'(a)') ' done'
 
@@ -805,6 +809,41 @@ contains
       end if 
 
    contains
+
+      ! Select the coordinate-based mapper for every supported pair interaction.
+      ! All consumers retain the conventional nm/nmdim representation.
+      subroutine setup_pair_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size, &
+         atype,Bas,coord,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,   &
+         nm,nmdim,do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
+         implicit none
+         integer, intent(in) :: Natom,NT,NA,N1,N2,N3,block_size,max_no_shells,sym
+         integer, intent(in) :: Natom_full,do_ralloy
+         integer, dimension(NT), intent(in) :: nn
+         integer, dimension(Natom), intent(in) :: atype
+         integer, dimension(Natom_full), intent(in) :: acellnumb,atype_ch
+         integer, dimension(NT,max_no_shells), optional, intent(in) :: nntype
+         character(len=1), intent(in) :: BC1,BC2,BC3
+         real(dblprec), dimension(3), intent(in) :: C1,C2,C3
+         real(dblprec), dimension(3,NA), intent(in) :: Bas
+         real(dblprec), dimension(3,Natom), intent(in) :: coord
+         real(dblprec), dimension(NT,max_no_shells,3), intent(in) :: redcoord
+         integer, intent(out) :: max_no_neigh,max_no_equiv
+         integer, dimension(:,:,:), allocatable, intent(out) :: nm
+         integer, dimension(:,:), allocatable, intent(out) :: nmdim
+
+         if (do_sfc == 'Y' .and. do_ralloy == 0) then
+            call setup_nm_sfc(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,atype,coord, &
+               max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,     &
+               do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
+         else
+            if (do_sfc == 'Y' .and. do_ralloy /= 0) then
+               write(*,'(a)') 'SFC mapping is unavailable for random alloys; using regular mapping'
+            end if
+            call setup_nm(Natom,NT,NA,N1,N2,N3,C1,C2,C3,BC1,BC2,BC3,block_size,atype, &
+               Bas,max_no_neigh,max_no_shells,max_no_equiv,sym,nn,redcoord,nm,nmdim,  &
+               do_ralloy,Natom_full,acellnumb,atype_ch,nntype)
+         end if
+      end subroutine setup_pair_nm
 
       ! Setup the Hamiltonian look-up table
       subroutine setup_aHam(Natom,anumb,do_reduced)
@@ -1141,7 +1180,7 @@ contains
             allocate(nind(maxval(fs_nlistsize),Natom),stat=i_stat)
             call memocc(i_stat,product(shape(nind))*kind(nind),'nind','setup_neighbour_hamiltonian')
          endif
-         !$omp parallel do default(shared) private(i)
+         !$omp parallel do default(shared) private(i,j,k)
          do i = 1,Natom
             do j=1,fs_nlistsize(i)
                do k = 1, nlistsize(i)

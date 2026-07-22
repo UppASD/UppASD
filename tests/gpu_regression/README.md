@@ -29,13 +29,16 @@ visible CUDA/HIP device; compile-only CI intentionally does not run it.
 
 `bench.py` compares GPU real-space and device convolution Hamiltonians.  Its
 default matrix covers small and medium BCC systems, a longer BCC trajectory,
-and a two-atom-basis FeCo case.  Every configuration has one warm-up plus at
-least three timed runs of each backend; the convolution run is rejected if the
-executable did not print its activation line (preventing an unnoticed sparse
-fallback).  The harness forces `do_reduced Y`: convolution operates on the
-unit-cell Hamiltonian (`nHam == NA`), while the FFT supplies the full periodic
-lattice field.  It prints the convolution activation line once per benchmark;
-if setup falls back, the reported error includes UppASD's reason.
+a two-atom-basis FeCo case, and the 131,072-atom dhcp-Nd long-range fixture
+(four-site basis, 1,340 neighbours/atom).  The dhcp-Nd case uses 100 steps by
+default to keep routine benchmark time reasonable. Every configuration has one
+warm-up plus at least three timed runs of each backend; the convolution run is
+rejected if the executable did not print its activation line (preventing an
+unnoticed sparse fallback).  The harness forces `do_reduced Y`: convolution
+operates on the unit-cell Hamiltonian (`nHam == NA`), while the FFT supplies the
+full periodic lattice field.  It prints the convolution activation line once
+per benchmark; if setup falls back, the reported error includes UppASD's
+reason.
 
 ```bash
 python3 tests/gpu_regression/bench.py --list
