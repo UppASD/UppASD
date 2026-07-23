@@ -2,7 +2,20 @@
 """Self-checks for the independent periodic dipole Ewald evaluator."""
 from __future__ import annotations
 
-from periodic_ewald_reference import add, evaluate
+from periodic_ewald_reference import (
+    add,
+    apply_displacement_kernel,
+    assert_reciprocal_identity,
+    default_alpha,
+    evaluate,
+    evaluate_converged,
+    finite_difference_field,
+    generate_displacement_kernel,
+    grid_positions,
+    kernel_energy,
+    reciprocal_alias_tensor,
+    single_representative_reciprocal_tensor,
+)
 
 
 def close(left: float, right: float, tolerance: float = 2e-10) -> None:
@@ -10,11 +23,11 @@ def close(left: float, right: float, tolerance: float = 2e-10) -> None:
         raise AssertionError(f"{left:.17e} != {right:.17e}")
 
 
-def compare(first, second) -> None:
-    close(first.energy, second.energy)
+def compare(first, second, tolerance: float = 2e-10) -> None:
+    close(first.energy, second.energy, tolerance)
     for lhs, rhs in zip(first.fields, second.fields):
         for left, right in zip(lhs, rhs):
-            close(left, right)
+            close(left, right, tolerance)
 
 
 def compare_golden(result, energy: float, fields) -> None:
@@ -24,35 +37,86 @@ def compare_golden(result, energy: float, fields) -> None:
             close(got, want, tolerance=5e-13)
 
 
+def compare_kernel_to_direct(grid, cell, basis, moments, *, alpha: float,
+                             real_images=(7, 7, 7), reciprocal_images=(7, 7, 7)) -> None:
+    positions = grid_positions(grid, cell, basis)
+    direct = evaluate(positions, moments, cell, alpha=alpha,
+                      real_images=real_images, reciprocal_images=reciprocal_images)
+    kernel = generate_displacement_kernel(
+        grid, cell, basis, alpha=alpha, real_images=real_images,
+        reciprocal_images=reciprocal_images)
+    fields = apply_displacement_kernel(kernel, grid, len(basis), moments)
+    for actual, expected in zip(fields, direct.fields):
+        for got, want in zip(actual, expected):
+            close(got, want, tolerance=4e-11)
+    close(kernel_energy(fields, moments), direct.energy, tolerance=4e-11)
+
+    # K(d,a,b) = K(-d,b,a)^T.  The packed tensors are symmetric, so the
+    # transpose is represented by the same six entries here.
+    for (displacement, target_basis, source_basis), tensor in kernel.items():
+        reverse = tuple((-displacement[axis]) % grid[axis] for axis in range(3))
+        reciprocal = kernel[(reverse, source_basis, target_basis)]
+        for left, right in zip(tensor, reciprocal):
+            close(left, right, tolerance=4e-11)
+
+
 def main() -> int:
     cubic = ((3.0, 0.0, 0.0), (0.0, 3.0, 0.0), (0.0, 0.0, 3.0))
     positions = ((0.0, 0.0, 0.0), (0.7, 0.4, 1.1))
     moments = ((1.0, -0.2, 0.4), (-0.3, 0.8, 0.1))
+
+    # Geometry is checked independently for every cell used below.  In
+    # particular, this catches accidentally using primitive vectors where the
+    # full periodic supercell H is required.
+    assert_reciprocal_identity(cubic)
+    skew = ((3.1, 0.0, 0.0), (0.4, 2.8, 0.0), (0.2, 0.3, 3.3))
+    assert_reciprocal_identity(skew)
+
     # The Ewald split parameter must not change a sufficiently converged sum.
-    low_alpha = evaluate(positions, moments, cubic, alpha=0.7, real_images=(5, 5, 5), reciprocal_images=(5, 5, 5))
-    high_alpha = evaluate(positions, moments, cubic, alpha=1.1, real_images=(5, 5, 5), reciprocal_images=(5, 5, 5))
+    low_alpha = evaluate(positions, moments, cubic, alpha=0.7,
+                         real_images=(5, 5, 5), reciprocal_images=(5, 5, 5))
+    high_alpha = evaluate(positions, moments, cubic, alpha=1.1,
+                          real_images=(5, 5, 5), reciprocal_images=(5, 5, 5))
     compare(low_alpha, high_alpha)
+
+    # Automatic convergence checks expand real and reciprocal shells
+    # independently and require two consecutive passing changes per side.
+    converged = evaluate_converged(positions, moments, cubic, alpha=0.9,
+                                   tolerance=1e-10, max_shell=10)
+    assert converged.convergence is not None
+    assert converged.convergence.real_images[0] >= 2
+    assert converged.convergence.reciprocal_images[0] >= 2
+    assert converged.convergence.real_shell_changes[-1] <= 1e-10
+    assert converged.convergence.reciprocal_shell_changes[-1] <= 1e-10
 
     # Translating every macrocell by the same lattice vector changes no field.
     shifted = tuple(add(position, cubic[0]) for position in positions)
     compare(high_alpha, evaluate(shifted, moments, cubic, alpha=1.1,
-                                 real_images=(5, 5, 5), reciprocal_images=(5, 5, 5)))
+                                real_images=(5, 5, 5), reciprocal_images=(5, 5, 5)))
 
-    # Fixed independently reviewed values protect the oracle against an
-    # accidental sign, self-term or reciprocal-tensor edit.  The first case is
-    # precisely the block-one macrocell limit of one source in a cubic cell.
+    # Fixed independently reviewed values protect against an accidental sign,
+    # self-term or reciprocal-tensor edit.  The first case is precisely the
+    # block-one macrocell limit of one source in a cubic cell.
     cubic_golden = evaluate(((0.0, 0.0, 0.0),), ((1.0, -0.2, 0.4),), cubic,
                             alpha=0.9, real_images=(7, 7, 7), reciprocal_images=(7, 7, 7))
     compare_golden(cubic_golden, -0.09308422677303108,
                    ((0.1551403779550518, -0.031028075591010243, 0.06205615118202068),))
 
-    skew = ((3.1, 0.0, 0.0), (0.4, 2.8, 0.0), (0.2, 0.3, 3.3))
     skew_positions = ((0.0, 0.0, 0.0), (0.9, 0.7, 1.2))
     skew_result = evaluate(skew_positions, moments, skew, alpha=0.9,
                            real_images=(7, 7, 7), reciprocal_images=(7, 7, 7))
     compare_golden(skew_result, -0.264979280195023,
                    ((0.22112113378570364, -0.0332487057527215, 0.12398892258605723),
                     (0.08604483604361035, 0.311214561767032, 0.29433917818832656)))
+
+    # Energy and field are one Hamiltonian: -dE/dM equals B.  Check every
+    # component in a skew two-particle cell, not just a convenient orientation.
+    for atom in range(len(moments)):
+        for component in range(3):
+            derivative = finite_difference_field(
+                skew_positions, moments, skew, atom=atom, component=component,
+                step=1e-5, alpha=0.9, real_images=(7, 7, 7), reciprocal_images=(7, 7, 7))
+            close(derivative, skew_result.fields[atom][component], tolerance=2e-8)
 
     # Ensembles are independent: a production batched PME path must agree with
     # a separate reference evaluation of every ensemble, including M=4.
@@ -70,6 +134,67 @@ def main() -> int:
     for original, inverted in zip(ensemble_results[0].fields, ensemble_results[1].fields):
         for left, right in zip(original, inverted):
             close(left, -right)  # global M -> -M makes B odd while E is even
+
+    # Explicit small-grid displacement kernels cover the required indexing and
+    # geometry matrix.  The direct Ewald evaluator is the cross-formulation
+    # reference; no UppASD output is used.
+    compare_kernel_to_direct(
+        (1, 1, 1), cubic, ((0.0, 0.0, 0.0),),
+        ((1.0, -0.2, 0.4),), alpha=0.9)
+    auto_kernel = generate_displacement_kernel(
+        (1, 1, 1), cubic, ((0.0, 0.0, 0.0),), tolerance=1e-10, max_shell=10)
+    auto_fields = apply_displacement_kernel(auto_kernel, (1, 1, 1), 1,
+                                             ((1.0, -0.2, 0.4),))
+    auto_direct = evaluate(((0.0, 0.0, 0.0),), ((1.0, -0.2, 0.4),), cubic,
+                           alpha=default_alpha(cubic), real_images=(7, 7, 7),
+                           reciprocal_images=(7, 7, 7))
+    for actual, expected in zip(auto_fields, auto_direct.fields):
+        for got, want in zip(actual, expected):
+            close(got, want, tolerance=1e-9)
+    close(kernel_energy(auto_fields, ((1.0, -0.2, 0.4),)), auto_direct.energy,
+          tolerance=1e-9)
+    two_cells = ((6.0, 0.0, 0.0), (0.0, 3.0, 0.0), (0.0, 0.0, 3.0))
+    compare_kernel_to_direct(
+        (2, 1, 1), two_cells, ((0.0, 0.0, 0.0),),
+        ((1.0, -0.2, 0.4), (-0.3, 0.8, 0.1)), alpha=0.8,
+        real_images=(6, 6, 6), reciprocal_images=(6, 6, 6))
+    non_cubic = ((6.0, 0.0, 0.0), (0.0, 9.0, 0.0), (0.0, 0.0, 3.0))
+    non_cubic_moments = tuple((0.2 + 0.03 * index, -0.4 + 0.02 * index,
+                               0.1 - 0.01 * index) for index in range(6))
+    compare_kernel_to_direct(
+        (2, 3, 1), non_cubic, ((0.0, 0.0, 0.0),), non_cubic_moments,
+        alpha=0.8, real_images=(5, 5, 5), reciprocal_images=(5, 5, 5))
+    skew_grid = ((6.0, 0.0, 0.0), (0.8, 3.0, 0.0), (0.3, 0.2, 3.4))
+    compare_kernel_to_direct(
+        (2, 1, 1), skew_grid, ((0.0, 0.0, 0.0),),
+        ((1.0, -0.2, 0.4), (-0.3, 0.8, 0.1)), alpha=0.8,
+        real_images=(6, 6, 6), reciprocal_images=(7, 7, 7))
+    two_basis_cell = ((4.5, 0.0, 0.0), (0.4, 4.0, 0.0), (0.2, 0.3, 4.4))
+    two_basis = ((0.0, 0.0, 0.0), (1.1, 0.7, 0.9))
+    two_basis_moments = (
+        (1.0, -0.2, 0.4), (-0.3, 0.8, 0.1),
+    )
+    compare_kernel_to_direct(
+        (1, 1, 1), two_basis_cell, two_basis, two_basis_moments,
+        alpha=0.8, real_images=(6, 6, 6), reciprocal_images=(7, 7, 7))
+
+    # Red regression for the current single-representative reciprocal builder:
+    # q=0 on a 1x1x1 mesh is not the physical k=0 term.  Every nonzero
+    # reciprocal vector aliases into that bin, so the full bin is nonzero.
+    aliases = reciprocal_alias_tensor(
+        (1, 1, 1), cubic, (0, 0, 0), alpha=0.9,
+        reciprocal_images=(7, 7, 7))
+    representative = single_representative_reciprocal_tensor(
+        (1, 1, 1), cubic, (0, 0, 0), alpha=0.9)
+    assert max(abs(value) for value in aliases) > 1e-3
+    assert representative == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+    # A non-cubic image extent is also a valid explicit convergence study.
+    rectangular = evaluate(positions, moments, cubic, alpha=0.9,
+                           real_images=(6, 5, 4), reciprocal_images=(6, 5, 4))
+    compare(rectangular, evaluate(positions, moments, cubic, alpha=0.9,
+                                  real_images=(7, 7, 7), reciprocal_images=(7, 7, 7)),
+            tolerance=3e-9)
     print("PASS periodic dipole Ewald reference self-checks")
     return 0
 

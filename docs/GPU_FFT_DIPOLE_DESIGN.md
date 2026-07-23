@@ -13,6 +13,22 @@ high-accuracy Ewald evaluator, analytic limiting cases, the stated boundary
 condition, and published Ewald/PME theory.  CPU captures are regression data
 only and must be labelled as such.
 
+The frozen first production contract is deliberately narrow:
+
+```text
+gpu_dipole_mode     EWALD3D_FFT
+gpu_dipole_surface  TINFOIL
+gpu_dipole_tol      1.0e-10
+do_dip              0
+scope               GPU spin dynamics, P/P/P, block one, NA=1, fp64
+```
+
+`OFF` remains the default.  Selecting `EWALD3D_FFT` requires legacy
+`do_dip=0`; the CPU dipole Hamiltonian must not be constructed or applied in
+the same run.  This document describes the target contract; production
+dispatch remains validation-gated until the independent oracle and host/GPU
+acceptance tests pass.
+
 ### Working notes
 
 - **2026-07-22 — CV6.0 started.** Added
@@ -165,7 +181,7 @@ for another mode.
 
 ## Physical contracts
 
-### 3D periodic PME -- first production mode
+### 3D periodic EWALD3D_FFT -- frozen first production mode
 
 The default contract is a 3D-periodic lattice of macrocell magnetic moments
 with the **conducting (tin-foil) exterior convention**: the reciprocal `k=0`
@@ -249,8 +265,9 @@ Introduce an explicit GPU dipole selection rather than overloading
 `do_dip`:
 
 ```
-gpu_dipole_mode       OFF | PME3D | OPEN_FFT | SLAB_PME
-gpu_dipole_surface    TINFOIL | VACUUM_SPHERE   # PME3D only
+gpu_dipole_mode       OFF | EWALD3D_FFT | OPEN_FFT | SLAB_PME
+gpu_dipole_surface    TINFOIL | VACUUM_SPHERE   # EWALD3D_FFT only
+gpu_dipole_tol        1.0e-10                    # EWALD3D_FFT default
 gpu_dipole_alpha      auto | positive value
 gpu_dipole_rcut       auto | positive value
 gpu_dipole_mesh       auto | n1 n2 n3
@@ -265,9 +282,12 @@ operator is implemented and validated.
 
 The Fortran bridge exports the selected mode and numerical parameters along
 with `alat`, `H`, macrocell map/membership/counts/centres and magnetic moments.
-It rejects invalid combinations before allocation.  Once selected, the GPU
-backend owns both the dipole field and dipole energy for the GPU step; no CPU
-dipole calculation may also be applied.
+It rejects invalid combinations before allocation.  For `EWALD3D_FFT`,
+`do_dip` must be zero, the boundary must be 3D periodic, the surface must be
+tin foil, the mesh must be all zero, and the construction tolerance defaults
+to `1.0e-10`.  Once selected, the GPU backend owns both the dipole field and
+dipole energy for the GPU step; no CPU dipole calculation may also be
+applied.
 
 ## Validation gates
 
@@ -309,5 +329,5 @@ dipole calculation may also be applied.
   dipolar periodic sums and their boundary/surface dependence.
 - M. C\u00e9rda, V. Ballenegger and C. Holm, “Particle-particle particle-mesh
   method for dipolar interactions,” *J. Chem. Phys.* **135**, 184110 (2011),
-  DOI [10.1063/1.3652921](https://doi.org/10.1063/1.3652921): dipolar P3M
+  DOI [10.1063/1.3657407](https://doi.org/10.1063/1.3657407): dipolar P3M
   mesh-error analysis and implementation guidance.
