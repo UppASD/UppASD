@@ -11,6 +11,9 @@
 struct DipoleKernelSettings {
    // The gpu_dipole_tol contract.  alpha and cutoffs are selected internally.
    double tolerance = 1.0e-10;
+   // Test-only override used to independently exercise the Ewald split.  A
+   // non-positive value retains the production automatic-alpha policy.
+   double explicit_alpha_for_testing = 0.0;
 };
 
 struct DipolePeriodicGeometry {
@@ -41,6 +44,7 @@ struct DipoleKernelDiagnostics {
    double residual = 0.0;
    double max_alpha_difference = 0.0;
    double max_reciprocity_error = 0.0;
+   double max_hermitian_error = 0.0;
    double reciprocal_identity_error = 0.0;
    std::size_t real_tensor_evaluations = 0;
    std::size_t reciprocal_tensor_evaluations = 0;

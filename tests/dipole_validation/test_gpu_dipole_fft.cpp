@@ -1,5 +1,6 @@
 #include "dipoleEwaldKernel.hpp"
 #include "gpuDipoleConvolution.hpp"
+#include "gpu_ewald_goldens_v1.hpp"
 #include "tensor.hpp"
 
 #include <algorithm>
@@ -31,7 +32,7 @@ std::size_t macroIndex(unsigned int component, unsigned int basis_channel, std::
 std::array<double, 9> reciprocal(const std::array<double, 9>& h, double volume) {
    const double scale = 2.0 * std::acos(-1.0) / volume;
    return {scale * (h[4] * h[8] - h[7] * h[5]), scale * (h[5] * h[6] - h[3] * h[8]),
-           scale * (h[3] * h[7] - h[4] * h[6]), scale * (h[7] * h[2] - h[8] * h[5]),
+           scale * (h[3] * h[7] - h[4] * h[6]), scale * (h[7] * h[2] - h[8] * h[1]),
            scale * (h[8] * h[0] - h[6] * h[2]), scale * (h[6] * h[1] - h[7] * h[0]),
            scale * (h[1] * h[5] - h[2] * h[4]), scale * (h[2] * h[3] - h[0] * h[5]),
            scale * (h[0] * h[4] - h[1] * h[3])};
@@ -110,9 +111,46 @@ std::vector<double> deltaKernel(const Grid& grid, unsigned int basis) {
 
 struct Errors { double field = 0.0; double energy = 0.0; };
 
-Errors runOperator(const std::string& name, const Grid& grid, unsigned int basis, unsigned int ensembles,
-                   const std::array<double, 9>& h, const std::vector<double>& kernel,
-                   const std::vector<double>& moments, bool check_not_ready = false) {
+struct OperatorResult {
+   std::vector<real> fields;
+   std::vector<real> energies;
+   GpuDipoleSpectrumDiagnostics spectrum;
+};
+
+double reciprocalIdentityError(const std::array<double, 9>& h, const std::array<double, 9>& b) {
+   double maximum = 0.0;
+   for(unsigned int row = 0; row < 3; ++row) for(unsigned int column = 0; column < 3; ++column) {
+      double value = 0.0;
+      for(unsigned int component = 0; component < 3; ++component)
+         value += h[component + 3 * row] * b[component + 3 * column];
+      maximum = std::max(maximum, std::abs(value - (row == column ? 2.0 * std::acos(-1.0) : 0.0)));
+   }
+   return maximum;
+}
+
+std::array<double, 9> reciprocalWithLegacyTypo(const std::array<double, 9>& h, double cell_volume) {
+   auto result = reciprocal(h, cell_volume);
+   const double scale = 2.0 * std::acos(-1.0) / cell_volume;
+   // Historical test-helper error: b2.x used h[5], which masks itself if
+   // h[1] and h[5] are both zero.
+   result[3] = scale * (h[7] * h[2] - h[8] * h[5]);
+   return result;
+}
+
+void runReciprocalHelperRegression() {
+   const std::array<double, 9> skew{{6.0, 0.45, 0.25, 0.8, 3.0, 0.35, 0.3, 0.2, 3.4}};
+   const double cell_volume = volume(skew);
+   const double corrected = reciprocalIdentityError(skew, reciprocal(skew, cell_volume));
+   const double legacy = reciprocalIdentityError(skew, reciprocalWithLegacyTypo(skew, cell_volume));
+   std::printf("reciprocal-helper corrected_residual=%.17g legacy_typo_residual=%.17g\n", corrected, legacy);
+   if(corrected > 2.0e-14 || legacy < 1.0e-3)
+      throw std::runtime_error("reciprocal helper skew regression did not distinguish h[1] from h[5]");
+}
+
+OperatorResult evaluateOperator(const Grid& grid, unsigned int basis, unsigned int ensembles,
+                                const std::array<double, 9>& h, const std::vector<double>& kernel,
+                                const std::vector<double>& moments, bool check_not_ready = false,
+                                bool nonphysical_plumbing_kernel = false) {
    const std::size_t ncell = cells(grid);
    GpuTensor<real, 3> device_moments;
    GPU_STREAM_T stream{};
@@ -128,35 +166,80 @@ Errors runOperator(const std::string& name, const Grid& grid, unsigned int basis
          try { solver.evaluate(device_moments); } catch(const std::runtime_error&) { guarded = true; }
          if(!guarded) throw std::runtime_error("evaluate did not reject a missing complete kernel");
       }
-      solver.uploadCompleteKernelForTesting(kernel);
+      solver.uploadCompleteKernelForTesting(kernel, !nonphysical_plumbing_kernel);
       if(!solver.kernelReady()) throw std::runtime_error("kernel_ready was not set after normalized kernel construction");
       if(solver.diagnosticConstructionStorageAllocatedForTesting())
          throw std::runtime_error("transient real kernel storage survived kernel construction");
       solver.evaluate(device_moments);
-      const auto fields = solver.diagnosticFieldsForTesting();
-      const auto energies = solver.diagnosticEnergiesForTesting();
-      const auto expected = directConvolution(kernel, moments, grid, basis, ensembles);
-      Errors errors{};
-      for(std::size_t i = 0; i < fields.size(); ++i) errors.field = std::max(errors.field, std::abs(fields[i] - expected[i]));
-      for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble) {
-         double expected_energy = 0.0;
-         for(std::size_t cell = 0; cell < ncell; ++cell) for(unsigned int channel = 0; channel < basis; ++channel)
-            for(unsigned int component = 0; component < 3; ++component) {
-               const auto index = macroIndex(component, channel, cell, basis, ncell, ensemble);
-               expected_energy -= 0.5 * moments[index] * expected[index];
-            }
-         errors.energy = std::max(errors.energy, std::abs(energies[ensemble] - expected_energy));
-      }
+      OperatorResult result{solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+                            solver.diagnosticSpectrumForTesting()};
       solver.release();
       device_moments.Free();
       if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("GPU stream destruction failed");
-      std::printf("%s max_field_error=%.17g max_energy_error=%.17g\n", name.c_str(), errors.field, errors.energy);
-      return errors;
+      return result;
    } catch(...) {
       if(!device_moments.empty()) device_moments.Free();
       GPU_STREAM_DESTROY(stream);
       throw;
    }
+}
+
+std::array<OperatorResult, 2> evaluateConsecutive(const Grid& grid, unsigned int basis, unsigned int ensembles,
+                                                   const std::array<double, 9>& h, const std::vector<double>& kernel,
+                                                   const std::vector<double>& first, const std::vector<double>& second) {
+   if(first.size() != second.size()) throw std::runtime_error("changed-moment sequence has incompatible sizes");
+   const std::size_t ncell = cells(grid);
+   GpuTensor<real, 3> device_moments;
+   GPU_STREAM_T stream{};
+   if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU stream creation failed");
+   try {
+      device_moments.Allocate(3L, static_cast<long int>(ncell * basis), static_cast<long int>(ensembles));
+      GpuDipoleConvolution solver;
+      if(!solver.initiate(descriptor(grid, basis, ensembles, h), stream)) throw std::runtime_error("GPU FFT plan initiation failed");
+      solver.uploadCompleteKernelForTesting(kernel);
+      std::array<OperatorResult, 2> result{};
+      const std::array<const std::vector<double>*, 2> input{{&first, &second}};
+      for(unsigned int evaluation = 0; evaluation < input.size(); ++evaluation) {
+         if(GPU_MEMCPY(device_moments.data(), input[evaluation]->data(), input[evaluation]->size() * sizeof(real),
+                       GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+            throw std::runtime_error("GPU changed-moment upload failed");
+         }
+         solver.evaluate(device_moments);
+         result[evaluation] = {solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+                               solver.diagnosticSpectrumForTesting()};
+      }
+      solver.release();
+      device_moments.Free();
+      if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("GPU stream destruction failed");
+      return result;
+   } catch(...) {
+      if(!device_moments.empty()) device_moments.Free();
+      GPU_STREAM_DESTROY(stream);
+      throw;
+   }
+}
+
+Errors runOperator(const std::string& name, const Grid& grid, unsigned int basis, unsigned int ensembles,
+                   const std::array<double, 9>& h, const std::vector<double>& kernel,
+                   const std::vector<double>& moments, bool check_not_ready = false,
+                   bool nonphysical_plumbing_kernel = false) {
+   const std::size_t ncell = cells(grid);
+   const auto result = evaluateOperator(grid, basis, ensembles, h, kernel, moments, check_not_ready,
+                                        nonphysical_plumbing_kernel);
+   const auto expected = directConvolution(kernel, moments, grid, basis, ensembles);
+   Errors errors{};
+   for(std::size_t i = 0; i < result.fields.size(); ++i) errors.field = std::max(errors.field, std::abs(result.fields[i] - expected[i]));
+   for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble) {
+      double expected_energy = 0.0;
+      for(std::size_t cell = 0; cell < ncell; ++cell) for(unsigned int channel = 0; channel < basis; ++channel)
+         for(unsigned int component = 0; component < 3; ++component) {
+            const auto index = macroIndex(component, channel, cell, basis, ncell, ensemble);
+            expected_energy -= 0.5 * moments[index] * expected[index];
+         }
+      errors.energy = std::max(errors.energy, std::abs(result.energies[ensemble] - expected_energy));
+   }
+   std::printf("plumbing %s max_field_error=%.17g max_energy_error=%.17g\n", name.c_str(), errors.field, errors.energy);
+   return errors;
 }
 
 void require(const Errors& errors, const std::string& name) {
@@ -181,7 +264,7 @@ void runDeltaSuite() {
                                   std::to_string(grid[2]) + " basis=" + std::to_string(basis) + " ensembles=" +
                                   std::to_string(ensembles) + " source=" + std::to_string(source) + "/" + std::to_string(component);
          require(runOperator(name, grid, basis, ensembles, h, kernel, moments, grid == grids.front() && basis == 1 &&
-                             ensembles == 1 && source == 0 && component == 0), name);
+                             ensembles == 1 && source == 0 && component == 0, true), name);
       }
    }
 }
@@ -215,12 +298,142 @@ void runPeriodicSuite() {
                    {9.0, 0.0, 0.0, 0.7, 6.0, 0.0, 0.3, 0.2, 6.4}, {{0.0, 0.0, 0.0}, {0.37, 0.23, 0.41}});
 }
 
+DipolePeriodicGeometry periodicGeometry(const Grid& grid, const std::array<double, 9>& h) {
+   DipolePeriodicGeometry geometry{};
+   geometry.H = h;
+   geometry.volume = volume(h);
+   geometry.Brec = reciprocal(h, geometry.volume);
+   geometry.grid = grid;
+   geometry.basis = 1;
+   geometry.basis_offsets = {{0.0, 0.0, 0.0}};
+   return geometry;
+}
+
+double maxDifference(const std::vector<real>& actual, const double* expected, std::size_t count) {
+   double result = 0.0;
+   for(std::size_t index = 0; index < count; ++index) result = std::max(result, std::abs(actual[index] - expected[index]));
+   return result;
+}
+
+void requireSpectrum(const GpuDipoleSpectrumDiagnostics& spectrum, const std::string& name) {
+   constexpr double tolerance = 1.0e-12;
+   if(spectrum.max_reciprocity_error > tolerance || spectrum.max_conjugacy_error > tolerance ||
+      spectrum.max_hermitian_error > tolerance) {
+      throw std::runtime_error(name + " violates complete-kernel spectral validation");
+   }
+}
+
+void runIndependentOracleSuite() {
+   constexpr double tolerance = 3.0e-10;
+   double maximum_field = 0.0, maximum_energy = 0.0, maximum_reciprocity = 0.0, maximum_hermitian = 0.0;
+   for(const auto& oracle : gpu_ewald_golden_v1::cases) {
+      const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
+      const auto geometry = periodicGeometry(grid, oracle.H);
+      const auto complete = buildPeriodicEwaldDisplacementKernel(geometry, {1.0e-10});
+      const std::size_t count = 3 * cells(grid) * oracle.ensembles;
+      const std::vector<double> moments(oracle.moments, oracle.moments + count);
+      const auto actual = evaluateOperator(grid, 1, static_cast<unsigned int>(oracle.ensembles), oracle.H,
+                                           complete.kernel, moments);
+      const double field_error = maxDifference(actual.fields, oracle.fields, count);
+      double energy_error = 0.0;
+      for(std::size_t ensemble = 0; ensemble < oracle.ensembles; ++ensemble)
+         energy_error = std::max(energy_error, std::abs(actual.energies[ensemble] - oracle.energies[ensemble]));
+      requireSpectrum(actual.spectrum, oracle.name);
+      if(field_error > tolerance || energy_error > tolerance)
+         throw std::runtime_error(std::string("independent oracle mismatch for ") + oracle.name);
+      maximum_field = std::max(maximum_field, field_error);
+      maximum_energy = std::max(maximum_energy, energy_error);
+      maximum_reciprocity = std::max(maximum_reciprocity, actual.spectrum.max_reciprocity_error);
+      maximum_hermitian = std::max(maximum_hermitian, actual.spectrum.max_hermitian_error);
+      std::printf("oracle %s max_field_error=%.17g max_energy_error=%.17g reciprocity=%.17g conjugacy=%.17g hermitian=%.17g\n",
+                  oracle.name, field_error, energy_error, actual.spectrum.max_reciprocity_error,
+                  actual.spectrum.max_conjugacy_error, actual.spectrum.max_hermitian_error);
+   }
+   std::printf("oracle-matrix max_field_error=%.17g max_energy_error=%.17g max_reciprocity=%.17g max_hermitian=%.17g\n",
+               maximum_field, maximum_energy, maximum_reciprocity, maximum_hermitian);
+}
+
+void runAlphaAndPropertySuite() {
+   constexpr double tolerance = 3.0e-10;
+   const auto& cubic = gpu_ewald_golden_v1::cases[0];
+   const Grid cubic_grid{{cubic.grid[0], cubic.grid[1], cubic.grid[2]}};
+   const auto cubic_geometry = periodicGeometry(cubic_grid, cubic.H);
+   const std::vector<double> cubic_moments(cubic.moments, cubic.moments + 3 * cells(cubic_grid));
+   const auto low = buildPeriodicEwaldDisplacementKernel(cubic_geometry, {1.0e-10, 0.50});
+   const auto high = buildPeriodicEwaldDisplacementKernel(cubic_geometry, {1.0e-10, 1.00});
+   const auto low_result = evaluateOperator(cubic_grid, 1, 1, cubic.H, low.kernel, cubic_moments);
+   const auto high_result = evaluateOperator(cubic_grid, 1, 1, cubic.H, high.kernel, cubic_moments);
+   const double alpha_field = maxDifference(low_result.fields, high_result.fields.data(), low_result.fields.size());
+   const double alpha_energy = std::abs(low_result.energies[0] - high_result.energies[0]);
+   if(alpha_field > tolerance || alpha_energy > tolerance)
+      throw std::runtime_error("explicit-alpha GPU invariance exceeds the WP4b fp64 budget");
+   std::printf("explicit-alpha low=%.17g high=%.17g field_error=%.17g energy_error=%.17g\n",
+               low.diagnostics.selected.alpha, high.diagnostics.selected.alpha, alpha_field, alpha_energy);
+
+   // Translation and sign-flip use an independently checked NA=1 fixture.
+   const auto& axial = gpu_ewald_golden_v1::cases[1];
+   const Grid grid{{axial.grid[0], axial.grid[1], axial.grid[2]}};
+   const auto geometry = periodicGeometry(grid, axial.H);
+   const auto kernel = buildPeriodicEwaldDisplacementKernel(geometry, {1.0e-10}).kernel;
+   const std::vector<double> moments(axial.moments, axial.moments + 3 * cells(grid));
+   const auto baseline = evaluateOperator(grid, 1, 1, axial.H, kernel, moments);
+   std::vector<double> shifted(moments.size());
+   for(std::size_t cell = 0; cell < cells(grid); ++cell)
+      for(unsigned int component = 0; component < 3; ++component)
+         shifted[macroIndex(component, 0, (cell + 1) % cells(grid), 1, cells(grid), 0)] =
+            moments[macroIndex(component, 0, cell, 1, cells(grid), 0)];
+   const auto translated = evaluateOperator(grid, 1, 1, axial.H, kernel, shifted);
+   double translation_error = 0.0;
+   for(std::size_t cell = 0; cell < cells(grid); ++cell) for(unsigned int component = 0; component < 3; ++component)
+      translation_error = std::max(translation_error, std::abs(
+         translated.fields[macroIndex(component, 0, (cell + 1) % cells(grid), 1, cells(grid), 0)] -
+         baseline.fields[macroIndex(component, 0, cell, 1, cells(grid), 0)]));
+   std::vector<double> negated(moments);
+   for(double& value : negated) value = -value;
+   const std::vector<double> zero(moments.size(), 0.0);
+   const auto sequence = evaluateConsecutive(grid, 1, 1, axial.H, kernel, moments, negated);
+   const auto zero_result = evaluateOperator(grid, 1, 1, axial.H, kernel, zero);
+   double sign_error = 0.0, zero_error = std::abs(zero_result.energies[0]);
+   for(std::size_t index = 0; index < baseline.fields.size(); ++index) {
+      sign_error = std::max(sign_error, std::abs(sequence[1].fields[index] + baseline.fields[index]));
+      zero_error = std::max(zero_error, std::abs(zero_result.fields[index]));
+   }
+   const double changed_energy_error = std::abs(sequence[1].energies[0] - sequence[0].energies[0]);
+   if(translation_error > tolerance || sign_error > tolerance || zero_error > tolerance || changed_energy_error > tolerance)
+      throw std::runtime_error("GPU translation/sign/zero/changed-moment property failed");
+
+   // M=4 is compared to all four independent fields above.  Change only one
+   // ensemble here and require every other ensemble to remain bitwise-close.
+   const auto& m4 = gpu_ewald_golden_v1::cases[4];
+   const Grid m4_grid{{m4.grid[0], m4.grid[1], m4.grid[2]}};
+   const auto m4_geometry = periodicGeometry(m4_grid, m4.H);
+   const auto m4_kernel = buildPeriodicEwaldDisplacementKernel(m4_geometry, {1.0e-10}).kernel;
+   const std::size_t per_ensemble = 3 * cells(m4_grid);
+   const std::vector<double> m4_moments(m4.moments, m4.moments + per_ensemble * m4.ensembles);
+   auto changed_m4 = m4_moments;
+   for(std::size_t index = 2 * per_ensemble; index < 3 * per_ensemble; ++index) changed_m4[index] *= 1.7;
+   const auto m4_baseline = evaluateOperator(m4_grid, 1, static_cast<unsigned int>(m4.ensembles), m4.H, m4_kernel, m4_moments);
+   const auto m4_changed = evaluateOperator(m4_grid, 1, static_cast<unsigned int>(m4.ensembles), m4.H, m4_kernel, changed_m4);
+   double isolation_error = 0.0;
+   for(std::size_t ensemble = 0; ensemble < m4.ensembles; ++ensemble) if(ensemble != 2) {
+      isolation_error = std::max(isolation_error, std::abs(m4_baseline.energies[ensemble] - m4_changed.energies[ensemble]));
+      for(std::size_t index = ensemble * per_ensemble; index < (ensemble + 1) * per_ensemble; ++index)
+         isolation_error = std::max(isolation_error, std::abs(m4_baseline.fields[index] - m4_changed.fields[index]));
+   }
+   if(isolation_error > tolerance) throw std::runtime_error("GPU M=4 ensemble isolation failed");
+   std::printf("gpu-properties translation=%.17g sign=%.17g zero=%.17g changed_energy=%.17g ensemble_isolation=%.17g\n",
+               translation_error, sign_error, zero_error, changed_energy_error, isolation_error);
+}
+
 } // namespace
 
 int main() {
    try {
+      runReciprocalHelperRegression();
       runDeltaSuite();
       runPeriodicSuite();
+      runIndependentOracleSuite();
+      runAlphaAndPropertySuite();
    } catch(const std::exception& error) {
       std::fprintf(stderr, "FAIL GPU dipole FFT convolution: %s\n", error.what());
       return 1;

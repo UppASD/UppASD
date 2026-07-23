@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {
@@ -36,6 +37,81 @@ bool bytesFor(std::size_t elements, std::size_t element_bytes, std::size_t& byte
 
 bool hasNonSingularCell(const GpuDipoleConvolutionDescriptor& descriptor) {
    return std::isfinite(descriptor.cellVolume()) && descriptor.cellVolume() > static_cast<real>(0);
+}
+
+struct HostComplex {
+   double real = 0.0;
+   double imag = 0.0;
+};
+
+std::size_t spectralIndex(const GpuDipoleFftLayout& layout, std::size_t q1, std::size_t q2, std::size_t q3) {
+   return q1 + layout.spectral_grid.n1 * (q2 + layout.real_grid.n2 * q3);
+}
+
+HostComplex fullSpectrumValue(const std::vector<GpuFftComplex>& spectrum, const GpuDipoleFftLayout& layout,
+                              std::size_t q1, std::size_t q2, std::size_t q3, std::size_t batch) {
+   bool conjugate = false;
+   if(q1 >= layout.spectral_grid.n1) {
+      q1 = layout.real_grid.n1 - q1;
+      q2 = (layout.real_grid.n2 - q2) % layout.real_grid.n2;
+      q3 = (layout.real_grid.n3 - q3) % layout.real_grid.n3;
+      conjugate = true;
+   }
+   const auto value = spectrum[spectralIndex(layout, q1, q2, q3) + layout.spectral_cells * batch];
+   return {value.x, conjugate ? -value.y : value.y};
+}
+
+double completeKernelReciprocityError(const std::vector<double>& kernel, const GpuDipoleFftLayout& layout,
+                                      unsigned int basis) {
+   double maximum = 0.0;
+   for(std::size_t d3 = 0; d3 < layout.real_grid.n3; ++d3) for(std::size_t d2 = 0; d2 < layout.real_grid.n2; ++d2)
+      for(std::size_t d1 = 0; d1 < layout.real_grid.n1; ++d1) {
+         const std::size_t cell = d1 + layout.real_grid.n1 * (d2 + layout.real_grid.n2 * d3);
+         const std::size_t reverse = (layout.real_grid.n1 - d1) % layout.real_grid.n1 +
+            layout.real_grid.n1 * ((layout.real_grid.n2 - d2) % layout.real_grid.n2 +
+            layout.real_grid.n2 * ((layout.real_grid.n3 - d3) % layout.real_grid.n3));
+         for(unsigned int target = 0; target < basis; ++target) for(unsigned int source = 0; source < basis; ++source)
+            for(unsigned int row = 0; row < 3; ++row) for(unsigned int column = 0; column < 3; ++column) {
+               const std::size_t batch = row + 3 * (column + 3 * (target + basis * source));
+               const std::size_t paired = column + 3 * (row + 3 * (source + basis * target));
+               maximum = std::max(maximum, std::abs(kernel[cell + layout.real_cells * batch] -
+                                                     kernel[reverse + layout.real_cells * paired]));
+            }
+      }
+   return maximum;
+}
+
+GpuDipoleSpectrumDiagnostics validateSpectrum(const std::vector<double>& kernel,
+                                              const std::vector<GpuFftComplex>& spectrum,
+                                              const GpuDipoleFftLayout& layout, unsigned int basis) {
+   GpuDipoleSpectrumDiagnostics result{};
+   result.max_reciprocity_error = completeKernelReciprocityError(kernel, layout, basis);
+   for(const auto& value : spectrum) {
+      if(!std::isfinite(value.x) || !std::isfinite(value.y))
+         throw std::runtime_error("complete periodic dipole spectrum contains a non-finite value");
+   }
+   for(std::size_t q3 = 0; q3 < layout.real_grid.n3; ++q3) for(std::size_t q2 = 0; q2 < layout.real_grid.n2; ++q2)
+      for(std::size_t q1 = 0; q1 < layout.real_grid.n1; ++q1) {
+         const std::size_t r1 = (layout.real_grid.n1 - q1) % layout.real_grid.n1;
+         const std::size_t r2 = (layout.real_grid.n2 - q2) % layout.real_grid.n2;
+         const std::size_t r3 = (layout.real_grid.n3 - q3) % layout.real_grid.n3;
+         for(std::size_t batch = 0; batch < layout.kernel_batches; ++batch) {
+            const auto value = fullSpectrumValue(spectrum, layout, q1, q2, q3, batch);
+            const auto reverse = fullSpectrumValue(spectrum, layout, r1, r2, r3, batch);
+            result.max_conjugacy_error = std::max(result.max_conjugacy_error,
+               std::max(std::abs(reverse.real - value.real), std::abs(reverse.imag + value.imag)));
+         }
+         for(unsigned int target = 0; target < basis; ++target) for(unsigned int source = 0; source < basis; ++source)
+            for(unsigned int row = 0; row < 3; ++row) for(unsigned int column = 0; column < 3; ++column) {
+               const std::size_t batch = row + 3 * (column + 3 * (target + basis * source));
+               const std::size_t paired = column + 3 * (row + 3 * (source + basis * target));
+               const auto value = fullSpectrumValue(spectrum, layout, q1, q2, q3, batch);
+               const auto transpose = fullSpectrumValue(spectrum, layout, q1, q2, q3, paired);
+               result.max_hermitian_error = std::max(result.max_hermitian_error,
+                  std::max(std::abs(value.real - transpose.real), std::abs(value.imag + transpose.imag)));
+            }
+      }
+   return result;
 }
 
 } // namespace
@@ -258,6 +334,7 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
    layout = desc.fftLayout();
    stream = work_stream;
    kernel_ready = false;
+   spectrum_diagnostics = {};
 
    // PlanMany receives the transform axes in slow-to-fast order, whereas the
    // source grid is stored with n1 as the contiguous axis.
@@ -428,14 +505,19 @@ void GpuDipoleConvolution::inverseTransformFields() {
    assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, fields_fft.data(), fields_real.data()));
 }
 
-void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel) {
+void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel,
+                                                           bool validate_physics) {
    if(!initiated) throw std::runtime_error("GPU dipole kernel upload requested before plan initialization");
    if(sizeof(real) != sizeof(double)) throw std::runtime_error("complete-kernel GPU validation requires fp64 storage");
    const std::size_t expected = layout.real_cells * layout.kernel_batches;
    if(complete_kernel.size() != expected) throw std::runtime_error("complete host tensor does not match GPU kernel layout");
 
    kernel_ready = false;
+   spectrum_diagnostics = {};
    try {
+      for(const double value : complete_kernel) {
+         if(!std::isfinite(value)) throw std::runtime_error("complete periodic dipole tensor contains a non-finite value");
+      }
       kernel_real.Allocate(static_cast<long int>(layout.real_cells), static_cast<long int>(layout.kernel_batches));
       kernel_real_allocated = true;
       if(GPU_MEMCPY(kernel_real.data(), complete_kernel.data(), expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
@@ -449,6 +531,21 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<doub
       if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole spectrum-normalization launch failed");
       // A kernel cannot become observable until its R2C and normalization are complete.
       if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole kernel construction synchronization failed");
+      std::vector<GpuFftComplex> spectrum(layout.spectral_cells * layout.kernel_batches);
+      if(GPU_MEMCPY(spectrum.data(), kernel_fft.data(), spectrum.size() * sizeof(GpuFftComplex),
+                    GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS) {
+         throw std::runtime_error("GPU dipole spectrum diagnostic download failed");
+      }
+      spectrum_diagnostics = validateSpectrum(complete_kernel, spectrum, layout, desc.basis);
+      constexpr double validation_tolerance = 1.0e-12;
+      if(validate_physics && (spectrum_diagnostics.max_reciprocity_error > validation_tolerance ||
+                               spectrum_diagnostics.max_conjugacy_error > validation_tolerance ||
+                               spectrum_diagnostics.max_hermitian_error > validation_tolerance)) {
+         throw std::runtime_error("complete periodic dipole kernel violates fp64 validation: reciprocity=" +
+                                  std::to_string(spectrum_diagnostics.max_reciprocity_error) +
+                                  " conjugacy=" + std::to_string(spectrum_diagnostics.max_conjugacy_error) +
+                                  " hermitian=" + std::to_string(spectrum_diagnostics.max_hermitian_error));
+      }
       kernel_real.Free();
       kernel_real_allocated = false;
       kernel_ready = true;
@@ -511,6 +608,11 @@ std::vector<real> GpuDipoleConvolution::diagnosticEnergiesForTesting() const {
 
 bool GpuDipoleConvolution::diagnosticConstructionStorageAllocatedForTesting() const {
    return kernel_real_allocated;
+}
+
+GpuDipoleSpectrumDiagnostics GpuDipoleConvolution::diagnosticSpectrumForTesting() const {
+   if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole spectrum diagnostic requested before a ready kernel");
+   return spectrum_diagnostics;
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(

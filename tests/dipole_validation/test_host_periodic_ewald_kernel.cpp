@@ -75,7 +75,8 @@ void checkDiagnostics(const DipoleKernelBuildResult& result, const DipolePeriodi
       throw std::runtime_error("host Ewald kernel packing has the wrong size");
    }
    if(result.diagnostics.selected.alpha <= 0.0 || result.diagnostics.setup_work == 0 ||
-      result.diagnostics.max_reciprocity_error > 2.0e-11 || result.diagnostics.max_alpha_difference > 3.0e-10 ||
+      result.diagnostics.max_reciprocity_error > 2.0e-11 || result.diagnostics.max_hermitian_error > 2.0e-11 ||
+      result.diagnostics.max_alpha_difference > 3.0e-10 ||
       result.diagnostics.real_tail_residual > 3.0e-10 || result.diagnostics.reciprocal_tail_residual > 3.0e-10) {
       throw std::runtime_error("host Ewald convergence, alpha-invariance, or reciprocity diagnostics failed");
    }

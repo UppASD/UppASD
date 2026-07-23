@@ -51,6 +51,15 @@ struct GpuDipoleFftLayout {
    std::size_t constructionBytes() const;
 };
 
+// Initialization-only diagnostics for the complete uploaded spectrum.  They
+// are intentionally separate from evaluate(): normal runtime evaluation must
+// not read back or synchronize device data.
+struct GpuDipoleSpectrumDiagnostics {
+   double max_reciprocity_error = 0.0;
+   double max_conjugacy_error = 0.0;
+   double max_hermitian_error = 0.0;
+};
+
 struct GpuDipoleConvolutionDescriptor {
    // Atomistic grid dimensions.  For MacrospinGrid these describe the source
    // lattice; macro_grid describes the actual FFT grid.
@@ -133,7 +142,11 @@ public:
    // [cell + Ngrid*kernel_batch], with n1 fastest and
    // kernel_batch = row + 3*(column + 3*(target_basis + basis*source_basis)).
    // This construction API remains outside production dispatch.
-   void uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel);
+   // ``validate_physics`` is false only for deliberately non-reciprocal delta
+   // tensors in the FFT-plumbing suite.  Complete Ewald kernels always use
+   // the default validation before becoming ready.
+   void uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel,
+                                       bool validate_physics = true);
    void uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel);
 
    // The only runtime operator primitive in this slice.  It performs packed
@@ -146,6 +159,7 @@ public:
    std::vector<real> diagnosticFieldsForTesting() const;
    std::vector<real> diagnosticEnergiesForTesting() const;
    bool diagnosticConstructionStorageAllocatedForTesting() const;
+   GpuDipoleSpectrumDiagnostics diagnosticSpectrumForTesting() const;
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
@@ -161,6 +175,7 @@ private:
    bool initiated = false;
    bool kernel_ready = false;
    bool kernel_real_allocated = false;
+   GpuDipoleSpectrumDiagnostics spectrum_diagnostics{};
    bool allocated = false;
    bool forward_plan_created = false;
    bool backward_plan_created = false;

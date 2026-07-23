@@ -118,6 +118,9 @@ void validate(const DipolePeriodicGeometry& geometry, const DipoleKernelSettings
    if(!std::isfinite(settings.tolerance) || settings.tolerance < minimum_tolerance) {
       throw std::invalid_argument("gpu_dipole_tol must be finite and no smaller than fp64 construction headroom");
    }
+   if(!std::isfinite(settings.explicit_alpha_for_testing)) {
+      throw std::invalid_argument("test-only Ewald alpha must be finite");
+   }
    if(!std::isfinite(geometry.volume) || geometry.volume <= 0.0 || !std::isfinite(determinant(geometry.H)) ||
       determinant(geometry.H) <= 0.0) {
       throw std::invalid_argument("periodic Ewald kernel requires a right-handed positive-volume H");
@@ -324,8 +327,13 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(const DipolePeriodi
    const double nominal_alpha = std::sqrt(pi) / length_scale;
    const std::array<double, 3> alpha_scale{{0.75, 1.0, 1.25}};
    std::vector<CandidateResult> candidates;
-   candidates.reserve(alpha_scale.size());
-   for(const double scale : alpha_scale) candidates.push_back(convergeCandidate(geometry, nominal_alpha * scale, settings.tolerance));
+   candidates.reserve(settings.explicit_alpha_for_testing > 0.0 ? 1 : alpha_scale.size());
+   if(settings.explicit_alpha_for_testing > 0.0) {
+      candidates.push_back(convergeCandidate(geometry, settings.explicit_alpha_for_testing, settings.tolerance));
+   } else {
+      for(const double scale : alpha_scale)
+         candidates.push_back(convergeCandidate(geometry, nominal_alpha * scale, settings.tolerance));
+   }
    const auto chosen = std::min_element(candidates.begin(), candidates.end(), [](const CandidateResult& left,
                                                                                    const CandidateResult& right) {
       return left.real_work + left.reciprocal_work < right.real_work + right.reciprocal_work;
@@ -334,12 +342,14 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(const DipolePeriodi
    DipoleKernelBuildResult result{};
    result.kernel = completeKernel(geometry, *chosen, complete_real_work, complete_reciprocal_work);
    std::size_t check_real_work = 0, check_reciprocal_work = 0;
-   const auto alternate = candidates.begin() == chosen ? candidates.begin() + 1 : candidates.begin();
-   const auto second_alpha_kernel = completeKernel(geometry, *alternate, check_real_work, check_reciprocal_work);
-   result.diagnostics.max_alpha_difference = vectorMaxDifference(result.kernel, second_alpha_kernel);
-   const double scale = std::max(1.0, vectorMaxAbs(result.kernel));
-   if(result.diagnostics.max_alpha_difference > settings.tolerance * scale / 4.0) {
-      throw std::runtime_error("independent alpha Ewald construction check did not meet gpu_dipole_tol");
+   if(candidates.size() > 1) {
+      const auto alternate = candidates.begin() == chosen ? candidates.begin() + 1 : candidates.begin();
+      const auto second_alpha_kernel = completeKernel(geometry, *alternate, check_real_work, check_reciprocal_work);
+      result.diagnostics.max_alpha_difference = vectorMaxDifference(result.kernel, second_alpha_kernel);
+      const double scale = std::max(1.0, vectorMaxAbs(result.kernel));
+      if(result.diagnostics.max_alpha_difference > settings.tolerance * scale / 4.0) {
+         throw std::runtime_error("independent alpha Ewald construction check did not meet gpu_dipole_tol");
+      }
    }
    result.diagnostics.selected.alpha = chosen->alpha;
    result.diagnostics.selected.real_images = {chosen->real_extent, chosen->real_extent, chosen->real_extent};
@@ -350,6 +360,10 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(const DipolePeriodi
    result.diagnostics.reciprocal_tail_residual = chosen->reciprocal_residual;
    result.diagnostics.residual = std::max(chosen->real_residual, chosen->reciprocal_residual);
    result.diagnostics.max_reciprocity_error = periodicKernelReciprocityError(result.kernel, geometry);
+   // In the real displacement representation the Cartesian/basis Hermitian
+   // relation reduces to the same target/source reciprocity relation.  The
+   // transformed spectrum is checked again at the upload boundary.
+   result.diagnostics.max_hermitian_error = result.diagnostics.max_reciprocity_error;
    result.diagnostics.reciprocal_identity_error = reciprocalIdentityError(geometry);
    result.diagnostics.real_tensor_evaluations = complete_real_work + check_real_work;
    result.diagnostics.reciprocal_tensor_evaluations = complete_reciprocal_work + check_reciprocal_work;
