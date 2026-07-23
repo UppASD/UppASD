@@ -466,7 +466,7 @@ contains
       use Damping
       use clusters,     only : do_cluster, deallocate_cluster_info
       use InputData
-      use macrocells,   only : Num_macro,allocate_macrocell,do_macro_cells
+      use macrocells,   only : Num_macro,pme_Num_macro,allocate_macrocell,release_pme_macrocell_layout,do_macro_cells
       use MomentData
       use SystemData
       use Correlation, only : do_sc, do_uc, do_vc, do_lc, sc, uc, vc, lc, do_sr
@@ -535,6 +535,8 @@ contains
       if(do_macro_cells=='Y'.or.ham_inp%do_dip==2) then
          call allocate_macrocell(-1,Natom,Mensemble)
       endif
+      ! The GPU-only layout is independent of the legacy macrocell lifecycle.
+      if(pme_Num_macro > 0) call release_pme_macrocell_layout()
       if(do_sc=='Y'.or.do_sc=='Q'.or.do_sc=='C') then
          call allocate_corr(Natom,Mensemble,sc,-1)
       end if
@@ -793,6 +795,7 @@ contains
             "Input data is inconsistent."//achar(10)// &
          " Please ensure consistency between simulation method and input parameters.")
       end if
+      call validate_gpu_dipole_request(.false.)
 
       !----------------------------!
       ! Reading in data from files !
@@ -1016,11 +1019,18 @@ contains
 
       write(*,'(1x,a)') ' done'
 
+      ! NA is known only after geometry setup.  Complete the regular-grid
+      ! checks before creating either GPU or legacy macrocell data.
+      call validate_gpu_dipole_request(.true.)
       if (do_macro_cells.eq.'Y'.or.ham_inp%do_dip.eq.2) then
          write(*,'(1x,a)',advance='no') ' Create macro cells '
          call create_macrocell(NA,N1,N2,N3,Natom,Mensemble,block_size,coord,        &
             Num_macro,max_num_atom_macro_cell,cell_index,macro_nlistsize,           &
             macro_atom_nlist,simid)
+         write(*,'(a)') 'done'
+      endif
+      if (trim(gpu_dipole_mode) /= 'OFF') then
+         write(*,'(1x,a)',advance='no') ' Create GPU dipole macrocell layout '
          call create_pme_macrocell_layout(NA,N1,N2,N3,Natom,coord)
          write(*,'(a)') 'done'
       endif
@@ -1429,6 +1439,54 @@ contains
 
     !call get_rlist_corr(Natom,NA,coord,1)
    end subroutine setup_simulation
+
+   ! The first GPU dipole slice is deliberately narrow.  Keep these checks on
+   ! the Fortran side, before the legacy Hamiltonian setup can allocate its
+   ! dense macrocell dipole matrix or the C++ side can allocate device memory.
+   subroutine validate_gpu_dipole_request(geometry_ready)
+      use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+      use InputData
+      use macrocells, only : block_size_x,block_size_y,block_size_z
+      implicit none
+      logical, intent(in) :: geometry_ready
+
+      if (.not.ieee_is_finite(gpu_dipole_tol) .or. gpu_dipole_tol <= 0.0_dblprec) then
+         error stop 'gpu_dipole_tol must be finite and positive'
+      endif
+      if (trim(gpu_dipole_mode) == 'OFF') return
+      if (trim(gpu_dipole_mode) == 'PME3D') then
+         error stop 'gpu_dipole_mode PME3D was renamed; use EWALD3D_FFT'
+      endif
+      if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT') then
+         error stop 'Only gpu_dipole_mode OFF or EWALD3D_FFT is supported'
+      endif
+      if (ham_inp%do_dip /= 0) then
+         error stop 'EWALD3D_FFT requires do_dip=0; legacy and GPU dipoles cannot be combined'
+      endif
+      if (gpu_dipole_alpha /= 0.0_dblprec .or. gpu_dipole_rcut /= 0.0_dblprec) then
+         error stop 'EWALD3D_FFT selects Ewald parameters automatically; gpu_dipole_alpha and gpu_dipole_rcut must be zero'
+      endif
+      if (any(gpu_dipole_mesh /= 0)) then
+         error stop 'EWALD3D_FFT does not implement a PME mesh; gpu_dipole_mesh must be 0 0 0'
+      endif
+      if (trim(gpu_dipole_surface) /= 'TINFOIL') then
+         error stop 'EWALD3D_FFT currently requires gpu_dipole_surface TINFOIL'
+      endif
+      if (BC1 /= 'P' .or. BC2 /= 'P' .or. BC3 /= 'P') then
+         error stop 'EWALD3D_FFT currently requires periodic boundary conditions P P P'
+      endif
+      if (geometry_ready .and. NA /= 1) then
+         error stop 'EWALD3D_FFT currently requires NA=1'
+      endif
+      if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0 .or. &
+          mod(N1,block_size_x) /= 0 .or. mod(N2,block_size_y) /= 0 .or. &
+          mod(N3,block_size_z) /= 0) then
+         error stop 'EWALD3D_FFT requires positive macrocell blocks that divide N1, N2, and N3'
+      endif
+      if (do_gpu_mc == 'Y') then
+         error stop 'EWALD3D_FFT is not available with GPU Monte Carlo'
+      endif
+   end subroutine validate_gpu_dipole_request
 
    !---------------------------------------------------------------------------------
    !> @brief

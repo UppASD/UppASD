@@ -52,6 +52,10 @@ struct SimulationParameters {
    const real* C2 = nullptr;
    const real* C3 = nullptr;
    const real* Bas = nullptr;
+   // Kept in fp64 even in a single-precision device build: it is part of the
+   // physical dipole contract, not a device-field scratch value.
+   double alat = 0.0;
+   double gpu_dipole_tol = 1.0e-10;
    unsigned int ipnphase;
    unsigned int ipmcnphase;
    unsigned int mcnstep;

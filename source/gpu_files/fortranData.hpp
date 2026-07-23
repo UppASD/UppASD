@@ -76,13 +76,15 @@ public:
    static real* C2;
    static real* C3;
    static real* Bas;
+   static real* alat;
    // Explicit CV6 input contract; it is independent of legacy CPU do_dip.
-   // mode: 0 OFF, 1 PME3D, 2 OPEN_FFT, 3 SLAB_PME. surface: 0 TINFOIL,
+   // mode: 0 OFF, 1 EWALD3D_FFT. surface: 0 TINFOIL,
    // 1 VACUUM_SPHERE. A zero numerical parameter requests automatic selection.
    static int* gpu_dipole_mode;
    static int* gpu_dipole_surface;
    static real* gpu_dipole_alpha;
    static real* gpu_dipole_rcut;
+   static real* gpu_dipole_tol;
    static int* gpu_dipole_mesh;
    // Macrocell data for the CV6 dipole backend. cell_index is Fortran
    // one-based; conversion happens in the device aggregation kernel.
@@ -278,9 +280,9 @@ public:
     static void setGpuGeometryPointers(unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3,
                                        unsigned int* p_NA, char* p_BC1, char* p_BC2, char* p_BC3,
                                        real* p_C1, real* p_C2, real* p_C3, real* p_Bas,
-                                       char* p_do_gpu_convolution);
-    static void setGpuDipolePointers(int* p_mode, int* p_surface, real* p_alpha, real* p_rcut,
-                                     int* p_mesh);
+                                       real* p_alat, char* p_do_gpu_convolution);
+   static void setGpuDipolePointers(int* p_mode, int* p_surface, real* p_alpha, real* p_rcut,
+                                     real* p_tol, int* p_mesh);
 
     static void setMacrocellPointers(int* p_do_dip, unsigned int* p_num_macro,
                                      unsigned int* p_block_x, unsigned int* p_block_y,

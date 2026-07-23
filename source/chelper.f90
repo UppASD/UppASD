@@ -153,7 +153,7 @@ module Chelper
          integer(c_int), intent(inout) :: achtype(*)
       end subroutine FortranData_setCorrelations
 
-      subroutine FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution) &
+      subroutine FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, alat, do_gpu_convolution) &
                bind(C, name="fortrandata_setgpugeometry_")
          import :: c_int, c_char, c_double
          integer(c_int), intent(inout) :: N1
@@ -167,14 +167,15 @@ module Chelper
          real(c_double), intent(inout) :: C2(*)
          real(c_double), intent(inout) :: C3(*)
          real(c_double), intent(inout) :: Bas(*)
+         real(c_double), intent(inout) :: alat
          character(c_char), intent(inout) :: do_gpu_convolution
       end subroutine FortranData_setGpuGeometry
 
-      subroutine FortranData_setGpuDipole(mode, surface, alpha, rcut, mesh) &
+      subroutine FortranData_setGpuDipole(mode, surface, alpha, rcut, tol, mesh) &
                bind(C, name="fortrandata_setgpudipole_")
          import :: c_int, c_double
          integer(c_int), intent(inout) :: mode, surface
-         real(c_double), intent(inout) :: alpha, rcut
+         real(c_double), intent(inout) :: alpha, rcut, tol
          integer(c_int), intent(inout) :: mesh(*)
       end subroutine FortranData_setGpuDipole
 
@@ -586,19 +587,17 @@ contains
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
          NT_meta, Nchmax, mry, NA, Natom_full)
 
-      call FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, do_gpu_convolution)
+      call FortranData_setGpuGeometry(N1, N2, N3, NA, BC1, BC2, BC3, C1, C2, C3, Bas, alat, do_gpu_convolution)
 
       select case(trim(gpu_dipole_mode))
       case('OFF')
          gpu_dipole_mode_id=0
-      case('PME3D')
+      case('EWALD3D_FFT')
          gpu_dipole_mode_id=1
-      case('OPEN_FFT')
-         gpu_dipole_mode_id=2
-      case('SLAB_PME')
-         gpu_dipole_mode_id=3
+      case('PME3D')
+         error stop 'gpu_dipole_mode PME3D was renamed; use EWALD3D_FFT'
       case default
-         error stop 'Invalid gpu_dipole_mode (OFF, PME3D, OPEN_FFT, SLAB_PME)'
+         error stop 'Invalid gpu_dipole_mode (OFF, EWALD3D_FFT)'
       end select
       select case(trim(gpu_dipole_surface))
       case('TINFOIL')
@@ -612,7 +611,7 @@ contains
          error stop 'GPU dipole alpha, cutoff, and mesh must be non-negative (zero selects auto)'
       endif
       call FortranData_setGpuDipole(gpu_dipole_mode_id, gpu_dipole_surface_id, gpu_dipole_alpha, &
-         gpu_dipole_rcut, gpu_dipole_mesh)
+         gpu_dipole_rcut, gpu_dipole_tol, gpu_dipole_mesh)
 
       ! Macrocell arrays are allocated only when macro cells are requested.
       ! Do not pass an unallocated Fortran allocatable through the C ABI.

@@ -12,6 +12,8 @@
 
 namespace {
 
+constexpr double bohr_magneton_si = 9.274009994e-24;
+
 bool multiply(std::size_t lhs, std::size_t rhs, std::size_t& result) {
    if(lhs == 0 || rhs == 0) {
       result = 0;
@@ -33,7 +35,7 @@ bool bytesFor(std::size_t elements, std::size_t element_bytes, std::size_t& byte
 }
 
 bool hasNonSingularCell(const GpuDipoleConvolutionDescriptor& descriptor) {
-   return descriptor.cellVolume() != static_cast<real>(0);
+   return std::isfinite(descriptor.cellVolume()) && descriptor.cellVolume() > static_cast<real>(0);
 }
 
 } // namespace
@@ -174,6 +176,7 @@ std::size_t GpuDipoleFftLayout::persistentBytes() const {
       !multiply(spectral_cells, field_batches, spectral_fields) ||
       !multiply(spectral_cells, kernel_batches, kernel) ||
       !bytesFor(real_fields, sizeof(real), bytes) ||
+      !bytesFor(real_fields, sizeof(real), part) || !add(bytes, part, bytes) ||
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
       !bytesFor(spectral_fields, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
       !bytesFor(kernel, sizeof(GpuFftComplex), part) || !add(bytes, part, bytes) ||
@@ -261,7 +264,35 @@ bool GpuDipoleConvolutionDescriptor::valid() const {
    if(basis == 0 || ensembles == 0 || !atomistic_grid.valid()) return false;
    if(discretization == GpuDipoleDiscretization::MacrospinGrid && !macro_grid.valid()) return false;
    if(boundary == GpuDipoleBoundaryMode::Periodic2D && open_axis > 2) return false;
-   return hasNonSingularCell(*this) && fftLayout().fitsFftLibrary();
+   if(discretization == GpuDipoleDiscretization::MacrospinGrid && macro_count != 0) {
+      std::size_t expected_count = 0;
+      if(!multiply(macro_grid.cells(), basis, expected_count) || macro_count != expected_count) return false;
+   }
+   if(!std::isfinite(alat) || alat <= 0.0 || !std::isfinite(tolerance) || tolerance <= 0.0 ||
+      !std::isfinite(field_prefactor) || field_prefactor <= 0.0) return false;
+   return sizeof(real) == sizeof(double) && hasNonSingularCell(*this) && fftLayout().fitsFftLibrary();
+}
+
+bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
+                                    GpuDipoleConvolutionDescriptor& descriptor) {
+   descriptor = {};
+   if(input.boundaries[0] != 'P' || input.boundaries[1] != 'P' || input.boundaries[2] != 'P') return false;
+   descriptor.atomistic_grid = input.atomistic_grid;
+   descriptor.macro_grid = input.macro_grid;
+   descriptor.basis = input.basis;
+   descriptor.ensembles = input.ensembles;
+   descriptor.boundary = GpuDipoleBoundaryMode::Periodic3D;
+   descriptor.discretization = GpuDipoleDiscretization::MacrospinGrid;
+   descriptor.c1 = input.c1;
+   descriptor.c2 = input.c2;
+   descriptor.c3 = input.c3;
+   descriptor.macro_centers = input.macro_centers;
+   descriptor.macro_count = input.macro_count;
+   descriptor.alat = input.alat;
+   descriptor.tolerance = input.tolerance;
+   descriptor.field_prefactor = 1.0e-7 * bohr_magneton_si /
+      (input.alat * input.alat * input.alat);
+   return descriptor.valid();
 }
 
 bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descriptor,
@@ -419,7 +450,7 @@ void GpuDipoleConvolution::forwardTransformMoments() {
 void GpuDipoleConvolution::buildReciprocalEwaldKernel(real alpha) {
    if(!initiated) throw std::runtime_error("GPU dipole Ewald kernel requested before initialization");
    if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.basis != 1 || alpha <= static_cast<real>(0)) {
-      throw std::runtime_error("reciprocal Ewald kernel currently requires PME3D, NA=1, and positive alpha");
+      throw std::runtime_error("reciprocal Ewald kernel currently requires EWALD3D_FFT, NA=1, and positive alpha");
    }
    const real volume = desc.cellVolume();
    if(volume <= static_cast<real>(0)) throw std::runtime_error("PME requires a right-handed positive-volume cell");
@@ -507,7 +538,7 @@ void GpuDipoleConvolution::addRealSpaceField(real alpha, real cutoff, unsigned i
 void GpuDipoleConvolution::evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
                                               real cutoff, unsigned int image_extent) {
    if(desc.basis != 1 || desc.boundary != GpuDipoleBoundaryMode::Periodic3D) {
-      throw std::runtime_error("point Ewald evaluation currently requires PME3D with NA=1");
+      throw std::runtime_error("point Ewald evaluation currently requires EWALD3D_FFT with NA=1");
    }
    buildReciprocalEwaldKernel(alpha);
    packMacroMoments(macro_moments);
@@ -596,6 +627,8 @@ std::size_t GpuDipoleConvolution::estimateWorkspaceBytes(
 std::size_t GpuDipoleConvolution::estimateBytes(const GpuDipoleConvolutionDescriptor& descriptor) {
    const std::size_t buffers = estimatePersistentBytes(descriptor);
    const std::size_t workspace = estimateWorkspaceBytes(descriptor);
+   const std::size_t construction = descriptor.fftLayout().constructionBytes();
    std::size_t total = 0;
-   return buffers != 0 && add(buffers, workspace, total) ? total : 0;
+   return buffers != 0 && construction != 0 && add(buffers, workspace, total) &&
+          add(total, construction, total) ? total : 0;
 }

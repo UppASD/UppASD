@@ -69,6 +69,11 @@ struct GpuDipoleConvolutionDescriptor {
    // Device-resident [3, macrocell] centres from the CPU-owned PME map.
    const real* macro_centers = nullptr;
    std::size_t macro_count = 0;
+   // Physical conversion is deliberately fp64 and applied only by the future
+   // production field boundary.  The dormant kernel remains dimensionless.
+   double alat = 0.0;
+   double tolerance = 1.0e-10;
+   double field_prefactor = 0.0;
 
    // Only used for Periodic2D.  The selected axis is the non-periodic slab
    // normal and is linearly padded; the remaining axes are periodic.
@@ -82,6 +87,27 @@ struct GpuDipoleConvolutionDescriptor {
    GpuDipoleFftLayout fftLayout() const;
    bool valid() const;
 };
+
+// One bridge value is consumed by both the memory preflight and runtime plan
+// allocation.  Keeping this conversion here prevents those paths from quietly
+// diverging as the descriptor gains physics or storage fields.
+struct GpuDipoleDescriptorInput {
+   GpuDipoleGridShape atomistic_grid{};
+   GpuDipoleGridShape macro_grid{};
+   unsigned int basis = 0;
+   unsigned int ensembles = 0;
+   std::array<char, 3> boundaries{{'0', '0', '0'}};
+   const real* c1 = nullptr;
+   const real* c2 = nullptr;
+   const real* c3 = nullptr;
+   const real* macro_centers = nullptr;
+   std::size_t macro_count = 0;
+   double alat = 0.0;
+   double tolerance = 1.0e-10;
+};
+
+bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
+                                    GpuDipoleConvolutionDescriptor& descriptor);
 
 // Lifecycle and geometry shell for CV6.2+.  This intentionally owns no FFT
 // plans or tensors yet: CV6.0 must first select and document the atomistic or

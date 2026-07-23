@@ -1130,7 +1130,7 @@ not merely when its implementation has started.
 - [x] **WP0 — Contract frozen:** `EWALD3D_FFT`, narrow fp64 SD scope,
   `do_dip=0`, and tolerance-driven automatic construction.
 - [x] **WP1 — Independent oracle and red tests** (Luna; depends on WP0).
-- [ ] **WP2 — GPU layout ownership, input, units, and memory contract**
+- [x] **WP2 — GPU layout ownership, input, units, and memory contract**
   (Terra; depends on WP0 and may run in parallel with WP1).
 - [ ] **WP3 — Complete fp64 host reference kernel with automatic
   tolerance convergence** (Terra; depends on WP1, consumes WP2 input
@@ -1199,6 +1199,12 @@ Gate:
 ### WP2 — Decouple GPU layout ownership and add unit data
 
 Suggested owner: Terra.
+
+Status: complete.  CUDA acceptance run (2026-07-23) printed the 40x40x40
+descriptor geometry, `gpu_dipole_tol=1.0e-10`, the fp64 physical prefactor,
+and the persistent/peak budget before reaching the intentional
+kernel-not-ready guard.  CPU OFF regression and invalid input rejection tests
+also passed; HIP runtime remains a later parity gate.
 
 Deliverables:
 

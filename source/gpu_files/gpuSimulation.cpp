@@ -18,6 +18,7 @@
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
 #include <cstdlib>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -90,6 +91,9 @@ void GpuSimulation::initiateConstants() {
     SimParam.C2 = geometryC2.data();
     SimParam.C3 = geometryC3.data();
     SimParam.Bas = geometryBas.data();
+    SimParam.alat = FortranData::alat ? static_cast<double>(*FortranData::alat) : 0.0;
+    SimParam.gpu_dipole_tol = FortranData::gpu_dipole_tol ?
+       static_cast<double>(*FortranData::gpu_dipole_tol) : 1.0e-10;
     SimParam.ipmcnphase = *FortranData::ipmcnphase;
     SimParam.ipnphase = *FortranData::ipnphase;
     if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
@@ -204,13 +208,10 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuHamiltonian.sb.set(FortranData::sb, N);
     }
     cpuHamiltonian.extfield.set(FortranData::external_field,  static_cast <long int>(3), N, M);
-    if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro &&
+    if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0 && FortranData::pme_num_macro &&
        *FortranData::pme_num_macro > 0 && FortranData::pme_cell_index && FortranData::pme_macro_nlistsize &&
        FortranData::pme_macro_center && FortranData::pme_macro_min_coord && FortranData::pme_macro_max_coord) {
         const std::size_t macroCount = *FortranData::pme_num_macro;
-        if(macroCount > N) {
-            throw std::runtime_error("GPU macrocell map has more cells than atoms");
-        }
         std::vector<std::size_t> observedPopulation(macroCount, 0);
         for(long int atom = 0; atom < N; ++atom) {
             const unsigned int oneBasedCell = FortranData::pme_cell_index[atom];
@@ -358,7 +359,7 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
    // CV6.1 macro-only dipole staging: one atom-to-cell map plus the current
    // 3-vector macro moment for every cell and ensemble. The FFT tensor and
    // work buffers are added in CV6.2 once the boundary mode is selected.
-   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro) {
+   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0 && FortranData::pme_num_macro) {
       const std::size_t macro = *FortranData::pme_num_macro;
       b += N * sizeof(unsigned int);                          // cell_index(N)
       b += macro * sizeof(unsigned int);                      // macro_nlistsize(Nmacro)
@@ -396,30 +397,35 @@ bool willUseConvolution(const SimulationParameters& P) {
 }
 
 std::size_t cv6DipoleBytes(const SimulationParameters& P) {
-   if(!FortranData::do_dip || *FortranData::do_dip != 2 || !FortranData::pme_num_macro ||
-      *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid || P.NA == 0 || P.M == 0) return 0;
-   GpuDipoleConvolutionDescriptor desc{};
-   desc.atomistic_grid = {P.N1, P.N2, P.N3};
-   desc.macro_grid = {static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
-                      static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
-                      static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
-   desc.basis = static_cast<unsigned int>(P.NA);
-   desc.ensembles = static_cast<unsigned int>(P.M);
-   desc.discretization = GpuDipoleDiscretization::MacrospinGrid;
-   desc.c1 = P.C1;
-   desc.c2 = P.C2;
-   desc.c3 = P.C3;
-   unsigned int periodic = 0;
-   const char boundaries[] = {P.BC1, P.BC2, P.BC3};
-   for(const char boundary : boundaries) periodic += boundary == 'P' || boundary == 'p';
-   if(periodic == 3) desc.boundary = GpuDipoleBoundaryMode::Periodic3D;
-   else if(periodic == 2) {
-      desc.boundary = GpuDipoleBoundaryMode::Periodic2D;
-      for(unsigned int axis = 0; axis < 3; ++axis) {
-         if(boundaries[axis] != 'P' && boundaries[axis] != 'p') desc.open_axis = axis;
-      }
+   if(!FortranData::gpu_dipole_mode || *FortranData::gpu_dipole_mode == 0) return 0;
+   if(!FortranData::pme_num_macro || *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid ||
+      !FortranData::pme_macro_center || P.NA == 0 || P.M == 0) {
+      throw std::runtime_error("GPU dipole mode was requested without a complete GPU macrocell layout");
    }
-   return GpuDipoleConvolution::estimateBytes(desc);
+   GpuDipoleDescriptorInput input{};
+   input.atomistic_grid = {P.N1, P.N2, P.N3};
+   input.macro_grid = {static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
+                       static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
+                       static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
+   input.basis = static_cast<unsigned int>(P.NA);
+   input.ensembles = static_cast<unsigned int>(P.M);
+   input.boundaries = {{P.BC1, P.BC2, P.BC3}};
+   input.c1 = P.C1;
+   input.c2 = P.C2;
+   input.c3 = P.C3;
+   // The preflight owns no device geometry; the same descriptor factory only
+   // needs its shape/count contract here. Runtime supplies the device centres.
+   input.macro_centers = nullptr;
+   input.macro_count = *FortranData::pme_num_macro;
+   input.alat = P.alat;
+   input.tolerance = P.gpu_dipole_tol;
+   GpuDipoleConvolutionDescriptor descriptor{};
+   if(!makeEwald3dFftDipoleDescriptor(input, descriptor)) {
+      throw std::runtime_error("GPU EWALD3D_FFT descriptor is invalid before device allocation");
+   }
+   const std::size_t bytes = GpuDipoleConvolution::estimateBytes(descriptor);
+   if(bytes == 0) throw std::runtime_error("GPU EWALD3D_FFT memory estimate overflowed or failed");
+   return bytes;
 }
 
 // Sum every device allocation the run will make, compare to free VRAM, and abort
@@ -435,7 +441,12 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
       {"Correlations",                           (FortranData::do_gpu_correlations && *FortranData::do_gpu_correlations == 'Y') ? GpuCorrelations::estimateBytes(F, P) : static_cast<std::size_t>(0)},
    };
    std::size_t total = 0;
-   for(const auto& l : lines) total += l.bytes;
+   for(const auto& l : lines) {
+      if(l.bytes > std::numeric_limits<std::size_t>::max() - total) {
+         throw std::runtime_error("GPU device-memory budget overflow");
+      }
+      total += l.bytes;
+   }
 
    std::size_t freeB = 0, totalB = 0;
    const bool haveInfo = (GPU_MEM_GET_INFO(&freeB, &totalB) == GPU_SUCCESS);
@@ -466,7 +477,7 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
          std::fprintf(stderr, "   * Reduce Mensemble (now %zu); device memory scales with ensembles.\n", P.M);
       std::fprintf(stderr, "   * Reduce the system size (Natom now %zu).\n", P.N);
       std::fprintf(stderr, "   * Set UPPASD_GPU_SKIP_BUDGET=1 to bypass this check (estimate is\n");
-      std::fprintf(stderr, "     approximate and excludes FFT workspace; the run may still run out).\n");
+      std::fprintf(stderr, "     approximate; the run may still run out).\n");
       std::fprintf(stderr, "========================================================================\n");
       std::fflush(stderr);
       std::exit(EXIT_FAILURE);
@@ -488,6 +499,9 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
 
 bool GpuSimulation::initiateMatrices(int is_mc) {
    runIsMC = (is_mc != 0);
+   if(runIsMC && FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
+      throw std::runtime_error("GPU EWALD3D_FFT is not available with GPU Monte Carlo");
+   }
    // Dimensions
    printf("Initiate matrices GPU -1 (is_mc=%d)\n", is_mc);
     long int N = static_cast <long int>( SimParam.N);

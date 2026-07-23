@@ -1412,6 +1412,10 @@ contains
                read(ifile,*,iostat=i_err) gpu_dipole_rcut
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('gpu_dipole_tol')
+               read(ifile,*,iostat=i_err) gpu_dipole_tol
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('gpu_dipole_mesh')
                read(ifile,*,iostat=i_err) gpu_dipole_mesh
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

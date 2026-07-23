@@ -48,8 +48,9 @@ contains
       return
    end subroutine gpusim_initiateconstants
 
-   subroutine gpusim_initiatematrices()
+   subroutine gpusim_initiatematrices(is_mc)
       implicit none
+      integer, intent(in) :: is_mc
       return
    end subroutine gpusim_initiatematrices
 

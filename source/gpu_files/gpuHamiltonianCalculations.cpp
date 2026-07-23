@@ -512,25 +512,6 @@ bool GpuHamiltonianCalculations::canUseMultiscaleDipole(const Flag Flags, const 
    return false;
 }
 
-namespace {
-GpuDipoleBoundaryMode dipoleBoundaryMode(const SimulationParameters& parameters,
-                                         unsigned int& openAxis) {
-   const char boundaries[] = {parameters.BC1, parameters.BC2, parameters.BC3};
-   unsigned int periodic = 0;
-   openAxis = 2;
-   for(unsigned int axis = 0; axis < 3; ++axis) {
-      if(boundaries[axis] == 'P' || boundaries[axis] == 'p') {
-         ++periodic;
-      } else {
-         openAxis = axis;
-      }
-   }
-   if(periodic == 3) return GpuDipoleBoundaryMode::Periodic3D;
-   if(periodic == 2) return GpuDipoleBoundaryMode::Periodic2D;
-   return GpuDipoleBoundaryMode::Open;
-}
-}
-
 bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationParameters SimParam, deviceHamiltonian& gpuHamiltonian) {
    N = SimParam.N;   // Number of atoms
    NH = SimParam.NH;    // Number of reduced atoms
@@ -548,50 +529,56 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    macroMoments.Free();
    numMacro = 0;
    refreshMacroMoments = false;
-   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
-      throw std::runtime_error(
-         "GPU dipole mode was requested, but its field/energy operator is not yet available; "
-         "use gpu_dipole_mode OFF until CV6 field validation is complete");
-   }
-   if(FortranData::do_dip && *FortranData::do_dip == 2 && FortranData::pme_num_macro &&
-      *FortranData::pme_num_macro > 0 && !gpuHamiltonian.macro_cell_index.empty() &&
-      !gpuHamiltonian.macro_nlistsize.empty()) {
+   const bool gpuDipoleRequested = FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0;
+   if(gpuDipoleRequested && FortranData::pme_num_macro && *FortranData::pme_num_macro > 0 &&
+      FortranData::pme_macro_grid && FortranData::NA && *FortranData::NA > 0 &&
+      !gpuHamiltonian.macro_cell_index.empty() && !gpuHamiltonian.macro_nlistsize.empty()) {
       numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
       macroMoments.Allocate(3, numMacro, SimParam.M);
       refreshMacroMoments = true;
-      if(FortranData::pme_macro_grid && FortranData::NA && *FortranData::NA > 0) {
-         GpuDipoleConvolutionDescriptor dipoleDescriptor{};
-         dipoleDescriptor.atomistic_grid = {
-            static_cast<std::size_t>(SimParam.N1), static_cast<std::size_t>(SimParam.N2),
-            static_cast<std::size_t>(SimParam.N3)};
-         dipoleDescriptor.macro_grid = {
-            static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
-            static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
-            static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
-         dipoleDescriptor.basis = *FortranData::NA;
-         dipoleDescriptor.ensembles = static_cast<unsigned int>(SimParam.M);
-         dipoleDescriptor.discretization = GpuDipoleDiscretization::MacrospinGrid;
-         dipoleDescriptor.boundary = dipoleBoundaryMode(SimParam, dipoleDescriptor.open_axis);
-         dipoleDescriptor.c1 = SimParam.C1;
-         dipoleDescriptor.c2 = SimParam.C2;
-         dipoleDescriptor.c3 = SimParam.C3;
-         dipoleDescriptor.macro_centers = gpuHamiltonian.macro_center.data();
-         dipoleDescriptor.macro_count = numMacro;
-         if(!dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
-            throw std::runtime_error("GPU PME macrocell descriptor is invalid");
-         }
-         const auto grid = dipoleConvolution.descriptor().activeGrid();
-         const auto padded = dipoleConvolution.fftLayout().real_grid;
-         const auto& layout = dipoleConvolution.fftLayout();
-         std::printf("Gpu: CV6 PME geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points, %.3f MiB planned buffers).\n",
-                     grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
-                     dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
-                     layout.spectral_cells,
-                     static_cast<double>(layout.persistentBytes()) / (1024.0 * 1024.0));
+      GpuDipoleDescriptorInput input{};
+      input.atomistic_grid = {SimParam.N1, SimParam.N2, SimParam.N3};
+      input.macro_grid = {static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
+                          static_cast<std::size_t>(FortranData::pme_macro_grid[1]),
+                          static_cast<std::size_t>(FortranData::pme_macro_grid[2])};
+      input.basis = *FortranData::NA;
+      input.ensembles = static_cast<unsigned int>(SimParam.M);
+      input.boundaries = {{SimParam.BC1, SimParam.BC2, SimParam.BC3}};
+      input.c1 = SimParam.C1;
+      input.c2 = SimParam.C2;
+      input.c3 = SimParam.C3;
+      input.macro_centers = gpuHamiltonian.macro_center.data();
+      input.macro_count = numMacro;
+      input.alat = SimParam.alat;
+      input.tolerance = SimParam.gpu_dipole_tol;
+      GpuDipoleConvolutionDescriptor dipoleDescriptor{};
+      if(!makeEwald3dFftDipoleDescriptor(input, dipoleDescriptor) ||
+         !dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
+         throw std::runtime_error("GPU EWALD3D_FFT descriptor is invalid");
       }
+      const auto grid = dipoleConvolution.descriptor().activeGrid();
+      const auto padded = dipoleConvolution.fftLayout().real_grid;
+      const auto& layout = dipoleConvolution.fftLayout();
+      std::printf("Gpu: EWALD3D_FFT geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points; tol %.3e, field prefactor %.16e T).\n",
+                  grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
+                  dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
+                  layout.spectral_cells, dipoleDescriptor.tolerance, dipoleDescriptor.field_prefactor);
+      std::printf("Gpu: EWALD3D_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
+                  static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
+                  static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
       std::printf("Gpu: CV6 macrocell moment aggregation prepared (%u cells, %zu ensemble%s); dipole FFT pending.\n",
                   numMacro, SimParam.M, SimParam.M == 1 ? "" : "s");
+   } else if(gpuDipoleRequested) {
+      throw std::runtime_error("GPU EWALD3D_FFT requested without staged macrocell data");
+   }
+   // This is deliberately after descriptor creation: a requested valid mode
+   // exercises the ownership, geometry, and memory contract, but never enters
+   // the unfinished physical field/energy path.
+   if(gpuDipoleRequested) {
+      throw std::runtime_error(
+         "GPU dipole mode was requested, but its field/energy operator is not yet available; "
+         "use gpu_dipole_mode OFF until CV6 field validation is complete");
    }
    backend = {};
    backend.convolution_ready = canUseLatticeConvolution(Flags, SimParam, gpuHamiltonian);
