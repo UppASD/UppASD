@@ -1139,8 +1139,12 @@ not merely when its implementation has started.
   Status: complete.  CPU-only `dipole-ewald-host-builder` CTest covers
   cubic, non-cubic, and skew `NA=1` Luna-oracle values plus alpha invariance
   and reciprocity; Luna's independent Python oracle self-check also passes.
-- [ ] **WP4 — GPU convolution and normalization correctness** (Terra
-  implementation, Luna acceptance; depends on WP3).
+- [x] **WP4 — GPU convolution and normalization correctness** (Terra
+  implementation, CUDA acceptance; depends on WP3).
+
+  Status: CUDA fp64 delta and periodic Builder A CTests pass, including
+  compute-sanitizer memcheck (zero errors).  HIP compilation/runtime is
+  deferred by maintainer decision while ROCm access is unavailable.
 - [ ] **WP5 — Production fp64 `NA=1` spin-dynamics field and energy wiring**
   (Terra; depends on WP4 acceptance).
 - [ ] **WP6 — Multi-basis block-one support** (Terra implementation, Luna

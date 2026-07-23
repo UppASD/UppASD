@@ -110,10 +110,9 @@ struct GpuDipoleDescriptorInput {
 bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
                                     GpuDipoleConvolutionDescriptor& descriptor);
 
-// Lifecycle and geometry shell for CV6.2+.  This intentionally owns no FFT
-// plans or tensors yet: CV6.0 must first select and document the atomistic or
-// macrospin physics contract.  Once initiated, all future plans must use the
-// supplied work stream.
+// Lifecycle and geometry shell for the regular-grid operator.  Plan readiness
+// and kernel readiness are deliberately separate: a valid allocation must
+// never be mistaken for a complete periodic dipole operator.
 class GpuDipoleConvolution {
 public:
    GpuDipoleConvolution() = default;
@@ -125,34 +124,28 @@ public:
    void release();
 
    bool isInitiated() const;
+   bool kernelReady() const;
    const GpuDipoleConvolutionDescriptor& descriptor() const;
    const GpuDipoleFftLayout& fftLayout() const;
 
-   // Pack [component, macrocell, ensemble] macro moments into contiguous
-   // [cell, component+basis*ensemble] FFT channels.  This is deliberately a
-   // staging primitive only; no transform or dipole field is applied here.
-   void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
-   void forwardTransformMoments();
-   // Construct only the reciprocal, tin-foil part of the NA=1 Ewald tensor.
-   // The screened real-space and self terms are separate required corrections.
-   void buildReciprocalEwaldKernel(real alpha);
-   // Apply the spectral block kernel with batch ordering
-   // row + 3*(column + 3*(target_basis + basis*source_basis)).
-   void applySpectralKernel();
-   // Produces the unnormalised C2R output.  The reciprocal Ewald tensor is
-   // defined for that raw inverse sum, so this path must not add a 1/N factor.
-   void inverseTransformFields();
-   // Add the point-dipole Ewald self field after inverse transformation.
-   void addPointSelfField(real alpha);
-   // Direct screened real-space reference primitive for the NA=1 slice.
-   void addRealSpaceField(real alpha, real cutoff, unsigned int image_extent);
-   void evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
-                           real cutoff, unsigned int image_extent);
-   void scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
-                           std::size_t atom_count);
-   void reducePointEwaldEnergy();
-   std::vector<real> pointEwaldEnergies() const;
-   std::vector<real> pointEwaldFields() const;
+   // Upload the complete Builder A displacement tensor, transform every
+   // kernel batch, and store FFT(K)/Ngrid.  The input layout is
+   // [cell + Ngrid*kernel_batch], with n1 fastest and
+   // kernel_batch = row + 3*(column + 3*(target_basis + basis*source_basis)).
+   // This construction API remains outside production dispatch.
+   void uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel);
+   void uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel);
+
+   // The only runtime operator primitive in this slice.  It performs packed
+   // R2C, block contraction, and raw C2R; the stored spectrum owns the sole
+   // 1/Ngrid normalization.
+   void evaluate(const GpuTensor<real, 3>& macro_moments);
+
+   // Explicitly diagnostic readback APIs.  They synchronize and are intended
+   // only for the standalone GPU tests while simulation dispatch remains off.
+   std::vector<real> diagnosticFieldsForTesting() const;
+   std::vector<real> diagnosticEnergiesForTesting() const;
+   bool diagnosticConstructionStorageAllocatedForTesting() const;
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
@@ -166,6 +159,8 @@ private:
    GpuDipoleFftLayout layout{};
    GPU_STREAM_T stream{};
    bool initiated = false;
+   bool kernel_ready = false;
+   bool kernel_real_allocated = false;
    bool allocated = false;
    bool forward_plan_created = false;
    bool backward_plan_created = false;
@@ -178,9 +173,16 @@ private:
    GpuTensor<GpuFftComplex, 2> moments_fft;
    GpuTensor<GpuFftComplex, 2> fields_fft;
    GpuTensor<GpuFftComplex, 2> kernel_fft;
+   // Construction-only [real_cell, kernel_batch] storage.  It is allocated
+   // only while the complete host tensor is uploaded and FFT'd, then freed.
+   GpuTensor<real, 2> kernel_real;
    GpuTensor<real, 2> cell_vectors;
    GpuTensor<real, 2> reciprocal_vectors;
    GpuTensor<real, 1> cell_volume;
-   GpuTensor<real, 1> point_energy;
    GpuTensor<unsigned char, 1> fft_workspace;
+
+   void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
+   void forwardTransformMoments();
+   void applySpectralKernel();
+   void inverseTransformFields();
 };

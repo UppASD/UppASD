@@ -88,58 +88,13 @@ __global__ void apply_spectral_kernel(const GpuFftComplex* moments, const GpuFft
    }
 }
 
-__global__ void add_point_self_field_kernel(const real* moments, real* fields, std::size_t count,
-                                             real prefactor) {
+// cuFFT/hipFFT leave C2R unnormalised.  The normalization contract is kept
+// explicit here, at kernel construction, so raw C2R applies K exactly once.
+__global__ void normalize_kernel_spectrum(GpuFftComplex* kernel, std::size_t count, real inverse_grid) {
    for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
        index < count; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
-      fields[index] += prefactor * moments[index];
-   }
-}
-
-__global__ void add_real_ewald_kernel(const real* moments, real* fields, const real* centres,
-   const real* h, std::size_t cells, unsigned int ensembles, real alpha, real cutoff, unsigned int extent) {
-   const std::size_t total = cells * ensembles;
-   for(std::size_t item = static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x; item<total;
-       item += static_cast<std::size_t>(blockDim.x)*gridDim.x) {
-      const std::size_t target=item%cells, ens=item/cells; real bx=0,by=0,bz=0;
-      const real tx=centres[3*target],ty=centres[3*target+1],tz=centres[3*target+2];
-      for(std::size_t source=0;source<cells;++source) for(int iz=-int(extent);iz<=int(extent);++iz)
-      for(int iy=-int(extent);iy<=int(extent);++iy) for(int ix=-int(extent);ix<=int(extent);++ix) {
-         if(target==source && ix==0 && iy==0 && iz==0) continue;
-         const real x=tx-(centres[3*source]+ix*h[0]+iy*h[3]+iz*h[6]);
-         const real y=ty-(centres[3*source+1]+ix*h[1]+iy*h[4]+iz*h[7]);
-         const real z=tz-(centres[3*source+2]+ix*h[2]+iy*h[5]+iz*h[8]);
-         const real r2=x*x+y*y+z*z; if(r2>cutoff*cutoff || r2==0) continue;
-         const real r=sqrt(r2), g=exp(-alpha*alpha*r2), e=erfc(alpha*r), pi=sqrt(acos((real)-1));
-         const real a=3*e/(r2*r2*r)+6*alpha*g/(pi*r2*r2)+4*alpha*alpha*alpha*g/(pi*r2);
-         const real b=-e/(r2*r)-2*alpha*g/(pi*r2);
-         const std::size_t base=3*(source+cells*ens); const real mx=moments[base],my=moments[base+1],mz=moments[base+2];
-         const real dot=x*mx+y*my+z*mz; bx+=a*x*dot+b*mx; by+=a*y*dot+b*my; bz+=a*z*dot+b*mz;
-      }
-      const std::size_t base=3*(target+cells*ens); fields[base]+=bx; fields[base+1]+=by; fields[base+2]+=bz;
-   }
-}
-
-__global__ void scatter_point_fields_kernel(const real* fields, real* beff, const unsigned int* cell_index,
-                                             std::size_t cells, std::size_t atoms, unsigned int ensembles) {
-   const std::size_t total=atoms*ensembles;
-   for(std::size_t item=static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x;item<total;
-       item+=static_cast<std::size_t>(blockDim.x)*gridDim.x) {
-      const std::size_t atom=item%atoms, ens=item/atoms; const unsigned int one=cell_index[atom];
-      if(one==0 || one>cells) continue; const std::size_t cell=one-1;
-      const std::size_t out=3*(atom+atoms*ens);
-      beff[out]+=fields[cell+cells*(3*ens)]; beff[out+1]+=fields[cell+cells*(1+3*ens)];
-      beff[out+2]+=fields[cell+cells*(2+3*ens)];
-   }
-}
-
-__global__ void reduce_point_energy_kernel(const real* moments, const real* fields, real* energy,
-                                           std::size_t cells, unsigned int ensembles) {
-   const std::size_t total=cells*ensembles;
-   for(std::size_t item=static_cast<std::size_t>(blockIdx.x)*blockDim.x+threadIdx.x;item<total;
-       item+=static_cast<std::size_t>(blockDim.x)*gridDim.x) {
-      const std::size_t cell=item%cells, ens=item/cells, base=3*(cell+cells*ens);
-      atomicAdd(&energy[ens], static_cast<real>(-0.5)*(moments[base]*fields[base]+moments[base+1]*fields[base+1]+moments[base+2]*fields[base+2]));
+      kernel[index].x *= inverse_grid;
+      kernel[index].y *= inverse_grid;
    }
 }
 
@@ -302,6 +257,7 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
    desc = descriptor;
    layout = desc.fftLayout();
    stream = work_stream;
+   kernel_ready = false;
 
    // PlanMany receives the transform axes in slow-to-fast order, whereas the
    // source grid is stored with n1 as the contiguous axis.
@@ -332,7 +288,6 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
       cell_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
       reciprocal_vectors.Allocate(static_cast<long int>(3), static_cast<long int>(3));
       cell_volume.Allocate(static_cast<long int>(1));
-      point_energy.Allocate(static_cast<long int>(desc.ensembles));
       const auto full_cell = desc.fullCellMatrix();
       const auto reciprocal_cell = desc.reciprocalCellMatrix();
       const real volume = desc.cellVolume();
@@ -397,14 +352,18 @@ void GpuDipoleConvolution::release() {
       moments_fft.Free();
       fields_fft.Free();
       kernel_fft.Free();
+      if(kernel_real_allocated) {
+         kernel_real.Free();
+         kernel_real_allocated = false;
+      }
       cell_vectors.Free();
       reciprocal_vectors.Free();
       cell_volume.Free();
-      point_energy.Free();
       fft_workspace.Free();
       allocated = false;
    }
    initiated = false;
+   kernel_ready = false;
    desc = {};
    layout = {};
    stream = {};
@@ -416,6 +375,10 @@ GpuDipoleConvolution::~GpuDipoleConvolution() {
 
 bool GpuDipoleConvolution::isInitiated() const {
    return initiated;
+}
+
+bool GpuDipoleConvolution::kernelReady() const {
+   return kernel_ready;
 }
 
 const GpuDipoleConvolutionDescriptor& GpuDipoleConvolution::descriptor() const {
@@ -447,51 +410,6 @@ void GpuDipoleConvolution::forwardTransformMoments() {
    assertGpuFft(GPUFFT_EXEC_R2C(forward_plan, moments_real.data(), moments_fft.data()));
 }
 
-void GpuDipoleConvolution::buildReciprocalEwaldKernel(real alpha) {
-   if(!initiated) throw std::runtime_error("GPU dipole Ewald kernel requested before initialization");
-   if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.basis != 1 || alpha <= static_cast<real>(0)) {
-      throw std::runtime_error("reciprocal Ewald kernel currently requires EWALD3D_FFT, NA=1, and positive alpha");
-   }
-   const real volume = desc.cellVolume();
-   if(volume <= static_cast<real>(0)) throw std::runtime_error("PME requires a right-handed positive-volume cell");
-   const auto reciprocal = desc.reciprocalCellMatrix();
-   const GpuFftComplex zero{};
-   std::vector<GpuFftComplex> kernel(layout.spectral_cells * layout.kernel_batches, zero);
-   const auto signed_index = [](std::size_t index, std::size_t extent) -> long long {
-      return index <= extent / 2 ? static_cast<long long>(index) :
-             static_cast<long long>(index) - static_cast<long long>(extent);
-   };
-   const real pi = static_cast<real>(std::acos(-1.0));
-   for(std::size_t k3 = 0; k3 < layout.spectral_grid.n3; ++k3) {
-      for(std::size_t k2 = 0; k2 < layout.spectral_grid.n2; ++k2) {
-         for(std::size_t k1 = 0; k1 < layout.spectral_grid.n1; ++k1) {
-            const long long n1 = static_cast<long long>(k1);
-            const long long n2 = signed_index(k2, layout.real_grid.n2);
-            const long long n3 = signed_index(k3, layout.real_grid.n3);
-            if(n1 == 0 && n2 == 0 && n3 == 0) continue; // tin-foil k=0
-            const real wave[] = {
-               reciprocal[0] * n1 + reciprocal[3] * n2 + reciprocal[6] * n3,
-               reciprocal[1] * n1 + reciprocal[4] * n2 + reciprocal[7] * n3,
-               reciprocal[2] * n1 + reciprocal[5] * n2 + reciprocal[8] * n3};
-            const real wave2 = wave[0] * wave[0] + wave[1] * wave[1] + wave[2] * wave[2];
-            const real prefactor = -static_cast<real>(4) * pi * std::exp(-wave2 / (static_cast<real>(4) * alpha * alpha)) /
-                                   (volume * wave2);
-            const std::size_t spectral = k1 + layout.spectral_grid.n1 * (k2 + layout.spectral_grid.n2 * k3);
-            for(unsigned int row = 0; row < 3; ++row) {
-               for(unsigned int column = 0; column < 3; ++column) {
-                  const std::size_t batch = row + 3 * column;
-                  kernel[spectral + layout.spectral_cells * batch].x = prefactor * wave[row] * wave[column];
-               }
-            }
-         }
-      }
-   }
-   if(GPU_MEMCPY(kernel_fft.data(), kernel.data(), kernel.size() * sizeof(GpuFftComplex),
-                 GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
-      throw std::runtime_error("GPU reciprocal Ewald kernel upload failed");
-   }
-}
-
 void GpuDipoleConvolution::applySpectralKernel() {
    if(!initiated) throw std::runtime_error("GPU dipole spectral contraction requested before initialization");
    const std::size_t total = layout.spectral_cells * layout.field_batches;
@@ -510,98 +428,95 @@ void GpuDipoleConvolution::inverseTransformFields() {
    assertGpuFft(GPUFFT_EXEC_C2R(backward_plan, fields_fft.data(), fields_real.data()));
 }
 
-void GpuDipoleConvolution::addPointSelfField(real alpha) {
-   if(!initiated) throw std::runtime_error("GPU dipole self field requested before initialization");
-   if(alpha <= static_cast<real>(0)) throw std::runtime_error("GPU dipole self field requires positive alpha");
-   const std::size_t count = layout.real_cells * layout.field_batches;
-   constexpr unsigned int threads = 256;
-   const std::size_t blocks_needed = (count + threads - 1) / threads;
-   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>(blocks_needed, 65535));
-   const real prefactor = static_cast<real>(4) * alpha * alpha * alpha /
-                          (static_cast<real>(3) * static_cast<real>(std::sqrt(std::acos(-1.0))));
-   add_point_self_field_kernel<<<blocks, threads, 0, stream>>>(moments_real.data(), fields_real.data(), count, prefactor);
-   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) {
-      throw std::runtime_error("GPU dipole self-field launch failed");
+void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel) {
+   if(!initiated) throw std::runtime_error("GPU dipole kernel upload requested before plan initialization");
+   if(sizeof(real) != sizeof(double)) throw std::runtime_error("complete-kernel GPU validation requires fp64 storage");
+   const std::size_t expected = layout.real_cells * layout.kernel_batches;
+   if(complete_kernel.size() != expected) throw std::runtime_error("complete host tensor does not match GPU kernel layout");
+
+   kernel_ready = false;
+   try {
+      kernel_real.Allocate(static_cast<long int>(layout.real_cells), static_cast<long int>(layout.kernel_batches));
+      kernel_real_allocated = true;
+      if(GPU_MEMCPY(kernel_real.data(), complete_kernel.data(), expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+         throw std::runtime_error("complete periodic dipole tensor upload failed");
+      assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
+      constexpr unsigned int threads = 256;
+      const std::size_t count = layout.spectral_cells * layout.kernel_batches;
+      const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>((count + threads - 1) / threads, 65535));
+      normalize_kernel_spectrum<<<blocks, threads, 0, stream>>>(kernel_fft.data(), count,
+                                                                  static_cast<real>(1) / static_cast<real>(layout.real_cells));
+      if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole spectrum-normalization launch failed");
+      // A kernel cannot become observable until its R2C and normalization are complete.
+      if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole kernel construction synchronization failed");
+      kernel_real.Free();
+      kernel_real_allocated = false;
+      kernel_ready = true;
+   } catch(...) {
+      if(kernel_real_allocated) {
+         kernel_real.Free();
+         kernel_real_allocated = false;
+      }
+      throw;
    }
 }
 
-void GpuDipoleConvolution::addRealSpaceField(real alpha, real cutoff, unsigned int image_extent) {
-   if(!initiated || desc.basis != 1 || !desc.macro_centers || desc.macro_count != layout.real_cells || alpha<=0 || cutoff<=0)
-      throw std::runtime_error("real Ewald primitive requires NA=1 centres, positive alpha and cutoff");
-   constexpr unsigned int threads=128; const std::size_t total=layout.real_cells*desc.ensembles;
-   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
-   add_real_ewald_kernel<<<blocks,threads,0,stream>>>(moments_real.data(),fields_real.data(),desc.macro_centers,
-      cell_vectors.data(),layout.real_cells,desc.ensembles,alpha,cutoff,image_extent);
-   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU real Ewald launch failed");
+void GpuDipoleConvolution::uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel) {
+   uploadCompleteKernelForTesting(complete_kernel.kernel);
 }
 
-void GpuDipoleConvolution::evaluatePointEwald(const GpuTensor<real, 3>& macro_moments, real alpha,
-                                              real cutoff, unsigned int image_extent) {
-   if(desc.basis != 1 || desc.boundary != GpuDipoleBoundaryMode::Periodic3D) {
-      throw std::runtime_error("point Ewald evaluation currently requires EWALD3D_FFT with NA=1");
-   }
-   buildReciprocalEwaldKernel(alpha);
+void GpuDipoleConvolution::evaluate(const GpuTensor<real, 3>& macro_moments) {
+   if(!initiated) throw std::runtime_error("GPU dipole evaluation requested before plan initialization");
+   if(!kernel_ready) throw std::runtime_error("GPU dipole evaluation requested before complete kernel is ready");
    packMacroMoments(macro_moments);
    forwardTransformMoments();
    applySpectralKernel();
    inverseTransformFields();
-   addRealSpaceField(alpha, cutoff, image_extent);
-   addPointSelfField(alpha);
-   reducePointEwaldEnergy();
 }
 
-void GpuDipoleConvolution::scatterPointFields(GpuTensor<real, 3>& beff, const unsigned int* one_based_cell_index,
-                                              std::size_t atom_count) {
-   if(!initiated || desc.basis!=1 || !one_based_cell_index || beff.size()!=3*atom_count*desc.ensembles)
-      throw std::runtime_error("invalid NA=1 dipole field scatter");
-   constexpr unsigned int threads=256; const std::size_t total=atom_count*desc.ensembles;
-   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
-   scatter_point_fields_kernel<<<blocks,threads,0,stream>>>(fields_real.data(),beff.data(),one_based_cell_index,
-      layout.real_cells,atom_count,desc.ensembles);
-   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU dipole field scatter launch failed");
-}
-
-void GpuDipoleConvolution::reducePointEwaldEnergy() {
-   if(!initiated || desc.basis!=1) throw std::runtime_error("point Ewald energy requires initialized NA=1 grid");
-   GPU_MEMSET_ASYNC(point_energy.data(),0,desc.ensembles*sizeof(real),stream);
-   constexpr unsigned int threads=256; const std::size_t total=layout.real_cells*desc.ensembles;
-   const unsigned int blocks=static_cast<unsigned int>(std::min<std::size_t>((total+threads-1)/threads,65535));
-   reduce_point_energy_kernel<<<blocks,threads,0,stream>>>(moments_real.data(),fields_real.data(),point_energy.data(),layout.real_cells,desc.ensembles);
-   if(GPU_GET_LAST_ERROR()!=GPU_SUCCESS) throw std::runtime_error("GPU point Ewald energy reduction launch failed");
-}
-
-std::vector<real> GpuDipoleConvolution::pointEwaldEnergies() const {
-   if(!initiated) throw std::runtime_error("point Ewald energy requested before initialization");
-   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) {
-      throw std::runtime_error("GPU point Ewald energy stream synchronization failed");
-   }
-   std::vector<real> result(desc.ensembles);
-   if(GPU_MEMCPY(result.data(),point_energy.data(),result.size()*sizeof(real),GPU_MEMCPY_DEVICE_TO_HOST)!=GPU_SUCCESS)
-      throw std::runtime_error("GPU point Ewald energy download failed");
-   return result;
-}
-
-std::vector<real> GpuDipoleConvolution::pointEwaldFields() const {
-   if(!initiated || desc.basis != 1) throw std::runtime_error("point Ewald field requested from an invalid grid");
-   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU point Ewald field stream synchronization failed");
+std::vector<real> GpuDipoleConvolution::diagnosticFieldsForTesting() const {
+   if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole diagnostic field requested before a ready evaluation");
+   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole diagnostic field synchronization failed");
    std::vector<real> packed(layout.real_cells * layout.field_batches);
-   if(GPU_MEMCPY(packed.data(), fields_real.data(), packed.size()*sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
-      throw std::runtime_error("GPU point Ewald field download failed");
-   std::vector<real> result(3 * layout.real_cells * desc.ensembles);
-   for(unsigned int ensemble=0; ensemble<desc.ensembles; ++ensemble)
-      for(std::size_t cell=0; cell<layout.real_cells; ++cell)
-         for(unsigned int component=0; component<3; ++component)
-            result[component + 3*(cell + layout.real_cells*ensemble)] =
-               packed[cell + layout.real_cells*(component + 3*ensemble)];
+   if(GPU_MEMCPY(packed.data(), fields_real.data(), packed.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+      throw std::runtime_error("GPU dipole diagnostic field download failed");
+   std::vector<real> result(3 * layout.real_cells * desc.basis * desc.ensembles);
+   for(unsigned int ensemble = 0; ensemble < desc.ensembles; ++ensemble)
+      for(std::size_t cell = 0; cell < layout.real_cells; ++cell)
+         for(unsigned int basis = 0; basis < desc.basis; ++basis)
+            for(unsigned int component = 0; component < 3; ++component)
+               result[component + 3 * (basis + desc.basis * (cell + layout.real_cells * ensemble))] =
+                  packed[cell + layout.real_cells * (component + 3 * (basis + desc.basis * ensemble))];
    return result;
+}
+
+std::vector<real> GpuDipoleConvolution::diagnosticEnergiesForTesting() const {
+   if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole diagnostic energy requested before a ready evaluation");
+   if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole diagnostic energy synchronization failed");
+   std::vector<real> moments(layout.real_cells * layout.field_batches);
+   std::vector<real> fields(layout.real_cells * layout.field_batches);
+   if(GPU_MEMCPY(moments.data(), moments_real.data(), moments.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+      GPU_MEMCPY(fields.data(), fields_real.data(), fields.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+      throw std::runtime_error("GPU dipole diagnostic energy download failed");
+   std::vector<real> result(desc.ensembles, static_cast<real>(0));
+   for(unsigned int ensemble = 0; ensemble < desc.ensembles; ++ensemble)
+      for(std::size_t cell = 0; cell < layout.real_cells; ++cell)
+         for(unsigned int basis = 0; basis < desc.basis; ++basis)
+            for(unsigned int component = 0; component < 3; ++component) {
+               const std::size_t index = cell + layout.real_cells * (component + 3 * (basis + desc.basis * ensemble));
+               result[ensemble] -= static_cast<real>(0.5) * moments[index] * fields[index];
+            }
+   return result;
+}
+
+bool GpuDipoleConvolution::diagnosticConstructionStorageAllocatedForTesting() const {
+   return kernel_real_allocated;
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
       const GpuDipoleConvolutionDescriptor& descriptor) {
    if(!descriptor.valid()) return 0;
-   std::size_t energy_bytes=0,total=0;
-   return bytesFor(descriptor.ensembles,sizeof(real),energy_bytes) &&
-          add(descriptor.fftLayout().persistentBytes(),energy_bytes,total) ? total : 0;
+   return descriptor.fftLayout().persistentBytes();
 }
 
 std::size_t GpuDipoleConvolution::estimateWorkspaceBytes(

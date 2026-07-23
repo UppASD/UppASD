@@ -873,6 +873,30 @@ if(BUILD_TESTING)
       ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_periodic_ewald_kernel.cpp)
    target_include_directories(dipole_ewald_host_tests PRIVATE ${CMAKE_SOURCE_DIR}/source/gpu_files)
    add_test(NAME dipole-ewald-host-builder COMMAND dipole_ewald_host_tests)
+
+   # This target is intentionally built by CMake with the active GPU backend;
+   # do not recompile a driver from Python/nvcc.  It exercises the complete
+   # Builder A tensor upload, batched kernel R2C, and stored-spectrum contract.
+   if(USE_CUDA OR USE_HIP)
+      add_executable(dipole_gpu_fft_tests
+         ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp)
+      target_include_directories(dipole_gpu_fft_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(dipole_gpu_fft_tests PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(dipole_gpu_fft_tests PRIVATE CUDA_V)
+         target_link_libraries(dipole_gpu_fft_tests PRIVATE CUDA::cudart CUDA::cufft)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(dipole_gpu_fft_tests PRIVATE HIP_V)
+         target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
+      endif()
+      add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
+   endif()
 endif()
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
