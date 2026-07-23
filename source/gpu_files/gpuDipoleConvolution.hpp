@@ -2,6 +2,7 @@
 
 #include "gpu_wrappers.h"
 #include "gpuFftWrapper.hpp"
+#include "dipoleEwaldKernel.hpp"
 #include "real_type.h"
 #include "tensor.hpp"
 

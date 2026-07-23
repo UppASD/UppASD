@@ -18,6 +18,7 @@ gpuMetropolis_bruteforce.cpp
 uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
 
 target_sources(${UppASD_LIB} PRIVATE ${GPU_KERNEL_SOURCES}
+dipoleEwaldKernel.cpp
 c_helper.h
 base.hpp
 gpuParallelizationHelper.tpp
@@ -27,6 +28,7 @@ gpuEventPool.hpp
 gpuHamiltonianBackend.hpp
 gpuHamiltonianCalculations.hpp
 gpuDipoleConvolution.hpp
+dipoleEwaldKernel.hpp
 gpuHamiltonianDeviceOps.hpp
 gpuFftWrapper.hpp
 gpuLatticeConvolutionHamiltonian.hpp

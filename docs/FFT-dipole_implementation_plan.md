@@ -1132,9 +1132,13 @@ not merely when its implementation has started.
 - [x] **WP1 — Independent oracle and red tests** (Luna; depends on WP0).
 - [x] **WP2 — GPU layout ownership, input, units, and memory contract**
   (Terra; depends on WP0 and may run in parallel with WP1).
-- [ ] **WP3 — Complete fp64 host reference kernel with automatic
+- [x] **WP3 — Complete fp64 host reference kernel with automatic
   tolerance convergence** (Terra; depends on WP1, consumes WP2 input
   contract).
+
+  Status: complete.  CPU-only `dipole-ewald-host-builder` CTest covers
+  cubic, non-cubic, and skew `NA=1` Luna-oracle values plus alpha invariance
+  and reciprocity; Luna's independent Python oracle self-check also passes.
 - [ ] **WP4 — GPU convolution and normalization correctness** (Terra
   implementation, Luna acceptance; depends on WP3).
 - [ ] **WP5 — Production fp64 `NA=1` spin-dynamics field and energy wiring**

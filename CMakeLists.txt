@@ -319,6 +319,9 @@ OPTION(BUILD_PYTHON "Build Python interface"  OFF)
 # Enable and define tests
 ##############################################################################################
 include(CTest)
+if(BUILD_TESTING)
+   enable_language(CXX)
+endif()
 CMAKE_DEPENDENT_OPTION(RUN_ASD_TESTS "Run asd-tests"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
@@ -864,5 +867,12 @@ endif (RUN_GNEB_TESTS)
 if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
+if(BUILD_TESTING)
+   add_executable(dipole_ewald_host_tests
+      ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleEwaldKernel.cpp
+      ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_periodic_ewald_kernel.cpp)
+   target_include_directories(dipole_ewald_host_tests PRIVATE ${CMAKE_SOURCE_DIR}/source/gpu_files)
+   add_test(NAME dipole-ewald-host-builder COMMAND dipole_ewald_host_tests)
+endif()
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
