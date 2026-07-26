@@ -174,6 +174,49 @@ __global__ void normalize_kernel_spectrum(GpuFftComplex* kernel, std::size_t cou
    }
 }
 
+// macro_cell_index retains Fortran's one-based map.  WP5 admits precisely one
+// atom per macro cell and one basis channel, but retaining the map here makes
+// the scatter independent of atom ordering and keeps the invariant explicit.
+__global__ void add_dipole_fields(const real* fields, real* beff, real* eneff,
+                                  const unsigned int* macro_cell_index,
+                                  std::size_t cells, std::size_t atoms,
+                                  unsigned int ensembles, real prefactor,
+                                  bool shared_field_storage) {
+   const std::size_t total = 3 * atoms * ensembles;
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < total; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      const unsigned int component = static_cast<unsigned int>(index % 3);
+      const std::size_t atom_ensemble = index / 3;
+      const std::size_t ensemble = atom_ensemble / atoms;
+      const std::size_t atom = atom_ensemble % atoms;
+      const unsigned int one_based_cell = macro_cell_index[atom];
+      // Initialization validates every map entry, so this is defensive only.
+      if(one_based_cell == 0 || one_based_cell > cells) continue;
+      const std::size_t cell = one_based_cell - 1;
+      const std::size_t field_index = cell + cells * (component + 3 * ensemble);
+      const real value = prefactor * fields[field_index];
+      beff[index] += value;
+      if(!shared_field_storage) eneff[index] += value;
+   }
+}
+
+// energyM is [ensemble, energy_column]; columns 5 and 6 are total and Dip.
+// The physical mu_B/mRy conversion remains in the existing measurement path.
+__global__ void accumulate_dipole_energy(const real* moments, const real* fields,
+                                         real* energy, std::size_t cells,
+                                         unsigned int ensembles, real prefactor,
+                                         real atoms_inverse) {
+   const std::size_t total = cells * 3 * ensembles;
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < total; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      const std::size_t batch = index / cells;
+      const unsigned int ensemble = static_cast<unsigned int>(batch / 3);
+      const real value = static_cast<real>(-0.5) * moments[index] * (prefactor * fields[index]) * atoms_inverse;
+      atomicAdd(&energy[ensemble + ensembles * 5], value);
+      atomicAdd(&energy[ensemble + ensembles * 6], value);
+   }
+}
+
 } // namespace
 
 std::size_t GpuDipoleGridShape::cells() const {
@@ -562,6 +605,30 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const DipoleKernelBuil
    uploadCompleteKernelForTesting(complete_kernel.kernel);
 }
 
+void GpuDipoleConvolution::buildPeriodicKernel() {
+   if(!initiated) throw std::runtime_error("GPU periodic dipole kernel requested before plan initialization");
+   if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.discretization != GpuDipoleDiscretization::MacrospinGrid ||
+      desc.basis != 1 || sizeof(real) != sizeof(double)) {
+      throw std::runtime_error("GPU production dipole construction is limited to fp64 NA=1 periodic macrospin grids");
+   }
+   DipolePeriodicGeometry geometry{};
+   const auto h = desc.fullCellMatrix();
+   const auto brec = desc.reciprocalCellMatrix();
+   for(unsigned int index = 0; index < 9; ++index) {
+      geometry.H[index] = static_cast<double>(h[index]);
+      geometry.Brec[index] = static_cast<double>(brec[index]);
+   }
+   geometry.volume = static_cast<double>(desc.cellVolume());
+   const auto grid = desc.activeGrid();
+   geometry.grid = {grid.n1, grid.n2, grid.n3};
+   geometry.basis = 1;
+   geometry.basis_offsets = {{0.0, 0.0, 0.0}};
+   DipoleKernelSettings settings{};
+   settings.tolerance = desc.tolerance;
+   const auto complete = buildPeriodicEwaldDisplacementKernel(geometry, settings);
+   uploadCompleteKernelForTesting(complete);
+}
+
 void GpuDipoleConvolution::evaluate(const GpuTensor<real, 3>& macro_moments) {
    if(!initiated) throw std::runtime_error("GPU dipole evaluation requested before plan initialization");
    if(!kernel_ready) throw std::runtime_error("GPU dipole evaluation requested before complete kernel is ready");
@@ -569,6 +636,52 @@ void GpuDipoleConvolution::evaluate(const GpuTensor<real, 3>& macro_moments) {
    forwardTransformMoments();
    applySpectralKernel();
    inverseTransformFields();
+}
+
+void GpuDipoleConvolution::addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<real, 3>& eneff,
+                                             const unsigned int* macro_cell_index,
+                                             std::size_t atom_count) {
+   if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole field scatter requested before a ready kernel");
+   if(desc.basis != 1 || layout.real_cells != atom_count || !macro_cell_index ||
+      beff.size() != 3 * atom_count * desc.ensembles || eneff.size() != beff.size()) {
+      throw std::runtime_error("GPU dipole production scatter does not match the accepted NA=1 block-one layout");
+   }
+   constexpr unsigned int threads = 256;
+   const std::size_t count = 3 * atom_count * desc.ensembles;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>((count + threads - 1) / threads, 65535));
+   add_dipole_fields<<<blocks, threads, 0, stream>>>(fields_real.data(), beff.data(), eneff.data(),
+                                                       macro_cell_index, layout.real_cells, atom_count,
+                                                       desc.ensembles, static_cast<real>(desc.field_prefactor),
+                                                       beff.data() == eneff.data());
+   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole field-scatter launch failed");
+}
+
+void GpuDipoleConvolution::accumulateEnergy(GpuTensor<real, 2>& energyM, std::size_t atom_count) {
+   if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole energy requested before a ready kernel");
+   if(desc.basis != 1 || layout.real_cells != atom_count || energyM.extent(0) != desc.ensembles || energyM.extent(1) < 7) {
+      throw std::runtime_error("GPU dipole energy buffer does not match the accepted NA=1 block-one layout");
+   }
+   constexpr unsigned int threads = 256;
+   const std::size_t count = layout.real_cells * 3 * desc.ensembles;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>((count + threads - 1) / threads, 65535));
+   accumulate_dipole_energy<<<blocks, threads, 0, stream>>>(moments_real.data(), fields_real.data(), energyM.data(),
+                                                              layout.real_cells, desc.ensembles,
+                                                              static_cast<real>(desc.field_prefactor),
+                                                              static_cast<real>(1) / static_cast<real>(atom_count));
+   if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole energy-reduction launch failed");
+   // Acceptance-only trace seam.  Normal field evaluation never enters this
+   // branch and therefore remains free of host synchronization.
+   if(std::getenv("UPPASD_GPU_TEST_TRACE_DIP_ENERGY")) {
+      if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS)
+         throw std::runtime_error("GPU dipole energy trace synchronization failed");
+      std::vector<real> trace(desc.ensembles * 7);
+      if(GPU_MEMCPY(trace.data(), energyM.data(), trace.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+         throw std::runtime_error("GPU dipole energy trace download failed");
+      for(unsigned int ensemble = 0; ensemble < desc.ensembles; ++ensemble)
+         std::printf("GPU_TEST_DIP_ENERGY ensemble=%u total=%.17e dip=%.17e\n", ensemble,
+                     static_cast<double>(trace[ensemble + desc.ensembles * 5]),
+                     static_cast<double>(trace[ensemble + desc.ensembles * 6]));
+   }
 }
 
 std::vector<real> GpuDipoleConvolution::diagnosticFieldsForTesting() const {

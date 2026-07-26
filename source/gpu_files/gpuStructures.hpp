@@ -253,7 +253,10 @@ struct deviceEnergies {
    //GpuTensor<real, 1> tensorM;
    //GpuTensor<real, 1> extM;
 
-   GpuTensor<real,2> energyM; //0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
+   // 0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total,
+   // 6 - periodic FFT dipole.  All entries are per atom in T*mu_B before
+   // the common measurement conversion to mRy/atom.
+   GpuTensor<real,2> energyM;
 
 };
 

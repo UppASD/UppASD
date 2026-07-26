@@ -2,11 +2,13 @@
 #include "c_helper.h"
 #include "stopwatchPool.hpp"
 #include "gpuParallelizationHelper.hpp"
+#include <cstdlib>
 #include <iostream>
 #include "gpu_wrappers.h"
 
 #include "measurementQueue.hpp"
 #include <stdexcept>
+#include <vector>
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
@@ -81,7 +83,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , do_ene(*FortranData::do_ene)
 , ene_step(*FortranData::ene_step)
 , ene_buff(*FortranData::ene_buff)
-, ene_types(6)
+, ene_types(kernels::measurement::N_ENERGY_TYPES)
 , mub(9.274009994e-24)
 , mry(2.179872325e-21)
 , fcinv(mub / mry)
@@ -531,11 +533,13 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     if (do_gpu_measurements && (do_ene==1))
     {
-        measureEnergy(mstep);
-        stopwatch.add("energy");
-
+        // The final state has already gone through hamCalc.heisge(..., true)
+        // and measureEnergy in SDmphase.  Flushing must only drain a partial
+        // buffer; sampling again can duplicate an iteration after its energy
+        // buffer was reset and is not tied to a fresh Hamiltonian evaluation.
         if (energy_count > 0)
             saveToFile(MeasurementType::Energy);
+        stopwatch.add("energy");
     }
 
     if (do_cumu)
@@ -698,6 +702,22 @@ void GpuMeasurement::measureEnergy(size_t mstep)
     mm::averageEnergy_final<<<1, ene_maxBlocks, 0, workStream>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
 
+    // Acceptance-only measurement trace. It is deliberately guarded because
+    // production field/energy evaluation must not acquire a host sync.
+    if(std::getenv("UPPASD_GPU_TEST_TRACE_DIP_ENERGY")) {
+        GPU_STREAM_SYNC(workStream);
+        std::vector<kernels::measurement::EnePart> partial(energy_partial_buff.size());
+        EnergyData trace{};
+        GPU_MEMCPY(partial.data(), energy_partial_buff.data(), partial.size() * sizeof(partial[0]),
+                   GPU_MEMCPY_DEVICE_TO_HOST);
+        GPU_MEMCPY(&trace, energy_buff_gpu.data() + energy_count, sizeof(trace), GPU_MEMCPY_DEVICE_TO_HOST);
+        for(unsigned int column = 0; column < ene_types; ++column)
+            std::printf("GPU_TEST_MEAS_PARTIAL column=%u sum=%.17e\n", column,
+                        static_cast<double>(partial[column * ene_kernel_blocks.x].sum[column]));
+        std::printf("GPU_TEST_MEAS_FINAL total=%.17e dip=%.17e\n",
+                    static_cast<double>(trace.total), static_cast<double>(trace.Dip));
+    }
+
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
     //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);
     
@@ -827,6 +847,12 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
 
     case MeasurementType::Energy:
         energy_buff_cpu.copy_sync(energy_buff_gpu);
+        if(std::getenv("UPPASD_GPU_TEST_TRACE_DIP_ENERGY")) {
+            for(std::size_t sample = 0; sample < energy_count; ++sample)
+                std::printf("GPU_TEST_MEAS_CPU sample=%zu total=%.17e dip=%.17e\n", sample,
+                            static_cast<double>(energy_buff_cpu[sample].total),
+                            static_cast<double>(energy_buff_cpu[sample].Dip));
+        }
 
         measurementWriter.write(
             energy_iter.data(),

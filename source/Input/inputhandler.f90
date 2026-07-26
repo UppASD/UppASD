@@ -1089,6 +1089,10 @@ contains
                read(ifile,*,iostat=i_err) ene_step
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('ene_buff')
+               read(ifile,*,iostat=i_err) ene_buff
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_sparse')
                read(ifile,*,iostat=i_err) do_sparse
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

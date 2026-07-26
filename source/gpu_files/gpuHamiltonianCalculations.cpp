@@ -530,9 +530,41 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    numMacro = 0;
    refreshMacroMoments = false;
    const bool gpuDipoleRequested = FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0;
-   if(gpuDipoleRequested && FortranData::pme_num_macro && *FortranData::pme_num_macro > 0 &&
-      FortranData::pme_macro_grid && FortranData::NA && *FortranData::NA > 0 &&
-      !gpuHamiltonian.macro_cell_index.empty() && !gpuHamiltonian.macro_nlistsize.empty()) {
+   if(gpuDipoleRequested) {
+      // Mirror the Fortran input contract here because this is the last
+      // defensive boundary before device allocation and field dispatch.
+      if(sizeof(real) != sizeof(double))
+         throw std::runtime_error("GPU EWALD3D_FFT is accepted in fp64 only");
+      if(*FortranData::gpu_dipole_mode != 1 || !FortranData::gpu_dipole_surface ||
+         *FortranData::gpu_dipole_surface != 0 ||
+         // do_dip is exported only when the legacy macrocell path exists.
+         // EWALD3D_FFT requires do_dip=0, so the normal GPU-only case has no
+         // legacy allocation and therefore a null bridge pointer.
+         (FortranData::do_dip && *FortranData::do_dip != 0) ||
+         !FortranData::gpu_dipole_alpha || !FortranData::gpu_dipole_rcut ||
+         *FortranData::gpu_dipole_alpha != static_cast<real>(0) ||
+         *FortranData::gpu_dipole_rcut != static_cast<real>(0) || !FortranData::gpu_dipole_mesh ||
+         FortranData::gpu_dipole_mesh[0] != 0 || FortranData::gpu_dipole_mesh[1] != 0 ||
+         FortranData::gpu_dipole_mesh[2] != 0) {
+         throw std::runtime_error("GPU EWALD3D_FFT requires do_dip=0, TINFOIL, and automatic zero legacy overrides");
+      }
+      if(SimParam.NA != 1 || SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 ||
+         !FortranData::pme_num_macro || *FortranData::pme_num_macro != SimParam.N || !FortranData::pme_macro_grid ||
+         static_cast<std::size_t>(FortranData::pme_macro_grid[0]) != SimParam.N1 ||
+         static_cast<std::size_t>(FortranData::pme_macro_grid[1]) != SimParam.N2 ||
+         static_cast<std::size_t>(FortranData::pme_macro_grid[2]) != SimParam.N3) {
+         throw std::runtime_error("GPU EWALD3D_FFT is limited to NA=1 block-one regular grids");
+      }
+      if(!FortranData::pme_macro_nlistsize) throw std::runtime_error("GPU EWALD3D_FFT is missing macrocell populations");
+      for(std::size_t cell = 0; cell < SimParam.N; ++cell) {
+         if(FortranData::pme_macro_nlistsize[cell] != 1)
+            throw std::runtime_error("GPU EWALD3D_FFT rejects coarse macrocell blocks");
+      }
+      if(!FortranData::pme_num_macro || *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid ||
+         !FortranData::NA || *FortranData::NA == 0 || gpuHamiltonian.macro_cell_index.empty() ||
+         gpuHamiltonian.macro_nlistsize.empty() || gpuHamiltonian.macro_center.empty()) {
+         throw std::runtime_error("GPU EWALD3D_FFT requested without staged block-one macrocell data");
+      }
       numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
       macroMoments.Allocate(3, numMacro, SimParam.M);
@@ -557,6 +589,10 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          !dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
          throw std::runtime_error("GPU EWALD3D_FFT descriptor is invalid");
       }
+      dipoleConvolution.buildPeriodicKernel();
+      if(!dipoleConvolution.kernelReady()) {
+         throw std::runtime_error("GPU EWALD3D_FFT complete periodic kernel did not become ready");
+      }
       const auto grid = dipoleConvolution.descriptor().activeGrid();
       const auto padded = dipoleConvolution.fftLayout().real_grid;
       const auto& layout = dipoleConvolution.fftLayout();
@@ -567,20 +603,11 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       std::printf("Gpu: EWALD3D_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
                   static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
                   static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
-      std::printf("Gpu: CV6 macrocell moment aggregation prepared (%u cells, %zu ensemble%s); dipole FFT pending.\n",
+      std::printf("Gpu: EWALD3D_FFT production field/energy operator ready (%u block-one cells, %zu ensemble%s).\n",
                   numMacro, SimParam.M, SimParam.M == 1 ? "" : "s");
-   } else if(gpuDipoleRequested) {
-      throw std::runtime_error("GPU EWALD3D_FFT requested without staged macrocell data");
-   }
-   // This is deliberately after descriptor creation: a requested valid mode
-   // exercises the ownership, geometry, and memory contract, but never enters
-   // the unfinished physical field/energy path.
-   if(gpuDipoleRequested) {
-      throw std::runtime_error(
-         "GPU dipole mode was requested, but its field/energy operator is not yet available; "
-         "use gpu_dipole_mode OFF until CV6 field validation is complete");
    }
    backend = {};
+   if(gpuDipoleRequested) backend.dipole = GpuHamiltonianBackend::FftDipole;
    backend.convolution_ready = canUseLatticeConvolution(Flags, SimParam, gpuHamiltonian);
    backend.multiscale_ready = canUseMultiscaleDipole(Flags, SimParam, gpuHamiltonian);
    if(backend.multiscale_ready) {
@@ -771,6 +798,18 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       parallel.gpuAtomSiteCall(UpdateMacroMoments(macroCellIndex, gpuLattice.emomM,
                                                   macroMoments, numMacro));
    }
+   const auto addPeriodicDipole = [&]() {
+      if(backend.dipole != GpuHamiltonianBackend::FftDipole) return;
+      if(!dipoleConvolution.kernelReady() || !refreshMacroMoments || !macroCellIndex) {
+         throw std::runtime_error("GPU EWALD3D_FFT dispatch lost its ready block-one state");
+      }
+      // All operations stay on the Hamiltonian work stream: the current
+      // emomM reduction above, FFT, field scatter, and optional energy
+      // reduction therefore require no host-side synchronization.
+      dipoleConvolution.evaluate(macroMoments);
+      dipoleConvolution.addFieldsToAtoms(gpuLattice.beff, gpuLattice.eneff, macroCellIndex, N);
+      if(measure) dipoleConvolution.accumulateEnergy(gpuEnergies.energyM, N);
+   };
 
    // Kernel call
    //null_energy<<<1,1>>>(gpuLattice.energy);
@@ -801,6 +840,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
          convolution.apply(gpuLattice, external_field, anis, includeAnisotropy, nullptr,
                            energy_col, parallel.getWorkStream());
       }
+      addPeriodicDipole();
       return;
    }
 
@@ -871,5 +911,6 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
                                           }
       }     
    }
+   addPeriodicDipole();
    return;
 }

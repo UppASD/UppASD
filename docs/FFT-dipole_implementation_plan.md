@@ -1148,14 +1148,25 @@ not merely when its implementation has started.
     oracle comparisons, spectral validation, metamorphic GPU tests, and the
     reciprocal-test helper correction described below.
 
-  Status: complete after Terra's E2 closure and CUDA acceptance rerun. The
-  independent oracle matrix, explicit-alpha invariance, translation,
-  sign-flip, zero-moment, changed-moment, M=4 isolation, reciprocal-helper,
-  finite/conjugacy/Hermitian checks, and compute-sanitizer gates all pass.
-  HIP compilation/runtime remains deferred by maintainer decision while ROCm
-  access is unavailable.
-- [ ] **WP5 — Production fp64 `NA=1` spin-dynamics field and energy wiring**
+  Status: complete for the accepted CUDA fp64 `NA=1` WP4b scope. Terra's
+  CUDA CTest and compute-sanitizer run passed; the independent Python oracle
+  self-check passed on commit `ab4c5518a7b22078f69900ba028073e280710468`.
+  Maximum GPU-vs-independent-oracle errors were `3.89e-16` field and
+  `1.81e-16` energy; maximum GPU-vs-host-convolution errors were
+  `1.78e-14` field and `1.14e-13` energy. Alpha, translation, sign-flip,
+  zero-moment, changed-moment, M=4 isolation, reciprocity, Hermitian, and
+  compute-sanitizer gates passed. HIP compilation/runtime remains deferred by
+  maintainer decision while ROCm access is unavailable. Independent `NA>1`
+  physics coverage remains WP6, and production wiring remains WP5.
+- [x] **WP5 — Production fp64 `NA=1` spin-dynamics field and energy wiring**
   (Terra; depends on WP4b acceptance).
+
+  Closed 2026-07-26. CUDA fp64 `ctest --test-dir build_ab --output-on-failure`
+  passed all 6 tests, including `dipole-gpu-wp5-e2e`; `compute-sanitizer
+  --tool memcheck --error-exitcode 1 build_ab/bin/dipole_gpu_fft_tests` reported
+  `ERROR SUMMARY: 0 errors`. WP5 E2E maximum errors were
+  `4.3719150199989277e-40 T` (field), `3.8376175788916486e-43 mRy/atom`
+  (energy), and `2.6189900457383946e-40` (exchange-plus-dipole delta).
 - [ ] **WP6 — Multi-basis block-one support** (Terra implementation, Luna
   acceptance; depends on WP5).
 - [ ] **WP7 — Optimized reciprocal-alias builder and automatic-construction

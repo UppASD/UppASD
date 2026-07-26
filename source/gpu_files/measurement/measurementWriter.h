@@ -61,6 +61,12 @@ void MeasurementWriter::write(const Iter_t* iteration, const Data_t* data, size_
         MeasurementTraits<Data_t>::print(data[i], out, colWidth, do_jtensor);
         out << '\n';
     }
+    // GPU measurement and legacy Fortran writers may share an output phase.
+    // Commit this batch before returning so its visibility does not depend on
+    // the C++ object's later destruction order.
+    out.flush();
+    if (!out)
+        throw std::runtime_error("Could not write measurement output");
 }
 
 
@@ -74,6 +80,9 @@ void MeasurementWriter::writeEnergyStd(const Iter_t* iteration, const EnergyData
         MeasurementTraits<EnergyStdData>::print({data[i]}, out, colWidth, do_jtensor);
         out << '\n';
     }
+    out.flush();
+    if (!out)
+        throw std::runtime_error("Could not write measurement standard-deviation output");
 }
 
 

@@ -17,7 +17,7 @@ namespace kernels::measurement
     struct AvgMPart   { real mx, my, mz, m, m2; };
     struct BinderPart { real s1, s2, s4;};
     struct SumPart    { real s; };
-    constexpr int N_ENERGY_TYPES = 6;
+    constexpr int N_ENERGY_TYPES = 7;
     constexpr int N_BINDER_TYPES = 3;
 
     enum EnergyType : int
@@ -28,6 +28,7 @@ namespace kernels::measurement
         EXT    = 3,
         TENSOR = 4,
         TOTAL  = 5,
+        DIP    = 6,
     };
 
     struct EnePart

@@ -896,6 +896,13 @@ if(BUILD_TESTING)
          target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
+      # This invokes the real UppASD GPU SD executable: descriptor/kernel
+      # construction, macro-moment refresh, predictor/corrector dispatch, and
+      # the GPU measurement writer are checked against the independent oracle.
+      add_test(NAME dipole-gpu-wp5-e2e
+         COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/run_wp5_e2e.py
+                 --binary ${TestBinary})
+      set_property(TEST dipole-gpu-wp5-e2e PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
 endif()
 message(STATUS "Output binary:  ${TestBinary}")

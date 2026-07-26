@@ -1,0 +1,31 @@
+{
+  "schema": "uppasd-wp5-production-oracle-v1",
+  "provenance": {
+    "generator": "generate_wp5_production_goldens.py",
+    "oracle": "periodic_ewald_reference.evaluate_converged",
+    "tolerance": 1e-13,
+    "max_shell": 16,
+    "replicated_uniform_supercells": "derived from the primitive independent oracle by periodic replication",
+    "convention": "dimensionless B = Hessian(1/r) m; E = -0.5 sum m dot B; tin-foil 3D periodic"
+  },
+  "cases": {
+    "one_cell_uniform": {
+      "grid": [1, 1, 1],
+      "cell": [[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
+      "moments": [[1.0, -0.2, 0.4]],
+      "fields": [[0.1551403779550515, -0.03102807559101027, 0.062056151182020555]],
+      "energy_total": -0.0930842267730309
+    },
+    "three_cell_uniform": {
+      "grid": [3, 1, 1],
+      "cell": [[9.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
+      "moments": [[1.0, -0.2, 0.4], [1.0, -0.2, 0.4], [1.0, -0.2, 0.4]],
+      "fields": [
+        [0.1551403779550515, -0.03102807559101027, 0.062056151182020555],
+        [0.1551403779550515, -0.03102807559101027, 0.062056151182020555],
+        [0.1551403779550515, -0.03102807559101027, 0.062056151182020555]
+      ],
+      "energy_total": -0.27925268031909267
+    }
+  }
+}

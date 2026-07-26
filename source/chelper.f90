@@ -315,8 +315,11 @@ contains
          beff,beff1,beff3,coord,ham%ind_list_full,ham%ind_nlistsize,ham%ind_nlist,  &
          ham%max_no_neigh_ind,ham%sus_ind,do_mom_legacy,mode)
 
-      ! Calculate total and term resolved energies
-         if(plotenergy>0) then
+      ! GPU measurements own the energy reduction and totenergy writer.  In that
+      ! mode do_dip intentionally remains zero on the Fortran side, so invoking
+      ! the legacy calculator here would append a competing all-zero Dip/total
+      ! row after the GPU writer has produced the physical result.
+         if(plotenergy>0 .and. do_gpu_measurements /= 'Y') then
             if (mod(ext_mstep-1,ene_step)==0) then
                call calc_energy(nHam,ext_mstep,Natom,Nchmax, &
                   conf_num,Mensemble,Natom,Num_macro,1,         &

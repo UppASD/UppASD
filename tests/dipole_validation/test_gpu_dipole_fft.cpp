@@ -425,6 +425,168 @@ void runAlphaAndPropertySuite() {
                translation_error, sign_error, zero_error, changed_energy_error, isolation_error);
 }
 
+void runProductionSliceSuite() {
+   // This is deliberately the narrow WP5 contract: NA=1, block one, and the
+   // complete kernel constructed automatically by the production API.  The
+   // expected numbers remain the independent dimensionless oracle fixture;
+   // this test applies the physical Tesla/mRy conversion only at its boundary.
+   constexpr double mu_b = 9.274009994e-24;
+   constexpr double mry = 2.179872325e-21;
+   constexpr double tolerance = 3.0e-10;
+   double maximum_field_tesla = 0.0, maximum_energy_mry = 0.0;
+   double changed_field_error = 0.0, changed_energy_error = 0.0, zero_field_error = 0.0, zero_energy_error = 0.0;
+   for(const auto& oracle : gpu_ewald_golden_v1::cases) {
+      const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
+      const std::size_t ncell = cells(grid);
+      const std::size_t count = 3 * ncell * oracle.ensembles;
+      const double prefactor = 1.0e-7 * mu_b; // alat=1 in descriptor().
+      const std::vector<double> moments(oracle.moments, oracle.moments + count);
+      // Seed values use the physical scale of this tiny fixture.  A literal
+      // Tesla-scale offset would round away every dipole contribution in fp64
+      // and would not test additive scatter at all.
+      const real field_seed = static_cast<real>(0.125 * prefactor);
+      const real total_energy_seed = static_cast<real>(0.375 * prefactor);
+      std::vector<real> seeded_fields(count, field_seed);
+      std::vector<real> seeded_energy(7 * oracle.ensembles, static_cast<real>(0));
+      for(std::size_t ensemble = 0; ensemble < oracle.ensembles; ++ensemble)
+         seeded_energy[ensemble + oracle.ensembles * 5] = total_energy_seed;
+      std::vector<unsigned int> map(ncell);
+      for(std::size_t cell = 0; cell < ncell; ++cell) map[cell] = static_cast<unsigned int>(cell + 1);
+      GpuTensor<real, 3> device_moments, beff, eneff;
+      GpuTensor<unsigned int, 1> device_map;
+      GpuTensor<real, 2> energy;
+      GPU_STREAM_T stream{};
+      if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU production-slice stream creation failed");
+      try {
+         device_moments.Allocate(3L, static_cast<long int>(ncell), static_cast<long int>(oracle.ensembles));
+         beff.Allocate(3L, static_cast<long int>(ncell), static_cast<long int>(oracle.ensembles));
+         eneff.Allocate(3L, static_cast<long int>(ncell), static_cast<long int>(oracle.ensembles));
+         device_map.Allocate(static_cast<long int>(ncell));
+         energy.Allocate(static_cast<long int>(oracle.ensembles), 7L);
+         if(GPU_MEMCPY(device_moments.data(), moments.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(device_map.data(), map.data(), ncell * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production-slice input upload failed");
+         if(GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(eneff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(energy.data(), seeded_energy.data(), seeded_energy.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production-slice seed upload failed");
+         GpuDipoleConvolution solver;
+         if(!solver.initiate(descriptor(grid, 1, static_cast<unsigned int>(oracle.ensembles), oracle.H), stream))
+            throw std::runtime_error("GPU production-slice plan initiation failed");
+         solver.buildPeriodicKernel();
+         if(!solver.kernelReady()) throw std::runtime_error("GPU production-slice kernel did not become ready");
+         solver.evaluate(device_moments);
+         solver.addFieldsToAtoms(beff, eneff, device_map.data(), ncell);
+         solver.accumulateEnergy(energy, ncell);
+         if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU production-slice synchronization failed");
+         std::vector<real> actual_fields(count), actual_eneff(count), actual_energy(7 * oracle.ensembles);
+         if(GPU_MEMCPY(actual_fields.data(), beff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+            GPU_MEMCPY(actual_eneff.data(), eneff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+            GPU_MEMCPY(actual_energy.data(), energy.data(), actual_energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production-slice output download failed");
+         for(std::size_t index = 0; index < count; ++index) {
+            const double expected = field_seed + prefactor * oracle.fields[index];
+            maximum_field_tesla = std::max(maximum_field_tesla, std::abs(actual_fields[index] - expected));
+            maximum_field_tesla = std::max(maximum_field_tesla, std::abs(actual_eneff[index] - expected));
+         }
+         for(std::size_t ensemble = 0; ensemble < oracle.ensembles; ++ensemble) {
+            const double expected_mry = oracle.energies[ensemble] * prefactor * mu_b / mry / static_cast<double>(ncell);
+            const double dip_mry = actual_energy[ensemble + oracle.ensembles * 6] * mu_b / mry;
+            const double total_mry = actual_energy[ensemble + oracle.ensembles * 5] * mu_b / mry;
+            maximum_energy_mry = std::max(maximum_energy_mry, std::abs(dip_mry - expected_mry));
+            maximum_energy_mry = std::max(maximum_energy_mry,
+                                           std::abs(total_mry - (total_energy_seed * mu_b / mry + expected_mry)));
+         }
+
+         // Repeat the exact production scatter/reduction path with changed
+         // current moments.  This is the buffer-lifetime analogue of the SD
+         // predictor/corrector calls: ensemble zero is sign-flipped while all
+         // other ensembles must stay isolated.
+         auto changed = moments;
+         const std::size_t per_ensemble = 3 * ncell;
+         for(std::size_t index = 0; index < per_ensemble; ++index) changed[index] = -changed[index];
+         if(GPU_MEMCPY(device_moments.data(), changed.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(eneff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(energy.data(), seeded_energy.data(), seeded_energy.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production changed-moment upload failed");
+         solver.evaluate(device_moments);
+         solver.addFieldsToAtoms(beff, eneff, device_map.data(), ncell);
+         solver.accumulateEnergy(energy, ncell);
+         if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU production changed-moment synchronization failed");
+         std::vector<real> changed_fields(count), changed_energy(7 * oracle.ensembles);
+         if(GPU_MEMCPY(changed_fields.data(), beff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+            GPU_MEMCPY(changed_energy.data(), energy.data(), changed_energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production changed-moment download failed");
+         for(std::size_t index = 0; index < count; ++index) {
+            const bool changed_ensemble = index < per_ensemble;
+            const double expected = field_seed + (changed_ensemble ? -1.0 : 1.0) * prefactor * oracle.fields[index];
+            changed_field_error = std::max(changed_field_error, std::abs(changed_fields[index] - expected));
+         }
+         for(std::size_t ensemble = 0; ensemble < oracle.ensembles; ++ensemble) {
+            const double expected = oracle.energies[ensemble] * prefactor / static_cast<double>(ncell);
+            changed_energy_error = std::max(changed_energy_error,
+                                             std::abs(changed_energy[ensemble + oracle.ensembles * 6] - expected));
+            changed_energy_error = std::max(changed_energy_error,
+                                             std::abs(changed_energy[ensemble + oracle.ensembles * 5] -
+                                                      (total_energy_seed + expected)));
+         }
+
+         // A second changed evaluation with a zero first ensemble must not
+         // retain either its former field or energy contribution.
+         std::fill(changed.begin(), changed.begin() + per_ensemble, 0.0);
+         if(GPU_MEMCPY(device_moments.data(), changed.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(eneff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+            GPU_MEMCPY(energy.data(), seeded_energy.data(), seeded_energy.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production zero-moment upload failed");
+         solver.evaluate(device_moments);
+         solver.addFieldsToAtoms(beff, eneff, device_map.data(), ncell);
+         solver.accumulateEnergy(energy, ncell);
+         if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU production zero-moment synchronization failed");
+         std::vector<real> zero_fields(count), zero_energy(7 * oracle.ensembles);
+         if(GPU_MEMCPY(zero_fields.data(), beff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+            GPU_MEMCPY(zero_energy.data(), energy.data(), zero_energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+            throw std::runtime_error("GPU production zero-moment download failed");
+         for(std::size_t index = 0; index < count; ++index) {
+            const bool zeroed_ensemble = index < per_ensemble;
+            const double expected = field_seed + (zeroed_ensemble ? 0.0 : prefactor * oracle.fields[index]);
+            zero_field_error = std::max(zero_field_error, std::abs(zero_fields[index] - expected));
+         }
+         for(std::size_t ensemble = 0; ensemble < oracle.ensembles; ++ensemble) {
+            const double expected = ensemble == 0 ? 0.0 : oracle.energies[ensemble] * prefactor / static_cast<double>(ncell);
+            zero_energy_error = std::max(zero_energy_error,
+                                          std::abs(zero_energy[ensemble + oracle.ensembles * 6] - expected));
+            zero_energy_error = std::max(zero_energy_error,
+                                          std::abs(zero_energy[ensemble + oracle.ensembles * 5] -
+                                                   (total_energy_seed + expected)));
+         }
+         solver.release();
+         energy.Free(); device_map.Free(); eneff.Free(); beff.Free(); device_moments.Free();
+         if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("GPU production-slice stream destruction failed");
+      } catch(...) {
+         if(!energy.empty()) energy.Free();
+         if(!device_map.empty()) device_map.Free();
+         if(!eneff.empty()) eneff.Free();
+         if(!beff.empty()) beff.Free();
+         if(!device_moments.empty()) device_moments.Free();
+         GPU_STREAM_DESTROY(stream);
+         throw;
+      }
+   }
+   if(maximum_field_tesla > tolerance * (1.0e-7 * mu_b) ||
+      maximum_energy_mry > tolerance * (1.0e-7 * mu_b) * mu_b / mry ||
+      changed_field_error > tolerance * (1.0e-7 * mu_b) ||
+      changed_energy_error > tolerance * (1.0e-7 * mu_b) ||
+      zero_field_error > tolerance * (1.0e-7 * mu_b) ||
+      zero_energy_error > tolerance * (1.0e-7 * mu_b)) {
+      throw std::runtime_error("GPU production Tesla/mRy acceptance exceeds the WP5 fp64 budget");
+   }
+   std::printf("production-slice max_field_tesla_error=%.17g max_energy_mry_error=%.17g changed_field_error=%.17g changed_energy_error=%.17g zero_field_error=%.17g zero_energy_error=%.17g\n",
+               maximum_field_tesla, maximum_energy_mry, changed_field_error, changed_energy_error,
+               zero_field_error, zero_energy_error);
+}
+
 } // namespace
 
 int main() {
@@ -434,6 +596,7 @@ int main() {
       runPeriodicSuite();
       runIndependentOracleSuite();
       runAlphaAndPropertySuite();
+      runProductionSliceSuite();
    } catch(const std::exception& error) {
       std::fprintf(stderr, "FAIL GPU dipole FFT convolution: %s\n", error.what());
       return 1;

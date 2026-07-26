@@ -1460,6 +1460,12 @@ contains
       if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT') then
          error stop 'Only gpu_dipole_mode OFF or EWALD3D_FFT is supported'
       endif
+      ! This first production slice owns only the GPU spin-dynamics path.
+      ! Reject both a production MC mode and an MC-like initial phase before
+      ! any GPU dipole layout or device allocation is attempted.
+      if (trim(mode) /= 'S' .or. (trim(ipmode) /= 'N' .and. trim(ipmode) /= 'S')) then
+         error stop 'EWALD3D_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
+      endif
       if (ham_inp%do_dip /= 0) then
          error stop 'EWALD3D_FFT requires do_dip=0; legacy and GPU dipoles cannot be combined'
       endif
@@ -1482,6 +1488,9 @@ contains
           mod(N1,block_size_x) /= 0 .or. mod(N2,block_size_y) /= 0 .or. &
           mod(N3,block_size_z) /= 0) then
          error stop 'EWALD3D_FFT requires positive macrocell blocks that divide N1, N2, and N3'
+      endif
+      if (block_size_x /= 1 .or. block_size_y /= 1 .or. block_size_z /= 1) then
+         error stop 'EWALD3D_FFT currently accepts block-one macrocells only'
       endif
       if (do_gpu_mc == 'Y') then
          error stop 'EWALD3D_FFT is not available with GPU Monte Carlo'

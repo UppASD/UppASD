@@ -788,13 +788,14 @@ __global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real
     real ene2 = 0;
 
     // energyM is stored as {exchange, anisotropy, DM, tensor, external,
-    // total}; EnergyType is ordered for the output format instead.
+    // total, dipole}; EnergyType is ordered for the output format instead.
     int energy_column = etype;
     switch (etype) {
         case DM:     energy_column = 2; break;
         case ANI:    energy_column = 1; break;
         case EXT:    energy_column = 4; break;
         case TENSOR: energy_column = 3; break;
+        case DIP:    energy_column = 6; break;
         default: break; // EXCH and TOTAL have matching indices.
     }
 
@@ -854,112 +855,43 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
 {
     constexpr int N = N_ENERGY_TYPES;
 
-    __shared__ real sums[N][32];
-    __shared__ real sums2[N][32];
+    // The parallel partial kernel has already reduced all ensembles into at
+    // most 1024 blocks. Finalizing seven columns serially is negligible and
+    // avoids an M-dependent cross-warp aggregation bug in the former final
+    // kernel (visible as zero total/Dip output for M>1).
+    if(threadIdx.x != 0) return;
 
-    real local[N]  = {};
+    real local[N] = {};
     real local2[N] = {};
-
-    int tid  = threadIdx.x;
-    int lane = tid & (WARPSIZE - 1);
-    int warp = tid / WARPSIZE;
-
-
-    if (tid < nblocks_x)
-    {
+    for(uint block = 0; block < nblocks_x; ++block) {
         #pragma unroll
-        for (int t = 0; t < N; ++t)
-        {
-            // averageEnergy_partial stores one component per grid.y row.
-            // Reading block_parts[tid] for every component reads only the
-            // exchange row, which made Tot and all non-exchange outputs zero.
-            const EnePart& p = block_parts[t * nblocks_x + tid];
-            local[t]  = p.sum[t];
-            local2[t] = p.sum2[t];
+        for(int t = 0; t < N; ++t) {
+            const EnePart& p = block_parts[t * nblocks_x + block];
+            local[t] += p.sum[t];
+            local2[t] += p.sum2[t];
         }
     }
-
     #pragma unroll
-    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-    {
-        #pragma unroll
-        for (int t = 0; t < N; ++t)
-        {
-            local[t]  += SHFL_DOWN(local[t], offset);
-            local2[t] += SHFL_DOWN(local2[t], offset);
-        }
+    for(int t = 0; t < N; ++t) {
+        local[t] /= static_cast<real>(M);
+        local2[t] /= static_cast<real>(M);
     }
 
+    ene.exchange  = local[EXCH]*fcinv;
+    ene.DM        = local[DM]*fcinv;
+    ene.anisotropy= local[ANI]*fcinv;
+    ene.Zeeman    = local[EXT]*fcinv;
+    ene.pair      = local[TENSOR]*fcinv;
+    ene.total     = local[TOTAL]*fcinv;
+    ene.Dip       = local[DIP]*fcinv;
 
-    if (lane == 0)
-    {
-        #pragma unroll
-        for (int t = 0; t < N; ++t)
-        {
-            sums[t][warp]  = local[t];
-            sums2[t][warp] = local2[t];
-        }
-    }
-
-    __syncthreads();
-
-    int num_warps = (blockDim.x + WARPSIZE - 1) / WARPSIZE;
-
-    if (warp == 0)
-    {
-        #pragma unroll
-        for (int t = 0; t < N; ++t)
-        {
-            local[t]  = (lane < num_warps) ? sums[t][lane]  : (real)0;
-            local2[t] = (lane < num_warps) ? sums2[t][lane] : (real)0;
-        }
-
-        #pragma unroll
-        for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
-        {
-            #pragma unroll
-            for (int t = 0; t < N; ++t)
-            {
-                local[t]  += SHFL_DOWN(local[t], offset);
-                local2[t] += SHFL_DOWN(local2[t], offset);
-            }
-        }
-    }
-
-    if (tid == 0)
-    {
-        #pragma unroll
-        for (int t = 0; t < N; ++t)
-        {
-            local[t]  /= static_cast<real>(M);
-            local2[t] /= static_cast<real>(M);
-        }
-
-        ene.exchange  = local[EXCH]*fcinv;
-        ene.DM        = local[DM]*fcinv;
-        ene.anisotropy= local[ANI]*fcinv;
-        ene.Zeeman    = local[EXT]*fcinv;
-        ene.pair      = local[TENSOR]*fcinv;
-        ene.total     = local[TOTAL]*fcinv;
-
-        ene.std_exchange =
-            sqrt(fmax(local2[EXCH] - local[EXCH]*local[EXCH], real(0)))*fcinv;
-
-        ene.std_DM =
-            sqrt(fmax(local2[DM] - local[DM]*local[DM], real(0)))*fcinv;
-
-        ene.std_anisotropy =
-            sqrt(fmax(local2[ANI] - local[ANI]*local[ANI], real(0)))*fcinv;
-
-        ene.std_Zeeman =
-            sqrt(fmax(local2[EXT] - local[EXT]*local[EXT], real(0)))*fcinv;
-
-        ene.std_pair =
-            sqrt(fmax(local2[TENSOR] - local[TENSOR]*local[TENSOR], real(0)))*fcinv;
-
-        ene.std_total =
-            sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)))*fcinv;
-    }
+    ene.std_exchange  = sqrt(fmax(local2[EXCH] - local[EXCH]*local[EXCH], real(0)))*fcinv;
+    ene.std_DM        = sqrt(fmax(local2[DM] - local[DM]*local[DM], real(0)))*fcinv;
+    ene.std_anisotropy= sqrt(fmax(local2[ANI] - local[ANI]*local[ANI], real(0)))*fcinv;
+    ene.std_Zeeman    = sqrt(fmax(local2[EXT] - local[EXT]*local[EXT], real(0)))*fcinv;
+    ene.std_pair      = sqrt(fmax(local2[TENSOR] - local[TENSOR]*local[TENSOR], real(0)))*fcinv;
+    ene.std_total     = sqrt(fmax(local2[TOTAL] - local[TOTAL]*local[TOTAL], real(0)))*fcinv;
+    ene.std_Dip       = sqrt(fmax(local2[DIP] - local[DIP]*local[DIP], real(0)))*fcinv;
 }
 
 // ============================================================================

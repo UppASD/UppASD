@@ -149,10 +149,24 @@ public:
                                        bool validate_physics = true);
    void uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel);
 
+   // Production construction uses the same fp64 Builder-A contract accepted
+   // in WP4.  Alpha/cutoff selection remains internal to the builder.
+   void buildPeriodicKernel();
+
    // The only runtime operator primitive in this slice.  It performs packed
    // R2C, block contraction, and raw C2R; the stored spectrum owns the sole
    // 1/Ngrid normalization.
    void evaluate(const GpuTensor<real, 3>& macro_moments);
+
+   // WP5's accepted slice is NA=1/block-one.  The field produced by evaluate
+   // is scaled from its dimensionless kernel convention exactly once here and
+   // added to the already assembled Hamiltonian fields.  Energy is reduced
+   // from those exact packed macro fields, in the pre-mRy (Tesla * mu_B)
+   // convention used by deviceEnergies::energyM.
+   void addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<real, 3>& eneff,
+                         const unsigned int* macro_cell_index,
+                         std::size_t atom_count);
+   void accumulateEnergy(GpuTensor<real, 2>& energyM, std::size_t atom_count);
 
    // Explicitly diagnostic readback APIs.  They synchronize and are intended
    // only for the standalone GPU tests while simulation dispatch remains off.

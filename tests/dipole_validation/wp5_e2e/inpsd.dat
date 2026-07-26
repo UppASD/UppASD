@@ -1,0 +1,44 @@
+simid wp5_111
+ncell 1 1 1
+BC P P P
+cell 3.0 0.0 0.0
+     0.0 3.0 0.0
+     0.0 0.0 3.0
+Sym 0
+
+posfile ./posfile
+momfile ./momfile
+exchange ./jfile
+do_prnstruct 0
+
+Initmag 3
+SDEalgh 5
+Mensemble 1
+ip_mode N
+mode S
+temp 0.0
+damping 0.01
+Nstep 1
+timestep 1.0d-16
+
+plotenergy 1
+ene_step 1
+ene_buff 1
+do_avrg N
+do_cumu N
+do_tottraj N
+do_prn_beff Y
+beff_step 1
+beff_buff 1
+
+do_gpu Y
+do_gpu_llg Y
+do_gpu_measurements Y
+do_gpu_correlations N
+do_gpu_convolution N
+
+alat 1.0
+gpu_dipole_mode EWALD3D_FFT
+gpu_dipole_surface TINFOIL
+gpu_dipole_tol 1.0d-10
+gpu_dipole_mesh 0 0 0

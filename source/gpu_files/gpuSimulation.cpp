@@ -382,7 +382,7 @@ std::size_t latticeBytes(const Flag& F, const SimulationParameters& P, bool is_m
 }
 
 std::size_t energiesBytes(const Flag& F, const SimulationParameters& P) {
-   return (F.do_ene > 0 ? P.M * 6 : static_cast<std::size_t>(1)) * sizeof(real); // energyM
+   return (F.do_ene > 0 ? P.M * 7 : static_cast<std::size_t>(1)) * sizeof(real); // energyM
 }
 
 // Mirror of GpuHamiltonianCalculations::canUseLatticeConvolution parameter gates:
@@ -450,9 +450,23 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
 
    std::size_t freeB = 0, totalB = 0;
    const bool haveInfo = (GPU_MEM_GET_INFO(&freeB, &totalB) == GPU_SUCCESS);
+   // Test-only deterministic preflight seam.  A real free-memory query is
+   // inherently machine-dependent, so acceptance coverage can cap it and
+   // prove that the rejection happens before the normal allocation phase.
+   // It is intentionally opt-in and has no effect on normal evaluations.
+   bool effectiveHaveInfo = haveInfo;
+   if(const char* testFree = std::getenv("UPPASD_GPU_TEST_FREE_BYTES")) {
+      char* end = nullptr;
+      const unsigned long long parsed = std::strtoull(testFree, &end, 10);
+      if(end != testFree && *end == '\0' && parsed > 0) {
+         freeB = static_cast<std::size_t>(parsed);
+         totalB = std::max(totalB, freeB);
+         effectiveHaveInfo = true;
+      }
+   }
    const char* skip = std::getenv("UPPASD_GPU_SKIP_BUDGET");
    const bool bypass = (skip != nullptr && skip[0] != '\0');
-   const bool overBudget = haveInfo && (static_cast<double>(total) > 0.90 * static_cast<double>(freeB));
+   const bool overBudget = effectiveHaveInfo && (static_cast<double>(total) > 0.90 * static_cast<double>(freeB));
 
    if(overBudget && !bypass) {
       std::sort(lines.begin(), lines.end(),
@@ -483,7 +497,7 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
       std::exit(EXIT_FAILURE);
    }
 
-   if(haveInfo) {
+   if(effectiveHaveInfo) {
       std::printf("Gpu: projected device use %s of %.3f GB free (%.3f GB total)%s\n",
                   formatBytes(total).c_str(),
                   static_cast<double>(freeB) / 1e9, static_cast<double>(totalB) / 1e9,
@@ -501,6 +515,9 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
    runIsMC = (is_mc != 0);
    if(runIsMC && FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
       throw std::runtime_error("GPU EWALD3D_FFT is not available with GPU Monte Carlo");
+   }
+   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0 && sizeof(real) != sizeof(double)) {
+      throw std::runtime_error("GPU EWALD3D_FFT is accepted in fp64 only");
    }
    // Dimensions
    printf("Initiate matrices GPU -1 (is_mc=%d)\n", is_mc);
@@ -605,7 +622,7 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
         //gpuEnergies.dmM.Allocate(M);
         //gpuEnergies.extM.Allocate(M);
         //gpuEnergies.tensorM.Allocate(M);
-        gpuEnergies.energyM.Allocate(M, static_cast <long int>(6));
+        gpuEnergies.energyM.Allocate(M, static_cast <long int>(7));
 
     }
     else{ 
