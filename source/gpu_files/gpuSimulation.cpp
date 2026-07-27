@@ -413,6 +413,7 @@ std::size_t cv6DipoleBytes(const SimulationParameters& P) {
    input.c1 = P.C1;
    input.c2 = P.C2;
    input.c3 = P.C3;
+   input.basis_offsets = P.Bas;
    // The preflight owns no device geometry; the same descriptor factory only
    // needs its shape/count contract here. Runtime supplies the device centres.
    input.macro_centers = nullptr;

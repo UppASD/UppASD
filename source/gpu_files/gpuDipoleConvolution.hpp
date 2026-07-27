@@ -76,6 +76,9 @@ struct GpuDipoleConvolutionDescriptor {
    const real* c1 = nullptr;
    const real* c2 = nullptr;
    const real* c3 = nullptr;
+   // Cartesian primitive-cell basis offsets.  The descriptor owns an fp64
+   // copy so Ewald construction does not depend on Fortran buffer lifetime.
+   std::vector<std::array<double, 3>> basis_offsets;
    // Device-resident [3, macrocell] centres from the CPU-owned PME map.
    const real* macro_centers = nullptr;
    std::size_t macro_count = 0;
@@ -110,6 +113,7 @@ struct GpuDipoleDescriptorInput {
    const real* c1 = nullptr;
    const real* c2 = nullptr;
    const real* c3 = nullptr;
+   const real* basis_offsets = nullptr; // [3, basis], Fortran column-major
    const real* macro_centers = nullptr;
    std::size_t macro_count = 0;
    double alat = 0.0;

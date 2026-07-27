@@ -178,6 +178,39 @@ def main() -> int:
         (1, 1, 1), two_basis_cell, two_basis, two_basis_moments,
         alpha=0.8, real_images=(6, 6, 6), reciprocal_images=(7, 7, 7))
 
+    # WP6 fixture: an L1_0-style two-basis lattice with deliberately skewed
+    # tetragonal vectors.  This is independent of the C++/GPU fixture and
+    # checks alpha, energy derivative, and basis-label invariance directly.
+    l10_cell = ((7.6, 0.45, 0.2), (0.7, 3.7, 0.25), (0.3, 0.2, 5.3))
+    l10_basis = ((0.0, 0.0, 0.0), (1.95, 1.65, 2.55))
+    l10_positions = grid_positions((2, 1, 1), l10_cell, l10_basis)
+    l10_moments = (
+        (0.20, -0.40, 0.10), (-0.30, 0.80, 0.10),
+        (0.26, -0.36, 0.08), (0.19, -0.08, -0.23),
+    )
+    l10_low = evaluate_converged(l10_positions, l10_moments, l10_cell, alpha=0.70,
+                                 tolerance=1e-10, max_shell=16)
+    l10_high = evaluate_converged(l10_positions, l10_moments, l10_cell, alpha=1.05,
+                                  tolerance=1e-10, max_shell=16)
+    compare(l10_low, l10_high, tolerance=3e-10)
+    for atom in range(len(l10_moments)):
+        for component in range(3):
+            derivative = finite_difference_field(
+                l10_positions, l10_moments, l10_cell, atom=atom, component=component,
+                step=1e-5, alpha=1.05, real_images=l10_high.convergence.real_images,
+                reciprocal_images=l10_high.convergence.reciprocal_images)
+            close(derivative, l10_high.fields[atom][component], tolerance=3e-8)
+    swapped_positions = (l10_positions[1], l10_positions[0], l10_positions[3], l10_positions[2])
+    swapped_moments = (l10_moments[1], l10_moments[0], l10_moments[3], l10_moments[2])
+    swapped_l10 = evaluate(swapped_positions, swapped_moments, l10_cell, alpha=1.05,
+                           real_images=l10_high.convergence.real_images,
+                           reciprocal_images=l10_high.convergence.reciprocal_images)
+    close(swapped_l10.energy, l10_high.energy, tolerance=3e-10)
+    for original, swapped in zip(l10_high.fields, (swapped_l10.fields[1], swapped_l10.fields[0],
+                                                     swapped_l10.fields[3], swapped_l10.fields[2])):
+        for left, right in zip(original, swapped):
+            close(left, right, tolerance=3e-10)
+
     # Red regression for the current single-representative reciprocal builder:
     # q=0 on a 1x1x1 mesh is not the physical k=0 term.  Every nonzero
     # reciprocal vector aliases into that bin, so the full bin is nonzero.

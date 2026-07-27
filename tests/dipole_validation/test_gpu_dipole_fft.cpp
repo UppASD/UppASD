@@ -1,6 +1,7 @@
 #include "dipoleEwaldKernel.hpp"
 #include "gpuDipoleConvolution.hpp"
 #include "gpu_ewald_goldens_v1.hpp"
+#include "gpu_ewald_multibasis_goldens_v1.hpp"
 #include "tensor.hpp"
 
 #include <algorithm>
@@ -44,7 +45,8 @@ double volume(const std::array<double, 9>& h) {
 }
 
 GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, unsigned int ensembles,
-                                          const std::array<double, 9>& h) {
+                                          const std::array<double, 9>& h,
+                                          const std::vector<std::array<double, 3>>& offsets = {}) {
    static_assert(sizeof(real) == sizeof(double), "GPU FFT validation is fp64 only");
    // The descriptor stores primitive vectors and derives H by multiplying by
    // atomistic grid extents.  The test uses the same grid for both notions.
@@ -60,6 +62,8 @@ GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, 
    result.boundary = GpuDipoleBoundaryMode::Periodic3D;
    result.discretization = GpuDipoleDiscretization::MacrospinGrid;
    result.c1 = c1.data(); result.c2 = c2.data(); result.c3 = c3.data();
+   result.basis_offsets = offsets;
+   if(result.basis_offsets.empty()) result.basis_offsets.assign(basis, {0.0, 0.0, 0.0});
    // No macro-centre data are needed for this pure convolution test.
    result.alat = 1.0;
    result.tolerance = 1.0e-10;
@@ -176,6 +180,40 @@ OperatorResult evaluateOperator(const Grid& grid, unsigned int basis, unsigned i
       solver.release();
       device_moments.Free();
       if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("GPU stream destruction failed");
+      return result;
+   } catch(...) {
+      if(!device_moments.empty()) device_moments.Free();
+      GPU_STREAM_DESTROY(stream);
+      throw;
+   }
+}
+
+// Exercise the production Builder-A entry point as well as the standalone
+// upload path.  The expected values used by its callers remain independent
+// Python-oracle fixtures.
+OperatorResult evaluateConstructedOperator(const Grid& grid, unsigned int basis, unsigned int ensembles,
+                                           const std::array<double, 9>& h,
+                                           const std::vector<std::array<double, 3>>& offsets,
+                                           const std::vector<double>& moments) {
+   const std::size_t ncell = cells(grid);
+   GpuTensor<real, 3> device_moments;
+   GPU_STREAM_T stream{};
+   if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU constructed-kernel stream creation failed");
+   try {
+      device_moments.Allocate(3L, static_cast<long int>(ncell * basis), static_cast<long int>(ensembles));
+      if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+         throw std::runtime_error("GPU constructed-kernel moment upload failed");
+      GpuDipoleConvolution solver;
+      if(!solver.initiate(descriptor(grid, basis, ensembles, h, offsets), stream))
+         throw std::runtime_error("GPU constructed-kernel plan initiation failed");
+      solver.buildPeriodicKernel();
+      if(!solver.kernelReady()) throw std::runtime_error("GPU constructed-kernel did not become ready");
+      solver.evaluate(device_moments);
+      OperatorResult result{solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+                            solver.diagnosticSpectrumForTesting()};
+      solver.release();
+      device_moments.Free();
+      if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("GPU constructed-kernel stream destruction failed");
       return result;
    } catch(...) {
       if(!device_moments.empty()) device_moments.Free();
@@ -351,6 +389,182 @@ void runIndependentOracleSuite() {
    }
    std::printf("oracle-matrix max_field_error=%.17g max_energy_error=%.17g max_reciprocity=%.17g max_hermitian=%.17g\n",
                maximum_field, maximum_energy, maximum_reciprocity, maximum_hermitian);
+}
+
+void runMultiBasisOracleSuite() {
+   constexpr double tolerance = 3.0e-10;
+   double maximum_upload_field = 0.0, maximum_upload_energy = 0.0;
+   double maximum_production_field = 0.0, maximum_production_energy = 0.0;
+   for(const auto& oracle : gpu_ewald_multibasis_golden_v1::cases) {
+      const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
+      const unsigned int basis = static_cast<unsigned int>(oracle.basis);
+      const unsigned int ensembles = static_cast<unsigned int>(oracle.ensembles);
+      std::vector<std::array<double, 3>> offsets(basis);
+      for(unsigned int channel = 0; channel < basis; ++channel)
+         for(unsigned int component = 0; component < 3; ++component)
+            offsets[channel][component] = oracle.offsets[component + 3 * channel];
+      DipolePeriodicGeometry geometry{};
+      geometry.H = oracle.H;
+      geometry.volume = volume(oracle.H);
+      geometry.Brec = reciprocal(oracle.H, geometry.volume);
+      geometry.grid = grid;
+      geometry.basis = basis;
+      geometry.basis_offsets = offsets;
+      const auto complete = buildPeriodicEwaldDisplacementKernel(geometry, {1.0e-10});
+      const std::size_t count = 3 * cells(grid) * basis * ensembles;
+      const std::vector<double> moments(oracle.moments, oracle.moments + count);
+      const auto uploaded = evaluateOperator(grid, basis, ensembles, oracle.H, complete.kernel, moments);
+      const auto constructed = evaluateConstructedOperator(grid, basis, ensembles, oracle.H, offsets, moments);
+      const auto assess = [&](const OperatorResult& result, double& max_field, double& max_energy, const char* route) {
+         const double field_error = maxDifference(result.fields, oracle.fields, count);
+         double energy_error = 0.0;
+         for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+            energy_error = std::max(energy_error, std::abs(result.energies[ensemble] - oracle.energies[ensemble]));
+         requireSpectrum(result.spectrum, oracle.name);
+         if(field_error > tolerance || energy_error > tolerance)
+            throw std::runtime_error(std::string("multi-basis independent oracle mismatch for ") + oracle.name + " via " + route);
+         max_field = std::max(max_field, field_error);
+         max_energy = std::max(max_energy, energy_error);
+         std::printf("multi-basis oracle %s route=%s max_field_error=%.17g max_energy_error=%.17g\n",
+                     oracle.name, route, field_error, energy_error);
+      };
+      assess(uploaded, maximum_upload_field, maximum_upload_energy, "upload");
+      assess(constructed, maximum_production_field, maximum_production_energy, "production-builder");
+
+      const auto low_alpha = buildPeriodicEwaldDisplacementKernel(geometry, {1.0e-10, 0.70});
+      const auto high_alpha = buildPeriodicEwaldDisplacementKernel(geometry, {1.0e-10, 1.05});
+      const auto low_result = evaluateOperator(grid, basis, ensembles, oracle.H, low_alpha.kernel, moments);
+      const auto high_result = evaluateOperator(grid, basis, ensembles, oracle.H, high_alpha.kernel, moments);
+      const double alpha_field_error = maxDifference(low_result.fields, high_result.fields.data(), count);
+      double alpha_energy_error = 0.0;
+      for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+         alpha_energy_error = std::max(alpha_energy_error,
+                                       std::abs(low_result.energies[ensemble] - high_result.energies[ensemble]));
+      if(alpha_field_error > tolerance || alpha_energy_error > tolerance)
+         throw std::runtime_error(std::string("multi-basis explicit-alpha GPU invariance failed for ") + oracle.name);
+      std::printf("multi-basis property %s alpha_field=%.17g alpha_energy=%.17g\n",
+                  oracle.name, alpha_field_error, alpha_energy_error);
+
+      // Swapping basis labels and moment channels changes labels only.  It is
+      // particularly sensitive to target/source block ordering and phase sign.
+      if(basis == 2) {
+         auto swapped_offsets = offsets;
+         std::swap(swapped_offsets[0], swapped_offsets[1]);
+         std::vector<double> swapped_moments(moments.size());
+         for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+            for(std::size_t cell = 0; cell < cells(grid); ++cell)
+               for(unsigned int component = 0; component < 3; ++component) {
+                  swapped_moments[macroIndex(component, 0, cell, basis, cells(grid), ensemble)] =
+                     moments[macroIndex(component, 1, cell, basis, cells(grid), ensemble)];
+                  swapped_moments[macroIndex(component, 1, cell, basis, cells(grid), ensemble)] =
+                     moments[macroIndex(component, 0, cell, basis, cells(grid), ensemble)];
+               }
+         const auto swapped = evaluateConstructedOperator(grid, basis, ensembles, oracle.H, swapped_offsets, swapped_moments);
+         double permutation_error = 0.0;
+         for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+            for(std::size_t cell = 0; cell < cells(grid); ++cell)
+               for(unsigned int component = 0; component < 3; ++component) {
+                  permutation_error = std::max(permutation_error, std::abs(
+                     swapped.fields[macroIndex(component, 0, cell, basis, cells(grid), ensemble)] -
+                     constructed.fields[macroIndex(component, 1, cell, basis, cells(grid), ensemble)]));
+                  permutation_error = std::max(permutation_error, std::abs(
+                     swapped.fields[macroIndex(component, 1, cell, basis, cells(grid), ensemble)] -
+                     constructed.fields[macroIndex(component, 0, cell, basis, cells(grid), ensemble)]));
+               }
+         for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+            permutation_error = std::max(permutation_error, std::abs(swapped.energies[ensemble] - constructed.energies[ensemble]));
+         if(permutation_error > tolerance)
+            throw std::runtime_error(std::string("multi-basis permutation property failed for ") + oracle.name);
+         std::printf("multi-basis property %s basis_permutation=%.17g\n", oracle.name, permutation_error);
+      }
+   }
+   std::printf("multi-basis oracle matrix upload_field=%.17g upload_energy=%.17g production_field=%.17g production_energy=%.17g\n",
+               maximum_upload_field, maximum_upload_energy, maximum_production_field, maximum_production_energy);
+}
+
+void runMultiBasisProductionSliceSuite() {
+   // This is the WP6 production boundary: basis-fast macro channels are
+   // deliberately scattered through a non-identity atom-to-macro map and the
+   // energy reduction visits every (cell,basis) channel exactly once.
+   constexpr double mu_b = 9.274009994e-24;
+   constexpr double tolerance = 3.0e-10;
+   const auto& oracle = gpu_ewald_multibasis_golden_v1::cases[1];
+   const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
+   const unsigned int basis = static_cast<unsigned int>(oracle.basis);
+   const unsigned int ensembles = static_cast<unsigned int>(oracle.ensembles);
+   const std::size_t ncell = cells(grid), atoms = ncell * basis;
+   const std::size_t count = 3 * atoms * ensembles;
+   std::vector<std::array<double, 3>> offsets(basis);
+   for(unsigned int channel = 0; channel < basis; ++channel)
+      for(unsigned int component = 0; component < 3; ++component)
+         offsets[channel][component] = oracle.offsets[component + 3 * channel];
+   const std::vector<double> moments(oracle.moments, oracle.moments + count);
+   // atom -> one-based macro, intentionally not atom order.  Macro ordering
+   // is basis + NA*cell, matching create_pme_macrocell_layout().
+   const std::vector<unsigned int> map{{3, 1, 4, 2}};
+   GpuTensor<real, 3> device_moments, beff, eneff;
+   GpuTensor<unsigned int, 1> device_map;
+   GpuTensor<real, 2> energy;
+   GPU_STREAM_T stream{};
+   if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("multi-basis production stream creation failed");
+   try {
+      device_moments.Allocate(3L, static_cast<long int>(atoms), static_cast<long int>(ensembles));
+      beff.Allocate(3L, static_cast<long int>(atoms), static_cast<long int>(ensembles));
+      eneff.Allocate(3L, static_cast<long int>(atoms), static_cast<long int>(ensembles));
+      device_map.Allocate(static_cast<long int>(atoms));
+      energy.Allocate(static_cast<long int>(ensembles), 7L);
+      if(GPU_MEMCPY(device_moments.data(), moments.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(device_map.data(), map.data(), atoms * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+         throw std::runtime_error("multi-basis production input upload failed");
+      beff.zeros_async(stream); eneff.zeros_async(stream); energy.zeros_async(stream);
+      GpuDipoleConvolution solver;
+      if(!solver.initiate(descriptor(grid, basis, ensembles, oracle.H, offsets), stream))
+         throw std::runtime_error("multi-basis production plan initiation failed");
+      solver.buildPeriodicKernel();
+      solver.evaluate(device_moments);
+      solver.addFieldsToAtoms(beff, eneff, device_map.data(), atoms);
+      solver.accumulateEnergy(energy, atoms);
+      if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("multi-basis production synchronization failed");
+      std::vector<real> actual_beff(count), actual_eneff(count), actual_energy(7 * ensembles);
+      if(GPU_MEMCPY(actual_beff.data(), beff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+         GPU_MEMCPY(actual_eneff.data(), eneff.data(), count * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+         GPU_MEMCPY(actual_energy.data(), energy.data(), actual_energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+         throw std::runtime_error("multi-basis production output download failed");
+      const double prefactor = 1.0e-7 * mu_b;
+      double field_error = 0.0, energy_error = 0.0;
+      for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+         for(std::size_t atom = 0; atom < atoms; ++atom) {
+            const std::size_t macro = map[atom] - 1;
+            const std::size_t cell = macro / basis;
+            const unsigned int channel = static_cast<unsigned int>(macro % basis);
+            for(unsigned int component = 0; component < 3; ++component) {
+               const std::size_t atom_index = component + 3 * (atom + atoms * ensemble);
+               const std::size_t field_index = macroIndex(component, channel, cell, basis, ncell, ensemble);
+               const double expected = prefactor * oracle.fields[field_index];
+               field_error = std::max(field_error, std::abs(actual_beff[atom_index] - expected));
+               field_error = std::max(field_error, std::abs(actual_eneff[atom_index] - expected));
+            }
+         }
+      for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble) {
+         const double expected = prefactor * oracle.energies[ensemble] / static_cast<double>(atoms);
+         energy_error = std::max(energy_error, std::abs(actual_energy[ensemble + ensembles * 5] - expected));
+         energy_error = std::max(energy_error, std::abs(actual_energy[ensemble + ensembles * 6] - expected));
+      }
+      if(field_error > tolerance * prefactor || energy_error > tolerance * prefactor)
+         throw std::runtime_error("multi-basis production scatter/energy exceeds the WP6 fp64 budget");
+      std::printf("multi-basis production L10-skew field_error=%.17g energy_error=%.17g\n", field_error, energy_error);
+      solver.release();
+      energy.Free(); device_map.Free(); eneff.Free(); beff.Free(); device_moments.Free();
+      if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("multi-basis production stream destruction failed");
+   } catch(...) {
+      if(!energy.empty()) energy.Free();
+      if(!device_map.empty()) device_map.Free();
+      if(!eneff.empty()) eneff.Free();
+      if(!beff.empty()) beff.Free();
+      if(!device_moments.empty()) device_moments.Free();
+      GPU_STREAM_DESTROY(stream);
+      throw;
+   }
 }
 
 void runAlphaAndPropertySuite() {
@@ -595,6 +809,8 @@ int main() {
       runDeltaSuite();
       runPeriodicSuite();
       runIndependentOracleSuite();
+      runMultiBasisOracleSuite();
+      runMultiBasisProductionSliceSuite();
       runAlphaAndPropertySuite();
       runProductionSliceSuite();
    } catch(const std::exception& error) {

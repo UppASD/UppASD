@@ -548,22 +548,22 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          FortranData::gpu_dipole_mesh[2] != 0) {
          throw std::runtime_error("GPU EWALD3D_FFT requires do_dip=0, TINFOIL, and automatic zero legacy overrides");
       }
-      if(SimParam.NA != 1 || SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 ||
+      if(SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 * SimParam.NA ||
          !FortranData::pme_num_macro || *FortranData::pme_num_macro != SimParam.N || !FortranData::pme_macro_grid ||
          static_cast<std::size_t>(FortranData::pme_macro_grid[0]) != SimParam.N1 ||
          static_cast<std::size_t>(FortranData::pme_macro_grid[1]) != SimParam.N2 ||
          static_cast<std::size_t>(FortranData::pme_macro_grid[2]) != SimParam.N3) {
-         throw std::runtime_error("GPU EWALD3D_FFT is limited to NA=1 block-one regular grids");
+         throw std::runtime_error("GPU EWALD3D_FFT requires a regular block-one basis-resolved grid");
       }
       if(!FortranData::pme_macro_nlistsize) throw std::runtime_error("GPU EWALD3D_FFT is missing macrocell populations");
-      for(std::size_t cell = 0; cell < SimParam.N; ++cell) {
+      for(std::size_t cell = 0; cell < *FortranData::pme_num_macro; ++cell) {
          if(FortranData::pme_macro_nlistsize[cell] != 1)
             throw std::runtime_error("GPU EWALD3D_FFT rejects coarse macrocell blocks");
       }
       if(!FortranData::pme_num_macro || *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid ||
          !FortranData::NA || *FortranData::NA == 0 || gpuHamiltonian.macro_cell_index.empty() ||
          gpuHamiltonian.macro_nlistsize.empty() || gpuHamiltonian.macro_center.empty()) {
-         throw std::runtime_error("GPU EWALD3D_FFT requested without staged block-one macrocell data");
+         throw std::runtime_error("GPU EWALD3D_FFT requested without staged block-one basis-resolved macrocell data");
       }
       numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
@@ -580,6 +580,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       input.c1 = SimParam.C1;
       input.c2 = SimParam.C2;
       input.c3 = SimParam.C3;
+      input.basis_offsets = SimParam.Bas;
       input.macro_centers = gpuHamiltonian.macro_center.data();
       input.macro_count = numMacro;
       input.alat = SimParam.alat;

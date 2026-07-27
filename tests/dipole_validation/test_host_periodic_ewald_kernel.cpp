@@ -1,4 +1,5 @@
 #include "dipoleEwaldKernel.hpp"
+#include "gpu_ewald_multibasis_goldens_v1.hpp"
 
 #include <algorithm>
 #include <array>
@@ -46,7 +47,8 @@ std::vector<Vector> apply(const DipoleKernelBuildResult& result, const DipolePer
                           const std::vector<Vector>& moments) {
    const auto [n1, n2, n3] = geometry.grid;
    const std::size_t cells = n1 * n2 * n3;
-   std::vector<Vector> fields(cells, {0.0, 0.0, 0.0});
+   if(moments.size() != cells * geometry.basis) throw std::runtime_error("host Ewald moment layout has the wrong basis count");
+   std::vector<Vector> fields(cells * geometry.basis, {0.0, 0.0, 0.0});
    for(std::size_t z = 0; z < n3; ++z) for(std::size_t y = 0; y < n2; ++y) for(std::size_t x = 0; x < n1; ++x) {
       const std::size_t target = x + n1 * (y + n2 * z);
       for(std::size_t sz = 0; sz < n3; ++sz) for(std::size_t sy = 0; sy < n2; ++sy) for(std::size_t sx = 0; sx < n1; ++sx) {
@@ -55,10 +57,13 @@ std::vector<Vector> apply(const DipoleKernelBuildResult& result, const DipolePer
          const std::size_t dy = (y + n2 - sy) % n2;
          const std::size_t dz = (z + n3 - sz) % n3;
          const std::size_t cell = dx + n1 * (dy + n2 * dz);
-         for(unsigned int row = 0; row < 3; ++row) for(unsigned int column = 0; column < 3; ++column) {
-            const std::size_t batch = row + 3 * column;
-            fields[target][row] += result.kernel[cell + cells * batch] * moments[source][column];
-         }
+         for(unsigned int target_basis = 0; target_basis < geometry.basis; ++target_basis)
+            for(unsigned int source_basis = 0; source_basis < geometry.basis; ++source_basis)
+               for(unsigned int row = 0; row < 3; ++row) for(unsigned int column = 0; column < 3; ++column) {
+                  const std::size_t batch = row + 3 * (column + 3 * (target_basis + geometry.basis * source_basis));
+                  fields[target_basis + geometry.basis * target][row] +=
+                     result.kernel[cell + cells * batch] * moments[source_basis + geometry.basis * source][column];
+               }
       }
    }
    return fields;
@@ -71,7 +76,7 @@ void compareFields(const std::vector<Vector>& actual, const std::vector<Vector>&
 }
 
 void checkDiagnostics(const DipoleKernelBuildResult& result, const DipolePeriodicGeometry& geom) {
-   if(result.kernel.size() != geom.grid[0] * geom.grid[1] * geom.grid[2] * 9) {
+   if(result.kernel.size() != geom.grid[0] * geom.grid[1] * geom.grid[2] * 9 * geom.basis * geom.basis) {
       throw std::runtime_error("host Ewald kernel packing has the wrong size");
    }
    if(result.diagnostics.selected.alpha <= 0.0 || result.diagnostics.setup_work == 0 ||
@@ -117,6 +122,30 @@ int main() {
       compareFields(apply(skew_result, skew, {{1.0, -0.2, 0.4}, {-0.3, 0.8, 0.1}}),
                     {{-0.14844761149081095, 0.04249102731392704, 0.05706032893486248},
                      {0.2799443305183004, 0.0559736351960156, -0.010870106834032328}});
+
+      // Independent L1_0-style two-basis fixture.  The second case is a
+      // deliberately distorted/skew supercell, so this covers basis phases
+      // and the triclinic reciprocal metric in the CPU-only Builder-A gate.
+      for(const auto& oracle : gpu_ewald_multibasis_golden_v1::cases) {
+         auto multi = geometry(oracle.H, oracle.grid);
+         multi.basis = static_cast<unsigned int>(oracle.basis);
+         multi.basis_offsets.resize(multi.basis);
+         for(unsigned int basis = 0; basis < multi.basis; ++basis)
+            for(unsigned int component = 0; component < 3; ++component)
+               multi.basis_offsets[basis][component] = oracle.offsets[component + 3 * basis];
+         const auto multi_result = buildPeriodicEwaldDisplacementKernel(multi, settings);
+         checkDiagnostics(multi_result, multi);
+         const std::size_t count = multi.grid[0] * multi.grid[1] * multi.grid[2] * multi.basis;
+         std::vector<Vector> moments(count);
+         std::vector<Vector> expected(count);
+         for(std::size_t index = 0; index < count; ++index) {
+            for(unsigned int component = 0; component < 3; ++component) {
+               moments[index][component] = oracle.moments[3 * index + component];
+               expected[index][component] = oracle.fields[3 * index + component];
+            }
+         }
+         compareFields(apply(multi_result, multi, moments), expected);
+      }
    } catch(const std::exception& error) {
       std::fprintf(stderr, "FAIL host periodic Ewald kernel: %s\n", error.what());
       return 1;
