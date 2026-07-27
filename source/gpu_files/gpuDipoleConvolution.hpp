@@ -153,8 +153,8 @@ public:
                                        bool validate_physics = true);
    void uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel);
 
-   // Production construction uses the same fp64 Builder-A contract accepted
-   // in WP4.  Alpha/cutoff selection remains internal to the builder.
+   // Production construction uses the fp64 reciprocal-alias Builder B.
+   // Builder A remains available above as the validation/reference path.
    void buildPeriodicKernel();
 
    // The only runtime operator primitive in this slice.  It performs packed
@@ -218,4 +218,7 @@ private:
    void forwardTransformMoments();
    void applySpectralKernel();
    void inverseTransformFields();
+   void uploadRealKernelAndAliasSpectrum(const std::vector<double>& real_kernel,
+                                         const std::vector<std::complex<double>>& reciprocal_alias_spectrum,
+                                         bool validate_physics);
 };

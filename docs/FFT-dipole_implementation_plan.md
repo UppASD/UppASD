@@ -1167,10 +1167,20 @@ not merely when its implementation has started.
   `ERROR SUMMARY: 0 errors`. WP5 E2E maximum errors were
   `4.3719150199989277e-40 T` (field), `3.8376175788916486e-43 mRy/atom`
   (energy), and `2.6189900457383946e-40` (exchange-plus-dipole delta).
-- [ ] **WP6 — Multi-basis block-one support** (Terra implementation, Luna
+- [x] **WP6 — Multi-basis block-one support** (Terra implementation, Luna
   acceptance; depends on WP5).
-- [ ] **WP7 — Optimized reciprocal-alias builder and automatic-construction
+- [x] **WP7 — Optimized reciprocal-alias builder and automatic-construction
   performance** (Terra; depends on cross-builder tests from WP3/WP4).
+
+  Closed 2026-07-27.  Builder B constructs real+self in displacement space,
+  adds the reciprocal alias sum directly to the normalized R2C spectrum, and
+  remains cross-checked against Builder A on the cubic, non-cubic, skew, and
+  two-basis validation matrix.  CPU cross-builder spectrum differences were
+  at most `8.38e-17`; the host benchmark records Builder-A/B setup work and
+  construction storage for every case.  CUDA fp64 CTest passed
+  `dipole-ewald-host-builder`, `dipole-gpu-fft-convolution`, and
+  `dipole-gpu-wp5-e2e`; compute-sanitizer memcheck reported `ERROR SUMMARY: 0
+  errors`.
 - [ ] **WP8 — Coarse projected Hamiltonian** (Terra implementation, Luna
   acceptance; depends on WP6 and preferably WP7).
 - [ ] **WP9 — Performance, fp32, and CUDA/HIP parity** (depends on the
@@ -1692,7 +1702,7 @@ into production simulation dispatch.
 
 Read:
 - docs/FFT-dipole_implementation_plan.md sections 4, 9.5, and WP4b
-- Luna's WP4 acceptance report and prioritized defects
+- Luna's WP4 acceptance report and prioritized defects: docs/luna_acceptance_review.md
 - periodic_ewald_reference.py and its independent golden cases
 - dipoleEwaldKernel, gpuDipoleConvolution, and test_gpu_dipole_fft.cpp
 

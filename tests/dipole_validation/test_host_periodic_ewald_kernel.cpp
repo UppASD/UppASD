@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <stdexcept>
 #include <vector>
@@ -88,6 +89,48 @@ void checkDiagnostics(const DipoleKernelBuildResult& result, const DipolePeriodi
    close(periodicKernelReciprocityError(result.kernel, geom), result.diagnostics.max_reciprocity_error, 1.0e-13);
 }
 
+std::vector<std::complex<double>> completeAliasSpectrum(const DipoleAliasSpectrumBuildResult& result,
+                                                        const DipolePeriodicGeometry& geom) {
+   auto spectrum = referenceNormalizedKernelSpectrum(result.real_kernel, geom);
+   if(spectrum.size() != result.reciprocal_alias_spectrum.size()) {
+      throw std::runtime_error("Builder B returned a reciprocal alias spectrum with the wrong shape");
+   }
+   for(std::size_t index = 0; index < spectrum.size(); ++index) spectrum[index] += result.reciprocal_alias_spectrum[index];
+   return spectrum;
+}
+
+double maxDifference(const std::vector<std::complex<double>>& left, const std::vector<std::complex<double>>& right) {
+   if(left.size() != right.size()) throw std::runtime_error("cross-builder spectra have different shapes");
+   double maximum = 0.0;
+   for(std::size_t index = 0; index < left.size(); ++index) maximum = std::max(maximum, std::abs(left[index] - right[index]));
+   return maximum;
+}
+
+void checkAliasBuilder(const DipoleKernelBuildResult& reference, const DipolePeriodicGeometry& geom,
+                       const DipoleKernelSettings& settings) {
+   const auto alias = buildPeriodicEwaldAliasSpectrum(geom, settings);
+   if(alias.real_kernel.size() != reference.kernel.size() || alias.reciprocal_alias_spectrum.empty() ||
+      alias.diagnostics.selected.alpha <= 0.0 || alias.diagnostics.setup_work == 0 ||
+      alias.diagnostics.real_tail_residual > 3.0e-10 || alias.diagnostics.reciprocal_tail_residual > 3.0e-10 ||
+      alias.diagnostics.max_reciprocity_error > 2.0e-11) {
+      throw std::runtime_error("Builder B automatic construction diagnostics failed");
+   }
+   const double error = maxDifference(referenceNormalizedKernelSpectrum(reference.kernel, geom),
+                                      completeAliasSpectrum(alias, geom));
+   if(error > 4.0e-10) throw std::runtime_error("Builder A/B spectral equivalence exceeds the fp64 budget");
+
+   // Explicit alphas remain test-only, but Builder B must preserve the same
+   // split invariance as the accepted reference builder.
+   const auto low = buildPeriodicEwaldAliasSpectrum(geom, {settings.tolerance, 0.70});
+   const auto high = buildPeriodicEwaldAliasSpectrum(geom, {settings.tolerance, 1.05});
+   const double alpha_error = maxDifference(completeAliasSpectrum(low, geom), completeAliasSpectrum(high, geom));
+   if(alpha_error > 4.0e-10) throw std::runtime_error("Builder B explicit-alpha invariance exceeds the fp64 budget");
+   std::printf("Builder A/B benchmark: spectrum=%.3e alpha=%.3e A=%.6fs/%zu B=%.6fs/%zu real_bytes=%zu alias_bytes=%zu\n",
+               error, alpha_error, reference.diagnostics.setup_seconds, reference.diagnostics.setup_work,
+               alias.diagnostics.setup_seconds, alias.diagnostics.setup_work, alias.real_kernel.size() * sizeof(double),
+               alias.reciprocal_alias_spectrum.size() * sizeof(std::complex<double>));
+}
+
 } // namespace
 
 int main() {
@@ -98,6 +141,7 @@ int main() {
       auto cubic = geometry({3.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0}, {1, 1, 1});
       const auto cubic_result = buildPeriodicEwaldDisplacementKernel(cubic, settings);
       checkDiagnostics(cubic_result, cubic);
+      checkAliasBuilder(cubic_result, cubic, settings);
       compareFields(apply(cubic_result, cubic, {{1.0, -0.2, 0.4}}),
                     {{0.1551403779550518, -0.031028075591010243, 0.06205615118202068}});
 
@@ -105,6 +149,7 @@ int main() {
       auto non_cubic = geometry({6.0, 0.0, 0.0, 0.0, 9.0, 0.0, 0.0, 0.0, 3.0}, {2, 3, 1});
       const auto non_cubic_result = buildPeriodicEwaldDisplacementKernel(non_cubic, settings);
       checkDiagnostics(non_cubic_result, non_cubic);
+      checkAliasBuilder(non_cubic_result, non_cubic, settings);
       compareFields(apply(non_cubic_result, non_cubic,
                           {{0.20, -0.40, 0.10}, {0.23, -0.38, 0.09}, {0.26, -0.36, 0.08},
                            {0.29, -0.34, 0.07}, {0.32, -0.32, 0.06}, {0.35, -0.30, 0.05}}),
@@ -119,6 +164,7 @@ int main() {
       auto skew = geometry({6.0, 0.0, 0.0, 0.8, 3.0, 0.0, 0.3, 0.2, 3.4}, {2, 1, 1});
       const auto skew_result = buildPeriodicEwaldDisplacementKernel(skew, settings);
       checkDiagnostics(skew_result, skew);
+      checkAliasBuilder(skew_result, skew, settings);
       compareFields(apply(skew_result, skew, {{1.0, -0.2, 0.4}, {-0.3, 0.8, 0.1}}),
                     {{-0.14844761149081095, 0.04249102731392704, 0.05706032893486248},
                      {0.2799443305183004, 0.0559736351960156, -0.010870106834032328}});
@@ -135,6 +181,7 @@ int main() {
                multi.basis_offsets[basis][component] = oracle.offsets[component + 3 * basis];
          const auto multi_result = buildPeriodicEwaldDisplacementKernel(multi, settings);
          checkDiagnostics(multi_result, multi);
+         checkAliasBuilder(multi_result, multi, settings);
          const std::size_t count = multi.grid[0] * multi.grid[1] * multi.grid[2] * multi.basis;
          std::vector<Vector> moments(count);
          std::vector<Vector> expected(count);

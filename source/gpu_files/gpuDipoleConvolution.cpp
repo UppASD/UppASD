@@ -174,6 +174,18 @@ __global__ void normalize_kernel_spectrum(GpuFftComplex* kernel, std::size_t cou
    }
 }
 
+// Builder B contributes the long-range reciprocal aliases directly to the
+// normalized R2C spectrum.  The real-space R2C has already received its sole
+// 1/Ngrid factor, while the alias sum is analytically in that same convention.
+__global__ void add_reciprocal_alias_spectrum(GpuFftComplex* kernel, const GpuFftComplex* alias,
+                                               std::size_t count) {
+   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       index < count; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
+      kernel[index].x += alias[index].x;
+      kernel[index].y += alias[index].y;
+   }
+}
+
 // macro_cell_index retains Fortran's one-based basis-fast map:
 // macro = basis + NA * cell.  Block-one has one atom in every macro channel,
 // but decoding the map here keeps scatter independent of atom ordering.
@@ -262,8 +274,15 @@ std::size_t GpuDipoleFftLayout::persistentBytes() const {
 
 std::size_t GpuDipoleFftLayout::constructionBytes() const {
    if(!valid()) return 0;
-   std::size_t elements = 0, bytes = 0;
-   return multiply(real_cells, kernel_batches, elements) && bytesFor(elements, sizeof(real), bytes) ? bytes : 0;
+   // Builder B holds the real-space tensor while its batched R2C runs, then
+   // transiently uploads the complex reciprocal-alias spectrum before adding
+   // it to the persistent kernel spectrum.  Both allocations coexist during
+   // construction and must be included in the memory preflight.
+   std::size_t real_elements = 0, spectral_elements = 0, bytes = 0, part = 0;
+   return multiply(real_cells, kernel_batches, real_elements) &&
+          multiply(spectral_cells, kernel_batches, spectral_elements) &&
+          bytesFor(real_elements, sizeof(real), bytes) &&
+          bytesFor(spectral_elements, sizeof(GpuFftComplex), part) && add(bytes, part, bytes) ? bytes : 0;
 }
 
 GpuDipoleGridShape GpuDipoleConvolutionDescriptor::activeGrid() const {
@@ -560,20 +579,37 @@ void GpuDipoleConvolution::inverseTransformFields() {
 
 void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel,
                                                            bool validate_physics) {
+   uploadRealKernelAndAliasSpectrum(complete_kernel, {}, validate_physics);
+}
+
+void GpuDipoleConvolution::uploadRealKernelAndAliasSpectrum(
+   const std::vector<double>& real_kernel, const std::vector<std::complex<double>>& reciprocal_alias_spectrum,
+   bool validate_physics) {
    if(!initiated) throw std::runtime_error("GPU dipole kernel upload requested before plan initialization");
    if(sizeof(real) != sizeof(double)) throw std::runtime_error("complete-kernel GPU validation requires fp64 storage");
    const std::size_t expected = layout.real_cells * layout.kernel_batches;
-   if(complete_kernel.size() != expected) throw std::runtime_error("complete host tensor does not match GPU kernel layout");
+   const std::size_t expected_alias = layout.spectral_cells * layout.kernel_batches;
+   if(real_kernel.size() != expected) throw std::runtime_error("complete host tensor does not match GPU kernel layout");
+   if(!reciprocal_alias_spectrum.empty() && reciprocal_alias_spectrum.size() != expected_alias) {
+      throw std::runtime_error("reciprocal alias spectrum does not match GPU kernel layout");
+   }
 
    kernel_ready = false;
    spectrum_diagnostics = {};
+   GpuTensor<GpuFftComplex, 1> alias_device;
+   bool alias_allocated = false;
    try {
-      for(const double value : complete_kernel) {
+      for(const double value : real_kernel) {
          if(!std::isfinite(value)) throw std::runtime_error("complete periodic dipole tensor contains a non-finite value");
+      }
+      for(const auto& value : reciprocal_alias_spectrum) {
+         if(!std::isfinite(value.real()) || !std::isfinite(value.imag())) {
+            throw std::runtime_error("reciprocal alias spectrum contains a non-finite value");
+         }
       }
       kernel_real.Allocate(static_cast<long int>(layout.real_cells), static_cast<long int>(layout.kernel_batches));
       kernel_real_allocated = true;
-      if(GPU_MEMCPY(kernel_real.data(), complete_kernel.data(), expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+      if(GPU_MEMCPY(kernel_real.data(), real_kernel.data(), expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("complete periodic dipole tensor upload failed");
       assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
       constexpr unsigned int threads = 256;
@@ -582,6 +618,21 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<doub
       normalize_kernel_spectrum<<<blocks, threads, 0, stream>>>(kernel_fft.data(), count,
                                                                   static_cast<real>(1) / static_cast<real>(layout.real_cells));
       if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole spectrum-normalization launch failed");
+      if(!reciprocal_alias_spectrum.empty()) {
+         std::vector<GpuFftComplex> host_alias(count);
+         for(std::size_t index = 0; index < count; ++index) {
+            host_alias[index].x = reciprocal_alias_spectrum[index].real();
+            host_alias[index].y = reciprocal_alias_spectrum[index].imag();
+         }
+         alias_device.Allocate(static_cast<long int>(count));
+         alias_allocated = true;
+         if(GPU_MEMCPY(alias_device.data(), host_alias.data(), count * sizeof(GpuFftComplex),
+                       GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+            throw std::runtime_error("reciprocal alias spectrum upload failed");
+         }
+         add_reciprocal_alias_spectrum<<<blocks, threads, 0, stream>>>(kernel_fft.data(), alias_device.data(), count);
+         if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU reciprocal alias-add launch failed");
+      }
       // A kernel cannot become observable until its R2C and normalization are complete.
       if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole kernel construction synchronization failed");
       std::vector<GpuFftComplex> spectrum(layout.spectral_cells * layout.kernel_batches);
@@ -589,7 +640,7 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<doub
                     GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS) {
          throw std::runtime_error("GPU dipole spectrum diagnostic download failed");
       }
-      spectrum_diagnostics = validateSpectrum(complete_kernel, spectrum, layout, desc.basis);
+      spectrum_diagnostics = validateSpectrum(real_kernel, spectrum, layout, desc.basis);
       constexpr double validation_tolerance = 1.0e-12;
       if(validate_physics && (spectrum_diagnostics.max_reciprocity_error > validation_tolerance ||
                                spectrum_diagnostics.max_conjugacy_error > validation_tolerance ||
@@ -601,12 +652,17 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const std::vector<doub
       }
       kernel_real.Free();
       kernel_real_allocated = false;
+      if(alias_allocated) {
+         alias_device.Free();
+         alias_allocated = false;
+      }
       kernel_ready = true;
    } catch(...) {
       if(kernel_real_allocated) {
          kernel_real.Free();
          kernel_real_allocated = false;
       }
+      if(alias_allocated) alias_device.Free();
       throw;
    }
 }
@@ -635,8 +691,13 @@ void GpuDipoleConvolution::buildPeriodicKernel() {
    geometry.basis_offsets = desc.basis_offsets;
    DipoleKernelSettings settings{};
    settings.tolerance = desc.tolerance;
-   const auto complete = buildPeriodicEwaldDisplacementKernel(geometry, settings);
-   uploadCompleteKernelForTesting(complete);
+   const auto alias = buildPeriodicEwaldAliasSpectrum(geometry, settings);
+   const std::array<std::size_t, 3> expected_spectral{{layout.spectral_grid.n1, layout.spectral_grid.n2,
+                                                        layout.spectral_grid.n3}};
+   if(alias.spectral_grid != expected_spectral) {
+      throw std::runtime_error("reciprocal alias builder produced an incompatible R2C spectrum shape");
+   }
+   uploadRealKernelAndAliasSpectrum(alias.real_kernel, alias.reciprocal_alias_spectrum, true);
 }
 
 void GpuDipoleConvolution::evaluate(const GpuTensor<real, 3>& macro_moments) {

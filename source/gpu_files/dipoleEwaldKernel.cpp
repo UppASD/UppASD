@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <complex>
 #include <limits>
 #include <stdexcept>
 
@@ -13,6 +14,7 @@ constexpr double minimum_tolerance = 128.0 * std::numeric_limits<double>::epsilo
 
 using Vector = std::array<double, 3>;
 using Tensor = std::array<double, 9>;
+using Complex = std::complex<double>;
 
 struct CandidateResult {
    double alpha = 0.0;
@@ -293,6 +295,138 @@ std::vector<double> completeKernel(const DipolePeriodicGeometry& geometry, const
    return real;
 }
 
+std::vector<double> realSelfKernel(const DipolePeriodicGeometry& geometry, const CandidateResult& candidate,
+                                   std::size_t& real_work) {
+   auto real = sumSide(geometry, candidate.alpha, candidate.real_extent, true, real_work);
+   const std::size_t grid_cells = cells(geometry);
+   const double self = 4.0 * candidate.alpha * candidate.alpha * candidate.alpha / (3.0 * std::sqrt(pi));
+   const std::size_t zero_cell = 0;
+   for(unsigned int basis = 0; basis < geometry.basis; ++basis)
+      for(unsigned int component = 0; component < 3; ++component) {
+         const std::size_t batch = component + 3 * (component + 3 * (basis + geometry.basis * basis));
+         real[zero_cell + grid_cells * batch] += self;
+      }
+   return real;
+}
+
+std::array<double, 9> aliasReciprocalMatrix(const DipolePeriodicGeometry& geometry) {
+   std::array<double, 9> result = geometry.Brec;
+   for(unsigned int column = 0; column < 3; ++column)
+      for(unsigned int row = 0; row < 3; ++row)
+         result[row + 3 * column] *= static_cast<double>(geometry.grid[column]);
+   return result;
+}
+
+int signedFrequency(std::size_t q, std::size_t extent) {
+   return static_cast<int>(q <= extent / 2 ? q : q - extent);
+}
+
+std::size_t spectralCells(const DipolePeriodicGeometry& geometry) {
+   const std::size_t n1 = geometry.grid[0] / 2 + 1;
+   if(n1 > std::numeric_limits<std::size_t>::max() / geometry.grid[1] ||
+      n1 * geometry.grid[1] > std::numeric_limits<std::size_t>::max() / geometry.grid[2]) {
+      throw std::invalid_argument("periodic Ewald alias spectrum dimensions overflow");
+   }
+   return n1 * geometry.grid[1] * geometry.grid[2];
+}
+
+std::vector<Complex> sumReciprocalAliases(const DipolePeriodicGeometry& geometry, double alpha, int extent,
+                                          std::size_t& work) {
+   const std::size_t cells_spectral = spectralCells(geometry);
+   const std::size_t batches = 9 * static_cast<std::size_t>(geometry.basis) * geometry.basis;
+   std::vector<Complex> result(cells_spectral * batches, Complex{});
+   const std::size_t stored_n1 = geometry.grid[0] / 2 + 1;
+   for(std::size_t q3 = 0; q3 < geometry.grid[2]; ++q3)
+      for(std::size_t q2 = 0; q2 < geometry.grid[1]; ++q2)
+         for(std::size_t q1 = 0; q1 < stored_n1; ++q1) {
+            const std::size_t spectral = q1 + stored_n1 * (q2 + geometry.grid[1] * q3);
+            const std::array<int, 3> q{{static_cast<int>(q1), signedFrequency(q2, geometry.grid[1]),
+                                        signedFrequency(q3, geometry.grid[2])}};
+            for(unsigned int target = 0; target < geometry.basis; ++target)
+               for(unsigned int source = 0; source < geometry.basis; ++source) {
+                  const Vector offset = subtract(geometry.basis_offsets[target], geometry.basis_offsets[source]);
+                  for(int l3 = -extent; l3 <= extent; ++l3)
+                     for(int l2 = -extent; l2 <= extent; ++l2)
+                        for(int l1 = -extent; l1 <= extent; ++l1) {
+                           const std::array<int, 3> n{{q[0] + static_cast<int>(geometry.grid[0]) * l1,
+                                                       q[1] + static_cast<int>(geometry.grid[1]) * l2,
+                                                       q[2] + static_cast<int>(geometry.grid[2]) * l3}};
+                           if(n[0] == 0 && n[1] == 0 && n[2] == 0) continue; // Tin foil: physical k=0 only.
+                           const Vector wave = matrixVector(geometry.Brec,
+                              {static_cast<double>(n[0]), static_cast<double>(n[1]), static_cast<double>(n[2])});
+                           const Complex phase = std::polar(1.0, dot(wave, offset));
+                           const Tensor tensor = reciprocalTensor(wave, geometry.volume, alpha);
+                           for(unsigned int column = 0; column < 3; ++column)
+                              for(unsigned int row = 0; row < 3; ++row) {
+                                 const std::size_t batch = row + 3 * (column + 3 * (target + geometry.basis * source));
+                                 result[spectral + cells_spectral * batch] += tensor[row + 3 * column] * phase;
+                              }
+                           ++work;
+                        }
+               }
+         }
+   return result;
+}
+
+double complexVectorMaxAbs(const std::vector<Complex>& values) {
+   double result = 0.0;
+   for(const Complex& value : values) result = std::max(result, std::abs(value));
+   return result;
+}
+
+double complexVectorMaxDifference(const std::vector<Complex>& left, const std::vector<Complex>& right) {
+   if(left.size() != right.size()) throw std::logic_error("reciprocal alias spectrum sizes differ");
+   double result = 0.0;
+   for(std::size_t i = 0; i < left.size(); ++i) result = std::max(result, std::abs(left[i] - right[i]));
+   return result;
+}
+
+CandidateResult convergeAliasCandidate(const DipolePeriodicGeometry& geometry, double alpha, double tolerance) {
+   constexpr int max_shell = 64;
+   const double side_tolerance = tolerance / 4.0;
+   CandidateResult result{};
+   result.alpha = alpha;
+   const auto converge_real = [&](int seed) {
+      std::vector<double> previous;
+      int stable = 0;
+      for(int extent = std::max(0, seed - 1); extent <= max_shell; ++extent) {
+         std::vector<double> current = sumSide(geometry, alpha, extent, true, result.real_work);
+         const double change = previous.empty() ? std::numeric_limits<double>::infinity() :
+            vectorMaxDifference(current, previous);
+         if(!previous.empty() && change <= side_tolerance * std::max(1.0, vectorMaxAbs(current))) {
+            if(++stable == 2) {
+               result.real_extent = extent;
+               result.real_residual = change;
+               return;
+            }
+         } else stable = 0;
+         previous = std::move(current);
+      }
+      throw std::runtime_error("real Ewald shells did not converge for reciprocal-alias builder");
+   };
+   const auto converge_reciprocal = [&](int seed) {
+      std::vector<Complex> previous;
+      int stable = 0;
+      for(int extent = std::max(0, seed - 1); extent <= max_shell; ++extent) {
+         std::vector<Complex> current = sumReciprocalAliases(geometry, alpha, extent, result.reciprocal_work);
+         const double change = previous.empty() ? std::numeric_limits<double>::infinity() :
+            complexVectorMaxDifference(current, previous);
+         if(!previous.empty() && change <= side_tolerance * std::max(1.0, complexVectorMaxAbs(current))) {
+            if(++stable == 2) {
+               result.reciprocal_extent = extent;
+               result.reciprocal_residual = change;
+               return;
+            }
+         } else stable = 0;
+         previous = std::move(current);
+      }
+      throw std::runtime_error("reciprocal Ewald alias shells did not converge");
+   };
+   converge_real(analyticSeed(geometry.H, alpha, side_tolerance));
+   converge_reciprocal(analyticSeed(aliasReciprocalMatrix(geometry), 1.0 / (2.0 * alpha), side_tolerance));
+   return result;
+}
+
 } // namespace
 
 double periodicKernelReciprocityError(const std::vector<double>& kernel, const DipolePeriodicGeometry& geometry) {
@@ -375,4 +509,80 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(const DipolePeriodi
                                    result.diagnostics.reciprocal_tensor_evaluations;
    result.diagnostics.setup_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
    return result;
+}
+
+DipoleAliasSpectrumBuildResult buildPeriodicEwaldAliasSpectrum(const DipolePeriodicGeometry& geometry,
+                                                                 const DipoleKernelSettings& settings) {
+   validate(geometry, settings);
+   const auto started = std::chrono::steady_clock::now();
+   const double nominal_alpha = std::sqrt(pi) / std::cbrt(geometry.volume);
+   const std::array<double, 3> alpha_scale{{0.75, 1.0, 1.25}};
+   std::vector<CandidateResult> candidates;
+   candidates.reserve(settings.explicit_alpha_for_testing > 0.0 ? 1 : alpha_scale.size());
+   if(settings.explicit_alpha_for_testing > 0.0) {
+      candidates.push_back(convergeAliasCandidate(geometry, settings.explicit_alpha_for_testing, settings.tolerance));
+   } else {
+      for(const double scale : alpha_scale)
+         candidates.push_back(convergeAliasCandidate(geometry, nominal_alpha * scale, settings.tolerance));
+   }
+   const auto chosen = std::min_element(candidates.begin(), candidates.end(), [](const CandidateResult& left,
+                                                                                   const CandidateResult& right) {
+      return left.real_work + left.reciprocal_work < right.real_work + right.reciprocal_work;
+   });
+   std::size_t complete_real_work = 0;
+   DipoleAliasSpectrumBuildResult result{};
+   result.real_kernel = realSelfKernel(geometry, *chosen, complete_real_work);
+   std::size_t complete_reciprocal_work = 0;
+   result.reciprocal_alias_spectrum = sumReciprocalAliases(geometry, chosen->alpha, chosen->reciprocal_extent,
+                                                            complete_reciprocal_work);
+   result.spectral_grid = {geometry.grid[0] / 2 + 1, geometry.grid[1], geometry.grid[2]};
+   result.diagnostics.selected.alpha = chosen->alpha;
+   result.diagnostics.selected.real_images = {chosen->real_extent, chosen->real_extent, chosen->real_extent};
+   result.diagnostics.selected.reciprocal_images = {chosen->reciprocal_extent, chosen->reciprocal_extent,
+                                                      chosen->reciprocal_extent};
+   result.diagnostics.selected.tolerance = settings.tolerance;
+   result.diagnostics.real_tail_residual = chosen->real_residual;
+   result.diagnostics.reciprocal_tail_residual = chosen->reciprocal_residual;
+   result.diagnostics.residual = std::max(chosen->real_residual, chosen->reciprocal_residual);
+   result.diagnostics.max_reciprocity_error = periodicKernelReciprocityError(result.real_kernel, geometry);
+   result.diagnostics.max_hermitian_error = result.diagnostics.max_reciprocity_error;
+   result.diagnostics.reciprocal_identity_error = reciprocalIdentityError(geometry);
+   result.diagnostics.real_tensor_evaluations = complete_real_work;
+   result.diagnostics.reciprocal_tensor_evaluations = complete_reciprocal_work;
+   for(const auto& candidate : candidates) {
+      result.diagnostics.real_tensor_evaluations += candidate.real_work;
+      result.diagnostics.reciprocal_tensor_evaluations += candidate.reciprocal_work;
+   }
+   result.diagnostics.setup_work = result.diagnostics.real_tensor_evaluations +
+                                   result.diagnostics.reciprocal_tensor_evaluations;
+   result.diagnostics.setup_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+   return result;
+}
+
+std::vector<std::complex<double>> referenceNormalizedKernelSpectrum(const std::vector<double>& kernel,
+                                                                      const DipolePeriodicGeometry& geometry) {
+   validate(geometry, {});
+   const std::size_t grid_cells = cells(geometry);
+   const std::size_t batches = 9 * static_cast<std::size_t>(geometry.basis) * geometry.basis;
+   if(kernel.size() != grid_cells * batches) throw std::invalid_argument("kernel size does not match periodic geometry");
+   const std::size_t stored_n1 = geometry.grid[0] / 2 + 1;
+   std::vector<Complex> spectrum(spectralCells(geometry) * batches, Complex{});
+   const double inverse_cells = 1.0 / static_cast<double>(grid_cells);
+   for(std::size_t q3 = 0; q3 < geometry.grid[2]; ++q3)
+      for(std::size_t q2 = 0; q2 < geometry.grid[1]; ++q2)
+         for(std::size_t q1 = 0; q1 < stored_n1; ++q1) {
+            const std::size_t spectral = q1 + stored_n1 * (q2 + geometry.grid[1] * q3);
+            for(std::size_t d3 = 0; d3 < geometry.grid[2]; ++d3)
+               for(std::size_t d2 = 0; d2 < geometry.grid[1]; ++d2)
+                  for(std::size_t d1 = 0; d1 < geometry.grid[0]; ++d1) {
+                     const std::size_t cell = d1 + geometry.grid[0] * (d2 + geometry.grid[1] * d3);
+                     const double angle = -2.0 * pi * (static_cast<double>(q1 * d1) / geometry.grid[0] +
+                        static_cast<double>(q2 * d2) / geometry.grid[1] +
+                        static_cast<double>(q3 * d3) / geometry.grid[2]);
+                     const Complex phase = std::polar(inverse_cells, angle);
+                     for(std::size_t batch = 0; batch < batches; ++batch)
+                        spectrum[spectral + spectralCells(geometry) * batch] += kernel[cell + grid_cells * batch] * phase;
+                  }
+         }
+   return spectrum;
 }

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <complex>
 #include <vector>
 
 // This header deliberately has no GPU, FFT, or UppASD precision dependency.
@@ -59,12 +60,40 @@ struct DipoleKernelBuildResult {
    DipoleKernelDiagnostics diagnostics;
 };
 
+// Builder B keeps the short-range part in the real displacement
+// representation and constructs only the reciprocal contribution directly in
+// the normalized R2C spectrum.  ``real_kernel`` has the same layout as
+// DipoleKernelBuildResult::kernel.  ``reciprocal_alias_spectrum`` is laid out
+// [spectral_cell + spectral_cells * kernel_batch], with n1 as the retained
+// R2C axis.  It is already normalized for the raw C2R contract: no 1/Ngrid
+// factor is to be applied to this vector.
+struct DipoleAliasSpectrumBuildResult {
+   std::vector<double> real_kernel;
+   std::vector<std::complex<double>> reciprocal_alias_spectrum;
+   std::array<std::size_t, 3> spectral_grid{};
+   DipoleKernelDiagnostics diagnostics;
+};
+
 // Builds the complete, dimensionless, 3D-periodic tin-foil Ewald tensor in
 // target-minus-source convention.  All arithmetic is double regardless of
 // the device storage precision selected elsewhere.
 DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(
    const DipolePeriodicGeometry& geometry,
    const DipoleKernelSettings& settings = {});
+
+// Production Builder B.  It is algebraically equivalent to Builder A but
+// avoids evaluating every reciprocal vector for every real-space
+// displacement.  The real-space tensor and point self term are returned for
+// one batched R2C; reciprocal aliases are added directly to that spectrum.
+DipoleAliasSpectrumBuildResult buildPeriodicEwaldAliasSpectrum(
+   const DipolePeriodicGeometry& geometry,
+   const DipoleKernelSettings& settings = {});
+
+// Slow, CPU-only reference transform used solely by cross-builder tests and
+// benchmarks.  It returns FFT(kernel)/Ngrid in the same half-spectrum layout
+// as Builder B.  Do not use it in production construction.
+std::vector<std::complex<double>> referenceNormalizedKernelSpectrum(
+   const std::vector<double>& kernel, const DipolePeriodicGeometry& geometry);
 
 // Validate target/source-basis displacement reciprocity independently of the
 // construction loop.  This is also useful after a future upload/repacking.
