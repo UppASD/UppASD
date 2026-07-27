@@ -8,6 +8,8 @@
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
 #include "measurementData.h"
+#include "stopwatchDeviceSync.hpp"
+#include "stopwatchPool.hpp"
 
 #include <array>
 
@@ -527,6 +529,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    do_aniso = 0;
    convolution.release();
    dipoleConvolution.release();
+   dipoleStopwatch.reset();
    macroCellIndex = nullptr;
    macroMoments.Free();
    numMacro = 0;
@@ -535,8 +538,6 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    if(gpuDipoleRequested) {
       // Mirror the Fortran input contract here because this is the last
       // defensive boundary before device allocation and field dispatch.
-      if(sizeof(real) != sizeof(double))
-         throw std::runtime_error("GPU EWALD3D_FFT is accepted in fp64 only");
       if(*FortranData::gpu_dipole_mode != 1 || !FortranData::gpu_dipole_surface ||
          *FortranData::gpu_dipole_surface != 0 ||
          // do_dip is exported only when the legacy macrocell path exists.
@@ -608,6 +609,8 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       if(!dipoleConvolution.kernelReady()) {
          throw std::runtime_error("GPU EWALD3D_FFT complete periodic kernel did not become ready");
       }
+      dipoleStopwatch = std::make_unique<StopwatchDeviceSync>(
+         GlobalStopwatchPool::get("GPU dipole macrocell"), parallel.getWorkStream());
       const auto grid = dipoleConvolution.descriptor().activeGrid();
       const auto padded = dipoleConvolution.fftLayout().real_grid;
       const auto& layout = dipoleConvolution.fftLayout();
@@ -809,9 +812,11 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    // runs before any future macro-grid dipole field evaluation and is harmless
    // while the FFT backend remains disabled.
    if(refreshMacroMoments) {
+      if(dipoleStopwatch) dipoleStopwatch->skip();
       macroMoments.zeros_async(parallel.getWorkStream());
       parallel.gpuAtomSiteCall(UpdateMacroMoments(macroCellIndex, gpuLattice.emomM,
                                                   macroMoments, numMacro));
+      if(dipoleStopwatch) dipoleStopwatch->add("macro reduction");
    }
    const auto addPeriodicDipole = [&]() {
       if(backend.dipole != GpuHamiltonianBackend::FftDipole) return;

@@ -23,6 +23,7 @@ GOLDENS = json.loads(Path(__file__).with_name("wp5_production_goldens_v1.json").
 MU_B = 9.274009994e-24
 MRY = 2.179872325e-21
 PREFAC = 1.0e-7 * MU_B  # alat=1 in wp5_e2e/inpsd.dat
+RELATIVE_TOLERANCE = 2.0e-8
 
 
 def numeric_rows(path: Path) -> list[list[float]]:
@@ -37,9 +38,9 @@ def numeric_rows(path: Path) -> list[list[float]]:
 def require_close(label: str, actual: float, expected: float) -> float:
     # Output writers use eight significant figures.  The absolute floor covers
     # the deliberately tiny Tesla/mRy values in these fixtures.
-    tolerance = max(2.0e-8 * abs(expected), 1.0e-42)
+    tolerance = max(RELATIVE_TOLERANCE * abs(expected), 1.0e-42)
     error = abs(actual - expected)
-    if not math.isclose(actual, expected, rel_tol=2.0e-8, abs_tol=tolerance):
+    if not math.isclose(actual, expected, rel_tol=RELATIVE_TOLERANCE, abs_tol=tolerance):
         raise AssertionError(f"{label}: got {actual:.17g}, expected {expected:.17g}, tolerance {tolerance:.3g}")
     return error
 
@@ -153,9 +154,13 @@ def check_rejection(binary: Path, parent: Path, name: str, updates: dict[str, st
 
 
 def main() -> None:
+    global RELATIVE_TOLERANCE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
+    parser.add_argument("--fp32", action="store_true", help="apply the WP9 fp32 physical-output budget")
     args = parser.parse_args()
+    if args.fp32:
+        RELATIVE_TOLERANCE = 5.0e-5
     binary = args.binary.resolve()
     if not binary.is_file():
         raise FileNotFoundError(binary)

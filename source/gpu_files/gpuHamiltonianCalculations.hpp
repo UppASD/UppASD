@@ -9,6 +9,10 @@
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
 
+#include <memory>
+
+class StopwatchDeviceSync;
+
 using ParallelizationHelper = GpuParallelizationHelper;
 
 
@@ -63,6 +67,9 @@ private:
    // CV6 dipole solver lifecycle.  Its grid and boundary contract are
    // independent from exchange convolution.
    GpuDipoleConvolution dipoleConvolution;
+   // Macro reduction is launched by this owner rather than by the FFT class,
+   // so it has a separate event-backed phase in the shared GPU timing output.
+   std::unique_ptr<StopwatchDeviceSync> dipoleStopwatch;
 
    bool do_j_tensor = false;
    bool do_dm = false;

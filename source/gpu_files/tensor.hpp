@@ -127,6 +127,15 @@ public:
    template <typename U, typename... Ints>
    void set(U* source, Ints... ext) {
       static_assert(!std::is_same_v<T, U>, "Use the native set overload for matching types");
+      // The Fortran bridge intentionally uses null pointers for optional
+      // buffers (for example inactive phase-control and STT arrays).  In
+      // fp64 those pointers can be retained without access; fp32 must retain
+      // that contract rather than dereferencing one while staging a conversion.
+      if(!source) {
+         IndexBase<T, dim>::SetExtents(Extents<dim>{ext...});
+         data_ = nullptr;
+         return;
+      }
       AllocateHost(Extents<dim>{ext...});
       std::transform(source, source + size(), data_,
                      [](U value) { return static_cast<T>(value); });

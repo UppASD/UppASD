@@ -4,10 +4,12 @@
 #include "gpuFftWrapper.hpp"
 #include "dipoleEwaldKernel.hpp"
 #include "real_type.h"
+#include "stopwatchDeviceSync.hpp"
 #include "tensor.hpp"
 
 #include <cstddef>
 #include <array>
+#include <memory>
 #include <vector>
 
 // CV6 deliberately separates the grid used by the dipole solver from the
@@ -58,6 +60,16 @@ struct GpuDipoleSpectrumDiagnostics {
    double max_reciprocity_error = 0.0;
    double max_conjugacy_error = 0.0;
    double max_hermitian_error = 0.0;
+};
+
+// Process-local Builder-B cache diagnostics.  The cache retains immutable host
+// tensors only; every convolution instance still owns and uploads its own GPU
+// spectrum and FFT plans.  This makes repeated equivalent initializations
+// cheaper without coupling lifetimes across devices or streams.
+struct GpuDipoleKernelCacheStats {
+   std::size_t hits = 0;
+   std::size_t misses = 0;
+   std::size_t entries = 0;
 };
 
 struct GpuDipoleConvolutionDescriptor {
@@ -175,9 +187,14 @@ public:
    // Explicitly diagnostic readback APIs.  They synchronize and are intended
    // only for the standalone GPU tests while simulation dispatch remains off.
    std::vector<real> diagnosticFieldsForTesting() const;
-   std::vector<real> diagnosticEnergiesForTesting() const;
+   // Accumulate the downloaded device-real field and moment values in fp64.
+   // This diagnoses the operator error without adding a second, unrelated
+   // fp32 host reduction error to the acceptance comparison.
+   std::vector<double> diagnosticEnergiesForTesting() const;
    bool diagnosticConstructionStorageAllocatedForTesting() const;
    GpuDipoleSpectrumDiagnostics diagnosticSpectrumForTesting() const;
+   static GpuDipoleKernelCacheStats kernelCacheStatsForTesting();
+   static void clearKernelCacheForTesting();
 
    // Persistent field and spectral buffers required by the eventual regular
    // grid solver.  Tensor construction staging is deliberately separate
@@ -213,6 +230,7 @@ private:
    GpuTensor<real, 2> reciprocal_vectors;
    GpuTensor<real, 1> cell_volume;
    GpuTensor<unsigned char, 1> fft_workspace;
+   std::unique_ptr<StopwatchDeviceSync> stopwatch;
 
    void packMacroMoments(const GpuTensor<real, 3>& macro_moments);
    void forwardTransformMoments();

@@ -240,7 +240,11 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.mmom0.set(FortranData::mmom0, N, M);
     cpuLattice.mmom2.set(FortranData::mmom2, N, M);
     cpuLattice.mmomi.set(FortranData::mmomi, N, M);
-    cpuLattice.btorque.set(FortranData::btorque,  static_cast <long int>(3), N, M);
+    // btorque is allocated only for the spin-transfer-torque path.  In fp64
+    // Tensor::set merely retained a null optional pointer; fp32 staging must
+    // not dereference it while converting Fortran doubles to device storage.
+    if(FortranData::btorque)
+        cpuLattice.btorque.set(FortranData::btorque,  static_cast <long int>(3), N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
     cpuLattice.ipTemp.set(FortranData::ipTemp, ipmcnphase);
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
@@ -516,9 +520,6 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
    runIsMC = (is_mc != 0);
    if(runIsMC && FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
       throw std::runtime_error("GPU EWALD3D_FFT is not available with GPU Monte Carlo");
-   }
-   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0 && sizeof(real) != sizeof(double)) {
-      throw std::runtime_error("GPU EWALD3D_FFT is accepted in fp64 only");
    }
    // Dimensions
    printf("Initiate matrices GPU -1 (is_mc=%d)\n", is_mc);

@@ -896,12 +896,43 @@ if(BUILD_TESTING)
          target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
+      # Explicit performance harness.  It is a build target rather than a
+      # CTest because timings are hardware-dependent and are recorded by WP9
+      # sweep jobs, not used as pass/fail correctness expectations.
+      add_executable(dipole_gpu_fft_benchmark
+         ${CMAKE_SOURCE_DIR}/tests/dipole_validation/benchmark_gpu_dipole_fft.cpp)
+      target_include_directories(dipole_gpu_fft_benchmark PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(dipole_gpu_fft_benchmark PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/benchmark_gpu_dipole_fft.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(dipole_gpu_fft_benchmark PRIVATE CUDA_V)
+         target_link_libraries(dipole_gpu_fft_benchmark PRIVATE CUDA::cudart CUDA::cufft)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/benchmark_gpu_dipole_fft.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(dipole_gpu_fft_benchmark PRIVATE HIP_V)
+         target_link_libraries(dipole_gpu_fft_benchmark PRIVATE ${HIPFFT_LIBRARY})
+      endif()
+      # real_type.h is consumed directly by these standalone targets, while
+      # SINGLE_PREC is private to asdlib.  Mirror the selected storage type so
+      # an fp32 validation build cannot accidentally link a fp64 test object.
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(dipole_gpu_fft_tests PRIVATE SINGLE_PREC)
+         target_compile_definitions(dipole_gpu_fft_benchmark PRIVATE SINGLE_PREC)
+      endif()
       # This invokes the real UppASD GPU SD executable: descriptor/kernel
       # construction, macro-moment refresh, predictor/corrector dispatch, and
       # the GPU measurement writer are checked against the independent oracle.
+      set(WP5_E2E_PRECISION_ARGUMENT)
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         set(WP5_E2E_PRECISION_ARGUMENT --fp32)
+      endif()
       add_test(NAME dipole-gpu-wp5-e2e
          COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/run_wp5_e2e.py
-                 --binary ${TestBinary})
+                 --binary ${TestBinary} ${WP5_E2E_PRECISION_ARGUMENT})
       set_property(TEST dipole-gpu-wp5-e2e PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
 endif()

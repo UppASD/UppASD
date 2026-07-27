@@ -1194,7 +1194,7 @@ not merely when its implementation has started.
   two, and zero for block one.  CUDA fp64 CTest passed all six tests, including
   the host builder, GPU convolution, and `NA=1/2` SD coarse-block equivalence;
   partial edge blocks are rejected before allocation.
-- [ ] **WP9 — Performance, fp32, and CUDA/HIP parity** (depends on the
+- [x] **WP9 — Performance, fp32, and CUDA/HIP parity** (depends on the
   relevant accepted physics scope).
 - [ ] **WP10 — Open-island/racetrack and slab modes** (separate projects;
   periodic/open submodes require their own gates).
@@ -1453,6 +1453,76 @@ Gate:
 Status: complete 2026-07-27; the full CUDA fp64 CTest gate passed.
 
 ### WP9 — Performance and precision
+
+Status: complete for the accepted CUDA scope (2026-07-27).  The implementation now has portable
+event-backed phase timing for macro reduction, pack, forward FFT, spectral
+contraction, inverse FFT, scatter, and energy reduction.  The standalone
+`dipole_gpu_fft_benchmark` target reports one-time setup, steady-state device
+time, and FFT-buffer memory for parameterized grid/basis/ensemble sweeps.
+
+The standalone convolution/oracle suite also builds in `SINGLE` precision.
+It compares fp32 storage against the existing fp64 host/oracle authority with
+a `5e-5` mixed operator/spectrum budget.  CUDA fp32 acceptance was verified
+on 2026-07-27 with
+`ctest --test-dir build_gpu_wp9_fp32 --output-on-failure -R
+'^(dipole-gpu-fft-convolution|dipole-gpu-wp5-e2e)$'`.
+
+The gate includes the actual block-reduced `energyM` path at a dimensionless
+O(1) scale and the real UppASD SD executable: Tesla `beff`/`eneff` scatter,
+mRy/atom measurement output, predictor/corrector evaluation, M=4 shape,
+non-warp-aligned N=3, additive exchange-plus-dipole accounting, and input
+rejections.  The E2E writer comparison uses a `5e-5` relative budget with a
+`1e-42` physical absolute floor in fp32; fp64 retains its `2e-8` writer budget
+and its tighter standalone thresholds.  `EWALD3D_FFT` is therefore enabled
+for the accepted CUDA fp32 periodic-SD scope.
+
+CUDA memcheck completed on 2026-07-27 for both `dipole_gpu_fft_tests` fp32
+and fp64 binaries with `ERROR SUMMARY: 0 errors`.  The focused CUDA fp32
+host-builder/convolution/UppASD-E2E CTest gate passed 3/3; the complete fp64
+CTest suite passed 6/6.  The separate fp32 Kagome tensor regression baseline
+is not a dipole case and remains outside this FFT-dipole gate.
+
+Builder-B widens the stored cell matrix and recomputes its reciprocal matrix
+in host fp64 before Ewald construction, so the fp64 geometry check validates
+a mathematically consistent pair rather than a rounded fp32 reciprocal
+vector.  The generic Fortran-double-to-fp32 host staging path also preserves
+null optional Fortran buffers, matching the fp64 pointer contract.  Neither
+change relaxes the fp64 builder or accuracy gates.  HIP runtime parity remains
+a deferred backend follow-up; it was not available for this CUDA acceptance
+closure.
+
+Builder-B host tensors are cached only in-process and only for an exact
+immutable construction key (builder revision, storage precision, tolerance,
+cell/grid/block geometry, basis, and offsets).  Device spectra and FFT plans
+remain owned by each convolution instance.  There is no persistent/on-disk
+cache.  The GPU test verifies a cache miss followed by an equivalent cache
+hit; cache policy expansion is contingent on the setup-time sweep.
+
+Suggested measurement commands:
+
+```text
+cmake --build build_gpu --target dipole_gpu_fft_benchmark
+build_gpu/bin/dipole_gpu_fft_benchmark --grid 64 64 64 --basis 1 --ensembles 1
+build_gpu/bin/dipole_gpu_fft_benchmark --grid 63 64 65 --basis 2 --ensembles 4
+
+# CUDA precision gates.  Keep the FFT-dipole gate separate from unrelated
+# stochastic fp32 GPU-regression baselines.
+ctest --test-dir build_gpu_wp9_fp32 --output-on-failure \
+  -R '^(dipole-ewald-host-builder|dipole-gpu-fft-convolution|dipole-gpu-wp5-e2e)$'
+ctest --test-dir build_gpu_wp9_fp64 --output-on-failure \
+  -R '^(dipole-ewald-host-builder|dipole-gpu-fft-convolution|dipole-gpu-wp5-e2e)$'
+compute-sanitizer --tool memcheck --error-exitcode 1 build_gpu_wp9_fp32/bin/dipole_gpu_fft_tests
+compute-sanitizer --tool memcheck --error-exitcode 1 build_gpu_wp9_fp64/bin/dipole_gpu_fft_tests
+
+cmake -S . -B build_hip -DUPPASD_GPU_BACKEND=HIP -DUPPASD_PRECISION=DOUBLE -DBUILD_TESTING=ON
+cmake --build build_hip --target dipole_gpu_fft_tests dipole_gpu_fft_benchmark
+ctest --test-dir build_hip --output-on-failure -R 'dipole-(ewald-host-builder|gpu-fft-convolution)'
+```
+
+Record CUDA and HIP results separately.  Parity is satisfied by both backends
+meeting the same documented field/energy budget, not by bitwise-identical FFT
+output; include backend, compiler/runtime, device, and precision in every
+published sweep row.
 
 Deliverables:
 

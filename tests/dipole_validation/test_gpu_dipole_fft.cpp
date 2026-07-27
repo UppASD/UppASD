@@ -14,6 +14,12 @@
 
 namespace {
 
+constexpr bool fp64_storage = sizeof(real) == sizeof(double);
+constexpr double operator_tolerance = fp64_storage ? 5.0e-11 : 5.0e-5;
+constexpr double fp32_relative_tolerance = 5.0e-5;
+constexpr double spectrum_tolerance = fp64_storage ? 1.0e-12 : 5.0e-5;
+constexpr double oracle_tolerance = fp64_storage ? 3.0e-10 : 5.0e-5;
+
 using Grid = std::array<std::size_t, 3>;
 
 std::size_t cells(const Grid& grid) {
@@ -47,14 +53,14 @@ double volume(const std::array<double, 9>& h) {
 GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, unsigned int ensembles,
                                           const std::array<double, 9>& h,
                                           const std::vector<std::array<double, 3>>& offsets = {},
-                                          const Grid& macro_grid = {}) {
-   static_assert(sizeof(real) == sizeof(double), "GPU FFT validation is fp64 only");
+                                          const Grid& macro_grid = {},
+                                          double field_prefactor = 1.0e-7 * 9.274009994e-24) {
    // The descriptor stores primitive vectors and derives H by multiplying by
    // atomistic grid extents.  The test uses the same grid for both notions.
    static thread_local std::array<real, 3> c1, c2, c3;
-   c1 = {h[0] / grid[0], h[1] / grid[0], h[2] / grid[0]};
-   c2 = {h[3] / grid[1], h[4] / grid[1], h[5] / grid[1]};
-   c3 = {h[6] / grid[2], h[7] / grid[2], h[8] / grid[2]};
+   c1 = {static_cast<real>(h[0] / grid[0]), static_cast<real>(h[1] / grid[0]), static_cast<real>(h[2] / grid[0])};
+   c2 = {static_cast<real>(h[3] / grid[1]), static_cast<real>(h[4] / grid[1]), static_cast<real>(h[5] / grid[1])};
+   c3 = {static_cast<real>(h[6] / grid[2]), static_cast<real>(h[7] / grid[2]), static_cast<real>(h[8] / grid[2])};
    GpuDipoleConvolutionDescriptor result{};
    result.atomistic_grid = {grid[0], grid[1], grid[2]};
    result.macro_grid = macro_grid[0] == 0 && macro_grid[1] == 0 && macro_grid[2] == 0 ?
@@ -69,9 +75,18 @@ GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, 
    // No macro-centre data are needed for this pure convolution test.
    result.alat = 1.0;
    result.tolerance = 1.0e-10;
-   result.field_prefactor = 1.0e-7 * 9.274009994e-24;
+   result.field_prefactor = field_prefactor;
    if(!result.valid()) throw std::runtime_error("GPU delta-test descriptor is invalid");
    return result;
+}
+
+bool uploadDoubles(real* destination, const std::vector<double>& values) {
+   if constexpr(fp64_storage) {
+      return GPU_MEMCPY(destination, values.data(), values.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) == GPU_SUCCESS;
+   } else {
+      std::vector<real> converted(values.begin(), values.end());
+      return GPU_MEMCPY(destination, converted.data(), converted.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) == GPU_SUCCESS;
+   }
 }
 
 std::vector<double> directConvolution(const std::vector<double>& kernel, const std::vector<double>& moments,
@@ -115,11 +130,20 @@ std::vector<double> deltaKernel(const Grid& grid, unsigned int basis) {
    return kernel;
 }
 
-struct Errors { double field = 0.0; double energy = 0.0; };
+struct Errors {
+   double field = 0.0;
+   double energy = 0.0;
+   double energy_relative = 0.0;
+};
+
+template<typename T>
+std::vector<double> asDoubles(const std::vector<T>& values) {
+   return std::vector<double>(values.begin(), values.end());
+}
 
 struct OperatorResult {
-   std::vector<real> fields;
-   std::vector<real> energies;
+   std::vector<double> fields;
+   std::vector<double> energies;
    GpuDipoleSpectrumDiagnostics spectrum;
 };
 
@@ -163,7 +187,7 @@ OperatorResult evaluateOperator(const Grid& grid, unsigned int basis, unsigned i
    if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU stream creation failed");
    try {
       device_moments.Allocate(3L, static_cast<long int>(ncell * basis), static_cast<long int>(ensembles));
-      if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+      if(!uploadDoubles(device_moments.data(), moments))
          throw std::runtime_error("GPU moment upload failed");
       GpuDipoleConvolution solver;
       if(!solver.initiate(descriptor(grid, basis, ensembles, h), stream)) throw std::runtime_error("GPU FFT plan initiation failed");
@@ -177,7 +201,7 @@ OperatorResult evaluateOperator(const Grid& grid, unsigned int basis, unsigned i
       if(solver.diagnosticConstructionStorageAllocatedForTesting())
          throw std::runtime_error("transient real kernel storage survived kernel construction");
       solver.evaluate(device_moments);
-      OperatorResult result{solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+      OperatorResult result{asDoubles(solver.diagnosticFieldsForTesting()), asDoubles(solver.diagnosticEnergiesForTesting()),
                             solver.diagnosticSpectrumForTesting()};
       solver.release();
       device_moments.Free();
@@ -205,7 +229,7 @@ OperatorResult evaluateConstructedOperator(const Grid& grid, unsigned int basis,
    if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU constructed-kernel stream creation failed");
    try {
       device_moments.Allocate(3L, static_cast<long int>(ncell * basis), static_cast<long int>(ensembles));
-      if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+      if(!uploadDoubles(device_moments.data(), moments))
          throw std::runtime_error("GPU constructed-kernel moment upload failed");
       GpuDipoleConvolution solver;
       if(!solver.initiate(descriptor(grid, basis, ensembles, h, offsets, effective_macro_grid), stream))
@@ -213,7 +237,7 @@ OperatorResult evaluateConstructedOperator(const Grid& grid, unsigned int basis,
       solver.buildPeriodicKernel();
       if(!solver.kernelReady()) throw std::runtime_error("GPU constructed-kernel did not become ready");
       solver.evaluate(device_moments);
-      OperatorResult result{solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+      OperatorResult result{asDoubles(solver.diagnosticFieldsForTesting()), asDoubles(solver.diagnosticEnergiesForTesting()),
                             solver.diagnosticSpectrumForTesting()};
       solver.release();
       device_moments.Free();
@@ -242,12 +266,11 @@ std::array<OperatorResult, 2> evaluateConsecutive(const Grid& grid, unsigned int
       std::array<OperatorResult, 2> result{};
       const std::array<const std::vector<double>*, 2> input{{&first, &second}};
       for(unsigned int evaluation = 0; evaluation < input.size(); ++evaluation) {
-         if(GPU_MEMCPY(device_moments.data(), input[evaluation]->data(), input[evaluation]->size() * sizeof(real),
-                       GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {
+         if(!uploadDoubles(device_moments.data(), *input[evaluation])) {
             throw std::runtime_error("GPU changed-moment upload failed");
          }
          solver.evaluate(device_moments);
-         result[evaluation] = {solver.diagnosticFieldsForTesting(), solver.diagnosticEnergiesForTesting(),
+         result[evaluation] = {asDoubles(solver.diagnosticFieldsForTesting()), asDoubles(solver.diagnosticEnergiesForTesting()),
                                solver.diagnosticSpectrumForTesting()};
       }
       solver.release();
@@ -279,15 +302,19 @@ Errors runOperator(const std::string& name, const Grid& grid, unsigned int basis
             expected_energy -= 0.5 * moments[index] * expected[index];
          }
       errors.energy = std::max(errors.energy, std::abs(result.energies[ensemble] - expected_energy));
+      errors.energy_relative = std::max(errors.energy_relative,
+         std::abs(result.energies[ensemble] - expected_energy) / std::max(1.0, std::abs(expected_energy)));
    }
-   std::printf("plumbing %s max_field_error=%.17g max_energy_error=%.17g\n", name.c_str(), errors.field, errors.energy);
+   std::printf("plumbing %s max_field_error=%.17g max_energy_error=%.17g max_energy_relative=%.17g\n",
+               name.c_str(), errors.field, errors.energy, errors.energy_relative);
    return errors;
 }
 
 void require(const Errors& errors, const std::string& name) {
-   constexpr double tolerance = 5.0e-11;
-   if(errors.field > tolerance || errors.energy > tolerance)
-      throw std::runtime_error(name + " exceeds fp64 GPU convolution tolerance");
+   const bool energy_within_budget = errors.energy <= operator_tolerance ||
+      (!fp64_storage && errors.energy_relative <= fp32_relative_tolerance);
+   if(errors.field > operator_tolerance || !energy_within_budget)
+      throw std::runtime_error(name + " exceeds the GPU convolution precision budget");
 }
 
 void runDeltaSuite() {
@@ -379,22 +406,45 @@ DipolePeriodicGeometry periodicGeometry(const Grid& grid, const std::array<doubl
    return geometry;
 }
 
-double maxDifference(const std::vector<real>& actual, const double* expected, std::size_t count) {
+double maxDifference(const std::vector<double>& actual, const double* expected, std::size_t count) {
    double result = 0.0;
    for(std::size_t index = 0; index < count; ++index) result = std::max(result, std::abs(actual[index] - expected[index]));
    return result;
 }
 
 void requireSpectrum(const GpuDipoleSpectrumDiagnostics& spectrum, const std::string& name) {
-   constexpr double tolerance = 1.0e-12;
-   if(spectrum.max_reciprocity_error > tolerance || spectrum.max_conjugacy_error > tolerance ||
-      spectrum.max_hermitian_error > tolerance) {
+   if(spectrum.max_reciprocity_error > spectrum_tolerance || spectrum.max_conjugacy_error > spectrum_tolerance ||
+      spectrum.max_hermitian_error > spectrum_tolerance) {
       throw std::runtime_error(name + " violates complete-kernel spectral validation");
    }
 }
 
+void runKernelCacheSuite() {
+   // The cache is intentionally process-local and stores only immutable host
+   // Builder-B tensors.  Reinitializing an equivalent solver must reuse that
+   // construction while retaining distinct device plans and buffers.
+   GpuDipoleConvolution::clearKernelCacheForTesting();
+   const Grid grid{{2, 1, 1}};
+   const std::array<double, 9> h{{6.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0}};
+   const std::vector<double> moments{{0.2, -0.3, 0.4, -0.1, 0.5, 0.7}};
+   const auto first = evaluateConstructedOperator(grid, 1, 1, h, {{0.0, 0.0, 0.0}}, moments);
+   const auto after_first = GpuDipoleConvolution::kernelCacheStatsForTesting();
+   const auto second = evaluateConstructedOperator(grid, 1, 1, h, {{0.0, 0.0, 0.0}}, moments);
+   const auto after_second = GpuDipoleConvolution::kernelCacheStatsForTesting();
+   double field_difference = 0.0;
+   for(std::size_t index = 0; index < first.fields.size(); ++index)
+      field_difference = std::max(field_difference, std::abs(static_cast<double>(first.fields[index] - second.fields[index])));
+   if(after_first.misses != 1 || after_first.hits != 0 || after_second.misses != 1 ||
+      after_second.hits != 1 || after_second.entries != 1 ||
+      field_difference > operator_tolerance) {
+      throw std::runtime_error("Builder-B periodic kernel cache did not preserve reuse/equivalence");
+   }
+   std::printf("kernel-cache misses=%zu hits=%zu entries=%zu\n",
+               after_second.misses, after_second.hits, after_second.entries);
+}
+
 void runIndependentOracleSuite() {
-   constexpr double tolerance = 3.0e-10;
+   constexpr double tolerance = oracle_tolerance;
    double maximum_field = 0.0, maximum_energy = 0.0, maximum_reciprocity = 0.0, maximum_hermitian = 0.0;
    for(const auto& oracle : gpu_ewald_golden_v1::cases) {
       const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
@@ -424,7 +474,7 @@ void runIndependentOracleSuite() {
 }
 
 void runMultiBasisOracleSuite() {
-   constexpr double tolerance = 3.0e-10;
+   constexpr double tolerance = oracle_tolerance;
    double maximum_upload_field = 0.0, maximum_upload_energy = 0.0;
    double maximum_production_field = 0.0, maximum_production_energy = 0.0;
    for(const auto& oracle : gpu_ewald_multibasis_golden_v1::cases) {
@@ -519,7 +569,7 @@ void runMultiBasisProductionSliceSuite() {
    // deliberately scattered through a non-identity atom-to-macro map and the
    // energy reduction visits every (cell,basis) channel exactly once.
    constexpr double mu_b = 9.274009994e-24;
-   constexpr double tolerance = 3.0e-10;
+   constexpr double tolerance = fp64_storage ? 3.0e-10 : 5.0e-5;
    const auto& oracle = gpu_ewald_multibasis_golden_v1::cases[1];
    const Grid grid{{oracle.grid[0], oracle.grid[1], oracle.grid[2]}};
    const unsigned int basis = static_cast<unsigned int>(oracle.basis);
@@ -545,7 +595,7 @@ void runMultiBasisProductionSliceSuite() {
       eneff.Allocate(3L, static_cast<long int>(atoms), static_cast<long int>(ensembles));
       device_map.Allocate(static_cast<long int>(atoms));
       energy.Allocate(static_cast<long int>(ensembles), 7L);
-      if(GPU_MEMCPY(device_moments.data(), moments.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+      if(!uploadDoubles(device_moments.data(), moments) ||
          GPU_MEMCPY(device_map.data(), map.data(), atoms * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("multi-basis production input upload failed");
       beff.zeros_async(stream); eneff.zeros_async(stream); energy.zeros_async(stream);
@@ -583,7 +633,7 @@ void runMultiBasisProductionSliceSuite() {
          energy_error = std::max(energy_error, std::abs(actual_energy[ensemble + ensembles * 6] - expected));
       }
       if(field_error > tolerance * prefactor || energy_error > tolerance * prefactor)
-         throw std::runtime_error("multi-basis production scatter/energy exceeds the WP6 fp64 budget");
+         throw std::runtime_error("multi-basis production scatter/energy exceeds its precision budget");
       std::printf("multi-basis production L10-skew field_error=%.17g energy_error=%.17g\n", field_error, energy_error);
       solver.release();
       energy.Free(); device_map.Free(); eneff.Free(); beff.Free(); device_moments.Free();
@@ -599,8 +649,68 @@ void runMultiBasisProductionSliceSuite() {
    }
 }
 
+void runFp32DeviceEnergyReductionSuite() {
+   // Production energyM stores `real`, so this is deliberately separate from
+   // the fp64 diagnostic energy used by the operator tests above.  It measures
+   // the actual block-reduced device accumulation at an O(1) dimensionless
+   // scale, where a single-precision result is observable.
+   const Grid grid{{3, 2, 2}};
+   constexpr unsigned int basis = 2, ensembles = 4;
+    const std::array<double, 9> h{{9.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 6.0}};
+   const std::size_t ncell = cells(grid), atoms = ncell * basis;
+   const auto kernel = deltaKernel(grid, basis);
+   std::vector<double> moments(3 * atoms * ensembles);
+   for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble)
+      for(std::size_t index = 0; index < 3 * atoms; ++index)
+         moments[index + 3 * atoms * ensemble] = 0.025 * (1.0 + (index % 11) + ensemble);
+   const auto fields = directConvolution(kernel, moments, grid, basis, ensembles);
+   GpuTensor<real, 3> device_moments;
+   GpuTensor<real, 2> energy;
+   GPU_STREAM_T stream{};
+   if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("fp32 device-energy stream creation failed");
+   try {
+      device_moments.Allocate(3L, static_cast<long int>(atoms), static_cast<long int>(ensembles));
+      energy.Allocate(static_cast<long int>(ensembles), 7L);
+      if(!uploadDoubles(device_moments.data(), moments)) throw std::runtime_error("fp32 device-energy moment upload failed");
+      energy.zeros_async(stream);
+      const std::vector<std::array<double, 3>> offsets{{{0.0, 0.0, 0.0}, {0.37, 0.23, 0.41}}};
+      GpuDipoleConvolution solver;
+      if(!solver.initiate(descriptor(grid, basis, ensembles, h, offsets, {}, 1.0), stream))
+         throw std::runtime_error("fp32 device-energy plan initiation failed");
+      solver.uploadCompleteKernelForTesting(kernel, false);
+      solver.evaluate(device_moments);
+      solver.accumulateEnergy(energy, atoms);
+      if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("fp32 device-energy synchronization failed");
+      std::vector<real> actual(7 * ensembles);
+      if(GPU_MEMCPY(actual.data(), energy.data(), actual.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
+         throw std::runtime_error("fp32 device-energy download failed");
+      double absolute_error = 0.0, relative_error = 0.0;
+      for(unsigned int ensemble = 0; ensemble < ensembles; ++ensemble) {
+         double expected = 0.0;
+         for(std::size_t index = 0; index < 3 * atoms; ++index)
+            expected -= 0.5 * moments[index + 3 * atoms * ensemble] * fields[index + 3 * atoms * ensemble] /
+                        static_cast<double>(atoms);
+         for(const unsigned int column : {5U, 6U}) {
+            const double error = std::abs(static_cast<double>(actual[ensemble + ensembles * column]) - expected);
+            absolute_error = std::max(absolute_error, error);
+            relative_error = std::max(relative_error, error / std::max(1.0, std::abs(expected)));
+         }
+      }
+      std::printf("fp32-device-energy absolute_error=%.17g relative_error=%.17g\n", absolute_error, relative_error);
+      if(absolute_error > operator_tolerance && relative_error > fp32_relative_tolerance)
+         throw std::runtime_error("fp32 device energy reduction exceeds the mixed precision budget");
+      solver.release(); energy.Free(); device_moments.Free();
+      if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("fp32 device-energy stream destruction failed");
+   } catch(...) {
+      if(!energy.empty()) energy.Free();
+      if(!device_moments.empty()) device_moments.Free();
+      GPU_STREAM_DESTROY(stream);
+      throw;
+   }
+}
+
 void runAlphaAndPropertySuite() {
-   constexpr double tolerance = 3.0e-10;
+   constexpr double tolerance = oracle_tolerance;
    const auto& cubic = gpu_ewald_golden_v1::cases[0];
    const Grid cubic_grid{{cubic.grid[0], cubic.grid[1], cubic.grid[2]}};
    const auto cubic_geometry = periodicGeometry(cubic_grid, cubic.H);
@@ -678,7 +788,7 @@ void runProductionSliceSuite() {
    // this test applies the physical Tesla/mRy conversion only at its boundary.
    constexpr double mu_b = 9.274009994e-24;
    constexpr double mry = 2.179872325e-21;
-   constexpr double tolerance = 3.0e-10;
+   constexpr double tolerance = fp64_storage ? 3.0e-10 : 5.0e-5;
    double maximum_field_tesla = 0.0, maximum_energy_mry = 0.0;
    double changed_field_error = 0.0, changed_energy_error = 0.0, zero_field_error = 0.0, zero_energy_error = 0.0;
    for(const auto& oracle : gpu_ewald_golden_v1::cases) {
@@ -709,7 +819,7 @@ void runProductionSliceSuite() {
          eneff.Allocate(3L, static_cast<long int>(ncell), static_cast<long int>(oracle.ensembles));
          device_map.Allocate(static_cast<long int>(ncell));
          energy.Allocate(static_cast<long int>(oracle.ensembles), 7L);
-         if(GPU_MEMCPY(device_moments.data(), moments.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         if(!uploadDoubles(device_moments.data(), moments) ||
             GPU_MEMCPY(device_map.data(), map.data(), ncell * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
             throw std::runtime_error("GPU production-slice input upload failed");
          if(GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
@@ -751,7 +861,7 @@ void runProductionSliceSuite() {
          auto changed = moments;
          const std::size_t per_ensemble = 3 * ncell;
          for(std::size_t index = 0; index < per_ensemble; ++index) changed[index] = -changed[index];
-         if(GPU_MEMCPY(device_moments.data(), changed.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         if(!uploadDoubles(device_moments.data(), changed) ||
             GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
             GPU_MEMCPY(eneff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
             GPU_MEMCPY(energy.data(), seeded_energy.data(), seeded_energy.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
@@ -781,7 +891,7 @@ void runProductionSliceSuite() {
          // A second changed evaluation with a zero first ensemble must not
          // retain either its former field or energy contribution.
          std::fill(changed.begin(), changed.begin() + per_ensemble, 0.0);
-         if(GPU_MEMCPY(device_moments.data(), changed.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         if(!uploadDoubles(device_moments.data(), changed) ||
             GPU_MEMCPY(beff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
             GPU_MEMCPY(eneff.data(), seeded_fields.data(), count * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
             GPU_MEMCPY(energy.data(), seeded_energy.data(), seeded_energy.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
@@ -826,7 +936,7 @@ void runProductionSliceSuite() {
       changed_energy_error > tolerance * (1.0e-7 * mu_b) ||
       zero_field_error > tolerance * (1.0e-7 * mu_b) ||
       zero_energy_error > tolerance * (1.0e-7 * mu_b)) {
-      throw std::runtime_error("GPU production Tesla/mRy acceptance exceeds the WP5 fp64 budget");
+      throw std::runtime_error("GPU production Tesla/mRy acceptance exceeds its precision budget");
    }
    std::printf("production-slice max_field_tesla_error=%.17g max_energy_mry_error=%.17g changed_field_error=%.17g changed_energy_error=%.17g zero_field_error=%.17g zero_energy_error=%.17g\n",
                maximum_field_tesla, maximum_energy_mry, changed_field_error, changed_energy_error,
@@ -843,13 +953,19 @@ int main() {
       runProjectedBlockGpuSuite();
       runIndependentOracleSuite();
       runMultiBasisOracleSuite();
-      runMultiBasisProductionSliceSuite();
       runAlphaAndPropertySuite();
+      runKernelCacheSuite();
+      if constexpr(!fp64_storage) {
+         runFp32DeviceEnergyReductionSuite();
+      }
+      runMultiBasisProductionSliceSuite();
       runProductionSliceSuite();
+      if constexpr(!fp64_storage) std::puts("fp32 acceptance: operator, Tesla/mRy production, and energy reduction passed");
    } catch(const std::exception& error) {
       std::fprintf(stderr, "FAIL GPU dipole FFT convolution: %s\n", error.what());
       return 1;
    }
-   std::puts("PASS GPU dipole FFT delta and periodic convolution suites");
+   std::printf("PASS GPU dipole FFT delta and periodic convolution suites (%s)\n",
+               fp64_storage ? "fp64" : "fp32 provisional budget");
    return 0;
 }

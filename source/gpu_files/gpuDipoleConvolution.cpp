@@ -2,13 +2,24 @@
 
 #include "gpuFftWrapper.hpp"
 #include "real_type.h"
+#include "stopwatchDeviceSync.hpp"
+#include "stopwatchPool.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <climits>
 #include <cmath>
+#include <complex>
+#include <cstdint>
+#include <cstdlib>
+#include <iomanip>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -43,6 +54,45 @@ struct HostComplex {
    double real = 0.0;
    double imag = 0.0;
 };
+
+struct CachedPeriodicKernel {
+   std::vector<double> real_kernel;
+   std::vector<std::complex<double>> reciprocal_alias_spectrum;
+};
+
+struct KernelCache {
+   std::mutex mutex;
+   std::unordered_map<std::string, std::shared_ptr<const CachedPeriodicKernel>> entries;
+   std::size_t hits = 0;
+   std::size_t misses = 0;
+};
+
+KernelCache& periodicKernelCache() {
+   static KernelCache cache;
+   return cache;
+}
+
+void appendKeyDouble(std::ostringstream& key, double value) {
+   key << std::hex << std::bit_cast<std::uint64_t>(value) << ':';
+}
+
+std::string periodicKernelCacheKey(const GpuDipoleConvolutionDescriptor& descriptor,
+                                   const DipoleUniformBlockShape& block) {
+   // This is intentionally a complete geometry/construction key.  Values are
+   // represented by their IEEE bits so two distinct input geometries cannot
+   // alias through formatted decimal rounding.
+   std::ostringstream key;
+   key << "ewald3d-fft-builder-b-v1|storage=" << sizeof(real) << '|'
+       << descriptor.atomistic_grid.n1 << ',' << descriptor.atomistic_grid.n2 << ',' << descriptor.atomistic_grid.n3 << '|'
+       << descriptor.activeGrid().n1 << ',' << descriptor.activeGrid().n2 << ',' << descriptor.activeGrid().n3 << '|'
+       << descriptor.basis << '|' << block.cells[0] << ',' << block.cells[1] << ',' << block.cells[2] << '|';
+   appendKeyDouble(key, descriptor.tolerance);
+   const auto cell = descriptor.fullCellMatrix();
+   for(const real value : cell) appendKeyDouble(key, static_cast<double>(value));
+   for(const auto& offset : descriptor.basis_offsets)
+      for(const double value : offset) appendKeyDouble(key, value);
+   return key.str();
+}
 
 std::size_t spectralIndex(const GpuDipoleFftLayout& layout, std::size_t q1, std::size_t q2, std::size_t q3) {
    return q1 + layout.spectral_grid.n1 * (q2 + layout.real_grid.n2 * q3);
@@ -220,14 +270,27 @@ __global__ void accumulate_dipole_energy(const real* moments, const real* fields
                                          real* energy, std::size_t cells, unsigned int basis,
                                          unsigned int ensembles, real prefactor,
                                          real atoms_inverse) {
-   const std::size_t total = cells * 3 * basis * ensembles;
-   for(std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-       index < total; index += static_cast<std::size_t>(blockDim.x) * gridDim.x) {
-      const std::size_t batch = index / cells;
-      const unsigned int ensemble = static_cast<unsigned int>(batch / (3 * basis));
-      const real value = static_cast<real>(-0.5) * moments[index] * (prefactor * fields[index]) * atoms_inverse;
-      atomicAdd(&energy[ensemble + ensembles * 5], value);
-      atomicAdd(&energy[ensemble + ensembles * 6], value);
+   // One ensemble is assigned to each grid row.  Reducing each block before
+   // its atomic update removes the order-dependent one-atomic-per-component
+   // accumulation that dominated the fp32 energy error on multi-basis grids.
+   __shared__ real partial[256];
+   const unsigned int ensemble = blockIdx.y;
+   const std::size_t per_ensemble = cells * 3 * basis;
+   const std::size_t local = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+   real value = static_cast<real>(0);
+   if(ensemble < ensembles && local < per_ensemble) {
+      const std::size_t index = local + per_ensemble * ensemble;
+      value = static_cast<real>(-0.5) * moments[index] * (prefactor * fields[index]) * atoms_inverse;
+   }
+   partial[threadIdx.x] = value;
+   __syncthreads();
+   for(unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+      if(threadIdx.x < stride) partial[threadIdx.x] += partial[threadIdx.x + stride];
+      __syncthreads();
+   }
+   if(threadIdx.x == 0 && ensemble < ensembles) {
+      atomicAdd(&energy[ensemble + ensembles * 5], partial[0]);
+      atomicAdd(&energy[ensemble + ensembles * 6], partial[0]);
    }
 }
 
@@ -368,7 +431,9 @@ bool GpuDipoleConvolutionDescriptor::valid() const {
       !std::isfinite(field_prefactor) || field_prefactor <= 0.0) return false;
    for(const auto& offset : basis_offsets)
       for(const double value : offset) if(!std::isfinite(value)) return false;
-   return sizeof(real) == sizeof(double) && hasNonSingularCell(*this) && fftLayout().fitsFftLibrary();
+   // Kernel construction remains fp64 on the host.  Device storage can be
+   // fp32 after the WP9 physical production acceptance gate.
+   return hasNonSingularCell(*this) && fftLayout().fitsFftLibrary();
 }
 
 bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
@@ -407,6 +472,7 @@ bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descri
    stream = work_stream;
    kernel_ready = false;
    spectrum_diagnostics = {};
+   stopwatch = std::make_unique<StopwatchDeviceSync>(GlobalStopwatchPool::get("GPU dipole FFT"), stream);
 
    // PlanMany receives the transform axes in slow-to-fast order, whereas the
    // source grid is stored with n1 as the contiguous axis.
@@ -516,6 +582,7 @@ void GpuDipoleConvolution::release() {
    desc = {};
    layout = {};
    stream = {};
+   stopwatch.reset();
 }
 
 GpuDipoleConvolution::~GpuDipoleConvolution() {
@@ -586,7 +653,6 @@ void GpuDipoleConvolution::uploadRealKernelAndAliasSpectrum(
    const std::vector<double>& real_kernel, const std::vector<std::complex<double>>& reciprocal_alias_spectrum,
    bool validate_physics) {
    if(!initiated) throw std::runtime_error("GPU dipole kernel upload requested before plan initialization");
-   if(sizeof(real) != sizeof(double)) throw std::runtime_error("complete-kernel GPU validation requires fp64 storage");
    const std::size_t expected = layout.real_cells * layout.kernel_batches;
    const std::size_t expected_alias = layout.spectral_cells * layout.kernel_batches;
    if(real_kernel.size() != expected) throw std::runtime_error("complete host tensor does not match GPU kernel layout");
@@ -607,9 +673,15 @@ void GpuDipoleConvolution::uploadRealKernelAndAliasSpectrum(
             throw std::runtime_error("reciprocal alias spectrum contains a non-finite value");
          }
       }
+      std::vector<real> storage_kernel;
+      const real* kernel_data = reinterpret_cast<const real*>(real_kernel.data());
+      if constexpr(sizeof(real) != sizeof(double)) {
+         storage_kernel.assign(real_kernel.begin(), real_kernel.end());
+         kernel_data = storage_kernel.data();
+      }
       kernel_real.Allocate(static_cast<long int>(layout.real_cells), static_cast<long int>(layout.kernel_batches));
       kernel_real_allocated = true;
-      if(GPU_MEMCPY(kernel_real.data(), real_kernel.data(), expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+      if(GPU_MEMCPY(kernel_real.data(), kernel_data, expected * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("complete periodic dipole tensor upload failed");
       assertGpuFft(GPUFFT_EXEC_R2C(kernel_plan, kernel_real.data(), kernel_fft.data()));
       constexpr unsigned int threads = 256;
@@ -641,7 +713,7 @@ void GpuDipoleConvolution::uploadRealKernelAndAliasSpectrum(
          throw std::runtime_error("GPU dipole spectrum diagnostic download failed");
       }
       spectrum_diagnostics = validateSpectrum(real_kernel, spectrum, layout, desc.basis);
-      constexpr double validation_tolerance = 1.0e-12;
+      constexpr double validation_tolerance = sizeof(real) == sizeof(double) ? 1.0e-12 : 5.0e-5;
       if(validate_physics && (spectrum_diagnostics.max_reciprocity_error > validation_tolerance ||
                                spectrum_diagnostics.max_conjugacy_error > validation_tolerance ||
                                spectrum_diagnostics.max_hermitian_error > validation_tolerance)) {
@@ -673,18 +745,29 @@ void GpuDipoleConvolution::uploadCompleteKernelForTesting(const DipoleKernelBuil
 
 void GpuDipoleConvolution::buildPeriodicKernel() {
    if(!initiated) throw std::runtime_error("GPU periodic dipole kernel requested before plan initialization");
-   if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.discretization != GpuDipoleDiscretization::MacrospinGrid ||
-      sizeof(real) != sizeof(double)) {
-      throw std::runtime_error("GPU production dipole construction is limited to fp64 periodic regular macrospin grids");
+   if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.discretization != GpuDipoleDiscretization::MacrospinGrid) {
+      throw std::runtime_error("GPU periodic dipole construction requires a regular 3D-periodic macrospin grid");
    }
    DipolePeriodicGeometry geometry{};
    const auto h = desc.fullCellMatrix();
-   const auto brec = desc.reciprocalCellMatrix();
-   for(unsigned int index = 0; index < 9; ++index) {
-      geometry.H[index] = static_cast<double>(h[index]);
-      geometry.Brec[index] = static_cast<double>(brec[index]);
-   }
-   geometry.volume = static_cast<double>(desc.cellVolume());
+   for(unsigned int index = 0; index < 9; ++index) geometry.H[index] = static_cast<double>(h[index]);
+   // The device copies below remain `real`, but Builder-B is a host-fp64
+   // operation.  Recomputing Brec after widening avoids validating a
+   // single-precision reciprocal vector against fp64 geometry.
+   geometry.volume = geometry.H[0] * (geometry.H[4] * geometry.H[8] - geometry.H[5] * geometry.H[7]) -
+                     geometry.H[1] * (geometry.H[3] * geometry.H[8] - geometry.H[5] * geometry.H[6]) +
+                     geometry.H[2] * (geometry.H[3] * geometry.H[7] - geometry.H[4] * geometry.H[6]);
+   const double reciprocal_scale = 2.0 * std::acos(-1.0) / geometry.volume;
+   geometry.Brec = {
+      reciprocal_scale * (geometry.H[4] * geometry.H[8] - geometry.H[5] * geometry.H[7]),
+      reciprocal_scale * (geometry.H[5] * geometry.H[6] - geometry.H[3] * geometry.H[8]),
+      reciprocal_scale * (geometry.H[3] * geometry.H[7] - geometry.H[4] * geometry.H[6]),
+      reciprocal_scale * (geometry.H[7] * geometry.H[2] - geometry.H[8] * geometry.H[1]),
+      reciprocal_scale * (geometry.H[8] * geometry.H[0] - geometry.H[6] * geometry.H[2]),
+      reciprocal_scale * (geometry.H[6] * geometry.H[1] - geometry.H[7] * geometry.H[0]),
+      reciprocal_scale * (geometry.H[1] * geometry.H[5] - geometry.H[2] * geometry.H[4]),
+      reciprocal_scale * (geometry.H[2] * geometry.H[3] - geometry.H[0] * geometry.H[5]),
+      reciprocal_scale * (geometry.H[0] * geometry.H[4] - geometry.H[1] * geometry.H[3])};
    const auto coarse_grid = desc.activeGrid();
    if(desc.atomistic_grid.n1 % coarse_grid.n1 != 0 || desc.atomistic_grid.n2 % coarse_grid.n2 != 0 ||
       desc.atomistic_grid.n3 % coarse_grid.n3 != 0) {
@@ -698,6 +781,25 @@ void GpuDipoleConvolution::buildPeriodicKernel() {
    geometry.basis_offsets = desc.basis_offsets;
    DipoleKernelSettings settings{};
    settings.tolerance = desc.tolerance;
+   const std::string cache_key = periodicKernelCacheKey(desc, block);
+   std::shared_ptr<const CachedPeriodicKernel> cached;
+   {
+      auto& cache = periodicKernelCache();
+      std::lock_guard<std::mutex> lock(cache.mutex);
+      const auto found = cache.entries.find(cache_key);
+      if(found != cache.entries.end()) {
+         cached = found->second;
+         ++cache.hits;
+      } else {
+         ++cache.misses;
+      }
+   }
+   if(cached) {
+      uploadRealKernelAndAliasSpectrum(cached->real_kernel, cached->reciprocal_alias_spectrum, true);
+      return;
+   }
+
+   auto built = std::make_shared<CachedPeriodicKernel>();
    if(block.cells != std::array<std::size_t, 3>{{1, 1, 1}}) {
       // Projected Builder B retains the finite diagonal block obtained from
       // M_block=sum_i m_i and applies the matching reciprocal form factor.
@@ -707,25 +809,40 @@ void GpuDipoleConvolution::buildPeriodicKernel() {
                                                            layout.spectral_grid.n3}};
       if(projected.spectral_grid != expected_spectral)
          throw std::runtime_error("projected reciprocal alias builder produced an incompatible R2C spectrum shape");
-      uploadRealKernelAndAliasSpectrum(projected.real_kernel, projected.reciprocal_alias_spectrum, true);
-      return;
+      built->real_kernel = std::move(projected.real_kernel);
+      built->reciprocal_alias_spectrum = std::move(projected.reciprocal_alias_spectrum);
+   } else {
+      const auto alias = buildPeriodicEwaldAliasSpectrum(geometry, settings);
+      const std::array<std::size_t, 3> expected_spectral{{layout.spectral_grid.n1, layout.spectral_grid.n2,
+                                                           layout.spectral_grid.n3}};
+      if(alias.spectral_grid != expected_spectral) {
+         throw std::runtime_error("reciprocal alias builder produced an incompatible R2C spectrum shape");
+      }
+      built->real_kernel = std::move(alias.real_kernel);
+      built->reciprocal_alias_spectrum = std::move(alias.reciprocal_alias_spectrum);
    }
-   const auto alias = buildPeriodicEwaldAliasSpectrum(geometry, settings);
-   const std::array<std::size_t, 3> expected_spectral{{layout.spectral_grid.n1, layout.spectral_grid.n2,
-                                                        layout.spectral_grid.n3}};
-   if(alias.spectral_grid != expected_spectral) {
-      throw std::runtime_error("reciprocal alias builder produced an incompatible R2C spectrum shape");
+   {
+      auto& cache = periodicKernelCache();
+      std::lock_guard<std::mutex> lock(cache.mutex);
+      const auto [entry, ignored] = cache.entries.emplace(cache_key, built);
+      (void)ignored;
+      cached = entry->second;
    }
-   uploadRealKernelAndAliasSpectrum(alias.real_kernel, alias.reciprocal_alias_spectrum, true);
+   uploadRealKernelAndAliasSpectrum(cached->real_kernel, cached->reciprocal_alias_spectrum, true);
 }
 
 void GpuDipoleConvolution::evaluate(const GpuTensor<real, 3>& macro_moments) {
    if(!initiated) throw std::runtime_error("GPU dipole evaluation requested before plan initialization");
    if(!kernel_ready) throw std::runtime_error("GPU dipole evaluation requested before complete kernel is ready");
+   if(stopwatch) stopwatch->skip();
    packMacroMoments(macro_moments);
+   if(stopwatch) stopwatch->add("pack");
    forwardTransformMoments();
+   if(stopwatch) stopwatch->add("forward FFT");
    applySpectralKernel();
+   if(stopwatch) stopwatch->add("spectral contraction");
    inverseTransformFields();
+   if(stopwatch) stopwatch->add("inverse FFT");
 }
 
 void GpuDipoleConvolution::addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<real, 3>& eneff,
@@ -743,6 +860,7 @@ void GpuDipoleConvolution::addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<
                                                        desc.ensembles, static_cast<real>(desc.field_prefactor),
                                                        beff.data() == eneff.data());
    if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole field-scatter launch failed");
+   if(stopwatch) stopwatch->add("scatter");
 }
 
 void GpuDipoleConvolution::accumulateEnergy(GpuTensor<real, 2>& energyM, std::size_t atom_count) {
@@ -751,13 +869,15 @@ void GpuDipoleConvolution::accumulateEnergy(GpuTensor<real, 2>& energyM, std::si
       throw std::runtime_error("GPU dipole energy buffer does not match the regular macrocell layout");
    }
    constexpr unsigned int threads = 256;
-   const std::size_t count = layout.real_cells * 3 * desc.basis * desc.ensembles;
-   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>((count + threads - 1) / threads, 65535));
-   accumulate_dipole_energy<<<blocks, threads, 0, stream>>>(moments_real.data(), fields_real.data(), energyM.data(),
+   const std::size_t per_ensemble = layout.real_cells * 3 * desc.basis;
+   const unsigned int blocks = static_cast<unsigned int>(std::min<std::size_t>((per_ensemble + threads - 1) / threads, 65535));
+   const dim3 grid(blocks, desc.ensembles);
+   accumulate_dipole_energy<<<grid, threads, 0, stream>>>(moments_real.data(), fields_real.data(), energyM.data(),
                                                               layout.real_cells, desc.basis, desc.ensembles,
                                                               static_cast<real>(desc.field_prefactor),
                                                               static_cast<real>(1) / static_cast<real>(atom_count));
    if(GPU_GET_LAST_ERROR() != GPU_SUCCESS) throw std::runtime_error("GPU dipole energy-reduction launch failed");
+   if(stopwatch) stopwatch->add("energy reduction");
    // Acceptance-only trace seam.  Normal field evaluation never enters this
    // branch and therefore remains free of host synchronization.
    if(std::getenv("UPPASD_GPU_TEST_TRACE_DIP_ENERGY")) {
@@ -789,7 +909,7 @@ std::vector<real> GpuDipoleConvolution::diagnosticFieldsForTesting() const {
    return result;
 }
 
-std::vector<real> GpuDipoleConvolution::diagnosticEnergiesForTesting() const {
+std::vector<double> GpuDipoleConvolution::diagnosticEnergiesForTesting() const {
    if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole diagnostic energy requested before a ready evaluation");
    if(GPU_STREAM_SYNC(stream) != GPU_SUCCESS) throw std::runtime_error("GPU dipole diagnostic energy synchronization failed");
    std::vector<real> moments(layout.real_cells * layout.field_batches);
@@ -797,13 +917,13 @@ std::vector<real> GpuDipoleConvolution::diagnosticEnergiesForTesting() const {
    if(GPU_MEMCPY(moments.data(), moments_real.data(), moments.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
       GPU_MEMCPY(fields.data(), fields_real.data(), fields.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS)
       throw std::runtime_error("GPU dipole diagnostic energy download failed");
-   std::vector<real> result(desc.ensembles, static_cast<real>(0));
+   std::vector<double> result(desc.ensembles, 0.0);
    for(unsigned int ensemble = 0; ensemble < desc.ensembles; ++ensemble)
       for(std::size_t cell = 0; cell < layout.real_cells; ++cell)
          for(unsigned int basis = 0; basis < desc.basis; ++basis)
             for(unsigned int component = 0; component < 3; ++component) {
                const std::size_t index = cell + layout.real_cells * (component + 3 * (basis + desc.basis * ensemble));
-               result[ensemble] -= static_cast<real>(0.5) * moments[index] * fields[index];
+               result[ensemble] -= 0.5 * static_cast<double>(moments[index]) * static_cast<double>(fields[index]);
             }
    return result;
 }
@@ -815,6 +935,20 @@ bool GpuDipoleConvolution::diagnosticConstructionStorageAllocatedForTesting() co
 GpuDipoleSpectrumDiagnostics GpuDipoleConvolution::diagnosticSpectrumForTesting() const {
    if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole spectrum diagnostic requested before a ready kernel");
    return spectrum_diagnostics;
+}
+
+GpuDipoleKernelCacheStats GpuDipoleConvolution::kernelCacheStatsForTesting() {
+   auto& cache = periodicKernelCache();
+   std::lock_guard<std::mutex> lock(cache.mutex);
+   return {cache.hits, cache.misses, cache.entries.size()};
+}
+
+void GpuDipoleConvolution::clearKernelCacheForTesting() {
+   auto& cache = periodicKernelCache();
+   std::lock_guard<std::mutex> lock(cache.mutex);
+   cache.entries.clear();
+   cache.hits = 0;
+   cache.misses = 0;
 }
 
 std::size_t GpuDipoleConvolution::estimatePersistentBytes(
