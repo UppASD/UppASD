@@ -35,6 +35,29 @@ std::size_t cells(const DipolePeriodicGeometry& geometry) {
    return n1 * n2 * n3;
 }
 
+std::size_t kernelBatch(unsigned int row, unsigned int column, unsigned int target, unsigned int source,
+                        unsigned int basis) {
+   return row + 3 * (column + 3 * (target + basis * source));
+}
+
+void validateUniformBlock(const DipolePeriodicGeometry& geometry, const DipoleUniformBlockShape& block) {
+   (void)cells(geometry);
+   for(unsigned int axis = 0; axis < 3; ++axis) {
+      if(block.cells[axis] == 0)
+         throw std::invalid_argument("uniform block dimensions must be positive");
+      if(geometry.grid[axis] % block.cells[axis] != 0)
+         throw std::invalid_argument("periodic FFT coarse blocks must divide every atomistic grid extent");
+   }
+}
+
+std::size_t blockPopulation(const DipoleUniformBlockShape& block) {
+   if(block.cells[0] > std::numeric_limits<std::size_t>::max() / block.cells[1] ||
+      block.cells[0] * block.cells[1] > std::numeric_limits<std::size_t>::max() / block.cells[2]) {
+      throw std::invalid_argument("uniform block population overflows size_t");
+   }
+   return block.cells[0] * block.cells[1] * block.cells[2];
+}
+
 Vector add(const Vector& left, const Vector& right) {
    return {left[0] + right[0], left[1] + right[1], left[2] + right[2]};
 }
@@ -368,6 +391,64 @@ std::vector<Complex> sumReciprocalAliases(const DipolePeriodicGeometry& geometry
    return result;
 }
 
+double uniformBlockFormFactorSquared(const DipolePeriodicGeometry& atomistic_geometry,
+                                     const DipoleUniformBlockShape& block,
+                                     const std::array<int, 3>& n) {
+   Complex factor{1.0, 0.0};
+   for(unsigned int axis = 0; axis < 3; ++axis) {
+      Complex axis_sum{};
+      for(std::size_t offset = 0; offset < block.cells[axis]; ++offset) {
+         const double phase = 2.0 * pi * static_cast<double>(n[axis]) * static_cast<double>(offset) /
+                              static_cast<double>(atomistic_geometry.grid[axis]);
+         axis_sum += std::polar(1.0, phase);
+      }
+      factor *= axis_sum / static_cast<double>(block.cells[axis]);
+   }
+   return std::norm(factor);
+}
+
+std::vector<Complex> sumProjectedReciprocalAliases(const DipolePeriodicGeometry& atomistic_geometry,
+                                                    const DipolePeriodicGeometry& coarse_geometry,
+                                                    const DipoleUniformBlockShape& block,
+                                                    double alpha, int extent, std::size_t& work) {
+   const std::size_t cells_spectral = spectralCells(coarse_geometry);
+   const std::size_t batches = 9 * static_cast<std::size_t>(coarse_geometry.basis) * coarse_geometry.basis;
+   std::vector<Complex> result(cells_spectral * batches, Complex{});
+   const std::size_t stored_n1 = coarse_geometry.grid[0] / 2 + 1;
+   for(std::size_t q3 = 0; q3 < coarse_geometry.grid[2]; ++q3)
+      for(std::size_t q2 = 0; q2 < coarse_geometry.grid[1]; ++q2)
+         for(std::size_t q1 = 0; q1 < stored_n1; ++q1) {
+            const std::size_t spectral = q1 + stored_n1 * (q2 + coarse_geometry.grid[1] * q3);
+            const std::array<int, 3> q{{static_cast<int>(q1), signedFrequency(q2, coarse_geometry.grid[1]),
+                                        signedFrequency(q3, coarse_geometry.grid[2])}};
+            for(unsigned int target = 0; target < coarse_geometry.basis; ++target)
+               for(unsigned int source = 0; source < coarse_geometry.basis; ++source) {
+                  const Vector offset = subtract(coarse_geometry.basis_offsets[target], coarse_geometry.basis_offsets[source]);
+                  for(int l3 = -extent; l3 <= extent; ++l3)
+                     for(int l2 = -extent; l2 <= extent; ++l2)
+                        for(int l1 = -extent; l1 <= extent; ++l1) {
+                           const std::array<int, 3> n{{q[0] + static_cast<int>(coarse_geometry.grid[0]) * l1,
+                                                       q[1] + static_cast<int>(coarse_geometry.grid[1]) * l2,
+                                                       q[2] + static_cast<int>(coarse_geometry.grid[2]) * l3}};
+                           if(n[0] == 0 && n[1] == 0 && n[2] == 0) continue;
+                           const Vector wave = matrixVector(atomistic_geometry.Brec,
+                              {static_cast<double>(n[0]), static_cast<double>(n[1]), static_cast<double>(n[2])});
+                           const Complex phase = std::polar(1.0, dot(wave, offset));
+                           const double form_factor = uniformBlockFormFactorSquared(atomistic_geometry, block, n);
+                           const Tensor tensor = reciprocalTensor(wave, atomistic_geometry.volume, alpha);
+                           for(unsigned int column = 0; column < 3; ++column)
+                              for(unsigned int row = 0; row < 3; ++row) {
+                                 const std::size_t batch = kernelBatch(row, column, target, source,
+                                                                       coarse_geometry.basis);
+                                 result[spectral + cells_spectral * batch] += tensor[row + 3 * column] * phase * form_factor;
+                              }
+                           ++work;
+                        }
+               }
+         }
+   return result;
+}
+
 double complexVectorMaxAbs(const std::vector<Complex>& values) {
    double result = 0.0;
    for(const Complex& value : values) result = std::max(result, std::abs(value));
@@ -511,6 +592,84 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(const DipolePeriodi
    return result;
 }
 
+DipolePeriodicGeometry coarsePeriodicGeometry(const DipolePeriodicGeometry& atomistic_geometry,
+                                              const DipoleUniformBlockShape& block) {
+   validate(atomistic_geometry, {});
+   validateUniformBlock(atomistic_geometry, block);
+   DipolePeriodicGeometry coarse = atomistic_geometry;
+   for(unsigned int axis = 0; axis < 3; ++axis) coarse.grid[axis] /= block.cells[axis];
+   return coarse;
+}
+
+DipoleKernelBuildResult projectUniformBlockKernel(const DipoleKernelBuildResult& atomistic_kernel,
+                                                  const DipolePeriodicGeometry& atomistic_geometry,
+                                                  const DipoleUniformBlockShape& block) {
+   validate(atomistic_geometry, {});
+   validateUniformBlock(atomistic_geometry, block);
+   const std::size_t atomistic_cells = cells(atomistic_geometry);
+   const std::size_t batches = 9 * static_cast<std::size_t>(atomistic_geometry.basis) * atomistic_geometry.basis;
+   if(atomistic_kernel.kernel.size() != atomistic_cells * batches)
+      throw std::invalid_argument("atomistic kernel size does not match uniform-block projection geometry");
+
+   const DipolePeriodicGeometry coarse = coarsePeriodicGeometry(atomistic_geometry, block);
+   const std::size_t coarse_cells = cells(coarse);
+   const std::size_t population = blockPopulation(block);
+   const double inverse_population_squared = 1.0 / (static_cast<double>(population) * static_cast<double>(population));
+   DipoleKernelBuildResult result{};
+   result.kernel.assign(coarse_cells * batches, 0.0);
+
+   // d is target minus source on the coarse grid.  u and v are the primitive
+   // cell offsets within target and source blocks respectively.  Accumulating
+   // the accepted complete atomistic tensor here retains all distinct
+   // intra-block pairs and the finite Ewald diagonal convention without any
+   // additional self-demagnetizing correction.
+   for(std::size_t d3 = 0; d3 < coarse.grid[2]; ++d3)
+      for(std::size_t d2 = 0; d2 < coarse.grid[1]; ++d2)
+         for(std::size_t d1 = 0; d1 < coarse.grid[0]; ++d1) {
+            const std::size_t coarse_cell = d1 + coarse.grid[0] * (d2 + coarse.grid[1] * d3);
+            for(std::size_t u3 = 0; u3 < block.cells[2]; ++u3)
+               for(std::size_t u2 = 0; u2 < block.cells[1]; ++u2)
+                  for(std::size_t u1 = 0; u1 < block.cells[0]; ++u1)
+                     for(std::size_t v3 = 0; v3 < block.cells[2]; ++v3)
+                        for(std::size_t v2 = 0; v2 < block.cells[1]; ++v2)
+                           for(std::size_t v1 = 0; v1 < block.cells[0]; ++v1) {
+                              const std::size_t f1 = (d1 * block.cells[0] + u1 + atomistic_geometry.grid[0] - v1) %
+                                                     atomistic_geometry.grid[0];
+                              const std::size_t f2 = (d2 * block.cells[1] + u2 + atomistic_geometry.grid[1] - v2) %
+                                                     atomistic_geometry.grid[1];
+                              const std::size_t f3 = (d3 * block.cells[2] + u3 + atomistic_geometry.grid[2] - v3) %
+                                                     atomistic_geometry.grid[2];
+                              const std::size_t atomistic_cell = f1 + atomistic_geometry.grid[0] *
+                                 (f2 + atomistic_geometry.grid[1] * f3);
+                              for(unsigned int target = 0; target < atomistic_geometry.basis; ++target)
+                                 for(unsigned int source = 0; source < atomistic_geometry.basis; ++source)
+                                    for(unsigned int column = 0; column < 3; ++column)
+                                       for(unsigned int row = 0; row < 3; ++row) {
+                                          const std::size_t batch = kernelBatch(row, column, target, source,
+                                                                                atomistic_geometry.basis);
+                                          result.kernel[coarse_cell + coarse_cells * batch] +=
+                                             atomistic_kernel.kernel[atomistic_cell + atomistic_cells * batch];
+                                       }
+                           }
+         }
+   for(double& value : result.kernel) value *= inverse_population_squared;
+   result.diagnostics = atomistic_kernel.diagnostics;
+   result.diagnostics.max_reciprocity_error = periodicKernelReciprocityError(result.kernel, coarse);
+   result.diagnostics.max_hermitian_error = result.diagnostics.max_reciprocity_error;
+   result.diagnostics.setup_work += coarse_cells * population * population * batches;
+   return result;
+}
+
+DipoleKernelBuildResult buildProjectedPeriodicEwaldDisplacementKernel(
+   const DipolePeriodicGeometry& atomistic_geometry, const DipoleUniformBlockShape& block,
+   const DipoleKernelSettings& settings) {
+   const auto started = std::chrono::steady_clock::now();
+   const auto atomistic = buildPeriodicEwaldDisplacementKernel(atomistic_geometry, settings);
+   auto result = projectUniformBlockKernel(atomistic, atomistic_geometry, block);
+   result.diagnostics.setup_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+   return result;
+}
+
 DipoleAliasSpectrumBuildResult buildPeriodicEwaldAliasSpectrum(const DipolePeriodicGeometry& geometry,
                                                                  const DipoleKernelSettings& settings) {
    validate(geometry, settings);
@@ -549,6 +708,62 @@ DipoleAliasSpectrumBuildResult buildPeriodicEwaldAliasSpectrum(const DipolePerio
    result.diagnostics.reciprocal_identity_error = reciprocalIdentityError(geometry);
    result.diagnostics.real_tensor_evaluations = complete_real_work;
    result.diagnostics.reciprocal_tensor_evaluations = complete_reciprocal_work;
+   for(const auto& candidate : candidates) {
+      result.diagnostics.real_tensor_evaluations += candidate.real_work;
+      result.diagnostics.reciprocal_tensor_evaluations += candidate.reciprocal_work;
+   }
+   result.diagnostics.setup_work = result.diagnostics.real_tensor_evaluations +
+                                   result.diagnostics.reciprocal_tensor_evaluations;
+   result.diagnostics.setup_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+   return result;
+}
+
+DipoleAliasSpectrumBuildResult buildProjectedPeriodicEwaldAliasSpectrum(
+   const DipolePeriodicGeometry& atomistic_geometry, const DipoleUniformBlockShape& block,
+   const DipoleKernelSettings& settings) {
+   validate(atomistic_geometry, settings);
+   validateUniformBlock(atomistic_geometry, block);
+   const auto started = std::chrono::steady_clock::now();
+   const DipolePeriodicGeometry coarse_geometry = coarsePeriodicGeometry(atomistic_geometry, block);
+   const double nominal_alpha = std::sqrt(pi) / std::cbrt(atomistic_geometry.volume);
+   const std::array<double, 3> alpha_scale{{0.75, 1.0, 1.25}};
+   std::vector<CandidateResult> candidates;
+   candidates.reserve(settings.explicit_alpha_for_testing > 0.0 ? 1 : alpha_scale.size());
+   if(settings.explicit_alpha_for_testing > 0.0) {
+      candidates.push_back(convergeAliasCandidate(atomistic_geometry, settings.explicit_alpha_for_testing, settings.tolerance));
+   } else {
+      for(const double scale : alpha_scale)
+         candidates.push_back(convergeAliasCandidate(atomistic_geometry, nominal_alpha * scale, settings.tolerance));
+   }
+   const auto chosen = std::min_element(candidates.begin(), candidates.end(), [](const CandidateResult& left,
+                                                                                   const CandidateResult& right) {
+      return left.real_work + left.reciprocal_work < right.real_work + right.reciprocal_work;
+   });
+
+   std::size_t real_work = 0;
+   DipoleKernelBuildResult fine_real{};
+   fine_real.kernel = realSelfKernel(atomistic_geometry, *chosen, real_work);
+   auto projected_real = projectUniformBlockKernel(fine_real, atomistic_geometry, block);
+   std::size_t reciprocal_work = 0;
+   DipoleAliasSpectrumBuildResult result{};
+   result.real_kernel = std::move(projected_real.kernel);
+   result.reciprocal_alias_spectrum = sumProjectedReciprocalAliases(atomistic_geometry, coarse_geometry, block,
+                                                                     chosen->alpha, chosen->reciprocal_extent,
+                                                                     reciprocal_work);
+   result.spectral_grid = {coarse_geometry.grid[0] / 2 + 1, coarse_geometry.grid[1], coarse_geometry.grid[2]};
+   result.diagnostics.selected.alpha = chosen->alpha;
+   result.diagnostics.selected.real_images = {chosen->real_extent, chosen->real_extent, chosen->real_extent};
+   result.diagnostics.selected.reciprocal_images = {chosen->reciprocal_extent, chosen->reciprocal_extent,
+                                                      chosen->reciprocal_extent};
+   result.diagnostics.selected.tolerance = settings.tolerance;
+   result.diagnostics.real_tail_residual = chosen->real_residual;
+   result.diagnostics.reciprocal_tail_residual = chosen->reciprocal_residual;
+   result.diagnostics.residual = std::max(chosen->real_residual, chosen->reciprocal_residual);
+   result.diagnostics.max_reciprocity_error = periodicKernelReciprocityError(result.real_kernel, coarse_geometry);
+   result.diagnostics.max_hermitian_error = result.diagnostics.max_reciprocity_error;
+   result.diagnostics.reciprocal_identity_error = reciprocalIdentityError(atomistic_geometry);
+   result.diagnostics.real_tensor_evaluations = real_work;
+   result.diagnostics.reciprocal_tensor_evaluations = reciprocal_work;
    for(const auto& candidate : candidates) {
       result.diagnostics.real_tensor_evaluations += candidate.real_work;
       result.diagnostics.reciprocal_tensor_evaluations += candidate.reciprocal_work;

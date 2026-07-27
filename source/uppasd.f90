@@ -1481,16 +1481,10 @@ contains
       if (BC1 /= 'P' .or. BC2 /= 'P' .or. BC3 /= 'P') then
          error stop 'EWALD3D_FFT currently requires periodic boundary conditions P P P'
       endif
-      if (geometry_ready .and. NA /= 1) then
-         error stop 'EWALD3D_FFT currently requires NA=1'
-      endif
       if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0 .or. &
           mod(N1,block_size_x) /= 0 .or. mod(N2,block_size_y) /= 0 .or. &
           mod(N3,block_size_z) /= 0) then
          error stop 'EWALD3D_FFT requires positive macrocell blocks that divide N1, N2, and N3'
-      endif
-      if (block_size_x /= 1 .or. block_size_y /= 1 .or. block_size_z /= 1) then
-         error stop 'EWALD3D_FFT currently accepts block-one macrocells only'
       endif
       if (do_gpu_mc == 'Y') then
          error stop 'EWALD3D_FFT is not available with GPU Monte Carlo'

@@ -70,10 +70,15 @@ def configure(run_dir: Path, updates: dict[str, str], jfile: str | None = None) 
 
 def launch(binary: Path, parent: Path, name: str, updates: dict[str, str], *,
            jfile: str | None = None, environment: dict[str, str] | None = None,
-           expect_success: bool = True) -> tuple[Path, str]:
+           expect_success: bool = True, posfile: str | None = None,
+           momfile: str | None = None) -> tuple[Path, str]:
     run_dir = parent / name
     shutil.copytree(FIXTURE, run_dir)
     configure(run_dir, updates, jfile)
+    if posfile is not None:
+        (run_dir / "posfile").write_text(posfile)
+    if momfile is not None:
+        (run_dir / "momfile").write_text(momfile)
     env = None if environment is None else {**os.environ, **environment}
     completed = subprocess.run([str(binary)], cwd=run_dir, text=True, env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -179,6 +184,45 @@ def main() -> None:
         field, energy = check_dipole_case(run_dir, "wp5_n3", GOLDENS["three_cell_uniform"])
         maximum_field, maximum_energy = max(maximum_field, field), max(maximum_energy, energy)
 
+        # WP8 integration seam: with a state uniform inside each 2x1x1
+        # block, the projected Hamiltonian must reproduce the block-one
+        # run exactly.  This exercises the Fortran map, device reduction,
+        # coarse kernel construction, scatter to both member atoms, and the
+        # per-atom measurement normalization in the real SD executable.
+        fine_dir, _ = launch(binary, parent, "wp8_fine", {"simid": "wp8fin", "ncell": "2 1 1"})
+        coarse_dir, _ = launch(binary, parent, "wp8_coarse", {
+            "simid": "wp8crs", "ncell": "2 1 1", "block_size_x": "2"})
+        fine_fields = final_fields(fine_dir, "wp8fin", 2)
+        coarse_fields = final_fields(coarse_dir, "wp8crs", 2)
+        for site, (fine_field, coarse_field) in enumerate(zip(fine_fields, coarse_fields)):
+            for component, (fine_value, coarse_value) in enumerate(zip(fine_field, coarse_field)):
+                maximum_field = max(maximum_field, require_close(
+                    f"WP8 uniform block field [site={site},component={component}] (T)", coarse_value, fine_value))
+        fine_energy, coarse_energy = final_energy(fine_dir, "wp8fin"), final_energy(coarse_dir, "wp8crs")
+        maximum_energy = max(maximum_energy,
+            require_close("WP8 uniform block total energy (mRy/atom)", coarse_energy[1], fine_energy[1]),
+            require_close("WP8 uniform block Dip energy (mRy/atom)", coarse_energy[8], fine_energy[8]))
+
+        # The same restricted-state identity must retain basis channels.  The
+        # basis-resolved map has two atoms per primitive cell and two cells per
+        # coarse block, so each coarse channel contains exactly two atoms.
+        na2_posfile = "1 1 0.0 0.0 0.0\n2 1 0.5 0.0 0.0\n"
+        na2_momfile = "1 1 1.0 1.0 -0.2 0.4\n2 1 1.0 -0.3 0.5 0.1\n"
+        na2_fine, _ = launch(binary, parent, "wp8_na2_fine", {"simid": "wp8n2f", "ncell": "2 1 1"},
+                              posfile=na2_posfile, momfile=na2_momfile)
+        na2_coarse, _ = launch(binary, parent, "wp8_na2_coarse", {
+            "simid": "wp8n2c", "ncell": "2 1 1", "block_size_x": "2"},
+            posfile=na2_posfile, momfile=na2_momfile)
+        for site, (fine_field, coarse_field) in enumerate(zip(final_fields(na2_fine, "wp8n2f", 4),
+                                                               final_fields(na2_coarse, "wp8n2c", 4))):
+            for component, (fine_value, coarse_value) in enumerate(zip(fine_field, coarse_field)):
+                maximum_field = max(maximum_field, require_close(
+                    f"WP8 NA=2 uniform block field [site={site},component={component}] (T)", coarse_value, fine_value))
+        na2_fine_energy, na2_coarse_energy = final_energy(na2_fine, "wp8n2f"), final_energy(na2_coarse, "wp8n2c")
+        maximum_energy = max(maximum_energy,
+            require_close("WP8 NA=2 uniform block total energy (mRy/atom)", na2_coarse_energy[1], na2_fine_energy[1]),
+            require_close("WP8 NA=2 uniform block Dip energy (mRy/atom)", na2_coarse_energy[8], na2_fine_energy[8]))
+
         # The exchange-plus-dipole total is checked by an OFF/on pair with an
         # identical exchange Hamiltonian.  Their field and total-energy delta
         # must be the independent dipole oracle; the exchange column itself is
@@ -215,14 +259,13 @@ def main() -> None:
             require_close("exchange-plus-dipole Dip (mRy/atom)", on_energy[8], expected),
             require_close("exchange energy unchanged (mRy/atom)", on_energy[2] - off_energy[2], 0.0))
 
-        # Input gates execute before device allocations.  The NA=2 case has
-        # real two-basis input; coarse uses a divisible 2-cell grid.
+        # Input gates execute before device allocations.  Regular NA>1 and
+        # divisible coarse blocks are covered by their dedicated WP6/WP8
+        # operator suites; this production harness retains only unsupported
+        # execution modes and the required partial-edge rejection.
         check_rejection(binary, parent, "reject_mc", {"mode": "M", "mcnstep": "1"}, "GPU spin dynamics only")
-        check_rejection(binary, parent, "reject_na2", {"simid": "wp5_na2"}, "currently requires NA=1",
-                        posfile="1 1 0.0 0.0 0.0\n2 1 0.5 0.0 0.0\n",
-                        momfile="1 1 1.0 1.0 -0.2 0.4\n2 1 1.0 1.0 -0.2 0.4\n")
-        check_rejection(binary, parent, "reject_coarse", {"ncell": "2 1 1", "block_size_x": "2"},
-                        "accepts block-one macrocells only")
+        check_rejection(binary, parent, "reject_partial_coarse", {"ncell": "3 1 1", "block_size_x": "2"},
+                        "requires positive macrocell blocks that divide N1, N2, and N3")
         check_rejection(binary, parent, "reject_open", {"BC": "P P 0"}, "requires periodic boundary conditions P P P")
         check_rejection(binary, parent, "reject_slab", {"BC": "P P F"}, "requires periodic boundary conditions P P P")
         check_rejection(binary, parent, "reject_surface", {"gpu_dipole_surface": "VACUUM"}, "requires gpu_dipole_surface TINFOIL")

@@ -46,7 +46,8 @@ double volume(const std::array<double, 9>& h) {
 
 GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, unsigned int ensembles,
                                           const std::array<double, 9>& h,
-                                          const std::vector<std::array<double, 3>>& offsets = {}) {
+                                          const std::vector<std::array<double, 3>>& offsets = {},
+                                          const Grid& macro_grid = {}) {
    static_assert(sizeof(real) == sizeof(double), "GPU FFT validation is fp64 only");
    // The descriptor stores primitive vectors and derives H by multiplying by
    // atomistic grid extents.  The test uses the same grid for both notions.
@@ -56,7 +57,8 @@ GpuDipoleConvolutionDescriptor descriptor(const Grid& grid, unsigned int basis, 
    c3 = {h[6] / grid[2], h[7] / grid[2], h[8] / grid[2]};
    GpuDipoleConvolutionDescriptor result{};
    result.atomistic_grid = {grid[0], grid[1], grid[2]};
-   result.macro_grid = result.atomistic_grid;
+   result.macro_grid = macro_grid[0] == 0 && macro_grid[1] == 0 && macro_grid[2] == 0 ?
+      result.atomistic_grid : GpuDipoleGridShape{macro_grid[0], macro_grid[1], macro_grid[2]};
    result.basis = basis;
    result.ensembles = ensembles;
    result.boundary = GpuDipoleBoundaryMode::Periodic3D;
@@ -194,8 +196,10 @@ OperatorResult evaluateOperator(const Grid& grid, unsigned int basis, unsigned i
 OperatorResult evaluateConstructedOperator(const Grid& grid, unsigned int basis, unsigned int ensembles,
                                            const std::array<double, 9>& h,
                                            const std::vector<std::array<double, 3>>& offsets,
-                                           const std::vector<double>& moments) {
-   const std::size_t ncell = cells(grid);
+                                           const std::vector<double>& moments,
+                                           const Grid& macro_grid = {}) {
+   const Grid effective_macro_grid = macro_grid[0] == 0 && macro_grid[1] == 0 && macro_grid[2] == 0 ? grid : macro_grid;
+   const std::size_t ncell = cells(effective_macro_grid);
    GpuTensor<real, 3> device_moments;
    GPU_STREAM_T stream{};
    if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("GPU constructed-kernel stream creation failed");
@@ -204,7 +208,7 @@ OperatorResult evaluateConstructedOperator(const Grid& grid, unsigned int basis,
       if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("GPU constructed-kernel moment upload failed");
       GpuDipoleConvolution solver;
-      if(!solver.initiate(descriptor(grid, basis, ensembles, h, offsets), stream))
+      if(!solver.initiate(descriptor(grid, basis, ensembles, h, offsets, effective_macro_grid), stream))
          throw std::runtime_error("GPU constructed-kernel plan initiation failed");
       solver.buildPeriodicKernel();
       if(!solver.kernelReady()) throw std::runtime_error("GPU constructed-kernel did not become ready");
@@ -323,6 +327,9 @@ void runPeriodicCase(const std::string& name, const Grid& grid, unsigned int bas
    require(runOperator("periodic " + name, grid, basis, ensembles, h, complete.kernel, moments), "periodic " + name);
 }
 
+DipolePeriodicGeometry periodicGeometry(const Grid& grid, const std::array<double, 9>& h);
+void requireSpectrum(const GpuDipoleSpectrumDiagnostics& spectrum, const std::string& name);
+
 void runPeriodicSuite() {
    runPeriodicCase("cubic-1x1x1", {1, 1, 1}, 1, 1,
                    {3.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0}, {{0.0, 0.0, 0.0}});
@@ -334,6 +341,31 @@ void runPeriodicSuite() {
                    {6.0, 0.0, 0.0, 0.8, 3.0, 0.0, 0.3, 0.2, 3.4}, {{0.0, 0.0, 0.0}});
    runPeriodicCase("two-basis-3x2x2-m4", {3, 2, 2}, 2, 4,
                    {9.0, 0.0, 0.0, 0.7, 6.0, 0.0, 0.3, 0.2, 6.4}, {{0.0, 0.0, 0.0}, {0.37, 0.23, 0.41}});
+}
+
+void runProjectedBlockGpuSuite() {
+   const Grid atomistic_grid{{4, 2, 1}};
+   const Grid coarse_grid{{2, 2, 1}};
+   const std::array<double, 9> h{{12.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 3.0}};
+   auto atomistic = periodicGeometry(atomistic_grid, h);
+   const DipoleUniformBlockShape block{{2, 1, 1}};
+   const auto projected = buildProjectedPeriodicEwaldDisplacementKernel(atomistic, block, {1.0e-10});
+   const std::size_t coarse_cells = cells(coarse_grid);
+   std::vector<double> moments(3 * coarse_cells);
+   for(std::size_t cell = 0; cell < coarse_cells; ++cell)
+      for(unsigned int component = 0; component < 3; ++component)
+         moments[macroIndex(component, 0, cell, 1, coarse_cells, 0)] = 0.07 * (1.0 + component + 2.0 * cell);
+   const auto expected = directConvolution(projected.kernel, moments, coarse_grid, 1, 1);
+   const auto actual = evaluateConstructedOperator(atomistic_grid, 1, 1, h, {{0.0, 0.0, 0.0}}, moments, coarse_grid);
+   Errors errors{};
+   for(std::size_t index = 0; index < expected.size(); ++index)
+      errors.field = std::max(errors.field, std::abs(static_cast<double>(actual.fields[index]) - expected[index]));
+   double expected_energy = 0.0;
+   for(std::size_t index = 0; index < expected.size(); ++index) expected_energy -= 0.5 * moments[index] * expected[index];
+   errors.energy = std::abs(static_cast<double>(actual.energies[0]) - expected_energy);
+   std::printf("projected-block GPU max_field_error=%.17g max_energy_error=%.17g\n", errors.field, errors.energy);
+   require(errors, "projected-block GPU");
+   requireSpectrum(actual.spectrum, "projected-block GPU");
 }
 
 DipolePeriodicGeometry periodicGeometry(const Grid& grid, const std::array<double, 9>& h) {
@@ -808,6 +840,7 @@ int main() {
       runReciprocalHelperRegression();
       runDeltaSuite();
       runPeriodicSuite();
+      runProjectedBlockGpuSuite();
       runIndependentOracleSuite();
       runMultiBasisOracleSuite();
       runMultiBasisProductionSliceSuite();

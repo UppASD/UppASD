@@ -60,6 +60,14 @@ struct DipoleKernelBuildResult {
    DipoleKernelDiagnostics diagnostics;
 };
 
+// A regular coarse block contains this many primitive cells along each
+// periodic axis.  It is deliberately a geometric projection parameter, not
+// a point-macrocell shape approximation: each coarse channel represents the
+// sum of its member atomic moments.
+struct DipoleUniformBlockShape {
+   std::array<std::size_t, 3> cells{{1, 1, 1}};
+};
+
 // Builder B keeps the short-range part in the real displacement
 // representation and constructs only the reciprocal contribution directly in
 // the normalized R2C spectrum.  ``real_kernel`` has the same layout as
@@ -81,12 +89,44 @@ DipoleKernelBuildResult buildPeriodicEwaldDisplacementKernel(
    const DipolePeriodicGeometry& geometry,
    const DipoleKernelSettings& settings = {});
 
+// Return the coarse periodic geometry associated with a uniform, divisible
+// block projection.  H, Brec, volume, basis channels, and basis offsets stay
+// unchanged; only the translation grid becomes coarser.
+DipolePeriodicGeometry coarsePeriodicGeometry(const DipolePeriodicGeometry& atomistic_geometry,
+                                              const DipoleUniformBlockShape& block);
+
+// Restrict an already complete atomistic periodic kernel to block-uniform
+// moments.  For M_A = sum(i in A) m_i and m_i = M_A/n_A, this constructs
+// K_coarse(A,B) = sum(i in A,j in B) K_atom(i,j)/(n_A*n_B).  The complete
+// atomistic kernel supplies the finite diagonal block naturally; no separate
+// point-macrocell or self-demagnetizing correction is added here.
+DipoleKernelBuildResult projectUniformBlockKernel(const DipoleKernelBuildResult& atomistic_kernel,
+                                                  const DipolePeriodicGeometry& atomistic_geometry,
+                                                  const DipoleUniformBlockShape& block);
+
+// Reference construction for coarse regular grids.  It exists primarily as
+// the WP8 correctness authority and is intentionally expressed through the
+// accepted block-one Builder A before any optimized coarse alias builder is
+// introduced.
+DipoleKernelBuildResult buildProjectedPeriodicEwaldDisplacementKernel(
+   const DipolePeriodicGeometry& atomistic_geometry,
+   const DipoleUniformBlockShape& block,
+   const DipoleKernelSettings& settings = {});
+
 // Production Builder B.  It is algebraically equivalent to Builder A but
 // avoids evaluating every reciprocal vector for every real-space
 // displacement.  The real-space tensor and point self term are returned for
 // one batched R2C; reciprocal aliases are added directly to that spectrum.
 DipoleAliasSpectrumBuildResult buildPeriodicEwaldAliasSpectrum(
    const DipolePeriodicGeometry& geometry,
+   const DipoleKernelSettings& settings = {});
+
+// Production Builder B for regular uniform blocks.  It projects the
+// real+self tensor and applies the exact uniform-block form factor to each
+// reciprocal alias, avoiding Builder A's full reciprocal displacement sum.
+DipoleAliasSpectrumBuildResult buildProjectedPeriodicEwaldAliasSpectrum(
+   const DipolePeriodicGeometry& atomistic_geometry,
+   const DipoleUniformBlockShape& block,
    const DipoleKernelSettings& settings = {});
 
 // Slow, CPU-only reference transform used solely by cross-builder tests and

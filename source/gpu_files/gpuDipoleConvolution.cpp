@@ -675,7 +675,7 @@ void GpuDipoleConvolution::buildPeriodicKernel() {
    if(!initiated) throw std::runtime_error("GPU periodic dipole kernel requested before plan initialization");
    if(desc.boundary != GpuDipoleBoundaryMode::Periodic3D || desc.discretization != GpuDipoleDiscretization::MacrospinGrid ||
       sizeof(real) != sizeof(double)) {
-      throw std::runtime_error("GPU production dipole construction is limited to fp64 periodic block-one macrospin grids");
+      throw std::runtime_error("GPU production dipole construction is limited to fp64 periodic regular macrospin grids");
    }
    DipolePeriodicGeometry geometry{};
    const auto h = desc.fullCellMatrix();
@@ -685,12 +685,31 @@ void GpuDipoleConvolution::buildPeriodicKernel() {
       geometry.Brec[index] = static_cast<double>(brec[index]);
    }
    geometry.volume = static_cast<double>(desc.cellVolume());
-   const auto grid = desc.activeGrid();
-   geometry.grid = {grid.n1, grid.n2, grid.n3};
+   const auto coarse_grid = desc.activeGrid();
+   if(desc.atomistic_grid.n1 % coarse_grid.n1 != 0 || desc.atomistic_grid.n2 % coarse_grid.n2 != 0 ||
+      desc.atomistic_grid.n3 % coarse_grid.n3 != 0) {
+      throw std::runtime_error("GPU periodic coarse blocks must divide every atomistic grid extent");
+   }
+   const DipoleUniformBlockShape block{{desc.atomistic_grid.n1 / coarse_grid.n1,
+                                        desc.atomistic_grid.n2 / coarse_grid.n2,
+                                        desc.atomistic_grid.n3 / coarse_grid.n3}};
+   geometry.grid = {desc.atomistic_grid.n1, desc.atomistic_grid.n2, desc.atomistic_grid.n3};
    geometry.basis = desc.basis;
    geometry.basis_offsets = desc.basis_offsets;
    DipoleKernelSettings settings{};
    settings.tolerance = desc.tolerance;
+   if(block.cells != std::array<std::size_t, 3>{{1, 1, 1}}) {
+      // Projected Builder B retains the finite diagonal block obtained from
+      // M_block=sum_i m_i and applies the matching reciprocal form factor.
+      // No separate self-demag correction is introduced.
+      const auto projected = buildProjectedPeriodicEwaldAliasSpectrum(geometry, block, settings);
+      const std::array<std::size_t, 3> expected_spectral{{layout.spectral_grid.n1, layout.spectral_grid.n2,
+                                                           layout.spectral_grid.n3}};
+      if(projected.spectral_grid != expected_spectral)
+         throw std::runtime_error("projected reciprocal alias builder produced an incompatible R2C spectrum shape");
+      uploadRealKernelAndAliasSpectrum(projected.real_kernel, projected.reciprocal_alias_spectrum, true);
+      return;
+   }
    const auto alias = buildPeriodicEwaldAliasSpectrum(geometry, settings);
    const std::array<std::size_t, 3> expected_spectral{{layout.spectral_grid.n1, layout.spectral_grid.n2,
                                                         layout.spectral_grid.n3}};
@@ -713,9 +732,8 @@ void GpuDipoleConvolution::addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<
                                              const unsigned int* macro_cell_index,
                                              std::size_t atom_count) {
    if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole field scatter requested before a ready kernel");
-   if(layout.real_cells * desc.basis != atom_count || !macro_cell_index ||
-      beff.size() != 3 * atom_count * desc.ensembles || eneff.size() != beff.size()) {
-      throw std::runtime_error("GPU dipole production scatter does not match the accepted block-one basis layout");
+   if(!macro_cell_index || beff.size() != 3 * atom_count * desc.ensembles || eneff.size() != beff.size()) {
+      throw std::runtime_error("GPU dipole production scatter does not match the regular macrocell layout");
    }
    constexpr unsigned int threads = 256;
    const std::size_t count = 3 * atom_count * desc.ensembles;
@@ -729,8 +747,8 @@ void GpuDipoleConvolution::addFieldsToAtoms(GpuTensor<real, 3>& beff, GpuTensor<
 
 void GpuDipoleConvolution::accumulateEnergy(GpuTensor<real, 2>& energyM, std::size_t atom_count) {
    if(!initiated || !kernel_ready) throw std::runtime_error("GPU dipole energy requested before a ready kernel");
-   if(layout.real_cells * desc.basis != atom_count || energyM.extent(0) != desc.ensembles || energyM.extent(1) < 7) {
-      throw std::runtime_error("GPU dipole energy buffer does not match the accepted block-one basis layout");
+   if(atom_count == 0 || energyM.extent(0) != desc.ensembles || energyM.extent(1) < 7) {
+      throw std::runtime_error("GPU dipole energy buffer does not match the regular macrocell layout");
    }
    constexpr unsigned int threads = 256;
    const std::size_t count = layout.real_cells * 3 * desc.basis * desc.ensembles;

@@ -131,11 +131,124 @@ void checkAliasBuilder(const DipoleKernelBuildResult& reference, const DipolePer
                alias.reciprocal_alias_spectrum.size() * sizeof(std::complex<double>));
 }
 
+double energy(const std::vector<Vector>& moments, const std::vector<Vector>& fields) {
+   if(moments.size() != fields.size()) throw std::runtime_error("field/moment sizes differ in projected-energy check");
+   double result = 0.0;
+   for(std::size_t index = 0; index < moments.size(); ++index)
+      for(unsigned int component = 0; component < 3; ++component)
+         result -= 0.5 * moments[index][component] * fields[index][component];
+   return result;
+}
+
+void runUniformBlockProjectionSuite(const DipoleKernelSettings& settings) {
+   // The physical supercell stays fixed while the FFT grid changes from 4x2x1
+   // atomistic cells to 2x2x1 coarse cells.  Every atom in a coarse channel
+   // receives M_block/nblock, so this is the exact restricted Hamiltonian.
+   const auto atomistic = geometry({12.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 3.0}, {4, 2, 1});
+   const DipoleUniformBlockShape block{{2, 1, 1}};
+   const auto fine = buildPeriodicEwaldDisplacementKernel(atomistic, settings);
+   const auto coarse = coarsePeriodicGeometry(atomistic, block);
+   const auto projected = projectUniformBlockKernel(fine, atomistic, block);
+   const auto projected_by_builder = buildProjectedPeriodicEwaldDisplacementKernel(atomistic, block, settings);
+   if(projected.kernel.size() != coarse.grid[0] * coarse.grid[1] * coarse.grid[2] * 9 ||
+      periodicKernelReciprocityError(projected.kernel, coarse) > 2.0e-11) {
+      throw std::runtime_error("uniform block projection has invalid coarse kernel geometry or reciprocity");
+   }
+   for(std::size_t index = 0; index < projected.kernel.size(); ++index) close(projected_by_builder.kernel[index], projected.kernel[index]);
+   const auto projected_alias = buildProjectedPeriodicEwaldAliasSpectrum(atomistic, block, settings);
+   const double projected_spectrum_error = maxDifference(referenceNormalizedKernelSpectrum(projected.kernel, coarse),
+                                                         completeAliasSpectrum(projected_alias, coarse));
+   if(projected_spectrum_error > 4.0e-10)
+      throw std::runtime_error("projected Builder A/B spectral equivalence exceeds the fp64 budget");
+   const auto projected_low_alpha = buildProjectedPeriodicEwaldAliasSpectrum(atomistic, block, {settings.tolerance, 0.70});
+   const auto projected_high_alpha = buildProjectedPeriodicEwaldAliasSpectrum(atomistic, block, {settings.tolerance, 1.05});
+   const double projected_alpha_error = maxDifference(completeAliasSpectrum(projected_low_alpha, coarse),
+                                                      completeAliasSpectrum(projected_high_alpha, coarse));
+   if(projected_alpha_error > 4.0e-10)
+      throw std::runtime_error("projected Builder B explicit-alpha invariance exceeds the fp64 budget");
+
+   const auto block_one = projectUniformBlockKernel(fine, atomistic, {});
+   if(block_one.kernel.size() != fine.kernel.size()) throw std::runtime_error("block-one projection changed kernel size");
+   for(std::size_t index = 0; index < fine.kernel.size(); ++index) close(block_one.kernel[index], fine.kernel[index]);
+
+   const std::vector<Vector> macro_moments{{{0.8, -0.3, 0.4}}, {{-0.2, 0.6, 0.1}},
+                                            {{0.5, 0.2, -0.7}}, {{-0.4, 0.1, 0.3}}};
+   std::vector<Vector> atomistic_moments(atomistic.grid[0] * atomistic.grid[1] * atomistic.grid[2]);
+   for(std::size_t y = 0; y < atomistic.grid[1]; ++y) for(std::size_t x = 0; x < atomistic.grid[0]; ++x) {
+      const std::size_t macro = (x / block.cells[0]) + coarse.grid[0] * y;
+      for(unsigned int component = 0; component < 3; ++component)
+         atomistic_moments[x + atomistic.grid[0] * y][component] = macro_moments[macro][component] / 2.0;
+   }
+   const auto fine_fields = apply(fine, atomistic, atomistic_moments);
+   std::vector<Vector> averaged_fine_fields(macro_moments.size(), {0.0, 0.0, 0.0});
+   for(std::size_t y = 0; y < atomistic.grid[1]; ++y) for(std::size_t x = 0; x < atomistic.grid[0]; ++x) {
+      const std::size_t macro = (x / block.cells[0]) + coarse.grid[0] * y;
+      for(unsigned int component = 0; component < 3; ++component)
+         averaged_fine_fields[macro][component] += fine_fields[x + atomistic.grid[0] * y][component] / 2.0;
+   }
+   const auto coarse_fields = apply(projected, coarse, macro_moments);
+   compareFields(coarse_fields, averaged_fine_fields);
+   close(energy(atomistic_moments, fine_fields), energy(macro_moments, coarse_fields));
+
+   bool rejected_partial = false;
+   try { (void)coarsePeriodicGeometry(atomistic, {{3, 1, 1}}); }
+   catch(const std::invalid_argument&) { rejected_partial = true; }
+   if(!rejected_partial) throw std::runtime_error("uniform block projection accepted a partial periodic edge block");
+   std::printf("uniform block projection: Builder-A/B spectrum=%.3e alpha=%.3e; exact restricted field/energy and partial-edge rejection pass\n",
+               projected_spectrum_error, projected_alpha_error);
+}
+
+void runNonUniformBlockConvergenceSuite(const DipoleKernelSettings& settings) {
+   const auto atomistic = geometry({12.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 3.0}, {4, 2, 1});
+   const auto fine = buildPeriodicEwaldDisplacementKernel(atomistic, settings);
+   std::vector<Vector> moments(atomistic.grid[0] * atomistic.grid[1] * atomistic.grid[2]);
+   for(std::size_t y = 0; y < atomistic.grid[1]; ++y) for(std::size_t x = 0; x < atomistic.grid[0]; ++x)
+      moments[x + atomistic.grid[0] * y] = {0.13 + 0.11 * x - 0.07 * y,
+                                             -0.31 + 0.05 * x + 0.09 * y,
+                                             0.27 - 0.08 * x + 0.04 * y};
+   const auto fine_fields = apply(fine, atomistic, moments);
+   const double fine_energy = energy(moments, fine_fields);
+   struct Error { double field = 0.0; double energy_per_atom = 0.0; };
+   const auto approximate = [&](const DipoleUniformBlockShape& block) {
+      const auto coarse = coarsePeriodicGeometry(atomistic, block);
+      const auto projected = projectUniformBlockKernel(fine, atomistic, block);
+      std::vector<Vector> macro_moments(coarse.grid[0] * coarse.grid[1] * coarse.grid[2], {0.0, 0.0, 0.0});
+      for(std::size_t y = 0; y < atomistic.grid[1]; ++y) for(std::size_t x = 0; x < atomistic.grid[0]; ++x) {
+         const std::size_t macro = (x / block.cells[0]) + coarse.grid[0] * (y / block.cells[1]);
+         for(unsigned int component = 0; component < 3; ++component)
+            macro_moments[macro][component] += moments[x + atomistic.grid[0] * y][component];
+      }
+      const auto macro_fields = apply(projected, coarse, macro_moments);
+      Error result{};
+      for(std::size_t y = 0; y < atomistic.grid[1]; ++y) for(std::size_t x = 0; x < atomistic.grid[0]; ++x) {
+         const std::size_t atom = x + atomistic.grid[0] * y;
+         const std::size_t macro = (x / block.cells[0]) + coarse.grid[0] * (y / block.cells[1]);
+         for(unsigned int component = 0; component < 3; ++component)
+            result.field = std::max(result.field, std::abs(fine_fields[atom][component] - macro_fields[macro][component]));
+      }
+      result.energy_per_atom = std::abs(fine_energy - energy(macro_moments, macro_fields)) / moments.size();
+      return result;
+   };
+   const Error block_four = approximate({{4, 1, 1}});
+   const Error block_two = approximate({{2, 1, 1}});
+   const Error block_one = approximate({{1, 1, 1}});
+   if(block_one.field > 3.0e-12 || block_one.energy_per_atom > 3.0e-12)
+      throw std::runtime_error("block-one limit does not recover the unrestricted atomistic Hamiltonian");
+   if(block_four.field <= 1.0e-8 || block_two.field <= 1.0e-8)
+      throw std::runtime_error("non-uniform convergence fixture did not exercise a coarse approximation error");
+   std::printf("nonuniform block convergence: B=4 field=%.3e energy/atom=%.3e; B=2 field=%.3e energy/atom=%.3e; B=1 field=%.3e energy/atom=%.3e\n",
+               block_four.field, block_four.energy_per_atom, block_two.field, block_two.energy_per_atom,
+               block_one.field, block_one.energy_per_atom);
+}
+
 } // namespace
 
 int main() {
    try {
       const DipoleKernelSettings settings{1.0e-10};
+
+      runUniformBlockProjectionSuite(settings);
+      runNonUniformBlockConvergenceSuite(settings);
 
       // Luna's independently evaluated cubic 1x1x1 point-dipole reference.
       auto cubic = geometry({3.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0}, {1, 1, 1});

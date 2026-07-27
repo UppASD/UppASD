@@ -1181,8 +1181,19 @@ not merely when its implementation has started.
   `dipole-ewald-host-builder`, `dipole-gpu-fft-convolution`, and
   `dipole-gpu-wp5-e2e`; compute-sanitizer memcheck reported `ERROR SUMMARY: 0
   errors`.
-- [ ] **WP8 — Coarse projected Hamiltonian** (Terra implementation, Luna
+- [x] **WP8 — Coarse projected Hamiltonian** (Terra implementation, Luna
   acceptance; depends on WP6 and preferably WP7).
+
+  Closed 2026-07-27.  Uniform divisible blocks now use the exact projection
+  of the complete block-one Ewald operator with `M_block=sum_i m_i`; no ad hoc
+  point-macrocell self-demagnetizing correction is added.  Projected Builder B
+  applies the matching reciprocal block form factor and agrees with Builder A
+  to `2.78e-17` in the host spectrum check.  The deterministic non-uniform
+  convergence fixture reports field/energy-per-atom errors of
+  `5.654e-02/1.623e-03` for block width four, `1.973e-02/3.431e-04` for width
+  two, and zero for block one.  CUDA fp64 CTest passed all six tests, including
+  the host builder, GPU convolution, and `NA=1/2` SD coarse-block equivalence;
+  partial edge blocks are rejected before allocation.
 - [ ] **WP9 — Performance, fp32, and CUDA/HIP parity** (depends on the
   relevant accepted physics scope).
 - [ ] **WP10 — Open-island/racetrack and slab modes** (separate projects;
@@ -1438,6 +1449,8 @@ Gate:
 - block one is recovered exactly.
 - coarse results match direct projection for cell-uniform moment states.
 - approximation error versus unrestricted atomistic states is documented.
+
+Status: complete 2026-07-27; the full CUDA fp64 CTest gate passed.
 
 ### WP9 — Performance and precision
 
