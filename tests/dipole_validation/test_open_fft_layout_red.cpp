@@ -3,6 +3,7 @@
 // open_fft_test_seam.hpp's luna_open_fft_test::run implementation.
 
 #include "open_fft_test_seam.hpp"
+#include "dipoleOpenKernel.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -232,31 +233,122 @@ std::vector<double> directFiniteFields(const luna_open_fft_test::Input& input) {
    return fields;
 }
 
-void runOpenImpulseMatrix() {
-   const std::array<std::array<std::size_t, 3>, 3> grids{{{{2, 3, 1}}, {{2, 1, 3}}, {{2, 3, 1}}}};
-   const std::array<std::array<std::size_t, 3>, 3> padding{{{{3, 5, 1}}, {{3, 1, 5}}, {{5, 7, 3}}}};
+std::vector<double> directFiniteEnergies(const luna_open_fft_test::Input& input,
+                                         const std::vector<double>& fields) {
+   const std::size_t active_cells = input.active_grid[0] * input.active_grid[1] * input.active_grid[2];
+   std::vector<double> energies(input.ensembles, 0.0);
+   for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
+      for(std::size_t cell_index = 0; cell_index < active_cells; ++cell_index)
+         for(unsigned int basis = 0; basis < input.basis; ++basis)
+            for(unsigned int component = 0; component < 3; ++component) {
+               const std::size_t index = macroIndex(component, basis, cell_index, input.basis,
+                                                    active_cells, ensemble);
+               energies[ensemble] -= 0.5 * input.active_moments[index] * fields[index];
+            }
+   return energies;
+}
+
+void compareProductionResult(const luna_open_fft_test::Input& input,
+                             const luna_open_fft_test::Result& result,
+                             double& maximum_field_error, double& maximum_energy_error) {
+   const auto expected_fields = directFiniteFields(input);
+   const auto expected_energies = directFiniteEnergies(input, expected_fields);
+   require(result.active_fields.size() == expected_fields.size(), "production field shape is wrong");
+   require(result.dimensionless_energy.size() == expected_energies.size(), "production energy shape is wrong");
+   require(result.scattered_fields.size() == expected_fields.size(), "production scatter field shape is wrong");
+   require(result.energy_per_atom.size() == expected_energies.size(), "production energy shape is wrong");
+   for(std::size_t index = 0; index < expected_fields.size(); ++index)
+      maximum_field_error = std::max(maximum_field_error,
+                                     std::abs(result.active_fields[index] - expected_fields[index]));
+   for(std::size_t index = 0; index < expected_fields.size(); ++index)
+      maximum_field_error = std::max(maximum_field_error,
+                                     std::abs(result.scattered_fields[index] - expected_fields[index]));
+   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble)
+      maximum_energy_error = std::max(maximum_energy_error,
+                                      std::abs(result.dimensionless_energy[ensemble] - expected_energies[ensemble]));
+   const double atoms_inverse = 1.0 / static_cast<double>(input.active_grid[0] * input.active_grid[1] *
+                                                           input.active_grid[2] * input.basis);
+   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble)
+      maximum_energy_error = std::max(maximum_energy_error,
+                                      std::abs(result.energy_per_atom[ensemble] -
+                                               expected_energies[ensemble] * atoms_inverse));
+}
+
+void runOpenProductionE2E() {
+   struct Case {
+      std::array<std::size_t, 3> grid;
+      std::array<std::size_t, 3> padding;
+      std::array<double, 9> primitive_vectors;
+      unsigned int ensembles;
+   };
+   const std::array<Case, 2> cases{{
+      {{{2, 1, 1}}, {{3, 1, 1}},
+       {{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0}}, 1},
+      {{{2, 3, 1}}, {{5, 7, 3}},
+       {{1.0, 0.15, 0.05, 0.10, 1.25, 0.20, 0.05, 0.10, 0.85}}, 4}
+   }};
    double maximum_field_error = 0.0;
    double maximum_energy_error = 0.0;
-   for(std::size_t shape = 0; shape < grids.size(); ++shape) {
+   for(const auto& test_case : cases) {
       luna_open_fft_test::Input input{};
-      input.active_grid = grids[shape];
-      input.fft_grid = padding[shape];
+      input.active_grid = test_case.grid;
+      input.fft_grid = test_case.padding;
       input.basis = 2;
-      input.ensembles = 4;
-      input.primitive_vectors = {1.0, 0.15, 0.05,
-                                 0.10, 1.25, 0.20,
-                                 0.05, 0.10, 0.85};
+      input.ensembles = test_case.ensembles;
+      input.primitive_vectors = test_case.primitive_vectors;
       input.basis_offsets = {{0.0, 0.0, 0.0}, {0.23, 0.17, 0.11}};
       const std::size_t active_cells = input.active_grid[0] * input.active_grid[1] * input.active_grid[2];
       input.active_moments.assign(3 * active_cells * input.basis * input.ensembles, 0.0);
-      uploadPointTestKernel(input);
+
+      // A nonuniform basis-resolved state checks both M=1 and M=4 production
+      // batches against Luna's independent finite point sum.
+      for(std::size_t index = 0; index < input.active_moments.size(); ++index)
+         input.active_moments[index] = -0.31 + 0.019 * static_cast<double>(index);
+      const auto nonuniform = luna_open_fft_test::runProduction(input);
+      compareProductionResult(input, nonuniform, maximum_field_error, maximum_energy_error);
+
+      DipoleOpenGeometry geometry{};
+      geometry.active_grid = input.active_grid;
+      geometry.fft_grid = input.fft_grid;
+      geometry.primitive_vectors = input.primitive_vectors;
+      geometry.basis = input.basis;
+      geometry.basis_offsets = input.basis_offsets;
+      const auto built = buildOpenDipoleDisplacementKernel(geometry);
+      require(built.diagnostics.max_reciprocity_error < 2.0e-12,
+              "basis-resolved production kernel violates reciprocity");
+
+      // Relabeling basis channels must not change any physical field or energy.
+      auto swapped = input;
+      std::swap(swapped.basis_offsets[0], swapped.basis_offsets[1]);
+      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
+         for(std::size_t cell_index = 0; cell_index < active_cells; ++cell_index)
+            for(unsigned int component = 0; component < 3; ++component) {
+               const std::size_t first = macroIndex(component, 0, cell_index, input.basis, active_cells, ensemble);
+               const std::size_t second = macroIndex(component, 1, cell_index, input.basis, active_cells, ensemble);
+               swapped.active_moments[first] = input.active_moments[second];
+               swapped.active_moments[second] = input.active_moments[first];
+            }
+      const auto permuted = luna_open_fft_test::runProduction(swapped);
+      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
+         for(std::size_t cell_index = 0; cell_index < active_cells; ++cell_index)
+            for(unsigned int component = 0; component < 3; ++component) {
+               const std::size_t first = macroIndex(component, 0, cell_index, input.basis, active_cells, ensemble);
+               const std::size_t second = macroIndex(component, 1, cell_index, input.basis, active_cells, ensemble);
+               maximum_field_error = std::max(maximum_field_error,
+                  std::abs(permuted.active_fields[first] - nonuniform.active_fields[second]));
+               maximum_field_error = std::max(maximum_field_error,
+                  std::abs(permuted.active_fields[second] - nonuniform.active_fields[first]));
+            }
+      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
+         maximum_energy_error = std::max(maximum_energy_error,
+            std::abs(permuted.dimensionless_energy[ensemble] - nonuniform.dimensionless_energy[ensemble]));
+
+      // Every source basis/component is impulsed in every active cell and
+      // every ensemble.  This fixes target-minus-source phase by a direct
+      // finite comparison rather than relying on the tensor's same-basis symmetry.
       for(std::size_t z = 0; z < input.active_grid[2]; ++z)
          for(std::size_t y = 0; y < input.active_grid[1]; ++y)
             for(std::size_t x = 0; x < input.active_grid[0]; ++x) {
-               const bool corner = (x == 0 || x + 1 == input.active_grid[0]) &&
-                                   (y == 0 || y + 1 == input.active_grid[1]) &&
-                                   (z == 0 || z + 1 == input.active_grid[2]);
-               if(!corner) continue;
                const std::size_t source_cell = cell(x, y, z, input.active_grid);
                for(unsigned int basis = 0; basis < input.basis; ++basis)
                   for(unsigned int component = 0; component < 3; ++component)
@@ -264,35 +356,44 @@ void runOpenImpulseMatrix() {
                         std::fill(input.active_moments.begin(), input.active_moments.end(), 0.0);
                         input.active_moments[macroIndex(component, basis, source_cell, input.basis, active_cells, ensemble)] =
                            1.0 + 0.125 * ensemble;
-                        const auto result = luna_open_fft_test::run(input);
-                        const auto expected = directFiniteFields(input);
-                        for(std::size_t index = 0; index < expected.size(); ++index)
-                           maximum_field_error = std::max(maximum_field_error,
-                              std::abs(result.active_fields[index] - expected[index]));
-                        double expected_energy = 0.0;
-                        for(std::size_t index = 0; index < expected.size(); ++index)
-                           expected_energy -= 0.5 * input.active_moments[index] * expected[index];
-                        maximum_energy_error = std::max(maximum_energy_error,
-                           std::abs(result.dimensionless_energy[ensemble] - expected_energy));
+                        compareProductionResult(input, luna_open_fft_test::runProduction(input),
+                                                maximum_field_error, maximum_energy_error);
                      }
             }
-      // Re-run with every source changed to catch stale embedded padding.
-      for(std::size_t index = 0; index < input.active_moments.size(); ++index)
-         input.active_moments[index] = -0.31 + 0.019 * static_cast<double>(index);
-      const auto changed = luna_open_fft_test::run(input);
-      const auto expected = directFiniteFields(input);
-      for(std::size_t index = 0; index < expected.size(); ++index)
-         maximum_field_error = std::max(maximum_field_error, std::abs(changed.active_fields[index] - expected[index]));
+
+      // On the shared production field/energy operator, dE/dM is -B.
+      input = swapped;
+      const auto base = luna_open_fft_test::runProduction(input);
+      constexpr double step = 1.0e-7;
+      const std::size_t differentiated = macroIndex(1, 1, active_cells - 1, input.basis, active_cells, 0);
+      auto plus = input;
+      auto minus = input;
+      plus.active_moments[differentiated] += step;
+      minus.active_moments[differentiated] -= step;
+      const auto plus_result = luna_open_fft_test::runProduction(plus);
+      const auto minus_result = luna_open_fft_test::runProduction(minus);
+      const double derivative = (plus_result.dimensionless_energy[0] -
+                                 minus_result.dimensionless_energy[0]) / (2.0 * step);
+      maximum_energy_error = std::max(maximum_energy_error,
+                                      std::abs(derivative + base.active_fields[differentiated]));
+      const double per_atom_derivative = (plus_result.energy_per_atom[0] -
+                                          minus_result.energy_per_atom[0]) / (2.0 * step);
+      maximum_energy_error = std::max(maximum_energy_error,
+         std::abs(per_atom_derivative + base.scattered_fields[differentiated] /
+                  static_cast<double>(active_cells * input.basis)));
    }
-   std::printf("open-layout impulses field_max=%.17g energy_max=%.17g\n", maximum_field_error, maximum_energy_error);
-   require(maximum_field_error < 2.0e-11 && maximum_energy_error < 2.0e-11,
-           "OPEN_FFT active/padded impulse matrix differs from finite direct convolution");
+   std::printf("open-production-e2e impulses field_max=%.17g energy_max=%.17g\n",
+               maximum_field_error, maximum_energy_error);
+   // The field/energy comparisons are fp64 FFT checks; the aggregate energy
+   // figure also includes the centered finite-difference derivative.
+   require(maximum_field_error < 2.0e-11 && maximum_energy_error < 5.0e-9,
+           "OPEN_FFT basis-resolved production E2E differs from the finite direct convolution");
 }
 
 }  // namespace
 
 int main() {
    runLayoutAndBatchTests();
-   runOpenImpulseMatrix();
+   runOpenProductionE2E();
    return 0;
 }

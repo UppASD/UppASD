@@ -38,6 +38,10 @@ struct Result {
    std::vector<double> active_fields;
    // One dimensionless -1/2 sum(M dot B) per ensemble.
    std::vector<double> dimensionless_energy;
+   // Production scatter through an identity basis-fast map and the matching
+   // active-macro production energy, normalized per atom as in measurement.
+   std::vector<double> scattered_fields;
+   std::vector<double> energy_per_atom;
    // Independent allocation-inventory checks for the test descriptor.
    std::size_t persistent_bytes = 0;
    std::size_t persistent_inventory_bytes = 0;
@@ -51,5 +55,12 @@ struct Result {
 // It must not call periodic Ewald construction and must not apply the Tesla
 // prefactor to active_fields or dimensionless_energy.
 Result run(const Input& input);
+
+// Production-construction variant of the same complete active-to-padded
+// runtime seam.  It builds the finite point tensor from primitive vectors and
+// basis offsets, then uses uploadOpenKernel(); callers do not supply a tensor.
+// As above, values remain dimensionless so the test can compare directly with
+// Luna's finite point-dipole evaluator.
+Result runProduction(const Input& input);
 
 }  // namespace luna_open_fft_test

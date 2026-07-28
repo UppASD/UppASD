@@ -194,8 +194,8 @@ public:
    // 1/Ngrid normalization.
    void evaluate(const GpuTensor<real, 3>& macro_moments);
 
-   // WP5's accepted slice is NA=1/block-one.  The field produced by evaluate
-   // is scaled from its dimensionless kernel convention exactly once here and
+   // The accepted OPEN_FFT block-one slice is basis-resolved.  The field
+   // produced by evaluate is scaled from its dimensionless kernel convention exactly once here and
    // added to the already assembled Hamiltonian fields.  Energy is reduced
    // from those exact packed macro fields, in the pre-mRy (Tesla * mu_B)
    // convention used by deviceEnergies::energyM.

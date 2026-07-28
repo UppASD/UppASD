@@ -919,9 +919,10 @@ if(BUILD_TESTING)
          target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
-      # Test-only OPEN_FFT plumbing seam.  This has no production selector or
-      # builder: it uploads an explicitly supplied padded real tensor and
-      # checks active-to-padded embedding, batches, fields, and energy.
+      # Test-only OPEN_FFT E2E seam.  It has no production selector, but
+      # exercises both the explicit-tensor diagnostics and the production
+      # finite-kernel construction/upload through active-to-padded field and
+      # energy evaluation.
       add_executable(dipole_open_fft_layout_tests
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/open_fft_test_seam.cpp
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_fft_layout_red.cpp)

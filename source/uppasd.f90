@@ -1515,9 +1515,6 @@ contains
             if (block_size_x /= 1 .or. block_size_y /= 1 .or. block_size_z /= 1) then
                error stop 'OPEN_FFT first production gate requires block_size_x/y/z = 1 1 1'
             endif
-            if (NA /= 1) then
-               error stop 'OPEN_FFT first production gate requires NA=1'
-            endif
          endif
       endif
       if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0 .or. &

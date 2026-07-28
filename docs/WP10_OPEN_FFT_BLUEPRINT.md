@@ -1316,7 +1316,7 @@ Gate:
 - every basis/component/ensemble passes the independent oracle and basis
   permutation tests.
 
-#### [ ] WP10.6a — Terra — implement basis-resolved block-one `NA>1`
+#### [x] WP10.6a — Terra — implement basis-resolved block-one `NA>1`
 
 Delegation prompt:
 

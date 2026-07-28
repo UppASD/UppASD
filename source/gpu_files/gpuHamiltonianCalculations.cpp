@@ -605,9 +605,9 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          if(SimParam.gpu_dipole_tol != 1.0e-10) {
             throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
          }
-         if(*FortranData::NA != 1 || block != std::array<std::size_t, 3>{{1, 1, 1}} ||
+         if(block != std::array<std::size_t, 3>{{1, 1, 1}} ||
             coarse_grid != atomistic_grid || *FortranData::pme_num_macro != SimParam.N) {
-            throw std::runtime_error("OPEN_FFT first production gate requires a complete block=(1,1,1), NA=1 regular layout");
+            throw std::runtime_error("OPEN_FFT requires a complete block=(1,1,1) basis-resolved regular layout");
          }
          for(std::size_t cell = 0; cell < *FortranData::pme_num_macro; ++cell) {
             if(FortranData::pme_macro_nlistsize[cell] != 1) {

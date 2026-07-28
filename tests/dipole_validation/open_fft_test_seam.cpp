@@ -1,10 +1,12 @@
 #include "open_fft_test_seam.hpp"
 
+#include "dipoleOpenKernel.hpp"
 #include "gpuDipoleConvolution.hpp"
 #include "tensor.hpp"
 
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 
 namespace luna_open_fft_test {
@@ -25,7 +27,7 @@ std::vector<double> doubles(const std::vector<real>& values) {
 
 } // namespace
 
-Result run(const Input& input) {
+Result runImpl(const Input& input, bool production_kernel) {
    const std::size_t active_cells = cells(input.active_grid);
    const std::size_t fft_cells = cells(input.fft_grid);
    if(input.basis == 0 || input.ensembles == 0 || input.basis_offsets.size() != input.basis ||
@@ -61,23 +63,49 @@ Result run(const Input& input) {
 
    const auto layout = descriptor.fftLayout();
    const std::size_t kernel_size = layout.fft_cells * layout.kernel_batches;
-   if(input.padded_real_kernel.size() != kernel_size)
+   if(!production_kernel && input.padded_real_kernel.size() != kernel_size)
       throw std::invalid_argument("OPEN_FFT test seam padded real kernel has the wrong shape");
 
    GpuTensor<real, 3> device_moments;
+   GpuTensor<unsigned int, 1> device_map;
+   GpuTensor<real, 3> device_beff, device_eneff;
+   GpuTensor<real, 2> device_energy;
    GpuDipoleConvolution solver;
    GPU_STREAM_T stream{};
    if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("OPEN_FFT test seam stream creation failed");
    try {
       device_moments.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
+      device_map.Allocate(static_cast<long int>(layout.active_macros));
+      device_beff.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
+      device_eneff.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
+      device_energy.Allocate(static_cast<long int>(input.ensembles), 7L);
       std::vector<real> moments(input.active_moments.begin(), input.active_moments.end());
-      if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
+      std::vector<unsigned int> identity_map(layout.active_macros);
+      std::iota(identity_map.begin(), identity_map.end(), 1U);
+      if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
+         GPU_MEMCPY(device_map.data(), identity_map.data(), identity_map.size() * sizeof(unsigned int),
+                    GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("OPEN_FFT test seam moment upload failed");
+      device_beff.zeros_async(stream);
+      device_eneff.zeros_async(stream);
+      device_energy.zeros_async(stream);
       if(!solver.initiate(descriptor, stream)) throw std::runtime_error("OPEN_FFT test seam plan initiation failed");
-      // This is deliberately a testing upload seam.  It cannot select an
-      // UppASD mode and does not invoke the periodic Ewald builder.
-      solver.uploadCompleteKernelForTesting(input.padded_real_kernel, false);
+      if(production_kernel) {
+         DipoleOpenGeometry geometry{};
+         geometry.active_grid = input.active_grid;
+         geometry.fft_grid = input.fft_grid;
+         geometry.primitive_vectors = input.primitive_vectors;
+         geometry.basis = input.basis;
+         geometry.basis_offsets = input.basis_offsets;
+         solver.uploadOpenKernel(buildOpenDipoleDisplacementKernel(geometry).kernel);
+      } else {
+         // This is deliberately a testing upload seam.  It cannot select an
+         // UppASD mode and does not invoke the periodic Ewald builder.
+         solver.uploadCompleteKernelForTesting(input.padded_real_kernel, false);
+      }
       solver.evaluate(device_moments);
+      solver.addFieldsToAtoms(device_beff, device_eneff, device_map.data(), layout.active_macros);
+      solver.accumulateEnergy(device_energy, layout.active_macros);
       Result result{};
       result.active_cells = layout.active_cells;
       result.active_macros = layout.active_macros;
@@ -87,6 +115,16 @@ Result run(const Input& input) {
       result.padded_fields = doubles(solver.diagnosticPaddedFieldsForTesting());
       result.active_fields = doubles(solver.diagnosticFieldsForTesting());
       result.dimensionless_energy = solver.diagnosticEnergiesForTesting();
+      std::vector<real> scattered(3 * layout.active_macros * input.ensembles);
+      std::vector<real> energy(7 * input.ensembles);
+      if(GPU_MEMCPY(scattered.data(), device_beff.data(), scattered.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
+         GPU_MEMCPY(energy.data(), device_energy.data(), energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS) {
+         throw std::runtime_error("OPEN_FFT test seam production field/energy download failed");
+      }
+      result.scattered_fields = doubles(scattered);
+      result.energy_per_atom.resize(input.ensembles);
+      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
+         result.energy_per_atom[ensemble] = energy[ensemble + input.ensembles * 5];
       result.persistent_bytes = GpuDipoleConvolution::estimatePersistentBytes(descriptor);
       result.construction_bytes = GpuDipoleConvolution::estimateConstructionBytes(descriptor);
       result.workspace_bytes = GpuDipoleConvolution::estimateWorkspaceBytes(descriptor);
@@ -101,15 +139,31 @@ Result run(const Input& input) {
       result.construction_inventory_bytes =
          layout.fft_cells * layout.kernel_batches * sizeof(real);
       solver.release();
+      device_energy.Free();
+      device_eneff.Free();
+      device_beff.Free();
+      device_map.Free();
       device_moments.Free();
       if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("OPEN_FFT test seam stream destruction failed");
       return result;
    } catch(...) {
+      if(!device_energy.empty()) device_energy.Free();
+      if(!device_eneff.empty()) device_eneff.Free();
+      if(!device_beff.empty()) device_beff.Free();
+      if(!device_map.empty()) device_map.Free();
       if(!device_moments.empty()) device_moments.Free();
       solver.release();
       GPU_STREAM_DESTROY(stream);
       throw;
    }
+}
+
+Result run(const Input& input) {
+   return runImpl(input, false);
+}
+
+Result runProduction(const Input& input) {
+   return runImpl(input, true);
 }
 
 } // namespace luna_open_fft_test
