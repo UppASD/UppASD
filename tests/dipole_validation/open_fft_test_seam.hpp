@@ -12,8 +12,12 @@
 namespace luna_open_fft_test {
 
 struct Input {
+   // Complete primitive-cell grid before projection.  An all-zero value keeps
+   // the historical block-one test shorthand and means active_grid.
+   std::array<std::size_t, 3> atomistic_grid{};
    std::array<std::size_t, 3> active_grid{};
    std::array<std::size_t, 3> fft_grid{};
+   std::array<std::size_t, 3> block_shape{{1, 1, 1}};
    unsigned int basis = 0;
    unsigned int ensembles = 0;
    // Column-major [C1 C2 C3], followed by basis offsets in Cartesian order.
@@ -21,6 +25,14 @@ struct Input {
    std::vector<std::array<double, 3>> basis_offsets;
    // alpha + 3*(macro + active_macros*ensemble), with macro=a+NA*cell.
    std::vector<double> active_moments;
+   // Optional one-based atom-to-active-macro map.  Empty retains the
+   // block-one identity map; a coarse test supplies every physical atom so
+   // scatter and per-atom energy use the production cardinality.
+   std::vector<unsigned int> atom_to_macro;
+   // Optional production-layout population contract.  When present, the
+   // seam checks both the declared uniform population and the observed map
+   // histogram before creating a stream, mirroring the production gate.
+   std::vector<std::size_t> macro_populations;
    // Explicit test tensor in fft_cell + fft_cells*kernel_batch order.
    // The seam deliberately has no open physical-kernel builder.
    std::vector<double> padded_real_kernel;
@@ -29,6 +41,7 @@ struct Input {
 struct Result {
    std::size_t active_cells = 0;
    std::size_t active_macros = 0;
+   std::size_t atom_count = 0;
    std::size_t fft_cells = 0;
    std::size_t field_batches = 0;
    // These are host copies of the exact test seam buffers.

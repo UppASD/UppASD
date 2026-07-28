@@ -605,15 +605,10 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          if(SimParam.gpu_dipole_tol != 1.0e-10) {
             throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
          }
-         if(block != std::array<std::size_t, 3>{{1, 1, 1}} ||
-            coarse_grid != atomistic_grid || *FortranData::pme_num_macro != SimParam.N) {
-            throw std::runtime_error("OPEN_FFT requires a complete block=(1,1,1) basis-resolved regular layout");
-         }
-         for(std::size_t cell = 0; cell < *FortranData::pme_num_macro; ++cell) {
-            if(FortranData::pme_macro_nlistsize[cell] != 1) {
-               throw std::runtime_error("OPEN_FFT rejects partial or non-unit macrocell populations before device allocation");
-            }
-         }
+         // The finite builder accepts exactly the uniform, divisible block
+         // contract validated above.  In particular, every basis-resolved
+         // macro channel has block_population members; do not reimpose the
+         // retired block-one-only gate here.
       }
       numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
@@ -651,6 +646,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
                                      dipoleDescriptor.atomistic_grid.n3}};
          geometry.active_grid = {{active.n1, active.n2, active.n3}};
          geometry.fft_grid = {{padded.n1, padded.n2, padded.n3}};
+         geometry.block_shape = block;
          for(unsigned int axis = 0; axis < 3; ++axis)
             for(unsigned int component = 0; component < 3; ++component)
                geometry.primitive_vectors[3 * axis + component] =

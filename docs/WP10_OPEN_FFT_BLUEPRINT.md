@@ -1190,7 +1190,7 @@ workspace figure.  Releasing the thermfield's owned field and sigma tensors
 also makes the final live inventory exactly zero and keeps repeated release
 idempotent.
 
-### [ ] WP10.5 — Luna — independent acceptance of the first production slice
+### [x] WP10.5 — Luna — independent acceptance of the first production slice
 
 Dependencies: WP10.4.
 
@@ -1259,29 +1259,26 @@ task and leave production enablement gated.
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-Report:
-Decision:
+Assignee: Luna
+Branch/commit: 0b2ac5619374498e223b422b2138d79bc91d2c11
+Report: docs/luna_wp10_open_acceptance.md
+Decision: GO — independent CUDA acceptance passed; production gate open for
+          the documented block-one, NA=1, fp64 GPU-SD slice.
+Limitations: HIP numerical execution unavailable on this runner; WP10.6
+             extensions remain gated.
 ```
 
-WP10.4 re-addressing required after Luna's 2026-07-28 independent
-acceptance (NO-GO):
+WP10.4 re-address completed after Luna's 2026-07-28 independent acceptance:
 
 - [x] Reconcile the full-run GPU memory budget with the live allocation
-      inventory. In the valid CUDA 2x1x1 `NA=M=1` fp64 run, preflight
-      projected `2.2 kB`, the OPEN_FFT-specific diagnostic reported
-      `0.001 MiB` persistent and `0.001 MiB` peak, but the allocator tracker
-      reported `Max GPU 25.056 KB` and release printed `estimate -91.4%`.
-      The 2x2x1 M=4 and 4x3x1 thin-film runs likewise printed `-64.9%` and
-      `-54.4%`. Determine and document whether these are different scopes
-      (full simulation versus dipole-only workspace); if so, print the scopes
-      and like-for-like figures, otherwise correct the estimate or inventory.
+      inventory. Terra moved the preflight to the full-run scope and
+      documented the former 2.2 kB versus 25,056 B scope mismatch. Luna
+      independently verified like-for-like `+0.0%` comparisons for 25,056 B
+      (2x1x1), 34,400 B (2x2x1 M=4), and 37,336 B (4x3x1 thin film).
 - [x] Re-run valid CUDA production OPEN_FFT startup cases after the
-      memory-accounting change and retain projected bytes, persistent and
-      peak bytes, live tracker peak, and release comparison in the WP10.4
-      handoff. Do not treat formatted `0.000 GB` output as sufficient
-      evidence; retain byte-level values.
+      memory-accounting change. The handoff and Luna report retain projected,
+      persistent, construction, phase-peak, tracker-peak, and release bytes;
+      all three verified release inventories are 0 B.
 - [x] Re-run CUDA memcheck on both the standalone layout seam and an actual
       production `gpu_dipole_mode OPEN_FFT` SD launch, recording the complete
       `ERROR SUMMARY` lines. Luna found zero sanitizer errors before this
@@ -1293,13 +1290,12 @@ acceptance (NO-GO):
       through `do_dip`. No new physics mode or `do_dip=3` expected data is
       needed for this re-address.
 - [x] If an AMD runner becomes available, run the equivalent HIP numerical
-      production check; the current NO-GO is not based on a HIP numerical
-      failure because no HIP device/toolchain was available.
+      production check. No HIP device/toolchain was available on this runner;
+      this is a documented limitation, not a HIP numerical failure.
 
-Terra must attach the updated commands, hardware/backend, byte-level memory
-table, and pass/fail interpretation to the WP10.4 handoff. WP10.5 remains
-unchecked until Luna independently reruns the affected acceptance and gives
-an explicit GO.
+Terra attached the updated commands, hardware/backend, byte-level memory
+table, and pass/fail interpretation to the WP10.4 handoff. Luna independently
+reran the affected acceptance and issued the explicit GO above.
 
 ### WP10.6 — Basis-resolved block-one `NA>1`
 
@@ -1343,7 +1339,7 @@ basis permutations, reciprocity, and energy derivatives.
 Hand the result to Luna without changing Luna's expected values.
 ```
 
-#### [ ] WP10.6b — Luna — accept basis-resolved block-one `NA>1`
+#### [x] WP10.6b — Luna — accept basis-resolved block-one `NA>1`
 
 Delegation prompt:
 
@@ -1359,9 +1355,12 @@ Return GO/NO-GO with maximum errors and sanitizer/backend results.
 Acceptance record:
 
 ```text
-Terra branch/commit:
-Luna report:
-Decision:
+Terra branch/commit: 0830897
+Luna report: docs/luna_wp10_6b_open_acceptance.md
+Decision: GO — independent NA=2 runtime/direct-oracle, basis permutation,
+          derivative, NA=1 regression, CUDA backend, and memcheck checks pass.
+Limitations: HIP numerical execution unavailable on this runner; WP10.7 is
+             now unblocked.
 ```
 
 ### WP10.7 — Uniform divisible coarse blocks
@@ -1402,7 +1401,7 @@ exact recovery at block one and document approximation/convergence for
 nonuniform atom moments as block width decreases.
 ```
 
-#### [ ] WP10.7b — Terra — integrate accepted coarse blocks
+#### [x] WP10.7b — Terra — integrate accepted coarse blocks
 
 Delegation prompt:
 
@@ -1429,7 +1428,7 @@ case.  Record CUDA/HIP status, memory accounting, and the exact input
 combinations enabled.  Hand the result to Luna for acceptance.
 ```
 
-#### [ ] WP10.7c — Luna — accept uniform divisible coarse blocks
+#### [x] WP10.7c — Luna — accept uniform divisible coarse blocks
 
 Delegation prompt:
 
@@ -1445,10 +1444,11 @@ edge/population case.  Return GO/NO-GO and numerical tables.
 Acceptance record:
 
 ```text
-Sol branch/commit:
-Terra integration branch/commit:
-Luna report:
-Decision:
+Sol branch/commit: 8d101f0
+Terra integration branch/commit: 8d101f0
+Luna report: docs/luna_wp10_7c_open_coarse_acceptance.md
+Decision: GO — independent host projection, CUDA production coarse matrix,
+          rejection gates, and CUDA Compute Sanitizer pass. HIP remains untested.
 ```
 
 ### [ ] WP10.8 — Terra — padding, caching, fp32, CUDA/HIP, and performance

@@ -1509,13 +1509,10 @@ contains
          if (gpu_dipole_tol /= 1.0e-10_dblprec) then
             error stop 'OPEN_FFT rejects Ewald tolerance overrides; gpu_dipole_tol must retain its default 1.0e-10'
          endif
-         ! The first invocation occurs before positions establish NA; repeat
-         ! these geometry gates below, still before any macro/device allocation.
-         if (geometry_ready) then
-            if (block_size_x /= 1 .or. block_size_y /= 1 .or. block_size_z /= 1) then
-               error stop 'OPEN_FFT first production gate requires block_size_x/y/z = 1 1 1'
-            endif
-         endif
+         ! Uniform coarse blocks are projected by the accepted finite OPEN_FFT
+         ! builder.  The positive/divisible gate below remains deliberately
+         ! before macrocell and device allocation, so partial edge blocks are
+         ! still rejected rather than rounded up by the macrocell layout.
       endif
       if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0 .or. &
           mod(N1,block_size_x) /= 0 .or. mod(N2,block_size_y) /= 0 .or. &

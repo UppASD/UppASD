@@ -984,6 +984,10 @@ if(BUILD_TESTING)
          COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/run_wp5_e2e.py
                  --binary ${TestBinary} ${WP5_E2E_PRECISION_ARGUMENT})
       set_property(TEST dipole-gpu-wp5-e2e PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
+      add_test(NAME dipole-open-fft-coarse-e2e
+         COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/run_wp10_open_coarse_e2e.py
+                 --binary ${TestBinary})
+      set_property(TEST dipole-open-fft-coarse-e2e PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
 endif()
 message(STATUS "Output binary:  ${TestBinary}")

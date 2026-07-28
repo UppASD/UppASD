@@ -201,9 +201,10 @@ different interpolation or self conventions.
 ### Open finite sample -- second mode
 
 This mode uses the macrocell source grid and a zero-padded linear convolution
-on `(2*G1-1, 2*G2-1, 2*G3-1)`.  With block size one, `G` has atomic resolution
-and its reference is the analytic finite point-dipole sum.  It has no Ewald
-surface term and is not an approximation to the periodic PME mode.
+on `(2*G1-1, 2*G2-1, 2*G3-1)`.  With block size one and `NA=1`, `G` is the
+atomic baseline and its reference is the analytic finite point-dipole sum.
+For `NA>1`, block one is instead the basis-resolved block-one case.  It has no
+Ewald surface term and is not an approximation to the periodic PME mode.
 
 ### 2D-periodic slab -- later mode
 
@@ -265,7 +266,7 @@ Introduce an explicit GPU dipole selection rather than overloading
 `do_dip`:
 
 ```
-gpu_dipole_mode       OFF | EWALD3D_FFT | OPEN_FFT | SLAB_PME
+gpu_dipole_mode       OFF | EWALD3D_FFT | OPEN_FFT | EWALD2D_FFT
 gpu_dipole_surface    TINFOIL | VACUUM_SPHERE   # EWALD3D_FFT only
 gpu_dipole_tol        1.0e-10                    # EWALD3D_FFT default
 gpu_dipole_alpha      auto | positive value
@@ -273,6 +274,11 @@ gpu_dipole_rcut       auto | positive value
 gpu_dipole_mesh       auto | n1 n2 n3
 gpu_dipole_spline     4 | 6 | ...
 ```
+
+`OPEN_FFT` execution, including the single macrocell representation and its
+block-one `NA=1` atomic baseline, is specified in
+`WP10_OPEN_FFT_BLUEPRINT.md`.  `EWALD2D_FFT` is the proposed WP12 name and is
+not enabled by the WP10 work.
 
 `gpu_dipole_alpha`, `gpu_dipole_rcut`, and all-zero `gpu_dipole_mesh` accept
 zero as the currently supported spelling of `auto`; positive values request

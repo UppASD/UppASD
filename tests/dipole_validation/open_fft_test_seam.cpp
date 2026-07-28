@@ -25,6 +25,11 @@ std::vector<double> doubles(const std::vector<real>& values) {
    return {values.begin(), values.end()};
 }
 
+std::array<std::size_t, 3> atomisticGrid(const Input& input) {
+   const std::array<std::size_t, 3> unspecified{};
+   return input.atomistic_grid == unspecified ? input.active_grid : input.atomistic_grid;
+}
+
 } // namespace
 
 Result runImpl(const Input& input, bool production_kernel) {
@@ -47,8 +52,9 @@ Result runImpl(const Input& input, bool production_kernel) {
       c3[component] = static_cast<real>(input.primitive_vectors[6 + component]);
    }
    GpuDipoleConvolutionDescriptor descriptor{};
-   descriptor.atomistic_grid = {input.active_grid[0], input.active_grid[1], input.active_grid[2]};
-   descriptor.macro_grid = descriptor.atomistic_grid;
+   const auto atomistic_grid = atomisticGrid(input);
+   descriptor.atomistic_grid = {atomistic_grid[0], atomistic_grid[1], atomistic_grid[2]};
+   descriptor.macro_grid = {input.active_grid[0], input.active_grid[1], input.active_grid[2]};
    descriptor.fft_grid = {input.fft_grid[0], input.fft_grid[1], input.fft_grid[2]};
    descriptor.basis = input.basis;
    descriptor.ensembles = input.ensembles;
@@ -66,6 +72,43 @@ Result runImpl(const Input& input, bool production_kernel) {
    if(!production_kernel && input.padded_real_kernel.size() != kernel_size)
       throw std::invalid_argument("OPEN_FFT test seam padded real kernel has the wrong shape");
 
+   // Keep the production ordering: all finite-projection geometry and
+   // divisibility failures occur before a stream, FFT plan, or device buffer
+   // is created.
+   DipoleOpenKernelResult built_open_kernel{};
+   if(production_kernel) {
+      DipoleOpenGeometry geometry{};
+      geometry.atomistic_grid = atomistic_grid;
+      geometry.active_grid = input.active_grid;
+      geometry.fft_grid = input.fft_grid;
+      geometry.block_shape = input.block_shape;
+      geometry.primitive_vectors = input.primitive_vectors;
+      geometry.basis = input.basis;
+      geometry.basis_offsets = input.basis_offsets;
+      built_open_kernel = buildOpenDipoleDisplacementKernel(geometry);
+   }
+
+   const std::size_t atom_count = input.atom_to_macro.empty() ? layout.active_macros : input.atom_to_macro.size();
+   if(atom_count == 0) throw std::invalid_argument("OPEN_FFT test seam has no scatter atoms");
+   std::vector<unsigned int> atom_map = input.atom_to_macro;
+   if(atom_map.empty()) {
+      atom_map.resize(layout.active_macros);
+      std::iota(atom_map.begin(), atom_map.end(), 1U);
+   }
+   for(const unsigned int macro : atom_map)
+      if(macro == 0 || macro > layout.active_macros)
+         throw std::invalid_argument("OPEN_FFT test seam atom map is outside the active macro range");
+   if(!input.macro_populations.empty()) {
+      const std::size_t population = input.block_shape[0] * input.block_shape[1] * input.block_shape[2];
+      if(input.macro_populations.size() != layout.active_macros)
+         throw std::invalid_argument("OPEN_FFT test seam macrocell populations have the wrong count");
+      std::vector<std::size_t> observed(layout.active_macros, 0);
+      for(const unsigned int macro : atom_map) ++observed[macro - 1];
+      for(std::size_t macro = 0; macro < layout.active_macros; ++macro)
+         if(input.macro_populations[macro] != population || observed[macro] != input.macro_populations[macro])
+            throw std::invalid_argument("OPEN_FFT test seam macrocell populations are not uniform or disagree with the map");
+   }
+
    GpuTensor<real, 3> device_moments;
    GpuTensor<unsigned int, 1> device_map;
    GpuTensor<real, 3> device_beff, device_eneff;
@@ -75,15 +118,13 @@ Result runImpl(const Input& input, bool production_kernel) {
    if(GPU_STREAM_CREATE(&stream) != GPU_SUCCESS) throw std::runtime_error("OPEN_FFT test seam stream creation failed");
    try {
       device_moments.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
-      device_map.Allocate(static_cast<long int>(layout.active_macros));
-      device_beff.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
-      device_eneff.Allocate(3L, static_cast<long int>(layout.active_macros), static_cast<long int>(input.ensembles));
+      device_map.Allocate(static_cast<long int>(atom_count));
+      device_beff.Allocate(3L, static_cast<long int>(atom_count), static_cast<long int>(input.ensembles));
+      device_eneff.Allocate(3L, static_cast<long int>(atom_count), static_cast<long int>(input.ensembles));
       device_energy.Allocate(static_cast<long int>(input.ensembles), 7L);
       std::vector<real> moments(input.active_moments.begin(), input.active_moments.end());
-      std::vector<unsigned int> identity_map(layout.active_macros);
-      std::iota(identity_map.begin(), identity_map.end(), 1U);
       if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS ||
-         GPU_MEMCPY(device_map.data(), identity_map.data(), identity_map.size() * sizeof(unsigned int),
+         GPU_MEMCPY(device_map.data(), atom_map.data(), atom_map.size() * sizeof(unsigned int),
                     GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS)
          throw std::runtime_error("OPEN_FFT test seam moment upload failed");
       device_beff.zeros_async(stream);
@@ -91,32 +132,26 @@ Result runImpl(const Input& input, bool production_kernel) {
       device_energy.zeros_async(stream);
       if(!solver.initiate(descriptor, stream)) throw std::runtime_error("OPEN_FFT test seam plan initiation failed");
       if(production_kernel) {
-         DipoleOpenGeometry geometry{};
-         geometry.atomistic_grid = input.active_grid;
-         geometry.active_grid = input.active_grid;
-         geometry.fft_grid = input.fft_grid;
-         geometry.primitive_vectors = input.primitive_vectors;
-         geometry.basis = input.basis;
-         geometry.basis_offsets = input.basis_offsets;
-         solver.uploadOpenKernel(buildOpenDipoleDisplacementKernel(geometry).kernel);
+         solver.uploadOpenKernel(built_open_kernel.kernel);
       } else {
          // This is deliberately a testing upload seam.  It cannot select an
          // UppASD mode and does not invoke the periodic Ewald builder.
          solver.uploadCompleteKernelForTesting(input.padded_real_kernel, false);
       }
       solver.evaluate(device_moments);
-      solver.addFieldsToAtoms(device_beff, device_eneff, device_map.data(), layout.active_macros);
-      solver.accumulateEnergy(device_energy, layout.active_macros);
+      solver.addFieldsToAtoms(device_beff, device_eneff, device_map.data(), atom_count);
+      solver.accumulateEnergy(device_energy, atom_count);
       Result result{};
       result.active_cells = layout.active_cells;
       result.active_macros = layout.active_macros;
+      result.atom_count = atom_count;
       result.fft_cells = layout.fft_cells;
       result.field_batches = layout.field_batches;
       result.packed_moments = doubles(solver.diagnosticPackedMomentsForTesting());
       result.padded_fields = doubles(solver.diagnosticPaddedFieldsForTesting());
       result.active_fields = doubles(solver.diagnosticFieldsForTesting());
       result.dimensionless_energy = solver.diagnosticEnergiesForTesting();
-      std::vector<real> scattered(3 * layout.active_macros * input.ensembles);
+      std::vector<real> scattered(3 * atom_count * input.ensembles);
       std::vector<real> energy(7 * input.ensembles);
       if(GPU_MEMCPY(scattered.data(), device_beff.data(), scattered.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS ||
          GPU_MEMCPY(energy.data(), device_energy.data(), energy.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST) != GPU_SUCCESS) {

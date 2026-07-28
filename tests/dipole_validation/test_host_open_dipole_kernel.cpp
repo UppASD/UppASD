@@ -554,6 +554,18 @@ void runValidationTests() {
    requireThrows<std::invalid_argument>(
       [&] { (void)buildOpenDipoleDisplacementKernel(partial); }, "partial edge blocks");
 
+   DipoleOpenGeometry partial_y = valid;
+   partial_y.atomistic_grid = {2, 5, 2};
+   partial_y.block_shape = {1, 2, 1};
+   requireThrows<std::invalid_argument>(
+      [&] { (void)buildOpenDipoleDisplacementKernel(partial_y); }, "partial edge blocks");
+
+   DipoleOpenGeometry partial_z = valid;
+   partial_z.atomistic_grid = {2, 2, 5};
+   partial_z.block_shape = {1, 1, 2};
+   requireThrows<std::invalid_argument>(
+      [&] { (void)buildOpenDipoleDisplacementKernel(partial_z); }, "partial edge blocks");
+
    DipoleOpenGeometry unequal_shape = valid;
    unequal_shape.atomistic_grid = {4, 2, 2};
    unequal_shape.block_shape = {2, 1, 1};

@@ -1196,10 +1196,14 @@ not merely when its implementation has started.
   partial edge blocks are rejected before allocation.
 - [x] **WP9 — Performance, fp32, and CUDA/HIP parity** (depends on the
   relevant accepted physics scope).
-- [ ] **WP10 — Open-island/racetrack and slab modes** (separate projects;
-  periodic/open submodes require their own gates).
-- [ ] **WP11 — Legacy CPU dipole audit and repair** (begin after WP5 gives an
-  independently accepted periodic reference).
+- [ ] **WP10 — Open-island/racetrack `OPEN_FFT` mode.**  The detailed,
+  independently delegable execution blueprint is
+  `docs/WP10_OPEN_FFT_BLUEPRINT.md`.
+- [ ] **WP11 — Legacy CPU dipole audit and repair** (begin after WP10.1
+  freezes an independent finite/open reference; retain the accepted periodic
+  oracle for regression coverage).
+- [ ] **WP12 — True 2D-periodic dipole mode** (separate derivation and
+  acceptance; proposed selector `EWALD2D_FFT`).
 
 When a package is active, record the assignee, branch/commit, test command,
 and acceptance report immediately below its checklist item rather than
@@ -1536,20 +1540,21 @@ Gate:
 
 - No precision mode is enabled without a documented field and energy error.
 
-### WP10 — Open and slab modes
+### WP10 — Open finite mode
 
-Treat as separate projects:
+Implement `OPEN_FFT` as a zero-padded linear convolution with correct
+active-grid embedding and finite/open analytic references.  The sole source
+representation is the existing basis-resolved macrocell map; the atomic
+baseline means block `(1,1,1)` with `NA=1`.
 
-- `OPEN_FFT`: zero-padded linear convolution with correct active-grid
-  embedding and finite/open analytic references.
-- `SLAB_PME`: true 2D-periodic Ewald or a separately derived and validated
-  layer correction.
-
-Neither is a fallback from failed periodic initialization.
+The detailed task gates and separate Sol, Terra, and Luna prompts are in
+`docs/WP10_OPEN_FFT_BLUEPRINT.md`.
 
 ### WP11 — Legacy CPU audit and repair
 
-Begin only after the GPU periodic operator has an independent accepted oracle.
+Begin after WP10.1 has frozen an independent finite/open oracle.  The accepted
+GPU periodic oracle remains required for regression coverage but is not the
+reference for the finite `do_dip=1/2/3` Hamiltonians.
 
 Order:
 
@@ -1562,6 +1567,17 @@ Order:
 6. Compare FFTW/MKL to the analytic finite oracle, not only to each other.
 7. Decide whether a CPU periodic Ewald FFT mode should share the new host
    kernel builder rather than changing the semantics of legacy `do_dip=3`.
+
+### WP12 — True 2D-periodic mode
+
+Derive and validate a true 2D-periodic dipolar Green function or a complete
+dipolar layer-corrected formulation.  Plain vacuum padding of the 3D Ewald
+mode is not sufficient.  The proposed selector is `EWALD2D_FFT` if the
+regular-lattice implementation precomputes a complete 2D-periodic operator
+rather than implementing a general particle mesh.
+
+The retained physics analysis and preliminary checklist are in
+`docs/WP10_OPEN_FFT_BLUEPRINT.md`.
 
 ## 11. Delegation prompts
 
