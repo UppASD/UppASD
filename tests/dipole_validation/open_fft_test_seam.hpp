@@ -21,6 +21,9 @@ struct Input {
    std::vector<std::array<double, 3>> basis_offsets;
    // alpha + 3*(macro + active_macros*ensemble), with macro=a+NA*cell.
    std::vector<double> active_moments;
+   // Explicit test tensor in fft_cell + fft_cells*kernel_batch order.
+   // The seam deliberately has no open physical-kernel builder.
+   std::vector<double> padded_real_kernel;
 };
 
 struct Result {
@@ -35,6 +38,13 @@ struct Result {
    std::vector<double> active_fields;
    // One dimensionless -1/2 sum(M dot B) per ensemble.
    std::vector<double> dimensionless_energy;
+   // Independent allocation-inventory checks for the test descriptor.
+   std::size_t persistent_bytes = 0;
+   std::size_t persistent_inventory_bytes = 0;
+   std::size_t construction_bytes = 0;
+   std::size_t construction_inventory_bytes = 0;
+   std::size_t workspace_bytes = 0;
+   std::size_t total_bytes = 0;
 };
 
 // Terra must provide this test-only adapter around the open layout/runtime.

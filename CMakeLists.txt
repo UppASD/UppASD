@@ -901,6 +901,32 @@ if(BUILD_TESTING)
          target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
+      # Test-only OPEN_FFT plumbing seam.  This has no production selector or
+      # builder: it uploads an explicitly supplied padded real tensor and
+      # checks active-to-padded embedding, batches, fields, and energy.
+      add_executable(dipole_open_fft_layout_tests
+         ${CMAKE_SOURCE_DIR}/tests/dipole_validation/open_fft_test_seam.cpp
+         ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_fft_layout_red.cpp)
+      target_include_directories(dipole_open_fft_layout_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement
+         ${CMAKE_SOURCE_DIR}/tests/dipole_validation)
+      target_link_libraries(dipole_open_fft_layout_tests PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/open_fft_test_seam.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(dipole_open_fft_layout_tests PRIVATE CUDA_V)
+         target_link_libraries(dipole_open_fft_layout_tests PRIVATE CUDA::cudart CUDA::cufft)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/dipole_validation/open_fft_test_seam.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(dipole_open_fft_layout_tests PRIVATE HIP_V)
+         target_link_libraries(dipole_open_fft_layout_tests PRIVATE ${HIPFFT_LIBRARY})
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(dipole_open_fft_layout_tests PRIVATE SINGLE_PREC)
+      endif()
+      add_test(NAME dipole-open-fft-layout COMMAND dipole_open_fft_layout_tests)
       # Explicit performance harness.  It is a build target rather than a
       # CTest because timings are hardware-dependent and are recorded by WP9
       # sweep jobs, not used as pass/fail correctness expectations.

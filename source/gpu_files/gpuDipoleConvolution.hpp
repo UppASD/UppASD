@@ -40,9 +40,15 @@ struct GpuDipoleGridShape {
 // value type makes the FFT-library integer limits and the memory contract
 // testable before a plan or a device allocation exists.
 struct GpuDipoleFftLayout {
-   GpuDipoleGridShape real_grid{};
+   // The source macro tensor has active_cells cells.  The real R2C allocation
+   // has fft_cells cells and may include zero padding for a finite test
+   // convolution.  They coincide for the accepted periodic operator.
+   GpuDipoleGridShape active_grid{};
+   GpuDipoleGridShape fft_grid{};
    GpuDipoleGridShape spectral_grid{};
-   std::size_t real_cells = 0;
+   std::size_t active_cells = 0;
+   std::size_t active_macros = 0;
+   std::size_t fft_cells = 0;
    std::size_t spectral_cells = 0;
    std::size_t field_batches = 0;   // 3 * basis * ensembles
    std::size_t kernel_batches = 0;  // 9 * basis * basis
@@ -74,9 +80,13 @@ struct GpuDipoleKernelCacheStats {
 
 struct GpuDipoleConvolutionDescriptor {
    // Atomistic grid dimensions.  For MacrospinGrid these describe the source
-   // lattice; macro_grid describes the actual FFT grid.
+   // lattice; macro_grid describes the active macro source grid.
    GpuDipoleGridShape atomistic_grid{};
    GpuDipoleGridShape macro_grid{};
+   // Empty selects the canonical grid for the boundary mode.  A non-empty
+   // value is used by diagnostic OPEN_FFT plumbing only and is validated
+   // against the selected active grid.
+   GpuDipoleGridShape fft_grid{};
    unsigned int basis = 0;
    unsigned int ensembles = 0;
    GpuDipoleBoundaryMode boundary = GpuDipoleBoundaryMode::Open;
@@ -105,7 +115,7 @@ struct GpuDipoleConvolutionDescriptor {
    unsigned int open_axis = 2;
 
    GpuDipoleGridShape activeGrid() const;
-   GpuDipoleGridShape paddedGrid() const;
+   GpuDipoleGridShape fftGrid() const;
    std::array<real, 9> fullCellMatrix() const;
    real cellVolume() const;
    std::array<real, 9> reciprocalCellMatrix() const;
@@ -187,6 +197,10 @@ public:
    // Explicitly diagnostic readback APIs.  They synchronize and are intended
    // only for the standalone GPU tests while simulation dispatch remains off.
    std::vector<real> diagnosticFieldsForTesting() const;
+   // Exact padded FFT-grid buffers, exposed only for layout validation.  They
+   // make stale-padding errors observable without changing production APIs.
+   std::vector<real> diagnosticPackedMomentsForTesting() const;
+   std::vector<real> diagnosticPaddedFieldsForTesting() const;
    // Accumulate the downloaded device-real field and moment values in fp64.
    // This diagnoses the operator error without adding a second, unrelated
    // fp32 host reduction error to the acceptance comparison.

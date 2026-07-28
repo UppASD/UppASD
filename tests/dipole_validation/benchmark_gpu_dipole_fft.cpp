@@ -79,8 +79,8 @@ int main(int argc, char** argv) {
       const Options options = parse(argc, argv);
       const auto desc = descriptor(options);
       const auto layout = desc.fftLayout();
-      const std::size_t moments_count = 3 * layout.real_cells * options.basis * options.ensembles;
-      const std::size_t kernel_count = layout.real_cells * layout.kernel_batches;
+      const std::size_t moments_count = 3 * layout.active_macros * options.ensembles;
+      const std::size_t kernel_count = layout.fft_cells * layout.kernel_batches;
       std::vector<real> moments(moments_count);
       std::vector<double> kernel(kernel_count);
       for(std::size_t index = 0; index < moments.size(); ++index)
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
       GpuDipoleConvolution solver;
       GPU_EVENT_T begin{}, end{};
       try {
-         device_moments.Allocate(3L, static_cast<long int>(layout.real_cells * options.basis),
+         device_moments.Allocate(3L, static_cast<long int>(layout.active_macros),
                                  static_cast<long int>(options.ensembles));
          if(GPU_MEMCPY(device_moments.data(), moments.data(), moments.size() * sizeof(real),
                        GPU_MEMCPY_HOST_TO_DEVICE) != GPU_SUCCESS) {

@@ -873,7 +873,7 @@ Oracle independence review: GO; expected values come only from the finite
                             analytic point-dipole evaluator
 ```
 
-### [ ] WP10.2 — Terra — active/padded layout and device embedding
+### [x] WP10.2 — Terra — active/padded layout and device embedding
 
 Dependencies: WP10.0 layout vocabulary; Luna's requested test seam from
 WP10.1 when available.
@@ -952,12 +952,15 @@ Finish with:
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-CUDA tests:
-HIP tests:
-Sanitizer:
-Periodic regression:
+Assignee: Terra
+Branch/commit: active/padded FFT plumbing commit
+CUDA tests: fp64 focused CTest 4/4 passed; open-layout impulse matrix
+            field max 1.1368683772161603e-13, energy max 4.5796699765787707e-16
+HIP tests: not run (CUDA-only acceptance host)
+Sanitizer: compute-sanitizer memcheck ERROR SUMMARY: 0 errors
+Periodic regression: existing 1x1x1, non-cubic, skew, NA=2, and M=4 suites passed
+Production OPEN_FFT: still unreachable; no selector, Fortran input, or host
+                     open-kernel builder was added
 ```
 
 ### [ ] WP10.3 — Sol — host-fp64 finite open-kernel builder

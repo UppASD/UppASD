@@ -612,7 +612,7 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       dipoleStopwatch = std::make_unique<StopwatchDeviceSync>(
          GlobalStopwatchPool::get("GPU dipole macrocell"), parallel.getWorkStream());
       const auto grid = dipoleConvolution.descriptor().activeGrid();
-      const auto padded = dipoleConvolution.fftLayout().real_grid;
+      const auto padded = dipoleConvolution.fftLayout().fft_grid;
       const auto& layout = dipoleConvolution.fftLayout();
       std::printf("Gpu: EWALD3D_FFT geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points; tol %.3e, field prefactor %.16e T).\n",
                   grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
