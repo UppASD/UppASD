@@ -504,6 +504,33 @@ bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
    return descriptor.valid();
 }
 
+bool makeOpenFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
+                                 GpuDipoleConvolutionDescriptor& descriptor) {
+   descriptor = {};
+   if(input.boundaries[0] != '0' || input.boundaries[1] != '0' || input.boundaries[2] != '0') return false;
+   descriptor.atomistic_grid = input.atomistic_grid;
+   descriptor.macro_grid = input.macro_grid;
+   descriptor.basis = input.basis;
+   descriptor.ensembles = input.ensembles;
+   descriptor.boundary = GpuDipoleBoundaryMode::Open;
+   descriptor.discretization = GpuDipoleDiscretization::MacrospinGrid;
+   descriptor.c1 = input.c1;
+   descriptor.c2 = input.c2;
+   descriptor.c3 = input.c3;
+   if(!input.basis_offsets) return false;
+   descriptor.basis_offsets.resize(input.basis);
+   for(unsigned int channel = 0; channel < input.basis; ++channel)
+      for(unsigned int component = 0; component < 3; ++component)
+         descriptor.basis_offsets[channel][component] = static_cast<double>(input.basis_offsets[component + 3 * channel]);
+   descriptor.macro_centers = input.macro_centers;
+   descriptor.macro_count = input.macro_count;
+   descriptor.alat = input.alat;
+   descriptor.tolerance = input.tolerance;
+   descriptor.field_prefactor = 1.0e-7 * bohr_magneton_si /
+      (input.alat * input.alat * input.alat);
+   return descriptor.valid();
+}
+
 bool GpuDipoleConvolution::initiate(const GpuDipoleConvolutionDescriptor& descriptor,
                                     GPU_STREAM_T work_stream) {
    release();
@@ -789,6 +816,14 @@ void GpuDipoleConvolution::uploadRealKernelAndAliasSpectrum(
 
 void GpuDipoleConvolution::uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel) {
    uploadCompleteKernelForTesting(complete_kernel.kernel);
+}
+
+void GpuDipoleConvolution::uploadOpenKernel(const std::vector<double>& complete_kernel) {
+   if(desc.boundary != GpuDipoleBoundaryMode::Open ||
+      desc.discretization != GpuDipoleDiscretization::MacrospinGrid) {
+      throw std::runtime_error("GPU OPEN_FFT kernel upload requires a regular open macrospin descriptor");
+   }
+   uploadRealKernelAndAliasSpectrum(complete_kernel, {}, true);
 }
 
 void GpuDipoleConvolution::buildPeriodicKernel() {

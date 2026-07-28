@@ -144,6 +144,11 @@ struct GpuDipoleDescriptorInput {
 
 bool makeEwald3dFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
                                     GpuDipoleConvolutionDescriptor& descriptor);
+// OPEN_FFT is a separate finite Hamiltonian, not a periodic descriptor with a
+// different padding choice.  Its factory intentionally accepts only all-open
+// boundary flags and selects the active/padded open layout.
+bool makeOpenFftDipoleDescriptor(const GpuDipoleDescriptorInput& input,
+                                 GpuDipoleConvolutionDescriptor& descriptor);
 
 // Lifecycle and geometry shell for the regular-grid operator.  Plan readiness
 // and kernel readiness are deliberately separate: a valid allocation must
@@ -174,6 +179,11 @@ public:
    void uploadCompleteKernelForTesting(const std::vector<double>& complete_kernel,
                                        bool validate_physics = true);
    void uploadCompleteKernelForTesting(const DipoleKernelBuildResult& complete_kernel);
+   // Production OPEN_FFT uploads the already-built finite displacement tensor
+   // once.  The implementation shares the proven transform/normalization
+   // path with the diagnostic upload API, but is deliberately named as a
+   // production operation so callers cannot mistake it for periodic Builder B.
+   void uploadOpenKernel(const std::vector<double>& complete_kernel);
 
    // Production construction uses the fp64 reciprocal-alias Builder B.
    // Builder A remains available above as the validation/reference path.

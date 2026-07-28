@@ -2,6 +2,7 @@
 #include "c_headers.hpp"
 #include "gpuHamiltonianDeviceOps.hpp"
 #include "gpuHamiltonianCalculations.hpp"
+#include "dipoleOpenKernel.hpp"
 #include "tensor.hpp"
 #include "real_type.h"
 #include "gpuStructures.hpp"
@@ -12,6 +13,8 @@
 #include "stopwatchPool.hpp"
 
 #include <array>
+#include <limits>
+#include <string>
 
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace hamdev = gpu::hamiltonian;
@@ -536,9 +539,14 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
    refreshMacroMoments = false;
    const bool gpuDipoleRequested = FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0;
    if(gpuDipoleRequested) {
+      constexpr int ewald3dMode = 1;
+      constexpr int openFftMode = 2;
+      const int requestedMode = *FortranData::gpu_dipole_mode;
+      const bool openFft = requestedMode == openFftMode;
+      const char* modeName = openFft ? "OPEN_FFT" : "EWALD3D_FFT";
       // Mirror the Fortran input contract here because this is the last
       // defensive boundary before device allocation and field dispatch.
-      if(*FortranData::gpu_dipole_mode != 1 || !FortranData::gpu_dipole_surface ||
+      if((requestedMode != ewald3dMode && requestedMode != openFftMode) || !FortranData::gpu_dipole_surface ||
          *FortranData::gpu_dipole_surface != 0 ||
          // do_dip is exported only when the legacy macrocell path exists.
          // EWALD3D_FFT requires do_dip=0, so the normal GPU-only case has no
@@ -549,41 +557,66 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          *FortranData::gpu_dipole_rcut != static_cast<real>(0) || !FortranData::gpu_dipole_mesh ||
          FortranData::gpu_dipole_mesh[0] != 0 || FortranData::gpu_dipole_mesh[1] != 0 ||
          FortranData::gpu_dipole_mesh[2] != 0) {
-         throw std::runtime_error("GPU EWALD3D_FFT requires do_dip=0, TINFOIL, and automatic zero legacy overrides");
+         throw std::runtime_error(std::string("GPU ") + modeName +
+                                  " requires do_dip=0, default TINFOIL, and zero Ewald/mesh overrides");
       }
-      if(SimParam.N != SimParam.N1 * SimParam.N2 * SimParam.N3 * SimParam.NA || !FortranData::pme_num_macro ||
+      if(SimParam.N == 0 || SimParam.N1 == 0 || SimParam.N2 == 0 || SimParam.N3 == 0 || SimParam.NA == 0 ||
+         !FortranData::pme_num_macro ||
          !FortranData::pme_macro_grid || !FortranData::NA || *FortranData::NA == 0) {
-         throw std::runtime_error("GPU EWALD3D_FFT requires a complete basis-resolved macrocell layout");
+         throw std::runtime_error(std::string("GPU ") + modeName + " requires a complete basis-resolved macrocell layout");
       }
       const std::array<std::size_t, 3> atomistic_grid{{SimParam.N1, SimParam.N2, SimParam.N3}};
       const std::array<std::size_t, 3> coarse_grid{{FortranData::pme_macro_grid[0], FortranData::pme_macro_grid[1],
                                                      FortranData::pme_macro_grid[2]}};
       std::array<std::size_t, 3> block{};
       std::size_t coarse_cells = 1, block_population = 1;
+      const auto checkedMultiply = [](std::size_t left, std::size_t right, const char* field) {
+         if(left != 0 && right > std::numeric_limits<std::size_t>::max() / left) {
+            throw std::runtime_error(std::string("GPU dipole ") + field + " overflows before device allocation");
+         }
+         return left * right;
+      };
       for(unsigned int axis = 0; axis < 3; ++axis) {
          if(coarse_grid[axis] == 0 || atomistic_grid[axis] % coarse_grid[axis] != 0)
-            throw std::runtime_error("GPU EWALD3D_FFT requires coarse blocks that divide N1, N2, and N3");
+            throw std::runtime_error(std::string("GPU ") + modeName + " requires coarse blocks that divide N1, N2, and N3");
          block[axis] = atomistic_grid[axis] / coarse_grid[axis];
-         coarse_cells *= coarse_grid[axis];
-         block_population *= block[axis];
+         coarse_cells = checkedMultiply(coarse_cells, coarse_grid[axis], "macrocell count");
+         block_population = checkedMultiply(block_population, block[axis], "macrocell population");
       }
-      if(*FortranData::pme_num_macro != coarse_cells * static_cast<std::size_t>(*FortranData::NA)) {
-         throw std::runtime_error("GPU EWALD3D_FFT macrocell count does not match its regular coarse grid");
+      const std::size_t expected_macro_count = checkedMultiply(coarse_cells, static_cast<std::size_t>(*FortranData::NA),
+                                                                "basis-resolved macrocell count");
+      if(*FortranData::pme_num_macro != expected_macro_count) {
+         throw std::runtime_error(std::string("GPU ") + modeName + " macrocell count does not match its regular coarse grid");
       }
-      if(!FortranData::pme_macro_nlistsize) throw std::runtime_error("GPU EWALD3D_FFT is missing macrocell populations");
+      if(!FortranData::pme_macro_nlistsize) throw std::runtime_error(std::string("GPU ") + modeName + " is missing macrocell populations");
       for(std::size_t cell = 0; cell < *FortranData::pme_num_macro; ++cell) {
          if(FortranData::pme_macro_nlistsize[cell] != block_population)
-            throw std::runtime_error("GPU EWALD3D_FFT requires uniform macrocell populations");
+            throw std::runtime_error(std::string("GPU ") + modeName + " requires uniform macrocell populations");
       }
       if(!FortranData::pme_num_macro || *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid ||
          !FortranData::NA || *FortranData::NA == 0 || gpuHamiltonian.macro_cell_index.empty() ||
          gpuHamiltonian.macro_nlistsize.empty() || gpuHamiltonian.macro_center.empty()) {
-         throw std::runtime_error("GPU EWALD3D_FFT requested without staged basis-resolved macrocell data");
+         throw std::runtime_error(std::string("GPU ") + modeName + " requested without staged basis-resolved macrocell data");
+      }
+      if(openFft) {
+         if(sizeof(real) != sizeof(double)) {
+            throw std::runtime_error("OPEN_FFT requires fp64 GPU storage; fp32 is not accepted in the first production gate");
+         }
+         if(SimParam.gpu_dipole_tol != 1.0e-10) {
+            throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
+         }
+         if(*FortranData::NA != 1 || block != std::array<std::size_t, 3>{{1, 1, 1}} ||
+            coarse_grid != atomistic_grid || *FortranData::pme_num_macro != SimParam.N) {
+            throw std::runtime_error("OPEN_FFT first production gate requires a complete block=(1,1,1), NA=1 regular layout");
+         }
+         for(std::size_t cell = 0; cell < *FortranData::pme_num_macro; ++cell) {
+            if(FortranData::pme_macro_nlistsize[cell] != 1) {
+               throw std::runtime_error("OPEN_FFT rejects partial or non-unit macrocell populations before device allocation");
+            }
+         }
       }
       numMacro = *FortranData::pme_num_macro;
       macroCellIndex = gpuHamiltonian.macro_cell_index.data();
-      macroMoments.Allocate(3, numMacro, SimParam.M);
-      refreshMacroMoments = true;
       GpuDipoleDescriptorInput input{};
       input.atomistic_grid = {SimParam.N1, SimParam.N2, SimParam.N3};
       input.macro_grid = {static_cast<std::size_t>(FortranData::pme_macro_grid[0]),
@@ -601,28 +634,69 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
       input.alat = SimParam.alat;
       input.tolerance = SimParam.gpu_dipole_tol;
       GpuDipoleConvolutionDescriptor dipoleDescriptor{};
-      if(!makeEwald3dFftDipoleDescriptor(input, dipoleDescriptor) ||
-         !dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
-         throw std::runtime_error("GPU EWALD3D_FFT descriptor is invalid");
+      const bool descriptorOk = openFft ? makeOpenFftDipoleDescriptor(input, dipoleDescriptor) :
+                                          makeEwald3dFftDipoleDescriptor(input, dipoleDescriptor);
+      if(!descriptorOk) {
+         throw std::runtime_error(std::string("GPU ") + modeName + " descriptor is invalid; OPEN_FFT cannot fall back to periodic FFT");
       }
-      dipoleConvolution.buildPeriodicKernel();
+      // Construct the finite tensor before any device allocation.  The host
+      // builder owns overflow, geometry, padding, self, and reciprocity gates.
+      DipoleOpenKernelResult openKernel{};
+      if(openFft) {
+         DipoleOpenGeometry geometry{};
+         const auto active = dipoleDescriptor.activeGrid();
+         const auto padded = dipoleDescriptor.fftGrid();
+         geometry.active_grid = {{active.n1, active.n2, active.n3}};
+         geometry.fft_grid = {{padded.n1, padded.n2, padded.n3}};
+         for(unsigned int axis = 0; axis < 3; ++axis)
+            for(unsigned int component = 0; component < 3; ++component)
+               geometry.primitive_vectors[3 * axis + component] =
+                  static_cast<double>(axis == 0 ? SimParam.C1[component] :
+                                       axis == 1 ? SimParam.C2[component] : SimParam.C3[component]);
+         geometry.basis = dipoleDescriptor.basis;
+         geometry.basis_offsets = dipoleDescriptor.basis_offsets;
+         openKernel = buildOpenDipoleDisplacementKernel(geometry);
+      }
+      macroMoments.Allocate(3, numMacro, SimParam.M);
+      refreshMacroMoments = true;
+      if(!dipoleConvolution.initiate(dipoleDescriptor, parallel.getWorkStream())) {
+         throw std::runtime_error(std::string("GPU ") + modeName + " plan initialization failed");
+      }
+      if(openFft) {
+         dipoleConvolution.uploadOpenKernel(openKernel.kernel);
+         // The transformed/normalised spectrum is now immutable on device;
+         // do not retain the often much larger host construction tensor.
+         openKernel = {};
+      } else dipoleConvolution.buildPeriodicKernel();
       if(!dipoleConvolution.kernelReady()) {
-         throw std::runtime_error("GPU EWALD3D_FFT complete periodic kernel did not become ready");
+         throw std::runtime_error(std::string("GPU ") + modeName + " complete kernel did not become ready");
       }
       dipoleStopwatch = std::make_unique<StopwatchDeviceSync>(
          GlobalStopwatchPool::get("GPU dipole macrocell"), parallel.getWorkStream());
       const auto grid = dipoleConvolution.descriptor().activeGrid();
       const auto padded = dipoleConvolution.fftLayout().fft_grid;
       const auto& layout = dipoleConvolution.fftLayout();
-      std::printf("Gpu: EWALD3D_FFT geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points; tol %.3e, field prefactor %.16e T).\n",
-                  grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
-                  dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
-                  layout.spectral_cells, dipoleDescriptor.tolerance, dipoleDescriptor.field_prefactor);
-      std::printf("Gpu: EWALD3D_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
-                  static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
-                  static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
-      std::printf("Gpu: EWALD3D_FFT production field/energy operator ready (%u macro channels; block %zu x %zu x %zu, %zu ensemble%s).\n",
-                  numMacro, block[0], block[1], block[2], SimParam.M, SimParam.M == 1 ? "" : "s");
+      if(openFft) {
+         std::printf("Gpu: OPEN_FFT geometry staged (%zu x %zu x %zu active cells, %u basis channel%s; padded FFT grid %zu x %zu x %zu, %zu half-spectrum points; field prefactor %.16e T).\n",
+                     grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
+                     dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
+                     layout.spectral_cells, dipoleDescriptor.field_prefactor);
+         std::printf("Gpu: OPEN_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
+                     static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
+                     static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
+         std::printf("Gpu: OPEN_FFT production field/energy operator ready (%u macro channels; block %zu x %zu x %zu, %zu ensemble%s).\n",
+                     numMacro, block[0], block[1], block[2], SimParam.M, SimParam.M == 1 ? "" : "s");
+      } else {
+         std::printf("Gpu: EWALD3D_FFT geometry staged (%zu x %zu x %zu coarse cells, %u basis channel%s; FFT grid %zu x %zu x %zu, %zu half-spectrum points; tol %.3e, field prefactor %.16e T).\n",
+                     grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
+                     dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
+                     layout.spectral_cells, dipoleDescriptor.tolerance, dipoleDescriptor.field_prefactor);
+         std::printf("Gpu: EWALD3D_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
+                     static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
+                     static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
+         std::printf("Gpu: EWALD3D_FFT production field/energy operator ready (%u macro channels; block %zu x %zu x %zu, %zu ensemble%s).\n",
+                     numMacro, block[0], block[1], block[2], SimParam.M, SimParam.M == 1 ? "" : "s");
+      }
    }
    backend = {};
    if(gpuDipoleRequested) backend.dipole = GpuHamiltonianBackend::FftDipole;

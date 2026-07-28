@@ -402,6 +402,14 @@ bool willUseConvolution(const SimulationParameters& P) {
 
 std::size_t cv6DipoleBytes(const SimulationParameters& P) {
    if(!FortranData::gpu_dipole_mode || *FortranData::gpu_dipole_mode == 0) return 0;
+   const int mode = *FortranData::gpu_dipole_mode;
+   if(mode != 1 && mode != 2) throw std::runtime_error("unknown GPU dipole mode before device allocation");
+   if(mode == 2 && sizeof(real) != sizeof(double)) {
+      throw std::runtime_error("OPEN_FFT requires fp64 GPU storage; fp32 is not accepted in the first production gate");
+   }
+   if(mode == 2 && P.gpu_dipole_tol != 1.0e-10) {
+      throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
+   }
    if(!FortranData::pme_num_macro || *FortranData::pme_num_macro == 0 || !FortranData::pme_macro_grid ||
       !FortranData::pme_macro_center || P.NA == 0 || P.M == 0) {
       throw std::runtime_error("GPU dipole mode was requested without a complete GPU macrocell layout");
@@ -425,11 +433,15 @@ std::size_t cv6DipoleBytes(const SimulationParameters& P) {
    input.alat = P.alat;
    input.tolerance = P.gpu_dipole_tol;
    GpuDipoleConvolutionDescriptor descriptor{};
-   if(!makeEwald3dFftDipoleDescriptor(input, descriptor)) {
-      throw std::runtime_error("GPU EWALD3D_FFT descriptor is invalid before device allocation");
+   const bool descriptor_ok = mode == 1 ? makeEwald3dFftDipoleDescriptor(input, descriptor) :
+                                          makeOpenFftDipoleDescriptor(input, descriptor);
+   if(!descriptor_ok) {
+      throw std::runtime_error(mode == 1 ? "GPU EWALD3D_FFT descriptor is invalid before device allocation" :
+                                          "GPU OPEN_FFT descriptor is invalid before device allocation; it cannot fall back to periodic FFT");
    }
    const std::size_t bytes = GpuDipoleConvolution::estimateBytes(descriptor);
-   if(bytes == 0) throw std::runtime_error("GPU EWALD3D_FFT memory estimate overflowed or failed");
+   if(bytes == 0) throw std::runtime_error(mode == 1 ? "GPU EWALD3D_FFT memory estimate overflowed or failed" :
+                                            "GPU OPEN_FFT memory estimate overflowed or failed");
    return bytes;
 }
 

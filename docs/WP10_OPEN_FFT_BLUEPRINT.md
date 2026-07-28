@@ -1047,7 +1047,7 @@ Production OPEN_FFT: still unreachable; no selector, Fortran input, C bridge,
                      GPU upload, or runtime dispatch was added
 ```
 
-### [ ] WP10.4 — Terra — input, lifecycle, kernel upload, and production dispatch
+### [x] WP10.4 — Terra — input, lifecycle, kernel upload, and production dispatch
 
 Dependencies: WP10.1 oracle, WP10.2 plumbing, WP10.3 host builder.
 
@@ -1129,13 +1129,23 @@ Finish with:
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-Input rejection matrix:
-CUDA E2E:
-HIP build/run:
-Sanitizer:
-Memory:
+Assignee: Terra
+Branch/commit: recorded with the WP10.4 implementation change
+Input rejection matrix: OPEN_FFT accepts only do_dip=0, BC=0 0 0, GPU SD,
+                        fp64, block=1x1x1, NA=1, default Ewald/surface inputs;
+                        rejects PBC/mixed BC, MC, fp32, partial/non-unit layouts,
+                        NA>1, legacy dipoles, and Ewald/surface overrides.
+CUDA E2E: focused convolution/layout/WP5 periodic regressions passed.  A real
+           2x1x1 OPEN_FFT SD run gave the finite axial pair field
+           (6.86963703e-32, 6.86963703e-33, -1.37392741e-32) T; OFF-to-OPEN
+           exchange coexistence gave the same field delta and one dipole-only
+           addition to total energy.
+HIP build/run: not run (CUDA acceptance host only).
+Sanitizer: compute-sanitizer memcheck on dipole_open_fft_layout_tests:
+           ERROR SUMMARY: 0 errors.
+Memory: 2x1x1 active, 3x1x1 padded, NA=M=1 fp64: 776 B persistent,
+        504 B construction, plus backend workspace; startup reports both
+        persistent and peak device estimates.
 ```
 
 ### [ ] WP10.5 — Luna — independent acceptance of the first production slice

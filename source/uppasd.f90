@@ -1457,37 +1457,84 @@ contains
       if (trim(gpu_dipole_mode) == 'PME3D') then
          error stop 'gpu_dipole_mode PME3D was renamed; use EWALD3D_FFT'
       endif
-      if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT') then
-         error stop 'Only gpu_dipole_mode OFF or EWALD3D_FFT is supported'
+      if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT' .and. trim(gpu_dipole_mode) /= 'OPEN_FFT') then
+         error stop 'Only gpu_dipole_mode OFF, EWALD3D_FFT, or OPEN_FFT is supported'
       endif
       ! This first production slice owns only the GPU spin-dynamics path.
       ! Reject both a production MC mode and an MC-like initial phase before
       ! any GPU dipole layout or device allocation is attempted.
       if (trim(mode) /= 'S' .or. (trim(ipmode) /= 'N' .and. trim(ipmode) /= 'S')) then
-         error stop 'EWALD3D_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
+         else
+            error stop 'OPEN_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
+         endif
       endif
       if (ham_inp%do_dip /= 0) then
-         error stop 'EWALD3D_FFT requires do_dip=0; legacy and GPU dipoles cannot be combined'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT requires do_dip=0; legacy and GPU dipoles cannot be combined'
+         else
+            error stop 'OPEN_FFT requires do_dip=0; legacy and GPU dipoles cannot be combined'
+         endif
       endif
       if (gpu_dipole_alpha /= 0.0_dblprec .or. gpu_dipole_rcut /= 0.0_dblprec) then
-         error stop 'EWALD3D_FFT selects Ewald parameters automatically; gpu_dipole_alpha and gpu_dipole_rcut must be zero'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT selects Ewald parameters automatically; gpu_dipole_alpha and gpu_dipole_rcut must be zero'
+         else
+            error stop 'OPEN_FFT rejects Ewald alpha/rcut overrides; gpu_dipole_alpha and gpu_dipole_rcut must be zero'
+         endif
       endif
       if (any(gpu_dipole_mesh /= 0)) then
-         error stop 'EWALD3D_FFT does not implement a PME mesh; gpu_dipole_mesh must be 0 0 0'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT does not implement a PME mesh; gpu_dipole_mesh must be 0 0 0'
+         else
+            error stop 'OPEN_FFT rejects Ewald mesh overrides; gpu_dipole_mesh must be 0 0 0'
+         endif
       endif
       if (trim(gpu_dipole_surface) /= 'TINFOIL') then
-         error stop 'EWALD3D_FFT currently requires gpu_dipole_surface TINFOIL'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT currently requires gpu_dipole_surface TINFOIL'
+         else
+            error stop 'OPEN_FFT rejects non-default surface requests; gpu_dipole_surface must be TINFOIL'
+         endif
       endif
-      if (BC1 /= 'P' .or. BC2 /= 'P' .or. BC3 /= 'P') then
-         error stop 'EWALD3D_FFT currently requires periodic boundary conditions P P P'
+      if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+         if (BC1 /= 'P' .or. BC2 /= 'P' .or. BC3 /= 'P') then
+            error stop 'EWALD3D_FFT currently requires periodic boundary conditions P P P'
+         endif
+      else
+         if (BC1 /= '0' .or. BC2 /= '0' .or. BC3 /= '0') then
+            error stop 'OPEN_FFT requires open boundary conditions 0 0 0; it is not a periodic fallback'
+         endif
+         if (gpu_dipole_tol /= 1.0e-10_dblprec) then
+            error stop 'OPEN_FFT rejects Ewald tolerance overrides; gpu_dipole_tol must retain its default 1.0e-10'
+         endif
+         ! The first invocation occurs before positions establish NA; repeat
+         ! these geometry gates below, still before any macro/device allocation.
+         if (geometry_ready) then
+            if (block_size_x /= 1 .or. block_size_y /= 1 .or. block_size_z /= 1) then
+               error stop 'OPEN_FFT first production gate requires block_size_x/y/z = 1 1 1'
+            endif
+            if (NA /= 1) then
+               error stop 'OPEN_FFT first production gate requires NA=1'
+            endif
+         endif
       endif
       if (block_size_x <= 0 .or. block_size_y <= 0 .or. block_size_z <= 0 .or. &
           mod(N1,block_size_x) /= 0 .or. mod(N2,block_size_y) /= 0 .or. &
           mod(N3,block_size_z) /= 0) then
-         error stop 'EWALD3D_FFT requires positive macrocell blocks that divide N1, N2, and N3'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT requires positive macrocell blocks that divide N1, N2, and N3'
+         else
+            error stop 'OPEN_FFT requires positive macrocell blocks that divide N1, N2, and N3'
+         endif
       endif
       if (do_gpu_mc == 'Y') then
-         error stop 'EWALD3D_FFT is not available with GPU Monte Carlo'
+         if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
+            error stop 'EWALD3D_FFT is not available with GPU Monte Carlo'
+         else
+            error stop 'OPEN_FFT is not available with GPU Monte Carlo'
+         endif
       endif
    end subroutine validate_gpu_dipole_request
 

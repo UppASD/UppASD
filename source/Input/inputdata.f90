@@ -280,13 +280,13 @@ module InputData
    character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
    character(len=1) :: do_gpu_convolution     !< Use FFT convolution Hamiltonian on GPU when supported (Y/N)
    character(len=1) :: do_gpu_timings     !< GPU timing mode: N=off, C=coarse totals, Y=detailed
-   character(len=16) :: gpu_dipole_mode    !< OFF or EWALD3D_FFT (first periodic GPU slice)
+   character(len=16) :: gpu_dipole_mode    !< OFF, EWALD3D_FFT, or OPEN_FFT
    character(len=16) :: gpu_dipole_surface !< TINFOIL or VACUUM_SPHERE (EWALD3D_FFT only)
    real(dblprec) :: gpu_dipole_alpha       !< Positive Ewald alpha; zero selects auto when implemented
    real(dblprec) :: gpu_dipole_rcut        !< Positive real-space cutoff; zero selects auto when implemented
    real(dblprec) :: gpu_dipole_tol         !< Dimensionless periodic-kernel construction tolerance
    integer, dimension(3) :: gpu_dipole_mesh !< Reciprocal mesh; all zero selects auto when implemented
-   integer :: gpu_dipole_mode_id            !< Persistent C-ABI mode code (0=OFF)
+   integer :: gpu_dipole_mode_id            !< Persistent C-ABI mode code (0=OFF,1=EWALD3D_FFT,2=OPEN_FFT)
    integer :: gpu_dipole_surface_id         !< Persistent C-ABI surface code (0=TINFOIL)
    !---------------------------------------------------------------------------------
    ! I/O OVF related flags

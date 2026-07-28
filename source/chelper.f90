@@ -597,10 +597,12 @@ contains
          gpu_dipole_mode_id=0
       case('EWALD3D_FFT')
          gpu_dipole_mode_id=1
+      case('OPEN_FFT')
+         gpu_dipole_mode_id=2
       case('PME3D')
          error stop 'gpu_dipole_mode PME3D was renamed; use EWALD3D_FFT'
       case default
-         error stop 'Invalid gpu_dipole_mode (OFF, EWALD3D_FFT)'
+         error stop 'Invalid gpu_dipole_mode (OFF, EWALD3D_FFT, OPEN_FFT)'
       end select
       select case(trim(gpu_dipole_surface))
       case('TINFOIL')
