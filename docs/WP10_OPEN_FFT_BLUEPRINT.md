@@ -1509,7 +1509,7 @@ CUDA/HIP result: CUDA fp64/fp32 matrix, production E2E, allocation accounting,
                  and all HIP-only optimizations remain explicitly rejected.
 ```
 
-### [ ] WP10.9 — Luna — final WP10 acceptance and closure
+### [x] WP10.9 — Luna — final WP10 acceptance and closure
 
 Dependencies: all intended WP10 production scopes have their individual GO.
 
@@ -1557,10 +1557,13 @@ Mark WP10 complete only if no required work remains.
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-Final report:
-Decision:
+Assignee: Luna
+Branch/commit: 07d14cc (closure review; CUDA rerun completed outside sandbox)
+Final report: docs/luna_wp10_final_acceptance.md
+Decision: GO — host gates, full CUDA fp64/fp32 matrix, production E2E,
+          performance sweep, memory accounting, and CUDA Compute Sanitizer
+          pass. HIP is unavailable and non-gating per the author update;
+          HIP remains a documented limitation.
 ```
 
 ## 8. Definition of done for WP10
