@@ -868,6 +868,11 @@ if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
 if(BUILD_TESTING)
+   # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
+   # dependency.  Keep it runnable before the production open builder exists.
+   add_test(NAME dipole-open-fft-oracle
+      COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_fft_oracle.py -v)
+
    add_executable(dipole_ewald_host_tests
       ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleEwaldKernel.cpp
       ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_periodic_ewald_kernel.cpp)
