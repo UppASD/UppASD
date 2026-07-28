@@ -873,6 +873,24 @@ if(BUILD_TESTING)
    add_test(NAME dipole-open-fft-oracle
       COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_fft_oracle.py -v)
 
+   # Backend-neutral host-fp64 OPEN_FFT builder tests.  These targets construct
+   # and apply only the finite padded tensor; they add no production selector,
+   # Fortran bridge, FFT backend, CUDA/HIP context, or periodic expected value.
+   add_executable(dipole_open_host_tests
+      ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleOpenKernel.cpp
+      ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_open_dipole_kernel.cpp)
+   target_include_directories(dipole_open_host_tests PRIVATE ${CMAKE_SOURCE_DIR}/source/gpu_files)
+   add_test(NAME dipole-open-host-builder COMMAND dipole_open_host_tests)
+
+   add_executable(dipole_open_kernel_host_driver
+      ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleOpenKernel.cpp
+      ${CMAKE_SOURCE_DIR}/tests/dipole_validation/open_kernel_host_driver.cpp)
+   target_include_directories(dipole_open_kernel_host_driver PRIVATE
+      ${CMAKE_SOURCE_DIR}/source/gpu_files)
+   add_test(NAME dipole-open-host-goldens
+      COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_kernel_goldens.py
+              --driver $<TARGET_FILE:dipole_open_kernel_host_driver>)
+
    add_executable(dipole_ewald_host_tests
       ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleEwaldKernel.cpp
       ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_periodic_ewald_kernel.cpp)

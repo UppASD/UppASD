@@ -19,6 +19,7 @@ uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
 
 target_sources(${UppASD_LIB} PRIVATE ${GPU_KERNEL_SOURCES}
 dipoleEwaldKernel.cpp
+dipoleOpenKernel.cpp
 c_helper.h
 base.hpp
 gpuParallelizationHelper.tpp
@@ -29,6 +30,7 @@ gpuHamiltonianBackend.hpp
 gpuHamiltonianCalculations.hpp
 gpuDipoleConvolution.hpp
 dipoleEwaldKernel.hpp
+dipoleOpenKernel.hpp
 gpuHamiltonianDeviceOps.hpp
 gpuFftWrapper.hpp
 gpuLatticeConvolutionHamiltonian.hpp

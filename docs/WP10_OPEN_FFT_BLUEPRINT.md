@@ -963,7 +963,7 @@ Production OPEN_FFT: still unreachable; no selector, Fortran input, or host
                      open-kernel builder was added
 ```
 
-### [ ] WP10.3 — Sol — host-fp64 finite open-kernel builder
+### [x] WP10.3 — Sol — host-fp64 finite open-kernel builder
 
 Dependencies: WP10.0 GO; Luna's oracle cases.  May proceed in parallel with
 WP10.2 if the frozen host storage contract is not changed.
@@ -1034,11 +1034,17 @@ Finish with:
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-Host tests:
-Maximum field error:
-Maximum energy error:
+Assignee: Sol
+Branch/commit: this WP10.3 implementation commit
+Host tests: dipole-open-fft-oracle, dipole-open-host-builder,
+            dipole-open-host-goldens, and dipole-ewald-host-builder passed;
+            strict-warning and UBSan host runs passed
+Maximum field error: 5.3290705182007514e-15 versus Luna's goldens;
+                     7.8159700933611020e-14 for the complete direct impulse matrix
+Maximum energy error: 3.5527136788005009e-15 dimensionless
+Maximum reciprocity error: 7.1054273576010019e-15
+Production OPEN_FFT: still unreachable; no selector, Fortran input, C bridge,
+                     GPU upload, or runtime dispatch was added
 ```
 
 ### [ ] WP10.4 — Terra — input, lifecycle, kernel upload, and production dispatch
