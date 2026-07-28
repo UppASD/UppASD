@@ -364,7 +364,11 @@ void runOpenProductionE2E() {
       // On the shared production field/energy operator, dE/dM is -B.
       input = swapped;
       const auto base = luna_open_fft_test::runProduction(input);
-      constexpr double step = 1.0e-7;
+      // This Hamiltonian is quadratic in M, so a centered derivative has no
+      // truncation error.  Keep the probe well above fp64 cancellation in the
+      // atomically reduced per-atom energy rather than loosening its oracle
+      // gate for a numerically under-resolved 1e-7 difference.
+      constexpr double step = 1.0e-5;
       const std::size_t differentiated = macroIndex(1, 1, active_cells - 1, input.basis, active_cells, 0);
       auto plus = input;
       auto minus = input;
