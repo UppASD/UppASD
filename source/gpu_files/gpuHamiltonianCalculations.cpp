@@ -599,9 +599,11 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          throw std::runtime_error(std::string("GPU ") + modeName + " requested without staged basis-resolved macrocell data");
       }
       if(openFft) {
+#if defined(HIP_V)
          if(sizeof(real) != sizeof(double)) {
-            throw std::runtime_error("OPEN_FFT requires fp64 GPU storage; fp32 is not accepted in the first production gate");
+            throw std::runtime_error("OPEN_FFT fp32 is enabled for accepted CUDA only; HIP fp32 requires its own oracle and sanitizer acceptance");
          }
+#endif
          if(SimParam.gpu_dipole_tol != 1.0e-10) {
             throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
          }

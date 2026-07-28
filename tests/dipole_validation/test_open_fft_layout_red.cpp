@@ -15,6 +15,23 @@
 
 namespace {
 
+// WP9 established the mixed fp32 FFT/operator budget against an fp64 host
+// authority.  OPEN_FFT uses the same device storage/FFT path, but keeps this
+// tolerance local so fp64's accepted gates remain unchanged.
+#ifdef SINGLE_PREC
+constexpr double operator_tolerance = 5.0e-5;
+constexpr double identity_tolerance = 5.0e-5;
+constexpr double derivative_step = 1.0e-2;
+constexpr double production_derivative_step = 5.0e-2;
+constexpr double derivative_tolerance = 5.0e-5;
+#else
+constexpr double operator_tolerance = 2.0e-11;
+constexpr double identity_tolerance = 1.0e-12;
+constexpr double derivative_step = 1.0e-7;
+constexpr double production_derivative_step = 1.0e-5;
+constexpr double derivative_tolerance = 5.0e-9;
+#endif
+
 void require(bool condition, const char* message) {
    if(!condition) throw std::runtime_error(message);
 }
@@ -140,7 +157,7 @@ void runLayoutAndBatchTests() {
       }
    const auto uploaded_result = luna_open_fft_test::run(uploaded);
    for(std::size_t index = 0; index < input.active_moments.size(); ++index)
-      require(std::abs(uploaded_result.active_fields[index] - input.active_moments[index]) < 1.0e-12,
+      require(std::abs(uploaded_result.active_fields[index] - input.active_moments[index]) < identity_tolerance,
               "arbitrary padded real-kernel upload did not preserve active coordinates");
 
    // A one-hot probe must land in exactly its documented component/basis/
@@ -173,22 +190,22 @@ void runLayoutAndBatchTests() {
    impulse.active_moments[0] = 1.0;
    uploadPointTestKernel(impulse);
    const auto impulse_result = luna_open_fft_test::run(impulse);
-   require(std::abs(impulse_result.active_fields[3] - 2.0) < 1.0e-12,
+   require(std::abs(impulse_result.active_fields[3] - 2.0) < identity_tolerance,
            "same-kernel axial convolution differs before physical prefactor");
-   require(std::abs(impulse_result.active_fields[0]) < 1.0e-12,
+   require(std::abs(impulse_result.active_fields[0]) < identity_tolerance,
            "delta source wrapped to the opposite face");
    // The sole source has no point self term, so its active energy is zero
    // even though its field at the other active cell is K_xx=2.
-   require(std::abs(impulse_result.dimensionless_energy[0]) < 1.0e-12,
+   require(std::abs(impulse_result.dimensionless_energy[0]) < identity_tolerance,
            "point-self exclusion leaked into dimensionless energy");
 
    // With both moments present, the centered finite difference of energy with
    // respect to m(cell 0,x) is -B(cell 0,x), before any physical prefactor.
    luna_open_fft_test::Input pair = impulse;
    pair.active_moments[3] = 1.0;
-   const double step = 1.0e-7;
+   const double step = derivative_step;
    const auto pair_base = luna_open_fft_test::run(pair);
-   require(std::abs(pair_base.dimensionless_energy[0] + 2.0) < 1.0e-12,
+   require(std::abs(pair_base.dimensionless_energy[0] + 2.0) < identity_tolerance,
            "dimensionless pair energy is not -1/2 sum(M dot B)");
    auto pair_plus = pair;
    auto pair_minus = pair;
@@ -199,7 +216,7 @@ void runLayoutAndBatchTests() {
    std::printf("open-layout finite-difference derivative=%.17g negative_field=%.17g\n",
                derivative, -pair_base.active_fields[0]);
    std::fflush(stdout);
-   require(std::abs(derivative + pair_base.active_fields[0]) < 5.0e-9,
+   require(std::abs(derivative + pair_base.active_fields[0]) < derivative_tolerance,
            "energy finite-difference derivative disagrees with field");
 }
 
@@ -286,7 +303,8 @@ std::vector<double> directFiniteEnergies(const luna_open_fft_test::Input& input,
 
 void compareProductionResult(const luna_open_fft_test::Input& input,
                              const luna_open_fft_test::Result& result,
-                             double& maximum_field_error, double& maximum_energy_error) {
+                             double& maximum_field_error, double& maximum_energy_error,
+                             double& maximum_energy_relative) {
    const auto expected_fields = projectedFiniteFields(input);
    const auto expected_energies = directFiniteEnergies(input, expected_fields);
    require(result.active_fields.size() == expected_fields.size(), "production field shape is wrong");
@@ -309,14 +327,20 @@ void compareProductionResult(const luna_open_fft_test::Input& input,
                std::abs(result.scattered_fields[scattered] - expected_fields[expected]));
          }
       }
-   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble)
-      maximum_energy_error = std::max(maximum_energy_error,
-                                      std::abs(result.dimensionless_energy[ensemble] - expected_energies[ensemble]));
+   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble) {
+      const double error = std::abs(result.dimensionless_energy[ensemble] - expected_energies[ensemble]);
+      maximum_energy_error = std::max(maximum_energy_error, error);
+      maximum_energy_relative = std::max(maximum_energy_relative,
+         error / std::max(1.0, std::abs(expected_energies[ensemble])));
+   }
    const double atoms_inverse = 1.0 / static_cast<double>(atom_count);
-   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble)
-      maximum_energy_error = std::max(maximum_energy_error,
-                                      std::abs(result.energy_per_atom[ensemble] -
-                                               expected_energies[ensemble] * atoms_inverse));
+   for(std::size_t ensemble = 0; ensemble < expected_energies.size(); ++ensemble) {
+      const double expected = expected_energies[ensemble] * atoms_inverse;
+      const double error = std::abs(result.energy_per_atom[ensemble] - expected);
+      maximum_energy_error = std::max(maximum_energy_error, error);
+      maximum_energy_relative = std::max(maximum_energy_relative,
+         error / std::max(1.0, std::abs(expected)));
+   }
 }
 
 void runOpenProductionE2E() {
@@ -334,6 +358,8 @@ void runOpenProductionE2E() {
    }};
    double maximum_field_error = 0.0;
    double maximum_energy_error = 0.0;
+   double maximum_energy_relative = 0.0;
+   double maximum_derivative_error = 0.0;
    for(const auto& test_case : cases) {
       luna_open_fft_test::Input input{};
       input.active_grid = test_case.grid;
@@ -350,7 +376,8 @@ void runOpenProductionE2E() {
       for(std::size_t index = 0; index < input.active_moments.size(); ++index)
          input.active_moments[index] = -0.31 + 0.019 * static_cast<double>(index);
       const auto nonuniform = luna_open_fft_test::runProduction(input);
-      compareProductionResult(input, nonuniform, maximum_field_error, maximum_energy_error);
+      compareProductionResult(input, nonuniform, maximum_field_error, maximum_energy_error,
+                              maximum_energy_relative);
 
       DipoleOpenGeometry geometry{};
       geometry.atomistic_grid = input.active_grid;
@@ -385,9 +412,12 @@ void runOpenProductionE2E() {
                maximum_field_error = std::max(maximum_field_error,
                   std::abs(permuted.active_fields[second] - nonuniform.active_fields[first]));
             }
-      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble)
-         maximum_energy_error = std::max(maximum_energy_error,
-            std::abs(permuted.dimensionless_energy[ensemble] - nonuniform.dimensionless_energy[ensemble]));
+      for(unsigned int ensemble = 0; ensemble < input.ensembles; ++ensemble) {
+         const double error = std::abs(permuted.dimensionless_energy[ensemble] - nonuniform.dimensionless_energy[ensemble]);
+         maximum_energy_error = std::max(maximum_energy_error, error);
+         maximum_energy_relative = std::max(maximum_energy_relative,
+            error / std::max(1.0, std::abs(nonuniform.dimensionless_energy[ensemble])));
+      }
 
       // Every source basis/component is impulsed in every active cell and
       // every ensemble.  This fixes target-minus-source phase by a direct
@@ -403,7 +433,8 @@ void runOpenProductionE2E() {
                         input.active_moments[macroIndex(component, basis, source_cell, input.basis, active_cells, ensemble)] =
                            1.0 + 0.125 * ensemble;
                         compareProductionResult(input, luna_open_fft_test::runProduction(input),
-                                                maximum_field_error, maximum_energy_error);
+                                                maximum_field_error, maximum_energy_error,
+                                                maximum_energy_relative);
                      }
             }
 
@@ -411,10 +442,10 @@ void runOpenProductionE2E() {
       input = swapped;
       const auto base = luna_open_fft_test::runProduction(input);
       // This Hamiltonian is quadratic in M, so a centered derivative has no
-      // truncation error.  Keep the probe well above fp64 cancellation in the
-      // atomically reduced per-atom energy rather than loosening its oracle
-      // gate for a numerically under-resolved 1e-7 difference.
-      constexpr double step = 1.0e-5;
+      // truncation error.  The fp32 probe is deliberately wider than the
+      // fp64 probe: this reports finite-difference cancellation separately
+      // from direct field/energy-oracle error.
+      const double step = production_derivative_step;
       const std::size_t differentiated = macroIndex(1, 1, active_cells - 1, input.basis, active_cells, 0);
       auto plus = input;
       auto minus = input;
@@ -424,19 +455,20 @@ void runOpenProductionE2E() {
       const auto minus_result = luna_open_fft_test::runProduction(minus);
       const double derivative = (plus_result.dimensionless_energy[0] -
                                  minus_result.dimensionless_energy[0]) / (2.0 * step);
-      maximum_energy_error = std::max(maximum_energy_error,
-                                      std::abs(derivative + base.active_fields[differentiated]));
+      maximum_derivative_error = std::max(maximum_derivative_error,
+                                          std::abs(derivative + base.active_fields[differentiated]));
       const double per_atom_derivative = (plus_result.energy_per_atom[0] -
                                           minus_result.energy_per_atom[0]) / (2.0 * step);
-      maximum_energy_error = std::max(maximum_energy_error,
+      maximum_derivative_error = std::max(maximum_derivative_error,
          std::abs(per_atom_derivative + base.scattered_fields[differentiated] /
                   static_cast<double>(active_cells * input.basis)));
    }
-   std::printf("open-production-e2e impulses field_max=%.17g energy_max=%.17g\n",
-               maximum_field_error, maximum_energy_error);
-   // The field/energy comparisons are fp64 FFT checks; the aggregate energy
-   // figure also includes the centered finite-difference derivative.
-   require(maximum_field_error < 2.0e-11 && maximum_energy_error < 5.0e-9,
+   std::printf("open-production-e2e impulses field_max=%.17g energy_max=%.17g energy_relative_max=%.17g derivative_max=%.17g\n",
+               maximum_field_error, maximum_energy_error, maximum_energy_relative, maximum_derivative_error);
+   const bool energy_within_budget = maximum_energy_error < operator_tolerance ||
+      maximum_energy_relative < operator_tolerance;
+   require(maximum_field_error < operator_tolerance && energy_within_budget &&
+           maximum_derivative_error < derivative_tolerance,
            "OPEN_FFT basis-resolved production E2E differs from the finite direct convolution");
 }
 
@@ -485,6 +517,7 @@ void runOpenCoarseProductionE2E() {
    }};
    double maximum_field_error = 0.0;
    double maximum_energy_error = 0.0;
+   double maximum_energy_relative = 0.0;
    for(const auto& test_case : cases) {
       luna_open_fft_test::Input input{};
       input.atomistic_grid = test_case.atomistic;
@@ -507,7 +540,8 @@ void runOpenCoarseProductionE2E() {
                                      test_case.block[0] * test_case.block[1] * test_case.block[2]);
 
       const auto result = luna_open_fft_test::runProduction(input);
-      compareProductionResult(input, result, maximum_field_error, maximum_energy_error);
+      compareProductionResult(input, result, maximum_field_error, maximum_energy_error,
+                              maximum_energy_relative);
       requireZeroPadding(result, input);
       require(result.atom_count == input.atom_to_macro.size(),
               "coarse production did not scatter to every physical atom");
@@ -535,7 +569,8 @@ void runOpenCoarseProductionE2E() {
                   impulse.active_moments[macroIndex(component, basis, source, input.basis,
                                                      active_cells, ensemble)] = 1.0 + 0.125 * ensemble;
                   compareProductionResult(impulse, luna_open_fft_test::runProduction(impulse),
-                                          maximum_field_error, maximum_energy_error);
+                                          maximum_field_error, maximum_energy_error,
+                                          maximum_energy_relative);
                }
    }
 
@@ -582,9 +617,10 @@ void runOpenCoarseProductionE2E() {
    invalid.macro_populations.assign(4, 2);
    requireInvalidProjection([&] { (void)luna_open_fft_test::runProduction(invalid); }, "macrocell populations");
 
-   std::printf("open-coarse-production-e2e field_max=%.17g energy_max=%.17g\n",
-               maximum_field_error, maximum_energy_error);
-   require(maximum_field_error < 2.0e-11 && maximum_energy_error < 5.0e-9,
+   std::printf("open-coarse-production-e2e field_max=%.17g energy_max=%.17g energy_relative_max=%.17g\n",
+               maximum_field_error, maximum_energy_error, maximum_energy_relative);
+   require(maximum_field_error < operator_tolerance &&
+           (maximum_energy_error < operator_tolerance || maximum_energy_relative < operator_tolerance),
            "OPEN_FFT coarse production E2E differs from projected finite convolution");
 }
 

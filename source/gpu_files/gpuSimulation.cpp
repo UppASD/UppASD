@@ -404,9 +404,14 @@ std::size_t cv6DipoleBytes(const SimulationParameters& P) {
    if(!FortranData::gpu_dipole_mode || *FortranData::gpu_dipole_mode == 0) return 0;
    const int mode = *FortranData::gpu_dipole_mode;
    if(mode != 1 && mode != 2) throw std::runtime_error("unknown GPU dipole mode before device allocation");
+#if defined(HIP_V)
+   // CUDA fp32 OPEN_FFT has its finite-oracle, production-E2E, and memcheck
+   // evidence.  HIP has none on this project host, so keep that backend
+   // explicitly closed until it satisfies the identical acceptance matrix.
    if(mode == 2 && sizeof(real) != sizeof(double)) {
-      throw std::runtime_error("OPEN_FFT requires fp64 GPU storage; fp32 is not accepted in the first production gate");
+      throw std::runtime_error("OPEN_FFT fp32 is enabled for accepted CUDA only; HIP fp32 requires its own oracle and sanitizer acceptance");
    }
+#endif
    if(mode == 2 && P.gpu_dipole_tol != 1.0e-10) {
       throw std::runtime_error("OPEN_FFT rejects Ewald tolerance overrides before device allocation");
    }

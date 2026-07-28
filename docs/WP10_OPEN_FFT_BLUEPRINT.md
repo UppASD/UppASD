@@ -1451,7 +1451,7 @@ Decision: GO — independent host projection, CUDA production coarse matrix,
           rejection gates, and CUDA Compute Sanitizer pass. HIP remains untested.
 ```
 
-### [ ] WP10.8 — Terra — padding, caching, fp32, CUDA/HIP, and performance
+### [x] WP10.8 — Terra — padding, caching, fp32, CUDA/HIP, and performance
 
 Dependencies: WP10.7c GO, or a documented decision that WP10 ends at an
 earlier accepted physical scope.  Optimizations may not weaken that scope's
@@ -1500,11 +1500,13 @@ for fp32 and every padding/cache optimization.
 Acceptance record:
 
 ```text
-Assignee:
-Branch/commit:
-Performance report:
-fp32 decision:
-CUDA/HIP result:
+Assignee: Terra
+Branch/commit: this completion commit (Complete WP10.8 OPEN_FFT performance and fp32 gate)
+Performance report: docs/terra_wp10_8_open_performance.md
+fp32 decision: ENABLE CUDA fp32; REJECT HIP fp32 pending independent parity
+CUDA/HIP result: CUDA fp64/fp32 matrix, production E2E, allocation accounting,
+                 and Compute Sanitizer pass; HIP toolchain/device unavailable
+                 and all HIP-only optimizations remain explicitly rejected.
 ```
 
 ### [ ] WP10.9 — Luna — final WP10 acceptance and closure

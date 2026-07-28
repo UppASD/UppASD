@@ -8,6 +8,7 @@
 #include <ctime>
 #include <list>
 #include <string>
+#include <vector>
 
 #include "c_headers.hpp"
 #include "real_type.h"
@@ -34,6 +35,12 @@ private:
    float gpu_total = 0.0f;
 
 public:
+   struct Sample {
+      std::string name;
+      float wall_ms = 0.0f;
+      float gpu_ms = 0.0f;
+   };
+
    // N disables timing, C records totals only, and Y records all categories.
    static void setTimingMode(char mode) {
       timingModeStorage() = mode == 'Y' ? TimingMode::Detailed :
@@ -137,6 +144,17 @@ public:
          return (time_list.front().name.compare("-") == 0);
       }
       return false;
+   }
+
+   // A non-printing snapshot is useful to standalone performance harnesses.
+   // It deliberately exposes only accumulated values; normal simulation timing
+   // remains owned by StopwatchPool and keeps its existing text output.
+   std::vector<Sample> samples() const {
+      std::vector<Sample> result;
+      result.reserve(time_list.size());
+      for(const auto& point : time_list)
+         result.push_back({point.name, point.time, point.gpu_time});
+      return result;
    }
 
 private:

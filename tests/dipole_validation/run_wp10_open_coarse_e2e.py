@@ -71,7 +71,11 @@ def check_projection(binary: Path, parent: Path, name: str, *, basis: int,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
+    parser.add_argument("--fp32", action="store_true",
+                        help="apply the established fp32 writer comparison budget")
     args = parser.parse_args()
+    if args.fp32:
+        wp5.RELATIVE_TOLERANCE = 5.0e-5
     binary = args.binary.resolve()
     if not binary.is_file():
         raise FileNotFoundError(binary)
