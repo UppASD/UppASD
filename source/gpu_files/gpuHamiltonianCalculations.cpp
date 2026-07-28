@@ -681,9 +681,12 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
                      grid.n1, grid.n2, grid.n3, dipoleDescriptor.basis,
                      dipoleDescriptor.basis == 1 ? "" : "s", padded.n1, padded.n2, padded.n3,
                      layout.spectral_cells, dipoleDescriptor.field_prefactor);
-         std::printf("Gpu: OPEN_FFT memory: %.3f MiB persistent, %.3f MiB peak including workspace and construction.\n",
-                     static_cast<double>(GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor)) / (1024.0 * 1024.0),
-                     static_cast<double>(GpuDipoleConvolution::estimateBytes(dipoleDescriptor)) / (1024.0 * 1024.0));
+         const std::size_t persistent = GpuDipoleConvolution::estimatePersistentBytes(dipoleDescriptor);
+         const std::size_t construction = GpuDipoleConvolution::estimateConstructionBytes(dipoleDescriptor);
+         const std::size_t workspace = GpuDipoleConvolution::estimateWorkspaceBytes(dipoleDescriptor);
+         const std::size_t macroBytes = 3 * static_cast<std::size_t>(numMacro) * SimParam.M * sizeof(real);
+         std::printf("Gpu: OPEN_FFT device allocation: %zu B persistent, %zu B construction, %zu B workspace; %zu B dipole phase peak including %zu B macro moments.\n",
+                     persistent, construction, workspace, persistent + construction + workspace + macroBytes, macroBytes);
          std::printf("Gpu: OPEN_FFT production field/energy operator ready (%u macro channels; block %zu x %zu x %zu, %zu ensemble%s).\n",
                      numMacro, block[0], block[1], block[2], SimParam.M, SimParam.M == 1 ? "" : "s");
       } else {

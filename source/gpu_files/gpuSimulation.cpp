@@ -15,6 +15,7 @@
 #include "gpuDepondtIntegrator.hpp"
 #include "gpuLatticeConvolutionHamiltonian.hpp"
 #include "gpuDipoleConvolution.hpp"
+#include "measurement/gpuMeasurement.hpp"
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
 #include <cstdlib>
@@ -360,14 +361,13 @@ std::size_t hamiltonianBytes(const Flag& F, const SimulationParameters& P) {
       b += N * sizeof(real);                                 // sb(N)
    }
    b += 3 * N * M * sizeof(real);                            // extfield(3,N,M)
-   // CV6.1 macro-only dipole staging: one atom-to-cell map plus the current
-   // 3-vector macro moment for every cell and ensemble. The FFT tensor and
-   // work buffers are added in CV6.2 once the boundary mode is selected.
+   // The map and geometry are created with the base matrices.  The macro
+   // moment tensor itself belongs to the phase-local dipole operator and is
+   // accounted together with its FFT allocations below.
    if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0 && FortranData::pme_num_macro) {
       const std::size_t macro = *FortranData::pme_num_macro;
       b += N * sizeof(unsigned int);                          // cell_index(N)
       b += macro * sizeof(unsigned int);                      // macro_nlistsize(Nmacro)
-      b += 3 * macro * M * sizeof(real);                      // macro moments(3,Nmacro,M)
       b += 9 * macro * sizeof(real);                          // centre/min/max geometry
    }
    return b;
@@ -439,10 +439,16 @@ std::size_t cv6DipoleBytes(const SimulationParameters& P) {
       throw std::runtime_error(mode == 1 ? "GPU EWALD3D_FFT descriptor is invalid before device allocation" :
                                           "GPU OPEN_FFT descriptor is invalid before device allocation; it cannot fall back to periodic FFT");
    }
-   const std::size_t bytes = GpuDipoleConvolution::estimateBytes(descriptor);
-   if(bytes == 0) throw std::runtime_error(mode == 1 ? "GPU EWALD3D_FFT memory estimate overflowed or failed" :
-                                            "GPU OPEN_FFT memory estimate overflowed or failed");
-   return bytes;
+   const std::size_t convolution = GpuDipoleConvolution::estimateBytes(descriptor);
+   const std::size_t macroCount = static_cast<std::size_t>(*FortranData::pme_num_macro);
+   if(macroCount > std::numeric_limits<std::size_t>::max() / 3 / P.M ||
+      3 * macroCount * P.M > std::numeric_limits<std::size_t>::max() / sizeof(real))
+      throw std::runtime_error("GPU dipole macro-moment memory estimate overflowed");
+   const std::size_t macroMoments = 3 * macroCount * P.M * sizeof(real);
+   if(convolution == 0 || macroMoments > std::numeric_limits<std::size_t>::max() - convolution)
+      throw std::runtime_error(mode == 1 ? "GPU EWALD3D_FFT memory estimate overflowed or failed" :
+                                           "GPU OPEN_FFT memory estimate overflowed or failed");
+   return convolution + macroMoments;
 }
 
 // Sum every device allocation the run will make, compare to free VRAM, and abort
@@ -453,8 +459,9 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
       {"Lattice streaming arrays",               latticeBytes(F, P, is_mc)},
       {"Depondt integrator + thermfield",        GpuDepondtIntegrator::estimateBytes(P)},
       {"Energy buffers",                         energiesBytes(F, P)},
+      {"GPU measurement phase",                  GpuMeasurement::estimateBytes(P.N, P.M)},
       {"FFT convolution",                        willUseConvolution(P) ? GpuLatticeConvolutionHamiltonian::estimateBytes(P) : static_cast<std::size_t>(0)},
-      {"CV6 dipole FFT + workspace",             cv6DipoleBytes(P)},
+      {"CV6 dipole FFT, macro moments + staging", cv6DipoleBytes(P)},
       {"Correlations",                           (FortranData::do_gpu_correlations && *FortranData::do_gpu_correlations == 'Y') ? GpuCorrelations::estimateBytes(F, P) : static_cast<std::size_t>(0)},
    };
    std::size_t total = 0;
@@ -463,6 +470,12 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
          throw std::runtime_error("GPU device-memory budget overflow");
       }
       total += l.bytes;
+   }
+   if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode != 0) {
+      std::printf("Gpu: planned device tensor inventory (full-run preflight scope):\n");
+      for(const auto& line : lines)
+         std::printf("Gpu:   %-40s %zu B\n", line.name, line.bytes);
+      std::printf("Gpu:   %-40s %zu B\n", "TOTAL", total);
    }
 
    std::size_t freeB = 0, totalB = 0;
@@ -691,10 +704,10 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
    // Post-init report (V3 part 2): what initiateMatrices actually placed on device.
    {
       std::size_t freeB = 0, totalB = 0;
-      const int64_t allocated = TensorMemoryTracker::peak_device();
+      const int64_t allocated = TensorMemoryTracker::current_device();
       if(GPU_MEM_GET_INFO(&freeB, &totalB) == GPU_SUCCESS)
-         std::printf("Gpu: device allocated %.3f GB after init; %.3f GB free / %.3f GB total\n",
-                     static_cast<double>(allocated) / 1e9,
+         std::printf("Gpu: device base inventory after init: %lld B; %.3f GB free / %.3f GB total\n",
+                     static_cast<long long>(allocated),
                      static_cast<double>(freeB) / 1e9, static_cast<double>(totalB) / 1e9);
    }
    return true;
@@ -798,16 +811,22 @@ void GpuSimulation::release() {
    // gpuMeasurables.mavg_buff.Free();  
    // gpuMeasurables.mcumu_buff.Free();  
   
+    if(FortranData::gpu_dipole_mode && *FortranData::gpu_dipole_mode == 2) {
+      std::printf("Gpu: OPEN_FFT release device inventory: %lld B.\n",
+                  static_cast<long long>(TensorMemoryTracker::current_device()));
+    }
     TensorMemoryTracker::printResults();
-    // M1: 5% self-check - upfront estimate vs the peak the tracker actually saw.
+    // The tracker peak covers every phase-specific allocation made over the
+    // process lifetime; print its scope explicitly rather than comparing it
+    // to an unrelated single-component diagnostic.
     if(estimatedDeviceBytes > 0) {
-       const int64_t peak = TensorMemoryTracker::peak_device();
-       if(peak > 0) {
-          const double est = static_cast<double>(estimatedDeviceBytes);
-          const double pk  = static_cast<double>(peak);
-          std::printf("Gpu: device estimate %.3f GB vs measured peak %.3f GB (estimate %+.1f%%)\n",
-                      est / 1e9, pk / 1e9, 100.0 * (est - pk) / pk);
-       }
+      const int64_t peak = TensorMemoryTracker::peak_device();
+      if(peak > 0) {
+         const double est = static_cast<double>(estimatedDeviceBytes);
+         const double pk  = static_cast<double>(peak);
+         std::printf("Gpu: full-run planned device inventory %zu B vs TensorMemoryTracker process peak %lld B (estimate %+.1f%%).\n",
+                     estimatedDeviceBytes, static_cast<long long>(peak), 100.0 * (est - pk) / pk);
+      }
     }
     // TensorMemoryTracker::saveToFile();
     TensorDataMovementTracker::printResults();

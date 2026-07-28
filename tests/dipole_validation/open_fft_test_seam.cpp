@@ -88,16 +88,18 @@ Result run(const Input& input) {
       result.active_fields = doubles(solver.diagnosticFieldsForTesting());
       result.dimensionless_energy = solver.diagnosticEnergiesForTesting();
       result.persistent_bytes = GpuDipoleConvolution::estimatePersistentBytes(descriptor);
-      result.construction_bytes = layout.constructionBytes();
+      result.construction_bytes = GpuDipoleConvolution::estimateConstructionBytes(descriptor);
       result.workspace_bytes = GpuDipoleConvolution::estimateWorkspaceBytes(descriptor);
       result.total_bytes = GpuDipoleConvolution::estimateBytes(descriptor);
       result.persistent_inventory_bytes =
          2 * layout.fft_cells * layout.field_batches * sizeof(real) +
          2 * layout.spectral_cells * layout.field_batches * sizeof(GpuFftComplex) +
          layout.spectral_cells * layout.kernel_batches * sizeof(GpuFftComplex) + 19 * sizeof(real);
+      // OPEN_FFT transforms the finite real tensor directly into the
+      // persistent spectrum; unlike the periodic Builder B it has no alias
+      // spectrum allocation during construction.
       result.construction_inventory_bytes =
-         layout.fft_cells * layout.kernel_batches * sizeof(real) +
-         layout.spectral_cells * layout.kernel_batches * sizeof(GpuFftComplex);
+         layout.fft_cells * layout.kernel_batches * sizeof(real);
       solver.release();
       device_moments.Free();
       if(GPU_STREAM_DESTROY(stream) != GPU_SUCCESS) throw std::runtime_error("OPEN_FFT test seam stream destruction failed");

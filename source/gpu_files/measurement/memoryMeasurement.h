@@ -18,6 +18,9 @@ public:
     TensorMemoryTracker& operator=(const TensorMemoryTracker&) = delete;
     static void printResults();
     static void saveToFile();
+    // Current requested bytes owned by GpuTensor allocations.  Unlike the
+    // process-lifetime peak this permits a like-for-like startup inventory.
+    static int64_t current_device();
     // Peak device bytes seen so far (running max of the device series). Used by
     // the M1 pre-allocation estimator to check itself against reality.
     static int64_t peak_device();

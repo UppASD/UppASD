@@ -227,7 +227,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
     //               gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
-   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,
             gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
 
    // Initiate integrator and Hamiltonian

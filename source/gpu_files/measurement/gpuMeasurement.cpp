@@ -9,6 +9,7 @@
 #include "measurementQueue.hpp"
 #include <stdexcept>
 #include <vector>
+#include <limits>
 using ParallelizationHelper = GpuParallelizationHelper;
 namespace mm = kernels::measurement;
 
@@ -18,6 +19,125 @@ void requireFortranPointer(const void* pointer, const char* name)
     if (pointer == nullptr)
         throw std::runtime_error(std::string("GPU measurement requires initialized Fortran array: ") + name);
 }
+
+std::size_t checkedProduct(std::size_t a, std::size_t b, const char* what)
+{
+    if(a != 0 && b > std::numeric_limits<std::size_t>::max() / a)
+        throw std::runtime_error(std::string("GPU measurement memory estimate overflow: ") + what);
+    return a * b;
+}
+
+std::size_t checkedSum(std::size_t total, std::size_t add, const char* what)
+{
+    if(add > std::numeric_limits<std::size_t>::max() - total)
+        throw std::runtime_error(std::string("GPU measurement memory estimate overflow: ") + what);
+    return total + add;
+}
+
+std::size_t blocksFor(std::size_t items, std::size_t threads)
+{
+    return items / threads + static_cast<std::size_t>(items % threads != 0);
+}
+
+template<typename T>
+void addElements(std::size_t& total, std::size_t count, const char* what)
+{
+    total = checkedSum(total, checkedProduct(count, sizeof(T), what), what);
+}
+}
+
+std::size_t GpuMeasurement::estimateBytes(std::size_t N, std::size_t M)
+{
+    if(!FortranData::do_cuda_measurements || *FortranData::do_cuda_measurements != 'Y') return 0;
+    if(!FortranData::do_avrg || !FortranData::do_cumu || !FortranData::do_ene ||
+       !FortranData::do_autocorr || !FortranData::do_skyno || !FortranData::NA ||
+       !FortranData::Nchmax || !FortranData::avrg_buff || !FortranData::cumu_buff ||
+       !FortranData::ene_buff || !FortranData::skyno_buff || !FortranData::nspinwait || !FortranData::ac_buff ||
+       !FortranData::do_avrg_proj || !FortranData::do_avrg_projch || !FortranData::do_cumu_proj) {
+        throw std::runtime_error("GPU measurement preflight requires initialized Fortran measurement controls");
+    }
+
+    const bool avrg = *FortranData::do_avrg == 'Y';
+    const bool cumu = *FortranData::do_cumu == 'Y';
+    const int doEne = static_cast<int>(*FortranData::do_ene);
+    const char avrgProj = *FortranData::do_avrg_proj;
+    const char cumuProj = *FortranData::do_cumu_proj;
+    const bool avrgProjCh = *FortranData::do_avrg_projch == 'Y';
+    const std::size_t NA = *FortranData::NA;
+    const std::size_t Nchmax = *FortranData::Nchmax;
+    const std::size_t mavgBlocks = blocksFor(M, 256);
+    const std::size_t eneBlocks = std::min(blocksFor(M, 256), std::size_t{1024});
+    std::size_t total = 0;
+
+    if(avrg) {
+        addElements<AverageMagnetizationData>(total, *FortranData::avrg_buff, "average buffer");
+        addElements<kernels::measurement::AvgMPart>(total, mavgBlocks, "average partial buffer");
+        const std::size_t projection = avrgProj == 'Y' ? 0 : (avrgProj == 'A' ? NA : 0);
+        addElements<AverageMagnetizationData>(total, checkedProduct(projection, *FortranData::avrg_buff, "average projection buffer"), "average projection buffer");
+        addElements<kernels::measurement::AvgMPart>(total, projection, "average projection partial buffer");
+        if(avrgProjCh) {
+            addElements<AverageMagnetizationData>(total, checkedProduct(Nchmax, *FortranData::avrg_buff, "average chemistry buffer"), "average chemistry buffer");
+            // The constructor currently leaves this launch geometry at its
+            // default one block; retain that exact allocation contract here.
+            addElements<kernels::measurement::AvgMPart>(total, Nchmax, "average chemistry partial buffer");
+            addElements<int>(total, N, "average chemistry atom map");
+        }
+    }
+
+    if(cumu) {
+        addElements<BinderCumulantData>(total, 1, "cumulant buffer");
+        if(doEne == 0) addElements<kernels::measurement::BinderPart>(total, blocksFor(M, 32), "cumulant partial buffer");
+        else addElements<kernels::measurement::BinderEnePart>(total, checkedProduct(eneBlocks, std::size_t{3}, "energy cumulant partial buffer"), "energy cumulant partial buffer");
+        const std::size_t projection = cumuProj == 'Y' ? 0 : (cumuProj == 'A' ? NA : 0);
+        addElements<BinderCumulantData>(total, projection, "cumulant projection buffer");
+        addElements<kernels::measurement::BinderPart>(total, projection, "cumulant projection partial buffer");
+    }
+
+    if(avrg || cumu) {
+        addElements<real>(total, checkedProduct(std::size_t{3}, M, "ensemble sums"), "ensemble sums");
+        addElements<real>(total, checkedProduct(checkedProduct(blocksFor(N, 256), std::size_t{3}, "ensemble sum partial blocks"), M, "ensemble sum partials"), "ensemble sum partials");
+        if(avrgProj == 'Y' || cumuProj == 'Y') addElements<int>(total, N, "type projection atom map");
+        if(avrgProj == 'A' || cumuProj == 'A') {
+            addElements<real>(total, checkedProduct(checkedProduct(std::size_t{3}, NA, "basis sums"), M, "basis sums"), "basis sums");
+            // The current constructor's default dim3 is one block for this
+            // projection path, so this deliberately mirrors its allocation.
+            addElements<real>(total, checkedProduct(checkedProduct(checkedProduct(std::size_t{3}, NA, "basis partials"), M, "basis partials"), std::size_t{1}, "basis partials"), "basis partials");
+        }
+    }
+
+    switch(skyrmionMethodFromFlag(*FortranData::do_skyno)) {
+    case SkyrmionMethod::BruteForce:
+        requireFortranPointer(FortranData::dxyz_vec, "dxyz_vec");
+        requireFortranPointer(FortranData::dxyz_atom, "dxyz_atom");
+        requireFortranPointer(FortranData::dxyz_list, "dxyz_list");
+        addElements<SkyrmionNumberData>(total, *FortranData::skyno_buff, "skyrmion buffer");
+        // NX/NY/NZ/NT are currently hard-coded to zero in GpuMeasurement,
+        // so only its per-atom staging is resident in this path.
+        addElements<real>(total, checkedProduct(checkedProduct(std::size_t{3}, std::size_t{26}, "skyrmion vectors"), N, "skyrmion vectors"), "skyrmion vectors");
+        addElements<int>(total, checkedProduct(std::size_t{26}, N, "skyrmion atoms"), "skyrmion atoms");
+        addElements<int>(total, N, "skyrmion list");
+        addElements<real>(total, checkedProduct(checkedProduct(std::size_t{9}, N, "skyrmion gradients"), M, "skyrmion gradients"), "skyrmion gradients");
+        addElements<kernels::measurement::SumPart>(total, 128, "skyrmion partial buffer");
+        break;
+    case SkyrmionMethod::Triangulation:
+        // The constructor rejects this mode while NX*NY*NZ*NT is zero.
+        throw std::runtime_error("GPU measurement preflight rejects unsupported triangulation skyrmion layout");
+    case SkyrmionMethod::None:
+        break;
+    }
+
+    if(doEne > 0) {
+        addElements<EnergyData>(total, *FortranData::ene_buff, "energy buffer");
+        addElements<kernels::measurement::EnePart>(total, checkedProduct(eneBlocks, std::size_t{kernels::measurement::N_ENERGY_TYPES}, "energy partial buffer"), "energy partial buffer");
+    }
+    if(*FortranData::do_autocorr == 'Y') {
+        const std::size_t nspinwait = *FortranData::nspinwait;
+        const std::size_t acBuff = *FortranData::ac_buff;
+        addElements<real>(total, checkedProduct(checkedProduct(checkedProduct(std::size_t{3}, N, "autocorrelation spins"), M, "autocorrelation spins"), nspinwait, "autocorrelation spins"), "autocorrelation spins");
+        addElements<real>(total, checkedProduct(blocksFor(checkedProduct(checkedProduct(std::size_t{3}, N, "autocorrelation tasks"), M, "autocorrelation tasks"), 256), nspinwait, "autocorrelation blocks"), "autocorrelation blocks");
+        addElements<real>(total, checkedProduct(nspinwait, acBuff, "autocorrelation buffer"), "autocorrelation buffer");
+    }
+    return total;
 }
 
 GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
@@ -90,7 +210,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 {
     
     isAllocated = false;
-
     if (do_avrg)
     {
         assert(*FortranData::avrg_step > 0 && *FortranData::avrg_buff > 0);

@@ -1135,18 +1135,60 @@ Input rejection matrix: OPEN_FFT accepts only do_dip=0, BC=0 0 0, GPU SD,
                         fp64, block=1x1x1, NA=1, default Ewald/surface inputs;
                         rejects PBC/mixed BC, MC, fp32, partial/non-unit layouts,
                         NA>1, legacy dipoles, and Ewald/surface overrides.
-CUDA E2E: focused convolution/layout/WP5 periodic regressions passed.  A real
+CUDA E2E: focused convolution/layout/WP5 periodic regressions passed. A real
            2x1x1 OPEN_FFT SD run gave the finite axial pair field
            (6.86963703e-32, 6.86963703e-33, -1.37392741e-32) T; OFF-to-OPEN
            exchange coexistence gave the same field delta and one dipole-only
            addition to total energy.
-HIP build/run: not run (CUDA acceptance host only).
-Sanitizer: compute-sanitizer memcheck on dipole_open_fft_layout_tests:
-           ERROR SUMMARY: 0 errors.
-Memory: 2x1x1 active, 3x1x1 padded, NA=M=1 fp64: 776 B persistent,
-        504 B construction, plus backend workspace; startup reports both
-        persistent and peak device estimates.
+HIP build/run: unavailable: neither `hipcc` nor `rocminfo` is present and no
+               AMD device is available on this runner.
+Sanitizer: final CUDA Compute Sanitizer memchecks passed for both
+           `dipole_open_fft_layout_tests` and a valid 2x1x1 production
+           `sd.f95.cuda` OPEN_FFT SD launch: `ERROR SUMMARY: 0 errors`.
+Memory re-address (CUDA 13.3, RTX A4000, fp64): the preflight now covers the
+        complete run rather than only base matrices plus dipole FFT buffers.
+        The 2x1x1 total is 576 B base matrices + 23,184 B GPU measurement
+        phase + 256 B integrator/thermfield + 1,040 B OPEN_FFT phase =
+        25,056 B. The OPEN_FFT phase is 776 B persistent + 216 B finite
+        real-kernel construction + 0 B FFT workspace + 48 B macro moments.
+        The prior 504 B construction figure incorrectly included a periodic
+        reciprocal-alias staging buffer that OPEN_FFT never allocates.
 ```
+
+WP10.4 re-address record (2026-07-28):
+
+```text
+Build: cmake --build build_gpu_wp9_fp64 --target sd.f95.cuda \
+       dipole_open_fft_layout_tests dipole_gpu_fft_tests -j1
+Functional regressions:
+  ctest --test-dir build_gpu_wp9_fp64 --output-on-failure \
+    -R 'dipole-open-fft-oracle|dipole-open-host-builder|dipole-open-host-goldens|dipole-ewald-host-builder'
+  PASS 4/4
+  ctest --test-dir build_gpu_wp9_fp64 --output-on-failure \
+    -R 'dipole-gpu-fft-convolution|dipole-open-fft-layout|dipole-gpu-wp5-e2e'
+  PASS 3/3
+Memcheck:
+  /usr/local/cuda-13.3/bin/compute-sanitizer --tool memcheck --error-exitcode=99 \
+    build_gpu_wp9_fp64/bin/dipole_open_fft_layout_tests
+  ERROR SUMMARY: 0 errors
+  OMP_NUM_THREADS=1 /usr/local/cuda-13.3/bin/compute-sanitizer --tool memcheck \
+    --error-exitcode=99 build_gpu_wp9_fp64/bin/sd.f95.cuda  # valid OPEN_FFT SD fixture
+  ERROR SUMMARY: 0 errors
+```
+
+| CUDA production input | Projected/full-run B | Persistent B | Construction B | Workspace B | OPEN_FFT phase peak B | Tracker peak B | Release B | Comparison |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `2x1x1`, `NA=M=1`, padded `3x1x1` | 25,056 | 776 | 216 | 0 | 1,040 | 25,056 | 0 | +0.0% |
+| `2x2x1`, `NA=1`, `M=4`, padded `3x3x1` | 34,400 | 5,048 | 648 | 0 | 6,080 | 34,400 | 0 | +0.0% |
+| thin film `4x3x1`, `NA=M=1`, padded `7x5x1` | 37,336 | 6,632 | 2,520 | 0 | 9,440 | 37,336 | 0 | +0.0% |
+
+The tracker is a process-lifetime peak; the preflight is now explicitly the
+same full-run allocation scope, and the release line is the live remaining
+allocation after phase-plan/workspace destruction and base-matrix release.
+The 25,056 B tracker value is therefore expected, not an OPEN_FFT-only
+workspace figure.  Releasing the thermfield's owned field and sigma tensors
+also makes the final live inventory exactly zero and keeps repeated release
+idempotent.
 
 ### [ ] WP10.5 — Luna — independent acceptance of the first production slice
 
@@ -1222,6 +1264,42 @@ Branch/commit:
 Report:
 Decision:
 ```
+
+WP10.4 re-addressing required after Luna's 2026-07-28 independent
+acceptance (NO-GO):
+
+- [x] Reconcile the full-run GPU memory budget with the live allocation
+      inventory. In the valid CUDA 2x1x1 `NA=M=1` fp64 run, preflight
+      projected `2.2 kB`, the OPEN_FFT-specific diagnostic reported
+      `0.001 MiB` persistent and `0.001 MiB` peak, but the allocator tracker
+      reported `Max GPU 25.056 KB` and release printed `estimate -91.4%`.
+      The 2x2x1 M=4 and 4x3x1 thin-film runs likewise printed `-64.9%` and
+      `-54.4%`. Determine and document whether these are different scopes
+      (full simulation versus dipole-only workspace); if so, print the scopes
+      and like-for-like figures, otherwise correct the estimate or inventory.
+- [x] Re-run valid CUDA production OPEN_FFT startup cases after the
+      memory-accounting change and retain projected bytes, persistent and
+      peak bytes, live tracker peak, and release comparison in the WP10.4
+      handoff. Do not treat formatted `0.000 GB` output as sufficient
+      evidence; retain byte-level values.
+- [x] Re-run CUDA memcheck on both the standalone layout seam and an actual
+      production `gpu_dipole_mode OPEN_FFT` SD launch, recording the complete
+      `ERROR SUMMARY` lines. Luna found zero sanitizer errors before this
+      re-address, so this is a regression guard rather than a reported CUDA
+      memory fault.
+- [x] Preserve the already-passing functional scope: independent direct-
+      oracle fields/energies, M=4 isolation, thin films, exchange additivity,
+      OFF/EWALD3D_FFT regressions, rejection gates, and no double application
+      through `do_dip`. No new physics mode or `do_dip=3` expected data is
+      needed for this re-address.
+- [x] If an AMD runner becomes available, run the equivalent HIP numerical
+      production check; the current NO-GO is not based on a HIP numerical
+      failure because no HIP device/toolchain was available.
+
+Terra must attach the updated commands, hardware/backend, byte-level memory
+table, and pass/fail interpretation to the WP10.4 handoff. WP10.5 remains
+unchecked until Luna independently reruns the affected acceptance and gives
+an explicit GO.
 
 ### WP10.6 — Basis-resolved block-one `NA>1`
 

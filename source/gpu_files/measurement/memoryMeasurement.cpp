@@ -39,6 +39,13 @@ int64_t TensorMemoryTracker::peak_device()
     return *std::max_element(t.device_memory.cbegin(), t.device_memory.cend());
 }
 
+int64_t TensorMemoryTracker::current_device()
+{
+    auto& t = get();
+    const std::lock_guard<std::mutex> lock(t.device_mutex);
+    return t.device_memory.back();
+}
+
 
 void TensorMemoryTracker::saveToFile()
 {

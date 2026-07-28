@@ -1098,8 +1098,20 @@ std::size_t GpuDipoleConvolution::estimateWorkspaceBytes(
 std::size_t GpuDipoleConvolution::estimateBytes(const GpuDipoleConvolutionDescriptor& descriptor) {
    const std::size_t buffers = estimatePersistentBytes(descriptor);
    const std::size_t workspace = estimateWorkspaceBytes(descriptor);
-   const std::size_t construction = descriptor.fftLayout().constructionBytes();
+   const std::size_t construction = estimateConstructionBytes(descriptor);
    std::size_t total = 0;
    return buffers != 0 && construction != 0 && add(buffers, workspace, total) &&
           add(total, construction, total) ? total : 0;
+}
+
+std::size_t GpuDipoleConvolution::estimateConstructionBytes(const GpuDipoleConvolutionDescriptor& descriptor) {
+   const auto layout = descriptor.fftLayout();
+   if(!layout.valid()) return 0;
+   if(descriptor.boundary != GpuDipoleBoundaryMode::Open) return layout.constructionBytes();
+
+   // uploadOpenKernel transforms the real finite tensor directly into the
+   // persistent spectrum.  It never allocates Builder B's periodic alias.
+   std::size_t elements = 0, bytes = 0;
+   return multiply(layout.fft_cells, layout.kernel_batches, elements) &&
+          bytesFor(elements, sizeof(real), bytes) ? bytes : 0;
 }

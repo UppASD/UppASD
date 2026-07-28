@@ -225,6 +225,10 @@ public:
    // because it is released after the kernel FFT.
    static std::size_t estimatePersistentBytes(const GpuDipoleConvolutionDescriptor& descriptor);
    static std::size_t estimateWorkspaceBytes(const GpuDipoleConvolutionDescriptor& descriptor);
+   // Construction staging differs by physical mode.  OPEN_FFT uploads only
+   // the finite real-space tensor; the periodic builder also stages its
+   // reciprocal alias spectrum.
+   static std::size_t estimateConstructionBytes(const GpuDipoleConvolutionDescriptor& descriptor);
    static std::size_t estimateBytes(const GpuDipoleConvolutionDescriptor& descriptor);
 
 private:

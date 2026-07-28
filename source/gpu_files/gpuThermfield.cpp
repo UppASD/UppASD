@@ -28,6 +28,11 @@ GpuThermfield::GpuThermfield()
 
 GpuThermfield::~GpuThermfield() {
    if(dataInitiated) GPU_RAND_DESTROY_GEN(gen);
+   // Tensor storage has explicit ownership; release all three buffers in the
+   // same destructor that tears down the RNG so a completed SD phase leaves
+   // no hidden device allocation behind.
+   field.Free();
+   sigmaFactor.Free();
    randomValues.Free();
 }
 

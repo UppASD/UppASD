@@ -37,6 +37,9 @@ public:
     void measure(size_t mstep) override;
     void updateAC(size_t mstep) override;
     void flushMeasurements(size_t mstep) override;
+    // Exact device allocation inventory for the CUDA/HIP measurement object.
+    // It is used by the run-wide preflight before this object is constructed.
+    static std::size_t estimateBytes(std::size_t N, std::size_t M);
 
 private:
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
