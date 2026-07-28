@@ -46,6 +46,7 @@ int main() {
       DipoleOpenGeometry geometry{};
       unsigned int ensembles = 0;
       for(auto& value : geometry.active_grid) read(value, "active_grid");
+      geometry.atomistic_grid = geometry.active_grid;
       for(auto& value : geometry.fft_grid) read(value, "fft_grid");
       for(auto& value : geometry.block_shape) read(value, "block_shape");
       read(geometry.basis, "basis");

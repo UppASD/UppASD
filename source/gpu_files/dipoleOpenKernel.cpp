@@ -10,6 +10,7 @@
 namespace {
 
 using Vector = std::array<double, 3>;
+using Tensor = std::array<double, 9>;
 
 struct SignedMagnitude {
    std::size_t magnitude = 0;
@@ -94,15 +95,22 @@ SignedMagnitude opposite(const SignedMagnitude& displacement) {
 
 Vector displacementVector(const DipoleOpenGeometry& geometry,
                           const std::array<SignedMagnitude, 3>& displacement,
+                          const std::array<std::size_t, 3>& target_offset,
+                          const std::array<std::size_t, 3>& source_offset,
                           unsigned int target, unsigned int source) {
    Vector result{};
    for(unsigned int component = 0; component < 3; ++component) {
       double lattice = 0.0;
       for(unsigned int axis = 0; axis < 3; ++axis) {
-         double term = static_cast<double>(displacement[axis].magnitude) *
-                       geometry.primitive_vectors[3 * axis + component];
-         if(displacement[axis].negative) term = -term;
-         lattice += term;
+         double coarse =
+            static_cast<double>(displacement[axis].magnitude) *
+            static_cast<double>(geometry.block_shape[axis]);
+         if(displacement[axis].negative) coarse = -coarse;
+         const double intra_block =
+            static_cast<double>(target_offset[axis]) -
+            static_cast<double>(source_offset[axis]);
+         lattice += (coarse + intra_block) *
+                    geometry.primitive_vectors[3 * axis + component];
       }
       const double offset = geometry.basis_offsets[target][component] -
                             geometry.basis_offsets[source][component];
@@ -128,9 +136,16 @@ bool zeroDisplacement(const std::array<SignedMagnitude, 3>& displacement) {
           displacement[2].magnitude == 0;
 }
 
+bool sameOffset(const std::array<std::size_t, 3>& left,
+                const std::array<std::size_t, 3>& right) {
+   return left == right;
+}
+
 void validateModel(const DipoleOpenGeometry& geometry,
-                   std::size_t& active_cells, std::size_t& fft_cells,
+                   std::size_t& atomistic_cells, std::size_t& active_cells,
+                   std::size_t& fft_cells, std::size_t& block_population,
                    std::size_t& kernel_batches, std::size_t& kernel_elements) {
+   atomistic_cells = checkedCells(geometry.atomistic_grid, "atomistic_grid");
    active_cells = checkedCells(geometry.active_grid, "active_grid");
    fft_cells = checkedCells(geometry.fft_grid, "fft_grid");
 
@@ -144,13 +159,36 @@ void validateModel(const DipoleOpenGeometry& geometry,
                 << " and fft_grid=" << gridText(geometry.fft_grid);
          throw std::invalid_argument(stream.str());
       }
-      if(geometry.block_shape[axis] != 1) {
+      if(geometry.block_shape[axis] == 0) {
          std::ostringstream stream;
          stream << "block_shape[" << axis << "]=" << geometry.block_shape[axis]
-                << " is unsupported; WP10.3 accepts only block_shape=(1,1,1)";
+                << " must be positive";
+         throw std::invalid_argument(stream.str());
+      }
+      if(geometry.atomistic_grid[axis] % geometry.block_shape[axis] != 0) {
+         std::ostringstream stream;
+         stream << "atomistic_grid[" << axis << "]=" << geometry.atomistic_grid[axis]
+                << " is not divisible by block_shape[" << axis << "]="
+                << geometry.block_shape[axis] << "; partial edge blocks are unsupported";
+         throw std::invalid_argument(stream.str());
+      }
+      const std::size_t projected =
+         geometry.atomistic_grid[axis] / geometry.block_shape[axis];
+      if(projected != geometry.active_grid[axis]) {
+         std::ostringstream stream;
+         stream << "active_grid[" << axis << "]=" << geometry.active_grid[axis]
+                << " does not equal atomistic_grid[" << axis << "]/block_shape[" << axis
+                << "]=" << projected << "; every active macro channel must have the same full block shape";
          throw std::invalid_argument(stream.str());
       }
    }
+   block_population = checkedMultiply(
+      checkedMultiply(geometry.block_shape[0], geometry.block_shape[1],
+                      "block_population=block_shape[0]*block_shape[1]*block_shape[2]"),
+      geometry.block_shape[2],
+      "block_population=block_shape[0]*block_shape[1]*block_shape[2]");
+   (void)checkedMultiply(active_cells, static_cast<std::size_t>(geometry.basis),
+                         "active macro channel count=active_cells*basis");
 
    if(geometry.basis == 0) {
       throw std::invalid_argument("basis must be positive, got 0");
@@ -191,6 +229,19 @@ void validateModel(const DipoleOpenGeometry& geometry,
       basis_size, "kernel_batches=9*basis*basis");
    kernel_elements = checkedMultiply(fft_cells, kernel_batches,
                                      "kernel element count=fft_cells*kernel_batches");
+   const std::size_t pair_count = checkedMultiply(
+      block_population, block_population,
+      "block pair count=block_population*block_population");
+   const std::size_t displacement_count = checkedMultiply(
+      checkedMultiply(encodedDisplacements(geometry.active_grid[0], 0),
+                      encodedDisplacements(geometry.active_grid[1], 1),
+                      "projected displacement count"),
+      encodedDisplacements(geometry.active_grid[2], 2),
+      "projected displacement count");
+   const std::size_t pair_component_work = checkedMultiply(
+      pair_count, kernel_batches, "projected block pair/component work");
+   (void)checkedMultiply(displacement_count, pair_component_work,
+                         "total projected tensor construction work");
    (void)checkedMultiply(kernel_elements, sizeof(double), "kernel byte count");
    if(kernel_elements > std::vector<double>{}.max_size()) {
       std::ostringstream stream;
@@ -208,16 +259,23 @@ bool axisInGap(std::size_t q, std::size_t active, std::size_t fft) {
 
 DipoleOpenKernelResult buildOpenDipoleDisplacementKernel(
    const DipoleOpenGeometry& geometry) {
+   std::size_t atomistic_cells = 0;
    std::size_t active_cells = 0;
    std::size_t fft_cells = 0;
+   std::size_t block_population = 0;
    std::size_t kernel_batches = 0;
    std::size_t kernel_elements = 0;
-   validateModel(geometry, active_cells, fft_cells, kernel_batches, kernel_elements);
+   validateModel(geometry, atomistic_cells, active_cells, fft_cells,
+                 block_population, kernel_batches, kernel_elements);
 
    DipoleOpenKernelResult result{};
    result.kernel.assign(kernel_elements, 0.0);
+   result.diagnostics.atomistic_grid = geometry.atomistic_grid;
    result.diagnostics.active_grid = geometry.active_grid;
    result.diagnostics.fft_grid = geometry.fft_grid;
+   result.diagnostics.block_shape = geometry.block_shape;
+   result.diagnostics.block_population = block_population;
+   result.diagnostics.atomistic_cells = atomistic_cells;
    result.diagnostics.active_cells = active_cells;
    result.diagnostics.fft_cells = fft_cells;
    result.diagnostics.kernel_batches = kernel_batches;
@@ -242,58 +300,82 @@ DipoleOpenKernelResult buildOpenDipoleDisplacementKernel(
 
             for(unsigned int target = 0; target < geometry.basis; ++target)
                for(unsigned int source = 0; source < geometry.basis; ++source) {
-                  if(zeroDisplacement(displacement) && target == source) {
-                     // The vector was zero-initialised, preserving exact +0.0
-                     // for all nine same-point/same-basis components.
-                     continue;
-                  }
+                  Tensor projected{};
+                  for(std::size_t u3 = 0; u3 < geometry.block_shape[2]; ++u3)
+                     for(std::size_t u2 = 0; u2 < geometry.block_shape[1]; ++u2)
+                        for(std::size_t u1 = 0; u1 < geometry.block_shape[0]; ++u1)
+                           for(std::size_t v3 = 0; v3 < geometry.block_shape[2]; ++v3)
+                              for(std::size_t v2 = 0; v2 < geometry.block_shape[1]; ++v2)
+                                 for(std::size_t v1 = 0; v1 < geometry.block_shape[0]; ++v1) {
+                                    const std::array<std::size_t, 3> target_offset{{u1, u2, u3}};
+                                    const std::array<std::size_t, 3> source_offset{{v1, v2, v3}};
+                                    if(zeroDisplacement(displacement) && target == source &&
+                                       sameOffset(target_offset, source_offset)) {
+                                       // K_point(i,i)=0 exactly.  Other pairs
+                                       // at d=0 form the finite coarse diagonal.
+                                       continue;
+                                    }
 
-                  const Vector r = displacementVector(geometry, displacement, target, source);
-                  if(exactZero(r)) {
-                     std::ostringstream stream;
-                     stream << "basis_offsets and primitive_vectors overlap at a nonself displacement"
-                            << " for target basis " << target << ", source basis " << source
-                            << ", embedded cell " << cell;
-                     throw std::invalid_argument(stream.str());
-                  }
-                  const double radius = std::hypot(r[0], r[1], r[2]);
-                  const double r2 = radius * radius;
-                  if(!std::isfinite(radius) || !std::isfinite(r2) || r2 <= 0.0) {
-                     std::ostringstream stream;
-                     stream << "minimum_nonself_r2 is unrepresentable for target basis " << target
-                            << ", source basis " << source << ", radius=" << radius
-                            << ", r2=" << r2;
-                     throw std::invalid_argument(stream.str());
-                  }
-                  minimum_nonself_r2 = std::min(minimum_nonself_r2, r2);
+                                    const Vector r = displacementVector(
+                                       geometry, displacement, target_offset, source_offset,
+                                       target, source);
+                                    if(exactZero(r)) {
+                                       std::ostringstream stream;
+                                       stream << "basis_offsets, primitive_vectors, and block_shape overlap"
+                                              << " at a nonself point pair for target basis " << target
+                                              << ", source basis " << source
+                                              << ", embedded cell " << cell;
+                                       throw std::invalid_argument(stream.str());
+                                    }
+                                    const double radius = std::hypot(r[0], r[1], r[2]);
+                                    const double r2 = radius * radius;
+                                    if(!std::isfinite(radius) || !std::isfinite(r2) || r2 <= 0.0) {
+                                       std::ostringstream stream;
+                                       stream << "minimum_nonself_r2 is unrepresentable for target basis "
+                                              << target << ", source basis " << source
+                                              << ", radius=" << radius << ", r2=" << r2;
+                                       throw std::invalid_argument(stream.str());
+                                    }
+                                    minimum_nonself_r2 = std::min(minimum_nonself_r2, r2);
 
-                  const double inverse_radius = 1.0 / radius;
-                  const double inverse_r3 = inverse_radius * inverse_radius * inverse_radius;
-                  if(!std::isfinite(inverse_r3)) {
-                     std::ostringstream stream;
-                     stream << "primitive_vectors and basis_offsets produce a non-finite 1/|r|^3"
-                            << " for target basis " << target << ", source basis " << source
-                            << ", r2=" << r2;
-                     throw std::invalid_argument(stream.str());
-                  }
-                  const Vector direction{{r[0] * inverse_radius,
-                                          r[1] * inverse_radius,
-                                          r[2] * inverse_radius}};
+                                    const double inverse_radius = 1.0 / radius;
+                                    const double inverse_r3 =
+                                       inverse_radius * inverse_radius * inverse_radius;
+                                    if(!std::isfinite(inverse_r3)) {
+                                       std::ostringstream stream;
+                                       stream << "primitive_vectors and basis_offsets produce a non-finite"
+                                              << " 1/|r|^3 for target basis " << target
+                                              << ", source basis " << source << ", r2=" << r2;
+                                       throw std::invalid_argument(stream.str());
+                                    }
+                                    const Vector direction{{r[0] * inverse_radius,
+                                                            r[1] * inverse_radius,
+                                                            r[2] * inverse_radius}};
+                                    for(unsigned int column = 0; column < 3; ++column)
+                                       for(unsigned int row = 0; row < 3; ++row) {
+                                          const double value =
+                                             (3.0 * direction[row] * direction[column] -
+                                              (row == column ? 1.0 : 0.0)) * inverse_r3;
+                                          if(!std::isfinite(value)) {
+                                             std::ostringstream stream;
+                                             stream << "open dipole tensor contains a non-finite value"
+                                                    << " for row " << row << ", column " << column
+                                                    << ", target basis " << target
+                                                    << ", source basis " << source << ", r2=" << r2;
+                                             throw std::invalid_argument(stream.str());
+                                          }
+                                          projected[row + 3 * column] += value;
+                                       }
+                                 }
+                  const double inverse_population_squared =
+                     1.0 / (static_cast<double>(block_population) *
+                            static_cast<double>(block_population));
                   for(unsigned int column = 0; column < 3; ++column)
                      for(unsigned int row = 0; row < 3; ++row) {
-                        const double value =
-                           (3.0 * direction[row] * direction[column] -
-                            (row == column ? 1.0 : 0.0)) * inverse_r3;
-                        if(!std::isfinite(value)) {
-                           std::ostringstream stream;
-                           stream << "open dipole tensor contains a non-finite value for row " << row
-                                  << ", column " << column << ", target basis " << target
-                                  << ", source basis " << source << ", r2=" << r2;
-                           throw std::invalid_argument(stream.str());
-                        }
                         const std::size_t batch =
                            kernelBatch(row, column, target, source, geometry.basis);
-                        result.kernel[cell + fft_cells * batch] = value;
+                        result.kernel[cell + fft_cells * batch] =
+                           projected[row + 3 * column] * inverse_population_squared;
                      }
                }
          }
@@ -320,14 +402,17 @@ DipoleOpenKernelResult buildOpenDipoleDisplacementKernel(
          }
    result.diagnostics.all_finite = result.diagnostics.nonfinite_values == 0;
 
-   // Audit exact same-point/same-basis self independently of construction.
+   // A projected diagonal is not point self: it contains every distinct
+   // intra-block pair.  max_point_self_abs remains exact zero because those
+   // terms were skipped before accumulation; expose the finite diagonal
+   // separately so a later caller cannot mistake it for an ad hoc self term.
    for(unsigned int basis = 0; basis < geometry.basis; ++basis)
       for(unsigned int column = 0; column < 3; ++column)
          for(unsigned int row = 0; row < 3; ++row) {
             const std::size_t batch =
                kernelBatch(row, column, basis, basis, geometry.basis);
-            result.diagnostics.max_point_self_abs = std::max(
-               result.diagnostics.max_point_self_abs,
+            result.diagnostics.max_projected_diagonal_abs = std::max(
+               result.diagnostics.max_projected_diagonal_abs,
                std::abs(result.kernel[fft_cells * batch]));
          }
 

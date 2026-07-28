@@ -92,6 +92,7 @@ Result runImpl(const Input& input, bool production_kernel) {
       if(!solver.initiate(descriptor, stream)) throw std::runtime_error("OPEN_FFT test seam plan initiation failed");
       if(production_kernel) {
          DipoleOpenGeometry geometry{};
+         geometry.atomistic_grid = input.active_grid;
          geometry.active_grid = input.active_grid;
          geometry.fft_grid = input.fft_grid;
          geometry.primitive_vectors = input.primitive_vectors;

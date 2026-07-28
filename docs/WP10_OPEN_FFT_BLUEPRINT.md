@@ -1379,7 +1379,7 @@ Gate:
 - projected direct and FFT operators agree, block one is recovered exactly,
   and partial edges remain rejected.
 
-#### [ ] WP10.7a — Sol — implement the finite coarse projection
+#### [x] WP10.7a — Sol — implement the finite coarse projection
 
 Delegation prompt:
 

@@ -308,6 +308,7 @@ void runOpenProductionE2E() {
       compareProductionResult(input, nonuniform, maximum_field_error, maximum_energy_error);
 
       DipoleOpenGeometry geometry{};
+      geometry.atomistic_grid = input.active_grid;
       geometry.active_grid = input.active_grid;
       geometry.fft_grid = input.fft_grid;
       geometry.primitive_vectors = input.primitive_vectors;

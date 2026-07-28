@@ -646,6 +646,9 @@ bool GpuHamiltonianCalculations::initiate(const Flag Flags, const SimulationPara
          DipoleOpenGeometry geometry{};
          const auto active = dipoleDescriptor.activeGrid();
          const auto padded = dipoleDescriptor.fftGrid();
+         geometry.atomistic_grid = {{dipoleDescriptor.atomistic_grid.n1,
+                                     dipoleDescriptor.atomistic_grid.n2,
+                                     dipoleDescriptor.atomistic_grid.n3}};
          geometry.active_grid = {{active.n1, active.n2, active.n3}};
          geometry.fft_grid = {{padded.n1, padded.n2, padded.n3}};
          for(unsigned int axis = 0; axis < 3; ++axis)
