@@ -994,6 +994,32 @@ if(BUILD_TESTING)
       endif()
       add_test(NAME coarse-graining-gpu-adaptive-runtime COMMAND gpu_adaptive_runtime_tests)
 
+      # Hardware-dependent CG-10 acceptance harness.  This is intentionally
+      # not a CTest: it reports paired feature-off noise, selector/compaction
+      # overhead, phase timings, and the first statistically separated active
+      # DOF crossover on the selected CUDA/HIP device.
+      add_executable(gpu_adaptive_runtime_benchmark
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp)
+      target_include_directories(gpu_adaptive_runtime_benchmark PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_adaptive_runtime_benchmark PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE CUDA_V)
+         target_link_libraries(gpu_adaptive_runtime_benchmark PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE SINGLE_PREC)
+      endif()
+
       add_executable(dipole_gpu_fft_tests
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp)
       target_include_directories(dipole_gpu_fft_tests PRIVATE

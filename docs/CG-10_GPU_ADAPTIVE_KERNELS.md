@@ -155,3 +155,68 @@ HIP execution, feature-off noise measurements, phase overhead, and the
 active-DOF crossover still require suitable hardware runs.  The
 implementation does not substitute host wall time or a modelled crossover
 for those measurements.
+
+### Performance acceptance harness
+
+Build and run the non-CTest hardware benchmark:
+
+```bash
+cmake --build build_gpu --target gpu_adaptive_runtime_benchmark -j
+./build_gpu/bin/gpu_adaptive_runtime_benchmark \
+  --blocks 2048 --atoms-per-block 4 \
+  --warmup 2 --iterations 10 --repetitions 7 \
+  --require-acceptance
+```
+
+Increase `--blocks`, `--iterations`, and `--repetitions` if the reported
+median absolute deviations are comparable with the requested acceptance
+margin.  Keep the GPU otherwise idle and record its model, driver, clock
+policy, precision, and full benchmark output.
+
+The three remaining checklist items have distinct evidence requirements:
+
+1. **Feature-off performance:** the benchmark alternates a baseline
+   atomistic kernel batch with the identical batch while a default,
+   uninitialized `GpuAdaptiveRuntime` is in scope.  Its inventory delta must
+   be zero.  The absolute median difference must be no larger than the greater
+   of 3% of baseline or three times the combined median absolute deviations.
+   The output line must say `feature-off ... result=PASS`.
+2. **Selector/compaction overhead:** record the complete
+   `adaptive-overhead` line.  It reports selector device and wall time,
+   compaction device time, localized host wait, complete wall time, bytes per
+   block-mask update, and overhead relative to a mixed-resolution field step.
+   This gate requires a numeric report, not a pass/fail threshold.
+3. **Active-DOF crossover:** the sweep compares each real compact mask with
+   the all-atomistic median.  A crossover is accepted only when the candidate
+   median plus three combined MADs is at least 2% below the atomistic median.
+   The output must say `active-dof-crossover result=PASS` and records the
+   active-DOF ratio, requested fine fraction, time, and speedup.
+
+`--require-acceptance` returns exit status 2 if either the paired feature-off
+gate or crossover is not observed.  A `NOT_OBSERVED` crossover is a valid
+measurement but does not tick the blueprint box; it indicates that kernel
+optimization or a larger problem is still needed.  The benchmark is compiled
+from the same source for CUDA and HIP and supports the same command-line
+protocol in fp64 and fp32 builds.
+
+### CUDA performance measurement
+
+The fp64 acceptance command above was run on an NVIDIA RTX A4000 with driver
+610.43.02 using 2048 blocks, four atoms per block, two warmups, ten measured
+iterations, and seven repetitions.  The paired feature-off medians were
+38.113 us baseline and 38.103 us with the inactive runtime present, a
+-0.027% delta with zero inventory change.  This passes the 3%/three-MAD
+feature-off budget.
+
+At the 50% requested fine fraction, selector wall time was 6107.30 us and
+compaction wall time was 727.83 us per update, together 6.22% of the
+109845.87 us mixed field step.  Compaction transferred 8192 mask bytes per
+update.  Selector device time was 6097.34 us; compaction device time was
+721.73 us, including 719.07 us of localized host wait.
+
+The active-DOF crossover was not observed.  The all-atomistic median was
+58568.20 us.  Medians increased monotonically from 84560.47 us at a 0.813
+active-DOF ratio to 166315.81 us at a 0.250 ratio.  This is accepted negative
+evidence, not a crossover acceptance: the crossover checklist item remains
+open pending compact parallel kernel optimization and a repeat of the same
+measurement.

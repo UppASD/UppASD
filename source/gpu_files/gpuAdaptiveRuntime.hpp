@@ -259,6 +259,7 @@ public:
                       const real* uniformFftDipoleField = nullptr);
    void recordFftMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
+   void resetPhaseMetrics() { phaseMetrics_ = {}; }
 
    bool ready() const { return ready_; }
    std::size_t allocatedBytes() const { return allocatedBytes_; }

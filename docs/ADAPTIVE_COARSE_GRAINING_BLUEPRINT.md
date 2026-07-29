@@ -1687,8 +1687,8 @@ initial kernel; Luna/Sonnet for parity harness
 - [x] Restriction and reconstruction are deterministic as specified.
 - [x] Energy derivative fixtures agree with CPU reference.
 - [x] Existing FFT dipole tests still pass.
-- [ ] Feature-off performance is unchanged within noise.
-- [ ] Selector/compaction overhead is reported.
+- [x] Feature-off performance is unchanged within noise.
+- [x] Selector/compaction overhead is reported.
 - [ ] A real active-DOF crossover is measured.
 - [x] FP32 error budgets are documented separately.
 - [x] No untracked device allocations bypass memory accounting.
@@ -1713,9 +1713,19 @@ reconstruction schemes, phase separation, and exact memory cleanup.
 budgets.  CUDA execution accepts the adaptive fp64 and fp32 fixtures and the
 existing fp64 FFT dipole suite; Compute Sanitizer reports zero errors for the
 adaptive fp64 fixture.  No HIP device/toolchain was available, so the shared
-HIP path remains an execution gate.  Feature-off noise, measured
-selector/compaction overhead, and a real active-DOF crossover were not part
-of these correctness runs and remain intentionally unchecked above.
+HIP path remains an execution gate.
+
+The fp64 `gpu_adaptive_runtime_benchmark` run on an NVIDIA RTX A4000 with
+driver 610.43.02 measured a -0.027% paired feature-off delta with zero
+inventory change, inside its 3%/three-MAD noise budget.  At the 50% requested
+fine fraction, selector plus compaction took 6.22% of the mixed field step
+(6107.30 us selector wall time and 727.83 us compaction wall time per
+update).  The robust active-fraction sweep did not observe a crossover:
+the all-atomistic median was 58568.20 us and every coarsened point was slower.
+The crossover box therefore remains unchecked.  The benchmark provides the
+paired control, separate overhead report, phase timings, robust sweep, and
+optional acceptance exit status needed to repeat that gate after performance
+work.
 
 ---
 
