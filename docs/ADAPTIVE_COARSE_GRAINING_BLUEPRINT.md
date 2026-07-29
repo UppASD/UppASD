@@ -1684,14 +1684,38 @@ initial kernel; Luna/Sonnet for parity harness
 - [ ] FP64 CPU/GPU fields and energies agree.
 - [ ] CUDA and HIP parity tests pass where hardware is available.
 - [ ] State decisions match for non-threshold-tie fixtures.
-- [ ] Restriction and reconstruction are deterministic as specified.
+- [x] Restriction and reconstruction are deterministic as specified.
 - [ ] Energy derivative fixtures agree with CPU reference.
 - [ ] Existing FFT dipole tests still pass.
 - [ ] Feature-off performance is unchanged within noise.
 - [ ] Selector/compaction overhead is reported.
 - [ ] A real active-DOF crossover is measured.
-- [ ] FP32 error budgets are documented separately.
-- [ ] No untracked device allocations bypass memory accounting.
+- [x] FP32 error budgets are documented separately.
+- [x] No untracked device allocations bypass memory accounting.
+
+**CG-10 partial evidence:** `GpuAdaptiveRuntime` now validates, preflights,
+stages, and cleans up the optional single-FM tensor, projection, bond,
+anisotropy, and selector inventory plus all kernel scratch through tracked
+`GpuTensor` storage.  Backend-neutral CUDA/HIP kernels implement
+moment-weighted restriction, maximum-neighbour selector scoring, non-mutating
+proposals, complete-step publication with per-block energy-gate rollback,
+aligned and tuple-seeded constrained-cone reconstruction, the accepted
+unique-pair atomistic sign, exact normalized-projection interface adjoint,
+masked physical tensor gradients, and compact-list deterministic Heun
+integration.  An already-dispatched FFT field remains an independent
+unmasked all-grid input.
+
+`tests/coarse_graining/test_gpu_adaptive_runtime.cpp` adds an analytic mixed
+resolution parity fixture for fields, per-term energies, a directional energy
+derivative, non-tie decisions, accepted/rejected transitions, both
+reconstruction schemes, phase separation, and exact memory cleanup.
+`docs/CG-10_GPU_ADAPTIVE_KERNELS.md` records fp64 acceptance and separate fp32
+budgets.  Both CUDA fp64 and fp32 targets compile on the current host, and the
+accepted CPU reference tests pass.  This host has no CUDA-capable device and
+no HIP toolchain/device, so GPU execution parity, FFT execution regression,
+feature-off noise, measured selector/compaction overhead, and a real
+active-DOF crossover remain hardware acceptance gates and are intentionally
+not checked above.
 
 ---
 

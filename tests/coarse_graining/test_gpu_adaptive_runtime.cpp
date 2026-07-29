@@ -113,6 +113,148 @@ struct Fixture {
    }
 };
 
+struct KernelFixture {
+   static constexpr std::size_t atoms = 8;
+   static constexpr std::size_t blocks = 4;
+   static constexpr std::size_t basis = 2;
+   static constexpr std::size_t channels = 1;
+   static constexpr std::size_t ensembles = 1;
+   static constexpr std::size_t bonds = 8;
+   int repetitionShape[3] = {4, 1, 1};
+   int blockShape[3] = {1, 1, 1};
+   int blockGrid[3] = {4, 1, 1};
+   double cellVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double blockVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   int atomToBlock[atoms] = {1, 1, 2, 2, 3, 3, 4, 4};
+   int atomToBasis[atoms] = {1, 2, 1, 2, 1, 2, 1, 2};
+   int atomToDynamic[atoms] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int atomToFft[atoms] = {1, 2, 1, 2, 1, 2, 1, 2};
+   int atomToFftGrid[atoms] = {1, 2, 3, 4, 5, 6, 7, 8};
+   int basisToDynamic[basis] = {1, 1};
+   int basisToFft[basis] = {1, 2};
+   int blockCount[blocks] = {2, 2, 2, 2};
+   int blockOffset[blocks + 1] = {0, 2, 4, 6, 8};
+   int blockAtoms[atoms] = {1, 2, 3, 4, 5, 6, 7, 8};
+   int blockCoordinate[3 * blocks] = {0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0};
+   int basisPopulation[basis * blocks] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int fftPopulation[basis * blocks] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int dynamicPopulation[channels * blocks] = {2, 2, 2, 2};
+   double center[3 * blocks] = {0.5, 0, 0, 1.5, 0, 0, 2.5, 0, 0, 3.5, 0, 0};
+   double volume[blocks] = {1, 1, 1, 1};
+   int state[blocks] = {0, 1, 2, 0};
+   double scores[blocks] = {};
+   double atomMoment[atoms] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int projectionBlock[8 * atoms] = {};
+   double projectionWeight[8 * atoms] = {};
+   int bondAtom[2 * bonds] = {
+      1, 2, 3, 4, 5, 6, 7, 8,
+      2, 3, 4, 5, 6, 7, 8, 1
+   };
+   double bondMatrix[9 * bonds] = {};
+   int selectorEdge[2 * bonds] = {
+      1, 2, 3, 4, 5, 6, 7, 8,
+      2, 3, 4, 5, 6, 7, 8, 1
+   };
+   double inverseBlockTranspose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double exchange[9] = {};
+   double spiralization[9] = {};
+   int axisCount[blocks] = {1, 1, 1, 1};
+   double axis[6 * blocks] = {};
+   double k1[2 * blocks] = {};
+   double k2[2 * blocks] = {};
+   std::vector<double> coarseMoment =
+      std::vector<double>(3 * channels * blocks * ensembles, 0.0);
+   std::vector<double> coarseDirection =
+      std::vector<double>(3 * channels * blocks * ensembles, 0.0);
+   std::vector<double> coarseField =
+      std::vector<double>(3 * channels * blocks * ensembles, 0.0);
+   std::vector<double> momentSum =
+      std::vector<double>(channels * blocks * ensembles, 2.0);
+
+   KernelFixture() {
+      for(std::size_t atom = 0; atom < atoms; ++atom) {
+         projectionBlock[8 * atom] = atomToBlock[atom];
+         projectionWeight[8 * atom] = 1.0;
+         for(int corner = 1; corner < 8; ++corner)
+            projectionBlock[corner + 8 * atom] = atomToBlock[atom];
+      }
+      for(std::size_t bond = 0; bond < bonds; ++bond)
+         for(int xyz = 0; xyz < 3; ++xyz)
+            bondMatrix[xyz + 3 * xyz + 9 * bond] = 0.4;
+      for(std::size_t block = 0; block < blocks; ++block) {
+         axis[2 + 3 * (2 * block)] = 1.0;
+         k1[2 * block] = 2.0;
+         k2[2 * block] = 0.5;
+         coarseMoment[2 + 3 * block] = 2.0;
+         coarseDirection[2 + 3 * block] = 1.0;
+      }
+   }
+
+   GpuAdaptiveTopologyInput topology() const {
+      GpuAdaptiveTopologyInput t;
+      t.geometryMode = 1;
+      t.atoms = atoms;
+      t.blocks = blocks;
+      t.basis = basis;
+      t.fftChannelsPerBlock = basis;
+      t.fftGridChannels = basis * blocks;
+      t.dynamicChannels = channels;
+      t.ensembles = ensembles;
+      t.repetitionShape = repetitionShape;
+      t.blockShape = blockShape;
+      t.blockGrid = blockGrid;
+      t.cellVectors = cellVectors;
+      t.blockVectors = blockVectors;
+      t.atomToBlock = atomToBlock;
+      t.atomToBasis = atomToBasis;
+      t.atomToDynamicChannel = atomToDynamic;
+      t.atomToFftChannel = atomToFft;
+      t.atomToFftGridIndex = atomToFftGrid;
+      t.basisToDynamicChannel = basisToDynamic;
+      t.basisToFftChannel = basisToFft;
+      t.blockAtomCount = blockCount;
+      t.blockAtomOffset = blockOffset;
+      t.blockAtoms = blockAtoms;
+      t.blockGridCoordinate = blockCoordinate;
+      t.blockBasisPopulation = basisPopulation;
+      t.blockFftChannelPopulation = fftPopulation;
+      t.blockDynamicChannelPopulation = dynamicPopulation;
+      t.blockCenter = center;
+      t.blockVolume = volume;
+      return t;
+   }
+
+   GpuAdaptiveRuntimeInput runtime() const {
+      GpuAdaptiveRuntimeInput r;
+      r.blockState = state;
+      r.selectorCriteria = 1;
+      r.selectorScores = scores;
+      r.coarseMoment = coarseMoment.data();
+      r.coarseDirection = coarseDirection.data();
+      r.coarseField = coarseField.data();
+      r.channelMomentSum = momentSum.data();
+      r.kernels.atomMoment = atomMoment;
+      r.kernels.projectionBlock = projectionBlock;
+      r.kernels.projectionWeight = projectionWeight;
+      r.kernels.bonds = bonds;
+      r.kernels.bondAtom = bondAtom;
+      r.kernels.bondMatrix = bondMatrix;
+      r.kernels.selectorEdges = bonds;
+      r.kernels.selectorEdge = selectorEdge;
+      r.kernels.inverseBlockTranspose = inverseBlockTranspose;
+      r.kernels.exchangeStiffness = exchange;
+      r.kernels.spiralization = spiralization;
+      r.kernels.anisotropyAxisCount = axisCount;
+      r.kernels.anisotropyAxis = axis;
+      r.kernels.anisotropyK1 = k1;
+      r.kernels.anisotropyK2 = k2;
+      r.kernels.magneticMomentSi = 1.0;
+      r.kernels.gammaPerTs = 2.0;
+      r.kernels.damping = 0.1;
+      return r;
+   }
+};
+
 void require(bool condition, const char* message) {
    if(!condition) throw std::runtime_error(message);
 }
@@ -120,6 +262,246 @@ void require(bool condition, const char* message) {
 void expectEqual(const std::vector<int>& actual, std::initializer_list<int> expected,
                  const char* message) {
    require(actual == std::vector<int>(expected), message);
+}
+
+std::vector<real> deviceVector(const std::vector<double>& source) {
+   std::vector<real> result(source.size());
+   std::transform(source.begin(), source.end(), result.begin(),
+                  [](double value) { return static_cast<real>(value); });
+   return result;
+}
+
+void upload(real* destination, const std::vector<real>& source) {
+   ASSERT_GPU(GPU_MEMCPY(destination, source.data(), source.size() * sizeof(real),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+}
+
+std::vector<real> download(const real* source, std::size_t count) {
+   std::vector<real> result(count);
+   ASSERT_GPU(GPU_MEMCPY(result.data(), source, count * sizeof(real),
+                         GPU_MEMCPY_DEVICE_TO_HOST));
+   return result;
+}
+
+void testKernelParityAndWorkflow() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   std::string diagnostic;
+   require(GpuAdaptiveRuntime::validate(topology, input, KernelFixture::atoms,
+                                        KernelFixture::ensembles, diagnostic),
+           "valid CG-10 operator inventory was rejected");
+
+   const auto baseline = TensorMemoryTracker::current_device();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+   require(runtime.kernelsReady(), "CG-10 kernels were not published ready");
+   require(TensorMemoryTracker::current_device() - baseline ==
+              static_cast<std::int64_t>(GpuAdaptiveRuntime::estimateBytes(topology, input)),
+           "CG-10 scratch or construction storage bypassed memory preflight");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   const std::size_t coarseVectors = 3 * KernelFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomField, coarseField, externalField, dipoleField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomField.Allocate(static_cast<index_t>(atomVectors));
+   coarseField.Allocate(static_cast<index_t>(coarseVectors));
+   externalField.Allocate(static_cast<index_t>(coarseVectors));
+   dipoleField.Allocate(static_cast<index_t>(coarseVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   std::vector<double> hostExternal(coarseVectors, 0.0);
+   std::vector<double> hostDipole(coarseVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[2 + 3 * atom] = 1.0;
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block) {
+      hostExternal[3 * block] = 0.25;
+      hostDipole[2 + 3 * block] = 0.1;
+   }
+   upload(atomDirection.data(), deviceVector(hostAtom));
+   upload(externalField.data(), deviceVector(hostExternal));
+   upload(dipoleField.data(), deviceVector(hostDipole));
+
+   runtime.restrictMoments(atomDirection.data());
+   const auto restricted = download(runtime.deviceRuntime().coarseMoment, coarseVectors);
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block) {
+      require(std::abs(static_cast<double>(restricted[2 + 3 * block]) - 2.0) < 1.0e-12,
+              "GPU restriction does not match the CPU moment sum");
+   }
+
+   const auto energy = runtime.evaluateHybrid(
+      atomDirection.data(), externalField.data(), dipoleField.data(),
+      atomField.data(), coarseField.data());
+   const double tolerance = sizeof(real) == sizeof(double) ? 2.0e-12 : 2.0e-5;
+   require(std::abs(energy.atomisticBilinearJ + 2.0) < tolerance,
+           "GPU atomistic unique-pair energy violates the CPU sign contract");
+   require(std::abs(energy.coarseExchangeJ) < tolerance &&
+           std::abs(energy.coarseSpiralizationJ) < tolerance,
+           "uniform state produced a coarse gradient energy");
+   require(std::abs(energy.coarseAnisotropyJ - 5.0) < tolerance,
+           "GPU anisotropy energy violates the CPU tensor-index contract");
+   require(std::abs(energy.coarseExternalJ) < tolerance,
+           "orthogonal external field produced energy");
+   require(std::abs(energy.dipoleJ + 0.4) < tolerance,
+           "all-grid FFT dipole energy was adaptively masked");
+   require(std::abs(energy.totalJ - 2.6) < 5.0 * tolerance,
+           "GPU hybrid total energy does not equal the CPU reference");
+
+   const auto fineField = download(atomField.data(), atomVectors);
+   for(std::size_t atom = 2; atom <= 5; ++atom)
+      require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) - 0.8) < tolerance,
+              "GPU compact atomistic field differs from the CPU unique-pair reference");
+   const auto blockField = download(coarseField.data(), coarseVectors);
+   for(const std::size_t block : {std::size_t(0), std::size_t(3)}) {
+      require(std::abs(static_cast<double>(blockField[3 * block]) - 0.25) < tolerance,
+              "GPU external-field derivative sign differs from CPU");
+      require(std::abs(static_cast<double>(blockField[2 + 3 * block]) + 1.9) <
+                 5.0 * tolerance,
+              "GPU anisotropy/dipole field differs from CPU");
+      // Directional derivative for m(theta)=(sin theta,0,cos theta):
+      // dE/dtheta|0 = -mu_block Bx = -2*0.25.
+      require(std::abs(-2.0 * static_cast<double>(blockField[3 * block]) + 0.5) <
+                 tolerance,
+              "GPU field fails the CPU energy directional-derivative fixture");
+   }
+
+   hostAtom[0] = 1.0;
+   hostAtom[2] = 0.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+   runtime.evaluateSelectorScores(atomDirection.data());
+   const auto selector = download(runtime.deviceRuntime().selectorScores,
+                                  KernelFixture::blocks);
+   require(std::abs(static_cast<double>(selector[0]) - 1.0) < tolerance &&
+           std::abs(static_cast<double>(selector[3]) - 1.0) < tolerance &&
+           std::abs(static_cast<double>(selector[1])) < tolerance &&
+           std::abs(static_cast<double>(selector[2])) < tolerance,
+           "GPU selector scores differ from the CPU maximum-misalignment reference");
+   GpuAdaptiveSelectorPolicy selectorPolicy;
+   selectorPolicy.refineThreshold = real(0.5);
+   selectorPolicy.coarsenThreshold = real(0.1);
+   auto dilatedPolicy = selectorPolicy;
+   dilatedPolicy.bufferDilationBlocks = 1;
+   runtime.proposeSelectorState(dilatedPolicy);
+   std::vector<int> pending(KernelFixture::blocks);
+   ASSERT_GPU(GPU_MEMCPY(pending.data(), runtime.deviceRuntime().pendingState,
+                         pending.size() * sizeof(int), GPU_MEMCPY_DEVICE_TO_HOST));
+   require(pending == std::vector<int>({2, 1, 1, 2}),
+           "GPU selector buffer dilation differs from the periodic CPU state map");
+   runtime.proposeSelectorState(selectorPolicy);
+   bool stageRejected = false;
+   try {
+      runtime.publishProposedState(atomDirection.data(), {}, false);
+   } catch(const std::invalid_argument&) {
+      stageRejected = true;
+   }
+   require(stageRejected, "GPU state transition was allowed inside an integration stage");
+   GpuTensor<unsigned char, 1> accepted;
+   accepted.Allocate(KernelFixture::blocks);
+   const std::vector<unsigned char> hostAccepted = {1, 1, 0, 0};
+   ASSERT_GPU(GPU_MEMCPY(accepted.data(), hostAccepted.data(), hostAccepted.size(),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+   runtime.publishProposedState(atomDirection.data(), {}, true, accepted.data());
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.activeAtoms, {1, 2, 5, 6},
+               "accepted/rejected GPU transitions produced the wrong active atoms");
+   expectEqual(snapshot.activeBlocks, {2, 4},
+               "accepted/rejected GPU transitions produced the wrong coarse blocks");
+   const auto reconstructed = download(atomDirection.data(), atomVectors);
+   require(std::abs(static_cast<double>(reconstructed[2]) - 1.0) < tolerance &&
+           std::abs(static_cast<double>(reconstructed[5]) - 1.0) < tolerance,
+           "aligned GPU reconstruction is not exact");
+
+   // The constrained-cone path uses the CPU tuple seed
+   // (global,block,channel,ensemble,prospective epoch).  Two fresh-equivalent
+   // runtimes must therefore publish bitwise-identical directions.
+   real reducedResultant = real(1.8);
+   ASSERT_GPU(GPU_MEMCPY(runtime.deviceRuntime().coarseMoment + 2 + 3 * 3,
+                         &reducedResultant, sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE));
+   const std::vector<unsigned char> acceptLast = {0, 0, 0, 1};
+   ASSERT_GPU(GPU_MEMCPY(accepted.data(), acceptLast.data(), acceptLast.size(),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+   runtime.proposeSelectorState(selectorPolicy);
+   GpuAdaptiveReconstructionPolicy cone;
+   cone.scheme = GpuAdaptiveReconstruction::ConstrainedCone;
+   cone.coneAngleRadians = real(0.8);
+   cone.globalSeed = 99173;
+   runtime.publishProposedState(atomDirection.data(), cone, true, accepted.data());
+   const auto firstCone = download(atomDirection.data(), atomVectors);
+   require(std::abs(static_cast<double>(firstCone[0 + 3 * 6] +
+                                        firstCone[0 + 3 * 7])) < 2.0e-10 &&
+           std::abs(static_cast<double>(firstCone[1 + 3 * 6] +
+                                        firstCone[1 + 3 * 7])) < 2.0e-10 &&
+           std::abs(static_cast<double>(firstCone[2 + 3 * 6] +
+                                        firstCone[2 + 3 * 7]) - 1.8) <
+              (sizeof(real) == sizeof(double) ? 2.0e-10 : 2.0e-4),
+           "constrained-cone GPU reconstruction missed the requested resultant");
+
+   {
+      GpuAdaptiveRuntime repeat;
+      repeat.initialize(topology, input, KernelFixture::atoms,
+                        KernelFixture::ensembles);
+      GpuTensor<real, 1> repeatDirection;
+      GpuTensor<unsigned char, 1> repeatAccepted;
+      repeatDirection.Allocate(static_cast<index_t>(atomVectors));
+      repeatAccepted.Allocate(KernelFixture::blocks);
+      upload(repeatDirection.data(), deviceVector(hostAtom));
+      repeat.evaluateSelectorScores(repeatDirection.data());
+      repeat.proposeSelectorState(selectorPolicy);
+      ASSERT_GPU(GPU_MEMCPY(repeat.deviceRuntime().coarseMoment + 2 + 3 * 3,
+                            &reducedResultant, sizeof(real),
+                            GPU_MEMCPY_HOST_TO_DEVICE));
+      ASSERT_GPU(GPU_MEMCPY(repeatAccepted.data(), acceptLast.data(),
+                            acceptLast.size(), GPU_MEMCPY_HOST_TO_DEVICE));
+      repeat.publishProposedState(repeatDirection.data(), cone, true,
+                                  repeatAccepted.data());
+      const auto secondCone = download(repeatDirection.data(), atomVectors);
+      for(std::size_t atom = 6; atom < 8; ++atom)
+         for(int xyz = 0; xyz < 3; ++xyz)
+            require(firstCone[xyz + 3 * atom] == secondCone[xyz + 3 * atom],
+                    "tuple-seeded cone reconstruction is not deterministic");
+      repeatAccepted.Free();
+      repeatDirection.Free();
+      repeat.release();
+   }
+
+   const auto beforeStep = runtime.downloadWorkSnapshot();
+   runtime.integrateHeun(real(1.0e-3), atomDirection.data(),
+                         externalField.data(), dipoleField.data());
+   const auto afterStep = runtime.downloadWorkSnapshot();
+   require(beforeStep.activeAtoms == afterStep.activeAtoms &&
+           beforeStep.activeBlocks == afterStep.activeBlocks,
+           "Heun integration changed adaptive state inside a stage");
+   const auto stepped = download(atomDirection.data(), atomVectors);
+   for(const int oneBasedAtom : afterStep.activeAtoms) {
+      const std::size_t atom = static_cast<std::size_t>(oneBasedAtom - 1);
+      double norm2 = 0.0;
+      for(int xyz = 0; xyz < 3; ++xyz)
+         norm2 += static_cast<double>(stepped[xyz + 3 * atom]) *
+                  static_cast<double>(stepped[xyz + 3 * atom]);
+      require(std::abs(norm2 - 1.0) < (sizeof(real) == sizeof(double) ? 2.0e-12 : 2.0e-5),
+              "GPU Heun integration did not preserve unit directions");
+   }
+
+   runtime.recordFftMilliseconds(0.125);
+   const auto phases = runtime.phaseMetrics();
+   require(phases.atomisticMilliseconds >= 0.0 &&
+           phases.coarseMilliseconds >= 0.0 &&
+           phases.interfaceMilliseconds >= 0.0 &&
+           phases.selectorMilliseconds >= 0.0 &&
+           phases.compactionMilliseconds >= 0.0 &&
+           phases.integrationMilliseconds >= 0.0 &&
+           std::abs(phases.fftMilliseconds - 0.125) < 1.0e-15,
+           "CG-10 phases are not independently accounted");
+
+   accepted.Free();
+   dipoleField.Free();
+   externalField.Free();
+   coarseField.Free();
+   atomField.Free();
+   atomDirection.Free();
+   runtime.release();
+   require(TensorMemoryTracker::current_device() == baseline,
+           "CG-10 runtime cleanup did not restore tracked device memory");
 }
 
 } // namespace
@@ -216,6 +598,7 @@ int main() {
    require(!runtime.ready(), "runtime remained ready after release");
    require(TensorMemoryTracker::current_device() == baseline,
            "release did not restore device memory accounting");
-   std::cout << "CG-09 GPU adaptive runtime tests passed\n";
+   testKernelParityAndWorkflow();
+   std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
    return 0;
 }

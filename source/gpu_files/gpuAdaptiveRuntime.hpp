@@ -60,6 +60,33 @@ struct GpuAdaptiveRuntimeInput {
    const double* coarseField = nullptr;
    // Fortran order is (channel, block, ensemble).
    const double* channelMomentSum = nullptr;
+
+   // Optional CG-10 short-range operator inventory.  A null atomMoment keeps
+   // the CG-09 storage-only path byte-for-byte unchanged.  Every array uses
+   // the accepted Fortran ordering documented below and is copied during
+   // initialize(), so construction and scratch storage are part of the same
+   // preflight as the topology/runtime arrays.
+   struct KernelInput {
+      const double* atomMoment = nullptr;       // (atom)
+      const int* projectionBlock = nullptr;    // (8,atom), one-based
+      const double* projectionWeight = nullptr;// (8,atom)
+      std::size_t bonds = 0;
+      const int* bondAtom = nullptr;            // (2,bond), one-based
+      const double* bondMatrix = nullptr;       // (3,3,bond), joule
+      std::size_t selectorEdges = 0;
+      const int* selectorEdge = nullptr;        // (2,edge), one-based
+      const double* inverseBlockTranspose = nullptr; // (3,3), m^-1
+      const double* exchangeStiffness = nullptr;     // (3,3), J/m
+      const double* spiralization = nullptr;         // (3,3), J/m^2
+      const int* anisotropyAxisCount = nullptr;      // (block), 0..2
+      const double* anisotropyAxis = nullptr;        // (3,2,block)
+      const double* anisotropyK1 = nullptr;          // (2,block), J/m^3
+      const double* anisotropyK2 = nullptr;          // (2,block), J/m^3
+      double normalizationFloor = 1.0e-12;
+      double magneticMomentSi = 9.2740100783e-24;
+      double gammaPerTs = 0.0;
+      double damping = 0.0;
+   } kernels;
 };
 
 struct GpuAdaptiveDeviceTopology {
@@ -133,9 +160,48 @@ struct GpuAdaptiveCompactionMetrics {
    double deviceMilliseconds = 0.0;        // GPU event interval
 };
 
+struct GpuAdaptiveEnergy {
+   double atomisticBilinearJ = 0.0;
+   double coarseExchangeJ = 0.0;
+   double coarseSpiralizationJ = 0.0;
+   double coarseAnisotropyJ = 0.0;
+   double coarseExternalJ = 0.0;
+   double dipoleJ = 0.0;
+   double totalJ = 0.0;
+};
+
+struct GpuAdaptivePhaseMetrics {
+   double atomisticMilliseconds = 0.0;
+   double coarseMilliseconds = 0.0;
+   double interfaceMilliseconds = 0.0;
+   double selectorMilliseconds = 0.0;
+   double compactionMilliseconds = 0.0;
+   double fftMilliseconds = 0.0;
+   double integrationMilliseconds = 0.0;
+};
+
+struct GpuAdaptiveSelectorPolicy {
+   real refineThreshold = real(0.25);
+   real coarsenThreshold = real(0.10);
+   unsigned int minimumDwellUpdates = 0;
+   unsigned int bufferDilationBlocks = 0;
+};
+
+enum class GpuAdaptiveReconstruction {
+   Aligned = 1,
+   ConstrainedCone = 2
+};
+
+struct GpuAdaptiveReconstructionPolicy {
+   GpuAdaptiveReconstruction scheme = GpuAdaptiveReconstruction::Aligned;
+   real coneAngleRadians = real(0);
+   real resultantTolerance = sizeof(real) == sizeof(double) ? real(1.0e-12) : real(2.0e-5);
+   std::uint64_t globalSeed = 1;
+};
+
 // Owns immutable topology and mutable adaptive state for one GPU simulation
-// lifetime.  It deliberately contains no operator polymorphism: later CG-10
-// kernels consume the compact POD descriptors above.
+// lifetime.  It deliberately contains no operator polymorphism: CG-10
+// kernels consume compact POD descriptors and this owner's tracked storage.
 //
 // Stream ordering: the owner creates one stream before allocation; topology
 // upload, runtime staging, mask rebuilds, and future adaptive kernels are
@@ -170,6 +236,30 @@ public:
    // stream, and measures the localized event synchronization.
    void updateBlockState(const int* blockState, std::size_t count);
 
+   // CG-10 device workflow.  Arrays use (3,atom,ensemble) and
+   // (3,channel,block,ensemble) Fortran ordering.  The FFT field is an
+   // optional already-dispatched all-grid field: adaptive state never changes
+   // its resolution or ownership.
+   bool kernelsReady() const { return kernelsReady_; }
+   void restrictMoments(const real* atomDirection);
+   void evaluateSelectorScores(const real* atomDirection);
+   void proposeSelectorState(const GpuAdaptiveSelectorPolicy& policy,
+                             const unsigned char* hardAtomisticBlockMask = nullptr);
+   void publishProposedState(real* atomDirection,
+                             const GpuAdaptiveReconstructionPolicy& policy,
+                             bool completeIntegrationStep,
+                             const unsigned char* acceptedBlockMask = nullptr);
+   GpuAdaptiveEnergy evaluateHybrid(const real* atomDirection,
+                                    const real* externalCoarseField,
+                                    const real* uniformFftDipoleField,
+                                    real* atomField,
+                                    real* coarseField);
+   void integrateHeun(real timeStepSeconds, real* atomDirection,
+                      const real* externalCoarseField = nullptr,
+                      const real* uniformFftDipoleField = nullptr);
+   void recordFftMilliseconds(double elapsed);
+   const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
+
    bool ready() const { return ready_; }
    std::size_t allocatedBytes() const { return allocatedBytes_; }
    GPU_STREAM_T stream() const { return stream_; }
@@ -186,11 +276,14 @@ private:
    void uploadRuntime(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
    void launchCompaction();
    void refreshDeviceDescriptors();
+   double finishPhase(double& accumulator);
 
    bool ready_ = false;
    bool streamCreated_ = false;
    bool startEventCreated_ = false;
    bool endEventCreated_ = false;
+   bool phaseEventsCreated_ = false;
+   bool kernelsReady_ = false;
    std::size_t allocatedBytes_ = 0;
    std::size_t atoms_ = 0;
    std::size_t blocks_ = 0;
@@ -199,7 +292,10 @@ private:
    GPU_STREAM_T stream_{};
    GPU_EVENT_T updateStart_{};
    GPU_EVENT_T updateEnd_{};
+   GPU_EVENT_T phaseStart_{};
+   GPU_EVENT_T phaseEnd_{};
    GpuAdaptiveCompactionMetrics metrics_{};
+   GpuAdaptivePhaseMetrics phaseMetrics_{};
    std::vector<std::vector<real>> convertedStaging_;
 
    Tensor<int, 1> stagedBlockState_;
@@ -222,6 +318,25 @@ private:
    GpuTensor<real, 1> channelMomentSum_;
    GpuTensor<int, 1> activeAtomList_, activeBlockList_, interfaceAtomList_;
    GpuTensor<unsigned int, 1> workCounts_;
+
+   // CG-10 immutable operator data and preflight-visible scratch.
+   std::size_t bonds_ = 0;
+   std::size_t selectorEdges_ = 0;
+   real normalizationFloor_ = real(0);
+   real magneticMomentSi_ = real(0);
+   real gammaPerTs_ = real(0);
+   real damping_ = real(0);
+   GpuTensor<real, 1> atomMoment_;
+   GpuTensor<int, 1> projectionBlock_, bondAtom_, selectorEdge_;
+   GpuTensor<real, 1> projectionWeight_, bondMatrix_;
+   GpuTensor<real, 1> inverseBlockTranspose_, exchangeStiffness_, spiralization_;
+   GpuTensor<int, 1> anisotropyAxisCount_;
+   GpuTensor<real, 1> anisotropyAxis_, anisotropyK1_, anisotropyK2_;
+   GpuTensor<real, 1> ghostDirection_, projectionNorm_, atomFieldScratch_;
+   GpuTensor<real, 1> coarseFieldScratch_, predictorAtom_, predictorCoarse_;
+   GpuTensor<real, 1> initialAtomField_, initialCoarseField_, predictorCoarseField_;
+   GpuTensor<real, 1> energyTerms_;
+   GpuTensor<unsigned char, 1> acceptedBlockMask_;
 
    GpuAdaptiveDeviceTopology deviceTopology_{};
    GpuAdaptiveDeviceRuntime deviceRuntime_{};

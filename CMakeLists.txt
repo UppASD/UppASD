@@ -969,9 +969,10 @@ if(BUILD_TESTING)
    # do not recompile a driver from Python/nvcc.  It exercises the complete
    # Builder A tensor upload, batched kernel R2C, and stored-spectrum contract.
    if(USE_CUDA OR USE_HIP)
-      # CG-09 immutable topology transfer, mutable block/channel storage,
-      # compact work scheduling, measured block-mask synchronization, and
-      # cleanup accounting on the active CUDA/HIP backend.
+      # CG-09/CG-10 immutable topology transfer, mutable block/channel
+      # storage, compact work scheduling, tensor/interface/adaptive parity,
+      # measured phase boundaries, and cleanup accounting on the active
+      # CUDA/HIP backend.
       add_executable(gpu_adaptive_runtime_tests
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp)
       target_include_directories(gpu_adaptive_runtime_tests PRIVATE
