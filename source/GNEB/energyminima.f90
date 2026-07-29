@@ -40,11 +40,10 @@ contains
    !> Pavel Bessarab
    !-----------------------------------------------------------------------------
    subroutine vpo_min(nHam,every,Natom,Nchmax, &
-      itrmax,OPT_flag,conf_num,Mensemble,Num_macro,plotenergy,  &
-      max_no_constellations,ftol,mass,delta_t,simid,do_lsf,lsf_field, &
+      itrmax,conf_num,Mensemble,Num_macro,plotenergy,  &
+      ftol,mass,delta_t,simid,do_lsf,lsf_field, &
       lsf_interpolate,cell_index,macro_nlistsize,mmom,emom,     &
-      emomM_macro,external_field,maxNoConstl,unitCellType,constlNCoup,              &
-      constellations,constellationsNeighType,energy,emomM,NA,N1,N2,N3,mode,         &
+      emomM_macro,external_field,energy,emomM,NA,N1,N2,N3,mode,         &
       do_mom_legacy)
 
       implicit none
@@ -58,12 +57,10 @@ contains
       integer, intent(in) :: Natom        !< Number of atoms in system
       integer, intent(in) :: Nchmax       !< Max number of chemical components on each site in cell
       integer, intent(in) :: itrmax       !< Maximum number of iterations
-      logical, intent(in) :: OPT_flag
       integer, intent(in) :: conf_num     !< number of configurations for LSF
       integer, intent(in) :: Mensemble    !< Number of images in GNEB calculations
       integer, intent(in) :: Num_macro    !< Number of macrocells in the system
       integer, intent(in) :: plotenergy   !< Calculate and plot energy (0/1)
-      integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
       real(dblprec), intent(in) :: ftol               !< Tolerance
       real(dblprec), intent(in) :: mass               !< mass of the point
       real(dblprec), intent(in) :: delta_t            !< timestep
@@ -78,11 +75,6 @@ contains
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment
       real(dblprec), dimension(3,Num_macro,Mensemble), intent(in) :: emomM_macro !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field !< External magnetic field
-      integer, dimension(:), intent(in) :: maxNoConstl
-      integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
 
       ! .. In/out variables
       real(dblprec), intent(inout) :: energy
@@ -113,9 +105,7 @@ contains
       !-------------------------------------------------------------------------
       ! Calculation of the effective field
       call effective_field(Natom,Mensemble,1,nHam,emomM,mmom,    &
-         external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
-         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
-         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro, &
+         external_field,time_external_field,beff,beff1,beff2,energy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
 
       ! Calculation of the total energy
@@ -123,9 +113,7 @@ contains
          conf_num,Mensemble,Natom,Num_macro,1,plotenergy,       &
          0.0_dblprec,delta_t,do_lsf,lsf_field,    &
          lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,      &
-         emomM_macro,external_field,time_external_field,max_no_constellations,      &
-         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,              &
-         constellationsNeighType,energy,NA,N1,N2,N3)
+         emomM_macro,external_field,time_external_field,energy,NA,N1,N2,N3)
 
       ! Storing the energies for the initial and final images
       ! In VPO only the initial and final states are relaxed
@@ -187,9 +175,7 @@ contains
 
          ! Calculation of the effective field
          call effective_field(Natom,Mensemble,1,nHam,emomM,mmom, &
-            external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,energy,Num_macro,      &
+            external_field,time_external_field,beff,beff1,beff2,energy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          call convert_force(Natom,Mensemble,mmom,emom,beff)
@@ -226,8 +212,7 @@ contains
                0.0_dblprec,delta_t,do_lsf,        &
                lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom, &
                emom,emomM,emomM_macro,external_field,time_external_field,           &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
-               constellations,OPT_flag,constellationsNeighType,energy,NA,N1,N2,N3)
+               energy,NA,N1,N2,N3)
 
             write(num,'(i3)') idnint(real(itr,dblprec)/real(itrmax,dblprec)*100.0_dblprec)
             write(num2,'(es16.8E3)') fchkmax*mub/mry

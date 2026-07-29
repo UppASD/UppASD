@@ -125,10 +125,7 @@ contains
 
          if(mod(mstep-1,uc_step)==1.and.uc_tidx<=uc_nstep) then
             !!!AB restruc reinstate later
-            !!!if(adaptive_time_flag.and.deltat_correction_flag) then
-            !!!   adapt_step = mstep+adapt_to_sc_ratio*(sc_step-1) ! Potential adjustment of delta t 
             !!! occuring next time at iteration adapt_ste p
-            !!!   deltat_correction_flag = .false.
             !!!end if
             uc_tidx=uc_tidx+1
             udeltat_corr(uc_tidx) = delta_t ! Save current time step

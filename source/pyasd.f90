@@ -187,8 +187,6 @@ contains
    !!!       !call mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,          &
    !!!       call sweep_q2(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
    !!!          ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
    !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
    !!!       call plot_q(Natom,Mensemble,coord,emom,emomM,mmom,simid)
    !!!    elseif (ipmode=='Z') then
@@ -197,8 +195,6 @@ contains
    !!!       !call sweep_q3(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,    &
    !!!       call sweep_cube(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
    !!!          ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
    !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
    !!!       call plot_cube(Natom,Mensemble,coord,emom,emomM,mmom,simid)
    !!!    elseif (ipmode=='Y') then
@@ -207,8 +203,6 @@ contains
    !!!       call sweep_q3(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
    !!!          !call sweep_cube(Natom,Mensemble,NA,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,ham_inp%do_pd,    &
    !!!       ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,iphfield,    &
-   !!!          OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!          constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
    !!!          emomM_macro,macro_nlistsize,ham_inp%do_anisotropy,simid,q,nq)
    !!!       call plot_q3(Natom,Mensemble,coord,emom,emomM,mmom,simid)
    !!!    elseif (ipmode=='G') then
@@ -278,8 +272,6 @@ contains
    !!!    ! Spin spiral minimization measurement phase
    !!!    call qmc(Natom,Mensemble,NA,N1,N2,N3,coord,ham_inp%do_jtensor,ham_inp%exc_inter,ham_inp%do_dm,     &
    !!!       ham_inp%do_pd,ham_inp%do_biqdm,ham_inp%do_bq,ham_inp%do_chir,ham%taniso,ham%sb,ham_inp%do_dip,emomM,mmom,hfield,&
-   !!!       OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-   !!!       constellations,constellationsNeighType,ham_inp%mult_axis,Num_macro,cell_index,  &
    !!!       emomM_macro,macro_nlistsize,ham_inp%do_anisotropy)
    !!!    call plot_q(Natom, Mensemble, coord, emom, emomM, mmom,simid)
 

@@ -78,7 +78,6 @@ contains
       use QHB
       use Restart
       use macrocells
-      use optimizationRoutines
       use RandomNumbers, only: rng_uniform
       use sd_driver, only : sd_minimal
       use mc_driver, only : mc_minimal
@@ -193,9 +192,7 @@ contains
 
                call effective_field(Natom,Mensemble,1,Natom,sx_emomM(:,:,:,irep),   &
                   sx_mmom(:,:,irep),            &
-                  external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
-                  max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                  constellations,constellationsNeighType,repene(irep),    &
+                  external_field,time_external_field,beff,beff1,beff2,repene(irep),    &
                   Num_macro,cell_index,sx_emomM_macro(:,:,:,irep),macro_nlistsize,  &
                   NA,N1,N2,N3)
 
@@ -334,9 +331,6 @@ contains
 
          !!! call effective_field(Natom,Mensemble,1,Natom, &
          !!!    sx_emomM(:,:,:,irep),sx_mmom(:,:,irep),external_field,                  &
-         !!!    time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,    &
-         !!!    maxNoConstl,unitCellType,constlNCoup,constellations,                    &
-         !!!    constellationsNeighType,repene(irep),Num_macro,cell_index,    &
          !!!    sx_emomM_macro(:,:,:,irep),macro_nlistsize,NA,N1,N2,N3)
 
          call calc_mavrg(Natom,Mensemble,sx_emomM(:,:,:,irep),mavg)

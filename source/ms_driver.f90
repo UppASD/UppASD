@@ -79,8 +79,6 @@ contains
       use AutoCorrelation,       only : autocorr_sample
       use prn_trajectories
       use HamiltonianActions
-      use OptimizationRoutines
-      use AdaptiveTimeStepping
       use MultiscaleDampingBand
       use MultiscaleInterpolation
 
@@ -89,26 +87,15 @@ contains
       !
       implicit none
 
-      ! Adaptive time stepping
-      integer :: i, iprstep, adapt_step, ipstep
-      logical :: deltat_correction_flag, sd_phaseflag
+      integer :: i, iprstep, ipstep
       real(dblprec) :: mavg
       real(dblprec) :: temprescale, temprescalegrad, totenergy
-      ! Adaptive time stepping with spin correlation
 
       ! No spin correlation in the initial phase
-      adapt_step = 0
-      deltat_correction_flag = .true.
-      ! Measurement phase indicator (true here)
-      sd_phaseflag = .true.
 
       ! Loop over initial phases
       do i=1,ipnphase
 
-         ! Adaptive Time Stepping Region
-            if(ip_adaptive_time_flag) then
-            call calculate_omegainit(omega_max, larmor_numrev, ipdelta_t(i))
-           end if
 
          ! Write output to stdout
             if (do_site_ip_damping=='Y') then
@@ -133,19 +120,6 @@ contains
             do_bpulse,sitefld,sitenatomfld)
 
 
-         ! --Optimization Region-- !
-         ! Allocation and initial opt build
-            if(OPT_ON) then
-               call timing(0,'Initial       ','OF')
-               call timing(0,'BuildOptReg   ','ON')
-               call buildOptimizationRegions(na,natom,nHam,Mensemble,ham%max_no_neigh, &
-               atype,emom,mmom,ham%ncoup,ham%nlist,ham%nlistsize,ham%aham,          &
-               cellPosNumNeigh,cos_thr)
-               call timing(0,'BuildOptReg   ','OF')
-               call timing(0,'Initial       ','ON')
-           end if
-
-         ! Adaptive time stepping
            iprstep = 0
            ipstep=1
 
@@ -160,27 +134,12 @@ contains
                   end if
             !Adjust QHB
             
-            ! --Optimization Region-- !
-                  if(OPT_ON) then
-                     if (mod(ipstep,OPT_rebuild_time)==0) then
-                     call timing(0,'Initial       ','OF')
-                     call timing(0,'BuildOptReg   ','ON')
-                     call buildOptimizationRegions(na,natom,nHam,Mensemble,            &
-                          ham%max_no_neigh,atype,emom,mmom,ham%ncoup,ham%nlist,          &
-                          ham%nlistsize,ham%aham, cellPosNumNeigh,cos_thr)
-                     call timing(0,'BuildOptReg   ','OF')
-                     call timing(0,'Initial       ','ON')
-                    end if
-                  end if
-
             ! Apply Hamiltonian to obtain effective field
             call timing(0,'Initial       ','OF')
             call timing(0,'Hamiltonian   ','ON')
             
               call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
-               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-               constellations, constellationsNeighType, totenergy,        &
+               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
             
             call timing(0,'Hamiltonian   ','OF')
@@ -203,18 +162,12 @@ contains
               !    ipdelta_t(i),relaxtime,ipTemp_array(:,i),temprescale,beff,b2eff,  &
               !    thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,  &
               !    mmomi,'N',do_site_ip_damping,ham%nlist,ham%nlistsize,             &
-              !    constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
-              !    constellations,unitCellType,OPT_flag,cos_thr,                     &
-              !    max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
               !    do_fixed_mom,'N',sot_btorque,dampingBand)
 
                call evolve_first_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,iplambda1_array(i,:),  &
                iplambda2_array(i,:),NA,compensate_drift,ipdelta_t(i),relaxtime,            & 
                ipTemp_array(:,i),temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,    &
-               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,ham%nlist,           &
-               ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,          &
-               constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,      &
-               max_no_constellations,do_she,she_btorque,Nred,red_atom_list,         &
+               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,         &
                do_fixed_mom,do_sot,sot_btorque,dampingBand)
 
                !print*, thermal_field
@@ -237,9 +190,7 @@ contains
                   
 
                      call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
-               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-               constellations, constellationsNeighType, totenergy,        &
+               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
                  
                   call timing(0,'Hamiltonian   ','OF')
@@ -250,16 +201,10 @@ contains
               ! call evolve_second_ms(Natom,Mensemble,Landeg,llg,ipSDEalgh,bn,            &
               !    iplambda1_array(i,:),ipdelta_t(i),relaxtime,beff,beff2,b2eff,     &
               !    btorque,emom,emom2,'N',ham%nlist,ham%nlistsize,                   &
-              !    constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
-              !    constellations,unitCellType,OPT_flag,cos_thr,                     &
-              !    max_no_constellations,'N',she_btorque,Nred,red_atom_list,         &
               !    do_fixed_mom,'N',sot_btorque,dampingBand)
 
                call evolve_second_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,iplambda1_array(i,:),    &
-            ipdelta_t(i),relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,              &
-            ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
-            constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
-            max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
+            ipdelta_t(i),relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,do_she,she_btorque,Nred,red_atom_list,            &
             do_fixed_mom,do_sot,sot_btorque,dampingBand)
 
              !if (do_multiscale) then
@@ -339,27 +284,19 @@ contains
       use AutoCorrelation,       only : autocorr_sample, do_autocorr
       use prn_trajectories
       use HamiltonianActions
-      use OptimizationRoutines
-      use AdaptiveTimeStepping
       use MultiscaleDampingBand
       use MultiscaleInterpolation
 
       implicit none
-      logical :: time_dept_flag, deltat_correction_flag
-      integer :: cgk_flag, cgk_flag_p, adapt_step, cr_flag, spt_flag
+      logical :: time_dept_flag
+      integer :: cgk_flag, cgk_flag_p, cr_flag, spt_flag
       integer :: bcgk_flag,cgk_flag_pc
       integer :: scount_pulse, sstep
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
-      ! Used in order to separate between phases in an adaptive time step environment with spin correlation
-      logical :: sd_phaseflag
 
       real(dblprec) :: temprescale, temprescalegrad, totene, totenergy
 
       ! Spin correlation measurements allowed
-      adapt_step = 0
-      deltat_correction_flag = .true.
-      ! Measurement phase indicator (false here)
-      sd_phaseflag = .false.
       call timing(0,'Measurement   ','ON')
 
       ! Flag for G(q) sampling and G(r) calculation
@@ -395,34 +332,16 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
-      ! Adaptive Time Stepping Region
-      if(adaptive_time_flag) then
-         call calculate_omegainit(omega_max, larmor_numrev, delta_t)
-      end if
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
       temprescalegrad=0.0_dblprec
       
 
-      ! --Optimization Region-- !
-      ! Allocation and initial opt build
-
-      if (OPT_ON) then
-         call timing(0,'Hamiltonian   ','OF')
-         call timing(0,'BuildOptReg   ','ON')
-         call buildOptimizationRegions(na,natom,nHam, Mensemble,ham%max_no_neigh,   &
-            atype,emom,mmom,ham%ncoup,ham%nlist,ham%nlistsize,ham%aham,             &
-            cellPosNumNeigh,cos_thr)
-         call timing(0,'BuildOptReg   ','OF')
-         call timing(0,'Hamiltonian   ','ON')
-      end if
-
       ! Initialize cumulant counter
       Navrgcum=0
       ! Perform nstep simulation steps
       ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-      ! Hence, a do while loop has been introduced to allow for adaptive time stepping
       mstep=rstep+1
       !------------------------------------------------------------------------------
       ! If KMC is turned on calculate the initial rate
@@ -471,9 +390,7 @@ contains
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
                   macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
-                  time_external_field,max_no_constellations,maxNoConstl,                   &
-                  unitCellType,constlNCoup,constellations,OPT_flag,                        &
-                  constellationsNeighType,totene,NA,N1,N2,N3)
+                  time_external_field,totene,NA,N1,N2,N3)
             end if
             call timing(0,'Energy        ','OF')
             call timing(0,'Measurement   ','ON')
@@ -528,26 +445,11 @@ contains
             call calculate_spintorques(Natom, Mensemble,lambda1_array,emom,mmom)
          end if
 
-         ! --Optimization Region-- !
-         if (OPT_ON) then
-            if (mod(mstep-rstep,OPT_rebuild_time)==0) then
-               call timing(0,'Hamiltonian   ','OF')
-               call timing(0,'BuildOptReg   ','ON')
-               call buildOptimizationRegions(na,natom,nHam, Mensemble,              &
-                  ham%max_no_neigh,atype,emom,mmom,ham%ncoup,ham%nlist,             &
-                  ham%nlistsize,ham%aham,cellPosNumNeigh,cos_thr)
-               call timing(0,'BuildOptReg   ','OF')
-               call timing(0,'Hamiltonian   ','ON')
-            end if
-         end if
-
          ! Apply Hamiltonian to obtain effective field
          
 
              call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
-               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-               constellations, constellationsNeighType, totenergy,        &
+               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
         
             call dampingBandPreinterpolation(dampingBand,emom)
@@ -566,10 +468,7 @@ contains
             call evolve_first_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,  &
                lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,      &
                temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,    &
-               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,ham%nlist,           &
-               ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,          &
-               constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,      &
-               max_no_constellations,do_she,she_btorque,Nred,red_atom_list,         &
+               emom,emom2,emomM,mmom,mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,         &
                do_fixed_mom,do_sot,sot_btorque,dampingBand)
 
                      
@@ -609,9 +508,7 @@ contains
                !! End of the induced moments treatment
                !---------------------------------------------------------------------
                call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,   &
-               max_no_constellations, maxNoConstl,unitCellType, constlNCoup,        &
-               constellations, constellationsNeighType, totenergy,        &
+               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
             
            
@@ -626,10 +523,7 @@ contains
 
          ! Perform second (corrector) step of SDE solver
          call evolve_second_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
-            delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,              &
-            ham%nlist,ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,   &
-            constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
-            max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
+            delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,do_she,she_btorque,Nred,red_atom_list,            &
             do_fixed_mom,do_sot,sot_btorque,dampingBand)
 
               call multiscaleInterpolateInterfaces()

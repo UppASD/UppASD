@@ -226,18 +226,6 @@
  mcavrg_step             -                            !< Sampling interval for averages
  mcavrg_buff             -                            !< Buffer size for averages
  mompar                 0 , 1 , 2                     !< Parametrization of magnetic moment magnitudes (0=no)
- do_region_optimization                   -           
- region_optimization_rebuild_step         -       
- glob_cos_thr                             -           
- do_printatomclass                        -           
- do_adaptive_timestepping                 -           
- do_ip_adaptive_timestepping              -           
- adaptive_timestep_interval               -           
- ip_adaptive_timestep_interval            -           
- adapt_to_sc_ratio                        -           !< Number of spin correlation sampling periods between consecutive recomputations of delta_t
- larmor_numrev                            -           !< Number of time steps per revolution
- larmor_thr                               -           !< Larmor frequency threshold
- totalsimtime                             -           !< Total simulation time
  do_avrg                           N , Y              !< Measure average magnetization (Y/N)
  do_proj_avrg                      N , A , Y          !< Measure projected averages (Y/A/N)
  do_projch_avrg                    N , Y              !< Measure chemically projected averages (Y/N)

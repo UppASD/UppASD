@@ -71,9 +71,7 @@ contains
          conf_num,Mensemble,stop_atom,Num_macro,start_atom, &
       plotenergy,Temp,delta_t,do_lsf,lsf_field,    &
       lsf_interpolate,real_time_measure,simid,cell_index,macro_nlistsize,mmom,emom,  &
-      emomM,emomM_macro,external_field,time_external_field,max_no_constellations,    &
-      maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                  &
-      constellationsNeighType,totene,NA,N1,N2,N3)
+      emomM,emomM_macro,external_field,time_external_field,totene,NA,N1,N2,N3)
 
       implicit none
 
@@ -108,21 +106,6 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field !< External time-dependent magnetic field
       ! .. Output Variables
       real(dblprec), intent(out) :: totene !< Total energy
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !! +++ Optimization Routines Variables +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-      integer, dimension(:), intent(in) :: maxNoConstl
-      integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations
-      logical, intent(in) :: OPT_flag
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
-      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !! +++ End Region +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
       !.. Local scalars
       integer :: ii,kk,inttype
       integer :: i_all, i_stat
@@ -141,9 +124,6 @@ contains
       real(dblprec), dimension(:,:,:), allocatable :: site_energy
 
       !.. Executable statements
-      if(OPT_flag) call pre_optimize(Natom,Mensemble,max_no_constellations,maxNoConstl,&
-         constellations,constlNCoup,beff1_constellations,constellationsNeighType)
-
       ! Set the values of all the arrays equal to zero for initialization
       call reset_arrays()
 
@@ -229,8 +209,7 @@ contains
                if(ham_inp%do_jtensor/=1) then
                   ! Heisenberg exchange term
                   if(ham_inp%exc_inter=='N') then
-                     call heisenberg_field(ii,kk,beff_xc,Natom,Mensemble,OPT_flag,&
-                        beff1_constellations,unitCellType,emomM,max_no_constellations)
+                     call heisenberg_field(ii,kk,beff_xc,Natom,Mensemble,emomM)
                      exc=exc+update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
                      if(plotenergy==2) site_energy(1,ii,kk)=update_ene(emomM(1:3,ii,kk),beff_xc,0.5_dblprec)
                   else

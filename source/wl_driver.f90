@@ -55,7 +55,6 @@ contains
       use CalculateFields
       use HamiltonianData
       use macrocells
-      use optimizationRoutines
       use HamiltonianActions
       use WangLandau
       use MonteCarlo_common, only : randomize_spins
@@ -78,9 +77,7 @@ contains
 
          ! Calculate the starting energy
          call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-            external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,wl_totenergy,Num_macro,&
+            external_field,time_external_field,beff,beff1,beff2,wl_totenergy,Num_macro,&
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          !
@@ -127,9 +124,7 @@ contains
 
          ! Calculate the starting energy
          call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-            external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,wl_totenergy,Num_macro,&
+            external_field,time_external_field,beff,beff1,beff2,wl_totenergy,Num_macro,&
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          if(wl_emax.ne.0.0_dblprec.and.wl_emin.ne.0.0_dblprec) then
@@ -187,7 +182,6 @@ contains
       use CalculateFields
       use HamiltonianData
       use macrocells
-      use optimizationRoutines
       use WangLandau
       use HamiltonianActions
       use omp_lib
@@ -299,9 +293,7 @@ contains
       call randomize_spins(Natom,Mensemble,wl_emom,wl_emomM,mmom)
      
       call effective_field(Natom,Mensemble,1,Natom,wl_emomM,mmom,         &
-         external_field,time_external_field,beff,beff1,beff2,OPT_flag,              &
-         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations, &
-         constellationsNeighType,totenergy,Num_macro,cell_index,          &
+         external_field,time_external_field,beff,beff1,beff2,totenergy,Num_macro,cell_index,          &
          emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
       !$omp barrier

@@ -4,9 +4,6 @@
 !!!    !> @author Anders Bergman
 !!!    !-----------------------------------------------------------------------------
 !!!    subroutine mini_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,     &
-!!!       do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
-!!!       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-!!!       constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
 !!!       macro_nlistsize,do_anisotropy)
 !!! 
 !!!       use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
@@ -35,22 +32,6 @@
 !!!       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
 !!!       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
 !!!       character(len=1), intent(in) :: mult_axis
-!!!       !! +++ New variables due to optimization routines +++ !!
-!!!       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-!!!       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
-!!!       integer, dimension(Mensemble), intent(in) :: maxNoConstl
-!!!       ! See OptimizationRoutines.f90 for details on classification
-!!!       integer, dimension(Natom, Mensemble), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-!!!       ! Matrix relating the interatomic exchanges for each atom in the constellation matrix
-!!!       real(dblprec), dimension(ham%max_no_neigh, max_no_constellations,Mensemble), intent(in) :: constlNCoup
-!!!       ! Matrix storing all unit cells belonging to any constellation
-!!!       real(dblprec), dimension(3,max_no_constellations, Mensemble), intent(in) :: constellations
-!!!       ! Optimization flag (1 = optimization on; 0 = optimization off)
-!!!       logical, intent(in) :: OPT_flag
-!!!       ! Matrix storing the type of the neighbours within a given neighbourhood of a constellation; default is 1 outside the neighbourhood region
-!!!       ! The default is to achieve correct indexing. Note here also that constlNCoup will result in a net zero contribution to the Heissenberg exchange term
-!!!       integer, dimension(ham%max_no_neigh,max_no_constellations,Mensemble), intent(in) :: constellationsNeighType
-!!!       ! Internal effective field arising from the optimization of the Heissenberg exchange term
 !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
 !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
 !!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
@@ -323,8 +304,6 @@
 !!!                call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
 !!!                   do_jtensor,do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,&
 !!!                   do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
-!!!                   beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-!!!                   constlNCoup,constellations,constellationsNeighType,mult_axis,         &
 !!!                   energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 !!!                ! Anisotropy + external field to be added
 !!! 
@@ -387,9 +366,6 @@
 !!!    !> @author Anders Bergman
 !!!    !-----------------------------------------------------------------------------
 !!!    subroutine sweep_q(Natom,Mensemble,NA,coord,do_jtensor,exc_inter,do_dm,do_pd,     &
-!!!       do_biqdm,do_bq,do_chir,taniso,sb,do_dip,emomM,mmom,hfield,OPT_flag,           &
-!!!       max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-!!!       constellationsNeighType,mult_axis,Num_macro,cell_index,emomM_macro,           &
 !!!       macro_nlistsize,do_anisotropy,simid)
 !!! 
 !!!       use RandomNumbers, only: rng_uniform,rng_gaussian, use_vsl
@@ -419,22 +395,6 @@
 !!!       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
 !!!       real(dblprec), dimension(3), intent(in) :: hfield !< Constant effective field
 !!!       character(len=1), intent(in) :: mult_axis
-!!!       !! +++ New variables due to optimization routines +++ !!
-!!!       integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-!!!       ! Number of entries (number of unit cells*number of atoms per unit cell) in the constellation matrix per ensemble
-!!!       integer, dimension(Mensemble), intent(in) :: maxNoConstl
-!!!       ! See OptimizationRoutines.f90 for details on classification
-!!!       integer, dimension(Natom, Mensemble), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-!!!       ! Matrix relating the interatomic exchanges for each atom in the constellation matrix
-!!!       real(dblprec), dimension(ham%max_no_neigh, max_no_constellations,Mensemble), intent(in) :: constlNCoup
-!!!       ! Matrix storing all unit cells belonging to any constellation
-!!!       real(dblprec), dimension(3,max_no_constellations, Mensemble), intent(in) :: constellations
-!!!       ! Optimization flag (1 = optimization on; 0 = optimization off)
-!!!       logical, intent(in) :: OPT_flag
-!!!       ! Matrix storing the type of the neighbours within a given neighbourhood of a constellation; default is 1 outside the neighbourhood region
-!!!       ! The default is to achieve correct indexing. Note here also that constlNCoup will result in a net zero contribution to the Heissenberg exchange term
-!!!       integer, dimension(ham%max_no_neigh,max_no_constellations,Mensemble), intent(in) :: constellationsNeighType
-!!!       ! Internal effective field arising from the optimization of the Heissenberg exchange term
 !!!       integer, intent(in) :: Num_macro !< Number of macrocells in the system
 !!!       integer, dimension(Natom), intent(in) :: cell_index !< Macrocell index for each atom
 !!!       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
@@ -591,8 +551,6 @@
 !!!          call effective_field(Natom,Mensemble,countstart+1,countstart+na,         &
 !!!             do_jtensor,do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,&
 !!!             do_dip,emomM,mmom,external_field,time_external_field,beff,beff1,      &
-!!!             beff2,OPT_flag,max_no_constellations,maxNoConstl,unitCellType,        &
-!!!             constlNCoup,constellations,constellationsNeighType,mult_axis,         &
 !!!             energy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 !!! 
 !!!          energy=energy/NA !/mry*mub/NA

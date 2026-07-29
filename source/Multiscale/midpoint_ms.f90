@@ -59,7 +59,6 @@ contains
 
 
  subroutine smodeulermpt_ms(Natom, Mensemble, Landeg,bn, lambda1_array, beff, emom, emom2, emomM, mmom, deltat,thermal_field,dband)
-           !  nlist,nlistsize,constellationsUnitVec2,unitCellType,OPT_flag,cos_thr)
     use Constants
     use RandomNumbers, only : ranv
     implicit none

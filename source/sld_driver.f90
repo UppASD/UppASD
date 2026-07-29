@@ -44,7 +44,6 @@ contains
       use InputData
       use MomentData
       use ChemicalData
-      use OptimizationRoutines
       !use LatticeMeasurements
       use LatticeInputData
       use LatticeFieldData
@@ -59,8 +58,6 @@ contains
 
       implicit none
 
-      !logical :: deltat_correction_flag
-      !integer :: adapt_step
       !integer :: ucgk_flag, ucgk_flag_p, ucr_flag
       integer :: i, ipstep
       real(dblprec) :: temprescale,temprescalegrad
@@ -94,7 +91,6 @@ contains
 
             ! Perform nstep simulation steps
             ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-            ! Hence, a do while loop has been introduced to allow for adaptive time stepping
             !mstep=rstep+1
             !do while (mstep.LE.rstep+nstep) !+1
 
@@ -169,7 +165,6 @@ contains
       use SystemData,           only : atype, coord
       use MomentData
       use ChemicalData
-      use OptimizationRoutines
       use LatticeMeasurements
       use LatticeInputData
       use LatticeFieldData
@@ -211,7 +206,6 @@ contains
 
       ! Perform nstep simulation steps
       ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-      ! Hence, a do while loop has been introduced to allow for adaptive time stepping
       mstep=rstep+1
       do while (mstep.LE.rstep+nstep) !+1
 
@@ -401,11 +395,9 @@ contains
       use Polarization
       use UpdateMoments
       use MicroWaveField
-      use AdaptiveTimeStepping
       use HamiltonianData
       use CalculateFields
       !use AutoCorrelation,      only : autocorr_sample, do_autocorr
-      use optimizationRoutines
       use HamiltonianActions
       use Gradients
       use prn_averages
@@ -435,8 +427,6 @@ contains
       real(dblprec), dimension(ipnphase,Natom) :: lattdampvec
 
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
-      ! Used in order to separate between phases in an adaptive time step environment with spin correlation
-      logical :: sd_phaseflag
 
 
       real(dblprec) :: temprescale, temprescalegrad, dummy, totenergy
@@ -463,11 +453,8 @@ contains
       lattdamptol = 1e-17
 
       ! Spin correlation measurements allowed
-      !adapt_step = 0
-      !deltat_correction_flag = .true.
 
       ! Measurement phase indicator (false here)
-      sd_phaseflag = .false.
       !call timing(0,'Measurement   ','ON')
 
       ! Flag for G(q) sampling and G(r) calculation
@@ -513,9 +500,6 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
-      ! Adaptive Time Stepping Region
-      !if(adaptive_time_flag) then
-      !   call calculate_omegainit(omega_max, larmor_numrev, delta_t)
       !end if
 
       ! Rescaling of temperature according to Quantum Heat bath
@@ -530,22 +514,10 @@ contains
          endif
       endif
 
-      ! --Optimization Region-- !
-      ! Allocation and initial opt build
-      !if (OPT_ON) then
-      !call timing(0,'Hamiltonian   ','OF')
-      !   call timing(0,'BuildOptReg   ','ON')
-      !   call buildOptimizationRegions(na,natom,Mensemble,max_no_neigh,&
-      !        atype,emom,mmom,ncoup,nlist,nlistsize,cellPosNumNeigh,cos_thr)
-      !   call timing(0,'BuildOptReg   ','OF')
-      !   !call timing(0,'Hamiltonian   ','ON')
-      !end if
-
       ! Initialize cumulant counter
       !Navrgcum=0
       ! Perform nstep simulation steps
       ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-      ! Hence, a do while loop has been introduced to allow for adaptive time stepping
       !mstep=rstep+1
 
       ! Loop over initial phases
@@ -595,24 +567,9 @@ contains
                time_external_field=0.0_dblprec
             endif
 
-            ! --Optimization Region-- !
-            if (OPT_ON) then
-               if (mod(mstep-rstep,OPT_rebuild_time)==0) then
-                  !call timing(0,'Hamiltonian   ','OF')
-                  !call timing(0,'BuildOptReg   ','ON')
-                  call buildOptimizationRegions(na,natom,nHam,Mensemble,            &
-                     ham%max_no_neigh,atype,emom,mmom,ham%ncoup,ham%nlist,          &
-                     ham%nlistsize,ham%aham,cellPosNumNeigh,cos_thr)
-                  !call timing(0,'BuildOptReg   ','OF')
-                  !call timing(0,'Hamiltonian   ','ON')
-               end if
-            end if
-
             ! Apply Hamiltonian to obtain effective field
             call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-               external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-               constellations, constellationsNeighType,totenergy,           &
+               external_field,time_external_field,beff,beff1,beff2,totenergy,           &
                Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
             call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,&
@@ -656,10 +613,7 @@ contains
                   iplambda1_array(ii,:),iplambda2_array(ii,:),NA,compensate_drift,  &
                   ipdelta_t(ii),relaxtime,ipTemp_array(:,ii),temprescale,beff,b2eff,&
                   thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,  &
-                  mmomi,stt,do_site_damping,ham%nlist,ham%nlistsize,                &
-                  constellationsUnitVec,constellationsUnitVec2,constellationsMag,   &
-                  constellations,unitCellType,OPT_flag,cos_thr,                     &
-                  max_no_constellations,do_she,she_btorque,Nred,red_atom_list,      &
+                  mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,      &
                   do_sot,sot_btorque)
 
                !If needed, generate stochastic forces
@@ -700,8 +654,6 @@ contains
                ! Apply Hamiltonian to obtain effective field
                call effective_field(Natom,Mensemble,1,Natom, &
                   emomM,mmom,external_field,time_external_field,beff,beff1,beff2,   &
-                  OPT_flag,max_no_constellations,maxNoConstl,unitCellType,          &
-                  constlNCoup,constellations,constellationsNeighType,               &
                   totenergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1, &
                   N2,N3)
 
@@ -722,9 +674,7 @@ contains
             ! SLDTODO before the second call to effective_latticefield performs in practice
             call evolve_second(Natom,Mensemble,Landeg,llg,ipSDEalgh,bn,             &
                iplambda1_array(ii,:),ipdelta_t(II),relaxtime,beff,beff2,b2eff,      &
-               btorque,emom,emom2,stt,ham%nlist,ham%nlistsize,constellationsUnitVec,&
-               constellationsUnitVec2,constellationsMag,constellations,unitCellType,&
-               OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque,Nred,      &
+               btorque,emom,emom2,stt,do_she,she_btorque,Nred,      &
                red_atom_list,do_sot,sot_btorque)
 
             !call timing(0,'Evolution     ','OF')
@@ -844,11 +794,9 @@ contains
       use Polarization
       use UpdateMoments
       use MicroWaveField
-      use AdaptiveTimeStepping
       use HamiltonianData
       use CalculateFields
       use AutoCorrelation,      only : autocorr_sample, do_autocorr
-      use optimizationRoutines
       use HamiltonianActions
       use Gradients
       use prn_averages
@@ -873,8 +821,8 @@ contains
 
       implicit none
 
-      logical :: time_dept_flag, deltat_correction_flag
-      integer :: cgk_flag, cgk_flag_p, adapt_step, cr_flag, cgk_flag_pc, spt_flag, ntmp
+      logical :: time_dept_flag
+      integer :: cgk_flag, cgk_flag_p, cr_flag, cgk_flag_pc, spt_flag, ntmp
       integer :: ucgk_flag, ucr_flag
       integer :: vcgk_flag, vcr_flag
       integer :: lcgk_flag, lcr_flag
@@ -897,8 +845,6 @@ contains
       real(dblprec) :: t_in !< Time (for 3TM)
 
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
-      ! Used in order to separate between phases in an adaptive time step environment with spin correlation
-      logical :: sd_phaseflag
 
       real(dblprec) :: temprescale, temprescalegrad, dummy, totenergy
 
@@ -918,11 +864,6 @@ contains
       lattdamptol = 1e-17
 
       ! Spin correlation measurements allowed
-      adapt_step = 0
-      deltat_correction_flag = .true.
-
-      ! Measurement phase indicator (false here)
-      sd_phaseflag = .false.
       !call timing(0,'Measurement   ','ON')
 
       ! Flag for G(q) sampling and G(r) calculation
@@ -976,10 +917,6 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
-      ! Adaptive Time Stepping Region
-      if(adaptive_time_flag) then
-         call calculate_omegainit(omega_max, larmor_numrev, delta_t)
-      end if
 
       ! Initialize 3TM functionality if enabled 
       if(do_3tm=='Y'.or.do_3tm=='E') then
@@ -988,9 +925,7 @@ contains
          call unify_3tm_params(C1,C2,C3,alat,NA)
          if (do_3tm=='E') then
             call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-               external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-               constellations,constellationsNeighType,totenergy,Num_macro,   &
+               external_field,time_external_field,beff,beff1,beff2,totenergy,Num_macro,   &
                cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
             Temp_s = f_spintemp(Natom,Mensemble,emomM,beff)
             Temp_l = f_iontemp(Natom, Mensemble, mion, vvec)
@@ -1018,22 +953,10 @@ contains
          endif
       endif
 
-      ! --Optimization Region-- !
-      ! Allocation and initial opt build
-      !if (OPT_ON) then
-      !call timing(0,'Hamiltonian   ','OF')
-      !   call timing(0,'BuildOptReg   ','ON')
-      !   call buildOptimizationRegions(na,natom,Mensemble,max_no_neigh,&
-      !        atype,emom,mmom,ncoup,nlist,nlistsize,cellPosNumNeigh,cos_thr)
-      !   call timing(0,'BuildOptReg   ','OF')
-      !   !call timing(0,'Hamiltonian   ','ON')
-      !end if
-
       ! Initialize cumulant counter
       Navrgcum=0
       ! Perform nstep simulation steps
       ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-      ! Hence, a do while loop has been introduced to allow for adaptive time stepping
       mstep=rstep+1
 
       do while (mstep.LE.rstep+nstep) !+1
@@ -1066,24 +989,9 @@ contains
             time_external_field=0.0_dblprec
          endif
 
-         ! --Optimization Region-- !
-         if (OPT_ON) then
-            if (mod(mstep-rstep,OPT_rebuild_time)==0) then
-               !call timing(0,'Hamiltonian   ','OF')
-               !call timing(0,'BuildOptReg   ','ON')
-               call buildOptimizationRegions(na,natom,nHam,Mensemble,               &
-                  ham%max_no_neigh,atype,emom,mmom,ham%ncoup,ham%nlist,             &
-                  ham%nlistsize,ham%aham,cellPosNumNeigh,cos_thr)
-               !call timing(0,'BuildOptReg   ','OF')
-               !call timing(0,'Hamiltonian   ','ON')
-            end if
-         end if
-
          ! Apply Hamiltonian to obtain effective field
          call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-            external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,totenergy,Num_macro,   &
+            external_field,time_external_field,beff,beff1,beff2,totenergy,Num_macro,   &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,   &
@@ -1115,9 +1023,7 @@ contains
                   plotenergy,Temp_s,delta_t,do_lsf, &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,     &
                   macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,       &
-                  time_external_field,max_no_constellations,maxNoConstl,            &
-                  unitCellType,constlNCoup,constellations,OPT_flag,                 &
-                  constellationsNeighType,totenergy,NA,N1,N2,N3)
+                  time_external_field,totenergy,NA,N1,N2,N3)
             end if
          endif
 
@@ -1229,9 +1135,7 @@ contains
          call evolve_first(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,     &
             lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,         &
             temprescale,beff,b2eff,thermal_field,beff2,btorque,field1,field2,emom,  &
-            emom2,emomM,mmom,mmomi,stt,do_site_damping,ham%nlist,ham%nlistsize,     &
-            constellationsUnitVec,constellationsUnitVec2,constellationsMag,         &
-            constellations,unitCellType,OPT_flag,cos_thr,max_no_constellations,     &
+            emom2,emomM,mmom,mmomi,stt,do_site_damping,     &
             do_she,she_btorque,Nred,red_atom_list,do_sot,sot_btorque)
 
          !If needed, generate stochastic forces
@@ -1280,9 +1184,7 @@ contains
 
             ! Apply Hamiltonian to obtain effective field
             call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-               external_field,time_external_field,beff,beff1,beff2,OPT_flag,        &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
-               constellations,constellationsNeighType,totenergy,Num_macro,&
+               external_field,time_external_field,beff,beff1,beff2,totenergy,Num_macro,&
                cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
             call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,&
@@ -1301,10 +1203,7 @@ contains
          ! SLDTODO check how this choice of having the second step of spin evolution occuring
          ! SLDTODO before the second call to effective_latticefield performs in practice
          call evolve_second(Natom, Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,   &
-            delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,ham%nlist,    &
-            ham%nlistsize,constellationsUnitVec,constellationsUnitVec2,             &
-            constellationsMag,constellations,unitCellType,OPT_flag,cos_thr,         &
-            max_no_constellations,do_she,she_btorque,Nred,red_atom_list,            &
+            delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,do_she,she_btorque,Nred,red_atom_list,            &
             do_sot,sot_btorque)
 
          !call timing(0,'Evolution     ','OF')
@@ -1359,10 +1258,6 @@ contains
          endif
 
          !!!AB restruc reinstate later
-         !!!if (adaptive_time_flag) then
-         !!!   call adapt_time_step(Natom,Mensemble,beff,omega_max,larmor_numrev,larmor_thr,rstep,mstep,nstep,totalsimtime,&
-         !!!        thermal_field,do_sc,sc_step,sc_tidx,sd_phaseflag,adapt_time_interval,&
-         !!!        adapt_step,adaptive_time_flag,deltat_correction_flag,delta_t)
          !!!endif
 
          mstep = mstep + 1
@@ -1406,7 +1301,6 @@ contains
       end do ! End loop over simulation steps
 
       !!!AB restruc reinstate later
-      !!!if(do_sc=='C'.and.adaptive_time_flag) then
       !!!   write(*,*) 'Fraction of spin correlation samples relative to input specification:', 100*sc_tidx/sc_nstep, '%'
       !!!end if
 
@@ -1433,8 +1327,7 @@ contains
                plotenergy,Temp_s,delta_t,do_lsf,    &
                lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
                macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
-               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
-               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
+               time_external_field,         &
                totenergy,NA,N1,N2,N3)
          end if
       endif
@@ -1535,15 +1428,13 @@ contains
 !     use LatticeCorrelation
       use HamiltonianActions
       use LatticeMeasurements
-      use AdaptiveTimeStepping
-      use optimizationRoutines
       use LatticeHamiltonianData
       use LatticeHamiltonianActions
 
       implicit none
 
-      logical :: time_dept_flag,deltat_correction_flag
-      integer :: cgk_flag,cgk_flag_p,adapt_step,cr_flag,cgk_flag_pc,spt_flag,ntmp
+      logical :: time_dept_flag
+      integer :: cgk_flag,cgk_flag_p,cr_flag,cgk_flag_pc,spt_flag,ntmp
       integer :: ucgk_flag, ucr_flag
       integer :: vcgk_flag, vcr_flag, lcgk_flag, lcr_flag
       integer :: k, scount_pulse, sstep
@@ -1560,8 +1451,6 @@ contains
       real(dblprec), dimension(Mensemble) :: mm_energy0
 
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
-      ! Used in order to separate between phases in an adaptive time step environment with spin correlation
-      logical :: sd_phaseflag
 
       real(dblprec) :: temprescale, temprescalegrad,dummy, denergy, totenergy
 
@@ -1586,11 +1475,6 @@ contains
       lattdamptol = 1e-17
 
       ! Spin correlation measurements allowed
-      adapt_step = 0
-      deltat_correction_flag = .true.
-
-      ! Measurement phase indicator (false here)
-      sd_phaseflag = .false.
       !call timing(0,'Measurement   ','ON')
 
       ! Flag for G(q) sampling and G(r) calculation
@@ -1643,10 +1527,6 @@ contains
       call calc_external_fields(Natom,Mensemble,hfield,anumb,external_field,     &
          do_bpulse,sitefld,sitenatomfld)
       !
-      ! Adaptive Time Stepping Region
-      if(adaptive_time_flag) then
-         call calculate_omegainit(omega_max, larmor_numrev, delta_t)
-      end if
 
       ! Rescaling of temperature according to Quantum Heat bath
       temprescale=1.0_dblprec
@@ -1681,7 +1561,6 @@ contains
       Navrgcum=0
       ! Perform nstep simulation steps
       ! Observe that Fortran cannot handle a regular do loop if nstep changes dynamically
-      ! Hence, a do while loop has been introduced to allow for adaptive time stepping
       mstep=rstep+1
 
       do while (mstep.LE.rstep+nstep) !+1
@@ -1708,9 +1587,7 @@ contains
          end if
          ! Apply Hamiltonian to obtain effective field
          call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-            external_field,time_external_field,beff,beff1,beff2,OPT_flag,           &
-            max_no_constellations,maxNoConstl,unitCellType,constlNCoup,             &
-            constellations,constellationsNeighType,denergy,Num_macro,     &
+            external_field,time_external_field,beff,beff1,beff2,denergy,Num_macro,     &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
          call effective_bmixedfield(Natom,Mensemble,1,Natom,do_ml,do_mml,   &
@@ -1739,9 +1616,7 @@ contains
                   plotenergy,Temp,delta_t,do_lsf, &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,     &
                   macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,       &
-                  time_external_field,max_no_constellations,maxNoConstl,            &
-                  unitCellType,constlNCoup,constellations,OPT_flag,                 &
-                  constellationsNeighType,totenergy,NA,N1,N2,N3)
+                  time_external_field,totenergy,NA,N1,N2,N3)
             end if
          endif
 
@@ -1877,9 +1752,7 @@ contains
             !if (converged) exit
 
             call effective_field(Natom,Mensemble,1,Natom,emomM,mmom, &
-               external_field,time_external_field,beff,beff1,beff2,OPT_flag,        &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,          &
-               constellations,constellationsNeighType,denergy,Num_macro,  &
+               external_field,time_external_field,beff,beff1,beff2,denergy,Num_macro,  &
                cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
 
             ! Calculate spin transfer torque contributions to the local field
@@ -1988,8 +1861,7 @@ contains
                plotenergy,Temp,delta_t,do_lsf,    &
                lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,        &
                macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,          &
-               time_external_field,max_no_constellations,maxNoConstl,unitCellType,  &
-               constlNCoup,constellations,OPT_flag,constellationsNeighType,         &
+               time_external_field,         &
                totenergy,NA,N1,N2,N3)
          end if
       endif

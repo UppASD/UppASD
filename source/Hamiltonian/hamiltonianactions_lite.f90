@@ -74,21 +74,6 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!!!! +++ Optimization Routines Variables +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!!integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
-      !!!logical, intent(in) :: OPT_flag
-      !!!integer, dimension(:), intent(in) :: maxNoConstl
-      !!!integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      !!!integer, dimension(:,:,:), intent(in) :: constellationsNeighType
-      !!!real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-      !!!real(dblprec), dimension(:,:,:), intent(in) :: constellations
-      !!!real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !!!!! +++ End Region +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
       !.. Local scalars
       integer :: i,k
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
@@ -111,8 +96,6 @@ contains
             !!! if(do_jtensor/=1) then
             !!!    ! Heisenberg exchange term
             !!!    if(exc_inter=='N') then
-            !!!       call heisenberg_field(i, k, beff_s,Natom,Mensemble,OPT_flag,      &
-            !!!          beff1_constellations,unitCellType,emomM,max_no_constellations)
             !!!    else
             !!!       call heisenberg_rescaling_field(i, k, beff_s,Natom,Mensemble,mmom,emomM)
             !!!    endif
@@ -175,8 +158,6 @@ contains
             !!! if(do_jtensor/=1) then
             !!!    ! Heisenberg exchange term
             !!!    if(exc_inter=='N') then
-            !!!       call heisenberg_field(i, k, beff_s,Natom,Mensemble,OPT_flag,      &
-            !!!          beff1_constellations,unitCellType,emomM,max_no_constellations)
             !!!    else
             !!!       call heisenberg_rescaling_field(i, k, beff_s,Natom,Mensemble,mmom,emomM)
             !!!    endif

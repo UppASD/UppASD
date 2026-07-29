@@ -43,8 +43,6 @@ contains
       use InputData, only : Natom, Mensemble, NA, N1, N2, N3
       use MomentData, only : emomM, mmom
       use FieldData, only : external_field, time_external_field, beff, beff1, beff2
-      use optimizationRoutines, only : OPT_flag, max_no_constellations, unitCellType, constlNCoup, &
-         constellations, constellationsNeighType, maxNoConstl
       use macrocells, only : Num_macro, cell_index, emomM_macro, macro_nlistsize
       implicit none
 
@@ -52,17 +50,15 @@ contains
 
 
       call effective_field_full(Natom,Mensemble,1,Natom,   &
-         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
-         max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-         constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+         emomM,mmom,external_field,time_external_field,beff,beff1,beff2,energy,       &
+         Num_macro,cell_index,emomM_macro,    &
          macro_nlistsize,NA,N1,N2,N3)
 
    end subroutine effective_field_bare
       !
    subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
-      emomM,mmom,external_field,time_external_field,beff,beff1,beff2,OPT_flag,      &
-      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-      constellationsNeighType,energy,Num_macro,cell_index,emomM_macro,    &
+      emomM,mmom,external_field,time_external_field,beff,beff1,beff2,energy,         &
+      Num_macro,cell_index,emomM_macro,    &
       macro_nlistsize,NA,N1,N2,N3)
       !
       use Constants, only : mry,mub
@@ -92,30 +88,11 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !! +++ Optimization Routines Variables +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
-      logical, intent(in) :: OPT_flag
-      integer, dimension(:), intent(in) :: maxNoConstl
-      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations
-      real(dblprec), dimension(3,max_no_constellations,Mensemble) :: beff1_constellations
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !! +++ End Region +++ !!
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
       !.. Local scalars
       integer :: i,k
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
 
       !.. Executable statements
-      if(OPT_flag) call pre_optimize(Natom,Mensemble,max_no_constellations,         &
-         maxNoConstl,constellations,constlNCoup,beff1_constellations,               &
-         constellationsNeighType)
-
       ! Initialization of the energy
       energy=0.0_dblprec
       ! Initialization if the effective field
@@ -145,8 +122,7 @@ contains
             if(ham_inp%do_jtensor/=1) then
                ! Heisenberg exchange term
                if(ham_inp%exc_inter=='N') then
-                  call heisenberg_field(i, k, beff_s,Natom,Mensemble,OPT_flag,      &
-                     beff1_constellations,unitCellType,emomM,max_no_constellations)
+                  call heisenberg_field(i, k, beff_s,Natom,Mensemble,emomM)
                else
                   call heisenberg_rescaling_field(i, k, beff_s,Natom,Mensemble,mmom,emomM)
                endif
@@ -205,70 +181,21 @@ contains
 
    end subroutine effective_field_full
 
-   !contains
-
-      !---------------pre_optimize---------------!
-      !> Preoptimization
-      subroutine pre_optimize(Natom,Mensemble,max_no_constellations,maxNoConstl,    &
-         constellations,constlNCoup,beff1_constellations,constellationsNeighType)
-
-         implicit none
-
-         integer, intent(in) :: Natom        !< Number of atoms in system
-         integer, intent(in) :: Mensemble    !< Number of ensembles
-         integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-         integer, dimension(:), intent(in) :: maxNoConstl
-         integer, dimension(:,:,:), intent(in) :: constellationsNeighType
-         real(dblprec), dimension(:,:,:), intent(in) :: constellations
-         real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup
-         real(dblprec), dimension(3,max_no_constellations,Mensemble), intent(inout) :: beff1_constellations
-
-         integer :: k,i,j
-
-         beff1_constellations(:,:,:) = 0.0_dblprec
-         do k=1,Mensemble
-            ! Compute the Heissenberg exchange term for the (representative) unit cells in each constellation
-            do i=1,maxNoConstl(k)
-               ! Computation of the exchange term, going to ham%max_no_neigh since the exchange factor,
-               ! governed by constlNCoup, is zero for iterations beyond the neighbourhood of atom i
-               do j=1,ham%max_no_neigh
-                  beff1_constellations(:,i,k) = beff1_constellations(:,i,k) + &
-                     constlNCoup(j,i,k)*constellations(:,constellationsNeighType(j,i,k),k)
-               end do
-            end do
-         end do
-
-      end subroutine pre_optimize
-
       !---------------heisenberg_field---------------!
       !> Heisenberg
-      subroutine heisenberg_field(i, k, field,Natom,Mensemble,OPT_flag,             &
-         beff1_constellations,unitCellType,emomM,max_no_constellations)
+      subroutine heisenberg_field(i, k, field,Natom,Mensemble,emomM)
          implicit none
 
          integer, intent(in) :: i !< Atom to calculate effective field for
          integer, intent(in) :: k !< Current ensemble
          integer, intent(in) :: Natom        !< Number of atoms in system
          integer, intent(in) :: Mensemble    !< Number of ensembles
-         logical, intent(in) :: OPT_flag
-         integer, intent(in) :: max_no_constellations ! The maximum (global) length of the constellation matrix
-         integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
          real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
-         real(dblprec), dimension(3,max_no_constellations,Mensemble), intent(inout) :: beff1_constellations
          real(dblprec), dimension(3), intent(inout) :: field !< Effective field
 
          integer :: j, ih
 
-         ! WARNING LSF is not working for ASD ham%ncoup set to first configuration only ASK FAN
-         !Exchange term, run optimization or use the standard scheme
-         if(OPT_flag) then
-            do j=1,ham%nlistsize(i)
-               if(unitCellType(i,k).ge.1) then ! If in a constellation
-                  field = field+beff1_constellations(:,unitCellType(i,k),k)
-               endif
-            end do
-         else
-            ih=ham%aHam(i)
+         ih=ham%aHam(i)
 #if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
 !            !$omp simd reduction(+:field)
 #endif
@@ -276,7 +203,6 @@ contains
                !           !DIR$ vector always aligned
                field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
             end do
-         endif
       end subroutine heisenberg_field
 
       !---------------heisenberg_rescaling_field---------------!

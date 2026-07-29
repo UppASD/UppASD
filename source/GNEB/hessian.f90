@@ -33,12 +33,11 @@ contains
    !---------------------------------------------------------------------------------
    subroutine hessian_wrapper(N1,N2,N3,nim,nHam,Natom,do_dm,do_pd,do_bq,do_ring,do_chir, &
       do_dip,do_biqdm,Num_macro,do_jtensor,plotenergy,max_no_neigh,do_anisotropy,   &
-      max_no_dmneigh,max_no_constellations,eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,   &
+      max_no_dmneigh,eig_0,BC1,BC2,BC3,simid,do_lsf,is_afm,   &
       mult_axis,exc_inter,lsf_field,do_hess_sp,do_hess_ini,do_hess_fin,             &
-      lsf_interpolate,OPT_flag,aHam,taniso,nlistsize,dmlistsize,cell_index,         &
+      lsf_interpolate,aham,taniso,nlistsize,dmlistsize,cell_index,         &
       macro_nlistsize,nlist,dmlist,C1,C2,C3,ene0,im_ene,coord,eaniso,kaniso,emomsp, &
-      ncoup,mmom,emomM_macro,dm_vect,external_field,maxNoConstl,unitCellType,       &
-      constellationsNeighType,constlNCoup,constellations,emomM,beff,beff1,beff2,NA, &
+      ncoup,mmom,emomM_macro,dm_vect,external_field,emomM,beff,beff1,beff2,NA, &
       emom)
 
       use HamiltonianActions, only : effective_field
@@ -65,7 +64,6 @@ contains
       integer, intent(in) :: max_no_neigh    !< Calculated maximum of neighbours for exchange
       integer, intent(in) :: do_anisotropy   !< Read anisotropy data (1/0)
       integer, intent(in) :: max_no_dmneigh  !< Calculated number of neighbours with DM interactions
-      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
       real(dblprec), intent(in) :: eig_0  !< Threshold value for "zero" eigenvalue
       character(len=1), intent(in) :: BC1 !< Boundary conditions in x-direction
       character(len=1), intent(in) :: BC2 !< Boundary conditions in y-direction
@@ -80,7 +78,6 @@ contains
       character(len=1), intent(in) :: do_hess_ini  !< Calculate the Hessian at the initial configuration
       character(len=1), intent(in) :: do_hess_fin  !< Calculate the Hessian at the fianl configuration
       character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
-      logical, intent(in) :: OPT_flag !< Optimization flag
       integer, dimension(Natom), intent(in) :: aham      !< Hamiltonian look-up table
       integer, dimension(Natom), intent(in) :: taniso    !< Type of anisotropy (0-2)
       integer, dimension(nHam), intent(in) :: nlistsize  !< Size of neighbour list for Heisenberg exchange couplings
@@ -103,11 +100,6 @@ contains
       real(dblprec), dimension(3,Num_macro,nim), intent(in)    :: emomM_macro    !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,max_no_dmneigh,nHam), intent(in) :: dm_vect !< Dzyaloshinskii-Moriya exchange vector
       real(dblprec), dimension(3,Natom,nim), intent(in)           :: external_field !< External magnetic field
-      integer, dimension(:), intent(in) :: maxNoConstl !< Number of existing entries in for each ensemble in the constellation matrix
-      integer, dimension(:,:), intent(in) :: unitCellType ! Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom's neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup !< Couplings for saved constellations
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. In/out variables
       real(dblprec), dimension(3,Natom,nim), intent(inout) :: emomM    !< Current magnetic moment vector
       real(dblprec), dimension(3,Natom,nim), intent(inout) :: emom    !< Current unit moment vector
@@ -207,8 +199,7 @@ contains
          beff(:,:,1)=0.0_dblprec
          call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:), &
             external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),   &
-            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,      &
-            constellations,constellationsNeighType,denergy,Num_macro,       &
+            denergy,Num_macro,       &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
@@ -229,8 +220,7 @@ contains
          beff(:,:,nim)=0.0_dblprec
          call effective_field(Natom,1,1,Natom,emomM(:,:,nim:),mmom(:,nim:),     &
             external_field(:,:,nim:),tef(:,:,nim:),beff(:,:,nim:),beff1(:,:,nim:),beff2(:,:,nim:), &
-            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,    &
-            constellations,constellationsNeighType,denergy,Num_macro,     &
+            denergy,Num_macro,     &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          call hessian_eigenvalues(nHam,Natom,do_dm,max_no_neigh,max_no_dmneigh,     &
@@ -251,8 +241,7 @@ contains
          ! Calculate effective fields at the saddle point
          call effective_field(Natom,1,1,Natom,emomM(:,:,1:),mmom(:,1:),&
             external_field(:,:,1:),tef(:,:,1:),beff(:,:,1:),beff1(:,:,1:),beff2(:,:,1:),  &
-            OPT_flag,max_no_constellations,maxNoConstl,unitCellType,constlNCoup,     &
-            constellations,constellationsNeighType,denergy,Num_macro,      &
+            denergy,Num_macro,      &
             cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
          ! Save effective fields at the SP

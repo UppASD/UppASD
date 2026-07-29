@@ -266,7 +266,6 @@ contains
       use SimulationData
       use HamiltonianData
       use AutoCorrelation,   only: do_autocorr, allocate_autocorr, autocorr_init
-      use OptimizationRoutines
       use DiaMag
       use ElkGeometry
       use MetaTypes
@@ -482,7 +481,6 @@ contains
       use Prn_Topology, only: skyno, do_proj_skyno
       use Gradients, only : deallocate_gradient_lists
       use LatticeInputData
-      use OptimizationRoutines
       use LatticeHamiltonianData
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
@@ -558,10 +556,6 @@ contains
       if (mode=='L') then
          call allocate_spinice_data(Natom,Mensemble,-1)
          call allocate_vertex_data(-1)
-      end if
-      ! --Optimization Region-- !
-      if(OPT_ON) then
-         call allocateOptimizationStuff(na,natom,Mensemble,.false.)
       end if
       if (stt/='N'.or.skyno=='Y'.or.do_proj_skyno=='Y') then
          call deallocate_gradient_lists()
@@ -642,7 +636,6 @@ contains
       use prn_micromagnetic
       use LatticeInputHandler
       use prn_latticeaverages
-      use OptimizationRoutines
       use latticehamiltonianinit
       use LatticeHamiltonianData
       use prn_latticetrajectories
@@ -705,8 +698,6 @@ contains
       call init_stiffness()
       ! Set defaults for the field printing
       call fields_prn_init()
-      ! Set defaults for Optimization routines
-      call set_opt_defaults(delta_t)
       ! Set input defaults for the correlation
       call correlation_init()
       ! Set input defaults for the correlation
@@ -746,8 +737,6 @@ contains
       call read_parameters_bls(ifileno)
       rewind(ifileno)
       call read_parameters_mwf(ifileno)
-      rewind(ifileno)
-      call read_parameters_opt(ifileno)
       rewind(ifileno)
       call read_parameters_ams(ifileno)
       rewind(ifileno)
@@ -1336,12 +1325,6 @@ contains
          call read_sitefield(Natom,sitenatomfld)
       endif
 
-      ! --Optimization Region-- !
-      if(OPT_flag) then
-         call allocateOptimizationStuff(na,natom,Mensemble,.true.)
-         call getCellPosNumNeigh(Natom, NA, ham%nlistsize, cellPosNumNeigh)
-         OPT_ON=.true.
-      end if
 
       ! Check AMS-flag
       if (do_ams =='Y'.and.ham_inp%do_jtensor.ne.1) then
@@ -1816,8 +1799,6 @@ contains
       use HamiltonianData
       use CalculateFields
       use HamiltonianActions
-      use optimizationRoutines
-      use AdaptiveTimestepping
       use Energy
       use Simulationdata, only : total_energy
 
@@ -1828,9 +1809,7 @@ contains
          plotenergy,Temp,delta_t,do_lsf,        &
          lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
          macro_nlistsize,mmom,emom,emomM,emomM_macro,external_field,              &
-         time_external_field,max_no_constellations,maxNoConstl,                   &
-         unitCellType,constlNCoup,constellations,OPT_flag,                        &
-         constellationsNeighType,total_energy,NA,N1,N2,N3)
+         time_external_field,total_energy,NA,N1,N2,N3)
 
       if(present(outenergy)) outenergy=total_energy
    end subroutine calculate_energy

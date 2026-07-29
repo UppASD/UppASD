@@ -48,10 +48,9 @@ contains
    !---------------------------------------------------------------------------------
    subroutine gneb_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip,itrmax,&
       Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,       &
-      max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
-      mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag,cell_index,            &
-      macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
-      constellationsNeighType,constlNCoup,constellations,tenergy,emomM,rx,&
+      mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
+      mult_axis,exc_inter,lsf_field,lsf_interpolate,cell_index,            &
+      macro_nlistsize,mmom,emom,emomM_macro,external_field,tenergy,emomM,rx,&
       dene,NA,N1,N2,N3,mode,do_mom_legacy)
 
       implicit none
@@ -79,7 +78,6 @@ contains
       integer, intent(in) :: do_jtensor     !< Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
       integer, intent(in) :: plotenergy     !< Calculate and plot energy (0/1)
       integer, intent(in) :: do_anisotropy  !< Read anisotropy data (1/0)
-      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
       real(dblprec), intent(in) :: mass      !< mass of the point
       real(dblprec), intent(in) :: ftol      !< Tolerance
       real(dblprec), intent(in) :: kappa     !< spring constant
@@ -94,17 +92,11 @@ contains
       character(len=1), intent(in) :: lsf_field       !< LSF field contribution (Local/Total)
       character(len=1), intent(in) :: do_mom_legacy   !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: lsf_interpolate !< Interpolate LSF or not
-      logical, intent(in) :: OPT_flag  !< Optimization flag
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,nim), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Num_macro,nim), intent(in) :: emomM_macro    !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,nim), intent(in)     :: external_field !< External magnetic field
-      integer, dimension(:), intent(in) :: maxNoConstl   !< Number of existing entries in for each ensemble in the constellation matrix
-      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom's neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup  !< Couplings for saved constellations
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. In/out variables
       real(dblprec), intent(inout) :: tenergy !< Total energy
       real(dblprec), dimension(3,Natom,nim), intent(inout) :: emom   !< Current unit moment vector
@@ -139,9 +131,7 @@ contains
       print*,'! Calculation of the effective field'
       call timing(0,'Hamiltonian   ','ON')
       call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
-         time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,     &
-         maxNoConstl, unitCellType, constlNCoup, constellations,                     &
-         constellationsNeighType,tenergy,Num_macro,cell_index,            &
+         time_external_field,beff, beff1, beff2,tenergy,Num_macro,cell_index,            &
          emomM_macro,macro_nlistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
@@ -150,9 +140,7 @@ contains
          conf_num,nim,Natom,Num_macro,1,plotenergy,              &
          0.0_dblprec,delta_t,do_lsf,lsf_field,     &
          lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
-         emomM_macro,external_field,time_external_field,max_no_constellations,       &
-         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
-         constellationsNeighType,tenergy,NA,N1,N2,N3)
+         emomM_macro,external_field,time_external_field,tenergy,NA,N1,N2,N3)
 
        u(:) = ene%energy(:)*Natom
 
@@ -320,9 +308,7 @@ contains
          call timing(0,'Hamiltonian   ','ON')
          ! Calculation of the effective field
          call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field, &
-            time_external_field,beff, beff1, beff2,OPT_flag, max_no_constellations,      &
-            maxNoConstl, unitCellType, constlNCoup, constellations,                      &
-            constellationsNeighType, tenergy,Num_macro,cell_index,             &
+            time_external_field,beff, beff1, beff2, tenergy,Num_macro,cell_index,             &
             emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
@@ -332,9 +318,7 @@ contains
             conf_num,nim,Natom,Num_macro,1,plotenergy,               &
             0.0_dblprec,delta_t,do_lsf,lsf_field,      &
             lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,        &
-            emomM_macro,external_field,time_external_field,max_no_constellations,        &
-            maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,                &
-            constellationsNeighType,tenergy,NA,N1,N2,N3)
+            emomM_macro,external_field,time_external_field,tenergy,NA,N1,N2,N3)
 
          u(:) = ene%energy(:)*Natom
 
@@ -504,10 +488,9 @@ contains
    !---------------------------------------------------------------------------------
    subroutine gneb_ci_mep(nim,nHam,Natom,every,do_dm,do_pd,do_bq,do_ring,do_chir,do_dip,&
       itrmax,Nchmax,conf_num,do_biqdm,Num_macro,do_jtensor,plotenergy,do_anisotropy,&
-      max_no_constellations,mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
-      mult_axis,exc_inter,lsf_field,lsf_interpolate,OPT_flag, cell_index,           &
-      macro_nlistsize,mmom,emom,emomM_macro,external_field,maxNoConstl,unitCellType,&
-      constellationsNeighType,constlNCoup,constellations,tenergy,emomM,ci,rx,&
+      mass,ftol,kappa,delta_t,simid,do_lsf,en_zero,fixed_if,  &
+      mult_axis,exc_inter,lsf_field,lsf_interpolate,cell_index,           &
+      macro_nlistsize,mmom,emom,emomM_macro,external_field,tenergy,emomM,ci,rx,&
       dene,NA,N1,N2,N3,mode,do_mom_legacy)
 
       implicit none
@@ -535,7 +518,6 @@ contains
       integer, intent(in) :: do_jtensor      !< Use SKKR style exchange tensor (0=off, 1=on, 2=with biquadratic exchange)
       integer, intent(in) :: plotenergy      !< Calculate and plot energy (0/1)
       integer, intent(in) :: do_anisotropy   !< Read anisotropy data (1/0)
-      integer, intent(in) :: max_no_constellations !< The maximum (global) length of the constellation matrix
       real(dblprec), intent(in) :: mass      !< mass of the point
       real(dblprec), intent(in) :: ftol      !< Tolerance
       real(dblprec), intent(in) :: kappa     !< spring constant
@@ -550,17 +532,11 @@ contains
       character(len=1), intent(in) :: lsf_field     !< LSF field contribution (Local/Total)
       character(len=1), intent(in) :: do_mom_legacy  !< Flag to print/read moments in legacy output
       character(len=1), intent(in) :: lsf_interpolate    !< Interpolate LSF or not
-      logical, intent(in) :: OPT_flag !< Optimization flag
       integer, dimension(Natom), intent(in) :: cell_index    !< Macrocell index for each atom
       integer, dimension(Num_macro), intent(in) :: macro_nlistsize !< Number of atoms per macrocell
       real(dblprec), dimension(Natom,nim), intent(in) :: mmom     !< Magnitude of magnetic moments
       real(dblprec), dimension(3,Num_macro,nim), intent(in) :: emomM_macro    !< The full vector of the macrocell magnetic moment
       real(dblprec), dimension(3,Natom,nim), intent(in)     :: external_field !< External magnetic field
-      integer, dimension(:), intent(in) :: maxNoConstl   !< Number of existing entries in for each ensemble in the constellation matrix
-      integer, dimension(:,:), intent(in) :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      integer, dimension(:,:,:), intent(in) :: constellationsNeighType !< Every constellation atom's neighbour type atoms.  This will tell which values in the constellation to look for during the applyhamiltionian step
-      real(dblprec), dimension(:,:,:), intent(in) :: constlNCoup  !< Couplings for saved constellations
-      real(dblprec), dimension(:,:,:), intent(in) :: constellations  !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. In/out variables
       real(dblprec), intent(inout) :: tenergy !< Total energy
       real(dblprec), dimension(3,Natom,nim), intent(inout) :: emom     !< Current unit moment vector
@@ -595,9 +571,7 @@ contains
       ! Calculation of the effective field
       call timing(0,'Hamiltonian   ','ON')
       call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
-         time_external_field,beff,beff1,beff2,OPT_flag,max_no_constellations,        &
-         maxNoConstl,unitCellType,constlNCoup,constellations,                        &
-         constellationsNeighType,tenergy,Num_macro,cell_index,emomM_macro, &
+         time_external_field,beff,beff1,beff2,tenergy,Num_macro,cell_index,emomM_macro, &
          macro_nlistsize,NA,N1,N2,N3)
       call timing(0,'Hamiltonian   ','OF')
 
@@ -606,9 +580,7 @@ contains
          conf_num,nim,Natom,Num_macro,1,plotenergy,              &
          0.0_dblprec,delta_t,do_lsf,lsf_field,     &
          lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,       &
-         emomM_macro,external_field,time_external_field,max_no_constellations,       &
-         maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,               &
-         constellationsNeighType,tenergy,NA,N1,N2,N3)
+         emomM_macro,external_field,time_external_field,tenergy,NA,N1,N2,N3)
 !!!!!!!!!!!!!!!!!!!
       u(:) = ene%energy(:)*Natom
 
@@ -802,9 +774,7 @@ contains
          ! Calculation of the effective field
          call timing(0,'Hamiltonian   ','ON')
          call effective_field(Natom,nim,1,Natom,emomM,mmom,external_field,&
-            time_external_field,beff, beff1, beff2, OPT_flag, max_no_constellations,    &
-            maxNoConstl,unitCellType, constlNCoup, constellations,                      &
-            constellationsNeighType, tenergy,Num_macro,cell_index,            &
+            time_external_field,beff, beff1, beff2,  tenergy,Num_macro,cell_index,            &
             emomM_macro,macro_nlistsize,NA,N1,N2,N3)
          call timing(0,'Hamiltonian   ','OF')
 
@@ -813,9 +783,7 @@ contains
             conf_num,nim,Natom,Num_macro,1,plotenergy,   &
             0.0_dblprec,delta_t,do_lsf,lsf_field, &
             lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,emom,emomM,   &
-            emomM_macro,external_field,time_external_field,max_no_constellations,   &
-            maxNoConstl,unitCellType,constlNCoup,constellations,OPT_flag,           &
-            constellationsNeighType,tenergy,NA,N1,N2,N3)
+            emomM_macro,external_field,time_external_field,tenergy,NA,N1,N2,N3)
 
          ! Calculate the total energy of the sample (Not per spin)
          u(:) = ene%energy(:)*Natom

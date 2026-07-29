@@ -20,7 +20,6 @@ module Evolution_ms
    use Heun_single
    use Heun_proper
    use RandomNumbers,         only : rannum, ranv
-   use optimizationroutines,  only : modeulermpf_constl,smodeulermpt_constl,invalidationCheck
    use MultiscaleDampingBand, only: DampingBandData
 
    implicit none
@@ -37,9 +36,7 @@ contains
     subroutine evolve_first_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,     &
       lambda2_array,NA,compensate_drift,delta_t,relaxtime,Temp_array,temprescale,   &
       beff,b2eff,thermal_field,beff2,btorque,field1,field2,emom,emom2,emomM,mmom,   &
-      mmomi,stt,do_site_damping,nlist,nlistsize,constellationsUnitVec,              &
-      constellationsUnitVec2,constellationsMag,constellations,unitCellType,OPT_flag,&
-      cos_thr,max_no_constellations,do_she,she_btorque,Nred,red_atom_list,          &
+      mmomi,stt,do_site_damping,do_she,she_btorque,Nred,red_atom_list,          &
       do_fixed_mom,do_sot,sot_btorque,dband)
 
       implicit none
@@ -83,18 +80,6 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emomM  !< Current magnetic moment vector
       type(DampingBandData), intent(in) :: dband !< Damping band info (multiscale)
 
-      ! Optimization used variables
-      integer, intent(in)                            :: max_no_constellations  !< Max number of constellations for all ensembles
-      real(dblprec), intent(in)                      :: cos_thr   !< Cosine similarity threshold
-      logical, intent(in)                            :: OPT_flag  !< Optimization flag
-      integer, dimension(:), intent(in)              :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(:,:), intent(in)            :: nlist  !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:), intent(in)      :: constellationsMag  !< Magnitude of magnetic moments
-      real(dblprec), dimension(:,:,:), intent(in)    :: constellationsUnitVec !< Normalized constellation matrix It is used for efficient cosinus comparisons in evolve step
-      integer, dimension(:,:), intent(inout)         :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec2
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellations  !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
-
       ! .. Local variables
       integer :: ij,i,j,k
       real(dblprec) :: lambdatol = 1d-12
@@ -109,14 +94,6 @@ contains
             end do
          end do
          !$omp end parallel do
-      end if
-      !------------------------------------------------------------------------------
-      ! Move optimization cores
-      !------------------------------------------------------------------------------
-      if (OPT_flag) then
-         call smodeulermpt_constl(max_no_constellations,Mensemble,Landeg,bn,        &
-            lambda1_array,beff2(:,1:max_no_constellations,:),constellationsUnitVec, &
-            constellationsUnitVec2,constellations,constellationsMag,delta_t)
       end if
       !------------------------------------------------------------------------------
       ! Mentink's midpoint solver
@@ -223,21 +200,6 @@ contains
       ! Mentink's Semi-implicit midpoint solver with fixed point iteration
       !------------------------------------------------------------------------------
      
-      !------------------------------------------------------------------------------
-      ! Optimization region
-      !------------------------------------------------------------------------------
-      if(OPT_flag) then
-         !$omp parallel do default(shared) private(ij,i,j)
-         do ij=1,Natom*Mensemble
-            i=mod(ij-1,Natom)+1
-            j=int((ij-1)/Natom)+1
-            ! Invalidation check: Check whether an atom, after randomization and time stepping, has deviated from the threshold value
-            call invalidationCheck(i,j,nlist,nlistsize,constellationsUnitVec,       &
-               unitCellType, cos_thr, emom2)
-         end do
-         !$omp end parallel do
-      end if
-
    end subroutine evolve_first_ms
 
    !----------------------------------------------------------------------------
@@ -246,9 +208,7 @@ contains
    !> Second step of solver, calculates the corrected solution. Only used for SDEalgh=1,5
    !----------------------------------------------------------------------------
    subroutine evolve_second_ms(Natom,Mensemble,Landeg,llg,SDEalgh,bn,lambda1_array,    &
-      delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,nlist,nlistsize,    &
-      constellationsUnitVec,constellationsUnitVec2,constellationsMag,constellations,&
-      unitCellType,OPT_flag,cos_thr,max_no_constellations,do_she,she_btorque,Nred,  &
+      delta_t,relaxtime,beff,beff2,b2eff,btorque,emom,emom2,stt,do_she,she_btorque,Nred,  &
       red_atom_list,do_fixed_mom,do_sot,sot_btorque,dband)
 
       implicit none
@@ -279,19 +239,8 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: emom2       !< Final (or temporary) unit moment vector
       type(DampingBandData), intent(in) :: dband !< Damping band info (multiscale)
 
-      ! Optimization used variables
-      integer, intent(inout)                         :: max_no_constellations  !< Max number of constellations for all ensembles
-      real(dblprec), intent(in)                      :: cos_thr   !< Cosine similarity threshold
-      logical, intent(in)                            :: OPT_flag  !< Optimization flag
-      integer, dimension(:), intent(in)              :: nlistsize !< Size of neighbour list for Heisenberg exchange couplings
-      integer, dimension(:,:), intent(in)            :: nlist  !< Neighbour list for Heisenberg exchange couplings
-      real(dblprec), dimension(:,:), intent(in)      :: constellationsMag  !< Magnitude of magnetic moments
-      integer, dimension(:,:), intent(inout)         :: unitCellType !< Array of constellation id and classification (core, boundary, or noise) per atom
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec !< Normalized constellation matrix It is used for efficient cosinus comparisons in evolve step
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellationsUnitVec2
-      real(dblprec), dimension(:,:,:), intent(inout) :: constellations  !< Saved fixed unit cell configurations, these represent a configuration present in the domain with same configuration of unit cells in the neighborhood
       ! .. Local variables
-      integer                                        :: i,j,k,ij
+      integer                                        :: i,j,k
 
       if(perp=='Y') then
          !$omp parallel do default(shared) private(k,i) collapse(2)
@@ -303,20 +252,6 @@ contains
          !$omp end parallel do
       end if
 
-      !------------------------------------------------------------------------------
-      ! Optimization region
-      !------------------------------------------------------------------------------
-      if (OPT_flag) then
-         call modeulermpf_constl(max_no_constellations,Mensemble,Landeg,bn,         &
-            lambda1_array,beff2(:,1:max_no_constellations,:),constellationsUnitVec, &
-            constellationsUnitVec2,delta_t)
-
-         do k=1,Mensemble
-            do i=1,3
-               constellations(i,:,k) = constellationsUnitVec(i,:,k)*constellationsMag(:,k)
-            end do
-         end do
-      end if
       !------------------------------------------------------------------------------
       ! Mentink's midpoint solver
       !------------------------------------------------------------------------------
@@ -363,22 +298,6 @@ contains
       !   call llgi_evolve_second(Natom,Mensemble,lambda1_array,beff,b2eff,emom,     &
       !      emom2,delta_t,relaxtime,Nred,red_atom_list)
       end if
-      !------------------------------------------------------------------------------
-      ! Optimization region
-      !------------------------------------------------------------------------------
-      if(OPT_flag) then
-         !$omp parallel do default(shared) private(ij,i,j)
-         do ij=1,Natom*Mensemble
-            i=mod(ij-1,Natom)+1
-            j=int((ij-1)/Natom)+1
-            ! Invalidation check: Check whether an atom, after randomization and
-            ! time stepping, has deviated from the threshold value
-            call invalidationCheck(i,j,nlist,nlistsize,constellationsUnitVec2,      &
-               unitCellType,cos_thr,emom2)
-         end do
-         !$omp end parallel do
-      end if
-
    end subroutine evolve_second_ms
 
 

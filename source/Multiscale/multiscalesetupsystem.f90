@@ -75,7 +75,6 @@ contains
     use prn_trajectories,     only : traj_init
     use MagnetizationInit    !only : setup_moment, rotationeuler, magninit, setinitexc, loadrestart
     use Restart
-    use optimizationRoutines
     use MagnetizationInit
     use Measurements
     !use Ams

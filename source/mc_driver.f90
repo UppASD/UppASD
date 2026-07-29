@@ -255,7 +255,6 @@ contains
       use QHB, only : qhb_rescale, do_qhb, qhb_mode
       !use InducedMoments,        only : renorm_ncoup_ind
       use macrocells
-      use optimizationRoutines
       use DemagField
 
       !
@@ -338,8 +337,7 @@ contains
                plotenergy,Temp,1.0_dblprec,do_lsf,    &
                lsf_field,lsf_interpolate,'N',simid,cell_index,macro_nlistsize,mmom,     &
                emom,emomM,emomM_macro,external_field,time_external_field,               &
-               max_no_constellations,maxNoConstl,unitCellType,constlNCoup,              &
-               constellations,OPT_flag,constellationsNeighType,totene,NA,N1,N2,N3)
+               totene,NA,N1,N2,N3)
             call timing(0,'Energy        ','OF')
          endif
 

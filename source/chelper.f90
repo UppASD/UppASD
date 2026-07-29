@@ -45,7 +45,6 @@ module Chelper
    use ChemicalData, only : achtype
    use MetaTypes
    use macrocells
-   use OptimizationRoutines
 
 
    use prn_cudameasurements,   only :  print_observable, print_trajectory
@@ -326,9 +325,7 @@ contains
                   plotenergy,Temp,delta_t,do_lsf,        &
                   lsf_field,lsf_interpolate,real_time_measure,simid,cell_index,            &
                   macro_nlistsize,f_mmom,f_emom,f_emomM,emomM_macro,external_field,              &
-                  time_external_field,max_no_constellations,maxNoConstl,                   &
-                  unitCellType,constlNCoup,constellations,OPT_flag,                        &
-                  constellationsNeighType,totene,NA,N1,N2,N3)
+                  time_external_field,totene,NA,N1,N2,N3)
             end if
          endif
 

@@ -20,7 +20,6 @@ module Evolution_lite
    use Heun_single
    use Heun_proper
    use RandomNumbers,         only : rannum, ranv
-   use optimizationroutines,  only : modeulermpf_constl,smodeulermpt_constl,invalidationCheck
    use InputData, only : perp
 
    implicit none

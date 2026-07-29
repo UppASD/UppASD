@@ -75,7 +75,6 @@ contains
       use RandomNumbers, only: rng_uniform,rng_uniformP,rng_gaussian
       use LSF, only : mc_update_LSF
       use montecarlo_common
-      use optimizationRoutines
       use omp_lib
 
       !

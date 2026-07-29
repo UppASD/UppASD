@@ -52,10 +52,10 @@ OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o ran
 	heun_single.o heun_proper.o midpoint.o sphmidpoint.o llgi.o magnetizationinit.o neighbourmap.o geometry.o printhamiltonian.o \
         latticedata.o latticeinputdata.o latticehamiltoniandata.o ErrorHandling.o stiffness.o diamag.o ams.o setupspinice.o nocuda.o \
 	latticerestart.o prn_latticetrajectories.o prn_latticeaverages.o prn_latticefields.o latticemeasurements.o \
-	latticecorrelation.o temperature.o inputhandler.o latticeinputhandler.o adaptivetimestepping.o \
+	latticecorrelation.o temperature.o inputhandler.o latticeinputhandler.o \
 	latticeinit.o latticeprinthamiltonian.o latticehamiltonianinit.o latticefielddata.o \
 	latticehamiltonianactions.o latticespectra.o verlet.o \
-	optimizationroutines.o hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
+	hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
 	damping.o printinput.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o 0sd.o 
 
 
@@ -84,4 +84,3 @@ distsmall:
 
 clean:
 	rm *.o *.mod
-

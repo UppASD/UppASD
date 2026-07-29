@@ -55,7 +55,6 @@ contains
       use InducedMoments, only : mc_update_ind_mom
       use Constants, only : mub,k_bolt
       use FieldData !,             only : allocation_field_time
-      use OptimizationRoutines
       use AdaptiveTimeStepping
       use HamiltonianActions, only : effective_field
       use InputData, only : NA, N1, N2, N3, demag, ham_inp
@@ -236,9 +235,6 @@ contains
                      !   emomM, emom, mult_axis, iflip_a(i),extfield, do_lsf, k, totfield,exc_inter,do_anisotropy)
                      !call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),do_jtensor,      &
                      !      do_anisotropy,exc_inter,do_dm,do_pd,do_biqdm,do_bq,do_chir,do_dip,emomM,mmom, &
-                     !      external_field,time_external_field,beff,beff1,beff2,OPT_flag,                 &
-                     !      max_no_constellations,maxNoConstl,unitCellType,constlNCoup,constellations,    &
-                     !      constellationsNeighType,mult_axis,henergy,Num_macro,cell_index,emomM_macro, &
                      !      macro_nlistsize,NA,N1,N2,N3)
                      if(do_jtensor==1) then
                         call calculate_efield_tensor(Natom, Mensemble, &
@@ -252,9 +248,6 @@ contains
                         !!! print '(a,3f12.6)', 'HB: ',totfield
                         !!! call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,   &
                         !!!    mmom,            &
-                        !!!    external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
-                        !!!    max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                        !!!    constellations,constellationsNeighType,henergy,    &
                         !!!    Num_macro,cell_index,emomM_macro,macro_nlistsize,  &
                         !!!    NA,N1,N2,N3)
                         !!! totfield = beff(:,iflip_a(i),k)
@@ -278,9 +271,6 @@ contains
                          macro_atom_nlist,emomM_macro,icell,macro_mag_trial,macro_trial,exc_inter,do_anisotropy,do_jtensor)
                       !!!  call effective_field(Natom,Mensemble,iflip_a(i),iflip_a(i),emomM,   &
                       !!!     mmom,            &
-                      !!!     external_field,time_external_field,beff,beff1,beff2,OPT_flag,     &
-                      !!!     max_no_constellations,maxNoConstl,unitCellType,constlNCoup,       &
-                      !!!     constellations,constellationsNeighType,de,    &
                       !!!     Num_macro,cell_index,emomM_macro,macro_nlistsize,  &
                       !!!     NA,N1,N2,N3)
 
