@@ -16,6 +16,7 @@
 #include "gpuAdaptiveRuntime.hpp"
 #include "gpuLatticeConvolutionHamiltonian.hpp"
 #include "gpuDipoleConvolution.hpp"
+#include "gpuHamiltonianCalculations.hpp"
 #include "measurement/gpuMeasurement.hpp"
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
@@ -803,6 +804,10 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
             if(FortranData::adaptive_cone_angle_rad)
                adaptiveReconstructionPolicy.coneAngleRadians =
                   static_cast<real>(*FortranData::adaptive_cone_angle_rad);
+            adaptiveDiagnostics = FortranData::adaptive_diagnostics ?
+               *FortranData::adaptive_diagnostics : 0;
+            adaptiveEnergyJumpLimitJ = FortranData::adaptive_energy_jump_limit_j ?
+               static_cast<double>(*FortranData::adaptive_energy_jump_limit_j) : 0.0;
             gpuAdaptiveRuntime.initialize(adaptiveTopologyInput(), adaptiveRuntimeInput(),
                                           SimParam.N, SimParam.M);
             const auto work = gpuAdaptiveRuntime.downloadWorkSnapshot();
@@ -905,6 +910,53 @@ void GpuSimulation::release() {
                   phase.coarseMilliseconds, phase.interfaceMilliseconds,
                   phase.selectorMilliseconds, phase.compactionMilliseconds,
                   phase.integrationMilliseconds);
+      if(adaptiveDiagnostics > 0) {
+         const auto diagnostic =
+            gpuAdaptiveRuntime.diagnosticSnapshot(gpuLattice.emom.data());
+         std::printf("Gpu: AdaptiveCG resolved diagnostics=%d energy_jump_limit_j=%.16e "
+                     "fft_source_mapping=basis-resolved-to-single-dynamical-channel\n",
+                     adaptiveDiagnostics, adaptiveEnergyJumpLimitJ);
+         std::printf("Gpu: AdaptiveCG final_state values=");
+         for(std::size_t block = 0; block < diagnostic.blockState.size(); ++block)
+            std::printf("%s%d", block == 0 ? "" : ",",
+                        diagnostic.blockState[block]);
+         std::printf("\n");
+         const auto countState = [&](int state) {
+            return static_cast<unsigned long long>(std::count(
+               diagnostic.blockState.begin(), diagnostic.blockState.end(), state));
+         };
+         unsigned long long accepted = 0;
+         for(const auto epoch : diagnostic.transitionEpoch) accepted += epoch;
+         std::printf("Gpu: AdaptiveCG resolution_counts fine=%llu interface=%llu "
+                     "coarse=%llu accepted_transitions=%llu rejected_transitions=0\n",
+                     countState(2), countState(1), countState(0), accepted);
+         std::printf("Gpu: AdaptiveCG last_energy_j atomistic_bilinear=%.16e "
+                     "coarse_exchange=%.16e coarse_spiralization=%.16e "
+                     "coarse_anisotropy=%.16e coarse_external=%.16e "
+                     "coarse_dipole=%.16e total=%.16e\n",
+                     diagnostic.energy.atomisticBilinearJ,
+                     diagnostic.energy.coarseExchangeJ,
+                     diagnostic.energy.coarseSpiralizationJ,
+                     diagnostic.energy.coarseAnisotropyJ,
+                     diagnostic.energy.coarseExternalJ,
+                     diagnostic.energy.dipoleJ, diagnostic.energy.totalJ);
+         std::printf("Gpu: AdaptiveCG last_field_checksums_t atom_sum=%.16e "
+                     "atom_norm2=%.16e coarse_sum=%.16e coarse_norm2=%.16e\n",
+                     diagnostic.atomFieldSumT, diagnostic.atomFieldNorm2T2,
+                     diagnostic.coarseFieldSumT,
+                     diagnostic.coarseFieldNorm2T2);
+         std::printf("Gpu: AdaptiveCG trajectory_checksums direction_sum=%.16e "
+                     "direction_norm2=%.16e\n",
+                     diagnostic.directionSum, diagnostic.directionNorm2);
+         std::printf("Gpu: AdaptiveCG phase_ms field_atom=%.6f field_coarse=%.6f "
+                     "interface=%.6f selector=%.6f compaction=%.6f fft=%.6f "
+                     "integration=%.6f device_bytes=%zu\n",
+                     phase.atomisticMilliseconds, phase.coarseMilliseconds,
+                     phase.interfaceMilliseconds, phase.selectorMilliseconds,
+                     phase.compactionMilliseconds, phase.fftMilliseconds,
+                     phase.integrationMilliseconds,
+                     gpuAdaptiveRuntime.allocatedBytes());
+      }
       gpuAdaptiveRuntime.release();
     }
     gpuHamiltonian.aHam.Free();
@@ -1000,12 +1052,32 @@ void GpuSimulation::updateAdaptiveBlockState(const int* blockState, std::size_t 
                metrics.hostWaitMilliseconds, metrics.deviceMilliseconds);
 }
 
-void GpuSimulation::advanceAdaptiveStep(std::size_t step) {
+void GpuSimulation::advanceAdaptiveStep(
+   std::size_t step, GpuHamiltonianCalculations* hamiltonian) {
    if(!gpuAdaptiveRuntime.ready() || !gpuAdaptiveRuntime.kernelsReady())
       throw std::logic_error("GPU adaptive production step requires a ready CG-10 runtime");
+   GpuAdaptiveFftEvaluator fftEvaluator{};
+   if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
+      fftEvaluator = [this, hamiltonian](const real* direction) {
+         const auto started = std::chrono::steady_clock::now();
+         auto view = hamiltonian->evaluateAdaptiveFftDipole(
+            direction, gpuLattice.mmom,
+            gpuAdaptiveRuntime.deviceTopology(),
+            gpuAdaptiveRuntime.deviceRuntime());
+         ASSERT_GPU(GPU_STREAM_SYNC(
+            ParallelizationHelperInstance.getWorkStream()));
+         const auto stopped = std::chrono::steady_clock::now();
+         gpuAdaptiveRuntime.recordFftMilliseconds(
+            std::chrono::duration<double, std::milli>(
+               stopped - started).count());
+         return view;
+      };
+   }
    gpuAdaptiveRuntime.integrateHeun(
-      static_cast<real>(SimParam.delta_t), gpuLattice.emom.data());
-   gpuAdaptiveRuntime.synchronizeAtomicState(gpuLattice.emom.data());
+      static_cast<real>(SimParam.delta_t), gpuLattice.emom.data(),
+      nullptr, nullptr, fftEvaluator);
+   gpuAdaptiveRuntime.synchronizeAtomicState(
+      gpuLattice.emom.data(), adaptiveReconstructionPolicy);
    if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&
       step % adaptiveUpdateInterval == 0) {
       gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom.data());
@@ -1013,7 +1085,8 @@ void GpuSimulation::advanceAdaptiveStep(std::size_t step) {
       gpuAdaptiveRuntime.proposeSelectorState(adaptiveSelectorPolicy);
       gpuAdaptiveRuntime.publishProposedState(
          gpuLattice.emom.data(), adaptiveReconstructionPolicy, true);
-      gpuAdaptiveRuntime.synchronizeAtomicState(gpuLattice.emom.data());
+      gpuAdaptiveRuntime.synchronizeAtomicState(
+         gpuLattice.emom.data(), adaptiveReconstructionPolicy);
    }
    ASSERT_GPU(GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()));
 }

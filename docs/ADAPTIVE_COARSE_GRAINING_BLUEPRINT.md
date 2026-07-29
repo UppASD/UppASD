@@ -1910,9 +1910,9 @@ input and end-to-end tests; Human for the exposed capability boundary
       and integration workflow.
 - [x] An enabled GPU run does not continue evaluating and integrating the
       complete ordinary atomistic short-range path behind the adaptive path.
-- [ ] CPU/GPU state decisions, fields, per-term energies, transitions, and
+- [x] CPU/GPU state decisions, fields, per-term energies, transitions, and
       trajectories agree for executable-level non-threshold-tie fixtures.
-- [ ] Uniform FFT dipole fields enter atomistic, interface, and coarse
+- [x] Uniform FFT dipole fields enter atomistic, interface, and coarse
       equations exactly once, with the accepted single-channel source
       mapping.
 - [x] Monte Carlo, GNEB, spin-lattice, finite-temperature, unsupported
@@ -1920,7 +1920,7 @@ input and end-to-end tests; Human for the exposed capability boundary
       first integration step.
 - [x] Restart is either serialized with all state listed in section 7.8 or
       explicitly rejected before integration; no partial restart is accepted.
-- [ ] Diagnostics report the resolved configuration, topology/channel counts,
+- [x] Diagnostics report the resolved configuration, topology/channel counts,
       state counts, transition reasons and energy jumps, active-DOF reduction,
       timings, and CPU/device memory.
 - [x] Normal UppASD executable tests cover feature-off, static all-fine,
@@ -1932,7 +1932,7 @@ input and end-to-end tests; Human for the exposed capability boundary
       rather than only successful adaptive allocation.
 - [x] Existing feature-off CPU/GPU, FFT dipole, and μASD regression results
       remain unchanged within their established tolerances.
-- [ ] User-facing input examples run without test-only setup hooks, direct
+- [x] User-facing input examples run without test-only setup hooks, direct
       module calls, or manually staged internal arrays.
 
 **CG-10.5 implementation evidence:** The resolved input and lifecycle contract
@@ -1945,10 +1945,15 @@ reduction. On 2026-07-29 the CUDA production executable cases ran on the
 validation host (without taking the no-device skip), proved compact static
 work and a decreasing adaptive active-atom count, and emitted
 `CG-10.5 GPU production executable tests passed`; the device adaptive-runtime
-test and all 21 CUDA CTests also passed. Boxes requiring measured device
-trajectories/parity, enabled FFT coupling, exhaustive negative fixtures, or
-full timing/energy-jump observability remain open rather than being inferred
-from compilation.
+test and all 21 CUDA CTests also passed. A subsequent seeded non-threshold-tie
+suite compares CPU/GPU ownership states, named field and energy checksums,
+transition counts, and restart trajectories. The production
+`gpu_fft_static_mixed` case exercises `EWALD3D_FFT` through both Heun field
+evaluations and verifies nonzero dipole energy/FFT timing; the device runtime
+oracle separately verifies basis-resolved atomistic, interface, and coarse
+field values and the exactly-once dipole energy. Both ordinary inputs under
+`examples/AdaptiveCoarseGraining` are launched by the executable suite.
+Exhaustive unsupported-capability negative fixtures remain open.
 
 ---
 

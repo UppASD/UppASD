@@ -8,6 +8,7 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 #include "gpuParallelizationHelper.hpp"
+#include "gpuAdaptiveRuntime.hpp"
 
 #include <memory>
 
@@ -102,6 +103,7 @@ public:
    class SetupNeighbourListExchangeTensor;
    class SetupAnisotropy;
    class UpdateMacroMoments;
+   class UpdateAdaptiveMacroMoments;
    template<bool HasDM, bool HasAniso, bool HasTensor, bool Measure>
    class Heisge;
    class HeisgeJijElement;
@@ -120,4 +122,9 @@ public:
    // Calculate "heisge"
    void heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, bool measure,
                bool includeAnisotropy = true);
+   bool hasAdaptiveFftDipole() const;
+   GpuAdaptiveUniformFftField evaluateAdaptiveFftDipole(
+      const real* atomDirection, const GpuTensor<real, 2>& atomMagnitude,
+      const GpuAdaptiveDeviceTopology& adaptiveTopology,
+      const GpuAdaptiveDeviceRuntime& adaptiveRuntime);
 };

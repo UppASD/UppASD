@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -27,6 +28,31 @@ def metric(output: str, name: str) -> int:
         raise AssertionError(f"missing {name} in output\n{output}")
     return int(match.group(1))
 
+
+def float_metric(output: str, name: str) -> float:
+    matches = re.findall(
+        rf"{re.escape(name)}=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?)",
+        output,
+    )
+    if not matches:
+        raise AssertionError(f"missing {name} in output\n{output}")
+    return float(matches[-1])
+
+
+def final_state(output: str) -> list[int]:
+    matches = re.findall(
+        r"(?:resolution_state label=final step=\d+|final_state) values=([0-9,\-]+)",
+        output,
+    )
+    if not matches:
+        raise AssertionError(f"missing final adaptive state\n{output}")
+    return [int(value) for value in matches[-1].split(",")]
+
+
+def close(reference: float, candidate: float, relative: float, absolute: float) -> bool:
+    return math.isclose(reference, candidate, rel_tol=relative, abs_tol=absolute)
+
+
 def restart_state(case: Path) -> list[list[float]]:
     restart = next(case.glob("restart.*.out"))
     state: list[list[float]] = []
@@ -44,6 +70,7 @@ def main() -> None:
     args = parser.parse_args()
     binary = args.binary.resolve()
     root = Path(__file__).with_name("e2e")
+    examples = Path(__file__).resolve().parents[2] / "examples" / "AdaptiveCoarseGraining"
 
     off = run_case(binary, root / "feature_off")
     assert off.returncode == 0, off.stdout
@@ -84,6 +111,25 @@ def main() -> None:
     assert bad_temp.returncode != 0
     assert "Temp/do_qhb/do_3tm" in bad_temp.stdout
 
+    parity_cpu: dict[str, str] = {}
+    for mode in ("static", "adaptive"):
+        name = f"parity_{mode}_cpu"
+        result = run_case(binary, root / name)
+        assert result.returncode == 0, f"{name}\n{result.stdout}"
+        assert "last_energy_j atomistic_bilinear=" in result.stdout
+        assert "last_field_checksums_t atom_sum=" in result.stdout
+        assert "trajectory_checksums direction_sum=" in result.stdout
+        parity_cpu[mode] = result.stdout
+    assert abs(float_metric(parity_cpu["static"], "direction_sum")) < 40.0
+    assert metric(parity_cpu["adaptive"], "accepted_transitions") > 0
+
+    for name in ("static_mixed", "adaptive"):
+        result = run_case(binary, examples / name)
+        assert result.returncode == 0, f"example {name}\n{result.stdout}"
+        assert "AdaptiveCG: capability accepted" in result.stdout
+        assert "AdaptiveCG: last_energy_j" in result.stdout
+    print("CG-10.5 user-facing input examples passed")
+
     if args.gpu_binary:
         gpu_binary = args.gpu_binary.resolve()
         gpu_outputs: dict[str, str] = {}
@@ -106,6 +152,61 @@ def main() -> None:
             ]
             assert 0 < static_active < 48
             assert len(adaptive_counts) == 2 and adaptive_counts[1] < adaptive_counts[0]
+            for mode in ("static", "adaptive"):
+                name = f"parity_{mode}_gpu"
+                result = run_case(gpu_binary, root / name)
+                assert result.returncode == 0, f"{name}\n{result.stdout}"
+                assert "Gpu: AdaptiveCG last_energy_j" in result.stdout
+                assert "Gpu: AdaptiveCG last_field_checksums_t" in result.stdout
+                cpu = parity_cpu[mode]
+                gpu = result.stdout
+                assert final_state(cpu) == final_state(gpu), (
+                    f"{mode} CPU/GPU state decisions differ\n"
+                    f"CPU {final_state(cpu)}\nGPU {final_state(gpu)}"
+                )
+                for key in (
+                    "atomistic_bilinear",
+                    "coarse_exchange",
+                    "coarse_spiralization",
+                    "coarse_anisotropy",
+                    "coarse_external",
+                    "coarse_dipole",
+                    "total",
+                ):
+                    cpu_key = "last_total_energy_j" if key == "total" else key
+                    reference = float_metric(cpu, cpu_key)
+                    candidate = float_metric(gpu, key)
+                    assert close(reference, candidate, 5.0e-4, 2.0e-24), (
+                        f"{mode} CPU/GPU {key} energy differs: "
+                        f"{reference} vs {candidate}"
+                    )
+                for key in ("atom_sum", "atom_norm2", "coarse_sum", "coarse_norm2"):
+                    reference = float_metric(cpu, key)
+                    candidate = float_metric(gpu, key)
+                    assert close(reference, candidate, 8.0e-4, 2.0e-6), (
+                        f"{mode} CPU/GPU {key} field checksum differs: "
+                        f"{reference} vs {candidate}"
+                    )
+                cpu_state = restart_state(root / f"parity_{mode}_cpu")
+                gpu_state = restart_state(root / f"parity_{mode}_gpu")
+                assert len(cpu_state) == len(gpu_state) == 48
+                assert max(
+                    abs(reference - candidate)
+                    for reference_row, candidate_row in zip(cpu_state, gpu_state)
+                    for reference, candidate in zip(reference_row, candidate_row)
+                ) <= 8.0e-5
+                if mode == "adaptive":
+                    assert metric(cpu, "accepted_transitions") == metric(
+                        gpu, "accepted_transitions"
+                    )
+            fft = run_case(gpu_binary, root / "gpu_fft_static_mixed")
+            assert fft.returncode == 0, f"gpu_fft_static_mixed\n{fft.stdout}"
+            assert "EWALD3D_FFT production field/energy operator ready" in fft.stdout
+            assert abs(float_metric(fft.stdout, "coarse_dipole")) > 0.0
+            assert float_metric(fft.stdout, "fft") > 0.0
+            assert final_state(fft.stdout) == final_state(parity_cpu["static"])
+            print("CG-10.5 adaptive uniform FFT dipole production coupling passed")
+            print("CG-10.5 CPU/GPU state-field-energy-transition-trajectory parity passed")
             print("CG-10.5 GPU production executable tests passed")
     print("CG-10.5 production executable tests passed")
 

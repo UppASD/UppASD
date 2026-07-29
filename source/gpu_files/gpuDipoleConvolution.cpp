@@ -673,6 +673,13 @@ const GpuDipoleFftLayout& GpuDipoleConvolution::fftLayout() const {
    return layout;
 }
 
+const real* GpuDipoleConvolution::devicePaddedField() const {
+   if(!initiated || !kernel_ready)
+      throw std::runtime_error(
+         "GPU dipole device field requested before a ready convolution");
+   return fields_real.data();
+}
+
 void GpuDipoleConvolution::packMacroMoments(const GpuTensor<real, 3>& macro_moments) {
    if(!initiated) throw std::runtime_error("GPU dipole FFT pack requested before initialization");
    const std::size_t expected = 3 * layout.active_macros * desc.ensembles;

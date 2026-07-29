@@ -11,6 +11,8 @@
 #include "gpuAdaptiveRuntime.hpp"
 #include "real_type.h"
 
+class GpuHamiltonianCalculations;
+
 class GpuSimulation {
 private:
     Flag Flags; //those are constants
@@ -32,6 +34,8 @@ private:
     unsigned int adaptiveUpdateInterval = 1;
     GpuAdaptiveSelectorPolicy adaptiveSelectorPolicy{};
     GpuAdaptiveReconstructionPolicy adaptiveReconstructionPolicy{};
+    int adaptiveDiagnostics = 0;
+    double adaptiveEnergyJumpLimitJ = 0.0;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
@@ -89,7 +93,8 @@ public:
     void release();            // frees gpu matrices
     void updateAdaptiveBlockState(const int* blockState, std::size_t count);
     bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
-    void advanceAdaptiveStep(std::size_t step);
+    void advanceAdaptiveStep(std::size_t step,
+                             GpuHamiltonianCalculations* hamiltonian = nullptr);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

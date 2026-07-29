@@ -349,8 +349,8 @@ void testKernelParityAndWorkflow() {
 
    const auto fineField = download(atomField.data(), atomVectors);
    for(std::size_t atom = 2; atom <= 5; ++atom)
-      require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) - 0.8) < tolerance,
-              "GPU compact atomistic field differs from the CPU unique-pair reference");
+      require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) - 0.9) < tolerance,
+              "GPU atomistic/interface field does not contain the FFT dipole exactly once");
    const auto blockField = download(coarseField.data(), coarseVectors);
    for(const std::size_t block : {std::size_t(0), std::size_t(3)}) {
       require(std::abs(static_cast<double>(blockField[3 * block]) - 0.25) < tolerance,
@@ -364,6 +364,48 @@ void testKernelParityAndWorkflow() {
                  tolerance,
               "GPU field fails the CPU energy directional-derivative fixture");
    }
+
+   GpuTensor<real, 1> basisResolvedDipole;
+   basisResolvedDipole.Allocate(
+      3 * KernelFixture::basis * KernelFixture::blocks);
+   std::vector<double> hostBasisDipole(
+      3 * KernelFixture::basis * KernelFixture::blocks, 0.0);
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block) {
+      hostBasisDipole[block + KernelFixture::blocks * 2] = 0.1;
+      hostBasisDipole[
+         block + KernelFixture::blocks * (2 + 3)] = 0.3;
+   }
+   upload(basisResolvedDipole.data(), deviceVector(hostBasisDipole));
+   GpuAdaptiveUniformFftField basisView{};
+   basisView.paddedField = basisResolvedDipole.data();
+   basisView.activeN1 = KernelFixture::blocks;
+   basisView.activeN2 = 1;
+   basisView.activeN3 = 1;
+   basisView.fftN1 = KernelFixture::blocks;
+   basisView.fftN2 = 1;
+   basisView.fftCells = KernelFixture::blocks;
+   basisView.basis = KernelFixture::basis;
+   basisView.prefactorT = real(2);
+   const auto basisEnergy = runtime.evaluateHybrid(
+      atomDirection.data(), externalField.data(), nullptr,
+      atomField.data(), coarseField.data(), &basisView);
+   require(std::abs(basisEnergy.dipoleJ + 1.6) < 5.0 * tolerance,
+           "basis-resolved FFT dipole energy was not counted exactly once");
+   const auto basisAtomField = download(atomField.data(), atomVectors);
+   for(std::size_t atom = 2; atom <= 5; ++atom) {
+      const double expected = atom % 2 == 0 ? 1.0 : 1.4;
+      require(std::abs(
+                 static_cast<double>(basisAtomField[2 + 3 * atom]) -
+                 expected) < 5.0 * tolerance,
+              "basis-resolved FFT field did not enter an atomistic/interface equation exactly once");
+   }
+   const auto basisCoarseField = download(coarseField.data(), coarseVectors);
+   for(const std::size_t block : {std::size_t(0), std::size_t(3)})
+      require(std::abs(
+                 static_cast<double>(basisCoarseField[2 + 3 * block]) +
+                 1.6) < 5.0 * tolerance,
+              "basis-resolved FFT field did not enter the coarse equation exactly once");
+   basisResolvedDipole.Free();
 
    hostAtom[0] = 1.0;
    hostAtom[2] = 0.0;

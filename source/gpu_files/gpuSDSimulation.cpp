@@ -289,8 +289,14 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       printMdStatus(mstep, gpuSim);
 
       if(gpuSim.adaptiveEnabled()) {
-         gpuSim.advanceAdaptiveStep(mstep);
+         gpuSim.advanceAdaptiveStep(mstep, &hamCalc);
          stopwatch.add("adaptive coarse graining");
+         // The legacy moment updater swaps emom/emom2 after every step.
+         // Adaptive Heun advances emom in place, so mirror the completed
+         // state before that swap and let the updater refresh emomM normally.
+         gpuSim.gpuLattice.emom2.copy_async(
+            gpuSim.gpuLattice.emom,
+            ParallelizationHelperInstance.getWorkStream());
       } else {
          // Perform first step of SDE solver
          integrator.evolveFirst(gpuSim.gpuLattice);

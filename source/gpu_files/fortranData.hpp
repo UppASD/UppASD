@@ -174,6 +174,8 @@ public:
    static unsigned int* adaptive_buffer_dilation;
    static int* adaptive_reconstruction_scheme;
    static real* adaptive_cone_angle_rad;
+   static real* adaptive_energy_jump_limit_j;
+   static int* adaptive_diagnostics;
    
 
    static unsigned int* nq;
@@ -393,7 +395,7 @@ public:
       unsigned int* update_interval, real* refine_threshold,
       real* coarsen_threshold, unsigned int* minimum_dwell,
       unsigned int* buffer_dilation, int* reconstruction_scheme,
-      real* cone_angle_rad);
+      real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics);
     static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

@@ -40,11 +40,12 @@ either runtime is allocated.
 The setup diagnostic names the offending keyword or capability when it
 rejects Monte Carlo, GNEB, spin-lattice or other modes; initial-phase or
 restart input; stochastic/finite-temperature dynamics; DMI, tensor exchange,
-anisotropy, dipole, external/time-dependent fields, sparse/reduced/fixed
-moments, energy-output paths not yet connected to hybrid accounting,
-nonperiodic or explicit-device geometry, multiple channels, or heterogeneous
-Landé/damping data. FFT dipole coupling is intentionally outside this first
-production boundary rather than silently omitted.
+anisotropy, legacy `do_dip`, external/time-dependent fields,
+sparse/reduced/fixed moments, energy-output paths not yet connected to hybrid
+accounting, nonperiodic or explicit-device geometry, multiple channels, or
+heterogeneous Landé/damping data. The GPU periodic path accepts
+`gpu_dipole_mode EWALD3D_FFT`; CPU adaptive runs and `OPEN_FFT` remain outside
+this periodic production boundary and are rejected explicitly.
 
 The ordinary text `inpsd.dat` reader is the runtime input frontend. It maps
 every CG keyword to `adaptive_cg_config_t`. JSON/YAML files in the repository
@@ -67,12 +68,57 @@ by ordinary measurements and output. GPU arrays remain alive through
 preflight and upload; the C staging sentinel is cleared immediately after the
 GPU owner has copied them.
 
+## Field and energy ownership
+
+Short-range scalar exchange bonds are owned once: a bond touching an
+atomistic/interface block is evaluated by the atomistic operator with
+projected coarse ghosts, while wholly coarse stencil terms are evaluated by
+the coarse tensor operator. The reported atomistic-bilinear and coarse
+exchange/spiralization/anisotropy/external terms therefore form one hybrid
+total rather than overlapping atomistic and continuum totals.
+
+`EWALD3D_FFT` is deliberately independent of that short-range ownership mask.
+At each predictor and corrector evaluation, the production FFT owner reduces
+the current atomic moment vectors to the uniform basis-resolved macro grid
+and convolves it. For the accepted single dynamical FM channel:
+
+- atomistic and interface atoms receive their basis channel's field once;
+- a coarse block receives the magnetic-moment-weighted basis-field average
+  in its one dynamical equation once;
+- dipole energy uses `-1/2 mu_B sum_i mu_i m_i dot B_i`, with actual atomic
+  directions in atomistic/interface blocks and the coarse channel direction
+  as the source in coarse blocks.
+
+The field prefactor is applied exactly once when the padded convolution field
+enters adaptive equations. The adaptive mask never changes FFT grid
+resolution or drops a requested dipole interaction.
+
+## Diagnostics
+
+`cg_diagnostics` levels 1 through 3 report the resolved operator, mask,
+selector, reconstruction, thresholds/cadence, block topology, basis-to-FFT
+and single-channel mapping, initial/final ownership counts, interface and
+active work, and owned CPU/device bytes. Step/summary output additionally
+reports accepted and rejected transition counts, transition selector reason,
+before/after/jump energies on the CPU transition path, named hybrid energy
+terms, atom/coarse field checksums, trajectory checksums, and accumulated
+field, integration, reconstruction, selector, compaction, and FFT timings.
+Level 0 suppresses these adaptive reports.
+
 ## Executable evidence
 
 `tests/coarse_graining/run_production_e2e.py` launches the normal binary with
 real `inpsd.dat` files for feature-off, all-fine, all-coarse, static mixed,
 adaptive transition, invalid-block, CUDA/HIP static-mixed, and CUDA/HIP
-adaptive cases. CPU assertions compare active updates and prove that mixed
-and coarse modes reduce short-range/integration work. GPU cases assert
-compact active counts and are skipped only when the compiled backend reports
-that no device is present.
+adaptive cases. Nonuniform seeded CPU/GPU fixtures compare state decisions,
+per-term energies, atom/coarse field checksums, transition counts, and final
+restart trajectories. A GPU `EWALD3D_FFT` mixed-state fixture proves that the
+production convolution contributes a nonzero adaptive dipole energy and FFT
+timing. CPU assertions compare active updates and prove that mixed and coarse
+modes reduce short-range/integration work. GPU cases assert compact active
+counts and are skipped only when the compiled backend reports that no device
+is present.
+
+The ordinary inputs in `examples/AdaptiveCoarseGraining` cover a static mixed
+mask and adaptive MAX_ANGLE selection. They contain no test-only hooks or
+manually staged arrays and are executed by the same e2e test.

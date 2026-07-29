@@ -124,6 +124,8 @@ unsigned int* FortranData::adaptive_minimum_dwell = nullptr;
 unsigned int* FortranData::adaptive_buffer_dilation = nullptr;
 int* FortranData::adaptive_reconstruction_scheme = nullptr;
 real* FortranData::adaptive_cone_angle_rad = nullptr;
+real* FortranData::adaptive_energy_jump_limit_j = nullptr;
+int* FortranData::adaptive_diagnostics = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -562,6 +564,8 @@ void FortranData::clearAdaptivePointers() {
    adaptive_buffer_dilation = nullptr;
    adaptive_reconstruction_scheme = nullptr;
    adaptive_cone_angle_rad = nullptr;
+   adaptive_energy_jump_limit_j = nullptr;
+   adaptive_diagnostics = nullptr;
 }
 
 void FortranData::setAdaptiveKernelPointers(
@@ -576,7 +580,7 @@ void FortranData::setAdaptiveKernelPointers(
    unsigned int* update_interval, real* refine_threshold,
    real* coarsen_threshold, unsigned int* minimum_dwell,
    unsigned int* buffer_dilation, int* reconstruction_scheme,
-   real* cone_angle_rad) {
+   real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    adaptive_atom_moment = atom_moment;
    adaptive_projection_block = projection_block;
    adaptive_projection_weight = projection_weight;
@@ -604,6 +608,8 @@ void FortranData::setAdaptiveKernelPointers(
    adaptive_buffer_dilation = buffer_dilation;
    adaptive_reconstruction_scheme = reconstruction_scheme;
    adaptive_cone_angle_rad = cone_angle_rad;
+   adaptive_energy_jump_limit_j = energy_jump_limit_j;
+   adaptive_diagnostics = diagnostics;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -910,7 +916,7 @@ extern "C" void fortrandata_setadaptivekernels_(
    unsigned int* update_interval, real* refine_threshold,
    real* coarsen_threshold, unsigned int* minimum_dwell,
    unsigned int* buffer_dilation, int* reconstruction_scheme,
-   real* cone_angle_rad) {
+   real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    FortranData::setAdaptiveKernelPointers(
       atom_moment, projection_block, projection_weight, bonds, bond_atom,
       bond_matrix, selector_edges, selector_edge, inverse_block_transpose,
@@ -918,7 +924,7 @@ extern "C" void fortrandata_setadaptivekernels_(
       anisotropy_axis, anisotropy_k1, anisotropy_k2, normalization_floor,
       magnetic_moment_si, gamma_per_ts, damping, mask_mode, update_interval,
       refine_threshold, coarsen_threshold, minimum_dwell, buffer_dilation,
-      reconstruction_scheme, cone_angle_rad);
+      reconstruction_scheme, cone_angle_rad, energy_jump_limit_j, diagnostics);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

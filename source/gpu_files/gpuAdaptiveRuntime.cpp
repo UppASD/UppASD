@@ -538,20 +538,31 @@ __global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
          length > kernels.normalizationFloor ? interpolated[xyz] / length : real(0);
 }
 
-__global__ void commitAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
-                                     GpuAdaptiveDeviceRuntime runtime,
-                                     AdaptiveKernelDevice kernels,
-                                     real* atomDirection) {
+__global__ void commitAdaptiveGhosts(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real* atomDirection,
+   GpuAdaptiveReconstructionPolicy policy) {
    const std::size_t work = adaptiveThreadIndex();
    const std::size_t count = topology.atoms * topology.ensembles;
    if(work >= count) return;
    const std::size_t atom = work % topology.atoms;
    if(runtime.atomisticAtomMask[atom]) return;
    const std::size_t ensemble = work / topology.atoms;
-   for(int xyz = 0; xyz < 3; ++xyz)
-      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-         kernels.ghostDirection[atomVectorIndex(
-            xyz, atom, ensemble, topology.atoms)];
+   const std::size_t block =
+      static_cast<std::size_t>(topology.atomToBlock[atom] - 1);
+   const int rawChannel = topology.atomToDynamicChannel[atom];
+   if(rawChannel <= 0) return;
+   const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      real value = kernels.ghostDirection[atomVectorIndex(
+         xyz, atom, ensemble, topology.atoms)];
+      if(policy.scheme == GpuAdaptiveReconstruction::Aligned)
+         value = runtime.coarseDirection[coarseVectorIndex(
+            xyz, channel, block, ensemble, topology.dynamicChannels,
+            topology.blocks)];
+      atomDirection[atomVectorIndex(
+         xyz, atom, ensemble, topology.atoms)] = value;
+   }
 }
 
 __device__ inline void effectiveAtomDirection(
@@ -836,7 +847,8 @@ __global__ void finalizeAdaptiveCoarseLocal(
 
 __global__ void addAdaptiveDipole(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* fftDipoleField) {
+   AdaptiveKernelDevice kernels, const real* atomDirection,
+   const real* fftDipoleField, real* atomField) {
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t count = topology.blocks * topology.ensembles;
    if(index >= count) return;
@@ -844,17 +856,106 @@ __global__ void addAdaptiveDipole(
    const std::size_t ensemble = index / topology.blocks;
    const std::size_t scalar = coarseScalarIndex(
       0, block, ensemble, topology.dynamicChannels, topology.blocks);
-   real direction[3], dipole[3];
-   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                    ensemble, direction);
+   real direction[3] = {}, dipole[3], source[3] = {};
    for(int xyz = 0; xyz < 3; ++xyz)
       dipole[xyz] = fftDipoleField[3 * scalar + xyz];
+   if(runtime.coarseBlockMask[block]) {
+      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                       ensemble, direction);
+      for(int xyz = 0; xyz < 3; ++xyz)
+         source[xyz] = runtime.channelMomentSum[scalar] * direction[xyz];
+   } else {
+      const int begin = topology.blockAtomOffset[block];
+      const int end = topology.blockAtomOffset[block + 1];
+      for(int position = begin; position < end; ++position) {
+         const std::size_t atom =
+            static_cast<std::size_t>(topology.blockAtoms[position] - 1);
+         real atomVector[3];
+         loadAtomVector(atomDirection, topology, atom, ensemble, atomVector);
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            source[xyz] += kernels.atomMoment[atom] * atomVector[xyz];
+            atomField[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] +=
+               dipole[xyz];
+         }
+      }
+   }
    atomicAdd(&kernels.energyTerms[5],
              -real(0.5) * kernels.magneticMomentSi *
-              runtime.channelMomentSum[scalar] * dotDevice(dipole, direction));
+              dotDevice(dipole, source));
    if(runtime.coarseBlockMask[block]) {
       for(int xyz = 0; xyz < 3; ++xyz)
          runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
+   }
+}
+
+__device__ inline void loadBasisResolvedFftField(
+   const GpuAdaptiveUniformFftField& fft, std::size_t block,
+   unsigned int basis, unsigned int ensemble, real field[3]) {
+   const std::size_t q1 = block % fft.activeN1;
+   const std::size_t q2 = (block / fft.activeN1) % fft.activeN2;
+   const std::size_t q3 = block / (fft.activeN1 * fft.activeN2);
+   const std::size_t fftCell =
+      q1 + fft.fftN1 * (q2 + fft.fftN2 * q3);
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      const std::size_t fieldIndex =
+         fftCell + fft.fftCells *
+            (static_cast<std::size_t>(xyz) +
+             3 * (basis + fft.basis * ensemble));
+      field[xyz] = fft.prefactorT * fft.paddedField[fieldIndex];
+   }
+}
+
+__global__ void addAdaptiveBasisResolvedDipole(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* atomDirection,
+   GpuAdaptiveUniformFftField fft, real* atomField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t count = topology.blocks * topology.ensembles;
+   if(index >= count) return;
+   const std::size_t block = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   const std::size_t scalar = coarseScalarIndex(
+      0, block, ensemble, topology.dynamicChannels, topology.blocks);
+   real coarseDirection[3] = {};
+   if(runtime.coarseBlockMask[block])
+      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                       ensemble, coarseDirection);
+   real coarseWeightedField[3] = {};
+   real dipoleEnergy = real(0);
+   const int begin = topology.blockAtomOffset[block];
+   const int end = topology.blockAtomOffset[block + 1];
+   for(int position = begin; position < end; ++position) {
+      const std::size_t atom =
+         static_cast<std::size_t>(topology.blockAtoms[position] - 1);
+      const int oneBasedFftChannel = topology.atomToFftChannel[atom];
+      if(oneBasedFftChannel <= 0 ||
+         static_cast<unsigned int>(oneBasedFftChannel) > fft.basis) continue;
+      real field[3], sourceDirection[3];
+      loadBasisResolvedFftField(
+         fft, block, static_cast<unsigned int>(oneBasedFftChannel - 1),
+         static_cast<unsigned int>(ensemble), field);
+      if(runtime.coarseBlockMask[block]) {
+         for(int xyz = 0; xyz < 3; ++xyz)
+            sourceDirection[xyz] = coarseDirection[xyz];
+      } else {
+         loadAtomVector(atomDirection, topology, atom, ensemble,
+                        sourceDirection);
+         for(int xyz = 0; xyz < 3; ++xyz)
+            atomField[atomVectorIndex(
+               xyz, atom, ensemble, topology.atoms)] += field[xyz];
+      }
+      const real moment = kernels.atomMoment[atom];
+      dipoleEnergy -= real(0.5) * kernels.magneticMomentSi * moment *
+                      dotDevice(field, sourceDirection);
+      for(int xyz = 0; xyz < 3; ++xyz)
+         coarseWeightedField[xyz] += moment * field[xyz];
+   }
+   atomicAdd(&kernels.energyTerms[5], dipoleEnergy);
+   if(runtime.coarseBlockMask[block]) {
+      const real inverseMoment = real(1) / runtime.channelMomentSum[scalar];
+      for(int xyz = 0; xyz < 3; ++xyz)
+         runtime.coarseField[3 * scalar + xyz] +=
+            inverseMoment * coarseWeightedField[xyz];
    }
 }
 
@@ -1617,6 +1718,11 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       predictorCoarseField_.Allocate(vectorState);
       energyTerms_.Allocate(7);
       acceptedBlockMask_.Allocate(b);
+      // Make zero-step diagnostics deterministic before the first field
+      // evaluation; normal kernels overwrite these buffers thereafter.
+      atomFieldScratch_.zeros_async(stream_);
+      predictorCoarseField_.zeros_async(stream_);
+      energyTerms_.zeros_async(stream_);
    }
    stagedBlockState_.AllocateHost(b);
    refreshDeviceDescriptors();
@@ -1965,11 +2071,25 @@ void GpuAdaptiveRuntime::publishProposedState(
 
 GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    const real* atomDirection, const real* externalCoarseField,
-   const real* uniformFftDipoleField, real* atomField, real* coarseField) {
+   const real* uniformFftDipoleField, real* atomField, real* coarseField,
+   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
    if(!ready_ || !kernelsReady_)
       throw std::logic_error("GPU adaptive evaluation requires initialized CG-10 kernels");
    if(!atomDirection || !atomField || !coarseField)
       throw std::invalid_argument("GPU adaptive evaluation requires device direction/field arrays");
+   if(basisResolvedFftField) {
+      if(!basisResolvedFftField->valid())
+         throw std::invalid_argument("GPU adaptive FFT field view is incomplete");
+      if(basisResolvedFftField->activeN1 !=
+            static_cast<std::size_t>(deviceTopology_.blockGrid[0]) ||
+         basisResolvedFftField->activeN2 !=
+            static_cast<std::size_t>(deviceTopology_.blockGrid[1]) ||
+         basisResolvedFftField->activeN3 !=
+            static_cast<std::size_t>(deviceTopology_.blockGrid[2]) ||
+         basisResolvedFftField->basis != deviceTopology_.fftChannelsPerBlock)
+         throw std::invalid_argument(
+            "GPU adaptive FFT field grid/channel mapping does not match BlockTopology");
+   }
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
       gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
@@ -2045,7 +2165,13 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    if(uniformFftDipoleField)
       addAdaptiveDipole<<<
          adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-         deviceTopology_, deviceRuntime_, kernels, uniformFftDipoleField);
+         deviceTopology_, deviceRuntime_, kernels, atomDirection,
+         uniformFftDipoleField, atomField);
+   if(basisResolvedFftField)
+      addAdaptiveBasisResolvedDipole<<<
+         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+         deviceTopology_, deviceRuntime_, kernels, atomDirection,
+         *basisResolvedFftField, atomField);
    writeAdaptiveCoarse<<<
       adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, coarseField);
@@ -2069,7 +2195,13 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       hipLaunchKernelGGL(
          addAdaptiveDipole, dim3(adaptiveGrid(blocks_ * ensembles_)),
          dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-         kernels, uniformFftDipoleField);
+         kernels, atomDirection, uniformFftDipoleField, atomField);
+   if(basisResolvedFftField)
+      hipLaunchKernelGGL(
+         addAdaptiveBasisResolvedDipole,
+         dim3(adaptiveGrid(blocks_ * ensembles_)),
+         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         kernels, atomDirection, *basisResolvedFftField, atomField);
    hipLaunchKernelGGL(
       writeAdaptiveCoarse, dim3(adaptiveGrid(blocks_ * ensembles_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
@@ -2092,12 +2224,14 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    result.coarseExternalJ = static_cast<double>(terms[4]);
    result.dipoleJ = static_cast<double>(terms[5]);
    result.totalJ = static_cast<double>(terms[6]);
+   lastEnergy_ = result;
    return result;
 }
 
 void GpuAdaptiveRuntime::integrateHeun(
    real timeStepSeconds, real* atomDirection, const real* externalCoarseField,
-   const real* uniformFftDipoleField) {
+   const real* uniformFftDipoleField,
+   const GpuAdaptiveFftEvaluator& basisResolvedFftEvaluator) {
    if(!ready_ || !kernelsReady_)
       throw std::logic_error("GPU adaptive integration requires initialized CG-10 kernels");
    if(!atomDirection || !std::isfinite(static_cast<double>(timeStepSeconds)) ||
@@ -2114,8 +2248,15 @@ void GpuAdaptiveRuntime::integrateHeun(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
+   GpuAdaptiveUniformFftField initialFftField{};
+   const GpuAdaptiveUniformFftField* initialFftFieldPtr = nullptr;
+   if(basisResolvedFftEvaluator) {
+      initialFftField = basisResolvedFftEvaluator(atomDirection);
+      initialFftFieldPtr = &initialFftField;
+   }
    (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
-                        initialAtomField_.data(), initialCoarseField_.data());
+                        initialAtomField_.data(), initialCoarseField_.data(),
+                        initialFftFieldPtr);
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
    predictorAdaptiveHeun<<<1, 1, 0, stream_>>>(
@@ -2130,8 +2271,15 @@ void GpuAdaptiveRuntime::integrateHeun(
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
+   GpuAdaptiveUniformFftField predictorFftField{};
+   const GpuAdaptiveUniformFftField* predictorFftFieldPtr = nullptr;
+   if(basisResolvedFftEvaluator) {
+      predictorFftField = basisResolvedFftEvaluator(atomDirection);
+      predictorFftFieldPtr = &predictorFftField;
+   }
    (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
-                        atomFieldScratch_.data(), predictorCoarseField_.data());
+                        atomFieldScratch_.data(), predictorCoarseField_.data(),
+                        predictorFftFieldPtr);
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
    correctorAdaptiveHeun<<<1, 1, 0, stream_>>>(
@@ -2150,7 +2298,9 @@ void GpuAdaptiveRuntime::integrateHeun(
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
 
-void GpuAdaptiveRuntime::synchronizeAtomicState(real* atomDirection) {
+void GpuAdaptiveRuntime::synchronizeAtomicState(
+   real* atomDirection,
+   const GpuAdaptiveReconstructionPolicy& policy) {
    if(!ready_ || !kernelsReady_ || !atomDirection)
       throw std::logic_error("GPU adaptive reconstruction requires initialized state");
    AdaptiveKernelDevice kernels{
@@ -2171,7 +2321,7 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(real* atomDirection) {
       deviceTopology_, deviceRuntime_, kernels);
    commitAdaptiveGhosts<<<
       adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, atomDirection);
+      deviceTopology_, deviceRuntime_, kernels, atomDirection, policy);
 #else
    hipLaunchKernelGGL(
       prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
@@ -2180,7 +2330,7 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(real* atomDirection) {
    hipLaunchKernelGGL(
       commitAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels, atomDirection);
+      kernels, atomDirection, policy);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
@@ -2219,6 +2369,68 @@ GpuAdaptiveWorkSnapshot GpuAdaptiveRuntime::downloadWorkSnapshot() {
    download(result.coarseBlockMask.data(), coarseBlockMask_.data(), blocks_);
    download(result.atomisticAtomMask.data(), atomisticAtomMask_.data(), atoms_);
    download(result.interfaceAtomMask.data(), interfaceAtomMask_.data(), atoms_);
+   return result;
+}
+
+GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
+   const real* atomDirection) {
+   if(!ready_ || !atomDirection)
+      throw std::logic_error("GPU adaptive diagnostics require initialized state");
+   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
+   GpuAdaptiveDiagnosticSnapshot result;
+   result.blockState.resize(blocks_);
+   result.stateAge.resize(blocks_);
+   result.transitionEpoch.resize(blocks_);
+   result.selectorScores.resize(deviceRuntime_.selectorCriteria * blocks_);
+   const auto download = [](void* destination, const void* source,
+                            std::size_t bytes) {
+      if(bytes == 0) return;
+      TensorDataMovementTracker::add_d2h(bytes);
+      ASSERT_GPU(GPU_MEMCPY(destination, source, bytes,
+                            GPU_MEMCPY_DEVICE_TO_HOST));
+   };
+   download(result.blockState.data(), blockState_.data(),
+            blocks_ * sizeof(int));
+   download(result.stateAge.data(), stateAge_.data(),
+            blocks_ * sizeof(unsigned int));
+   download(result.transitionEpoch.data(), transitionEpoch_.data(),
+            blocks_ * sizeof(unsigned int));
+   download(result.selectorScores.data(), selectorScores_.data(),
+            result.selectorScores.size() * sizeof(real));
+   std::vector<real> atomField(3 * atoms_ * ensembles_);
+   std::vector<real> coarseField(3 * dynamicChannels_ * blocks_ * ensembles_);
+   std::vector<real> direction(3 * atoms_ * ensembles_);
+   std::vector<unsigned char> atomisticMask(atoms_);
+   download(atomField.data(), atomFieldScratch_.data(),
+            atomField.size() * sizeof(real));
+   download(coarseField.data(), predictorCoarseField_.data(),
+            coarseField.size() * sizeof(real));
+   download(direction.data(), atomDirection,
+            direction.size() * sizeof(real));
+   download(atomisticMask.data(), atomisticAtomMask_.data(),
+            atomisticMask.size() * sizeof(unsigned char));
+   for(std::size_t ensemble = 0; ensemble < ensembles_; ++ensemble)
+      for(std::size_t atom = 0; atom < atoms_; ++atom) {
+         if(!atomisticMask[atom]) continue;
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            const real value = atomField[
+               xyz + 3 * (atom + atoms_ * ensemble)];
+            result.atomFieldSumT += static_cast<double>(value);
+            result.atomFieldNorm2T2 +=
+               static_cast<double>(value) * static_cast<double>(value);
+         }
+      }
+   for(const real value : coarseField) {
+      result.coarseFieldSumT += static_cast<double>(value);
+      result.coarseFieldNorm2T2 +=
+         static_cast<double>(value) * static_cast<double>(value);
+   }
+   for(const real value : direction) {
+      result.directionSum += static_cast<double>(value);
+      result.directionNorm2 +=
+         static_cast<double>(value) * static_cast<double>(value);
+   }
+   result.energy = lastEnergy_;
    return result;
 }
 
@@ -2309,6 +2521,7 @@ void GpuAdaptiveRuntime::release() {
    normalizationFloor_ = magneticMomentSi_ = gammaPerTs_ = damping_ = real(0);
    metrics_ = {};
    phaseMetrics_ = {};
+   lastEnergy_ = {};
    deviceTopology_ = {};
    deviceRuntime_ = {};
    convertedStaging_.clear();

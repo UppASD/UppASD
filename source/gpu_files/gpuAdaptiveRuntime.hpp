@@ -6,6 +6,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -180,6 +182,43 @@ struct GpuAdaptivePhaseMetrics {
    double integrationMilliseconds = 0.0;
 };
 
+struct GpuAdaptiveDiagnosticSnapshot {
+   std::vector<int> blockState;
+   std::vector<unsigned int> stateAge;
+   std::vector<unsigned int> transitionEpoch;
+   std::vector<real> selectorScores;
+   GpuAdaptiveEnergy energy{};
+   double atomFieldSumT = 0.0;
+   double atomFieldNorm2T2 = 0.0;
+   double coarseFieldSumT = 0.0;
+   double coarseFieldNorm2T2 = 0.0;
+   double directionSum = 0.0;
+   double directionNorm2 = 0.0;
+};
+
+// Basis-resolved uniform FFT field view. The convolution owner retains the
+// padded storage; adaptive kernels consume it on the same device stream.
+struct GpuAdaptiveUniformFftField {
+   const real* paddedField = nullptr;
+   std::size_t activeN1 = 0;
+   std::size_t activeN2 = 0;
+   std::size_t activeN3 = 0;
+   std::size_t fftN1 = 0;
+   std::size_t fftN2 = 0;
+   std::size_t fftCells = 0;
+   unsigned int basis = 0;
+   real prefactorT = real(0);
+
+   bool valid() const {
+      return paddedField && activeN1 && activeN2 && activeN3 &&
+             fftN1 && fftN2 && fftCells && basis &&
+             std::isfinite(static_cast<double>(prefactorT));
+   }
+};
+
+using GpuAdaptiveFftEvaluator =
+   std::function<GpuAdaptiveUniformFftField(const real*)>;
+
 struct GpuAdaptiveSelectorPolicy {
    real refineThreshold = real(0.25);
    real coarsenThreshold = real(0.10);
@@ -253,11 +292,15 @@ public:
                                     const real* externalCoarseField,
                                     const real* uniformFftDipoleField,
                                     real* atomField,
-                                    real* coarseField);
+                                    real* coarseField,
+                                    const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
    void integrateHeun(real timeStepSeconds, real* atomDirection,
                       const real* externalCoarseField = nullptr,
-                      const real* uniformFftDipoleField = nullptr);
-   void synchronizeAtomicState(real* atomDirection);
+                      const real* uniformFftDipoleField = nullptr,
+                      const GpuAdaptiveFftEvaluator& basisResolvedFftEvaluator = {});
+   void synchronizeAtomicState(
+      real* atomDirection,
+      const GpuAdaptiveReconstructionPolicy& policy);
    void recordFftMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
    void resetPhaseMetrics() { phaseMetrics_ = {}; }
@@ -271,6 +314,7 @@ public:
 
    // Explicit diagnostics/test path.  It is not used by selector updates.
    GpuAdaptiveWorkSnapshot downloadWorkSnapshot();
+   GpuAdaptiveDiagnosticSnapshot diagnosticSnapshot(const real* atomDirection);
 
 private:
    void allocate(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
@@ -298,6 +342,7 @@ private:
    GPU_EVENT_T phaseEnd_{};
    GpuAdaptiveCompactionMetrics metrics_{};
    GpuAdaptivePhaseMetrics phaseMetrics_{};
+   GpuAdaptiveEnergy lastEnergy_{};
    std::vector<std::vector<real>> convertedStaging_;
 
    Tensor<int, 1> stagedBlockState_;

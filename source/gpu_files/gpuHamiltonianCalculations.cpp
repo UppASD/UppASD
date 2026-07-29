@@ -113,6 +113,53 @@ public:
    }
 };
 
+// Adaptive CG advances unit directions directly. Rebuild the same
+// basis-resolved macro moments used by the ordinary FFT owner from those
+// directions and the immutable per-atom moment magnitudes.
+class GpuHamiltonianCalculations::UpdateAdaptiveMacroMoments :
+   public ParallelizationHelper::AtomSite {
+private:
+   const unsigned int* cellIndex;
+   const real* directions;
+   const real* magnitudes;
+   real* macroMoments;
+   unsigned int macroCount;
+   GpuAdaptiveDeviceTopology topology;
+   GpuAdaptiveDeviceRuntime runtime;
+
+public:
+   UpdateAdaptiveMacroMoments(
+      const unsigned int* indices, const real* sourceDirections,
+      const GpuTensor<real, 2>& sourceMagnitudes,
+      GpuTensor<real, 3>& destination, unsigned int count,
+      const GpuAdaptiveDeviceTopology& adaptiveTopology,
+      const GpuAdaptiveDeviceRuntime& adaptiveRuntime)
+      : cellIndex(indices), directions(sourceDirections),
+        magnitudes(sourceMagnitudes.data()), macroMoments(destination.data()),
+        macroCount(count), topology(adaptiveTopology),
+        runtime(adaptiveRuntime) {}
+
+   __device__ void each(unsigned int atom, unsigned int site) {
+      const unsigned int oneBasedCell = cellIndex[site];
+      if(oneBasedCell == 0 || oneBasedCell > macroCount) return;
+      const unsigned int cell = oneBasedCell - 1;
+      const unsigned int ensemble = atom / N;
+      const real magnitude = magnitudes[site + N * ensemble];
+      const std::size_t block = static_cast<std::size_t>(
+         topology.atomToBlock[site] - 1);
+      const bool coarse = runtime.coarseBlockMask[block] != 0;
+      for(unsigned int xyz = 0; xyz < 3; ++xyz) {
+         const real direction = coarse ?
+            runtime.coarseDirection[
+               xyz + 3 * (block + topology.blocks * ensemble)] :
+            directions[xyz + 3 * (site + N * ensemble)];
+         atomicAdd(&macroMoments[
+            xyz + 3 * (cell + macroCount * ensemble)],
+            magnitude * direction);
+      }
+   }
+};
+
 // The neighbour list setup helper
 //
 // For Tensorial Exchange
@@ -1011,4 +1058,41 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    }
    addPeriodicDipole();
    return;
+}
+
+bool GpuHamiltonianCalculations::hasAdaptiveFftDipole() const {
+   return backend.dipole == GpuHamiltonianBackend::FftDipole &&
+          dipoleConvolution.kernelReady() && refreshMacroMoments &&
+          macroCellIndex && numMacro > 0;
+}
+
+GpuAdaptiveUniformFftField
+GpuHamiltonianCalculations::evaluateAdaptiveFftDipole(
+   const real* atomDirection, const GpuTensor<real, 2>& atomMagnitude,
+   const GpuAdaptiveDeviceTopology& adaptiveTopology,
+   const GpuAdaptiveDeviceRuntime& adaptiveRuntime) {
+   if(!hasAdaptiveFftDipole() || !atomDirection)
+      throw std::runtime_error(
+         "GPU adaptive FFT dipole dispatch lost its ready macrocell state");
+   if(dipoleStopwatch) dipoleStopwatch->skip();
+   macroMoments.zeros_async(parallel.getWorkStream());
+   parallel.gpuAtomSiteCall(UpdateAdaptiveMacroMoments(
+      macroCellIndex, atomDirection, atomMagnitude, macroMoments, numMacro,
+      adaptiveTopology, adaptiveRuntime));
+   if(dipoleStopwatch) dipoleStopwatch->add("adaptive macro reduction");
+   dipoleConvolution.evaluate(macroMoments);
+
+   const auto& descriptor = dipoleConvolution.descriptor();
+   const auto& layout = dipoleConvolution.fftLayout();
+   GpuAdaptiveUniformFftField view{};
+   view.paddedField = dipoleConvolution.devicePaddedField();
+   view.activeN1 = layout.active_grid.n1;
+   view.activeN2 = layout.active_grid.n2;
+   view.activeN3 = layout.active_grid.n3;
+   view.fftN1 = layout.fft_grid.n1;
+   view.fftN2 = layout.fft_grid.n2;
+   view.fftCells = layout.fft_cells;
+   view.basis = descriptor.basis;
+   view.prefactorT = static_cast<real>(descriptor.field_prefactor);
+   return view;
 }

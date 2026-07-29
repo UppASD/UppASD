@@ -242,7 +242,8 @@ module Chelper
             exchange_stiffness, spiralization, anisotropy_axis_count, anisotropy_axis, &
             anisotropy_k1, anisotropy_k2, normalization_floor, magnetic_moment_si, gamma_per_ts, &
             damping, adaptive_mask, update_interval, refine_threshold, coarsen_threshold, &
-            minimum_dwell, buffer_dilation, reconstruction_scheme, cone_angle_rad) &
+            minimum_dwell, buffer_dilation, reconstruction_scheme, cone_angle_rad, &
+            energy_jump_limit_j, diagnostics) &
             bind(C, name="fortrandata_setadaptivekernels_")
          import :: c_int, c_double
          real(c_double), intent(inout) :: atom_moment(*), projection_weight(*), bond_matrix(*)
@@ -251,10 +252,11 @@ module Chelper
          real(c_double), intent(inout) :: anisotropy_k1(*), anisotropy_k2(*)
          real(c_double), intent(inout) :: normalization_floor, magnetic_moment_si, gamma_per_ts, damping
          real(c_double), intent(inout) :: refine_threshold, coarsen_threshold, cone_angle_rad
+         real(c_double), intent(inout) :: energy_jump_limit_j
          integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
          integer(c_int), intent(inout) :: selector_edges, selector_edge(*), anisotropy_axis_count(*)
          integer(c_int), intent(inout) :: adaptive_mask, update_interval, minimum_dwell
-         integer(c_int), intent(inout) :: buffer_dilation, reconstruction_scheme
+         integer(c_int), intent(inout) :: buffer_dilation, reconstruction_scheme, diagnostics
       end subroutine FortranData_setAdaptiveKernels
    end interface
 
@@ -761,8 +763,11 @@ contains
             adaptive_cg_state%tensor%channel_damping,adaptive_cg_state%gpu_adaptive_mask, &
             adaptive_cg%update_interval,adaptive_cg%refine_threshold, &
             adaptive_cg%coarsen_threshold,adaptive_cg%minimum_dwell_updates, &
-            adaptive_cg%buffer_blocks,adaptive_cg_state%gpu_reconstruction_scheme, &
-            adaptive_cg_state%reconstruction%cone_angle_rad)
+            adaptive_cg_state%gpu_buffer_dilation, &
+            adaptive_cg_state%gpu_reconstruction_scheme, &
+            adaptive_cg_state%reconstruction%cone_angle_rad, &
+            adaptive_cg_state%reconstruction%energy_jump_limit_j, &
+            adaptive_cg_state%gpu_diagnostics)
       endif
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)

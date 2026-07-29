@@ -61,6 +61,15 @@ module AdaptiveCGProduction
       integer(int64) :: active_block_updates = 0_int64
       integer(int64) :: accepted_transitions = 0_int64
       integer(int64) :: rejected_transitions = 0_int64
+      real(dblprec) :: field_seconds = 0.0_dblprec
+      real(dblprec) :: integration_seconds = 0.0_dblprec
+      real(dblprec) :: reconstruction_seconds = 0.0_dblprec
+      real(dblprec) :: selector_seconds = 0.0_dblprec
+      real(dblprec) :: last_atom_field_sum_t = 0.0_dblprec
+      real(dblprec) :: last_atom_field_norm2_t2 = 0.0_dblprec
+      real(dblprec) :: last_coarse_field_sum_t = 0.0_dblprec
+      real(dblprec) :: last_coarse_field_norm2_t2 = 0.0_dblprec
+      type(static_hybrid_energy_type) :: last_energy
       type(block_topology_type) :: topology
       type(coarse_material_type) :: material
       type(coarse_tensor_operator_type) :: tensor
@@ -83,6 +92,8 @@ module AdaptiveCGProduction
       integer(c_int) :: gpu_selector_edges = 0_c_int
       integer(c_int) :: gpu_adaptive_mask = 0_c_int
       integer(c_int) :: gpu_reconstruction_scheme = 1_c_int
+      integer(c_int) :: gpu_diagnostics = 0_c_int
+      integer(c_int) :: gpu_buffer_dilation = 0_c_int
       real(c_double) :: gpu_magnetic_moment_si = 9.274009994d-24
       integer(c_int), allocatable :: gpu_pending_state(:)
       integer(c_int), allocatable :: gpu_state_age(:)
@@ -313,6 +324,9 @@ contains
          merge(1_c_int,0_c_int,adaptive_cg_state%adaptive_mask)
       adaptive_cg_state%gpu_reconstruction_scheme = &
          adaptive_cg_state%reconstruction%scheme
+      adaptive_cg_state%gpu_diagnostics = int(adaptive_cg%diagnostics,c_int)
+      adaptive_cg_state%gpu_buffer_dilation = int(maxval( &
+         adaptive_cg_state%runtime%hybrid%buffer_width_blocks),c_int)
       adaptive_cg_state%gpu_state_age = adaptive_cg_state%runtime%selector%state_age
       adaptive_cg_state%gpu_transition_epoch = &
          adaptive_cg_state%runtime%selector%transition_epoch
@@ -426,9 +440,19 @@ contains
          call reject('Hamiltonian capability: production adaptive CG currently supports scalar Heisenberg exchange only', &
             status,diagnostic); return
       end if
-      if (ham_inp%do_dip /= 0 .or. trim(gpu_dipole_mode) /= 'OFF') then
-         call reject('do_dip/gpu_dipole_mode: adaptive FFT source mapping is not yet enabled in production', &
+      if (ham_inp%do_dip /= 0) then
+         call reject('do_dip: legacy atomistic/macrocell dipole is unsupported; use GPU EWALD3D_FFT', &
             status,diagnostic); return
+      end if
+      if (trim(gpu_dipole_mode) /= 'OFF') then
+         if (.not. (affirmative(do_gpu) .and. affirmative(do_gpu_llg))) then
+            call reject('gpu_dipole_mode: adaptive FFT dipole requires do_gpu=Y and do_gpu_llg=Y', &
+               status,diagnostic); return
+         end if
+         if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT') then
+            call reject('gpu_dipole_mode: adaptive periodic CG supports EWALD3D_FFT only', &
+               status,diagnostic); return
+         end if
       end if
       if (any(abs(hfield) > 0.0_dblprec) .or. do_bpulse /= 0 .or. demag == 'Y') then
          call reject('hfield/do_bpulse/demag: external or time-dependent fields are not supported by the first production CG path', &
@@ -464,7 +488,7 @@ contains
       real(dblprec), allocatable :: coarse_predictor(:,:,:,:), atom_field0(:,:,:), atom_field1(:,:,:)
       real(dblprec), allocatable :: coarse_field0(:,:,:,:), coarse_field1(:,:,:,:)
       real(dblprec), allocatable :: coarse_rhs0(:,:), coarse_rhs1(:,:)
-      real(dblprec) :: rhs0(3), rhs1(3), candidate(3), norm
+      real(dblprec) :: rhs0(3), rhs1(3), candidate(3), norm, time0, time1
       integer :: ensemble, atom, block, local_status
 
       status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED
@@ -484,6 +508,7 @@ contains
 
       call evaluate_all_ensembles(atom0,coarse0,atom_field0,coarse_field0,local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
+      call cpu_time(time0)
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
@@ -501,9 +526,13 @@ contains
             coarse_predictor(:,1,block,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
       end do
+      call cpu_time(time1)
+      adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
+         max(0.0_dblprec,time1-time0)
       call evaluate_all_ensembles(atom_predictor,coarse_predictor,atom_field1,coarse_field1, &
          local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
+      call cpu_time(time0)
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
@@ -528,11 +557,22 @@ contains
                candidate/sqrt(sum(candidate*candidate))
          end do
       end do
+      call cpu_time(time1)
+      adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
+         max(0.0_dblprec,time1-time0)
+      call cpu_time(time0)
       call reconstruct_coarse_atoms(atom_direction,status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+      call cpu_time(time1)
+      adaptive_cg_state%reconstruction_seconds = adaptive_cg_state%reconstruction_seconds + &
+         max(0.0_dblprec,time1-time0)
       if (adaptive_cg_state%adaptive_mask) then
+         call cpu_time(time0)
          call update_adaptive_mask(step,atom_direction,status,diagnostic)
          if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+         call cpu_time(time1)
+         adaptive_cg_state%selector_seconds = adaptive_cg_state%selector_seconds + &
+            max(0.0_dblprec,time1-time0)
       end if
       do ensemble = 1, Mensemble
          do atom = 1, Natom
@@ -554,7 +594,10 @@ contains
       character(len=*), intent(out) :: diagnostic
       type(static_hybrid_energy_type) :: energy
       integer :: ensemble
+      real(dblprec) :: time0, time1
 
+      call cpu_time(time0)
+      adaptive_cg_state%last_energy = static_hybrid_energy_type()
       do ensemble = 1, Mensemble
          call evaluate_static_hybrid_operator(adaptive_cg_state%runtime%hybrid, &
             atom_direction(:,:,ensemble),coarse_direction(:,:,:,ensemble), &
@@ -562,7 +605,30 @@ contains
             coarse_field(:,:,:,ensemble),energy,status,diagnostic)
          if (status /= STATIC_HYBRID_OK) return
          adaptive_cg_state%field_evaluations = adaptive_cg_state%field_evaluations+1_int64
+         adaptive_cg_state%last_energy%atomistic_bilinear_j = &
+            adaptive_cg_state%last_energy%atomistic_bilinear_j + energy%atomistic_bilinear_j
+         adaptive_cg_state%last_energy%atomistic_onsite_j = &
+            adaptive_cg_state%last_energy%atomistic_onsite_j + energy%atomistic_onsite_j
+         adaptive_cg_state%last_energy%coarse%exchange_j = &
+            adaptive_cg_state%last_energy%coarse%exchange_j + energy%coarse%exchange_j
+         adaptive_cg_state%last_energy%coarse%spiralization_j = &
+            adaptive_cg_state%last_energy%coarse%spiralization_j + energy%coarse%spiralization_j
+         adaptive_cg_state%last_energy%coarse%anisotropy_j = &
+            adaptive_cg_state%last_energy%coarse%anisotropy_j + energy%coarse%anisotropy_j
+         adaptive_cg_state%last_energy%coarse%external_j = &
+            adaptive_cg_state%last_energy%coarse%external_j + energy%coarse%external_j
+         adaptive_cg_state%last_energy%coarse%dipole_j = &
+            adaptive_cg_state%last_energy%coarse%dipole_j + energy%coarse%dipole_j
+         adaptive_cg_state%last_energy%total_j = &
+            adaptive_cg_state%last_energy%total_j + energy%total_j
       end do
+      adaptive_cg_state%last_atom_field_sum_t = sum(atom_field)
+      adaptive_cg_state%last_atom_field_norm2_t2 = sum(atom_field*atom_field)
+      adaptive_cg_state%last_coarse_field_sum_t = sum(coarse_field)
+      adaptive_cg_state%last_coarse_field_norm2_t2 = sum(coarse_field*coarse_field)
+      call cpu_time(time1)
+      adaptive_cg_state%field_seconds = adaptive_cg_state%field_seconds + &
+         max(0.0_dblprec,time1-time0)
    end subroutine evaluate_all_ensembles
 
    subroutine update_adaptive_mask(step,atom_direction,status,diagnostic)
@@ -610,7 +676,9 @@ contains
             count(adaptive_cg_state%runtime%transition_log%event(before+1:after)%accepted)
          adaptive_cg_state%rejected_transitions = adaptive_cg_state%rejected_transitions + &
             count(.not. adaptive_cg_state%runtime%transition_log%event(before+1:after)%accepted)
+         if (adaptive_cg%diagnostics >= 2) call print_transition_events(before+1,after)
       end if
+      if (adaptive_cg%diagnostics >= 2) call print_resolution_state('step',step)
       status = ADAPTIVE_CG_PRODUCTION_OK
    end subroutine update_adaptive_mask
 
@@ -820,6 +888,18 @@ contains
       write(*,'(a)') 'AdaptiveCG: capability accepted: regular periodic single-FM deterministic Heun'
       write(*,'(a,a,a,a)') 'AdaptiveCG: operator=',trim(adaptive_cg%operator), &
          ' mask_mode=',trim(adaptive_cg%mask_mode)
+      write(*,'(a,a,a,a,a,i0)') 'AdaptiveCG: selector=',trim(adaptive_cg%selector), &
+         ' reconstruction=',trim(adaptive_cg%reconstruction), &
+         ' diagnostics=',adaptive_cg%diagnostics
+      write(*,'(a,es24.16,a,es24.16,a,i0,a,i0,a,i0)') &
+         'AdaptiveCG: refine_threshold=',adaptive_cg%refine_threshold, &
+         ' coarsen_threshold=',adaptive_cg%coarsen_threshold, &
+         ' update_interval=',adaptive_cg%update_interval, &
+         ' minimum_dwell=',adaptive_cg%minimum_dwell_updates, &
+         ' buffer_blocks=',adaptive_cg%buffer_blocks
+      write(*,'(a,a,a,a)') 'AdaptiveCG: channel_mode=',trim(adaptive_cg%channel_mode), &
+         ' fft_source_mapping=basis-resolved-to-single-dynamical-channel'
+      write(*,'(a,a)') 'AdaptiveCG: gpu_dipole_mode=',trim(gpu_dipole_mode)
       write(*,'(a,3(i0,1x),a,3(i0,1x))') 'AdaptiveCG: block_size=',block_size_x,block_size_y,block_size_z, &
          ' block_grid=',adaptive_cg_state%topology%block_grid
       write(*,'(a,i0,a,i0,a,i0,a,i0)') 'AdaptiveCG: atoms=',Natom,' blocks=', &
@@ -827,6 +907,10 @@ contains
       write(*,'(a,i0,a,i0,a,i0)') 'AdaptiveCG: initial_coarse=',coarse, &
          ' active_atoms=',size(adaptive_cg_state%runtime%active_atom_list), &
          ' active_blocks=',size(adaptive_cg_state%runtime%active_coarse_list)
+      write(*,'(a,i0,a,i0)') 'AdaptiveCG: interface_atoms=', &
+         size(adaptive_cg_state%runtime%interface_atom_list), &
+         ' owned_cpu_bytes=',adaptive_owned_cpu_bytes()
+      if (adaptive_cg%diagnostics >= 2) call print_resolution_state('initial',0)
    end subroutine print_resolved_configuration
 
    subroutine print_adaptive_cg_summary()
@@ -846,7 +930,99 @@ contains
          adaptive_cg_state%rejected_transitions
       write(*,'(a,i0,a,i0)') 'AdaptiveCG: baseline_atom_updates=',baseline, &
          ' reduced_atom_updates=',max(0_int64,baseline-adaptive_cg_state%active_atom_updates)
+      write(*,'(a,es24.16,a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: last_energy_j atomistic_bilinear=', &
+         adaptive_cg_state%last_energy%atomistic_bilinear_j, &
+         ' atomistic_onsite=',adaptive_cg_state%last_energy%atomistic_onsite_j, &
+         ' coarse_exchange=',adaptive_cg_state%last_energy%coarse%exchange_j, &
+         ' coarse_spiralization=',adaptive_cg_state%last_energy%coarse%spiralization_j
+      write(*,'(a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: last_energy_j coarse_anisotropy=', &
+         adaptive_cg_state%last_energy%coarse%anisotropy_j, &
+         ' coarse_external=',adaptive_cg_state%last_energy%coarse%external_j, &
+         ' coarse_dipole=',adaptive_cg_state%last_energy%coarse%dipole_j
+      write(*,'(a,es24.16)') 'AdaptiveCG: last_total_energy_j=', &
+         adaptive_cg_state%last_energy%total_j
+      write(*,'(a,es24.16,a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: last_field_checksums_t atom_sum=',adaptive_cg_state%last_atom_field_sum_t, &
+         ' atom_norm2=',adaptive_cg_state%last_atom_field_norm2_t2, &
+         ' coarse_sum=',adaptive_cg_state%last_coarse_field_sum_t, &
+         ' coarse_norm2=',adaptive_cg_state%last_coarse_field_norm2_t2
+      write(*,'(a,es24.16,a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: phase_seconds field=',adaptive_cg_state%field_seconds, &
+         ' integration=',adaptive_cg_state%integration_seconds, &
+         ' reconstruction=',adaptive_cg_state%reconstruction_seconds, &
+         ' selector=',adaptive_cg_state%selector_seconds
+      write(*,'(a,i0)') 'AdaptiveCG: owned_cpu_bytes=',adaptive_owned_cpu_bytes()
+      call print_resolution_state('final',adaptive_cg_state%completed_steps)
+      write(*,'(a,es24.16,a,es24.16)') 'AdaptiveCG: trajectory_checksums direction_sum=', &
+         sum(emom),' direction_norm2=',sum(emom*emom)
    end subroutine print_adaptive_cg_summary
+
+   subroutine print_transition_events(first,last)
+      integer, intent(in) :: first, last
+      integer :: event
+
+      do event = first, last
+         write(*,'(a,i0,a,i0,a,i0,a,i0,a,l1,a,a,a,a,a,3(es24.16,1x))') &
+            'AdaptiveCG: transition step=', &
+            adaptive_cg_state%runtime%transition_log%event(event)%synchronization_step, &
+            ' block=',adaptive_cg_state%runtime%transition_log%event(event)%block, &
+            ' old_state=',adaptive_cg_state%runtime%transition_log%event(event)%old_state, &
+            ' new_state=',adaptive_cg_state%runtime%transition_log%event(event)%new_state, &
+            ' accepted=',adaptive_cg_state%runtime%transition_log%event(event)%accepted, &
+            ' reason=',trim(adaptive_cg_state%runtime%transition_log%event(event)%selector_reason), &
+            ' outcome=',trim(adaptive_cg_state%runtime%transition_log%event(event)%outcome), &
+            ' energies_j=',adaptive_cg_state%runtime%transition_log%event(event)%energy_before_j, &
+            adaptive_cg_state%runtime%transition_log%event(event)%energy_after_j, &
+            adaptive_cg_state%runtime%transition_log%event(event)%energy_jump_j
+      end do
+   end subroutine print_transition_events
+
+   subroutine print_resolution_state(label,step)
+      character(len=*), intent(in) :: label
+      integer, intent(in) :: step
+      integer :: block
+
+      write(*,'(a,a,a,i0,a)',advance='no') 'AdaptiveCG: resolution_state label=', &
+         trim(label),' step=',step,' values='
+      do block = 1, adaptive_cg_state%topology%n_spatial_blocks
+         if (block > 1) write(*,'(a)',advance='no') ','
+         write(*,'(i0)',advance='no') adaptive_cg_state%runtime%hybrid%block_state(block)
+      end do
+      write(*,*)
+      write(*,'(a,i0,a,i0,a,i0)') 'AdaptiveCG: resolution_counts fine=', &
+         count(adaptive_cg_state%runtime%hybrid%block_state == 2), &
+         ' interface=',count(adaptive_cg_state%runtime%hybrid%block_state == 1), &
+         ' coarse=',count(adaptive_cg_state%runtime%hybrid%block_state == 0)
+   end subroutine print_resolution_state
+
+   integer(int64) function adaptive_owned_cpu_bytes()
+      integer(int64) :: bytes
+
+      bytes = 0_int64
+      if (allocated(adaptive_cg_state%initial_fine_mask)) bytes=bytes+int(size( &
+         adaptive_cg_state%initial_fine_mask),int64)*storage_size(.true.)/8
+      if (allocated(adaptive_cg_state%hard_fine_mask)) bytes=bytes+int(size( &
+         adaptive_cg_state%hard_fine_mask),int64)*storage_size(.true.)/8
+      if (allocated(adaptive_cg_state%atom_moment_mub)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_moment_mub),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_direction)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_direction),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%bond_atom)) bytes=bytes+int(size( &
+         adaptive_cg_state%bond_atom),int64)*storage_size(1)/8
+      if (allocated(adaptive_cg_state%bond_matrix_j)) bytes=bytes+int(size( &
+         adaptive_cg_state%bond_matrix_j),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%bond_displacement_m)) bytes=bytes+int(size( &
+         adaptive_cg_state%bond_displacement_m),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%active_atom_list)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%active_atom_list),int64)*storage_size(1)/8
+      if (allocated(adaptive_cg_state%runtime%active_coarse_list)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%active_coarse_list),int64)*storage_size(1)/8
+      if (allocated(adaptive_cg_state%runtime%interface_atom_list)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%interface_atom_list),int64)*storage_size(1)/8
+      adaptive_owned_cpu_bytes = bytes
+   end function adaptive_owned_cpu_bytes
 
    function block_mean_direction(block,ensemble) result(direction)
       integer, intent(in) :: block, ensemble
