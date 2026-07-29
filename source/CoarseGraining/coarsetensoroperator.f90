@@ -339,8 +339,15 @@ contains
    end subroutine setup_coarse_tensor_operator
 
    !> Evaluate explicit per-term energies and their unconstrained SI fields.
+   !>
+   !> Optional ownership masks are used by the static hybrid reference.  A
+   !> gradient-density term is retained only when its complete forward
+   !> difference stencil belongs to interaction_owner.  Local anisotropy and
+   !> external-field terms use onsite_owner.  The uniformly coarse FFT dipole
+   !> remains a separate all-grid owner and is deliberately not masked here.
    subroutine evaluate_coarse_tensor_operator(operator, direction, field_t, energies, &
-         status, diagnostic, external_field_t, uniform_coarse_dipole_field_t, term_fields)
+         status, diagnostic, external_field_t, uniform_coarse_dipole_field_t, term_fields, &
+         interaction_owner, onsite_owner)
       type(coarse_tensor_operator_type), intent(in) :: operator
       real(dblprec), intent(in) :: direction(:,:)
       real(dblprec), intent(out) :: field_t(:,:)
@@ -350,10 +357,13 @@ contains
       real(dblprec), intent(in), optional :: external_field_t(:,:)
       real(dblprec), intent(in), optional :: uniform_coarse_dipole_field_t(:,:)
       type(coarse_field_terms_type), intent(out), optional :: term_fields
+      logical, intent(in), optional :: interaction_owner(:)
+      logical, intent(in), optional :: onsite_owner(:)
 
       integer :: block, p, q, k, axis_index
       real(dblprec) :: c, density, conversion
       real(dblprec) :: basis(3), local_derivative(3)
+      logical :: owned
       real(dblprec), allocatable :: gradient(:,:,:), exchange_derivative(:,:)
       real(dblprec), allocatable :: dmi_derivative(:,:), anisotropy_derivative(:,:)
       real(dblprec), allocatable :: work(:,:), exchange_field(:,:), dmi_field(:,:)
@@ -389,6 +399,18 @@ contains
             return
          end if
       end if
+      if (present(interaction_owner)) then
+         if (size(interaction_owner) /= operator%nblocks) then
+            diagnostic = 'Interaction ownership mask must have length nblocks'
+            return
+         end if
+      end if
+      if (present(onsite_owner)) then
+         if (size(onsite_owner) /= operator%nblocks) then
+            diagnostic = 'On-site ownership mask must have length nblocks'
+            return
+         end if
+      end if
       if (operator%use_uniform_coarse_dipole .neqv. present(uniform_coarse_dipole_field_t)) then
          diagnostic = 'Uniform coarse dipole field presence must match the setup capability'
          return
@@ -415,43 +437,36 @@ contains
 
       call physical_forward_gradient(operator, direction, gradient)
 
-      do block = 1, operator%nblocks
-         do p = 1, 3
-            do q = 1, 3
+      do p = 1, 3
+         do q = 1, 3
+            work = 0.0_dblprec
+            do block = 1, operator%nblocks
+               owned = gradient_term_owned(operator,interaction_owner,block,p,q)
+               if (.not. owned) cycle
                energies%exchange_j = energies%exchange_j + operator%block_volume_m3 * &
                   operator%exchange_stiffness_j_per_m(p,q) * &
                   dot_product(gradient(:,p,block),gradient(:,q,block))
+               work(:,block) = operator%block_volume_m3 * &
+                  operator%exchange_stiffness_j_per_m(p,q) * gradient(:,q,block)
             end do
+            call add_physical_gradient_transpose(operator,p,work,exchange_derivative,2.0_dblprec)
          end do
-      end do
-      do p = 1, 3
-         work = 0.0_dblprec
-         do q = 1, 3
-            work = work + operator%block_volume_m3 * &
-               operator%exchange_stiffness_j_per_m(p,q) * gradient(:,q,:)
-         end do
-         call add_physical_gradient_transpose(operator,p,work,exchange_derivative,2.0_dblprec)
       end do
 
-      do block = 1, operator%nblocks
-         do k = 1, 3
-            basis = 0.0_dblprec
-            basis(k) = 1.0_dblprec
-            do p = 1, 3
+      do k = 1, 3
+         basis = 0.0_dblprec
+         basis(k) = 1.0_dblprec
+         do p = 1, 3
+            work = 0.0_dblprec
+            do block = 1, operator%nblocks
+               owned = gradient_term_owned(operator,interaction_owner,block,p)
+               if (.not. owned) cycle
                energies%spiralization_j = energies%spiralization_j + &
                   operator%block_volume_m3 * operator%spiralization_j_per_m2(k,p) * &
                   dot_product(basis,cross3(direction(:,block),gradient(:,p,block)))
                dmi_derivative(:,block) = dmi_derivative(:,block) - &
                   operator%block_volume_m3 * operator%spiralization_j_per_m2(k,p) * &
                   cross3(basis,gradient(:,p,block))
-            end do
-         end do
-      end do
-      do k = 1, 3
-         basis = 0.0_dblprec
-         basis(k) = 1.0_dblprec
-         do p = 1, 3
-            do block = 1, operator%nblocks
                work(:,block) = operator%block_volume_m3 * &
                   operator%spiralization_j_per_m2(k,p) * cross3(basis,direction(:,block))
             end do
@@ -460,6 +475,9 @@ contains
       end do
 
       do block = 1, operator%nblocks
+         if (present(onsite_owner)) then
+            if (.not. onsite_owner(block)) cycle
+         end if
          local_derivative = 0.0_dblprec
          do axis_index = 1, operator%anisotropy%axis_count(block)
             c = dot_product(direction(:,block),operator%anisotropy%axis(:,axis_index,block))
@@ -477,8 +495,11 @@ contains
       end do
 
       if (present(external_field_t)) then
-         external_field = external_field_t
          do block = 1, operator%nblocks
+            if (present(onsite_owner)) then
+               if (.not. onsite_owner(block)) cycle
+            end if
+            external_field(:,block) = external_field_t(:,block)
             energies%external_j = energies%external_j - COARSE_MUB_SI * &
                operator%block_moment_mub * dot_product(external_field(:,block),direction(:,block))
          end do
@@ -515,6 +536,37 @@ contains
       status = COARSE_TENSOR_OK
       diagnostic = ''
    end subroutine evaluate_coarse_tensor_operator
+
+   logical function gradient_term_owned(operator,owner,block,p,q) result(owned)
+      type(coarse_tensor_operator_type), intent(in) :: operator
+      logical, intent(in), optional :: owner(:)
+      integer, intent(in) :: block, p
+      integer, intent(in), optional :: q
+
+      integer :: direction_index, plus_block
+      integer :: coordinate(3)
+
+      owned = .true.
+      if (.not. present(owner)) return
+      if (.not. owner(block)) then
+         owned = .false.
+         return
+      end if
+      do direction_index = 1, 3
+         if (operator%inverse_block_transpose_m1(p,direction_index) == 0.0_dblprec) then
+            if (.not. present(q)) cycle
+            if (operator%inverse_block_transpose_m1(q,direction_index) == 0.0_dblprec) cycle
+         end if
+         coordinate = operator%block_coordinate(:,block)
+         coordinate(direction_index) = modulo(coordinate(direction_index)+1, &
+            operator%block_grid(direction_index))
+         plus_block = regular_spatial_block_id(coordinate,operator%block_grid)
+         if (.not. owner(plus_block)) then
+            owned = .false.
+            return
+         end if
+      end do
+   end function gradient_term_owned
 
    !> Deterministic Gilbert LLG right-hand side, matching the existing algebra.
    subroutine coarse_llg_rhs(operator, direction, field_t, derivative_per_s, status, diagnostic)

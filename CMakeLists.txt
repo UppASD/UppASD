@@ -905,6 +905,16 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-smooth-projected-operator
       COMMAND smooth_projected_operator_tests)
 
+   # CG-06 static CPU hybrid: limiting masks, conservative buffer ownership,
+   # normalized ghost reactions, patch/texture tests, and mesh refinement.
+   add_executable(static_hybrid_operator_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_hybrid_operator.f90)
+   set_target_properties(static_hybrid_operator_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/static_hybrid_operator_tests)
+   target_link_libraries(static_hybrid_operator_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-static-hybrid-operator
+      COMMAND static_hybrid_operator_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle

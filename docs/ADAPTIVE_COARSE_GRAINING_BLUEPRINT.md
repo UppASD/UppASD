@@ -1489,18 +1489,29 @@ test-only piecewise-constant scaling failure.
 
 #### Checklist
 
-- [ ] All-fine equals baseline ASD.
-- [ ] All-coarse equals accepted coarse reference.
-- [ ] Uniform patch test passes.
-- [ ] Constant long-wavelength spiral patch test passes.
-- [ ] Interface energy derivative test passes.
-- [ ] No field or energy term is double counted.
-- [ ] Buffer covers every cross-interface atomistic interaction.
-- [ ] Domain wall crosses a fixed interface without spurious pinning beyond
+- [x] All-fine equals baseline ASD.
+- [x] All-coarse equals accepted coarse reference.
+- [x] Uniform patch test passes.
+- [x] Constant long-wavelength spiral patch test passes.
+- [x] Interface energy derivative test passes.
+- [x] No field or energy term is double counted.
+- [x] Buffer covers every cross-interface atomistic interaction.
+- [x] Domain wall crosses a fixed interface without spurious pinning beyond
       the accepted error.
-- [ ] Skyrmion translation test remains stable.
-- [ ] Interface error decreases under block refinement.
-- [ ] μASD code is not used or modified.
+- [x] Skyrmion translation test remains stable.
+- [x] Interface error decreases under block refinement.
+- [x] μASD code is not used or modified.
+
+**CG-06 evidence:** `source/CoarseGraining/statichybridoperator.f90` implements
+the static CPU dispatch, physical-radius plus safety dilation, explicit
+non-overlapping bond/block ownership, smooth coarse ghosts, and normalized
+adjoint reactions.  `source/CoarseGraining/coarsetensoroperator.f90` accepts
+optional interaction/on-site owner masks and retains a tensor term only when
+its full stencil is coarse.  `docs/CG-06_STATIC_HYBRID_CPU.md` records the
+contract.  `tests/coarse_graining/test_static_hybrid_operator.f90` covers both
+limiting masks, uniform/spiral patches, tangent energy derivatives, ownership,
+periodic buffer coverage, translated domain-wall/skyrmion profiles, and mesh
+refinement.  The complete CG-02 through CG-06 CPU CTest set passes.
 
 ---
 
