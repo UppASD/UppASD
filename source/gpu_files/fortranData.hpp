@@ -147,6 +147,33 @@ public:
    static real* adaptive_coarse_direction;
    static real* adaptive_coarse_field;
    static real* adaptive_channel_moment_sum;
+   static real* adaptive_atom_moment;
+   static int* adaptive_projection_block;
+   static real* adaptive_projection_weight;
+   static unsigned int* adaptive_bonds;
+   static int* adaptive_bond_atom;
+   static real* adaptive_bond_matrix;
+   static unsigned int* adaptive_selector_edges;
+   static int* adaptive_selector_edge;
+   static real* adaptive_inverse_block_transpose;
+   static real* adaptive_exchange_stiffness;
+   static real* adaptive_spiralization;
+   static int* adaptive_anisotropy_axis_count;
+   static real* adaptive_anisotropy_axis;
+   static real* adaptive_anisotropy_k1;
+   static real* adaptive_anisotropy_k2;
+   static real* adaptive_normalization_floor;
+   static real* adaptive_magnetic_moment_si;
+   static real* adaptive_gamma_per_ts;
+   static real* adaptive_damping;
+   static int* adaptive_mask_mode;
+   static unsigned int* adaptive_update_interval;
+   static real* adaptive_refine_threshold;
+   static real* adaptive_coarsen_threshold;
+   static unsigned int* adaptive_minimum_dwell;
+   static unsigned int* adaptive_buffer_dilation;
+   static int* adaptive_reconstruction_scheme;
+   static real* adaptive_cone_angle_rad;
    
 
    static unsigned int* nq;
@@ -354,6 +381,19 @@ public:
       real* coarse_moment, real* coarse_direction, real* coarse_field,
       real* channel_moment_sum);
    static void clearAdaptivePointers();
+   static void setAdaptiveKernelPointers(
+      real* atom_moment, int* projection_block, real* projection_weight,
+      unsigned int* bonds, int* bond_atom, real* bond_matrix,
+      unsigned int* selector_edges, int* selector_edge,
+      real* inverse_block_transpose, real* exchange_stiffness,
+      real* spiralization, int* anisotropy_axis_count,
+      real* anisotropy_axis, real* anisotropy_k1, real* anisotropy_k2,
+      real* normalization_floor, real* magnetic_moment_si,
+      real* gamma_per_ts, real* damping, int* mask_mode,
+      unsigned int* update_interval, real* refine_threshold,
+      real* coarsen_threshold, unsigned int* minimum_dwell,
+      unsigned int* buffer_dilation, int* reconstruction_scheme,
+      real* cone_angle_rad);
     static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

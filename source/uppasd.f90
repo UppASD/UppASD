@@ -485,6 +485,7 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
+      use AdaptiveCGProduction, only : print_adaptive_cg_summary, cleanup_adaptive_cg_production
 
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
@@ -500,6 +501,8 @@ contains
    else
 
       write (*,'(1x,a)') "Simulation finished"
+      call print_adaptive_cg_summary()
+      call cleanup_adaptive_cg_production()
       call deallocate_q(do_sc) ! Deallocate spin correlation related arrays
       call allocate_mmoms(flag=-1)
       call deallocate_rest() ! Deallocate remaining arrays
@@ -1340,6 +1343,22 @@ contains
             chconc,ammom_inp,ham%ncoup,ham%max_no_dmneigh,ham%dmlistsize,ham%dmlist,&
             ham%dm_vect,ham_inp%do_anisotropy,ham_inp%anisotropy,simid)
       end if
+
+      ! Adaptive CG capability validation and construction deliberately happen
+      ! only after geometry, moments, Hamiltonian, damping, and solver setup
+      ! are complete, but before input Hamiltonian storage is released and
+      ! before either CPU runtime dispatch or GPU device preflight.
+      block
+         use AdaptiveCGProduction, only : setup_adaptive_cg_production, &
+            ADAPTIVE_CG_PRODUCTION_OK
+         integer :: adaptive_status
+         character(len=512) :: adaptive_diagnostic
+         call setup_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
+         if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
+            write(*,'(a)') trim(adaptive_diagnostic)
+            error stop 1
+         end if
+      end block
 
       ! Deallocate input data for Heisenberg Hamiltonian
       call allocate_hamiltonianinput(ham_inp,flag=-1)

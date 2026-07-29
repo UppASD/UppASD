@@ -28,6 +28,10 @@ private:
     deviceHamiltonian gpuHamiltonian;//those are device matrices
     deviceEnergies gpuEnergies;
     GpuAdaptiveRuntime gpuAdaptiveRuntime;
+    bool adaptiveMaskEnabled = false;
+    unsigned int adaptiveUpdateInterval = 1;
+    GpuAdaptiveSelectorPolicy adaptiveSelectorPolicy{};
+    GpuAdaptiveReconstructionPolicy adaptiveReconstructionPolicy{};
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
@@ -84,6 +88,8 @@ public:
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
     void updateAdaptiveBlockState(const int* blockState, std::size_t count);
+    bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
+    void advanceAdaptiveStep(std::size_t step);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

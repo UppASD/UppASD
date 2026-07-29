@@ -1,0 +1,5 @@
+inp.*.json
+uppasd.*.yaml
+restart.*.out
+meminfo
+run.out

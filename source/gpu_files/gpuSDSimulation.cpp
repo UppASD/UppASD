@@ -272,9 +272,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
             (((mstep - 1) % gpuSim.SimParam.ene_step == 0) ||
              (gpuSim.Flags.do_cumu && ((mstep - 1) % gpuSim.SimParam.cumu_step == 0))));
 
-      // Apply the Hamiltonian to the measured configuration.
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
-      stopwatch.add("hamiltonian");
+      // Adaptive CG owns the complete accepted short-range field path.  Do
+      // not run the ordinary all-atom Hamiltonian behind it.
+      if(!gpuSim.adaptiveEnabled()) {
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+         stopwatch.add("hamiltonian");
+      }
 
       // Measure
       measurement->measure(mstep);
@@ -285,18 +288,22 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Print simulation status for each 5% of the simulation length
       printMdStatus(mstep, gpuSim);
 
-      // Perform first step of SDE solver
-      integrator.evolveFirst(gpuSim.gpuLattice);
-      stopwatch.add("evolution");
+      if(gpuSim.adaptiveEnabled()) {
+         gpuSim.advanceAdaptiveStep(mstep);
+         stopwatch.add("adaptive coarse graining");
+      } else {
+         // Perform first step of SDE solver
+         integrator.evolveFirst(gpuSim.gpuLattice);
+         stopwatch.add("evolution");
 
-      // Apply the predictor field needed by the corrector without measuring it.
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-      stopwatch.add("hamiltonian");
-  
+         // Apply the predictor field needed by the corrector without measuring it.
+         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+         stopwatch.add("hamiltonian");
 
-      // Perform second (corrector) step of SDE solver
-      integrator.evolveSecond(gpuSim.gpuLattice);
-      stopwatch.add("evolution");
+         // Perform second (corrector) step of SDE solver
+         integrator.evolveSecond(gpuSim.gpuLattice);
+         stopwatch.add("evolution");
+      }
       // Update magnetic moments after time evolution step
       momUpdater.update();
       stopwatch.add("moments");
@@ -321,7 +328,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Final measure and print remaining measurements to file
 
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+   if(!gpuSim.adaptiveEnabled())
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);    
    correlation->measure(rstep + nstep + 1);  // TODO

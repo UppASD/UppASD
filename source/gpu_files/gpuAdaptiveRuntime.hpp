@@ -257,6 +257,7 @@ public:
    void integrateHeun(real timeStepSeconds, real* atomDirection,
                       const real* externalCoarseField = nullptr,
                       const real* uniformFftDipoleField = nullptr);
+   void synchronizeAtomicState(real* atomDirection);
    void recordFftMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
    void resetPhaseMetrics() { phaseMetrics_ = {}; }

@@ -947,6 +947,19 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-adaptive-hybrid-solver
       COMMAND adaptive_hybrid_solver_tests)
 
+   # CG-10.5 must be exercised through the ordinary executable and ordinary
+   # inpsd.dat files; focused operator calls are insufficient evidence.
+   set(ADAPTIVE_CG_GPU_TEST_ARGS)
+   if(USE_CUDA OR USE_HIP)
+      list(APPEND ADAPTIVE_CG_GPU_TEST_ARGS
+         --gpu-binary $<TARGET_FILE:${UppASD_EXE}>)
+   endif()
+   add_test(NAME adaptive-cg-production-e2e
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_production_e2e.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>
+         ${ADAPTIVE_CG_GPU_TEST_ARGS})
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle

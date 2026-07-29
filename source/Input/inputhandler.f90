@@ -214,6 +214,72 @@ contains
             case('block_size_z')
                read(ifile,*,iostat=i_err) block_size_z
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('do_adaptive_cg')
+               read(ifile,*,iostat=i_err) adaptive_cg%enabled
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_operator')
+               read(ifile,*,iostat=i_err) adaptive_cg%operator
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_mask_mode')
+               read(ifile,*,iostat=i_err) adaptive_cg%mask_mode
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_selector')
+               read(ifile,*,iostat=i_err) adaptive_cg%selector
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_refine_threshold')
+               read(ifile,*,iostat=i_err) adaptive_cg%refine_threshold
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_coarsen_threshold')
+               read(ifile,*,iostat=i_err) adaptive_cg%coarsen_threshold
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_update_interval')
+               read(ifile,*,iostat=i_err) adaptive_cg%update_interval
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_minimum_dwell_updates')
+               read(ifile,*,iostat=i_err) adaptive_cg%minimum_dwell_updates
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_buffer_blocks')
+               read(ifile,*,iostat=i_err) adaptive_cg%buffer_blocks
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_channel_mode')
+               read(ifile,*,iostat=i_err) adaptive_cg%channel_mode
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_channel_file')
+               read(ifile,'(a)',iostat=i_err) cache
+               adaptive_cg%channel_file=trim(adjustl(cache))
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_reconstruction')
+               read(ifile,*,iostat=i_err) adaptive_cg%reconstruction
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_cone_angle')
+               read(ifile,*,iostat=i_err) adaptive_cg%cone_angle_deg
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_static_mask_file')
+               read(ifile,'(a)',iostat=i_err) cache
+               adaptive_cg%static_mask_file=trim(adjustl(cache))
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_energy_jump_limit')
+               read(ifile,*,iostat=i_err) adaptive_cg%energy_jump_limit_j
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('cg_diagnostics')
+               read(ifile,*,iostat=i_err) adaptive_cg%diagnostics
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
             !------------------------------------------------------------------------
             ! END OF VARIABLES FOR CRYSTAL STRUCTURE
             !------------------------------------------------------------------------

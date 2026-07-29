@@ -289,12 +289,16 @@ contains
       use prn_trajectories
       use HamiltonianActions
       use MetaTypes
+      use AdaptiveCGProduction, only : adaptive_cg_is_enabled, adaptive_cg_cpu_step, &
+         ADAPTIVE_CG_PRODUCTION_OK
 
       implicit none
       logical :: time_dept_flag
       integer :: cgk_flag,cgk_flag_p,cr_flag,spt_flag,ntmp
       integer :: bcgk_flag,cgk_flag_pc
       integer :: scount_pulse, sstep
+      integer :: adaptive_status
+      character(len=512) :: adaptive_diagnostic
       ! Phase flag indicator (true for sd initial phase; false for sd measurement phase)
 
       real(dblprec) :: temprescale, temprescalegrad, totene, totenergy,dummy
@@ -500,6 +504,20 @@ contains
          endif
          call timing(0,'Measurement   ','OF')
          call timing(0,'Hamiltonian   ','ON')
+
+         ! The enabled production CG owner replaces the complete legacy
+         ! atomistic Hamiltonian/integrator step. Measurements above and output
+         ! below consume the same reconstructed emom/emomM state.
+         if (adaptive_cg_is_enabled()) then
+            call adaptive_cg_cpu_step(mstep,emom,mmom,emomM,adaptive_status,adaptive_diagnostic)
+            if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
+               write(*,'(a)') trim(adaptive_diagnostic)
+               error stop 1
+            end if
+            call timing(0,'Hamiltonian   ','OF')
+            mstep=mstep+1
+            cycle
+         end if
 
          ! Calculate spin transfer torque contributions to the local field
          if(stt=='A'.or.stt=='F'.or.stt=='S'.or.do_she=='Y'.or.do_sot=='Y') then

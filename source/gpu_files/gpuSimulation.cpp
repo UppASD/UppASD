@@ -505,6 +505,30 @@ GpuAdaptiveRuntimeInput adaptiveRuntimeInput() {
    r.coarseDirection = FortranData::adaptive_coarse_direction;
    r.coarseField = FortranData::adaptive_coarse_field;
    r.channelMomentSum = FortranData::adaptive_channel_moment_sum;
+   r.kernels.atomMoment = FortranData::adaptive_atom_moment;
+   r.kernels.projectionBlock = FortranData::adaptive_projection_block;
+   r.kernels.projectionWeight = FortranData::adaptive_projection_weight;
+   r.kernels.bonds = FortranData::adaptive_bonds ? *FortranData::adaptive_bonds : 0;
+   r.kernels.bondAtom = FortranData::adaptive_bond_atom;
+   r.kernels.bondMatrix = FortranData::adaptive_bond_matrix;
+   r.kernels.selectorEdges =
+      FortranData::adaptive_selector_edges ? *FortranData::adaptive_selector_edges : 0;
+   r.kernels.selectorEdge = FortranData::adaptive_selector_edge;
+   r.kernels.inverseBlockTranspose = FortranData::adaptive_inverse_block_transpose;
+   r.kernels.exchangeStiffness = FortranData::adaptive_exchange_stiffness;
+   r.kernels.spiralization = FortranData::adaptive_spiralization;
+   r.kernels.anisotropyAxisCount = FortranData::adaptive_anisotropy_axis_count;
+   r.kernels.anisotropyAxis = FortranData::adaptive_anisotropy_axis;
+   r.kernels.anisotropyK1 = FortranData::adaptive_anisotropy_k1;
+   r.kernels.anisotropyK2 = FortranData::adaptive_anisotropy_k2;
+   if(FortranData::adaptive_normalization_floor)
+      r.kernels.normalizationFloor = *FortranData::adaptive_normalization_floor;
+   if(FortranData::adaptive_magnetic_moment_si)
+      r.kernels.magneticMomentSi = *FortranData::adaptive_magnetic_moment_si;
+   if(FortranData::adaptive_gamma_per_ts)
+      r.kernels.gammaPerTs = *FortranData::adaptive_gamma_per_ts;
+   if(FortranData::adaptive_damping)
+      r.kernels.damping = *FortranData::adaptive_damping;
    return r;
 }
 
@@ -647,7 +671,12 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
    // Allocate
    // M1: project the full-run device footprint and abort here (before the first
    // Allocate) if it will not fit. Stored for the release()-time self-check.
-   estimatedDeviceBytes = computeAndCheckDeviceBudget(Flags, SimParam, runIsMC);
+   try {
+      estimatedDeviceBytes = computeAndCheckDeviceBudget(Flags, SimParam, runIsMC);
+   } catch(...) {
+      FortranData::clearAdaptivePointers();
+      throw;
+   }
 
 
 
@@ -750,8 +779,43 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M);}
     if(FortranData::adaptive_geometry_mode) {
-        gpuAdaptiveRuntime.initialize(adaptiveTopologyInput(), adaptiveRuntimeInput(),
-                                      SimParam.N, SimParam.M);
+        try {
+            adaptiveMaskEnabled =
+               FortranData::adaptive_mask_mode && *FortranData::adaptive_mask_mode != 0;
+            adaptiveUpdateInterval = FortranData::adaptive_update_interval ?
+               *FortranData::adaptive_update_interval : 1;
+            if(FortranData::adaptive_refine_threshold)
+               adaptiveSelectorPolicy.refineThreshold =
+                  static_cast<real>(*FortranData::adaptive_refine_threshold);
+            if(FortranData::adaptive_coarsen_threshold)
+               adaptiveSelectorPolicy.coarsenThreshold =
+                  static_cast<real>(*FortranData::adaptive_coarsen_threshold);
+            if(FortranData::adaptive_minimum_dwell)
+               adaptiveSelectorPolicy.minimumDwellUpdates =
+                  *FortranData::adaptive_minimum_dwell;
+            if(FortranData::adaptive_buffer_dilation)
+               adaptiveSelectorPolicy.bufferDilationBlocks =
+                  *FortranData::adaptive_buffer_dilation;
+            if(FortranData::adaptive_reconstruction_scheme &&
+               *FortranData::adaptive_reconstruction_scheme == 2)
+               adaptiveReconstructionPolicy.scheme =
+                  GpuAdaptiveReconstruction::ConstrainedCone;
+            if(FortranData::adaptive_cone_angle_rad)
+               adaptiveReconstructionPolicy.coneAngleRadians =
+                  static_cast<real>(*FortranData::adaptive_cone_angle_rad);
+            gpuAdaptiveRuntime.initialize(adaptiveTopologyInput(), adaptiveRuntimeInput(),
+                                          SimParam.N, SimParam.M);
+            const auto work = gpuAdaptiveRuntime.downloadWorkSnapshot();
+            std::printf("Gpu: AdaptiveCG initial active_atoms=%zu active_blocks=%zu "
+                        "interface_atoms=%zu device_bytes=%zu\n",
+                        work.activeAtoms.size(), work.activeBlocks.size(),
+                        work.interfaceAtoms.size(),
+                        gpuAdaptiveRuntime.allocatedBytes());
+            FortranData::clearAdaptivePointers();
+        } catch(...) {
+            FortranData::clearAdaptivePointers();
+            throw;
+        }
     }
     //e.Allocate( static_cast <long int>(3), N, M);} 
 
@@ -768,6 +832,7 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
 
    // Did we get the memory?
     if(gpuHasNoData()){
+      FortranData::clearAdaptivePointers();
       release();
       // Check for error
       const char* err = GPU_GET_ERROR_STRING(GPU_GET_LAST_ERROR());
@@ -829,7 +894,19 @@ void GpuSimulation::release() {
     isInitiated = false;
     isFreed = true;
     gpuHamiltonian.neighbourListsPrepared = false;
-    if(gpuAdaptiveRuntime.ready()) gpuAdaptiveRuntime.release();
+    if(gpuAdaptiveRuntime.ready()) {
+      const auto work = gpuAdaptiveRuntime.downloadWorkSnapshot();
+      const auto& phase = gpuAdaptiveRuntime.phaseMetrics();
+      std::printf("Gpu: AdaptiveCG final active_atoms=%zu active_blocks=%zu "
+                  "interface_atoms=%zu phases_ms(atom=%.3f coarse=%.3f "
+                  "interface=%.3f selector=%.3f compaction=%.3f integration=%.3f)\n",
+                  work.activeAtoms.size(), work.activeBlocks.size(),
+                  work.interfaceAtoms.size(), phase.atomisticMilliseconds,
+                  phase.coarseMilliseconds, phase.interfaceMilliseconds,
+                  phase.selectorMilliseconds, phase.compactionMilliseconds,
+                  phase.integrationMilliseconds);
+      gpuAdaptiveRuntime.release();
+    }
     gpuHamiltonian.aHam.Free();
          
     gpuHamiltonian.nlist.Free();  
@@ -921,6 +998,24 @@ void GpuSimulation::updateAdaptiveBlockState(const int* blockState, std::size_t 
                static_cast<unsigned long long>(metrics.hostSynchronizations),
                count * sizeof(int), metrics.elapsedMilliseconds,
                metrics.hostWaitMilliseconds, metrics.deviceMilliseconds);
+}
+
+void GpuSimulation::advanceAdaptiveStep(std::size_t step) {
+   if(!gpuAdaptiveRuntime.ready() || !gpuAdaptiveRuntime.kernelsReady())
+      throw std::logic_error("GPU adaptive production step requires a ready CG-10 runtime");
+   gpuAdaptiveRuntime.integrateHeun(
+      static_cast<real>(SimParam.delta_t), gpuLattice.emom.data());
+   gpuAdaptiveRuntime.synchronizeAtomicState(gpuLattice.emom.data());
+   if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&
+      step % adaptiveUpdateInterval == 0) {
+      gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom.data());
+      gpuAdaptiveRuntime.evaluateSelectorScores(gpuLattice.emom.data());
+      gpuAdaptiveRuntime.proposeSelectorState(adaptiveSelectorPolicy);
+      gpuAdaptiveRuntime.publishProposedState(
+         gpuLattice.emom.data(), adaptiveReconstructionPolicy, true);
+      gpuAdaptiveRuntime.synchronizeAtomicState(gpuLattice.emom.data());
+   }
+   ASSERT_GPU(GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()));
 }
 
 void GpuSimulation::copyFromFortran() {

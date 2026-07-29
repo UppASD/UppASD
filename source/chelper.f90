@@ -16,6 +16,7 @@ module Chelper
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
+   use AdaptiveCGProduction, only : adaptive_cg_state, adaptive_cg_is_enabled
 
    use prn_averages,  only : avrg_buff, avrg_step, avrgm2cum, avrgm4cum, avrgmcum, &
         binderc, calc_and_print_cumulant, cumu_buff, cumu_step, do_avrg, do_cumu, do_cumu_proj, do_proj_avrg, do_projch_avrg, &
@@ -235,6 +236,26 @@ module Chelper
 
       subroutine FortranData_clearAdaptiveTopology() bind(C, name="fortrandata_clearadaptivetopology_")
       end subroutine FortranData_clearAdaptiveTopology
+
+      subroutine FortranData_setAdaptiveKernels(atom_moment, projection_block, projection_weight, &
+            bonds, bond_atom, bond_matrix, selector_edges, selector_edge, inverse_block_transpose, &
+            exchange_stiffness, spiralization, anisotropy_axis_count, anisotropy_axis, &
+            anisotropy_k1, anisotropy_k2, normalization_floor, magnetic_moment_si, gamma_per_ts, &
+            damping, adaptive_mask, update_interval, refine_threshold, coarsen_threshold, &
+            minimum_dwell, buffer_dilation, reconstruction_scheme, cone_angle_rad) &
+            bind(C, name="fortrandata_setadaptivekernels_")
+         import :: c_int, c_double
+         real(c_double), intent(inout) :: atom_moment(*), projection_weight(*), bond_matrix(*)
+         real(c_double), intent(inout) :: inverse_block_transpose(*), exchange_stiffness(*)
+         real(c_double), intent(inout) :: spiralization(*), anisotropy_axis(*)
+         real(c_double), intent(inout) :: anisotropy_k1(*), anisotropy_k2(*)
+         real(c_double), intent(inout) :: normalization_floor, magnetic_moment_si, gamma_per_ts, damping
+         real(c_double), intent(inout) :: refine_threshold, coarsen_threshold, cone_angle_rad
+         integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
+         integer(c_int), intent(inout) :: selector_edges, selector_edge(*), anisotropy_axis_count(*)
+         integer(c_int), intent(inout) :: adaptive_mask, update_interval, minimum_dwell
+         integer(c_int), intent(inout) :: buffer_dilation, reconstruction_scheme
+      end subroutine FortranData_setAdaptiveKernels
    end interface
 
 
@@ -692,6 +713,57 @@ contains
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
 
+      ! Feature-off is an explicit null sentinel.  Enabled GPU runs stage the
+      ! complete production topology/runtime/kernel inventory here, before
+      ! GpuSimulation performs memory preflight and copies it to owned storage.
+      call FortranData_clearAdaptiveTopology()
+      if (adaptive_cg_is_enabled() .and. adaptive_cg_state%gpu_requested) then
+         call FortranData_setAdaptiveTopology( &
+            adaptive_cg_state%topology%geometry_mode,adaptive_cg_state%topology%n_atoms, &
+            adaptive_cg_state%topology%n_spatial_blocks,adaptive_cg_state%topology%n_basis, &
+            adaptive_cg_state%topology%n_fft_channels_per_block, &
+            adaptive_cg_state%topology%n_fft_grid_channels, &
+            adaptive_cg_state%topology%n_dynamic_channels,Mensemble, &
+            adaptive_cg_state%gpu_selector_criteria,adaptive_cg_state%topology%repetition_shape, &
+            adaptive_cg_state%topology%block_shape,adaptive_cg_state%topology%block_grid, &
+            adaptive_cg_state%topology%cell_vectors,adaptive_cg_state%topology%block_vectors, &
+            adaptive_cg_state%topology%atom_to_block,adaptive_cg_state%topology%atom_to_basis, &
+            adaptive_cg_state%topology%atom_to_dynamic_channel, &
+            adaptive_cg_state%topology%atom_to_fft_channel, &
+            adaptive_cg_state%topology%atom_to_fft_grid_index, &
+            adaptive_cg_state%topology%basis_to_dynamic_channel, &
+            adaptive_cg_state%topology%basis_to_fft_channel, &
+            adaptive_cg_state%topology%block_atom_count, &
+            adaptive_cg_state%topology%block_atom_offset,adaptive_cg_state%topology%block_atoms, &
+            adaptive_cg_state%topology%block_grid_coordinate, &
+            adaptive_cg_state%topology%block_basis_population, &
+            adaptive_cg_state%topology%block_fft_channel_population, &
+            adaptive_cg_state%topology%block_dynamic_channel_population, &
+            adaptive_cg_state%topology%block_center,adaptive_cg_state%topology%block_volume, &
+            adaptive_cg_state%runtime%hybrid%block_state, &
+            adaptive_cg_state%gpu_pending_state,adaptive_cg_state%gpu_state_age, &
+            adaptive_cg_state%gpu_transition_epoch,adaptive_cg_state%gpu_selector_scores, &
+            adaptive_cg_state%runtime%coarse_resultant_mub,adaptive_cg_state%coarse_direction, &
+            adaptive_cg_state%gpu_coarse_field,adaptive_cg_state%runtime%channel_moment_sum_mub)
+         call FortranData_setAdaptiveKernels( &
+            adaptive_cg_state%atom_moment_mub,adaptive_cg_state%projection%stencil_block, &
+            adaptive_cg_state%projection%shape_weight,adaptive_cg_state%gpu_bonds, &
+            adaptive_cg_state%bond_atom,adaptive_cg_state%bond_matrix_j, &
+            adaptive_cg_state%gpu_selector_edges, &
+            adaptive_cg_state%bond_atom,adaptive_cg_state%tensor%inverse_block_transpose_m1, &
+            adaptive_cg_state%tensor%exchange_stiffness_j_per_m, &
+            adaptive_cg_state%tensor%spiralization_j_per_m2, &
+            adaptive_cg_state%gpu_anisotropy_axis_count,adaptive_cg_state%gpu_anisotropy_axis, &
+            adaptive_cg_state%gpu_anisotropy_k1,adaptive_cg_state%gpu_anisotropy_k2, &
+            adaptive_cg_state%projection%normalization_floor, &
+            adaptive_cg_state%gpu_magnetic_moment_si, &
+            adaptive_cg_state%tensor%channel_gamma_per_t_s, &
+            adaptive_cg_state%tensor%channel_damping,adaptive_cg_state%gpu_adaptive_mask, &
+            adaptive_cg%update_interval,adaptive_cg%refine_threshold, &
+            adaptive_cg%coarsen_threshold,adaptive_cg%minimum_dwell_updates, &
+            adaptive_cg%buffer_blocks,adaptive_cg_state%gpu_reconstruction_scheme, &
+            adaptive_cg_state%reconstruction%cone_angle_rad)
+      endif
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 

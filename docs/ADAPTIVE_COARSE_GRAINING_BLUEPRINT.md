@@ -909,30 +909,50 @@ Recommended ownership:
 
 ### 7.7 Inputs
 
-Final names should follow UppASD conventions, but a candidate input surface is:
+The production text-input reader maps the following keywords to the single
+`adaptive_cg_config_t` instance. Keywords and enum values are
+case-insensitive. Values shown in the Default column are applied before any
+input is read.
 
-```text
-do_adaptive_cg                 Y/N
-cg_operator                    TENSOR/PROJECTED
-cg_mask_mode                   STATIC/ADAPTIVE
-cg_selector                    MAX_ANGLE[, ...]
-cg_refine_threshold            <real>
-cg_coarsen_threshold           <real>
-cg_update_interval             <integer>
-cg_minimum_dwell_updates       <integer>
-cg_buffer_blocks               <integer>
-cg_channel_mode                BASIS/FILE
-cg_channel_file                <filename>
-cg_reconstruction              ALIGNED/CONE
-cg_cone_angle                  <real>
-cg_static_mask_file            <filename>
-cg_energy_jump_limit           <real>
-cg_diagnostics                 <level>
-```
+| Keyword | Type/unit | Default | Allowed values |
+|---|---|---:|---|
+| `do_adaptive_cg` | enum | `N` | `Y`, `N` |
+| `cg_operator` | enum | `TENSOR` | `TENSOR`, `PROJECTED` |
+| `cg_mask_mode` | enum | `STATIC` | `STATIC`, `ADAPTIVE` |
+| `cg_selector` | enum | `MAX_ANGLE` | `MAX_ANGLE` |
+| `cg_refine_threshold` | dimensionless misalignment | `0.25` | finite, 0 through 2 |
+| `cg_coarsen_threshold` | dimensionless misalignment | `0.10` | finite, 0 through refine threshold |
+| `cg_update_interval` | complete SD steps | `1` | positive integer |
+| `cg_minimum_dwell_updates` | selector updates | `0` | nonnegative integer |
+| `cg_buffer_blocks` | block layers | `0` | nonnegative integer |
+| `cg_channel_mode` | enum | `BASIS` | `BASIS`, `FILE` |
+| `cg_channel_file` | path | empty | required for `FILE` |
+| `cg_reconstruction` | enum | `ALIGNED` | `ALIGNED`, `CONE` |
+| `cg_cone_angle` | degrees | `0` | finite, 0 through 90 |
+| `cg_static_mask_file` | path | empty | optional |
+| `cg_energy_jump_limit` | joules | unlimited | finite and nonnegative, or the default |
+| `cg_diagnostics` | integer level | `1` | 0 through 3 |
 
-The existing block-size inputs are reused. Enabling adaptive coarse graining
-must trigger the same uniform/divisible block validation as the supported FFT
-layout, even if the dipole FFT is disabled.
+`block_size_x`, `block_size_y`, and `block_size_z` remain the sole spatial
+partition. They are checked for positive, exact divisibility against
+`ncell`, and absence of partial edge blocks whenever adaptive CG is enabled,
+independently of the dipole-FFT setting.
+
+The static-mask file contains `one_based_block_id FINE|COARSE`, one entry per
+line. Blank lines and text following `#` or `!` are ignored. Duplicate or
+out-of-range block ids and unknown states are errors. Omitted blocks are
+coarse. With no file, the default static mask is all fine; in adaptive mode,
+listed `FINE` entries are hard fine seeds and omissions are initially coarse.
+
+The channel-map file contains
+`one_based_basis_id dynamic_channel_id`. The supported single-channel
+production model accepts channel id `1` and uses `-1` for a nonmagnetic basis
+site. Comments, blank lines, duplicates, omissions, and invalid ids follow
+the same rules as the mask file; omitted entries retain the moment-derived
+`BASIS` mapping. `cg_channel_mode FILE` requires `cg_channel_file`; otherwise
+`cg_channel_file` is ignored. An explicit static-mask file takes precedence
+over the all-fine default. Auxiliary files are not opened at all when
+`do_adaptive_cg=N`.
 
 ### 7.8 Restart and output
 
@@ -1110,10 +1130,14 @@ region without unacceptable energy jumps or loss of the texture.
 ### Phase 4: GPU production path
 
 Deliver device state, compact work lists, block operator kernels, interface
-kernels, selector/compaction workflow, and CPU/GPU parity.
+kernels, selector/compaction workflow, CPU/GPU parity, and the end-to-end
+UppASD input, setup, timestep-dispatch, output, and lifecycle wiring needed to
+use those components in an ordinary run.
 
 **Exit gate:** Accepted physics tests pass on CUDA and HIP where available,
-and a meaningful crossover/speedup is demonstrated.
+a meaningful crossover/speedup is demonstrated, and at least one supported
+static and one supported adaptive input run through the normal UppASD
+executable without test-only construction or direct kernel invocation.
 
 ### Phase 5: Multi-channel production
 
@@ -1736,9 +1760,201 @@ fp64 FFT dipole suite still passes.
 
 ---
 
+### Task CG-10.5: Wire adaptive coarse graining into production UppASD runs
+
+**Dependencies:** CG-02 through CG-10 accepted for the single-channel model
+**Suggested primary:** Sol
+**Suggested review:** Opus/Terra for lifecycle and dispatch; Luna/Sonnet for
+input and end-to-end tests; Human for the exposed capability boundary
+**Risk:** Very high; cross-cutting production integration
+
+#### Prompt
+
+> Turn the accepted single-channel coarse-graining components into an
+> optional end-to-end UppASD feature that can be selected, configured,
+> validated, executed, diagnosed, and cleaned up through an ordinary UppASD
+> input run. Begin with an inventory of the real CPU and GPU simulation
+> entrypoints, input defaults and readers, geometry and Hamiltonian setup
+> order, integrator stages, energy/measurement paths, restart handling, and
+> cleanup. Do not use focused test fixtures or direct operator/kernel calls as
+> substitutes for production wiring.
+>
+> Finalize the candidate input surface in section 7.7 according to existing
+> UppASD naming and parsing conventions. Add one canonical typed
+> configuration with explicit feature-off defaults and map every supported
+> input frontend to it. At minimum, represent enablement, tensor versus
+> projected operator, static versus adaptive mask, selector criteria and
+> thresholds, selector cadence and dwell time, buffer width, channel mapping,
+> reconstruction mode and cone angle, static-mask input, transition
+> energy-jump limit, and diagnostic level. Reuse
+> `block_size_x`, `block_size_y`, and `block_size_z`; do not create a second
+> spatial partition. Specify file formats, indexing, units, defaults, and
+> precedence rules for optional mask and channel-map files.
+>
+> Perform capability validation after the complete input, geometry, magnetic
+> moments, Hamiltonian, and selected solver are known, but before
+> coarse-graining or device allocation. Reject unsupported geometry,
+> nondivisible blocks, partial edge blocks, boundary conditions, solver
+> modes, finite-temperature or stochastic use, Hamiltonian terms, channel
+> models, restart requests, and dipole combinations with a diagnostic naming
+> the offending keyword or capability. The same validation contract must be
+> used by CPU and GPU setup. Feature-off runs must not construct a topology,
+> extract a material, read coarse-graining auxiliary files, stage pointers, or
+> allocate CPU or device runtime state.
+>
+> In production setup, construct `BlockTopology` from the actual UppASD
+> geometry without changing atom or neighbour-list ordering. Build the
+> dynamical-channel map, extract and validate the coarse material descriptor
+> from the active atomistic Hamiltonian, initialize the requested static mask
+> or adaptive selector, and allocate runtime state with a lifetime covering
+> the complete simulation phase. No production coefficient, topology,
+> projection weight, selector edge, or initial state may come from a test
+> fixture. Clearly define ownership and cleanup for every allocatable object
+> and auxiliary input.
+>
+> Connect the CPU adaptive solver to the normal deterministic spin-dynamics
+> driver. Field evaluation, energy accounting, and integration must dispatch
+> through the accepted hybrid ownership contract whenever the feature is
+> enabled. Restriction and reconstruction must update the same moment state
+> consumed by measurements and output. Selector decisions and accepted
+> resolution transitions may occur only at complete-step synchronization
+> points, never inside predictor/corrector stages. Preserve the ordinary
+> atomistic path exactly when disabled, and exercise all-fine, all-coarse,
+> static mixed, and adaptive mixed states through this same production
+> dispatch.
+>
+> Connect the GPU path through the existing Fortran/C staging seam. A
+> production caller must stage the canonical topology, mutable runtime, and
+> complete CG-10 kernel descriptor before GPU memory preflight, keep every
+> staged host array alive for the required setup interval, initialize
+> `GpuAdaptiveRuntime` through the normal `GpuSimulation` lifecycle, and clear
+> the staging pointers on every normal and error exit. Invoke restriction,
+> selector scoring, state proposal/publication, compaction, hybrid-field
+> evaluation, reconstruction, and integration from the real GPU
+> spin-dynamics timestep loop. Do not leave the adaptive runtime as an
+> allocated side object while the ordinary atomistic Hamiltonian and
+> integrator continue to advance all atoms.
+>
+> Preserve the accepted dipole separation: an enabled FFT dipole evaluates
+> the uniformly coarse FFT grid independently of the short-range resolution
+> mask, and its field enters the active atomistic and coarse equations once.
+> Verify the source-moment mapping used by the supported single-channel path
+> and reject unsupported mappings. Do not silently fall back to legacy
+> atomistic short-range work or skip a requested interaction merely because a
+> coarse block is active.
+>
+> Add run-level observability for the resolved configuration, topology and
+> channel counts, capability decisions, initial and evolving resolution
+> counts, accepted and rejected transitions, energy jumps, active degrees of
+> freedom, phase timings, and memory accounting. Until restart serialization
+> is implemented and validated, reject restart input before the first
+> integration step with an explicit message. Ensure final output and cleanup
+> remain valid after zero steps, setup rejection, a rejected transition, and
+> normal completion.
+>
+> Validate the result with executable-level tests that launch the normal
+> UppASD binary and read real input files. Include feature-off baselines,
+> static all-fine/all-coarse/mixed cases, an adaptive texture case, malformed
+> and unsupported inputs, and CPU/GPU parity for supported backends. At least
+> one end-to-end case must prove that short-range Hamiltonian work and active
+> integration are actually reduced; successful allocation or direct calls to
+> `GpuAdaptiveRuntime` are not sufficient. Preserve existing CPU, CUDA, HIP,
+> FFT dipole, and μASD regressions.
+
+#### Checklist
+
+- [x] Final input keyword names, types, units, defaults, and allowed values
+      are documented and implemented.
+- [x] Every supported UppASD input frontend maps to one canonical adaptive-CG
+      configuration, or is rejected with a documented frontend limitation.
+- [x] `do_adaptive_cg=N` is the default and does not read auxiliary CG files,
+      construct topology/material/runtime objects, or stage CPU/GPU pointers.
+- [x] `block_size_x`, `block_size_y`, and `block_size_z` are the sole
+      coarse-dynamics partition and are validated even when FFT dipole is off.
+- [x] Static-mask and channel-map file formats define indexing, comments,
+      duplicate entries, omissions, nonmagnetic sites, and error behavior.
+- [x] Invalid enum values, thresholds, intervals, dwell times, buffer widths,
+      cone angles, and energy limits fail during setup with keyword-specific
+      diagnostics.
+- [x] The capability matrix is enforced before coarse-graining or device
+      allocation for geometry, boundaries, solver, temperature, Hamiltonian,
+      restart, dipole, and channel-model combinations.
+- [x] Production setup constructs `BlockTopology` from actual UppASD geometry
+      while preserving atom and neighbour-list order.
+- [x] Production setup creates the channel map, material tensors, projection
+      data, selector adjacency, mask, and runtime state without test-fixture
+      constants.
+- [x] Extracted material diagnostics and convention/version metadata are
+      checked before an operator is enabled.
+- [x] Every production setup allocation has explicit ownership, cleanup, and
+      failure-unwind coverage.
+- [x] The normal CPU spin-dynamics driver dispatches enabled runs through the
+      accepted static/adaptive hybrid field and energy ownership.
+- [x] CPU transitions occur only between complete integration steps and the
+      resulting atomic/coarse state is the state observed by measurements and
+      output.
+- [x] Production CPU all-fine behavior matches the feature-off atomistic
+      baseline within the established tolerance.
+- [x] Production CPU all-coarse, static mixed, and adaptive mixed inputs each
+      exercise their intended operator and active-work lists.
+- [x] A production caller invokes `FortranData_setAdaptiveTopology` with
+      topology, runtime, and all required CG-10 kernel descriptors before GPU
+      preflight.
+- [x] Staged Fortran arrays remain alive until the GPU has validated and
+      copied them, and `FortranData_clearAdaptiveTopology` is called on normal
+      completion and every setup/error exit.
+- [x] GPU memory preflight includes the exact production adaptive inventory
+      and feature-off inventory remains unchanged.
+- [x] The normal GPU spin-dynamics loop invokes the adaptive restriction,
+      selector, publication, compaction, hybrid evaluation, reconstruction,
+      and integration workflow.
+- [x] An enabled GPU run does not continue evaluating and integrating the
+      complete ordinary atomistic short-range path behind the adaptive path.
+- [ ] CPU/GPU state decisions, fields, per-term energies, transitions, and
+      trajectories agree for executable-level non-threshold-tie fixtures.
+- [ ] Uniform FFT dipole fields enter atomistic, interface, and coarse
+      equations exactly once, with the accepted single-channel source
+      mapping.
+- [x] Monte Carlo, GNEB, spin-lattice, finite-temperature, unsupported
+      multi-channel, and unsupported explicit-device requests fail before the
+      first integration step.
+- [x] Restart is either serialized with all state listed in section 7.8 or
+      explicitly rejected before integration; no partial restart is accepted.
+- [ ] Diagnostics report the resolved configuration, topology/channel counts,
+      state counts, transition reasons and energy jumps, active-DOF reduction,
+      timings, and CPU/device memory.
+- [x] Normal UppASD executable tests cover feature-off, static all-fine,
+      all-coarse, static mixed, and adaptive mixed input files.
+- [ ] Negative executable tests cover malformed auxiliary files and every
+      unsupported capability class exposed by the input surface.
+- [ ] At least one executable CPU case and one available GPU-backend case
+      demonstrate reduced active integration and short-range Hamiltonian work,
+      rather than only successful adaptive allocation.
+- [x] Existing feature-off CPU/GPU, FFT dipole, and μASD regression results
+      remain unchanged within their established tolerances.
+- [ ] User-facing input examples run without test-only setup hooks, direct
+      module calls, or manually staged internal arrays.
+
+**CG-10.5 implementation evidence:** The resolved input and lifecycle contract
+is recorded in `docs/CG-10_5_PRODUCTION_INTEGRATION.md`. Production setup and
+CPU dispatch live in `adaptivecgproduction.f90`, `uppasd.f90`, and
+`sd_driver.f90`; GPU staging and real-loop dispatch live in `chelper.f90`,
+`fortranData.*`, `gpuSimulation.*`, and `gpuSDSimulation.cpp`. The normal
+binary cases under `tests/coarse_graining/e2e` prove CPU active-work
+reduction. CUDA fp64/fp32 production builds and the CUDA regression suite pass
+on the validation host; executable device cases skip with an explicit reason
+when no CUDA device is installed. Boxes requiring measured device
+trajectories/parity, enabled FFT coupling, exhaustive negative fixtures, or
+full timing/energy-jump observability remain open rather than being inferred
+from compilation.
+
+---
+
 ### Task CG-11: Enable validated multi-channel ferri/AFM dynamics
 
-**Dependencies:** CG-03, accepted single-channel CPU/GPU paths  
+**Dependencies:** CG-03 and accepted single-channel CPU/GPU paths; CG-10.5
+before production multi-channel enablement (the controlled CPU reference may
+be developed earlier)
 **Suggested primary:** Human + Opus/Terra physics design; Sol implementation  
 **Suggested review:** Independent human/model physics review  
 **Risk:** Research-grade
@@ -1824,7 +2040,8 @@ enabled.
 
 ### Task CG-13: Release validation, performance, and documentation
 
-**Dependencies:** Each phase independently  
+**Dependencies:** Each phase independently; CG-10.5 before any end-to-end
+UppASD release claim
 **Suggested primary:** Luna/Sonnet for harness/docs; Sol for performance  
 **Required review:** Human  
 **Risk:** Medium

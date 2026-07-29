@@ -9,6 +9,28 @@ module InputDataType
    use Parameters
 
    implicit none
+
+   ! Canonical production input for the optional adaptive coarse-graining
+   ! runtime. Strings are retained until complete setup is known so validation
+   ! can issue keyword-specific diagnostics.
+   type adaptive_cg_config_t
+      character(len=1) :: enabled = 'N'
+      character(len=16) :: operator = 'TENSOR'
+      character(len=16) :: mask_mode = 'STATIC'
+      character(len=32) :: selector = 'MAX_ANGLE'
+      real(dblprec) :: refine_threshold = 0.25_dblprec
+      real(dblprec) :: coarsen_threshold = 0.10_dblprec
+      integer :: update_interval = 1
+      integer :: minimum_dwell_updates = 0
+      integer :: buffer_blocks = 0
+      character(len=16) :: channel_mode = 'BASIS'
+      character(len=256) :: channel_file = ''
+      character(len=16) :: reconstruction = 'ALIGNED'
+      real(dblprec) :: cone_angle_deg = 0.0_dblprec
+      character(len=256) :: static_mask_file = ''
+      real(dblprec) :: energy_jump_limit_j = huge(1.0_dblprec)
+      integer :: diagnostics = 1
+   end type adaptive_cg_config_t
    
    ! Custom type for Hamiltonian input data
    type ham_inp_t

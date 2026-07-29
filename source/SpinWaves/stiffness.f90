@@ -805,7 +805,7 @@ contains
    subroutine extract_coarse_material_from_uppasd(NA,N1,N2,N3,Natom,nHam,mconf, &
          Nchmax,max_no_neigh,max_no_dmneigh,eta_min,eta_max,anumb,aham,nlistsize, &
          nlist,dmlistsize,dmlist,alat,C1,C2,C3,BC1,BC2,BC3,coord,ammom_inp,ncoup,dm_vect, &
-         basis_to_channel,material,status,diagnostic,channel_gamma,channel_damping)
+         basis_to_channel,material,status,diagnostic,channel_gamma,channel_damping,validation_input)
 
       integer, intent(in) :: NA, N1, N2, N3, Natom, nHam, mconf, Nchmax
       integer, intent(in) :: max_no_neigh, max_no_dmneigh, eta_min, eta_max
@@ -820,6 +820,7 @@ contains
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
       real(dblprec), intent(in), optional :: channel_gamma(:), channel_damping(:)
+      type(coarse_lattice_input_type), intent(out), optional :: validation_input
 
       type(coarse_lattice_input_type) :: input
       integer :: i, pair, neighbor, iatom, jatom, iham, countstart
@@ -992,6 +993,7 @@ contains
       end do
 
       call extract_coarse_material(input, material, status, diagnostic)
+      if (status == COARSE_MATERIAL_OK .and. present(validation_input)) validation_input = input
    end subroutine extract_coarse_material_from_uppasd
 
    pure subroutine coarse_wrapped_coordinate_difference(N1,N2,N3,C1,C2,C3, &

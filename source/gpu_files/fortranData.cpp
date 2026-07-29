@@ -97,6 +97,33 @@ real* FortranData::adaptive_coarse_moment = nullptr;
 real* FortranData::adaptive_coarse_direction = nullptr;
 real* FortranData::adaptive_coarse_field = nullptr;
 real* FortranData::adaptive_channel_moment_sum = nullptr;
+real* FortranData::adaptive_atom_moment = nullptr;
+int* FortranData::adaptive_projection_block = nullptr;
+real* FortranData::adaptive_projection_weight = nullptr;
+unsigned int* FortranData::adaptive_bonds = nullptr;
+int* FortranData::adaptive_bond_atom = nullptr;
+real* FortranData::adaptive_bond_matrix = nullptr;
+unsigned int* FortranData::adaptive_selector_edges = nullptr;
+int* FortranData::adaptive_selector_edge = nullptr;
+real* FortranData::adaptive_inverse_block_transpose = nullptr;
+real* FortranData::adaptive_exchange_stiffness = nullptr;
+real* FortranData::adaptive_spiralization = nullptr;
+int* FortranData::adaptive_anisotropy_axis_count = nullptr;
+real* FortranData::adaptive_anisotropy_axis = nullptr;
+real* FortranData::adaptive_anisotropy_k1 = nullptr;
+real* FortranData::adaptive_anisotropy_k2 = nullptr;
+real* FortranData::adaptive_normalization_floor = nullptr;
+real* FortranData::adaptive_magnetic_moment_si = nullptr;
+real* FortranData::adaptive_gamma_per_ts = nullptr;
+real* FortranData::adaptive_damping = nullptr;
+int* FortranData::adaptive_mask_mode = nullptr;
+unsigned int* FortranData::adaptive_update_interval = nullptr;
+real* FortranData::adaptive_refine_threshold = nullptr;
+real* FortranData::adaptive_coarsen_threshold = nullptr;
+unsigned int* FortranData::adaptive_minimum_dwell = nullptr;
+unsigned int* FortranData::adaptive_buffer_dilation = nullptr;
+int* FortranData::adaptive_reconstruction_scheme = nullptr;
+real* FortranData::adaptive_cone_angle_rad = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -508,6 +535,75 @@ void FortranData::clearAdaptivePointers() {
    adaptive_coarse_direction = nullptr;
    adaptive_coarse_field = nullptr;
    adaptive_channel_moment_sum = nullptr;
+   adaptive_atom_moment = nullptr;
+   adaptive_projection_block = nullptr;
+   adaptive_projection_weight = nullptr;
+   adaptive_bonds = nullptr;
+   adaptive_bond_atom = nullptr;
+   adaptive_bond_matrix = nullptr;
+   adaptive_selector_edges = nullptr;
+   adaptive_selector_edge = nullptr;
+   adaptive_inverse_block_transpose = nullptr;
+   adaptive_exchange_stiffness = nullptr;
+   adaptive_spiralization = nullptr;
+   adaptive_anisotropy_axis_count = nullptr;
+   adaptive_anisotropy_axis = nullptr;
+   adaptive_anisotropy_k1 = nullptr;
+   adaptive_anisotropy_k2 = nullptr;
+   adaptive_normalization_floor = nullptr;
+   adaptive_magnetic_moment_si = nullptr;
+   adaptive_gamma_per_ts = nullptr;
+   adaptive_damping = nullptr;
+   adaptive_mask_mode = nullptr;
+   adaptive_update_interval = nullptr;
+   adaptive_refine_threshold = nullptr;
+   adaptive_coarsen_threshold = nullptr;
+   adaptive_minimum_dwell = nullptr;
+   adaptive_buffer_dilation = nullptr;
+   adaptive_reconstruction_scheme = nullptr;
+   adaptive_cone_angle_rad = nullptr;
+}
+
+void FortranData::setAdaptiveKernelPointers(
+   real* atom_moment, int* projection_block, real* projection_weight,
+   unsigned int* bonds, int* bond_atom, real* bond_matrix,
+   unsigned int* selector_edges, int* selector_edge,
+   real* inverse_block_transpose, real* exchange_stiffness,
+   real* spiralization, int* anisotropy_axis_count,
+   real* anisotropy_axis, real* anisotropy_k1, real* anisotropy_k2,
+   real* normalization_floor, real* magnetic_moment_si,
+   real* gamma_per_ts, real* damping, int* mask_mode,
+   unsigned int* update_interval, real* refine_threshold,
+   real* coarsen_threshold, unsigned int* minimum_dwell,
+   unsigned int* buffer_dilation, int* reconstruction_scheme,
+   real* cone_angle_rad) {
+   adaptive_atom_moment = atom_moment;
+   adaptive_projection_block = projection_block;
+   adaptive_projection_weight = projection_weight;
+   adaptive_bonds = bonds;
+   adaptive_bond_atom = bond_atom;
+   adaptive_bond_matrix = bond_matrix;
+   adaptive_selector_edges = selector_edges;
+   adaptive_selector_edge = selector_edge;
+   adaptive_inverse_block_transpose = inverse_block_transpose;
+   adaptive_exchange_stiffness = exchange_stiffness;
+   adaptive_spiralization = spiralization;
+   adaptive_anisotropy_axis_count = anisotropy_axis_count;
+   adaptive_anisotropy_axis = anisotropy_axis;
+   adaptive_anisotropy_k1 = anisotropy_k1;
+   adaptive_anisotropy_k2 = anisotropy_k2;
+   adaptive_normalization_floor = normalization_floor;
+   adaptive_magnetic_moment_si = magnetic_moment_si;
+   adaptive_gamma_per_ts = gamma_per_ts;
+   adaptive_damping = damping;
+   adaptive_mask_mode = mask_mode;
+   adaptive_update_interval = update_interval;
+   adaptive_refine_threshold = refine_threshold;
+   adaptive_coarsen_threshold = coarsen_threshold;
+   adaptive_minimum_dwell = minimum_dwell;
+   adaptive_buffer_dilation = buffer_dilation;
+   adaptive_reconstruction_scheme = reconstruction_scheme;
+   adaptive_cone_angle_rad = cone_angle_rad;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -800,6 +896,29 @@ extern "C" void fortrandata_setadaptivetopology_(
 
 extern "C" void fortrandata_clearadaptivetopology_() {
    FortranData::clearAdaptivePointers();
+}
+
+extern "C" void fortrandata_setadaptivekernels_(
+   real* atom_moment, int* projection_block, real* projection_weight,
+   unsigned int* bonds, int* bond_atom, real* bond_matrix,
+   unsigned int* selector_edges, int* selector_edge,
+   real* inverse_block_transpose, real* exchange_stiffness,
+   real* spiralization, int* anisotropy_axis_count,
+   real* anisotropy_axis, real* anisotropy_k1, real* anisotropy_k2,
+   real* normalization_floor, real* magnetic_moment_si,
+   real* gamma_per_ts, real* damping, int* mask_mode,
+   unsigned int* update_interval, real* refine_threshold,
+   real* coarsen_threshold, unsigned int* minimum_dwell,
+   unsigned int* buffer_dilation, int* reconstruction_scheme,
+   real* cone_angle_rad) {
+   FortranData::setAdaptiveKernelPointers(
+      atom_moment, projection_block, projection_weight, bonds, bond_atom,
+      bond_matrix, selector_edges, selector_edge, inverse_block_transpose,
+      exchange_stiffness, spiralization, anisotropy_axis_count,
+      anisotropy_axis, anisotropy_k1, anisotropy_k2, normalization_floor,
+      magnetic_moment_si, gamma_per_ts, damping, mask_mode, update_interval,
+      refine_threshold, coarsen_threshold, minimum_dwell, buffer_dilation,
+      reconstruction_scheme, cone_angle_rad);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,

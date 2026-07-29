@@ -538,6 +538,22 @@ __global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
          length > kernels.normalizationFloor ? interpolated[xyz] / length : real(0);
 }
 
+__global__ void commitAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
+                                     GpuAdaptiveDeviceRuntime runtime,
+                                     AdaptiveKernelDevice kernels,
+                                     real* atomDirection) {
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = topology.atoms * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t atom = work % topology.atoms;
+   if(runtime.atomisticAtomMask[atom]) return;
+   const std::size_t ensemble = work / topology.atoms;
+   for(int xyz = 0; xyz < 3; ++xyz)
+      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         kernels.ghostDirection[atomVectorIndex(
+            xyz, atom, ensemble, topology.atoms)];
+}
+
 __device__ inline void effectiveAtomDirection(
    const GpuAdaptiveDeviceTopology& topology,
    const GpuAdaptiveDeviceRuntime& runtime,
@@ -1310,7 +1326,11 @@ bool GpuAdaptiveRuntime::validate(const GpuAdaptiveTopologyInput& t,
          !std::isfinite(k.magneticMomentSi) || k.magneticMomentSi <= 0.0 ||
          !std::isfinite(k.gammaPerTs) || k.gammaPerTs <= 0.0 ||
          !std::isfinite(k.damping) || k.damping < 0.0) {
-         diagnostic = "GPU adaptive kernel normalization, moment, gamma, or damping is invalid";
+         char values[256];
+         std::snprintf(values, sizeof(values),
+            "GPU adaptive kernel scalars are invalid (normalization=%g, moment_SI=%g, gamma=%g, damping=%g)",
+            k.normalizationFloor, k.magneticMomentSi, k.gammaPerTs, k.damping);
+         diagnostic = values;
          return false;
       }
       for(std::size_t atom = 0; atom < t.atoms; ++atom) {
@@ -2125,6 +2145,42 @@ void GpuAdaptiveRuntime::integrateHeun(
                       atomDirection, predictorAtom_.data(), predictorCoarse_.data(),
                       initialAtomField_.data(), initialCoarseField_.data(),
                       atomFieldScratch_.data(), predictorCoarseField_.data());
+#endif
+   ASSERT_GPU(GPU_GET_LAST_ERROR());
+   finishPhase(phaseMetrics_.integrationMilliseconds);
+}
+
+void GpuAdaptiveRuntime::synchronizeAtomicState(real* atomDirection) {
+   if(!ready_ || !kernelsReady_ || !atomDirection)
+      throw std::logic_error("GPU adaptive reconstruction requires initialized state");
+   AdaptiveKernelDevice kernels{
+      bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
+      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
+      selectorEdge_.data(), inverseBlockTranspose_.data(),
+      exchangeStiffness_.data(), spiralization_.data(),
+      anisotropyAxisCount_.data(), anisotropyAxis_.data(),
+      anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
+      projectionNorm_.data(), atomFieldScratch_.data(),
+      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+   };
+   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+#if defined(CUDA_V)
+   prolongateAdaptiveGhosts<<<
+      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels);
+   commitAdaptiveGhosts<<<
+      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels, atomDirection);
+#else
+   hipLaunchKernelGGL(
+      prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels);
+   hipLaunchKernelGGL(
+      commitAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels, atomDirection);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
