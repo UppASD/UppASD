@@ -19,6 +19,7 @@ module stiffness
 
    use Constants
    use Profiling
+   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 
    implicit none
 
@@ -46,10 +47,1212 @@ module stiffness
    real(dblprec), dimension(:), allocatable :: Axc_fit_alloy !< Exchange stiffness matrix alloy
    real(dblprec), dimension(:), allocatable :: Dxc_fit_alloy !< Spin wave  stiffness matrix alloy
    real(dblprec), dimension(:), allocatable :: Tc_alloy !< Tc-MFA alloy
+
+   ! Coarse-material extraction status and convention enums.  These values are
+   ! deliberately independent of the legacy stiffness output flags above.
+   integer, parameter :: COARSE_MATERIAL_OK = 0
+   integer, parameter :: COARSE_MATERIAL_INVALID_INPUT = 1
+   integer, parameter :: COARSE_MATERIAL_FIT_FAILED = 2
+   integer, parameter :: COARSE_MATERIAL_VALIDATION_FAILED = 3
+   integer, parameter :: COARSE_MATERIAL_RUNTIME_GATED = 4
+
+   integer, parameter :: COARSE_RUNTIME_SINGLE_FM = 1
+   integer, parameter :: COARSE_RUNTIME_FERRI_AFM = 2
+
+   integer, parameter :: COARSE_DMI_ENERGY_PLUS = 1
+   integer, parameter :: COARSE_FIELD_DERIVATIVE_MINUS = -1
+   integer, parameter :: COARSE_MODE_EXTRACTION_UNVALIDATED = 0
+   integer, parameter :: COARSE_MODE_EXTRACTION_ACOUSTIC_OPTICAL = 1
+   real(dblprec), parameter :: COARSE_MUB_SI = 9.274009994d-24
+
+   !> Directed pair coefficients and convergence controls used by the
+   !> side-effect-light calculation service.  Pair energies are coefficients
+   !> of the CG-01 Hamiltonian before its directed-pair factor 1/2:
+   !>
+   !>   E_J = -1/2 sum K_ij m_i.m_j
+   !>   E_D = +1/2 sum L_ij.(m_i x m_j)
+   !>
+   !> K and L are in joules and displacement_m is Cartesian, in metres.
+   type :: coarse_lattice_input_type
+      integer :: n_basis = 0
+      integer :: n_channels = 0
+      real(dblprec) :: cell_volume_m3 = 0.0_dblprec
+      integer :: fit_first = 1
+      integer :: fit_last = 0
+      integer, allocatable :: basis_to_channel(:)
+      real(dblprec), allocatable :: basis_moment_mub(:)
+      real(dblprec), allocatable :: channel_gamma(:)
+      real(dblprec), allocatable :: channel_damping(:)
+      real(dblprec), allocatable :: eta_inverse_m(:)
+      integer, allocatable :: exchange_source_basis(:)
+      integer, allocatable :: exchange_target_basis(:)
+      real(dblprec), allocatable :: exchange_displacement_m(:,:)
+      real(dblprec), allocatable :: exchange_pair_energy_j(:)
+      integer, allocatable :: dmi_source_basis(:)
+      integer, allocatable :: dmi_target_basis(:)
+      real(dblprec), allocatable :: dmi_displacement_m(:,:)
+      real(dblprec), allocatable :: dmi_pair_energy_j(:,:)
+   end type coarse_lattice_input_type
+
+   !> Raw real-space sums.  No eigenvalue or sublattice-mode reduction is
+   !> applied.  The final index of A and D is the regularization sample.
+   type :: coarse_lattice_sums_type
+      integer :: n_basis = 0
+      integer :: n_channels = 0
+      integer :: n_eta = 0
+      integer :: fit_first = 1
+      integer :: fit_last = 0
+      real(dblprec), allocatable :: eta_inverse_m(:)
+      real(dblprec), allocatable :: basis_local_exchange(:,:)
+      real(dblprec), allocatable :: channel_local_exchange(:,:)
+      real(dblprec), allocatable :: basis_exchange_stiffness(:,:,:,:,:)
+      real(dblprec), allocatable :: channel_exchange_stiffness(:,:,:,:,:)
+      real(dblprec), allocatable :: basis_spiralization(:,:,:,:,:)
+      real(dblprec), allocatable :: channel_spiralization(:,:,:,:,:)
+   end type coarse_lattice_sums_type
+
+   type :: coarse_material_metadata_type
+      character(len=16) :: energy_unit = 'J'
+      character(len=16) :: length_unit = 'm'
+      character(len=16) :: moment_unit = 'muB'
+      character(len=16) :: field_unit = 'T'
+      character(len=24) :: channel_gamma_unit = 's^-1 T^-1'
+      character(len=24) :: channel_damping_unit = 'dimensionless'
+      character(len=24) :: local_exchange_unit = 'J m^-3'
+      character(len=24) :: exchange_stiffness_unit = 'J m^-1'
+      character(len=24) :: spiralization_unit = 'J m^-2'
+      character(len=96) :: exchange_order = &
+         '(space_p,space_q,left_channel,right_channel)'
+      character(len=96) :: spiralization_order = &
+         '(cross_spin_k,space_p,left_channel,right_channel)'
+      character(len=256) :: hamiltonian_convention = &
+         'E_J=-1/2 sum K_ij m_i.m_j; E_D=+1/2 sum L_ij.(m_i x m_j)'
+      character(len=128) :: pair_convention = &
+         'central-cell outgoing directed pairs; reciprocal partners retained'
+      character(len=64) :: regularization = 'exp(-eta*Cartesian_pair_distance)'
+      character(len=32) :: convention_version = 'CG-01-approved-v1'
+      integer :: dmi_energy_sign = COARSE_DMI_ENERGY_PLUS
+      integer :: field_derivative_sign = COARSE_FIELD_DERIVATIVE_MINUS
+      logical :: automatic_moment_sign_inference = .false.
+   end type coarse_material_metadata_type
+
+   type :: coarse_material_diagnostics_type
+      character(len=48) :: fit_method = 'uninitialized'
+      logical :: fit_performed = .false.
+      integer :: fit_first = 0
+      integer :: fit_last = 0
+      integer :: fit_sample_count = 0
+      real(dblprec) :: eta_min_inverse_m = 0.0_dblprec
+      real(dblprec) :: eta_max_inverse_m = 0.0_dblprec
+      real(dblprec) :: exchange_reciprocity_max_j_per_m = 0.0_dblprec
+      real(dblprec) :: regularization_exchange_delta_j_per_m = 0.0_dblprec
+      real(dblprec) :: regularization_dmi_delta_j_per_m2 = 0.0_dblprec
+      real(dblprec), allocatable :: exchange_fit_coeff(:,:,:,:,:)
+      real(dblprec), allocatable :: spiralization_fit_coeff(:,:,:,:,:)
+      real(dblprec), allocatable :: exchange_fit_rms(:,:,:,:)
+      real(dblprec), allocatable :: spiralization_fit_rms(:,:,:,:)
+      logical :: small_q_energy_validated = .false.
+      integer :: small_q_sample_count = 0
+      real(dblprec) :: small_q_max_inverse_m = 0.0_dblprec
+      real(dblprec) :: small_q_max_abs_error_j_per_m3 = 0.0_dblprec
+      real(dblprec) :: small_q_max_scaled_error = 0.0_dblprec
+      real(dblprec), allocatable :: small_q_atomistic_energy_j_per_m3(:)
+      real(dblprec), allocatable :: small_q_continuum_energy_j_per_m3(:)
+      real(dblprec), allocatable :: small_q_abs_error_j_per_m3(:)
+      logical :: channel_dynamics_parameters_validated = .false.
+      integer :: mode_extraction = COARSE_MODE_EXTRACTION_UNVALIDATED
+      logical :: acoustic_mode_extraction_validated = .false.
+      logical :: optical_mode_extraction_validated = .false.
+      character(len=256) :: runtime_gate_reason = &
+         'small-q validation has not been performed'
+   end type coarse_material_diagnostics_type
+
+   !> Typed material result consumed by future coarse operators.  The raw
+   !> member retains every basis/channel regularized sum before fitting.
+   type :: coarse_material_type
+      logical :: ready = .false.
+      integer :: n_basis = 0
+      integer :: n_channels = 0
+      real(dblprec) :: cell_volume_m3 = 0.0_dblprec
+      integer, allocatable :: basis_to_channel(:)
+      real(dblprec), allocatable :: basis_moment_mub(:)
+      real(dblprec), allocatable :: channel_moment_mub(:)
+      real(dblprec), allocatable :: channel_gamma(:)
+      real(dblprec), allocatable :: channel_damping(:)
+      real(dblprec), allocatable :: local_exchange(:,:)
+      real(dblprec), allocatable :: exchange_stiffness(:,:,:,:)
+      real(dblprec), allocatable :: spiralization(:,:,:,:)
+      type(coarse_lattice_sums_type) :: raw
+      type(coarse_material_metadata_type) :: metadata
+      type(coarse_material_diagnostics_type) :: diagnostics
+   end type coarse_material_type
+
+   public :: coarse_lattice_input_type
+   public :: coarse_lattice_sums_type
+   public :: coarse_material_metadata_type
+   public :: coarse_material_diagnostics_type
+   public :: coarse_material_type
+   public :: calculate_coarse_lattice_sums
+   public :: fit_coarse_material
+   public :: extract_coarse_material
+   public :: extract_coarse_material_from_uppasd
+   public :: validate_coarse_material_small_q
+   public :: coarse_material_runtime_status
    public
 
 
 contains
+
+   !---------------------------------------------------------------------------
+   !> Validate the allocation, indexing, units, and convergence controls of a
+   !> typed lattice input.  This routine performs no I/O and changes no module
+   !> state.
+   !---------------------------------------------------------------------------
+   subroutine validate_coarse_lattice_input(input, status, diagnostic)
+      type(coarse_lattice_input_type), intent(in) :: input
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: channel, n_exchange, n_dmi, n_eta
+
+      status = COARSE_MATERIAL_INVALID_INPUT
+      diagnostic = ''
+
+      if (input%n_basis <= 0 .or. input%n_channels <= 0) then
+         diagnostic = 'Coarse-material extraction requires positive basis and channel counts'
+         return
+      end if
+      if (.not. ieee_is_finite(input%cell_volume_m3) .or. &
+          input%cell_volume_m3 <= tiny(input%cell_volume_m3)) then
+         diagnostic = 'Coarse-material extraction requires a finite positive SI cell volume'
+         return
+      end if
+      if (.not. allocated(input%basis_to_channel) .or. &
+          .not. allocated(input%basis_moment_mub) .or. &
+          .not. allocated(input%eta_inverse_m)) then
+         diagnostic = 'Basis map, basis moments, and convergence parameters are mandatory'
+         return
+      end if
+      if (size(input%basis_to_channel) /= input%n_basis .or. &
+          size(input%basis_moment_mub) /= input%n_basis) then
+         diagnostic = 'Basis map and moment arrays must contain exactly n_basis entries'
+         return
+      end if
+      if (any(input%basis_to_channel == 0) .or. &
+          any(input%basis_to_channel < -1) .or. &
+          any(input%basis_to_channel > input%n_channels)) then
+         diagnostic = 'Basis sites must map to a positive dynamical channel, or -1 if nonmagnetic'
+         return
+      end if
+      do channel = 1, input%n_channels
+         if (count(input%basis_to_channel == channel) == 0) then
+            diagnostic = 'Dynamical channel ids must be contiguous and nonempty'
+            return
+         end if
+      end do
+      if (.not. all(ieee_is_finite(input%basis_moment_mub)) .or. &
+          any(input%basis_moment_mub < 0.0_dblprec)) then
+         diagnostic = 'Basis moment magnitudes must be finite and nonnegative in muB'
+         return
+      end if
+      if (any(input%basis_moment_mub <= 0.0_dblprec .and. &
+              input%basis_to_channel > 0)) then
+         diagnostic = 'Every magnetic dynamical-channel basis site requires a positive moment magnitude'
+         return
+      end if
+      if (allocated(input%channel_gamma)) then
+         if (size(input%channel_gamma) /= input%n_channels .or. &
+             .not. all(ieee_is_finite(input%channel_gamma))) then
+            diagnostic = 'Channel gyromagnetic factors must be finite and have n_channels entries'
+            return
+         end if
+      end if
+      if (allocated(input%channel_damping)) then
+         if (size(input%channel_damping) /= input%n_channels .or. &
+             .not. all(ieee_is_finite(input%channel_damping))) then
+            diagnostic = 'Channel damping must be finite and have n_channels entries'
+            return
+         end if
+      end if
+
+      n_eta = size(input%eta_inverse_m)
+      if (n_eta <= 0 .or. .not. all(ieee_is_finite(input%eta_inverse_m)) .or. &
+          any(input%eta_inverse_m < 0.0_dblprec)) then
+         diagnostic = 'At least one finite nonnegative regularization eta is required'
+         return
+      end if
+      if (input%fit_first < 1 .or. input%fit_last < input%fit_first .or. &
+          input%fit_last > n_eta) then
+         diagnostic = 'The convergence fit range must lie inside eta_inverse_m'
+         return
+      end if
+
+      if (.not. allocated(input%exchange_source_basis) .or. &
+          .not. allocated(input%exchange_target_basis) .or. &
+          .not. allocated(input%exchange_displacement_m) .or. &
+          .not. allocated(input%exchange_pair_energy_j)) then
+         diagnostic = 'The exchange directed-pair table must be allocated, including for zero pairs'
+         return
+      end if
+      n_exchange = size(input%exchange_source_basis)
+      if (size(input%exchange_target_basis) /= n_exchange .or. &
+          size(input%exchange_displacement_m,1) /= 3 .or. &
+          size(input%exchange_displacement_m,2) /= n_exchange .or. &
+          size(input%exchange_pair_energy_j) /= n_exchange) then
+         diagnostic = 'Exchange directed-pair table extents are inconsistent'
+         return
+      end if
+      if (n_exchange > 0) then
+         if (any(input%exchange_source_basis < 1) .or. &
+             any(input%exchange_source_basis > input%n_basis) .or. &
+             any(input%exchange_target_basis < 1) .or. &
+             any(input%exchange_target_basis > input%n_basis)) then
+            diagnostic = 'Exchange pair basis indices lie outside 1:n_basis'
+            return
+         end if
+         if (.not. all(ieee_is_finite(input%exchange_displacement_m)) .or. &
+             .not. all(ieee_is_finite(input%exchange_pair_energy_j))) then
+            diagnostic = 'Exchange pair displacements and energies must be finite SI values'
+            return
+         end if
+      end if
+
+      if (.not. allocated(input%dmi_source_basis) .or. &
+          .not. allocated(input%dmi_target_basis) .or. &
+          .not. allocated(input%dmi_displacement_m) .or. &
+          .not. allocated(input%dmi_pair_energy_j)) then
+         diagnostic = 'The DMI directed-pair table must be allocated, including for zero pairs'
+         return
+      end if
+      n_dmi = size(input%dmi_source_basis)
+      if (size(input%dmi_target_basis) /= n_dmi .or. &
+          size(input%dmi_displacement_m,1) /= 3 .or. &
+          size(input%dmi_displacement_m,2) /= n_dmi .or. &
+          size(input%dmi_pair_energy_j,1) /= 3 .or. &
+          size(input%dmi_pair_energy_j,2) /= n_dmi) then
+         diagnostic = 'DMI directed-pair table extents are inconsistent'
+         return
+      end if
+      if (n_dmi > 0) then
+         if (any(input%dmi_source_basis < 1) .or. &
+             any(input%dmi_source_basis > input%n_basis) .or. &
+             any(input%dmi_target_basis < 1) .or. &
+             any(input%dmi_target_basis > input%n_basis)) then
+            diagnostic = 'DMI pair basis indices lie outside 1:n_basis'
+            return
+         end if
+         if (.not. all(ieee_is_finite(input%dmi_displacement_m)) .or. &
+             .not. all(ieee_is_finite(input%dmi_pair_energy_j))) then
+            diagnostic = 'DMI pair displacements and energies must be finite SI values'
+            return
+         end if
+      end if
+
+      status = COARSE_MATERIAL_OK
+      diagnostic = ''
+   end subroutine validate_coarse_lattice_input
+
+   !---------------------------------------------------------------------------
+   !> Calculate raw, regularized real-space lattice sums in Cartesian SI units.
+   !>
+   !> For directed exchange coefficient K_ij and DMI coefficient L_ij,
+   !>
+   !> A_pq^(ab) = (1/4V) sum_(i in a,j in b) K_ij r_p r_q
+   !> D_kp^(ab) = (1/2V) sum_(i in a,j in b) L_ij,k r_p .
+   !>
+   !> The factors follow directly from the CG-01 directed-pair Hamiltonian.
+   !> No file unit, eigenproblem, fitting routine, or module-global result is
+   !> touched.
+   !---------------------------------------------------------------------------
+   subroutine calculate_coarse_lattice_sums(input, sums, status, diagnostic)
+      type(coarse_lattice_input_type), intent(in) :: input
+      type(coarse_lattice_sums_type), intent(out) :: sums
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: pair, eta_index, p, q, k
+      integer :: left_basis, right_basis, left_channel, right_channel
+      real(dblprec) :: distance_m, weight, volume
+      real(dblprec), allocatable :: basis_local_directed(:,:)
+      real(dblprec), allocatable :: channel_local_directed(:,:)
+
+      call validate_coarse_lattice_input(input, status, diagnostic)
+      if (status /= COARSE_MATERIAL_OK) return
+
+      sums%n_basis = input%n_basis
+      sums%n_channels = input%n_channels
+      sums%n_eta = size(input%eta_inverse_m)
+      sums%fit_first = input%fit_first
+      sums%fit_last = input%fit_last
+      allocate(sums%eta_inverse_m(sums%n_eta))
+      allocate(sums%basis_local_exchange(input%n_basis,input%n_basis))
+      allocate(sums%channel_local_exchange(input%n_channels,input%n_channels))
+      allocate(sums%basis_exchange_stiffness(3,3,input%n_basis,input%n_basis,sums%n_eta))
+      allocate(sums%channel_exchange_stiffness(3,3,input%n_channels,input%n_channels,sums%n_eta))
+      allocate(sums%basis_spiralization(3,3,input%n_basis,input%n_basis,sums%n_eta))
+      allocate(sums%channel_spiralization(3,3,input%n_channels,input%n_channels,sums%n_eta))
+      allocate(basis_local_directed(input%n_basis,input%n_basis))
+      allocate(channel_local_directed(input%n_channels,input%n_channels))
+
+      sums%eta_inverse_m = input%eta_inverse_m
+      sums%basis_local_exchange = 0.0_dblprec
+      sums%channel_local_exchange = 0.0_dblprec
+      sums%basis_exchange_stiffness = 0.0_dblprec
+      sums%channel_exchange_stiffness = 0.0_dblprec
+      sums%basis_spiralization = 0.0_dblprec
+      sums%channel_spiralization = 0.0_dblprec
+      basis_local_directed = 0.0_dblprec
+      channel_local_directed = 0.0_dblprec
+      volume = input%cell_volume_m3
+
+      do pair = 1, size(input%exchange_source_basis)
+         left_basis = input%exchange_source_basis(pair)
+         right_basis = input%exchange_target_basis(pair)
+         left_channel = input%basis_to_channel(left_basis)
+         right_channel = input%basis_to_channel(right_basis)
+         if (left_basis /= right_basis) then
+            basis_local_directed(left_basis,right_basis) = &
+               basis_local_directed(left_basis,right_basis) - &
+               0.5_dblprec * input%exchange_pair_energy_j(pair) / volume
+         end if
+         if (left_channel > 0 .and. right_channel > 0 .and. &
+             left_channel /= right_channel) then
+            channel_local_directed(left_channel,right_channel) = &
+               channel_local_directed(left_channel,right_channel) - &
+               0.5_dblprec * input%exchange_pair_energy_j(pair) / volume
+         end if
+         distance_m = sqrt(sum(input%exchange_displacement_m(:,pair)**2))
+         do eta_index = 1, sums%n_eta
+            weight = exp(-input%eta_inverse_m(eta_index) * distance_m)
+            do p = 1, 3
+               do q = 1, 3
+                  sums%basis_exchange_stiffness(p,q,left_basis,right_basis,eta_index) = &
+                     sums%basis_exchange_stiffness(p,q,left_basis,right_basis,eta_index) + &
+                     0.25_dblprec * input%exchange_pair_energy_j(pair) * &
+                     input%exchange_displacement_m(p,pair) * &
+                     input%exchange_displacement_m(q,pair) * weight / volume
+                  if (left_channel > 0 .and. right_channel > 0) then
+                     sums%channel_exchange_stiffness(p,q,left_channel,right_channel,eta_index) = &
+                        sums%channel_exchange_stiffness(p,q,left_channel,right_channel,eta_index) + &
+                        0.25_dblprec * input%exchange_pair_energy_j(pair) * &
+                        input%exchange_displacement_m(p,pair) * &
+                        input%exchange_displacement_m(q,pair) * weight / volume
+                  end if
+               end do
+            end do
+         end do
+      end do
+
+      do left_basis = 1, input%n_basis
+         do right_basis = left_basis + 1, input%n_basis
+            sums%basis_local_exchange(left_basis,right_basis) = &
+               basis_local_directed(left_basis,right_basis) + &
+               basis_local_directed(right_basis,left_basis)
+            sums%basis_local_exchange(right_basis,left_basis) = &
+               sums%basis_local_exchange(left_basis,right_basis)
+         end do
+      end do
+      do left_channel = 1, input%n_channels
+         do right_channel = left_channel + 1, input%n_channels
+            sums%channel_local_exchange(left_channel,right_channel) = &
+               channel_local_directed(left_channel,right_channel) + &
+               channel_local_directed(right_channel,left_channel)
+            sums%channel_local_exchange(right_channel,left_channel) = &
+               sums%channel_local_exchange(left_channel,right_channel)
+         end do
+      end do
+
+      do pair = 1, size(input%dmi_source_basis)
+         left_basis = input%dmi_source_basis(pair)
+         right_basis = input%dmi_target_basis(pair)
+         left_channel = input%basis_to_channel(left_basis)
+         right_channel = input%basis_to_channel(right_basis)
+         distance_m = sqrt(sum(input%dmi_displacement_m(:,pair)**2))
+         do eta_index = 1, sums%n_eta
+            weight = exp(-input%eta_inverse_m(eta_index) * distance_m)
+            do k = 1, 3
+               do p = 1, 3
+                  sums%basis_spiralization(k,p,left_basis,right_basis,eta_index) = &
+                     sums%basis_spiralization(k,p,left_basis,right_basis,eta_index) + &
+                     0.5_dblprec * input%dmi_pair_energy_j(k,pair) * &
+                     input%dmi_displacement_m(p,pair) * weight / volume
+                  if (left_channel > 0 .and. right_channel > 0) then
+                     sums%channel_spiralization(k,p,left_channel,right_channel,eta_index) = &
+                        sums%channel_spiralization(k,p,left_channel,right_channel,eta_index) + &
+                        0.5_dblprec * input%dmi_pair_energy_j(k,pair) * &
+                        input%dmi_displacement_m(p,pair) * weight / volume
+                  end if
+               end do
+            end do
+         end do
+      end do
+
+      status = COARSE_MATERIAL_OK
+      diagnostic = ''
+   end subroutine calculate_coarse_lattice_sums
+
+   !---------------------------------------------------------------------------
+   !> Fit one regularized lattice-sum series with a quadratic least-squares
+   !> extrapolation to eta=0.  Scaling eta before forming the normal equations
+   !> avoids powers of SI inverse metres in the solve.
+   !---------------------------------------------------------------------------
+   subroutine fit_regularization_series(x, y, coefficient, rms, status)
+      real(dblprec), intent(in) :: x(:), y(:)
+      real(dblprec), intent(out) :: coefficient(3)
+      real(dblprec), intent(out) :: rms
+      integer, intent(out) :: status
+
+      integer :: i, row, col, solve_status
+      real(dblprec) :: xscale, z, prediction
+      real(dblprec) :: normal(3,3), rhs(3), scaled_coefficient(3)
+
+      coefficient = 0.0_dblprec
+      rms = 0.0_dblprec
+      status = COARSE_MATERIAL_FIT_FAILED
+      if (size(x) /= size(y) .or. size(x) < 3) return
+
+      xscale = maxval(abs(x))
+      if (xscale <= tiny(xscale)) return
+      normal = 0.0_dblprec
+      rhs = 0.0_dblprec
+      do i = 1, size(x)
+         z = x(i) / xscale
+         do row = 1, 3
+            rhs(row) = rhs(row) + y(i) * z**(row-1)
+            do col = 1, 3
+               normal(row,col) = normal(row,col) + z**(row+col-2)
+            end do
+         end do
+      end do
+      call solve_dense_3x3(normal, rhs, scaled_coefficient, solve_status)
+      if (solve_status /= COARSE_MATERIAL_OK) return
+
+      coefficient(1) = scaled_coefficient(1)
+      coefficient(2) = scaled_coefficient(2) / xscale
+      coefficient(3) = scaled_coefficient(3) / (xscale*xscale)
+      do i = 1, size(x)
+         prediction = coefficient(1) + coefficient(2)*x(i) + coefficient(3)*x(i)*x(i)
+         rms = rms + (prediction-y(i))**2
+      end do
+      rms = sqrt(rms / real(size(x),dblprec))
+      status = COARSE_MATERIAL_OK
+   end subroutine fit_regularization_series
+
+   subroutine solve_dense_3x3(matrix, rhs, solution, status)
+      real(dblprec), intent(in) :: matrix(3,3), rhs(3)
+      real(dblprec), intent(out) :: solution(3)
+      integer, intent(out) :: status
+
+      integer :: column, row, pivot
+      real(dblprec) :: augmented(3,4), row_copy(4), scale, tolerance
+
+      augmented(:,1:3) = matrix
+      augmented(:,4) = rhs
+      solution = 0.0_dblprec
+      scale = maxval(abs(matrix))
+      tolerance = 128.0_dblprec * epsilon(scale) * max(1.0_dblprec,scale)
+      do column = 1, 3
+         pivot = column - 1 + maxloc(abs(augmented(column:3,column)),dim=1)
+         if (abs(augmented(pivot,column)) <= tolerance) then
+            status = COARSE_MATERIAL_FIT_FAILED
+            return
+         end if
+         if (pivot /= column) then
+            row_copy = augmented(column,:)
+            augmented(column,:) = augmented(pivot,:)
+            augmented(pivot,:) = row_copy
+         end if
+         augmented(column,:) = augmented(column,:) / augmented(column,column)
+         do row = 1, 3
+            if (row /= column) then
+               augmented(row,:) = augmented(row,:) - &
+                  augmented(row,column) * augmented(column,:)
+            end if
+         end do
+      end do
+      solution = augmented(:,4)
+      status = COARSE_MATERIAL_OK
+   end subroutine solve_dense_3x3
+
+   !---------------------------------------------------------------------------
+   !> Convert raw uncollapsed lattice sums into a typed coarse material.
+   !> Fitting is deliberately separate from calculation so callers can inspect
+   !> every eta sample or apply another reviewed extrapolation.
+   !---------------------------------------------------------------------------
+   subroutine fit_coarse_material(input, sums, material, status, diagnostic)
+      type(coarse_lattice_input_type), intent(in) :: input
+      type(coarse_lattice_sums_type), intent(in) :: sums
+      type(coarse_material_type), intent(out) :: material
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: p, q, left_channel, right_channel, basis
+      integer :: fit_status, input_status, nfit, zero_location(1), zero_index
+      real(dblprec) :: coefficient(3), rms, zero_tolerance
+      real(dblprec) :: reciprocity_error
+      logical :: use_fit
+
+      status = COARSE_MATERIAL_INVALID_INPUT
+      diagnostic = ''
+      call validate_coarse_lattice_input(input, input_status, diagnostic)
+      if (input_status /= COARSE_MATERIAL_OK) return
+      if (sums%n_basis /= input%n_basis .or. sums%n_channels /= input%n_channels .or. &
+          sums%n_eta /= size(input%eta_inverse_m)) then
+         diagnostic = 'Raw lattice sums do not match the typed extraction input'
+         return
+      end if
+      if (.not. allocated(sums%eta_inverse_m) .or. &
+          .not. allocated(sums%basis_local_exchange) .or. &
+          .not. allocated(sums%channel_local_exchange) .or. &
+          .not. allocated(sums%basis_exchange_stiffness) .or. &
+          .not. allocated(sums%channel_exchange_stiffness) .or. &
+          .not. allocated(sums%basis_spiralization) .or. &
+          .not. allocated(sums%channel_spiralization)) then
+         diagnostic = 'Raw lattice sums are incomplete'
+         return
+      end if
+      if (size(sums%eta_inverse_m) /= sums%n_eta .or. &
+          any(shape(sums%basis_local_exchange) /= (/input%n_basis,input%n_basis/)) .or. &
+          any(shape(sums%channel_local_exchange) /= (/input%n_channels,input%n_channels/)) .or. &
+          any(shape(sums%basis_exchange_stiffness) /= &
+             (/3,3,input%n_basis,input%n_basis,sums%n_eta/)) .or. &
+          any(shape(sums%channel_exchange_stiffness) /= &
+             (/3,3,input%n_channels,input%n_channels,sums%n_eta/)) .or. &
+          any(shape(sums%basis_spiralization) /= &
+             (/3,3,input%n_basis,input%n_basis,sums%n_eta/)) .or. &
+          any(shape(sums%channel_spiralization) /= &
+             (/3,3,input%n_channels,input%n_channels,sums%n_eta/))) then
+         diagnostic = 'Raw lattice-sum array extents are inconsistent'
+         return
+      end if
+      if (sums%fit_first < 1 .or. sums%fit_last > sums%n_eta .or. &
+          sums%fit_last < sums%fit_first) then
+         diagnostic = 'Raw lattice sums contain an invalid convergence fit range'
+         return
+      end if
+
+      nfit = sums%fit_last - sums%fit_first + 1
+      use_fit = nfit >= 3
+      zero_location = minloc(abs(sums%eta_inverse_m))
+      zero_index = zero_location(1)
+      zero_tolerance = 64.0_dblprec * epsilon(1.0_dblprec) * &
+         max(1.0_dblprec,maxval(abs(sums%eta_inverse_m)))
+      if (.not. use_fit .and. abs(sums%eta_inverse_m(zero_index)) > zero_tolerance) then
+         diagnostic = 'Fewer than three fit samples require an explicit eta=0 lattice sum'
+         status = COARSE_MATERIAL_FIT_FAILED
+         return
+      end if
+
+      material%n_basis = input%n_basis
+      material%n_channels = input%n_channels
+      material%cell_volume_m3 = input%cell_volume_m3
+      allocate(material%basis_to_channel(input%n_basis))
+      allocate(material%basis_moment_mub(input%n_basis))
+      allocate(material%channel_moment_mub(input%n_channels))
+      allocate(material%channel_gamma(input%n_channels))
+      allocate(material%channel_damping(input%n_channels))
+      allocate(material%local_exchange(input%n_channels,input%n_channels))
+      allocate(material%exchange_stiffness(3,3,input%n_channels,input%n_channels))
+      allocate(material%spiralization(3,3,input%n_channels,input%n_channels))
+      material%basis_to_channel = input%basis_to_channel
+      material%basis_moment_mub = input%basis_moment_mub
+      material%channel_moment_mub = 0.0_dblprec
+      do basis = 1, input%n_basis
+         if (input%basis_to_channel(basis) > 0) then
+            material%channel_moment_mub(input%basis_to_channel(basis)) = &
+               material%channel_moment_mub(input%basis_to_channel(basis)) + &
+               input%basis_moment_mub(basis)
+         end if
+      end do
+      material%channel_gamma = 0.0_dblprec
+      material%channel_damping = 0.0_dblprec
+      if (allocated(input%channel_gamma)) material%channel_gamma = input%channel_gamma
+      if (allocated(input%channel_damping)) material%channel_damping = input%channel_damping
+      material%diagnostics%channel_dynamics_parameters_validated = &
+         allocated(input%channel_gamma) .and. allocated(input%channel_damping)
+      if (material%diagnostics%channel_dynamics_parameters_validated) then
+         material%diagnostics%channel_dynamics_parameters_validated = &
+            all(input%channel_gamma > 0.0_dblprec) .and. &
+            all(input%channel_damping >= 0.0_dblprec)
+      end if
+      material%local_exchange = sums%channel_local_exchange
+      material%exchange_stiffness = 0.0_dblprec
+      material%spiralization = 0.0_dblprec
+      material%raw = sums
+
+      allocate(material%diagnostics%exchange_fit_coeff(3,3,3,input%n_channels,input%n_channels))
+      allocate(material%diagnostics%spiralization_fit_coeff(3,3,3,input%n_channels,input%n_channels))
+      allocate(material%diagnostics%exchange_fit_rms(3,3,input%n_channels,input%n_channels))
+      allocate(material%diagnostics%spiralization_fit_rms(3,3,input%n_channels,input%n_channels))
+      material%diagnostics%exchange_fit_coeff = 0.0_dblprec
+      material%diagnostics%spiralization_fit_coeff = 0.0_dblprec
+      material%diagnostics%exchange_fit_rms = 0.0_dblprec
+      material%diagnostics%spiralization_fit_rms = 0.0_dblprec
+      material%diagnostics%fit_first = sums%fit_first
+      material%diagnostics%fit_last = sums%fit_last
+      material%diagnostics%fit_sample_count = nfit
+      material%diagnostics%eta_min_inverse_m = minval( &
+         sums%eta_inverse_m(sums%fit_first:sums%fit_last))
+      material%diagnostics%eta_max_inverse_m = maxval( &
+         sums%eta_inverse_m(sums%fit_first:sums%fit_last))
+
+      do left_channel = 1, input%n_channels
+         do right_channel = 1, input%n_channels
+            do p = 1, 3
+               do q = 1, 3
+                  if (use_fit) then
+                     call fit_regularization_series( &
+                        sums%eta_inverse_m(sums%fit_first:sums%fit_last), &
+                        sums%channel_exchange_stiffness(p,q,left_channel,right_channel, &
+                           sums%fit_first:sums%fit_last), coefficient, rms, fit_status)
+                     if (fit_status /= COARSE_MATERIAL_OK) then
+                        diagnostic = 'Quadratic exchange regularization fit is singular'
+                        status = COARSE_MATERIAL_FIT_FAILED
+                        return
+                     end if
+                  else
+                     coefficient = 0.0_dblprec
+                     coefficient(1) = sums%channel_exchange_stiffness( &
+                        p,q,left_channel,right_channel,zero_index)
+                     rms = 0.0_dblprec
+                  end if
+                  material%exchange_stiffness(p,q,left_channel,right_channel) = coefficient(1)
+                  material%diagnostics%exchange_fit_coeff(:,p,q,left_channel,right_channel) = coefficient
+                  material%diagnostics%exchange_fit_rms(p,q,left_channel,right_channel) = rms
+
+                  if (use_fit) then
+                     call fit_regularization_series( &
+                        sums%eta_inverse_m(sums%fit_first:sums%fit_last), &
+                        sums%channel_spiralization(p,q,left_channel,right_channel, &
+                           sums%fit_first:sums%fit_last), coefficient, rms, fit_status)
+                     if (fit_status /= COARSE_MATERIAL_OK) then
+                        diagnostic = 'Quadratic DMI regularization fit is singular'
+                        status = COARSE_MATERIAL_FIT_FAILED
+                        return
+                     end if
+                  else
+                     coefficient = 0.0_dblprec
+                     coefficient(1) = sums%channel_spiralization( &
+                        p,q,left_channel,right_channel,zero_index)
+                     rms = 0.0_dblprec
+                  end if
+                  material%spiralization(p,q,left_channel,right_channel) = coefficient(1)
+                  material%diagnostics%spiralization_fit_coeff(:,p,q,left_channel,right_channel) = coefficient
+                  material%diagnostics%spiralization_fit_rms(p,q,left_channel,right_channel) = rms
+               end do
+            end do
+         end do
+      end do
+
+      material%diagnostics%fit_performed = use_fit
+      if (use_fit) then
+         material%diagnostics%fit_method = 'quadratic least squares in eta'
+      else
+         material%diagnostics%fit_method = 'direct eta=0 lattice sum'
+      end if
+      material%diagnostics%regularization_exchange_delta_j_per_m = &
+         maxval(abs(material%exchange_stiffness - &
+         sums%channel_exchange_stiffness(:,:,:,:,zero_index)))
+      material%diagnostics%regularization_dmi_delta_j_per_m2 = &
+         maxval(abs(material%spiralization - &
+         sums%channel_spiralization(:,:,:,:,zero_index)))
+
+      reciprocity_error = 0.0_dblprec
+      do left_channel = 1, input%n_channels
+         do right_channel = 1, input%n_channels
+            do p = 1, 3
+               do q = 1, 3
+                  reciprocity_error = max(reciprocity_error, abs( &
+                     material%exchange_stiffness(p,q,left_channel,right_channel) - &
+                     material%exchange_stiffness(q,p,right_channel,left_channel)))
+               end do
+            end do
+         end do
+      end do
+      material%diagnostics%exchange_reciprocity_max_j_per_m = reciprocity_error
+      if (input%n_channels > 1) then
+         material%diagnostics%runtime_gate_reason = &
+            'ferri/AFM runtime is gated: acoustic and optical mode extraction is unvalidated'
+      else
+         material%diagnostics%runtime_gate_reason = &
+            'single-channel runtime requires a passing direct small-q energy validation'
+      end if
+      material%ready = .true.
+      status = COARSE_MATERIAL_OK
+      diagnostic = ''
+   end subroutine fit_coarse_material
+
+   !> Convenience composition of the independent calculation and fitting APIs.
+   subroutine extract_coarse_material(input, material, status, diagnostic)
+      type(coarse_lattice_input_type), intent(in) :: input
+      type(coarse_material_type), intent(out) :: material
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      type(coarse_lattice_sums_type) :: sums
+
+      call calculate_coarse_lattice_sums(input, sums, status, diagnostic)
+      if (status /= COARSE_MATERIAL_OK) return
+      call fit_coarse_material(input, sums, material, status, diagnostic)
+   end subroutine extract_coarse_material
+
+   !---------------------------------------------------------------------------
+   !> Side-effect-light adapter from the ordered UppASD Hamiltonian arrays to
+   !> the typed SI extraction service.  It deliberately does not infer a
+   !> ferrimagnetic/AFM channel map from signed input moments.
+   !---------------------------------------------------------------------------
+   subroutine extract_coarse_material_from_uppasd(NA,N1,N2,N3,Natom,nHam,mconf, &
+         Nchmax,max_no_neigh,max_no_dmneigh,eta_min,eta_max,anumb,aham,nlistsize, &
+         nlist,dmlistsize,dmlist,alat,C1,C2,C3,BC1,BC2,BC3,coord,ammom_inp,ncoup,dm_vect, &
+         basis_to_channel,material,status,diagnostic,channel_gamma,channel_damping)
+
+      integer, intent(in) :: NA, N1, N2, N3, Natom, nHam, mconf, Nchmax
+      integer, intent(in) :: max_no_neigh, max_no_dmneigh, eta_min, eta_max
+      integer, intent(in) :: anumb(Natom), aham(Natom), nlistsize(nHam)
+      integer, intent(in) :: nlist(max_no_neigh,Natom), dmlistsize(nHam)
+      integer, intent(in) :: dmlist(max_no_dmneigh,Natom)
+      integer, intent(in) :: basis_to_channel(NA)
+      real(dblprec), intent(in) :: alat, C1(3), C2(3), C3(3), coord(3,Natom)
+      real(dblprec), intent(in) :: ammom_inp(:,:,:), ncoup(:,:,:,:), dm_vect(:,:,:)
+      character(len=1), intent(in) :: BC1, BC2, BC3
+      type(coarse_material_type), intent(out) :: material
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      real(dblprec), intent(in), optional :: channel_gamma(:), channel_damping(:)
+
+      type(coarse_lattice_input_type) :: input
+      integer :: i, pair, neighbor, iatom, jatom, iham, countstart
+      integer :: n_exchange, n_dmi, n_channels, eta_index
+      real(dblprec) :: cell_matrix(3,3), displacement(3)
+      real(dblprec) :: moment_i, moment_j
+
+      status = COARSE_MATERIAL_INVALID_INPUT
+      diagnostic = ''
+      if (NA <= 0 .or. Nchmax <= 0 .or. Natom /= NA*N1*N2*N3 .or. nHam <= 0) then
+         diagnostic = 'UppASD coarse extraction requires a regular replicated cell'
+         return
+      end if
+      if (Natom > 1 .and. NA == Natom) then
+         diagnostic = 'Typed coarse extraction rejects EXPLICIT_DEVICE geometry with NA=Natom'
+         return
+      end if
+      if (.not. ieee_is_finite(alat) .or. alat <= 0.0_dblprec .or. &
+          .not. all(ieee_is_finite(C1)) .or. .not. all(ieee_is_finite(C2)) .or. &
+          .not. all(ieee_is_finite(C3)) .or. .not. all(ieee_is_finite(coord))) then
+         diagnostic = 'UppASD coarse extraction requires finite SI geometry and positive alat'
+         return
+      end if
+      if (mconf < 1 .or. mconf > size(ammom_inp,3) .or. &
+          size(ammom_inp,1) < NA .or. size(ammom_inp,2) < 1) then
+         diagnostic = 'UppASD moment configuration is outside ammom_inp'
+         return
+      end if
+      if (size(ncoup,1) < 1 .or. size(ncoup,2) < max_no_neigh .or. &
+          size(ncoup,3) < nHam .or. size(ncoup,4) < mconf .or. &
+          size(dm_vect,1) < 3 .or. size(dm_vect,2) < max_no_dmneigh .or. &
+          size(dm_vect,3) < nHam) then
+         diagnostic = 'UppASD Hamiltonian array extents do not match the neighbour tables'
+         return
+      end if
+      if (any(nlistsize < 0) .or. any(nlistsize > max_no_neigh) .or. &
+          any(dmlistsize < 0) .or. any(dmlistsize > max_no_dmneigh)) then
+         diagnostic = 'UppASD neighbour-list sizes lie outside their allocated extents'
+         return
+      end if
+      if (eta_max < 0 .or. eta_min < 0 .or. eta_min > eta_max) then
+         diagnostic = 'UppASD stiffness eta_min:eta_max is invalid'
+         return
+      end if
+      if (abs(mub-COARSE_MUB_SI) > 1.0d-8*COARSE_MUB_SI) then
+         diagnostic = 'Typed coarse extraction requires physical SI constants, not reduced units'
+         return
+      end if
+      n_channels = maxval(basis_to_channel)
+      if (n_channels <= 0 .or. any(basis_to_channel == 0) .or. &
+          any(basis_to_channel < -1)) then
+         diagnostic = 'An explicit basis-to-channel map is required; use -1 only for nonmagnetic sites'
+         return
+      end if
+      if (present(channel_gamma)) then
+         if (size(channel_gamma) /= n_channels) then
+            diagnostic = 'channel_gamma must have max(basis_to_channel) entries'
+            return
+         end if
+      end if
+      if (present(channel_damping)) then
+         if (size(channel_damping) /= n_channels) then
+            diagnostic = 'channel_damping must have max(basis_to_channel) entries'
+            return
+         end if
+      end if
+
+      countstart = (N1/2)*NA + (N2/2)*N1*NA + (N3/2)*N2*N1*NA
+      do i = 1, NA
+         iatom = countstart + i
+         if (iatom < 1 .or. iatom > Natom .or. anumb(iatom) /= i) then
+            diagnostic = 'Central-cell atom ordering is not the regular basis-fast UppASD layout'
+            return
+         end if
+         if (aham(iatom) < 1 .or. aham(iatom) > nHam) then
+            diagnostic = 'Central-cell Hamiltonian lookup lies outside 1:nHam'
+            return
+         end if
+      end do
+
+      n_exchange = 0
+      n_dmi = 0
+      do i = 1, NA
+         iham = aham(countstart+i)
+         n_exchange = n_exchange + nlistsize(iham)
+         n_dmi = n_dmi + dmlistsize(iham)
+      end do
+
+      input%n_basis = NA
+      input%n_channels = n_channels
+      cell_matrix(:,1) = alat*C1
+      cell_matrix(:,2) = alat*C2
+      cell_matrix(:,3) = alat*C3
+      input%cell_volume_m3 = abs(determinant_3x3(cell_matrix))
+      input%fit_first = eta_min + 1
+      input%fit_last = eta_max + 1
+      allocate(input%basis_to_channel(NA), input%basis_moment_mub(NA))
+      allocate(input%channel_gamma(n_channels), input%channel_damping(n_channels))
+      allocate(input%eta_inverse_m(eta_max+1))
+      allocate(input%exchange_source_basis(n_exchange))
+      allocate(input%exchange_target_basis(n_exchange))
+      allocate(input%exchange_displacement_m(3,n_exchange))
+      allocate(input%exchange_pair_energy_j(n_exchange))
+      allocate(input%dmi_source_basis(n_dmi))
+      allocate(input%dmi_target_basis(n_dmi))
+      allocate(input%dmi_displacement_m(3,n_dmi))
+      allocate(input%dmi_pair_energy_j(3,n_dmi))
+      input%basis_to_channel = basis_to_channel
+      input%basis_moment_mub = abs(ammom_inp(1:NA,1,mconf))
+      input%channel_gamma = 0.0_dblprec
+      input%channel_damping = 0.0_dblprec
+      if (present(channel_gamma)) input%channel_gamma = channel_gamma
+      if (present(channel_damping)) input%channel_damping = channel_damping
+      do eta_index = 1, eta_max + 1
+         input%eta_inverse_m(eta_index) = 0.10_dblprec * real(eta_index-1,dblprec) / alat
+      end do
+
+      pair = 0
+      do i = 1, NA
+         iatom = countstart + i
+         iham = aham(iatom)
+         moment_i = abs(ammom_inp(i,1,mconf))
+         do neighbor = 1, nlistsize(iham)
+            jatom = nlist(neighbor,iatom)
+            if (jatom < 1 .or. jatom > Natom) then
+               diagnostic = 'Exchange neighbor index lies outside 1:Natom'
+               return
+            end if
+            if (anumb(jatom) < 1 .or. anumb(jatom) > NA) then
+               diagnostic = 'Exchange neighbor basis index lies outside 1:NA'
+               return
+            end if
+            call coarse_wrapped_coordinate_difference(N1,N2,N3,C1,C2,C3,BC1,BC2,BC3, &
+               coord(:,jatom),coord(:,iatom),displacement)
+            moment_j = abs(ammom_inp(anumb(jatom),1,mconf))
+            pair = pair + 1
+            input%exchange_source_basis(pair) = i
+            input%exchange_target_basis(pair) = anumb(jatom)
+            input%exchange_displacement_m(:,pair) = alat*displacement
+            input%exchange_pair_energy_j(pair) = COARSE_MUB_SI * &
+               ncoup(1,neighbor,iham,mconf) * moment_i * moment_j
+         end do
+      end do
+
+      pair = 0
+      do i = 1, NA
+         iatom = countstart + i
+         iham = aham(iatom)
+         moment_i = abs(ammom_inp(i,1,mconf))
+         do neighbor = 1, dmlistsize(iham)
+            jatom = dmlist(neighbor,iatom)
+            if (jatom < 1 .or. jatom > Natom) then
+               diagnostic = 'DMI neighbor index lies outside 1:Natom'
+               return
+            end if
+            if (anumb(jatom) < 1 .or. anumb(jatom) > NA) then
+               diagnostic = 'DMI neighbor basis index lies outside 1:NA'
+               return
+            end if
+            call coarse_wrapped_coordinate_difference(N1,N2,N3,C1,C2,C3,BC1,BC2,BC3, &
+               coord(:,jatom),coord(:,iatom),displacement)
+            moment_j = abs(ammom_inp(anumb(jatom),1,mconf))
+            pair = pair + 1
+            input%dmi_source_basis(pair) = i
+            input%dmi_target_basis(pair) = anumb(jatom)
+            input%dmi_displacement_m(:,pair) = alat*displacement
+            input%dmi_pair_energy_j(:,pair) = COARSE_MUB_SI * &
+               dm_vect(:,neighbor,iham) * moment_i * moment_j
+         end do
+      end do
+
+      call extract_coarse_material(input, material, status, diagnostic)
+   end subroutine extract_coarse_material_from_uppasd
+
+   pure subroutine coarse_wrapped_coordinate_difference(N1,N2,N3,C1,C2,C3, &
+         BC1,BC2,BC3,target_coordinate,source_coordinate,difference)
+      integer, intent(in) :: N1, N2, N3
+      real(dblprec), intent(in) :: C1(3), C2(3), C3(3)
+      character(len=1), intent(in) :: BC1, BC2, BC3
+      real(dblprec), intent(in) :: target_coordinate(3), source_coordinate(3)
+      real(dblprec), intent(out) :: difference(3)
+
+      integer :: x, y, z, xmin, xmax, ymin, ymax, zmin, zmax
+      real(dblprec) :: original(3), candidate(3)
+
+      original = target_coordinate-source_coordinate
+      difference = original
+      xmin = 0
+      xmax = 0
+      ymin = 0
+      ymax = 0
+      zmin = 0
+      zmax = 0
+      if (BC1 == 'P') then
+         xmin = -1
+         xmax = 1
+      end if
+      if (BC2 == 'P') then
+         ymin = -1
+         ymax = 1
+      end if
+      if (BC3 == 'P') then
+         zmin = -1
+         zmax = 1
+      end if
+      do z = zmin, zmax
+         do y = ymin, ymax
+            do x = xmin, xmax
+               candidate = original + real(x*N1,dblprec)*C1 + &
+                  real(y*N2,dblprec)*C2 + real(z*N3,dblprec)*C3
+               if (sum(candidate*candidate) < sum(difference*difference)) &
+                  difference = candidate
+            end do
+         end do
+      end do
+   end subroutine coarse_wrapped_coordinate_difference
+
+   !---------------------------------------------------------------------------
+   !> Compare the fitted tensor model with direct atomistic planar-spiral
+   !> energies for caller-supplied small Cartesian q vectors.
+   !>
+   !> channel_phase fixes the q=0 phase of each channel for each sample;
+   !> phases 0 and pi therefore cover acoustic and controlled optical fixtures.
+   !> Passing these energy checks does not claim that dynamical acoustic and
+   !> optical eigenmodes have been extracted.
+   !---------------------------------------------------------------------------
+   subroutine validate_coarse_material_small_q(input, material, q_inverse_m, &
+         spiral_normal, channel_phase, absolute_tolerance_j_per_m3, &
+         relative_tolerance, status, diagnostic)
+      type(coarse_lattice_input_type), intent(in) :: input
+      type(coarse_material_type), intent(inout) :: material
+      real(dblprec), intent(in) :: q_inverse_m(:,:)
+      real(dblprec), intent(in) :: spiral_normal(:,:)
+      real(dblprec), intent(in) :: channel_phase(:,:)
+      real(dblprec), intent(in) :: absolute_tolerance_j_per_m3
+      real(dblprec), intent(in) :: relative_tolerance
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: sample, pair, p, q, k, left_channel, right_channel
+      integer :: n_samples, input_status
+      real(dblprec) :: phase_zero, phase, exact_energy, continuum_energy
+      real(dblprec) :: normal_norm, error, scale, allowed, scaled_error
+      logical :: all_pass
+
+      status = COARSE_MATERIAL_INVALID_INPUT
+      diagnostic = ''
+      call validate_coarse_lattice_input(input, input_status, diagnostic)
+      if (input_status /= COARSE_MATERIAL_OK) return
+      if (.not. material%ready .or. material%n_basis /= input%n_basis .or. &
+          material%n_channels /= input%n_channels) then
+         diagnostic = 'Small-q validation requires a matching ready coarse material'
+         return
+      end if
+      if (size(q_inverse_m,1) /= 3) then
+         diagnostic = 'Small-q vectors must have shape (3,n_samples)'
+         return
+      end if
+      n_samples = size(q_inverse_m,2)
+      if (n_samples <= 0 .or. size(spiral_normal,1) /= 3 .or. &
+          size(spiral_normal,2) /= n_samples .or. &
+          size(channel_phase,1) /= input%n_channels .or. &
+          size(channel_phase,2) /= n_samples) then
+         diagnostic = 'Small-q normals and channel phases do not match the sample count'
+         return
+      end if
+      if (.not. all(ieee_is_finite(q_inverse_m)) .or. &
+          .not. all(ieee_is_finite(spiral_normal)) .or. &
+          .not. all(ieee_is_finite(channel_phase)) .or. &
+          absolute_tolerance_j_per_m3 < 0.0_dblprec .or. relative_tolerance < 0.0_dblprec) then
+         diagnostic = 'Small-q validation inputs and tolerances must be finite and nonnegative'
+         return
+      end if
+
+      if (allocated(material%diagnostics%small_q_atomistic_energy_j_per_m3)) &
+         deallocate(material%diagnostics%small_q_atomistic_energy_j_per_m3)
+      if (allocated(material%diagnostics%small_q_continuum_energy_j_per_m3)) &
+         deallocate(material%diagnostics%small_q_continuum_energy_j_per_m3)
+      if (allocated(material%diagnostics%small_q_abs_error_j_per_m3)) &
+         deallocate(material%diagnostics%small_q_abs_error_j_per_m3)
+      allocate(material%diagnostics%small_q_atomistic_energy_j_per_m3(n_samples))
+      allocate(material%diagnostics%small_q_continuum_energy_j_per_m3(n_samples))
+      allocate(material%diagnostics%small_q_abs_error_j_per_m3(n_samples))
+      material%diagnostics%small_q_atomistic_energy_j_per_m3 = 0.0_dblprec
+      material%diagnostics%small_q_continuum_energy_j_per_m3 = 0.0_dblprec
+      material%diagnostics%small_q_abs_error_j_per_m3 = 0.0_dblprec
+      material%diagnostics%small_q_sample_count = n_samples
+      material%diagnostics%small_q_max_inverse_m = 0.0_dblprec
+      material%diagnostics%small_q_max_abs_error_j_per_m3 = 0.0_dblprec
+      material%diagnostics%small_q_max_scaled_error = 0.0_dblprec
+      all_pass = .true.
+
+      do sample = 1, n_samples
+         normal_norm = sqrt(sum(spiral_normal(:,sample)**2))
+         if (abs(normal_norm-1.0_dblprec) > 1.0d-10) then
+            diagnostic = 'Every small-q spiral normal must be a Cartesian unit vector'
+            material%diagnostics%small_q_energy_validated = .false.
+            status = COARSE_MATERIAL_INVALID_INPUT
+            return
+         end if
+         exact_energy = 0.0_dblprec
+         do pair = 1, size(input%exchange_source_basis)
+            left_channel = input%basis_to_channel(input%exchange_source_basis(pair))
+            right_channel = input%basis_to_channel(input%exchange_target_basis(pair))
+            if (left_channel < 1 .or. right_channel < 1) cycle
+            phase_zero = channel_phase(right_channel,sample) - &
+               channel_phase(left_channel,sample)
+            phase = phase_zero + dot_product(q_inverse_m(:,sample), &
+               input%exchange_displacement_m(:,pair))
+            exact_energy = exact_energy + 0.5_dblprec * &
+               input%exchange_pair_energy_j(pair) * &
+               (cos(phase_zero)-cos(phase)) / input%cell_volume_m3
+         end do
+         do pair = 1, size(input%dmi_source_basis)
+            left_channel = input%basis_to_channel(input%dmi_source_basis(pair))
+            right_channel = input%basis_to_channel(input%dmi_target_basis(pair))
+            if (left_channel < 1 .or. right_channel < 1) cycle
+            phase_zero = channel_phase(right_channel,sample) - &
+               channel_phase(left_channel,sample)
+            phase = phase_zero + dot_product(q_inverse_m(:,sample), &
+               input%dmi_displacement_m(:,pair))
+            exact_energy = exact_energy + 0.5_dblprec * &
+               dot_product(input%dmi_pair_energy_j(:,pair),spiral_normal(:,sample)) * &
+               (sin(phase)-sin(phase_zero)) / input%cell_volume_m3
+         end do
+
+         continuum_energy = 0.0_dblprec
+         do left_channel = 1, input%n_channels
+            do right_channel = 1, input%n_channels
+               phase_zero = channel_phase(right_channel,sample) - &
+                  channel_phase(left_channel,sample)
+               do p = 1, 3
+                  do q = 1, 3
+                     continuum_energy = continuum_energy + &
+                        material%exchange_stiffness(p,q,left_channel,right_channel) * &
+                        q_inverse_m(p,sample) * q_inverse_m(q,sample) * cos(phase_zero)
+                  end do
+                  do k = 1, 3
+                     continuum_energy = continuum_energy + &
+                        material%spiralization(k,p,left_channel,right_channel) * &
+                        spiral_normal(k,sample) * q_inverse_m(p,sample) * cos(phase_zero)
+                  end do
+               end do
+            end do
+         end do
+
+         error = abs(exact_energy-continuum_energy)
+         scale = max(abs(exact_energy),abs(continuum_energy))
+         allowed = absolute_tolerance_j_per_m3 + relative_tolerance*scale
+         scaled_error = error / max(allowed,tiny(allowed))
+         all_pass = all_pass .and. error <= allowed
+         material%diagnostics%small_q_atomistic_energy_j_per_m3(sample) = exact_energy
+         material%diagnostics%small_q_continuum_energy_j_per_m3(sample) = continuum_energy
+         material%diagnostics%small_q_abs_error_j_per_m3(sample) = error
+         material%diagnostics%small_q_max_inverse_m = max( &
+            material%diagnostics%small_q_max_inverse_m, &
+            sqrt(sum(q_inverse_m(:,sample)**2)))
+         material%diagnostics%small_q_max_abs_error_j_per_m3 = max( &
+            material%diagnostics%small_q_max_abs_error_j_per_m3,error)
+         material%diagnostics%small_q_max_scaled_error = max( &
+            material%diagnostics%small_q_max_scaled_error,scaled_error)
+      end do
+
+      material%diagnostics%small_q_energy_validated = all_pass
+      if (all_pass) then
+         if (material%n_channels == 1) then
+            material%diagnostics%runtime_gate_reason = ''
+         else
+            material%diagnostics%runtime_gate_reason = &
+               'small-q energies pass, but ferri/AFM acoustic and optical mode extraction remains unvalidated'
+         end if
+         status = COARSE_MATERIAL_OK
+         diagnostic = ''
+      else
+         material%diagnostics%runtime_gate_reason = &
+            'direct small-q atomistic and continuum energies disagree'
+         status = COARSE_MATERIAL_VALIDATION_FAILED
+         diagnostic = material%diagnostics%runtime_gate_reason
+      end if
+   end subroutine validate_coarse_material_small_q
+
+   !---------------------------------------------------------------------------
+   !> Explicit runtime capability gate.  CG-03 intentionally has no operation
+   !> that marks acoustic/optical extraction as validated; that belongs to the
+   !> later reviewed multi-channel task.
+   !---------------------------------------------------------------------------
+   subroutine coarse_material_runtime_status(material, requested_runtime, status, diagnostic)
+      type(coarse_material_type), intent(in) :: material
+      integer, intent(in) :: requested_runtime
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      status = COARSE_MATERIAL_RUNTIME_GATED
+      diagnostic = ''
+      if (.not. material%ready) then
+         diagnostic = 'Coarse material is not ready'
+         return
+      end if
+      select case (requested_runtime)
+      case (COARSE_RUNTIME_SINGLE_FM)
+         if (material%n_channels /= 1) then
+            diagnostic = 'Single-FM runtime requires exactly one dynamical channel'
+         else if (.not. material%diagnostics%channel_dynamics_parameters_validated) then
+            diagnostic = 'Single-FM runtime requires positive channel gamma and nonnegative damping'
+         else if (.not. material%diagnostics%small_q_energy_validated) then
+            diagnostic = 'Single-FM runtime requires direct small-q atomistic energy validation'
+         else
+            status = COARSE_MATERIAL_OK
+            diagnostic = ''
+         end if
+      case (COARSE_RUNTIME_FERRI_AFM)
+         if (material%n_channels < 2) then
+            diagnostic = 'Ferri/AFM runtime requires at least two explicit dynamical channels'
+         else if (material%diagnostics%mode_extraction /= &
+                  COARSE_MODE_EXTRACTION_ACOUSTIC_OPTICAL .or. &
+                  .not. material%diagnostics%acoustic_mode_extraction_validated .or. &
+                  .not. material%diagnostics%optical_mode_extraction_validated) then
+            diagnostic = 'Ferri/AFM runtime is gated until acoustic and optical mode extraction is validated'
+         else
+            status = COARSE_MATERIAL_OK
+            diagnostic = ''
+         end if
+      case default
+         diagnostic = 'Unknown coarse-material runtime request'
+      end select
+   end subroutine coarse_material_runtime_status
+
+   pure real(dblprec) function determinant_3x3(matrix) result(determinant)
+      real(dblprec), intent(in) :: matrix(3,3)
+
+      determinant = matrix(1,1) * (matrix(2,2)*matrix(3,3)-matrix(2,3)*matrix(3,2)) - &
+         matrix(1,2) * (matrix(2,1)*matrix(3,3)-matrix(2,3)*matrix(3,1)) + &
+         matrix(1,3) * (matrix(2,1)*matrix(3,2)-matrix(2,2)*matrix(3,1))
+   end function determinant_3x3
 
    !---------------------------------------------------------------------------
    !> @brief

@@ -877,6 +877,15 @@ if(BUILD_TESTING)
       Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_topology_tests)
    add_test(NAME coarse-graining-block-topology COMMAND block_topology_tests)
 
+   # CG-03 material extraction fixtures exercise the production stiffness
+   # module while keeping all calculation and validation I/O inside the test.
+   add_executable(stiffness_material_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_stiffness_material.f90)
+   set_target_properties(stiffness_material_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/stiffness_material_tests)
+   target_link_libraries(stiffness_material_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-stiffness-material COMMAND stiffness_material_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle

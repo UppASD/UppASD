@@ -1342,19 +1342,29 @@ four CPU and all eight CUDA dipole tests pass unchanged.
 
 #### Checklist
 
-- [ ] Existing stiffness output remains available.
-- [ ] Pure calculation API has no mandatory file output.
-- [ ] Raw channel matrices/tensors are exposed.
-- [ ] Units and tensor ordering are self-describing.
-- [ ] Long-range regularization convergence is reported.
-- [ ] Analytic FM stiffness test passes.
-- [ ] Anisotropic tensor test passes.
-- [ ] DMI sign/handedness test passes.
-- [ ] Small-\(q\) atomistic energy fit agrees.
-- [ ] Nonorthogonal geometry test passes.
-- [ ] Multi-basis matrices are not silently reduced to one eigenvalue.
-- [ ] Unsupported AFM/ferri consumption fails explicitly.
-- [ ] Human signs off signs, prefactors, and units.
+- [x] Existing stiffness output remains available.
+- [x] Pure calculation API has no mandatory file output.
+- [x] Raw channel matrices/tensors are exposed.
+- [x] Units and tensor ordering are self-describing.
+- [x] Long-range regularization convergence is reported.
+- [x] Analytic FM stiffness test passes.
+- [x] Anisotropic tensor test passes.
+- [x] DMI sign/handedness test passes.
+- [x] Small-\(q\) atomistic energy fit agrees.
+- [x] Nonorthogonal geometry test passes.
+- [x] Multi-basis matrices are not silently reduced to one eigenvalue.
+- [x] Unsupported AFM/ferri consumption fails explicitly.
+- [x] Human signs off signs, prefactors, and units.
+
+**CG-03 evidence:** `source/SpinWaves/stiffness.f90` provides typed,
+side-effect-light SI lattice-sum, fitting, validation, and runtime-gate APIs
+while leaving the legacy stiffness output calculations unchanged.
+`tests/coarse_graining/test_stiffness_material.f90` covers analytic
+nearest-neighbour and anisotropic exchange, DMI handedness, direct small-\(q\)
+spiral energies, skew geometry, regularization diagnostics, and uncollapsed
+two-basis channel tensors.  The focused test passes with GNU Fortran, the
+module and fixture compile with Intel Fortran, all configured CPU tests pass,
+and human review approved the signs, prefactors, units, and conventions.
 
 ---
 
